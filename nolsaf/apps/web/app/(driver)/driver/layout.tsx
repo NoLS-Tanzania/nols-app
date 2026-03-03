@@ -7,11 +7,78 @@ import DriverSiteHeader from "@/components/DriverSiteHeader";
 import DriverFooter from "@/components/DriverFooter";
 import DriverSidebar from "@/components/DriverSidebar";
 import LayoutFrame from "@/components/LayoutFrame";
-import { Clock, ShieldX, CheckCircle2, AlertTriangle, RefreshCw } from "lucide-react";
+import { Clock, ShieldX, CheckCircle2, AlertTriangle, RefreshCw, MessageSquare, ArrowRight, Edit3 } from "lucide-react";
 
 type KycStatus = 'PENDING_KYC' | 'APPROVED_KYC' | 'REJECTED_KYC' | null;
 
-function PendingApprovalScreen() {
+function PendingApprovalScreen({ kycNote }: { kycNote: string | null }) {
+  const hasNote = !!kycNote;
+
+  if (hasNote) {
+    // Admin has requested additional information / corrections
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4"
+        style={{ background: "linear-gradient(135deg, #0e2a7a 0%, #0a5c82 45%, #02665e 100%)" }}>
+        <div className="max-w-md w-full">
+          {/* Card */}
+          <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-orange-500 to-amber-500 px-6 py-5">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
+                  <MessageSquare className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black text-white/60 uppercase tracking-[0.12em]">Action Required</p>
+                  <h1 className="text-lg font-extrabold text-white leading-tight">Update Your Application</h1>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Admin note box */}
+              <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3.5">
+                <div className="flex items-center gap-2 mb-2">
+                  <AlertTriangle className="w-4 h-4 text-orange-500 flex-shrink-0" />
+                  <span className="text-xs font-black text-orange-700 uppercase tracking-wide">Message from NoLSAF Team</span>
+                </div>
+                <p className="text-sm text-orange-900 leading-relaxed">{kycNote}</p>
+              </div>
+
+              {/* What to do */}
+              <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">What to do</p>
+                <ul className="space-y-1.5 text-xs text-slate-600">
+                  <li className="flex items-start gap-2"><span className="mt-1 w-1.5 h-1.5 rounded-full bg-[#02665e] flex-shrink-0" />Read the message above carefully</li>
+                  <li className="flex items-start gap-2"><span className="mt-1 w-1.5 h-1.5 rounded-full bg-[#02665e] flex-shrink-0" />Click the button below to update your profile</li>
+                  <li className="flex items-start gap-2"><span className="mt-1 w-1.5 h-1.5 rounded-full bg-[#02665e] flex-shrink-0" />Re-submit for review once corrections are made</li>
+                </ul>
+              </div>
+
+              {/* CTA */}
+              <a
+                href="/account/onboard/driver"
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm text-white no-underline transition-all shadow-md hover:shadow-lg animate-pulse hover:animate-none"
+                style={{ background: "linear-gradient(135deg, #0e2a7a, #02665e)" }}
+              >
+                <Edit3 className="w-4 h-4" />
+                Update My Application
+                <ArrowRight className="w-4 h-4" />
+              </a>
+
+              <div className="text-center">
+                <p className="text-xs text-slate-400">
+                  Questions? <a href="mailto:support@nolsaf.com" className="text-[#02665e] hover:underline font-medium">support@nolsaf.com</a>
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Normal pending — waiting for admin review
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-amber-50/30 flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-white rounded-2xl shadow-lg border border-amber-200/60 overflow-hidden">
@@ -40,7 +107,7 @@ function PendingApprovalScreen() {
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
             <p className="text-sm text-amber-800 font-medium mb-1">What happens next?</p>
             <p className="text-xs text-amber-700 leading-relaxed">
-              Our team will verify your documents and details within <strong>1–2 business days</strong>. 
+              Our team will verify your documents and details within <strong>1–2 business days</strong>.
               You'll be notified by SMS once your account is approved and you can start receiving trip requests.
             </p>
           </div>
@@ -105,6 +172,7 @@ function RejectedScreen() {
 export default function DriverLayout({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [kycStatus, setKycStatus] = useState<KycStatus | 'loading'>('loading');
+  const [kycNote, setKycNote] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -114,6 +182,7 @@ export default function DriverLayout({ children }: { children: ReactNode }) {
         const json = await r.json().catch(() => null);
         const me = json?.data ?? json;
         setKycStatus((me?.kycStatus as KycStatus) ?? null);
+        setKycNote(me?.kycNote ?? null);
       } catch {
         setKycStatus(null);
       }
@@ -139,8 +208,8 @@ export default function DriverLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  // Pending KYC — driver must wait for admin approval
-  if (kycStatus === 'PENDING_KYC') return <PendingApprovalScreen />;
+  // Pending KYC — driver must wait for admin approval (or action required if note present)
+  if (kycStatus === 'PENDING_KYC') return <PendingApprovalScreen kycNote={kycNote} />;
 
   // Rejected — application was denied
   if (kycStatus === 'REJECTED_KYC') return <RejectedScreen />;

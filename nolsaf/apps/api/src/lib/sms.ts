@@ -2,7 +2,7 @@
  * SMS service — Africa's Talking (primary) → Twilio (fallback) → console (dev)
  *
  * Required env vars for Africa's Talking:
- *   AFRICASTALKING_USERNAME   — your AT username (use "sandbox" for testing)
+ *   AFRICASTALKING_USERNAME   — your AT account username
  *   AFRICASTALKING_API_KEY    — your AT API key (from africastalking.com dashboard)
  *   AFRICASTALKING_SENDER_ID  — (optional) shortcode / alphanumeric sender, e.g. "NoLSAF"
  *
@@ -33,10 +33,23 @@ export interface SmsResult {
 
 // ─── Phone normalisation ──────────────────────────────────────────────────────
 function normaliseTo255(raw: string): string {
-  const digits = raw.replace(/[^\d+]/g, '');
-  if (digits.startsWith('+'))   return digits;
-  if (digits.startsWith('255')) return `+${digits}`;
-  return `+255${digits}`;
+  const cleaned = raw.trim();
+  if (!cleaned) return cleaned;
+
+  // Keep a leading '+' if provided, but normalise everything else to digits.
+  const hasPlus = cleaned.startsWith('+');
+  const digitsOnly = cleaned.replace(/\D/g, '');
+
+  if (!digitsOnly) return cleaned;
+
+  // Tanzania common inputs:
+  //   07XXXXXXXX  -> +2557XXXXXXXX
+  //   2557XXXXXXXX -> +2557XXXXXXXX
+  //   +2557XXXXXXXX -> +2557XXXXXXXX
+  if (hasPlus) return `+${digitsOnly}`;
+  if (digitsOnly.startsWith('255')) return `+${digitsOnly}`;
+  if (digitsOnly.startsWith('0')) return `+255${digitsOnly.slice(1)}`;
+  return `+255${digitsOnly}`;
 }
 
 // ─── Africa's Talking ─────────────────────────────────────────────────────────
@@ -58,10 +71,11 @@ async function sendViaAfricasTalking(to: string, message: string): Promise<SmsRe
   const at  = AfricasTalking({ username, apiKey });
   const sms = at.SMS;
 
-  const opts: { to: string[]; message: string; from?: string } = { to: [to], message };
-  if (senderId) opts.from = senderId;
+  const baseOpts: { to: string[]; message: string } = { to: [to], message };
+  const firstTryOpts: { to: string[]; message: string; from?: string } = { ...baseOpts };
+  if (senderId) firstTryOpts.from = senderId;
 
-  const result = await sms.send(opts);
+  const result = await sms.send(firstTryOpts);
   const first  = result?.SMSMessageData?.Recipients?.[0];
 
   // AT returns statusCode 101 for a queued/accepted message
@@ -69,7 +83,32 @@ async function sendViaAfricasTalking(to: string, message: string): Promise<SmsRe
     return { success: true, messageId: first.messageId ?? 'unknown', provider: 'africastalking' };
   }
 
-  throw new Error(`Africa's Talking rejected: ${first?.status ?? result?.SMSMessageData?.Message ?? 'unknown error'}`);
+  // Common failure mode: an unapproved/invalid alphanumeric Sender ID.
+  // If we set `from` and AT rejects, retry once without `from` to allow default shortcode routing.
+  if (senderId) {
+    try {
+      const retryResult = await sms.send(baseOpts);
+      const retryFirst = retryResult?.SMSMessageData?.Recipients?.[0];
+      if (retryFirst && (retryFirst.statusCode === 101 || retryFirst.status === 'Success')) {
+        console.warn("[SMS] Africa's Talking rejected Sender ID; retried without from and queued successfully.");
+        return { success: true, messageId: retryFirst.messageId ?? 'unknown', provider: 'africastalking' };
+      }
+    } catch {
+      // If retry throws, we fall through to the detailed error below.
+    }
+  }
+
+  const status = first?.status ?? 'unknown';
+  const statusCode = typeof first?.statusCode === 'number' ? first.statusCode : undefined;
+  const number = first?.number;
+  const messageData = result?.SMSMessageData?.Message;
+
+  throw new Error(
+    `Africa's Talking rejected: status=${status}` +
+      (statusCode !== undefined ? ` code=${statusCode}` : '') +
+      (number ? ` number=${number}` : '') +
+      (messageData ? ` message=${messageData}` : ''),
+  );
 }
 
 // ─── Twilio (optional fallback) ───────────────────────────────────────────────
@@ -113,10 +152,7 @@ export async function sendSms(to: string, text: string): Promise<SmsResult> {
   if (process.env.AFRICASTALKING_API_KEY) {
     try {
       const r = await sendViaAfricasTalking(phone, text);
-      if (r.success) {
-        console.log(`[SMS] Sent via Africa's Talking → ${phone}`);
-        return r;
-      }
+      if (r.success) return r;
       console.warn('[SMS] Africa\'s Talking returned failure:', r.error);
     } catch (err: any) {
       console.error('[SMS] Africa\'s Talking threw:', err?.message ?? err);
@@ -127,10 +163,7 @@ export async function sendSms(to: string, text: string): Promise<SmsResult> {
   if (process.env.TWILIO_ACCOUNT_SID) {
     try {
       const r = await sendViaTwilio(phone, text);
-      if (r.success) {
-        console.log(`[SMS] Sent via Twilio → ${phone}`);
-        return r;
-      }
+      if (r.success) return r;
     } catch (err: any) {
       console.error('[SMS] Twilio threw:', err?.message ?? err);
     }

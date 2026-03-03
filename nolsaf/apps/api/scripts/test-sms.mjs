@@ -1,17 +1,15 @@
 /**
- * Africa's Talking SMS sandbox test
+ * Africa's Talking SMS test
  *
  * Usage:
  *   node scripts/test-sms.mjs +255712345678 "Hello from NoLSAF"
  *
  * Requires these env vars (or a .env file at the project root):
- *   AFRICASTALKING_USERNAME=sandbox
- *   AFRICASTALKING_API_KEY=<your sandbox key>
- *   AFRICASTALKING_SENDER_ID=NoLSAF   (optional)
+ *   AFRICASTALKING_USERNAME=<your AT account username>
+ *   AFRICASTALKING_API_KEY=<your AT API key>
+ *   AFRICASTALKING_SENDER_ID=NoLSAF   (optional; must be approved/registered in live mode)
  *
- * Sandbox messages are never delivered to real phones — you can view
- * them in the AT Sandbox Simulator:
- *   https://simulator.africastalking.com
+ * Note: with live credentials this sends real SMS (may incur costs).
  */
 
 import { createRequire } from 'module';
@@ -35,13 +33,22 @@ if (existsSync(envPath)) {
 }
 
 // ── Validate args ───────────────────────────────────────────────────────────
-const [,, toArg, ...msgParts] = process.argv;
+const rawArgs = process.argv.slice(2);
+const flags = new Set(rawArgs.filter((a) => a.startsWith('--')));
+const args = rawArgs.filter((a) => !a.startsWith('--'));
+const [toArg, ...msgParts] = args;
+
 if (!toArg) {
-  console.error('Usage: node scripts/test-sms.mjs <phone> [message]');
+  console.error('Usage: node scripts/test-sms.mjs <phone> [message] [--dry-run] [--no-from]');
   console.error('  e.g: node scripts/test-sms.mjs +255712345678 "Hello!"');
   process.exit(1);
 }
-const message = msgParts.join(' ') || 'Test SMS from NoLSAF powered by Africa\'s Talking ✓';
+
+const dryRun = flags.has('--dry-run');
+const noFrom = flags.has('--no-from');
+
+// Keep default message plain ASCII to avoid encoding surprises.
+const message = msgParts.join(' ') || 'Test SMS from NoLSAF powered by Africa\'s Talking';
 
 // ── Validate env ────────────────────────────────────────────────────────────
 const username = process.env.AFRICASTALKING_USERNAME;
@@ -65,7 +72,13 @@ const at  = AfricasTalking({ username, apiKey });
 const sms = at.SMS;
 
 const opts = { to: [toArg], message };
-if (senderId) opts.from = senderId;
+if (!noFrom && senderId) opts.from = senderId;
+
+if (dryRun) {
+  console.log('[test-sms] DRY RUN — not sending. Payload:');
+  console.log(JSON.stringify(opts, null, 2));
+  process.exit(0);
+}
 
 try {
   const result = await sms.send(opts);
@@ -76,10 +89,6 @@ try {
     console.log('✅  SMS queued successfully!');
     console.log(`   Message ID : ${first.messageId}`);
     console.log(`   Cost       : ${first.cost}`);
-    if (username === 'sandbox') {
-      console.log('\n👀  View it in the AT Sandbox Simulator:');
-      console.log('   https://simulator.africastalking.com');
-    }
   } else {
     console.error('❌  AT returned unexpected response:');
     console.error(JSON.stringify(result, null, 2));

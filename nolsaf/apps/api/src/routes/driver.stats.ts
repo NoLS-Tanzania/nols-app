@@ -1576,6 +1576,8 @@ const updateDriverProfile: RequestHandler = async (req, res) => {
   if (hasField('vehiclePlate') && typeof vehiclePlate !== 'undefined') data.vehiclePlate = vehiclePlate;
   if (hasField('operationArea') && typeof operationArea !== 'undefined') data.operationArea = operationArea;
   if (hasField('paymentPhone') && typeof paymentPhone !== 'undefined') data.paymentPhone = paymentPhone;
+  // Resubmitting profile clears any outstanding admin note (driver has addressed it)
+  if (hasField('kycNote')) data.kycNote = null;
 
   const extractUnknownArg = (err: any): string | null => {
     const msg = String(err?.message ?? '');

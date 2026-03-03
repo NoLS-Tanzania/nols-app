@@ -89,6 +89,8 @@ model User {
   suspendedAt DateTime?
   isDisabled  Boolean?  @default(false)
   kycStatus   String? // PENDING_KYC, APPROVED_KYC, REJECTED_KYC
+  kycNote           String? // Admin note sent with request_info action
+  kycFieldApprovals Json?   // Per-field admin review map: { fieldName: "approved"|"flagged" }
 
   // Driver-specific fields
   rating      Decimal? @db.Decimal(3, 2) // Driver rating (e.g., 4.5)
@@ -246,6 +248,9 @@ model User {
 
   // Chatbot conversations
   chatbotConversations ChatbotConversation[] @relation("ChatbotConversations")
+
+  // KYC audit history (all admin review actions on this driver)
+  kycAuditLogs KycAuditLog[] @relation("DriverKycAuditLogs")
 
   @@index([role])
   @@index([email])
@@ -2467,3 +2472,24 @@ model PropertyAvailabilityBlock {
   @@index([roomCode])
   @@map("propertyavailabilityblock")
 }
+
+// =========================================================
+//  KYC AUDIT LOG
+// =========================================================
+model KycAuditLog {
+  id             Int      @id @default(autoincrement())
+  driverId       Int
+  adminId        Int?
+  action         String   @db.VarChar(32) // approve | reject | request_info | field_review
+  note           String?  @db.Text
+  fieldApprovals Json?    // snapshot of kycFieldApprovals at time of action
+  createdAt      DateTime @default(now())
+
+  driver User @relation("DriverKycAuditLogs", fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@index([driverId])
+  @@index([driverId, createdAt])
+  @@map("kyc_audit_log")
+}
+
+// =========================================================

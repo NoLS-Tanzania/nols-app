@@ -318,11 +318,13 @@ router.get("/", async (req, res) => {
             isAvailable: true,
             isVipDriver: true,
             kycStatus: true,
+            kycFieldApprovals: true,
             rating: true,
             vehicleType: true,
             plateNumber: true,
             operationArea: true,
             region: true,
+            district: true,
             createdAt: true,
           },
           orderBy: { id: "desc" },
@@ -365,6 +367,15 @@ router.get("/", async (req, res) => {
       if (v == null) return null;
       const n = Number(v);
       return Number.isFinite(n) ? n : null;
+    };
+
+    const hasFlaggedKycFields = (v: unknown): boolean => {
+      if (!v || typeof v !== "object") return false;
+      try {
+        return Object.values(v as Record<string, unknown>).some((x) => x === "flagged");
+      } catch {
+        return false;
+      }
     };
 
     // Aggregate transport performance for this page of drivers
@@ -430,6 +441,9 @@ router.get("/", async (req, res) => {
       available: item.available ?? null,
       isAvailable: item.isAvailable ?? null,
       isVipDriver: Boolean(item.isVipDriver ?? false),
+      kycStatus: item.kycStatus ?? null,
+      district: item.district ?? null,
+      needsKycFix: (item.kycStatus === "PENDING_KYC") ? hasFlaggedKycFields(item.kycFieldApprovals) : false,
       rating: numOrNull(item.rating),
       vehicleType: item.vehicleType ?? null,
       plateNumber: item.plateNumber ?? null,
@@ -5169,43 +5183,104 @@ router.get("/:id(\\d+)/activities", async (req, res) => {
   }
 });
 
-/** PATCH /admin/drivers/:id/kyc — approve, reject, or request information from a driver */
+/** PATCH /admin/drivers/:id/kyc — approve, reject, request_info, or field_review */
 router.patch('/:id(\\d+)/kyc', async (req, res) => {
   try {
     const driverId = Number(req.params.id);
-    const { action, reason, note } = req.body ?? {};
-    if (!['approve', 'reject', 'request_info'].includes(String(action))) {
-      return res.status(400).json({ error: 'action must be \'approve\', \'reject\', or \'request_info\'' });
+    const { action, reason, note, fieldApprovals } = req.body ?? {};
+    const validActions = ['approve', 'reject', 'request_info', 'field_review'];
+    if (!validActions.includes(String(action))) {
+      return res.status(400).json({ error: `action must be one of: ${validActions.join(', ')}` });
     }
     const driver = await prisma.user.findUnique({ where: { id: driverId, role: 'DRIVER' } as any });
     if (!driver) return res.status(404).json({ error: 'Driver not found' });
 
+    // Determine requesting admin id (best-effort)
+    const adminId: number | null = (req as any).user?.id ?? null;
+
     let kycStatus: string = (driver as any).kycStatus ?? 'PENDING_KYC';
     if (action === 'approve') kycStatus = 'APPROVED_KYC';
     else if (action === 'reject') kycStatus = 'REJECTED_KYC';
-    // request_info keeps the current kycStatus (stays PENDING_KYC)
+    // request_info and field_review keep current kycStatus
 
-    if (action !== 'request_info') {
-      await prisma.user.update({ where: { id: driverId }, data: { kycStatus } as any });
+    if (action === 'field_review') {
+      // Silent save: persist field approvals only, no notification to driver
+      await prisma.user.update({
+        where: { id: driverId },
+        data: { kycFieldApprovals: fieldApprovals ?? null } as any,
+      });
+    } else if (action === 'request_info') {
+      // Persist note + field approvals, then notify driver
+      await prisma.user.update({
+        where: { id: driverId },
+        data: { kycNote: note ?? null, kycFieldApprovals: fieldApprovals ?? null } as any,
+      });
+    } else {
+      // approve / reject — update status, clear note + field approvals
+      await prisma.user.update({
+        where: { id: driverId },
+        data: { kycStatus, kycNote: null, kycFieldApprovals: null } as any,
+      });
     }
 
-    // Emit real-time notification to the driver
+    // Write audit log entry
     try {
-      const io = (req as any).app?.get?.('io');
-      if (io) {
-        const message =
-          action === 'approve'
-            ? 'Your driver application has been approved! You can now access your dashboard.'
-            : action === 'reject'
-              ? `Your driver application was not approved. ${reason ? `Reason: ${reason}` : 'Please contact support for more details.'}`
-              : `The admin needs more information to process your application. ${note ? `Message: ${note}` : 'Please update your profile with the required details.'}`;
-        io.to(`user:${driverId}`).emit('kyc_status_update', { kycStatus, action, message });
-      }
-    } catch (e) { /* socket errors are non-fatal */ }
+      await (prisma as any).kycAuditLog.create({
+        data: {
+          driverId,
+          adminId,
+          action,
+          note: note ?? (reason ? `Rejection reason: ${reason}` : null),
+          fieldApprovals: fieldApprovals ?? null,
+        },
+      });
+    } catch (auditErr) {
+      console.warn('KYC audit log write failed (non-fatal):', auditErr);
+    }
+
+    // Emit real-time notification — only for actions that the driver needs to see
+    if (action !== 'field_review') {
+      try {
+        const io = (req as any).app?.get?.('io');
+        if (io) {
+          const message =
+            action === 'approve'
+              ? 'Your driver application has been approved! You can now access your dashboard.'
+              : action === 'reject'
+                ? `Your driver application was not approved. ${reason ? `Reason: ${reason}` : 'Please contact support for more details.'}`
+                : `The admin needs more information to process your application. ${note ? `Message: ${note}` : 'Please update your profile with the required details.'}`;
+          io.to(`user:${driverId}`).emit('kyc_status_update', { kycStatus, action, message });
+        }
+      } catch (e) { /* socket errors are non-fatal */ }
+    }
 
     return res.json({ ok: true, driverId, kycStatus, action });
   } catch (err: any) {
     console.error('PATCH /admin/drivers/:id/kyc error:', err);
+    return res.status(500).json({ error: 'internal_error', message: err?.message });
+  }
+});
+
+/** GET /admin/drivers/:id/kyc-audit — return audit history for a driver */
+router.get('/:id(\\d+)/kyc-audit', async (req, res) => {
+  try {
+    const driverId = Number(req.params.id);
+    const logs = await (prisma as any).kycAuditLog.findMany({
+      where: { driverId },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      select: {
+        id: true,
+        action: true,
+        note: true,
+        fieldApprovals: true,
+        createdAt: true,
+        adminId: true,
+      },
+    });
+    return res.json({ ok: true, logs });
+  } catch (err: any) {
+    console.error('GET /admin/drivers/:id/kyc-audit error:', err);
     return res.status(500).json({ error: 'internal_error', message: err?.message });
   }
 });

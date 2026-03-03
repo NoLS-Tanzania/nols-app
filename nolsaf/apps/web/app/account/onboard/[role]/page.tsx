@@ -6,7 +6,7 @@ import { useRouter, useParams } from "next/navigation";
 import { REGIONS } from "@/lib/tzRegions";
 import { REGIONS_FULL_DATA } from "@/lib/tzRegionsFull";
 import * as Icons from 'lucide-react';
-import { User, Mail, UserCircle, Globe, CreditCard, FileText, Upload, CheckCircle2, Truck, MapPin, Phone, ChevronDown, AlertCircle, ChevronLeft, ChevronRight, Loader2, Car, X, Clock, Building2, UserCircle2, ArrowLeft, Star } from 'lucide-react';
+import { User, Mail, UserCircle, Globe, CreditCard, FileText, Upload, CheckCircle2, Truck, MapPin, Phone, ChevronDown, AlertCircle, ChevronLeft, ChevronRight, Loader2, Car, X, Clock, Building2, UserCircle2, ArrowLeft, Star, Shield, Lock, AlertTriangle } from 'lucide-react';
 
 export default function OnboardRole() {
   const routeParams = useParams<{ role?: string | string[] }>();
@@ -44,8 +44,23 @@ export default function OnboardRole() {
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [paymentMessage, setPaymentMessage] = useState<string | null>(null);
   const [accountPhone, setAccountPhone] = useState<string>(''); // set from /api/account/me, used for auto-verify
+  const [kycFieldApprovals, setKycFieldApprovals] = useState<Record<string, 'approved' | 'flagged'>>({});
+
+  const isApproved = (key: string) => kycFieldApprovals[key] === 'approved';
+  const fieldBorderClass = (key: string, hasError: boolean) => {
+    if (kycFieldApprovals[key] === 'approved') return 'border-emerald-300 bg-emerald-50/40 cursor-not-allowed opacity-75';
+    if (kycFieldApprovals[key] === 'flagged') return 'border-orange-400 focus:border-orange-500 focus:ring-2 focus:ring-orange-100';
+    if (hasError) return 'border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-100';
+    return 'border-slate-200 focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10';
+  };
+  const FieldBadge = ({ fk }: { fk: string }) => {
+    if (kycFieldApprovals[fk] === 'approved') return <span className="ml-1.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded text-[10px] font-semibold"><Lock className="w-2.5 h-2.5" /> Locked</span>;
+    if (kycFieldApprovals[fk] === 'flagged') return <span className="ml-1.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded text-[10px] font-semibold"><AlertTriangle className="w-2.5 h-2.5" /> Update required</span>;
+    return null;
+  };
   const [idFile, setIdFile] = useState<File | null>(null);
   const [latraFile, setLatraFile] = useState<File | null>(null);
+  const [insuranceFile, setInsuranceFile] = useState<File | null>(null);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [agreedToPrivacy, setAgreedToPrivacy] = useState(false);
   const [stepIndex, setStepIndex] = useState<number>(1); // 1..5 for driver onboarding steps
@@ -96,6 +111,9 @@ export default function OnboardRole() {
         if (!alive) return;
         setNeedsPasswordSetup(me?.hasPassword === false);
         if (me?.phone) setAccountPhone(me.phone);
+        if (me?.kycFieldApprovals && typeof me.kycFieldApprovals === 'object') {
+          setKycFieldApprovals(me.kycFieldApprovals as Record<string, 'approved' | 'flagged'>);
+        }
       } catch {
         // ignore
       }
@@ -192,6 +210,7 @@ export default function OnboardRole() {
         if (licenseFile) fd.append('licenseFile', licenseFile, licenseFile.name);
         if (idFile) fd.append('idFile', idFile, idFile.name);
         if (latraFile) fd.append('latraFile', latraFile, latraFile.name);
+        if (insuranceFile) fd.append('insuranceFile', insuranceFile, insuranceFile.name);
       }
 
       const resp = await fetch('/api/auth/profile', { method: 'POST', body: fd });
@@ -474,109 +493,117 @@ export default function OnboardRole() {
   return (
     <main className={`min-h-screen flex items-center justify-center py-6 px-4 ${role === 'driver' ? 'bg-[#04080f]' : 'bg-gradient-to-br from-slate-50 via-white to-slate-50'}`}>
       <div className={`${role !== 'driver' ? 'max-w-md' : 'max-w-4xl'} w-full ${role === 'driver' ? 'bg-white rounded-2xl overflow-hidden ring-1 ring-amber-400/15 shadow-[0_32px_80px_rgba(0,0,0,0.65)]' : 'bg-white rounded-xl shadow-lg overflow-hidden border border-slate-100'}`}>
-        {/* Modern Header */}
-        <div className={`relative ${role === 'driver' ? 'bg-gradient-to-br from-[#04080f] via-slate-900 to-[#060d08] border-b border-amber-400/20' : 'bg-gradient-to-r from-[#02665e] to-[#014e47]'} ${role !== 'driver' ? 'px-4 py-3' : 'px-6 py-8'}`}>
-          <div className="flex flex-col items-center text-center gap-1.5">
-            {role === 'driver' && (
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400/10 border border-amber-400/30 text-amber-400 text-[10px] font-bold tracking-widest uppercase mb-3">
-                <Star className="w-3 h-3 fill-amber-400" />
-                Professional Driver Registration
+        {/* Header */}
+        {role === 'driver' ? (
+          <div className="relative bg-gradient-to-br from-[#0a1628] via-[#0d1f3c] to-[#071424] border-b border-white/[0.07] overflow-hidden">
+            {/* Decorative blobs */}
+            <div className="absolute -top-12 -right-12 w-56 h-56 bg-amber-400/[0.04] rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-8 left-1/2 w-64 h-32 bg-[#02665e]/[0.06] rounded-full blur-3xl pointer-events-none" />
+
+            {/* Title row */}
+            <div className="relative px-7 pt-7 pb-6 flex items-center gap-5">
+              {/* Icon */}
+              <div className="w-[60px] h-[60px] rounded-2xl flex-shrink-0 flex items-center justify-center"
+                style={{ background: "linear-gradient(135deg, rgba(251,191,36,0.18) 0%, rgba(251,191,36,0.06) 100%)", border: "1px solid rgba(251,191,36,0.28)", boxShadow: "0 8px 32px rgba(251,191,36,0.10)" }}>
+                <Truck className="w-7 h-7 text-amber-400" />
               </div>
-            )}
-            <div className={`${role !== 'driver' ? 'w-10 h-10 bg-white/20 backdrop-blur-sm' : 'w-16 h-16 bg-amber-400/10 ring-2 ring-amber-400/30'} rounded-full flex items-center justify-center`}>
-              {role === 'driver' ? (
-                <Truck className="w-8 h-8 text-amber-400" />
-              ) : role === 'owner' ? (
-                <Building2 className="w-5 h-5 text-white" />
-              ) : (
-                <UserCircle2 className="w-5 h-5 text-white" />
-              )}
-            </div>
-            <h1 className={`${role !== 'driver' ? 'text-xl sm:text-2xl' : 'text-3xl sm:text-4xl'} font-bold ${role === 'driver' ? 'text-white tracking-tight' : 'text-white'}`}>{title}</h1>
-            <p className={`${role !== 'driver' ? 'text-xs' : 'text-sm'} ${role === 'driver' ? 'text-slate-400' : 'text-white/90'} ${role !== 'driver' ? 'max-w-xs' : 'max-w-2xl'} mx-auto`}>{help}</p>
+
+              <div className="flex-1 min-w-0">
+                {/* Badge */}
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-400/10 border border-amber-400/20 mb-2">
+                  <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" />
+                  <span className="text-[9px] font-black tracking-[0.15em] text-amber-400 uppercase">Professional Driver Registration</span>
+                </div>
+                <h1 className="text-[26px] font-extrabold text-white tracking-tight leading-none">{title}</h1>
+                <p className="text-slate-400 text-[13px] mt-1.5 leading-relaxed">{help}</p>
+              </div>
+
+              {/* Step counter pill */}
+              <div className="flex-shrink-0 hidden sm:flex flex-col items-center gap-0.5 px-4 py-2.5 rounded-2xl bg-white/[0.04] border border-white/[0.07]">
+                <span className="text-2xl font-black text-amber-400 leading-none">{stepIndex}</span>
+                <span className="text-[10px] text-slate-500 font-semibold">of 5</span>
+              </div>
             </div>
 
-          {/* Modern Step Indicator */}
-          <div className={`${role !== 'driver' ? 'mt-3' : 'mt-5'} w-full`}>
-            <div className="w-full overflow-x-auto snap-x snap-mandatory scroll-smooth pb-2">
-              <nav className={`${role !== 'driver' ? 'flex items-center justify-center' : 'min-w-max flex items-center'} gap-4 sm:justify-center`}>
-                {(role === 'driver' ? [
-                  { num: 1, label: 'Personal', icon: User },
-                  { num: 2, label: 'Driving', icon: Truck },
-                  { num: 3, label: 'Payment', icon: CreditCard },
-                  { num: 4, label: 'Uploads', icon: Upload },
-                  { num: 5, label: 'Review', icon: CheckCircle2 }
-                ] : [
-                  { num: 1, label: 'Personal', icon: User },
-                  { num: 2, label: 'Review', icon: CheckCircle2 }
-                ]).map((step, i) => {
+            {/* Step tab bar */}
+            <div className="relative flex border-t border-white/[0.06]">
+              {([
+                { num: 1, label: 'Personal', icon: User },
+                { num: 2, label: 'Driving', icon: Truck },
+                { num: 3, label: 'Payment', icon: CreditCard },
+                { num: 4, label: 'Uploads', icon: Upload },
+                { num: 5, label: 'Review', icon: CheckCircle2 },
+              ] as { num: number; label: string; icon: any }[]).map((step) => {
+                const Icon = step.icon;
+                const isActive = stepIndex === step.num;
+                const isCompleted = stepIndex > step.num;
+                return (
+                  <button
+                    key={step.num}
+                    type="button"
+                    onClick={() => setStepIndex(step.num)}
+                    aria-current={isActive ? 'step' : undefined}
+                    className={`flex-1 flex flex-col items-center gap-1.5 py-3 transition-all duration-200 relative ${
+                      isActive
+                        ? 'text-amber-400'
+                        : isCompleted
+                        ? 'text-amber-400/40 hover:text-amber-400/60'
+                        : 'text-slate-600 hover:text-slate-400'
+                    }`}
+                  >
+                    {/* Active underline */}
+                    {isActive && (
+                      <span className="absolute bottom-0 left-3 right-3 h-[2px] rounded-full bg-amber-400" />
+                    )}
+                    {isCompleted && (
+                      <span className="absolute bottom-0 left-3 right-3 h-[2px] rounded-full bg-amber-400/20" />
+                    )}
+                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
+                      isActive
+                        ? 'bg-amber-400/15 ring-1 ring-amber-400/40'
+                        : isCompleted
+                        ? 'bg-amber-400/8'
+                        : 'bg-white/[0.03]'
+                    }`}>
+                      {isCompleted
+                        ? <CheckCircle2 className="w-3.5 h-3.5 text-amber-400/60" />
+                        : <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-amber-400' : 'text-slate-500'}`} />}
+                    </div>
+                    <span className={`text-[10px] font-bold tracking-wide`}>{step.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <div className="relative bg-gradient-to-r from-[#02665e] to-[#014e47] px-4 py-3">
+            <div className="flex flex-col items-center text-center gap-1.5">
+              <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center">
+                {role === 'owner' ? <Building2 className="w-5 h-5 text-white" /> : <UserCircle2 className="w-5 h-5 text-white" />}
+              </div>
+              <h1 className="text-xl sm:text-2xl font-bold text-white">{title}</h1>
+              <p className="text-xs text-white/90 max-w-xs mx-auto">{help}</p>
+              <div className="mt-3 flex items-center justify-center gap-4">
+                {([{ num: 1, label: 'Personal', icon: User }, { num: 2, label: 'Review', icon: CheckCircle2 }] as { num: number; label: string; icon: any }[]).map((step, i) => {
                   const Icon = step.icon;
                   const isActive = stepIndex === step.num;
                   const isCompleted = stepIndex > step.num;
                   return (
-                    <div key={step.num} className="snap-center flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setStepIndex(step.num)}
-                        className={`group flex flex-col items-center gap-2 transition-all duration-300 ${
-                          isActive ? 'scale-110' : 'hover:scale-105'
-                        }`}
-                        aria-current={isActive ? 'step' : undefined}
-                        aria-label={`Step ${step.num}: ${step.label}`}
-                      >
-                        {role !== 'driver' ? (
-                          // For travellers/owners: show icon instead of number
-                          <div className={`relative flex items-center justify-center ${role !== 'driver' ? 'w-10 h-10' : 'w-8 h-8'} rounded-lg text-xs font-semibold transition-all duration-300 ${
-                            isActive 
-                              ? 'bg-white text-[#02665e] shadow-lg ring-2 ring-white/30' 
-                              : isCompleted
-                              ? 'bg-white text-[#02665e] shadow-md'
-                              : 'bg-white/10 text-white/70 hover:bg-white/20'
-                          }`}>
-                            {isCompleted ? (
-                              <CheckCircle2 className={`${role !== 'driver' ? 'w-5 h-5' : 'w-4 h-4'} text-[#02665e]`} />
-                            ) : (
-                              <Icon className={`${role !== 'driver' ? 'w-5 h-5' : 'w-4 h-4'} ${isActive ? 'text-[#02665e]' : 'text-white/70'}`} />
-                            )}
-                          </div>
-                        ) : (
-                          // For drivers: keep numbers
-                          <div className={`relative flex items-center justify-center w-9 h-9 rounded-xl text-xs font-bold transition-all duration-300 ${
-                            isActive 
-                              ? 'bg-amber-400 text-slate-950 shadow-lg shadow-amber-400/40 ring-2 ring-amber-300/50 scale-110' 
-                              : isCompleted
-                              ? 'bg-amber-400/15 text-amber-400 border border-amber-400/40'
-                              : 'bg-white/5 text-slate-500 border border-white/10 hover:bg-white/10'
-                          }`}>
-                            {isCompleted ? (
-                              <CheckCircle2 className="w-4 h-4 text-amber-400" />
-                            ) : (
-                              <span className={isActive ? 'text-slate-950 font-extrabold' : 'text-slate-500'}>{step.num}</span>
-                            )}
-                          </div>
-                        )}
-                        <span className={`text-[9px] sm:text-[10px] font-semibold transition-colors ${
-                          isActive 
-                            ? 'text-amber-400' 
-                            : isCompleted
-                            ? 'text-amber-400/60'
-                            : 'text-slate-500'
-                        }`}>
-                          {step.label}
-                        </span>
+                    <div key={step.num} className="flex items-center gap-4">
+                      <button type="button" onClick={() => setStepIndex(step.num)} className={`flex flex-col items-center gap-2 transition-all ${isActive ? 'scale-110' : 'hover:scale-105'}`}>
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${isActive ? 'bg-white text-[#02665e] shadow-lg' : isCompleted ? 'bg-white text-[#02665e]' : 'bg-white/10 text-white/70'}`}>
+                          {isCompleted ? <CheckCircle2 className="w-5 h-5 text-[#02665e]" /> : <Icon className={`w-5 h-5 ${isActive ? 'text-[#02665e]' : 'text-white/70'}`} />}
+                        </div>
+                        <span className={`text-[10px] font-semibold ${isActive ? 'text-white' : 'text-white/50'}`}>{step.label}</span>
                       </button>
-                      {i < (role === 'driver' ? 4 : 1) && (
-                        <div className={`w-6 sm:w-12 h-[2px] rounded-full transition-all duration-500 ${
-                          isCompleted ? 'bg-amber-400/50' : 'bg-white/10'
-                        }`} />
-                      )}
+                      {i < 1 && <div className={`w-12 h-[2px] rounded-full ${isCompleted ? 'bg-white/50' : 'bg-white/15'}`} />}
                     </div>
                   );
                 })}
-                  </nav>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         <div className={role !== 'driver' ? 'p-4' : 'p-6 bg-gradient-to-b from-slate-50/80 to-white'}>
           {error && !(error === 'Please provide both name and email' && role === 'driver' && stepIndex !== 5) && (
@@ -932,17 +959,15 @@ export default function OnboardRole() {
                         <UserCircle className="w-3.5 h-3.5 text-slate-500" />
                         Full name
                         <span className="text-red-500">*</span>
+                        <FieldBadge fk="name" />
                       </label>
                       <input 
                         ref={nameRef} 
                         value={name} 
+                        disabled={isApproved('name')}
                         onChange={e => setName(e.target.value)} 
                         onBlur={() => { setTouched(prev => ({ ...prev, name: true })); setFieldErrors(prev => ({ ...prev, name: validateField('name') })); }} 
-                        className={`w-full px-3 py-2.5 border-2 rounded-lg transition-all duration-200 ${
-                          touched.name && fieldErrors.name 
-                            ? 'border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-100' 
-                            : 'border-slate-200 focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10'
-                        } bg-white shadow-sm hover:shadow-md text-sm`}
+                        className={`w-full px-3 py-2.5 border-2 rounded-lg transition-all duration-200 ${fieldBorderClass('name', Boolean(touched.name && fieldErrors.name))} bg-white shadow-sm hover:shadow-md text-sm`}
                         placeholder="Enter your full name"
                       />
                       {touched.name && fieldErrors.name && (
@@ -1046,18 +1071,16 @@ export default function OnboardRole() {
                         <Mail className="w-3.5 h-3.5 text-slate-500" />
                         Email
                         <span className="text-red-500">*</span>
+                        <FieldBadge fk="email" />
                       </label>
                       <input 
                         ref={emailRef} 
                         type="email" 
                         value={email} 
+                        disabled={isApproved('email')}
                         onChange={e => setEmail(e.target.value)} 
                         onBlur={() => { setTouched(prev => ({ ...prev, email: true })); setFieldErrors(prev => ({ ...prev, email: validateField('email') })); }} 
-                        className={`w-full px-3 py-2.5 border-2 rounded-lg transition-all duration-200 ${
-                          touched.email && fieldErrors.email 
-                            ? 'border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-100' 
-                            : 'border-slate-200 focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10'
-                        } bg-white shadow-sm hover:shadow-md text-sm`}
+                        className={`w-full px-3 py-2.5 border-2 rounded-lg transition-all duration-200 ${fieldBorderClass('email', Boolean(touched.email && fieldErrors.email))} bg-white shadow-sm hover:shadow-md text-sm`}
                         placeholder="you@example.com"
                       />
                       {touched.email && fieldErrors.email && (
@@ -1115,11 +1138,13 @@ export default function OnboardRole() {
                     <div>
                         <label className="block text-sm font-semibold text-slate-900 mb-1.5">
                           NIN <span className="text-slate-500 font-normal">(optional)</span>
+                          <FieldBadge fk="nin" />
                         </label>
                         <input 
                           value={nin} 
+                          disabled={isApproved('nin')}
                           onChange={e => setNin(e.target.value)} 
-                          className="w-full px-3 py-2.5 border-2 border-slate-200 rounded-lg bg-white shadow-sm hover:shadow-md focus:outline-none focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10 transition-all duration-200 text-sm" 
+                          className={`w-full px-3 py-2.5 border-2 rounded-lg transition-all duration-200 ${fieldBorderClass('nin', false)} bg-white shadow-sm hover:shadow-md text-sm`}
                           placeholder="National ID number"
                         />
                       </div>
@@ -1146,17 +1171,15 @@ export default function OnboardRole() {
                         <FileText className="w-3.5 h-3.5 text-slate-500" />
                         License number
                         <span className="text-red-500">*</span>
+                        <FieldBadge fk="licenseNumber" />
                       </label>
                       <input 
                         ref={licenseRef} 
                         value={licenseNumber} 
+                        disabled={isApproved('licenseNumber')}
                         onChange={e => setLicenseNumber(e.target.value)} 
                         onBlur={() => { setTouched(prev => ({ ...prev, licenseNumber: true })); setFieldErrors(prev => ({ ...prev, licenseNumber: validateField('licenseNumber') })); }} 
-                        className={`w-full px-3 py-2.5 border-2 rounded-lg transition-all duration-200 text-sm ${
-                          touched.licenseNumber && fieldErrors.licenseNumber 
-                            ? 'border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-100' 
-                            : 'border-slate-200 focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10'
-                        } bg-white shadow-sm hover:shadow-md`}
+                        className={`w-full px-3 py-2.5 border-2 rounded-lg transition-all duration-200 text-sm ${fieldBorderClass('licenseNumber', Boolean(touched.licenseNumber && fieldErrors.licenseNumber))} bg-white shadow-sm hover:shadow-md`}
                         placeholder="e.g., DL-12345"
                       />
                       {touched.licenseNumber && fieldErrors.licenseNumber && (
@@ -1172,8 +1195,9 @@ export default function OnboardRole() {
                         <Truck className="w-3.5 h-3.5 text-slate-500" />
                         Type of vehicle
                         <span className="text-red-500">*</span>
+                        <FieldBadge fk="vehicleType" />
                       </label>
-                      <div ref={vehicleTypeRef} tabIndex={-1} className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <div ref={vehicleTypeRef} tabIndex={-1} className={`grid grid-cols-1 sm:grid-cols-3 gap-2 ${isApproved('vehicleType') ? 'pointer-events-none opacity-70' : ''}`}>
                         {[
                           { label: 'Bajaji', icon: Car },
                           { label: 'Bodaboda', icon: Icons.Bike },
@@ -1191,7 +1215,7 @@ export default function OnboardRole() {
                               type="radio" 
                               name="vehicleType" 
                               checked={vehicleType === label} 
-                              onChange={() => { setVehicleType(label); setTouched(prev => ({ ...prev, vehicleType: true })); setFieldErrors(prev => ({ ...prev, vehicleType: validateField('vehicleType') })); }} 
+                              onChange={() => { setVehicleType(label); setTouched(prev => ({ ...prev, vehicleType: true })); setFieldErrors(prev => ({ ...prev, vehicleType: '' })); }} 
                               className="sr-only" 
                             />
                             <Icon className={`w-4 h-4 ${vehicleType === label ? 'text-white' : 'text-slate-400'}`} />
@@ -1213,17 +1237,15 @@ export default function OnboardRole() {
                           <FileText className="w-3.5 h-3.5 text-slate-500" />
                           Plate number
                           <span className="text-red-500">*</span>
+                          <FieldBadge fk="plateNumber" />
                         </label>
                         <input 
                           ref={plateRef} 
                           value={plateNumber} 
+                          disabled={isApproved('plateNumber')}
                           onChange={e => setPlateNumber(e.target.value)} 
                           onBlur={() => { setTouched(prev => ({ ...prev, plateNumber: true })); setFieldErrors(prev => ({ ...prev, plateNumber: validateField('plateNumber') })); }} 
-                          className={`w-full px-3 py-2.5 border-2 rounded-lg transition-all duration-200 text-sm ${
-                            touched.plateNumber && fieldErrors.plateNumber 
-                              ? 'border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-100' 
-                              : 'border-slate-200 focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10'
-                          } bg-white shadow-sm hover:shadow-md`}
+                          className={`w-full px-3 py-2.5 border-2 rounded-lg transition-all duration-200 text-sm ${fieldBorderClass('plateNumber', Boolean(touched.plateNumber && fieldErrors.plateNumber))} bg-white shadow-sm hover:shadow-md`}
                           placeholder="Plate number"
                         />
                         {touched.plateNumber && fieldErrors.plateNumber && (
@@ -1665,6 +1687,46 @@ export default function OnboardRole() {
                         </div>
                       )}
                     </div>
+
+                  <div>
+                      <label htmlFor="insurance-upload" className="text-sm font-semibold text-slate-900 mb-2 flex items-center gap-2">
+                        <Shield className="w-3.5 h-3.5 text-slate-500" />
+                        Upload insurance certificate
+                        <span className="text-xs font-normal text-slate-500">(optional)</span>
+                      </label>
+                      <label htmlFor="insurance-upload" className="flex flex-col items-center justify-center w-full px-4 py-6 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer bg-slate-50 hover:bg-slate-100 hover:border-[#02665e] transition-all duration-200 group">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Upload className="w-6 h-6 text-slate-400 group-hover:text-[#02665e] transition-colors" />
+                          <p className="text-sm text-slate-600 group-hover:text-slate-900">
+                            <span className="font-medium text-[#02665e]">Click to upload</span> or drag and drop
+                          </p>
+                          <p className="text-xs text-slate-500">JPG, PNG or PDF (MAX. 5MB)</p>
+                        </div>
+                        <input
+                          id="insurance-upload"
+                          type="file"
+                          accept="image/*,.pdf"
+                          onChange={e => setInsuranceFile(e.target.files?.[0] ?? null)}
+                          className="hidden"
+                        />
+                      </label>
+                      {insuranceFile && (
+                        <div className="mt-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                            <span className="text-xs text-emerald-700 font-medium truncate">{insuranceFile.name}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setInsuranceFile(null)}
+                            className="text-emerald-600 hover:text-emerald-700 flex-shrink-0"
+                            aria-label="Remove file"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
@@ -1943,6 +2005,19 @@ export default function OnboardRole() {
                             <div className="flex-1 min-w-0">
                               <div className="text-sm font-semibold text-slate-900">LATRA certificate</div>
                               <div className="text-xs text-slate-500 truncate">{latraFile ? latraFile.name : <span className="text-slate-400 italic">Not uploaded</span>}</div>
+                            </div>
+                          </div>
+                          <button type="button" onClick={() => setStepIndex(4)} className="text-xs text-[#02665e] hover:text-[#02665e]/80 hover:underline font-medium flex-shrink-0 ml-2">Edit</button>
+                        </div>
+
+                        <div className="p-3 bg-white border-2 border-slate-200 rounded-lg hover:border-slate-300 transition-colors flex items-center justify-between">
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                              <Shield className="w-5 h-5 text-blue-600" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-semibold text-slate-900">Insurance certificate</div>
+                              <div className="text-xs text-slate-500 truncate">{insuranceFile ? insuranceFile.name : <span className="text-slate-400 italic">Not uploaded</span>}</div>
                             </div>
                           </div>
                           <button type="button" onClick={() => setStepIndex(4)} className="text-xs text-[#02665e] hover:text-[#02665e]/80 hover:underline font-medium flex-shrink-0 ml-2">Edit</button>

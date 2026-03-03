@@ -245,6 +245,8 @@ const getMe: RequestHandler = async (req, res) => {
     if (hasField('paymentVerified')) select.paymentVerified = true;
     if (hasField('isVipDriver')) select.isVipDriver = true;
     if (hasField('kycStatus')) select.kycStatus = true;
+    if (hasField('kycNote')) select.kycNote = true;
+    if (hasField('kycFieldApprovals')) select.kycFieldApprovals = true;
 
     try {
       user = await prisma.user.findUnique({ where: { id: userId }, select } as any);
