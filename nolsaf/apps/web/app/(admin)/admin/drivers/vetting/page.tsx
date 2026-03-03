@@ -20,6 +20,14 @@ import {
   AlertCircle,
   Send,
   Loader2,
+  Mail,
+  Phone,
+  UserCircle2,
+  Globe,
+  IdCard,
+  Star,
+  BadgeCheck,
+  UploadCloud,
 } from "lucide-react";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
@@ -79,11 +87,23 @@ function KycBadge({ status }: { status: KycStatus | null }) {
   return <span className="text-xs text-slate-400">—</span>;
 }
 
-function InfoRow({ label, value }: { label: string; value: string | null | undefined }) {
+function InfoRow({ label, value, icon: Icon, accent }: { label: string; value: string | null | undefined; icon?: any; accent?: string }) {
+  const isEmpty = !value;
   return (
-    <div className="flex items-start justify-between gap-3 py-2 border-b border-slate-100 last:border-0">
-      <span className="text-xs font-medium text-slate-500 flex-shrink-0 w-36">{label}</span>
-      <span className="text-sm text-slate-800 text-right break-all">{value || <span className="text-slate-400 italic">Not provided</span>}</span>
+    <div className="grid grid-cols-2 gap-4 py-2.5 px-3 rounded-xl odd:bg-slate-50/60 even:bg-transparent transition-colors group">
+      <div className="flex items-center gap-2 min-w-0">
+        {Icon && (
+          <span className={`w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 ${accent ?? 'bg-slate-100'}`}>
+            <Icon className="w-3 h-3 text-slate-500" />
+          </span>
+        )}
+        <span className="text-xs font-semibold text-slate-400 truncate uppercase tracking-wide">{label}</span>
+      </div>
+      <div className="text-right">
+        {isEmpty
+          ? <span className="text-xs text-slate-300 italic">Not provided</span>
+          : <span className="text-sm font-semibold text-slate-800">{value}</span>}
+      </div>
     </div>
   );
 }
@@ -91,9 +111,14 @@ function InfoRow({ label, value }: { label: string; value: string | null | undef
 function DocLink({ label, url }: { label: string; url?: string | null }) {
   if (!url)
     return (
-      <div className="flex items-center justify-between py-2.5 px-3 rounded-lg bg-slate-50 border border-slate-200">
-        <span className="text-sm text-slate-600">{label}</span>
-        <span className="text-xs text-slate-400 italic">Not uploaded</span>
+      <div className="flex items-center justify-between py-3 px-4 rounded-xl bg-slate-50 border border-slate-100">
+        <div className="flex items-center gap-2.5">
+          <span className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center">
+            <FileText className="w-3.5 h-3.5 text-slate-400" />
+          </span>
+          <span className="text-sm text-slate-500 font-medium">{label}</span>
+        </div>
+        <span className="text-xs text-slate-300 italic font-medium">Not uploaded</span>
       </div>
     );
   return (
@@ -101,12 +126,17 @@ function DocLink({ label, url }: { label: string; url?: string | null }) {
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className="flex items-center justify-between py-2.5 px-3 rounded-lg bg-white border border-slate-200 hover:border-[#02665e] hover:bg-emerald-50 transition-colors group no-underline"
+      className="flex items-center justify-between py-3 px-4 rounded-xl bg-white border border-slate-200 hover:border-[#02665e]/40 hover:bg-emerald-50/60 transition-all group no-underline shadow-sm hover:shadow"
     >
-      <span className="text-sm text-slate-700 group-hover:text-[#02665e] font-medium">{label}</span>
-      <div className="flex items-center gap-1 text-[#02665e]">
-        <Eye className="w-4 h-4" />
-        <span className="text-xs font-medium">View</span>
+      <div className="flex items-center gap-2.5">
+        <span className="w-7 h-7 rounded-lg bg-emerald-50 group-hover:bg-emerald-100 flex items-center justify-center transition-colors">
+          <FileText className="w-3.5 h-3.5 text-emerald-600" />
+        </span>
+        <span className="text-sm text-slate-700 group-hover:text-[#02665e] font-semibold transition-colors">{label}</span>
+      </div>
+      <div className="flex items-center gap-1.5 text-[#02665e] bg-emerald-50 group-hover:bg-emerald-100 px-2.5 py-1 rounded-lg transition-colors">
+        <Eye className="w-3.5 h-3.5" />
+        <span className="text-xs font-bold">View</span>
       </div>
     </a>
   );
@@ -127,6 +157,10 @@ export default function DriverVettingPage() {
   const [actionNote, setActionNote] = useState("");
   const [showNoteInput, setShowNoteInput] = useState<"reject" | "request_info" | null>(null);
   const [actionMsg, setActionMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Insurance upload state
+  const [uploadingInsurance, setUploadingInsurance] = useState(false);
+  const [insuranceUploadMsg, setInsuranceUploadMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const load = useCallback(async (activeTab: Tab) => {
     setLoading(true);
@@ -178,6 +212,42 @@ export default function DriverVettingPage() {
       if (d) setSelected({ ...row, ...d });
     } catch { /* keep row data */ } finally {
       setDetailLoading(false);
+    }
+  }
+
+  async function uploadInsuranceDoc(file: File) {
+    if (!selected) return;
+    setUploadingInsurance(true);
+    setInsuranceUploadMsg(null);
+    try {
+      // 1. Get Cloudinary signature
+      const sigResp = await api.get(`/api/uploads/cloudinary/sign?folder=driver-documents%2Finsurance`);
+      const { cloudName, apiKey, timestamp, folder, signature } = sigResp.data as any;
+      // 2. Upload to Cloudinary
+      const cld = new FormData();
+      cld.append("file", file);
+      cld.append("api_key", apiKey);
+      cld.append("timestamp", String(timestamp));
+      cld.append("folder", folder);
+      cld.append("overwrite", "true");
+      cld.append("signature", signature);
+      const uploadResp = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, { method: "POST", body: cld });
+      if (!uploadResp.ok) throw new Error("Cloudinary upload failed");
+      const uploadData = await uploadResp.json();
+      const docUrl: string = uploadData.secure_url;
+      // 3. Save URL to driver record
+      await api.post(`/api/admin/drivers/${selected.id}/upload-doc`, { docType: "INSURANCE", docUrl });
+      // 4. Update local state
+      setSelected(prev => {
+        if (!prev) return prev;
+        const payout = (typeof prev.payout === "object" && prev.payout !== null) ? { ...prev.payout } : {};
+        return { ...prev, payout: { ...payout, insuranceUrl: docUrl } };
+      });
+      setInsuranceUploadMsg({ type: "success", text: "Insurance document uploaded successfully." });
+    } catch (e: any) {
+      setInsuranceUploadMsg({ type: "error", text: e?.response?.data?.message || e?.message || "Upload failed" });
+    } finally {
+      setUploadingInsurance(false);
     }
   }
 
@@ -334,24 +404,31 @@ export default function DriverVettingPage() {
 
         {/* Detail panel */}
         {selected && (
-          <div className="flex-1 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col" style={{ maxHeight: 720 }}>
+          <div className="flex-1 min-w-0 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col" style={{ maxHeight: 720 }}>
             {/* Detail header */}
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-4">
+            <div
+              className="px-6 py-5 border-b border-slate-100 flex items-center justify-between gap-4"
+              style={{ background: "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)" }}
+            >
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-slate-800 text-white font-bold text-lg flex items-center justify-center">
+                <div
+                  className="w-14 h-14 rounded-2xl text-white font-black text-lg flex items-center justify-center shadow-md flex-shrink-0"
+                  style={{ background: "linear-gradient(135deg, #0e2a7a 0%, #02665e 100%)" }}
+                >
                   {String(selected.name || "?").trim().split(/\s+/).map(p => p[0]).slice(0, 2).join("").toUpperCase()}
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-slate-900">{selected.name}</h2>
-                  <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                  <h2 className="text-base font-bold text-slate-900 leading-tight">{selected.name}</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">{selected.email}</p>
+                  <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                     <KycBadge status={selected.kycStatus} />
-                    <span className="text-xs text-slate-400">Registered {formatDate(selected.createdAt)}</span>
+                    <span className="text-xs text-slate-400">Joined {formatDate(selected.createdAt)}</span>
                   </div>
                 </div>
               </div>
               <button
                 onClick={() => setSelected(null)}
-                className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-500 flex-shrink-0"
+                className="w-8 h-8 rounded-xl hover:bg-white border border-transparent hover:border-slate-200 hover:shadow-sm flex items-center justify-center text-slate-400 hover:text-slate-600 flex-shrink-0 transition-all"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -381,71 +458,152 @@ export default function DriverVettingPage() {
 
                   {/* Contact */}
                   <section>
-                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                      <User className="w-3.5 h-3.5" /> Personal Information
-                    </h3>
-                    <div className="bg-slate-50 rounded-xl p-4 space-y-0">
-                      <InfoRow label="Full name" value={selected.name} />
-                      <InfoRow label="Email" value={selected.email} />
-                      <InfoRow label="Phone" value={selected.phone} />
-                      <InfoRow label="Gender" value={(selected as DriverDetail).gender} />
-                      <InfoRow label="Nationality" value={(selected as DriverDetail).nationality} />
-                      <InfoRow label="NIN" value={(selected as DriverDetail).nin} />
+                    <div className="flex items-center gap-2.5 mb-3">
+                      <span className="w-6 h-6 rounded-lg bg-blue-50 flex items-center justify-center">
+                        <User className="w-3.5 h-3.5 text-blue-500" />
+                      </span>
+                      <h3 className="text-xs font-bold text-slate-600 uppercase tracking-widest">Personal Information</h3>
+                    </div>
+                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden px-2 py-1">
+                      <InfoRow label="Full name" value={selected.name} icon={User} accent="bg-blue-50" />
+                      <InfoRow label="Email" value={selected.email} icon={Mail} accent="bg-violet-50" />
+                      <InfoRow label="Phone" value={selected.phone} icon={Phone} accent="bg-emerald-50" />
+                      <InfoRow label="Gender" value={(selected as DriverDetail).gender} icon={UserCircle2} accent="bg-pink-50" />
+                      <InfoRow label="Nationality" value={(selected as DriverDetail).nationality} icon={Globe} accent="bg-sky-50" />
+                      <InfoRow label="NIN" value={(selected as DriverDetail).nin} icon={IdCard} accent="bg-amber-50" />
                     </div>
                   </section>
 
                   {/* Location */}
                   <section>
-                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                      <MapPin className="w-3.5 h-3.5" /> Location
-                    </h3>
-                    <div className="bg-slate-50 rounded-xl p-4 space-y-0">
-                      <InfoRow label="Region" value={selected.region} />
-                      <InfoRow label="District" value={(selected as DriverDetail).district} />
-                      <InfoRow label="Operation area" value={selected.operationArea} />
+                    <div className="flex items-center gap-2.5 mb-3">
+                      <span className="w-6 h-6 rounded-lg bg-emerald-50 flex items-center justify-center">
+                        <MapPin className="w-3.5 h-3.5 text-emerald-600" />
+                      </span>
+                      <h3 className="text-xs font-bold text-slate-600 uppercase tracking-widest">Location</h3>
+                    </div>
+                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden px-2 py-1">
+                      <InfoRow label="Region" value={selected.region} icon={MapPin} accent="bg-emerald-50" />
+                      <InfoRow label="District" value={(selected as DriverDetail).district} icon={MapPin} accent="bg-teal-50" />
+                      <InfoRow label="Operation area" value={selected.operationArea} icon={MapPin} accent="bg-cyan-50" />
                     </div>
                   </section>
 
                   {/* Vehicle */}
                   <section>
-                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                      <Car className="w-3.5 h-3.5" /> Vehicle &amp; Licence
-                    </h3>
-                    <div className="bg-slate-50 rounded-xl p-4 space-y-0">
-                      <InfoRow label="Vehicle type" value={selected.vehicleType} />
-                      <InfoRow label="Plate number" value={selected.plateNumber} />
-                      <InfoRow label="Licence number" value={selected.licenseNumber} />
+                    <div className="flex items-center gap-2.5 mb-3">
+                      <span className="w-6 h-6 rounded-lg bg-amber-50 flex items-center justify-center">
+                        <Car className="w-3.5 h-3.5 text-amber-600" />
+                      </span>
+                      <h3 className="text-xs font-bold text-slate-600 uppercase tracking-widest">Vehicle &amp; Licence</h3>
+                    </div>
+                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden px-2 py-1">
+                      <InfoRow label="Vehicle type" value={selected.vehicleType} icon={Car} accent="bg-amber-50" />
+                      <InfoRow label="Plate number" value={selected.plateNumber} icon={IdCard} accent="bg-orange-50" />
+                      <InfoRow label="Licence number" value={selected.licenseNumber} icon={FileText} accent="bg-yellow-50" />
                       <InfoRow
                         label="VIP class"
                         value={selected.isVipDriver ? "VIP declared" : "Standard"}
+                        icon={Star}
+                        accent="bg-violet-50"
                       />
                     </div>
                   </section>
 
                   {/* Payment */}
                   <section>
-                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                      <CreditCard className="w-3.5 h-3.5" /> Payment
-                    </h3>
-                    <div className="bg-slate-50 rounded-xl p-4 space-y-0">
-                      <InfoRow label="Payment phone" value={(selected as DriverDetail).paymentPhone} />
+                    <div className="flex items-center gap-2.5 mb-3">
+                      <span className="w-6 h-6 rounded-lg bg-indigo-50 flex items-center justify-center">
+                        <CreditCard className="w-3.5 h-3.5 text-indigo-500" />
+                      </span>
+                      <h3 className="text-xs font-bold text-slate-600 uppercase tracking-widest">Payment</h3>
+                    </div>
+                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden px-2 py-1">
+                      <InfoRow label="Payment phone" value={(selected as DriverDetail).paymentPhone} icon={Phone} accent="bg-indigo-50" />
                       <InfoRow
                         label="Phone verified"
-                        value={selected.paymentVerified ? "✅ Verified" : "⚠️ Not verified"}
+                        value={selected.paymentVerified ? "Verified" : "Not verified"}
+                        icon={BadgeCheck}
+                        accent={selected.paymentVerified ? "bg-emerald-50" : "bg-red-50"}
                       />
                     </div>
                   </section>
 
                   {/* Documents */}
                   <section>
-                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                      <FileText className="w-3.5 h-3.5" /> Uploaded Documents
-                    </h3>
+                    <div className="flex items-center gap-2.5 mb-3">
+                      <span className="w-6 h-6 rounded-lg bg-slate-100 flex items-center justify-center">
+                        <FileText className="w-3.5 h-3.5 text-slate-500" />
+                      </span>
+                      <h3 className="text-xs font-bold text-slate-600 uppercase tracking-widest">Uploaded Documents</h3>
+                    </div>
                     <div className="space-y-2">
                       <DocLink label="Driving licence" url={payoutObj?.drivingLicenseUrl || selected.payout?.drivingLicenseUrl} />
                       <DocLink label="National ID" url={payoutObj?.nationalIdUrl || selected.payout?.nationalIdUrl} />
-                      <DocLink label="Vehicle registration" url={payoutObj?.vehicleRegistrationUrl || selected.payout?.vehicleRegistrationUrl} />
-                      <DocLink label="Insurance" url={payoutObj?.insuranceUrl || selected.payout?.insuranceUrl} />
+                      <DocLink label="LATRA Certificate" url={payoutObj?.latraUrl || payoutObj?.vehicleRegistrationUrl || selected.payout?.latraUrl || selected.payout?.vehicleRegistrationUrl} />
+
+                      {/* Insurance — admin can upload */}
+                      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+                        {(payoutObj?.insuranceUrl || selected.payout?.insuranceUrl) ? (
+                          <a
+                            href={payoutObj?.insuranceUrl || selected.payout?.insuranceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center justify-between py-3 px-4 hover:border-[#02665e]/40 hover:bg-emerald-50/60 transition-all group no-underline"
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <span className="w-7 h-7 rounded-lg bg-emerald-50 group-hover:bg-emerald-100 flex items-center justify-center transition-colors">
+                                <FileText className="w-3.5 h-3.5 text-emerald-600" />
+                              </span>
+                              <span className="text-sm text-slate-700 group-hover:text-[#02665e] font-semibold transition-colors">Insurance</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-1.5 text-[#02665e] bg-emerald-50 group-hover:bg-emerald-100 px-2.5 py-1 rounded-lg transition-colors">
+                                <Eye className="w-3.5 h-3.5" />
+                                <span className="text-xs font-bold">View</span>
+                              </div>
+                            </div>
+                          </a>
+                        ) : (
+                          <div className="flex items-center justify-between py-3 px-4 bg-slate-50">
+                            <div className="flex items-center gap-2.5">
+                              <span className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center">
+                                <FileText className="w-3.5 h-3.5 text-slate-400" />
+                              </span>
+                              <span className="text-sm text-slate-500 font-medium">Insurance</span>
+                            </div>
+                            <span className="text-xs text-slate-300 italic font-medium">Not uploaded</span>
+                          </div>
+                        )}
+                        {/* Admin upload button */}
+                        <div className="border-t border-slate-100 px-4 py-2.5 bg-slate-50/60 flex items-center justify-between gap-3">
+                          {insuranceUploadMsg && (
+                            <span className={`text-xs font-medium ${insuranceUploadMsg.type === "success" ? "text-emerald-700" : "text-red-600"}`}>
+                              {insuranceUploadMsg.text}
+                            </span>
+                          )}
+                          <label className={`ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
+                            uploadingInsurance
+                              ? "bg-slate-200 text-slate-400 cursor-not-allowed"
+                              : "bg-[#0e2a7a] hover:bg-[#0e2a7a]/90 text-white"
+                          }`}>
+                            {uploadingInsurance
+                              ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Uploading…</>
+                              : <><UploadCloud className="w-3.5 h-3.5" /> {(payoutObj?.insuranceUrl || selected.payout?.insuranceUrl) ? "Replace" : "Upload Insurance"}</>}
+                            <input
+                              type="file"
+                              accept="image/*,.pdf"
+                              disabled={uploadingInsurance}
+                              className="hidden"
+                              onChange={e => {
+                                const f = e.target.files?.[0];
+                                if (f) uploadInsuranceDoc(f);
+                                e.target.value = "";
+                              }}
+                            />
+                          </label>
+                        </div>
+                      </div>
                     </div>
                   </section>
                 </div>
@@ -453,7 +611,7 @@ export default function DriverVettingPage() {
             </div>
 
             {/* Action bar */}
-            <div className="border-t border-slate-100 px-6 py-4 bg-slate-50 space-y-3">
+            <div className="border-t border-slate-100 px-4 py-4 bg-slate-50 space-y-3 flex-shrink-0 overflow-hidden">
               {/* Note / reason input */}
               {showNoteInput && (
                 <div className="space-y-2">
@@ -469,7 +627,7 @@ export default function DriverVettingPage() {
                         ? "e.g. Driving licence image is not clear"
                         : "e.g. Please upload a clearer photo of your vehicle registration"
                     }
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] outline-none resize-none bg-white"
+                    className="w-full block px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] outline-none resize-none bg-white box-border"
                   />
                   <div className="flex gap-2">
                     <button

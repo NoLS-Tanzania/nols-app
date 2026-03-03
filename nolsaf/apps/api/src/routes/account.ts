@@ -408,14 +408,15 @@ const getMe: RequestHandler = async (req, res) => {
         }
         const lic = latestByType.get('DRIVER_LICENSE') || latestByType.get('DRIVING_LICENSE') || latestByType.get('LICENSE');
         const nid = latestByType.get('NATIONAL_ID') || latestByType.get('ID') || latestByType.get('PASSPORT');
-        const reg = latestByType.get('VEHICLE_REGISTRATION') || latestByType.get('VEHICLE_REG');
+        const latra = latestByType.get('LATRA') || latestByType.get('VEHICLE_REGISTRATION') || latestByType.get('VEHICLE_REG');
         const ins = latestByType.get('INSURANCE');
         (user as any).drivingLicenseUrl = lic?.url ?? null;
         (user as any).licenseFileUrl = lic?.url ?? null;
         (user as any).nationalIdUrl = nid?.url ?? null;
         (user as any).idFileUrl = nid?.url ?? null;
-        (user as any).vehicleRegistrationUrl = reg?.url ?? null;
-        (user as any).vehicleRegFileUrl = reg?.url ?? null;
+        (user as any).latraUrl = latra?.url ?? null;
+        (user as any).vehicleRegistrationUrl = latra?.url ?? null; // backward compat alias
+        (user as any).vehicleRegFileUrl = latra?.url ?? null;
         (user as any).insuranceUrl = ins?.url ?? null;
         (user as any).insuranceFileUrl = ins?.url ?? null;
         (user as any).documents = docs;

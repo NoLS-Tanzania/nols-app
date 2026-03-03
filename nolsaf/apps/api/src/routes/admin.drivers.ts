@@ -5169,33 +5169,114 @@ router.get("/:id(\\d+)/activities", async (req, res) => {
   }
 });
 
-/** PATCH /admin/drivers/:id/kyc — approve or reject a driver application */
+/** PATCH /admin/drivers/:id/kyc — approve, reject, or request information from a driver */
 router.patch('/:id(\\d+)/kyc', async (req, res) => {
   try {
     const driverId = Number(req.params.id);
-    const { action, reason } = req.body ?? {};
-    if (!['approve', 'reject'].includes(String(action))) {
-      return res.status(400).json({ error: 'action must be \'approve\' or \'reject\'' });
+    const { action, reason, note } = req.body ?? {};
+    if (!['approve', 'reject', 'request_info'].includes(String(action))) {
+      return res.status(400).json({ error: 'action must be \'approve\', \'reject\', or \'request_info\'' });
     }
-    const kycStatus = action === 'approve' ? 'APPROVED_KYC' : 'REJECTED_KYC';
     const driver = await prisma.user.findUnique({ where: { id: driverId, role: 'DRIVER' } as any });
     if (!driver) return res.status(404).json({ error: 'Driver not found' });
-    await prisma.user.update({ where: { id: driverId }, data: { kycStatus } as any });
-    // Emit real-time notification to the driver if Socket.IO is available
+
+    let kycStatus: string = (driver as any).kycStatus ?? 'PENDING_KYC';
+    if (action === 'approve') kycStatus = 'APPROVED_KYC';
+    else if (action === 'reject') kycStatus = 'REJECTED_KYC';
+    // request_info keeps the current kycStatus (stays PENDING_KYC)
+
+    if (action !== 'request_info') {
+      await prisma.user.update({ where: { id: driverId }, data: { kycStatus } as any });
+    }
+
+    // Emit real-time notification to the driver
     try {
       const io = (req as any).app?.get?.('io');
       if (io) {
-        io.to(`user:${driverId}`).emit('kyc_status_update', {
-          kycStatus,
-          message: kycStatus === 'APPROVED_KYC'
+        const message =
+          action === 'approve'
             ? 'Your driver application has been approved! You can now access your dashboard.'
-            : `Your driver application has been reviewed. Status: ${reason || 'Rejected'}. Please contact support for more details.`,
-        });
+            : action === 'reject'
+              ? `Your driver application was not approved. ${reason ? `Reason: ${reason}` : 'Please contact support for more details.'}`
+              : `The admin needs more information to process your application. ${note ? `Message: ${note}` : 'Please update your profile with the required details.'}`;
+        io.to(`user:${driverId}`).emit('kyc_status_update', { kycStatus, action, message });
       }
     } catch (e) { /* socket errors are non-fatal */ }
-    return res.json({ ok: true, driverId, kycStatus });
+
+    return res.json({ ok: true, driverId, kycStatus, action });
   } catch (err: any) {
     console.error('PATCH /admin/drivers/:id/kyc error:', err);
+    return res.status(500).json({ error: 'internal_error', message: err?.message });
+  }
+});
+
+/**
+ * POST /admin/drivers/:id/upload-doc
+ * Admin uploads a document for a driver (e.g. insurance certificate).
+ * Body JSON: { docType: 'INSURANCE' | 'LATRA' | ..., docUrl: string }
+ * The frontend uploads the file to Cloudinary first (via /api/uploads/cloudinary/sign),
+ * then sends the resulting URL to this endpoint.
+ */
+router.post('/:id(\\d+)/upload-doc', async (req, res) => {
+  try {
+    const driverId = Number(req.params.id);
+    if (!Number.isFinite(driverId)) return res.status(400).json({ error: 'invalid_driver_id' });
+
+    const { docType, docUrl } = req.body ?? {};
+    if (!docType || typeof docType !== 'string') return res.status(400).json({ error: 'docType is required' });
+    if (!docUrl || typeof docUrl !== 'string') return res.status(400).json({ error: 'docUrl is required' });
+
+    const allowedTypes = ['INSURANCE', 'LATRA', 'DRIVER_LICENSE', 'NATIONAL_ID'];
+    const normalizedType = String(docType).toUpperCase();
+    if (!allowedTypes.includes(normalizedType)) {
+      return res.status(400).json({ error: 'invalid_doc_type', allowed: allowedTypes });
+    }
+
+    const driver = await prisma.user.findFirst({ where: { id: driverId, role: 'DRIVER' } as any });
+    if (!driver) return res.status(404).json({ error: 'Driver not found' });
+
+    // Upsert UserDocument record
+    if ((prisma as any).userDocument) {
+      const existing = await prisma.userDocument.findFirst({
+        where: { userId: driverId, type: normalizedType },
+        orderBy: { id: 'desc' },
+      });
+      if (existing) {
+        await prisma.userDocument.update({
+          where: { id: existing.id },
+          data: { url: docUrl, status: 'PENDING', metadata: { uploadedByAdmin: true, uploadedAt: new Date().toISOString() } } as any,
+        });
+      } else {
+        await prisma.userDocument.create({
+          data: {
+            userId: driverId,
+            type: normalizedType,
+            url: docUrl,
+            status: 'PENDING',
+            metadata: { uploadedByAdmin: true, uploadedAt: new Date().toISOString() },
+          } as any,
+        });
+      }
+    }
+
+    // Also persist to payout JSON for quick access on vetting page
+    try {
+      const currentPayout = (driver as any).payout;
+      const payoutObj: any = (typeof currentPayout === 'object' && currentPayout !== null) ? { ...currentPayout } : {};
+      const urlKey =
+        normalizedType === 'INSURANCE' ? 'insuranceUrl' :
+        normalizedType === 'LATRA' ? 'latraUrl' :
+        normalizedType === 'DRIVER_LICENSE' ? 'drivingLicenseUrl' :
+        normalizedType === 'NATIONAL_ID' ? 'nationalIdUrl' : null;
+      if (urlKey) {
+        payoutObj[urlKey] = docUrl;
+        await prisma.user.update({ where: { id: driverId }, data: { payout: payoutObj } as any });
+      }
+    } catch (e) { /* ignore payout update errors */ }
+
+    return res.json({ ok: true, driverId, docType: normalizedType, docUrl });
+  } catch (err: any) {
+    console.error('POST /admin/drivers/:id/upload-doc error:', err);
     return res.status(500).json({ error: 'internal_error', message: err?.message });
   }
 });

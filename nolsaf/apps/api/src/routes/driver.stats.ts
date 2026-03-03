@@ -1515,7 +1515,7 @@ const updateDriverProfile: RequestHandler = async (req, res) => {
     // Uploaded docs (Cloudinary URLs)
     drivingLicenseUrl,
     nationalIdUrl,
-    vehicleRegistrationUrl,
+    latraUrl,
     insuranceUrl,
     // Optional extra fields (not always present in Prisma schema)
     region,
@@ -1637,7 +1637,7 @@ const updateDriverProfile: RequestHandler = async (req, res) => {
       nin: typeof nin === 'string' ? nin : undefined,
       uploadedAt: new Date().toISOString(),
     });
-    await upsertDoc('VEHICLE_REGISTRATION', vehicleRegistrationUrl, {
+    await upsertDoc('LATRA', latraUrl, {
       plateNumber: typeof plateNumber === 'string' ? plateNumber : undefined,
       vehicleType: typeof vehicleType === 'string' ? vehicleType : undefined,
       uploadedAt: new Date().toISOString(),
@@ -1647,7 +1647,7 @@ const updateDriverProfile: RequestHandler = async (req, res) => {
     // Best-effort: don't fail the whole profile update
   }
 
-  try { await audit(req as AuthedRequest, 'USER_PROFILE_UPDATE', `user:${updated.id}`, before, { ...data, drivingLicenseUrl, nationalIdUrl, vehicleRegistrationUrl, insuranceUrl }); } catch (e) { /* ignore audit errors */ }
+  try { await audit(req as AuthedRequest, 'USER_PROFILE_UPDATE', `user:${updated.id}`, before, { ...data, drivingLicenseUrl, nationalIdUrl, latraUrl, insuranceUrl }); } catch (e) { /* ignore audit errors */ }
   return res.json({ ok: true });
 };
 router.put('/profile', updateDriverProfile as unknown as RequestHandler);
