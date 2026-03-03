@@ -1105,6 +1105,8 @@ router.post('/profile', upload.any(), async (req, res) => {
       plateNumber,
       vehicleType,
       operationArea,
+      region,
+      district,
       paymentPhone,
       paymentVerified,
       isVipDriver,
@@ -1223,6 +1225,8 @@ router.post('/profile', upload.any(), async (req, res) => {
       if (hasField('plateNumber') && typeof plateNumber === 'string') dataToUpdate.plateNumber = plateNumber;
       if (hasField('vehicleType') && typeof vehicleType === 'string') dataToUpdate.vehicleType = vehicleType;
       if (hasField('operationArea') && typeof operationArea === 'string') dataToUpdate.operationArea = operationArea;
+      if (hasField('region') && typeof region === 'string') dataToUpdate.region = region;
+      if (hasField('district') && typeof district === 'string') dataToUpdate.district = district;
       if (hasField('paymentPhone') && typeof paymentPhone === 'string') dataToUpdate.paymentPhone = paymentPhone;
       if (hasField('paymentVerified') && typeof paymentVerified !== 'undefined') {
         dataToUpdate.paymentVerified =
@@ -1233,16 +1237,15 @@ router.post('/profile', upload.any(), async (req, res) => {
           String(isVipDriver) === 'true' || String(isVipDriver) === '1';
       }
 
-      // When a driver submits onboarding details for the first time, put them in PENDING review.
-      // Only set PENDING_KYC if they haven't been approved/rejected yet (preserve admin decisions).
+      // Only move driver to PENDING_KYC when they explicitly submit for review.
+      const submitForReview = String(body?.submitForReview ?? '') === 'true';
       if (
-        (dbRole === 'DRIVER') &&
+        (dbRole === 'DRIVER') && submitForReview &&
         typeof licenseNumber === 'string' && licenseNumber.trim() &&
         typeof vehicleType === 'string' && vehicleType.trim() &&
         typeof plateNumber === 'string' && plateNumber.trim()
       ) {
         if (!currentKycStatus || currentKycStatus === 'PENDING_KYC') {
-          // First submission or re-submission — mark pending review
           dataToUpdate.kycStatus = 'PENDING_KYC';
         }
       }

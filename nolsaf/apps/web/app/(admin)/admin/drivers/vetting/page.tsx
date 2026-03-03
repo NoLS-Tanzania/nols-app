@@ -243,40 +243,36 @@ export default function DriverVettingPage() {
         </div>
 
         {/* Tab stat cards */}
-        <div className="flex gap-3 mt-6 flex-wrap">
+        <div className="flex gap-2 mt-5 flex-wrap">
           {tabs.map(({ key, label, icon: Icon, color }) => {
             const active = tab === key;
             const cfg = {
-              amber:   { ring: "ring-amber-300",   iconBg: "bg-amber-100",   iconColor: "text-amber-500",   num: "text-amber-600",   lbl: "text-amber-800",   bar: "bg-amber-400",   activeBg: "bg-amber-50" },
-              emerald: { ring: "ring-emerald-300", iconBg: "bg-emerald-100", iconColor: "text-emerald-500", num: "text-emerald-600", lbl: "text-emerald-800", bar: "bg-emerald-400", activeBg: "bg-emerald-50" },
-              red:     { ring: "ring-red-300",     iconBg: "bg-red-100",     iconColor: "text-red-500",     num: "text-red-600",     lbl: "text-red-800",     bar: "bg-red-400",     activeBg: "bg-red-50" },
+              amber:   { activeBg: "bg-amber-50/90",   iconColor: "text-amber-500",   num: "text-amber-600",   lbl: "text-amber-700",   border: "border-amber-300/70",   dot: "bg-amber-400" },
+              emerald: { activeBg: "bg-emerald-50/90", iconColor: "text-emerald-500", num: "text-emerald-600", lbl: "text-emerald-700", border: "border-emerald-300/70", dot: "bg-emerald-400" },
+              red:     { activeBg: "bg-red-50/90",     iconColor: "text-red-500",     num: "text-red-600",     lbl: "text-red-700",     border: "border-red-300/70",     dot: "bg-red-400" },
             }[color]!;
             return (
               <button
                 key={key}
                 onClick={() => { setTab(key); setSelected(null); }}
-                className={`relative flex items-center gap-4 pl-5 pr-6 py-4 rounded-2xl text-left transition-all duration-200 min-w-[170px] ${
+                className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-left transition-all duration-200 border ${
                   active
-                    ? `${cfg.activeBg} ring-2 ${cfg.ring} shadow-xl scale-[1.03]`
-                    : "bg-white/95 ring-1 ring-white/40 shadow-md hover:shadow-lg hover:scale-[1.01]"
+                    ? `${cfg.activeBg} ${cfg.border} shadow-sm`
+                    : "bg-white/10 border-white/20 hover:bg-white/20"
                 }`}
               >
-                {/* Colored top bar */}
-                {active && (
-                  <span className={`absolute top-0 left-6 right-6 h-[3px] rounded-b-full ${cfg.bar}`} />
-                )}
+                {/* Dot indicator */}
+                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${active ? cfg.dot : "bg-white/30"}`} />
                 {/* Icon */}
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${active ? cfg.iconBg : "bg-slate-100"}`}>
-                  <Icon className={`w-5 h-5 ${active ? cfg.iconColor : "text-slate-400"}`} />
-                </div>
-                {/* Text */}
-                <div>
-                  <p className={`text-3xl font-black leading-none tracking-tight ${active ? cfg.num : "text-slate-700"}`}>
+                <Icon className={`w-4 h-4 flex-shrink-0 ${active ? cfg.iconColor : "text-white/60"}`} />
+                {/* Count + Label */}
+                <div className="flex items-baseline gap-1.5">
+                  <span className={`text-xl font-bold leading-none ${active ? cfg.num : "text-white font-semibold"}`}>
                     {counts[key]}
-                  </p>
-                  <p className={`text-[11px] font-bold uppercase tracking-wider mt-1.5 ${active ? cfg.lbl : "text-slate-400"}`}>
+                  </span>
+                  <span className={`text-xs font-semibold uppercase tracking-wide ${active ? cfg.lbl : "text-white/60"}`}>
                     {label}
-                  </p>
+                  </span>
                 </div>
               </button>
             );

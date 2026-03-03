@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
+import { REGIONS } from "@/lib/tzRegions";
+import { REGIONS_FULL_DATA } from "@/lib/tzRegionsFull";
 import * as Icons from 'lucide-react';
 import { User, Mail, UserCircle, Globe, CreditCard, FileText, Upload, CheckCircle2, Truck, MapPin, Phone, ChevronDown, AlertCircle, ChevronLeft, ChevronRight, Loader2, Car, X, Clock, Building2, UserCircle2, ArrowLeft, Star } from 'lucide-react';
 
@@ -30,7 +32,9 @@ export default function OnboardRole() {
   const [licenseNumber, setLicenseNumber] = useState('');
   const [vehicleType, setVehicleType] = useState<string>(''); // single pick: Bajaji, Bodaboda, Vehicle
   const [isVipDriver, setIsVipDriver] = useState(false); // VIP vehicle declaration
-  const [operationArea, setOperationArea] = useState('');
+  const [operationArea, setOperationArea] = useState(''); // ward
+  const [driverRegion, setDriverRegion] = useState(''); // region name
+  const [driverDistrict, setDriverDistrict] = useState(''); // district name
   const [paymentPhone, setPaymentPhone] = useState('');
   // OTP verification state for payment phone
   const [paymentOtp, setPaymentOtp] = useState('');
@@ -42,7 +46,9 @@ export default function OnboardRole() {
   const [accountPhone, setAccountPhone] = useState<string>(''); // set from /api/account/me, used for auto-verify
   const [idFile, setIdFile] = useState<File | null>(null);
   const [vehicleRegFile, setVehicleRegFile] = useState<File | null>(null);
-  const [stepIndex, setStepIndex] = useState<number>(1); // 1..4 for driver onboarding steps
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [agreedToPrivacy, setAgreedToPrivacy] = useState(false);
+  const [stepIndex, setStepIndex] = useState<number>(1); // 1..5 for driver onboarding steps
   // owner fields removed: owner uses existing owner dashboard for property creation
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -175,10 +181,14 @@ export default function OnboardRole() {
       fd.append('licenseNumber', licenseNumber || '');
       fd.append('plateNumber', plateNumber || '');
       fd.append('vehicleType', vehicleType || '');
+      fd.append('region', driverRegion || '');
+      fd.append('district', driverDistrict || '');
       fd.append('operationArea', operationArea || '');
       fd.append('paymentPhone', paymentPhone || '');
       fd.append('paymentVerified', paymentVerified ? '1' : '0');
       fd.append('isVipDriver', isVipDriver ? 'true' : 'false');
+      // Explicit submit-for-review flag — only set on final step submission
+      fd.append('submitForReview', 'true');
         if (licenseFile) fd.append('licenseFile', licenseFile, licenseFile.name);
         if (idFile) fd.append('idFile', idFile, idFile.name);
         if (vehicleRegFile) fd.append('vehicleRegFile', vehicleRegFile, vehicleRegFile.name);
@@ -273,8 +283,10 @@ export default function OnboardRole() {
     
     // Step 4: Uploads (driving license and national ID are required)
     const step4Valid = licenseFile !== null && idFile !== null;
+    // Step 5: Terms & privacy agreement
+    const step5Valid = agreedToTerms && agreedToPrivacy;
     
-    return step1Valid && step2Valid && step3Valid && step4Valid;
+    return step1Valid && step2Valid && step3Valid && step4Valid && step5Valid;
   };
 
   // Per-field touched/errors to show inline messages
@@ -1221,19 +1233,70 @@ export default function OnboardRole() {
                           </div>
                         )}
                     </div>
-                    <div>
-                        <label className="text-sm font-semibold text-slate-900 mb-1.5 flex items-center gap-2">
-                          <MapPin className="w-3.5 h-3.5 text-slate-500" />
-                          Operation / Parking area
-                        </label>
-                        <input 
-                          value={operationArea} 
-                          onChange={e => setOperationArea(e.target.value)} 
-                          className="w-full px-3 py-2.5 border-2 border-slate-200 rounded-lg bg-white shadow-sm hover:shadow-md focus:outline-none focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10 transition-all duration-200 text-sm" 
-                          placeholder="e.g., Dar es Salaam - Ilala"
-                        />
+                    </div>
+
+                  {/* Operation area — region / district / ward cascading dropdowns */}
+                  <div className="space-y-3">
+                    <label className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                      <MapPin className="w-3.5 h-3.5 text-slate-500" />
+                      Operation / Parking area
+                      <span className="text-xs font-normal text-slate-400">(optional)</span>
+                    </label>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      {/* Region */}
+                      <div>
+                        <label className="text-xs font-medium text-slate-600 mb-1 block">Region</label>
+                        <select
+                          value={driverRegion}
+                          onChange={e => { setDriverRegion(e.target.value); setDriverDistrict(''); setOperationArea(''); }}
+                          className="w-full px-3 py-2.5 border-2 border-slate-200 rounded-lg bg-white text-sm focus:outline-none focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10 transition-all duration-200 cursor-pointer"
+                        >
+                          <option value="">— Select region —</option>
+                          {REGIONS.sort((a, b) => a.name.localeCompare(b.name)).map(r => (
+                            <option key={r.id} value={r.name}>{r.name.charAt(0) + r.name.slice(1).toLowerCase().replace(/-/g, '-')}</option>
+                          ))}
+                        </select>
+                      </div>
+                      {/* District */}
+                      <div>
+                        <label className="text-xs font-medium text-slate-600 mb-1 block">District</label>
+                        <select
+                          value={driverDistrict}
+                          onChange={e => { setDriverDistrict(e.target.value); setOperationArea(''); }}
+                          disabled={!driverRegion}
+                          className="w-full px-3 py-2.5 border-2 border-slate-200 rounded-lg bg-white text-sm focus:outline-none focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10 transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <option value="">— Select district —</option>
+                          {driverRegion && (() => {
+                            const region = REGIONS.find(r => r.name === driverRegion);
+                            return (region?.districts ?? []).map((d: string) => (
+                              <option key={d} value={d}>{d.charAt(0) + d.slice(1).toLowerCase()}</option>
+                            ));
+                          })()}
+                        </select>
+                      </div>
+                      {/* Ward */}
+                      <div>
+                        <label className="text-xs font-medium text-slate-600 mb-1 block">Ward / Area</label>
+                        <select
+                          value={operationArea}
+                          onChange={e => setOperationArea(e.target.value)}
+                          disabled={!driverDistrict}
+                          className="w-full px-3 py-2.5 border-2 border-slate-200 rounded-lg bg-white text-sm focus:outline-none focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10 transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <option value="">— Select ward —</option>
+                          {driverRegion && driverDistrict && (() => {
+                            const rSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+                            const rd = REGIONS_FULL_DATA.find((r: any) => rSlug(r.name) === rSlug(driverRegion));
+                            const dist = rd?.districts?.find((d: any) => d.name?.toUpperCase() === driverDistrict?.toUpperCase());
+                            return (dist?.wards ?? []).map((w: any) => (
+                              <option key={w.name} value={w.name}>{w.name.charAt(0) + w.name.slice(1).toLowerCase()}</option>
+                            ));
+                          })()}
+                        </select>
                       </div>
                     </div>
+                  </div>
 
                     {/* VIP Vehicle Declaration */}
                     <div>
@@ -1772,7 +1835,11 @@ export default function OnboardRole() {
                             </label>
                             <button type="button" onClick={() => setStepIndex(2)} className="text-xs text-[#02665e] hover:text-[#02665e]/80 hover:underline font-medium">Edit</button>
                           </div>
-                          <div className="text-sm text-slate-900 font-medium">{operationArea || <span className="text-slate-400 italic">—</span>}</div>
+                          <div className="text-sm text-slate-900 font-medium">
+                            {driverRegion ? (
+                              <span>{driverRegion}{driverDistrict ? ` › ${driverDistrict}` : ''}{operationArea ? ` › ${operationArea}` : ''}</span>
+                            ) : <span className="text-slate-400 italic">—</span>}
+                          </div>
                         </div>
 
                         <div className={`p-3 border-2 rounded-lg transition-colors ${isVipDriver ? 'bg-amber-50 border-amber-300' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
@@ -1886,6 +1953,52 @@ export default function OnboardRole() {
                 </div>
               )}
 
+              {/* Terms & Privacy Agreement — shown only on final review step */}
+              {role === 'driver' && stepIndex === 5 && (
+                <div className={`rounded-2xl border-2 p-5 transition-all duration-300 ${
+                  agreedToTerms && agreedToPrivacy ? 'border-emerald-300 bg-emerald-50/60' : 'border-amber-300/60 bg-amber-50/40'
+                }`}>
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-8 h-8 rounded-lg bg-amber-400/15 flex items-center justify-center">
+                      <CheckCircle2 className="w-4 h-4 text-amber-600" />
+                    </div>
+                    <h4 className="text-sm font-bold text-slate-900">Agreement required before submitting</h4>
+                  </div>
+                  <div className="space-y-3">
+                    <label className="flex items-start gap-3 cursor-pointer group">
+                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-all ${
+                        agreedToTerms ? 'bg-emerald-500 border-emerald-500' : 'border-slate-300 group-hover:border-[#02665e]'
+                      }`} onClick={() => setAgreedToTerms(v => !v)}>
+                        {agreedToTerms && <CheckCircle2 className="w-3 h-3 text-white" />}
+                      </div>
+                      <span className="text-sm text-slate-700 leading-relaxed">
+                        I have read and agree to the{' '}
+                        <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-[#02665e] font-semibold underline hover:text-[#02665e]/80">Terms of Service</a>.
+                        I understand the driver responsibilities, conduct policies, and platform rules.
+                      </span>
+                    </label>
+                    <label className="flex items-start gap-3 cursor-pointer group">
+                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-all ${
+                        agreedToPrivacy ? 'bg-emerald-500 border-emerald-500' : 'border-slate-300 group-hover:border-[#02665e]'
+                      }`} onClick={() => setAgreedToPrivacy(v => !v)}>
+                        {agreedToPrivacy && <CheckCircle2 className="w-3 h-3 text-white" />}
+                      </div>
+                      <span className="text-sm text-slate-700 leading-relaxed">
+                        I have read and accept the{' '}
+                        <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-[#02665e] font-semibold underline hover:text-[#02665e]/80">Privacy Policy</a>.
+                        I consent to my personal data and documents being processed for driver vetting.
+                      </span>
+                    </label>
+                  </div>
+                  {(!agreedToTerms || !agreedToPrivacy) && (
+                    <p className="mt-3 text-xs text-amber-700 flex items-center gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                      You must agree to both before your application can be submitted for review.
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div className="flex items-center justify-between pt-4 border-t border-slate-200">
                 <div className="flex items-center gap-2">
                   {stepIndex > 1 && (
@@ -1936,7 +2049,7 @@ export default function OnboardRole() {
                       ) : (
                         <span className="flex items-center gap-1.5">
                           <CheckCircle2 className="w-3.5 h-3.5" />
-                          Submit and finish
+                          Submit for Review
                         </span>
                       )}
                     </button>
