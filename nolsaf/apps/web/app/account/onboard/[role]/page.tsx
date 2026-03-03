@@ -48,7 +48,7 @@ export default function OnboardRole() {
 
   const isApproved = (key: string) => kycFieldApprovals[key] === 'approved';
   const fieldBorderClass = (key: string, hasError: boolean) => {
-    if (kycFieldApprovals[key] === 'approved') return 'border-emerald-300 bg-emerald-50/40 cursor-not-allowed opacity-75';
+    if (kycFieldApprovals[key] === 'approved') return 'border-emerald-300 bg-emerald-50/60 cursor-not-allowed';
     if (kycFieldApprovals[key] === 'flagged') return 'border-orange-400 focus:border-orange-500 focus:ring-2 focus:ring-orange-100';
     if (hasError) return 'border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-100';
     return 'border-slate-200 focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10';
@@ -114,6 +114,19 @@ export default function OnboardRole() {
         if (me?.kycFieldApprovals && typeof me.kycFieldApprovals === 'object') {
           setKycFieldApprovals(me.kycFieldApprovals as Record<string, 'approved' | 'flagged'>);
         }
+        // Pre-fill all form fields with existing user data so locked fields show their values
+        if (me?.name || me?.fullName)   setName(me.fullName ?? me.name ?? '');
+        if (me?.email)                  setEmail(me.email);
+        if (me?.nin)                    setNin(me.nin);
+        if (me?.licenseNumber)          setLicenseNumber(me.licenseNumber);
+        if (me?.gender)                 setGender(me.gender);
+        if (me?.nationality)            setNationality(me.nationality);
+        if (me?.plateNumber)            setPlateNumber(me.plateNumber);
+        if (me?.vehicleType)            setVehicleType(me.vehicleType);
+        if (me?.operationArea)          setOperationArea(me.operationArea);
+        if (me?.region)                 setDriverRegion(me.region);
+        if (me?.district)               setDriverDistrict(me.district);
+        if (me?.paymentPhone)           setPaymentPhone(me.paymentPhone);
       } catch {
         // ignore
       }
@@ -1565,6 +1578,19 @@ export default function OnboardRole() {
                     </div>
                   </div>
 
+                  {/* Top-level flagged docs summary banner */}
+                  {(['drivingLicense', 'nationalId', 'latra', 'insurance'] as const).some(k => kycFieldApprovals[k] === 'flagged') && (
+                    <div className="flex items-start gap-3 px-4 py-3 bg-orange-50 border border-orange-300 rounded-xl">
+                      <AlertTriangle className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-bold text-orange-900">Some documents need to be re-uploaded</p>
+                        <p className="text-xs text-orange-700 mt-0.5 leading-relaxed">
+                          Our team reviewed your application and flagged the documents marked <span className="font-semibold">Update required</span> below. Please re-upload genuine, legible copies to continue.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="space-y-4">
                   <div>
                       <label htmlFor="license-upload" className="text-sm font-semibold text-slate-900 mb-2 flex items-center gap-2">
@@ -1572,8 +1598,21 @@ export default function OnboardRole() {
                         Upload driving license
                         <span className="text-red-500">*</span>
                         <span className="text-xs font-normal text-slate-500">(jpg, png, pdf)</span>
+                        <FieldBadge fk="drivingLicense" />
                       </label>
-                      <label htmlFor="license-upload" className="flex flex-col items-center justify-center w-full px-4 py-6 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer bg-slate-50 hover:bg-slate-100 hover:border-[#02665e] transition-all duration-200 group">
+                      {kycFieldApprovals['drivingLicense'] === 'flagged' && (
+                        <div className="mb-2 flex items-start gap-2 px-3 py-2.5 bg-orange-50 border border-orange-300 rounded-lg">
+                          <AlertTriangle className="w-4 h-4 text-orange-500 flex-shrink-0 mt-0.5" />
+                          <p className="text-xs text-orange-800 font-medium leading-relaxed">
+                            <span className="font-bold">Action required:</span> Our team reviewed your driving licence and found an issue — the image may be blurry, incomplete, or unreadable. Please re-upload a clear, fully visible copy.
+                          </p>
+                        </div>
+                      )}
+                      <label htmlFor="license-upload" className={`flex flex-col items-center justify-center w-full px-4 py-6 border-2 border-dashed rounded-lg cursor-pointer transition-all duration-200 group ${
+                        kycFieldApprovals['drivingLicense'] === 'flagged'
+                          ? 'border-orange-400 bg-orange-50/60 hover:bg-orange-50 hover:border-orange-500'
+                          : 'border-slate-300 bg-slate-50 hover:bg-slate-100 hover:border-[#02665e]'
+                      }`}>
                         <div className="flex flex-col items-center justify-center gap-2">
                           <Upload className="w-6 h-6 text-slate-400 group-hover:text-[#02665e] transition-colors" />
                           <p className="text-sm text-slate-600 group-hover:text-slate-900">
@@ -1613,8 +1652,21 @@ export default function OnboardRole() {
                         Upload national ID
                         <span className="text-red-500">*</span>
                         <span className="text-xs font-normal text-slate-500">(jpg, png, pdf)</span>
+                        <FieldBadge fk="nationalId" />
                       </label>
-                      <label htmlFor="id-upload" className="flex flex-col items-center justify-center w-full px-4 py-6 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer bg-slate-50 hover:bg-slate-100 hover:border-[#02665e] transition-all duration-200 group">
+                      {kycFieldApprovals['nationalId'] === 'flagged' && (
+                        <div className="mb-2 flex items-start gap-2 px-3 py-2.5 bg-orange-50 border border-orange-300 rounded-lg">
+                          <AlertTriangle className="w-4 h-4 text-orange-500 flex-shrink-0 mt-0.5" />
+                          <p className="text-xs text-orange-800 font-medium leading-relaxed">
+                            <span className="font-bold">Action required:</span> There is an issue with your National ID — it may be expired, unclear, or not matching our records. Please re-upload a valid, legible copy of your National ID.
+                          </p>
+                        </div>
+                      )}
+                      <label htmlFor="id-upload" className={`flex flex-col items-center justify-center w-full px-4 py-6 border-2 border-dashed rounded-lg cursor-pointer transition-all duration-200 group ${
+                        kycFieldApprovals['nationalId'] === 'flagged'
+                          ? 'border-orange-400 bg-orange-50/60 hover:bg-orange-50 hover:border-orange-500'
+                          : 'border-slate-300 bg-slate-50 hover:bg-slate-100 hover:border-[#02665e]'
+                      }`}>
                         <div className="flex flex-col items-center justify-center gap-2">
                           <Upload className="w-6 h-6 text-slate-400 group-hover:text-[#02665e] transition-colors" />
                           <p className="text-sm text-slate-600 group-hover:text-slate-900">
@@ -1653,8 +1705,21 @@ export default function OnboardRole() {
                         <Truck className="w-3.5 h-3.5 text-slate-500" />
                         Upload LATRA certificate
                         <span className="text-xs font-normal text-slate-500">(optional)</span>
+                        <FieldBadge fk="latra" />
                       </label>
-                      <label htmlFor="latra-upload" className="flex flex-col items-center justify-center w-full px-4 py-6 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer bg-slate-50 hover:bg-slate-100 hover:border-[#02665e] transition-all duration-200 group">
+                      {kycFieldApprovals['latra'] === 'flagged' && (
+                        <div className="mb-2 flex items-start gap-2 px-3 py-2.5 bg-orange-50 border border-orange-300 rounded-lg">
+                          <AlertTriangle className="w-4 h-4 text-orange-500 flex-shrink-0 mt-0.5" />
+                          <p className="text-xs text-orange-800 font-medium leading-relaxed">
+                            <span className="font-bold">Action required:</span> We could not verify your LATRA certificate — it may be missing, expired, or unreadable. Please upload a valid, in-date LATRA certificate to continue.
+                          </p>
+                        </div>
+                      )}
+                      <label htmlFor="latra-upload" className={`flex flex-col items-center justify-center w-full px-4 py-6 border-2 border-dashed rounded-lg cursor-pointer transition-all duration-200 group ${
+                        kycFieldApprovals['latra'] === 'flagged'
+                          ? 'border-orange-400 bg-orange-50/60 hover:bg-orange-50 hover:border-orange-500'
+                          : 'border-slate-300 bg-slate-50 hover:bg-slate-100 hover:border-[#02665e]'
+                      }`}>
                         <div className="flex flex-col items-center justify-center gap-2">
                           <Upload className="w-6 h-6 text-slate-400 group-hover:text-[#02665e] transition-colors" />
                           <p className="text-sm text-slate-600 group-hover:text-slate-900">
@@ -1693,8 +1758,21 @@ export default function OnboardRole() {
                         <Shield className="w-3.5 h-3.5 text-slate-500" />
                         Upload insurance certificate
                         <span className="text-xs font-normal text-slate-500">(optional)</span>
+                        <FieldBadge fk="insurance" />
                       </label>
-                      <label htmlFor="insurance-upload" className="flex flex-col items-center justify-center w-full px-4 py-6 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer bg-slate-50 hover:bg-slate-100 hover:border-[#02665e] transition-all duration-200 group">
+                      {kycFieldApprovals['insurance'] === 'flagged' && (
+                        <div className="mb-2 flex items-start gap-2 px-3 py-2.5 bg-orange-50 border border-orange-300 rounded-lg">
+                          <AlertTriangle className="w-4 h-4 text-orange-500 flex-shrink-0 mt-0.5" />
+                          <p className="text-xs text-orange-800 font-medium leading-relaxed">
+                            <span className="font-bold">Action required:</span> Your insurance certificate could not be verified — it may be expired, unclear, or the wrong document. Please re-upload a valid, current insurance certificate.
+                          </p>
+                        </div>
+                      )}
+                      <label htmlFor="insurance-upload" className={`flex flex-col items-center justify-center w-full px-4 py-6 border-2 border-dashed rounded-lg cursor-pointer transition-all duration-200 group ${
+                        kycFieldApprovals['insurance'] === 'flagged'
+                          ? 'border-orange-400 bg-orange-50/60 hover:bg-orange-50 hover:border-orange-500'
+                          : 'border-slate-300 bg-slate-50 hover:bg-slate-100 hover:border-[#02665e]'
+                      }`}>
                         <div className="flex flex-col items-center justify-center gap-2">
                           <Upload className="w-6 h-6 text-slate-400 group-hover:text-[#02665e] transition-colors" />
                           <p className="text-sm text-slate-600 group-hover:text-slate-900">
@@ -2040,30 +2118,57 @@ export default function OnboardRole() {
                     <h4 className="text-sm font-bold text-slate-900">Agreement required before submitting</h4>
                   </div>
                   <div className="space-y-3">
-                    <label className="flex items-start gap-3 cursor-pointer group">
-                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-all ${
-                        agreedToTerms ? 'bg-emerald-500 border-emerald-500' : 'border-slate-300 group-hover:border-[#02665e]'
-                      }`} onClick={() => setAgreedToTerms(v => !v)}>
-                        {agreedToTerms && <CheckCircle2 className="w-3 h-3 text-white" />}
-                      </div>
-                      <span className="text-sm text-slate-700 leading-relaxed">
+
+                    {/* Terms of Service */}
+                    <div className={`rounded-xl border-2 px-4 py-3 transition-all duration-200 ${
+                      agreedToTerms ? 'border-emerald-400 bg-emerald-50' : 'border-slate-200 bg-white'
+                    }`}>
+                      <p className="text-sm text-slate-700 leading-relaxed mb-3">
                         I have read and agree to the{' '}
                         <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-[#02665e] font-semibold underline hover:text-[#02665e]/80">Terms of Service</a>.
-                        I understand the driver responsibilities, conduct policies, and platform rules.
-                      </span>
-                    </label>
-                    <label className="flex items-start gap-3 cursor-pointer group">
-                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-all ${
-                        agreedToPrivacy ? 'bg-emerald-500 border-emerald-500' : 'border-slate-300 group-hover:border-[#02665e]'
-                      }`} onClick={() => setAgreedToPrivacy(v => !v)}>
-                        {agreedToPrivacy && <CheckCircle2 className="w-3 h-3 text-white" />}
-                      </div>
-                      <span className="text-sm text-slate-700 leading-relaxed">
+                        {' '}I understand the driver responsibilities, conduct policies, and platform rules.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setAgreedToTerms(v => !v)}
+                        className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-lg font-bold text-sm transition-all duration-200 border-2 ${
+                          agreedToTerms
+                            ? 'bg-emerald-500 border-emerald-500 text-white hover:bg-emerald-600 hover:border-emerald-600'
+                            : 'bg-white border-[#02665e] text-[#02665e] hover:bg-[#02665e]/5'
+                        }`}
+                      >
+                        {agreedToTerms
+                          ? <><CheckCircle2 className="w-4 h-4" /> Agreed — Terms of Service</>
+                          : <><CheckCircle2 className="w-4 h-4 opacity-40" /> Tap to agree — Terms of Service</>
+                        }
+                      </button>
+                    </div>
+
+                    {/* Privacy Policy */}
+                    <div className={`rounded-xl border-2 px-4 py-3 transition-all duration-200 ${
+                      agreedToPrivacy ? 'border-emerald-400 bg-emerald-50' : 'border-slate-200 bg-white'
+                    }`}>
+                      <p className="text-sm text-slate-700 leading-relaxed mb-3">
                         I have read and accept the{' '}
                         <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-[#02665e] font-semibold underline hover:text-[#02665e]/80">Privacy Policy</a>.
-                        I consent to my personal data and documents being processed for driver vetting.
-                      </span>
-                    </label>
+                        {' '}I consent to my personal data and documents being processed for driver vetting.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setAgreedToPrivacy(v => !v)}
+                        className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-lg font-bold text-sm transition-all duration-200 border-2 ${
+                          agreedToPrivacy
+                            ? 'bg-emerald-500 border-emerald-500 text-white hover:bg-emerald-600 hover:border-emerald-600'
+                            : 'bg-white border-[#02665e] text-[#02665e] hover:bg-[#02665e]/5'
+                        }`}
+                      >
+                        {agreedToPrivacy
+                          ? <><CheckCircle2 className="w-4 h-4" /> Agreed — Privacy Policy</>
+                          : <><CheckCircle2 className="w-4 h-4 opacity-40" /> Tap to agree — Privacy Policy</>
+                        }
+                      </button>
+                    </div>
+
                   </div>
                   {(!agreedToTerms || !agreedToPrivacy) && (
                     <p className="mt-3 text-xs text-amber-700 flex items-center gap-1.5">

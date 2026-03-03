@@ -5,6 +5,9 @@ import { requireAuth, requireRole } from "../middleware/auth.js";
 import { Prisma } from "@prisma/client";
 import rateLimit from "express-rate-limit";
 import { hashTripCode, normalizeTripCode } from "../lib/tripCode.js";
+import { sendSms } from "../lib/sms.js";
+import { sendMail } from "../lib/mailer.js";
+import { baseEmail, infoCard, calloutBox, ctaButton, BRAND_TEAL, BRAND_DARK } from "../lib/emailBase.js";
 
 export const router = Router();
 router.use(requireAuth as unknown as RequestHandler, requireRole("ADMIN") as unknown as RequestHandler);
@@ -3244,6 +3247,7 @@ router.get("/:id(\\d+)", async (req, res) => {
         suspendedAt: true, createdAt: true,
         // vetting fields
         kycStatus: true,
+        kycFieldApprovals: true,
         licenseNumber: true,
         plateNumber: true,
         vehicleType: true,
@@ -5254,6 +5258,166 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
       } catch (e) { /* socket errors are non-fatal */ }
     }
 
+    // Send SMS for request_info — build a clear template listing the flagged fields
+    if (action === 'request_info') {
+      try {
+        const phone = (driver as any).phone as string | null | undefined;
+        if (phone) {
+          const fieldLabels: Record<string, string> = {
+            name:          'Full Name',
+            email:         'Email',
+            phone:         'Phone Number',
+            gender:        'Gender',
+            region:        'Region',
+            district:      'District',
+            plateNumber:   'Plate Number',
+            vehicleType:   'Vehicle Type',
+            licenseNumber: 'License Number',
+            operationArea: 'Operation Area',
+            latra:         'LATRA Certificate',
+            insurance:     'Insurance',
+            nationalId:    'National ID',
+            drivingLicense:'Driving Licence',
+          };
+
+          // Collect the flagged fields from fieldApprovals (value !== "approved")
+          const flagged: string[] = fieldApprovals
+            ? Object.entries(fieldApprovals as Record<string, string>)
+                .filter(([, v]) => v !== 'approved')
+                .map(([k]) => fieldLabels[k] ?? k)
+            : [];
+
+          const fieldList = flagged.length > 0
+            ? flagged.join(', ')
+            : note ?? 'your profile information';
+
+          const smsText =
+            `NoLSAF: Following our review of your driver application, please update the following: ${fieldList}. ` +
+            `Open the NoLSAF app to make the required corrections. For help, contact support.`;
+
+          await sendSms(phone, smsText);
+        }
+      } catch (smsErr: any) {
+        console.warn('[KYC] SMS notification failed (non-fatal):', smsErr?.message ?? smsErr);
+      }
+    }
+
+    // Send SMS + Email on approve
+    if (action === 'approve') {
+      const driverName  = (driver as any).name  as string | null ?? 'Driver';
+      const driverEmail = (driver as any).email as string | null | undefined;
+      const driverPhone = (driver as any).phone as string | null | undefined;
+      const firstName   = driverName.split(' ')[0];
+      const loginUrl    = `${process.env.APP_ORIGIN ?? 'https://app.nolsaf.com'}/login`;
+
+      // ── SMS ──────────────────────────────────────────────────────────────────
+      if (driverPhone) {
+        try {
+          const smsTxt =
+            `NoLSAF: Congratulations ${firstName}! Your driver account has been approved. ` +
+            `You can now log in with your email and password. ` +
+            `We are excited to have you — together we are building the first modernised transport platform in Tanzania. Welcome aboard!`;
+          await sendSms(driverPhone, smsTxt);
+        } catch (smsErr: any) {
+          console.warn('[KYC approve] SMS failed (non-fatal):', smsErr?.message ?? smsErr);
+        }
+      }
+
+      // ── Email ─────────────────────────────────────────────────────────────────
+      if (driverEmail) {
+        try {
+          const html = baseEmail(
+            BRAND_TEAL,
+            BRAND_DARK,
+            'Application Approved',
+            '🎉',
+            `
+            <!-- ── Hero greeting ────────────────────────────────────────── -->
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+              style="background:linear-gradient(135deg,${BRAND_TEAL}12 0%,#e6faf8 100%);border:1px solid ${BRAND_TEAL}22;border-radius:12px;margin:0 0 28px;">
+              <tr><td style="padding:28px 28px 24px;text-align:center;">
+                <div style="font-size:48px;line-height:1;margin-bottom:12px;">🎉</div>
+                <h1 style="margin:0 0 8px;font-size:26px;font-weight:800;color:#0d2623;letter-spacing:-0.3px;">
+                  Congratulations, ${firstName}!
+                </h1>
+                <p style="margin:0;font-size:16px;color:${BRAND_TEAL};font-weight:600;letter-spacing:0.2px;">
+                  You are officially a NoLSAF Driver
+                </p>
+              </td></tr>
+            </table>
+
+            <!-- ── Opening ──────────────────────────────────────────────── -->
+            <p style="margin:0 0 18px;font-size:15px;color:#374151;line-height:1.75;">
+              After reviewing your application, we are delighted to confirm that your
+              driver account has been <strong style="color:${BRAND_TEAL};">fully approved and activated</strong>.
+              Your profile is live, your documents are verified, and you are ready to roll.
+            </p>
+
+            <!-- ── Account details card ──────────────────────────────────── -->
+            ${infoCard(BRAND_TEAL, [
+              ['Status',    '✅ Approved — Account Active'],
+              ['Login Email', driverEmail],
+              ['Platform',  'NoLSAF Driver App'],
+              ['Effective', new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })],
+            ])}
+
+            <!-- ── What's next callout ───────────────────────────────────── -->
+            ${calloutBox(BRAND_TEAL, '🚀', 'Get Started in 3 Simple Steps',
+              `<ol style="margin:8px 0 0;padding-left:20px;color:#374151;font-size:14px;line-height:1.8;">
+                <li><strong>Log in</strong> using the email and password you registered with.</li>
+                <li><strong>Complete your driver profile</strong> — add your photo and preferred zones.</li>
+                <li><strong>Go online</strong> and start accepting your first trips!</li>
+              </ol>`
+            )}
+
+            <!-- ── CTA ───────────────────────────────────────────────────── -->
+            ${ctaButton(loginUrl, 'Log In & Start Driving', BRAND_TEAL)}
+
+            <!-- ── Mission paragraph ─────────────────────────────────────── -->
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+              style="background:#fafffe;border:1px solid ${BRAND_TEAL}18;border-radius:10px;margin:8px 0 24px;">
+              <tr><td style="padding:20px 24px;">
+                <p style="margin:0 0 10px;font-size:13px;font-weight:700;color:${BRAND_TEAL};text-transform:uppercase;letter-spacing:1.2px;">
+                  You are part of something bigger
+                </p>
+                <p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.75;">
+                  At NoLSAF, we are building Tanzania's first truly modernised transport and
+                  logistics platform — one that puts <strong>drivers, customers, and communities
+                  first</strong>. No hidden fees. No surprises. Just fair, transparent, and
+                  reliable service that earns trust every kilometre.
+                </p>
+                <p style="margin:0;font-size:14px;color:#374151;line-height:1.75;">
+                  You are not just a driver. You are a <strong style="color:${BRAND_TEAL};">founding partner</strong>
+                  in this journey. Every trip you complete helps write a new chapter for transport
+                  in Tanzania — and we are incredibly proud to have you with us.
+                </p>
+              </td></tr>
+            </table>
+
+            <!-- ── Sign-off ──────────────────────────────────────────────── -->
+            <p style="margin:0 0 4px;font-size:15px;color:#374151;line-height:1.7;">
+              Welcome aboard, <strong>${firstName}</strong>. Let's build something great together. 🌍
+            </p>
+            <p style="margin:16px 0 0;font-size:14px;color:${BRAND_TEAL};font-weight:700;">
+              The NoLSAF Team
+            </p>
+            <p style="margin:2px 0 0;font-size:12px;color:#9ca3af;">
+              Dar es Salaam, Tanzania &bull; <a href="mailto:support@nolsaf.com" style="color:${BRAND_TEAL};text-decoration:none;">support@nolsaf.com</a>
+            </p>
+            `
+          );
+
+          await sendMail(
+            driverEmail,
+            `🎉 Congratulations ${firstName} — Your NoLSAF Driver Account is Approved!`,
+            html,
+          );
+        } catch (emailErr: any) {
+          console.warn('[KYC approve] Email failed (non-fatal):', emailErr?.message ?? emailErr);
+        }
+      }
+    }
+
     return res.json({ ok: true, driverId, kycStatus, action });
   } catch (err: any) {
     console.error('PATCH /admin/drivers/:id/kyc error:', err);
@@ -5278,7 +5442,23 @@ router.get('/:id(\\d+)/kyc-audit', async (req, res) => {
         adminId: true,
       },
     });
-    return res.json({ ok: true, logs });
+
+    // Enrich with admin names
+    const adminIds = [...new Set((logs as any[]).map((l: any) => l.adminId).filter(Boolean))] as number[];
+    let adminMap: Record<number, string> = {};
+    if (adminIds.length > 0) {
+      const admins = await prisma.user.findMany({
+        where: { id: { in: adminIds } },
+        select: { id: true, name: true, email: true },
+      });
+      adminMap = Object.fromEntries(admins.map((a: any) => [a.id, a.name ?? a.email ?? `Admin #${a.id}`]));
+    }
+    const enrichedLogs = (logs as any[]).map((l: any) => ({
+      ...l,
+      adminName: l.adminId ? (adminMap[l.adminId] ?? `Admin #${l.adminId}`) : null,
+    }));
+
+    return res.json({ ok: true, logs: enrichedLogs });
   } catch (err: any) {
     console.error('GET /admin/drivers/:id/kyc-audit error:', err);
     return res.status(500).json({ error: 'internal_error', message: err?.message });

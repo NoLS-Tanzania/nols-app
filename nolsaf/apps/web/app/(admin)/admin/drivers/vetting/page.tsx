@@ -60,7 +60,7 @@ type DriverRow = {
 
 type FieldApprovalStatus = 'approved' | 'flagged';
 type FieldApprovalsMap = Record<string, FieldApprovalStatus>;
-type AuditEntry = { id: number; action: string; note: string | null; fieldApprovals: FieldApprovalsMap | null; createdAt: string; adminId: number | null; };
+type AuditEntry = { id: number; action: string; note: string | null; fieldApprovals: FieldApprovalsMap | null; createdAt: string; adminId: number | null; adminName?: string | null; };
 
 type DriverDetail = DriverRow & {
   gender: string | null;
@@ -75,6 +75,32 @@ type DriverDetail = DriverRow & {
 function formatDate(iso: string | null | undefined) {
   if (!iso) return "—";
   return new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "2-digit" });
+}
+
+function formatDateTime(iso: string | null | undefined) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  const date = d.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
+  const time = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false });
+  return `${date}, ${time}`;
+}
+
+/** Collapse consecutive field_review entries with identical fieldApprovals — keep only the latest. */
+function deduplicateAuditLogs(logs: AuditEntry[]): AuditEntry[] {
+  const result: AuditEntry[] = [];
+  for (const entry of logs) {
+    if (
+      entry.action === "field_review" &&
+      result.length > 0 &&
+      result[result.length - 1].action === "field_review" &&
+      JSON.stringify(result[result.length - 1].fieldApprovals) === JSON.stringify(entry.fieldApprovals)
+    ) {
+      // Replace with the newer entry (logs are newest-first, so keep the first seen)
+      continue;
+    }
+    result.push(entry);
+  }
+  return result;
 }
 
 function KycBadge({ status }: { status: KycStatus | null }) {
@@ -165,28 +191,38 @@ function InfoRow({ label, value, icon: Icon, accent, fieldKey, fieldStatus, onTo
 
       {fieldKey && (
         <div className="flex items-center gap-1 flex-shrink-0">
-          <button
-            title="Approve this field"
-            onClick={() => onToggle?.(fieldKey, 'approved')}
-            className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all border ${
-              fieldStatus === 'approved'
-                ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                : 'bg-white text-slate-400 border-slate-200 hover:text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50'
-            }`}
-          >
-            <CheckCircle2 className="w-4 h-4" />
-          </button>
-          <button
-            title="Flag this field for correction"
-            onClick={() => onToggle?.(fieldKey, 'flagged')}
-            className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all border ${
-              fieldStatus === 'flagged'
-                ? 'bg-orange-500 text-white border-orange-500 shadow-sm'
-                : 'bg-white text-slate-400 border-slate-200 hover:text-orange-500 hover:border-orange-200 hover:bg-orange-50'
-            }`}
-          >
-            <AlertTriangle className="w-4 h-4" />
-          </button>
+          {fieldStatus === 'approved' ? (
+            <button
+              title="Approved — click to undo"
+              onClick={() => onToggle?.(fieldKey, 'approved')}
+              className="w-7 h-7 rounded-lg flex items-center justify-center bg-emerald-600 text-white border border-emerald-600 shadow-sm"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+            </button>
+          ) : (
+            <>
+              <button
+                title="Approve this field"
+                onClick={() => onToggle?.(fieldKey, 'approved')}
+                className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all border ${
+                  'bg-white text-slate-400 border-slate-200 hover:text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50'
+                }`}
+              >
+                <CheckCircle2 className="w-4 h-4" />
+              </button>
+              <button
+                title="Flag this field for correction"
+                onClick={() => onToggle?.(fieldKey, 'flagged')}
+                className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all border ${
+                  fieldStatus === 'flagged'
+                    ? 'bg-orange-500 text-white border-orange-500 shadow-sm'
+                    : 'bg-white text-slate-400 border-slate-200 hover:text-orange-500 hover:border-orange-200 hover:bg-orange-50'
+                }`}
+              >
+                <AlertTriangle className="w-4 h-4" />
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>
@@ -202,28 +238,36 @@ function DocLink({ label, url, fieldKey, fieldStatus, onToggle }: {
 }) {
   const approvalButtons = fieldKey ? (
     <div className="flex items-center gap-1">
-      <button
-        title="Approve this document"
-        onClick={e => { e.preventDefault(); onToggle?.(fieldKey, 'approved'); }}
-        className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all border ${
-          fieldStatus === 'approved'
-            ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-            : 'bg-white text-slate-400 border-slate-200 hover:text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50'
-        }`}
-      >
-        <CheckCircle2 className="w-4 h-4" />
-      </button>
-      <button
-        title="Flag this document for correction"
-        onClick={e => { e.preventDefault(); onToggle?.(fieldKey, 'flagged'); }}
-        className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all border ${
-          fieldStatus === 'flagged'
-            ? 'bg-orange-500 text-white border-orange-500 shadow-sm'
-            : 'bg-white text-slate-400 border-slate-200 hover:text-orange-500 hover:border-orange-200 hover:bg-orange-50'
-        }`}
-      >
-        <AlertTriangle className="w-4 h-4" />
-      </button>
+      {fieldStatus === 'approved' ? (
+        <button
+          title="Approved — click to undo"
+          onClick={e => { e.preventDefault(); onToggle?.(fieldKey, 'approved'); }}
+          className="w-7 h-7 rounded-lg flex items-center justify-center bg-emerald-600 text-white border border-emerald-600 shadow-sm"
+        >
+          <CheckCircle2 className="w-4 h-4" />
+        </button>
+      ) : (
+        <>
+          <button
+            title="Approve this document"
+            onClick={e => { e.preventDefault(); onToggle?.(fieldKey, 'approved'); }}
+            className="w-7 h-7 rounded-lg flex items-center justify-center transition-all border bg-white text-slate-400 border-slate-200 hover:text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50"
+          >
+            <CheckCircle2 className="w-4 h-4" />
+          </button>
+          <button
+            title="Flag this document for correction"
+            onClick={e => { e.preventDefault(); onToggle?.(fieldKey, 'flagged'); }}
+            className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all border ${
+              fieldStatus === 'flagged'
+                ? 'bg-orange-500 text-white border-orange-500 shadow-sm'
+                : 'bg-white text-slate-400 border-slate-200 hover:text-orange-500 hover:border-orange-200 hover:bg-orange-50'
+            }`}
+          >
+            <AlertTriangle className="w-4 h-4" />
+          </button>
+        </>
+      )}
     </div>
   ) : null;
 
@@ -419,8 +463,17 @@ export default function DriverVettingPage() {
   const total = counts.PENDING_KYC + counts.APPROVED_KYC + counts.REJECTED_KYC;
   const approvalRate = total > 0 ? Math.round((counts.APPROVED_KYC / total) * 100) : 0;
   const payoutObj = (selected?.payout && typeof selected.payout === "object") ? selected.payout as any : {};
+  const REQUIRED_FIELDS = [
+    'name', 'email', 'phone', 'gender', 'nationality', 'nin',
+    'region', 'district', 'operationArea',
+    'vehicleType', 'plateNumber', 'licenseNumber',
+    'paymentPhone',
+    'drivingLicense', 'nationalId', 'latra', 'insurance',
+  ];
   const flaggedFields = Object.entries(fieldApprovals).filter(([, v]) => v === "flagged").map(([k]) => k);
   const approvedFields = Object.entries(fieldApprovals).filter(([, v]) => v === "approved").map(([k]) => k);
+  const reviewedCount = REQUIRED_FIELDS.filter(k => fieldApprovals[k] === 'approved').length;
+  const allFieldsApproved = reviewedCount === REQUIRED_FIELDS.length;
   const fa = (key: string) => fieldApprovals[key] ?? null;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
 
@@ -726,6 +779,17 @@ export default function DriverVettingPage() {
                     </div>
                   )}
 
+                  {/* Read-only banner for approved drivers */}
+                  {selected.kycStatus === "APPROVED_KYC" && (
+                    <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                      <ShieldCheck className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-bold text-emerald-800">Driver approved — read-only view</p>
+                        <p className="text-xs text-emerald-700 mt-0.5">This driver's account is active. Fields are locked. Use the Audit History tab to see who approved this driver and when. Use Revoke to remove access.</p>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Personal */}
                   <section>
                     <div className="flex items-center gap-2 mb-2.5">
@@ -735,12 +799,12 @@ export default function DriverVettingPage() {
                       <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.12em]">Personal Information</h3>
                     </div>
                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden divide-y divide-slate-100">
-                      <InfoRow label="Full name"    value={selected.name}                          icon={User}        accent="bg-blue-50"    fieldKey="name"        fieldStatus={fa("name")}        onToggle={toggleFieldApproval} />
-                      <InfoRow label="Email"        value={selected.email}                         icon={Mail}        accent="bg-violet-50"  fieldKey="email"       fieldStatus={fa("email")}       onToggle={toggleFieldApproval} />
-                      <InfoRow label="Phone"        value={selected.phone}                         icon={Phone}       accent="bg-emerald-50" fieldKey="phone"       fieldStatus={fa("phone")}       onToggle={toggleFieldApproval} />
-                      <InfoRow label="Gender"       value={(selected as DriverDetail).gender}      icon={UserCircle2} accent="bg-pink-50"    fieldKey="gender"      fieldStatus={fa("gender")}      onToggle={toggleFieldApproval} />
-                      <InfoRow label="Nationality"  value={(selected as DriverDetail).nationality} icon={Globe}       accent="bg-sky-50"     fieldKey="nationality" fieldStatus={fa("nationality")} onToggle={toggleFieldApproval} />
-                      <InfoRow label="NIN"          value={(selected as DriverDetail).nin}         icon={IdCard}      accent="bg-amber-50"   fieldKey="nin"         fieldStatus={fa("nin")}         onToggle={toggleFieldApproval} />
+                      <InfoRow label="Full name"    value={selected.name}                          icon={User}        accent="bg-blue-50"    fieldKey="name"        fieldStatus={fa("name")}        onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
+                      <InfoRow label="Email"        value={selected.email}                         icon={Mail}        accent="bg-violet-50"  fieldKey="email"       fieldStatus={fa("email")}       onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
+                      <InfoRow label="Phone"        value={selected.phone}                         icon={Phone}       accent="bg-emerald-50" fieldKey="phone"       fieldStatus={fa("phone")}       onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
+                      <InfoRow label="Gender"       value={(selected as DriverDetail).gender}      icon={UserCircle2} accent="bg-pink-50"    fieldKey="gender"      fieldStatus={fa("gender")}      onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
+                      <InfoRow label="Nationality"  value={(selected as DriverDetail).nationality} icon={Globe}       accent="bg-sky-50"     fieldKey="nationality" fieldStatus={fa("nationality")} onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
+                      <InfoRow label="NIN"          value={(selected as DriverDetail).nin}         icon={IdCard}      accent="bg-amber-50"   fieldKey="nin"         fieldStatus={fa("nin")}         onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
                     </div>
                   </section>
 
@@ -753,9 +817,9 @@ export default function DriverVettingPage() {
                       <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.12em]">Location</h3>
                     </div>
                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden divide-y divide-slate-100">
-                      <InfoRow label="Region"         value={selected.region}                     icon={MapPin} accent="bg-emerald-50" fieldKey="region"        fieldStatus={fa("region")}        onToggle={toggleFieldApproval} />
-                      <InfoRow label="District"       value={(selected as DriverDetail).district} icon={MapPin} accent="bg-teal-50"    fieldKey="district"      fieldStatus={fa("district")}      onToggle={toggleFieldApproval} />
-                      <InfoRow label="Operation area" value={selected.operationArea}              icon={MapPin} accent="bg-cyan-50"    fieldKey="operationArea" fieldStatus={fa("operationArea")} onToggle={toggleFieldApproval} />
+                      <InfoRow label="Region"         value={selected.region}                     icon={MapPin} accent="bg-emerald-50" fieldKey="region"        fieldStatus={fa("region")}        onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
+                      <InfoRow label="District"       value={(selected as DriverDetail).district} icon={MapPin} accent="bg-teal-50"    fieldKey="district"      fieldStatus={fa("district")}      onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
+                      <InfoRow label="Operation area" value={selected.operationArea}              icon={MapPin} accent="bg-cyan-50"    fieldKey="operationArea" fieldStatus={fa("operationArea")} onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
                     </div>
                   </section>
 
@@ -768,9 +832,9 @@ export default function DriverVettingPage() {
                       <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.12em]">Vehicle &amp; Licence</h3>
                     </div>
                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden divide-y divide-slate-100">
-                      <InfoRow label="Vehicle type"  value={selected.vehicleType}   icon={Car}      accent="bg-amber-50"  fieldKey="vehicleType"  fieldStatus={fa("vehicleType")}  onToggle={toggleFieldApproval} />
-                      <InfoRow label="Plate number"  value={selected.plateNumber}   icon={IdCard}   accent="bg-orange-50" fieldKey="plateNumber"  fieldStatus={fa("plateNumber")}  onToggle={toggleFieldApproval} />
-                      <InfoRow label="Licence no."   value={selected.licenseNumber} icon={FileText} accent="bg-yellow-50" fieldKey="licenseNumber" fieldStatus={fa("licenseNumber")} onToggle={toggleFieldApproval} />
+                      <InfoRow label="Vehicle type"  value={selected.vehicleType}   icon={Car}      accent="bg-amber-50"  fieldKey="vehicleType"  fieldStatus={fa("vehicleType")}  onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
+                      <InfoRow label="Plate number"  value={selected.plateNumber}   icon={IdCard}   accent="bg-orange-50" fieldKey="plateNumber"  fieldStatus={fa("plateNumber")}  onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
+                      <InfoRow label="Licence no."   value={selected.licenseNumber} icon={FileText} accent="bg-yellow-50" fieldKey="licenseNumber" fieldStatus={fa("licenseNumber")} onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
                       <InfoRow label="VIP class"     value={selected.isVipDriver ? "VIP declared" : "Standard"} icon={Star} accent="bg-violet-50" />
                     </div>
                   </section>
@@ -784,7 +848,7 @@ export default function DriverVettingPage() {
                       <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.12em]">Payment</h3>
                     </div>
                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden divide-y divide-slate-100">
-                      <InfoRow label="Payment phone"  value={(selected as DriverDetail).paymentPhone}                 icon={Phone}      accent="bg-indigo-50" fieldKey="paymentPhone" fieldStatus={fa("paymentPhone")} onToggle={toggleFieldApproval} />
+                      <InfoRow label="Payment phone"  value={(selected as DriverDetail).paymentPhone}                 icon={Phone}      accent="bg-indigo-50" fieldKey="paymentPhone" fieldStatus={fa("paymentPhone")} onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
                       <InfoRow label="Phone verified" value={selected.paymentVerified ? "Verified" : "Not verified"} icon={BadgeCheck} accent={selected.paymentVerified ? "bg-emerald-50" : "bg-red-50"} />
                     </div>
                   </section>
@@ -798,10 +862,10 @@ export default function DriverVettingPage() {
                       <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.12em]">Uploaded Documents</h3>
                     </div>
                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden divide-y divide-slate-100">
-                      <DocLink label="Driving licence"   url={payoutObj?.drivingLicenseUrl || selected.payout?.drivingLicenseUrl}                                                                              fieldKey="drivingLicense" fieldStatus={fa("drivingLicense")} onToggle={toggleFieldApproval} />
-                      <DocLink label="National ID"       url={payoutObj?.nationalIdUrl || selected.payout?.nationalIdUrl}                                                                                        fieldKey="nationalId"     fieldStatus={fa("nationalId")}     onToggle={toggleFieldApproval} />
-                      <DocLink label="LATRA Certificate" url={payoutObj?.latraUrl || payoutObj?.vehicleRegistrationUrl || selected.payout?.latraUrl || selected.payout?.vehicleRegistrationUrl}                  fieldKey="latra"          fieldStatus={fa("latra")}          onToggle={toggleFieldApproval} />
-                      <DocLink label="Insurance"         url={payoutObj?.insuranceUrl || selected.payout?.insuranceUrl}                                                                                          fieldKey="insurance"      fieldStatus={fa("insurance")}      onToggle={toggleFieldApproval} />
+                      <DocLink label="Driving licence"   url={payoutObj?.drivingLicenseUrl || selected.payout?.drivingLicenseUrl}                                                                              fieldKey="drivingLicense" fieldStatus={fa("drivingLicense")} onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
+                      <DocLink label="National ID"       url={payoutObj?.nationalIdUrl || selected.payout?.nationalIdUrl}                                                                                        fieldKey="nationalId"     fieldStatus={fa("nationalId")}     onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
+                      <DocLink label="LATRA Certificate" url={payoutObj?.latraUrl || payoutObj?.vehicleRegistrationUrl || selected.payout?.latraUrl || selected.payout?.vehicleRegistrationUrl}                  fieldKey="latra"          fieldStatus={fa("latra")}          onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
+                      <DocLink label="Insurance"         url={payoutObj?.insuranceUrl || selected.payout?.insuranceUrl}                                                                                          fieldKey="insurance"      fieldStatus={fa("insurance")}      onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
                     </div>
                   </section>
                 </div>
@@ -811,7 +875,7 @@ export default function DriverVettingPage() {
 
             {/* AUDIT HISTORY TAB */}
             {detailTab === "audit" && (
-              <div className="overflow-y-auto flex-1 p-6 bg-slate-50/40">
+              <div className="overflow-y-auto flex-1 p-4 bg-slate-50/40">
                 {auditLoading ? (
                   <div className="p-10 text-center">
                     <div className="w-7 h-7 rounded-full border-2 border-[#02665e] border-t-transparent animate-spin mx-auto mb-3" />
@@ -823,59 +887,52 @@ export default function DriverVettingPage() {
                       <History className="w-6 h-6 text-slate-300" />
                     </div>
                     <p className="text-xs font-semibold text-slate-400">No audit history yet</p>
-                    <p className="text-[11px] text-slate-400 mt-1">Admin actions will appear here</p>
+                    <p className="text-[11px] text-slate-400 mt-1">Actions taken on this driver will appear here</p>
                   </div>
                 ) : (
-                  <div className="space-y-0">
-                    {auditLogs.map((entry, i) => {
-                      const actionMeta: Record<string, { label: string; color: string; bg: string; border: string }> = {
-                        approve:      { label: "Approved",           color: "text-emerald-700", bg: "bg-emerald-100", border: "border-emerald-200" },
-                        reject:       { label: "Rejected",           color: "text-red-700",     bg: "bg-red-100",     border: "border-red-200" },
-                        request_info: { label: "Requested Info",     color: "text-amber-700",   bg: "bg-amber-50",    border: "border-amber-200" },
-                        field_review: { label: "Field Review Saved", color: "text-blue-700",    bg: "bg-blue-50",     border: "border-blue-200" },
+                  <div className="space-y-2">
+                    {deduplicateAuditLogs(auditLogs).map((entry) => {
+                      const actionMeta: Record<string, { label: string; color: string; bg: string; border: string; dot: string }> = {
+                        approve:      { label: "Approved",           color: "text-emerald-700", bg: "bg-emerald-50",  border: "border-emerald-200", dot: "bg-emerald-500" },
+                        reject:       { label: "Rejected",           color: "text-red-700",     bg: "bg-red-50",      border: "border-red-200",     dot: "bg-red-500" },
+                        request_info: { label: "Requested Info",     color: "text-amber-700",   bg: "bg-amber-50",    border: "border-amber-200",   dot: "bg-amber-500" },
+                        field_review: { label: "Field Review Saved", color: "text-blue-700",    bg: "bg-blue-50",     border: "border-blue-200",    dot: "bg-blue-400" },
                       };
-                      const meta = actionMeta[entry.action] ?? { label: entry.action, color: "text-slate-700", bg: "bg-slate-100", border: "border-slate-200" };
+                      const meta = actionMeta[entry.action] ?? { label: entry.action, color: "text-slate-700", bg: "bg-slate-50", border: "border-slate-200", dot: "bg-slate-400" };
                       const fieldMap = entry.fieldApprovals as Record<string, string> | null | undefined;
+                      const approvedF = fieldMap ? Object.entries(fieldMap).filter(([, v]) => v === "approved").map(([k]) => k) : [];
+                      const flaggedF  = fieldMap ? Object.entries(fieldMap).filter(([, v]) => v !== "approved").map(([k]) => k) : [];
                       return (
-                        <div key={entry.id} className="flex gap-3">
-                          {/* Timeline spine */}
-                          <div className="flex flex-col items-center flex-shrink-0">
-                            <div className={`w-7 h-7 rounded-full flex items-center justify-center ${meta.bg} border ${meta.border} mt-0.5`}>
-                              {entry.action === "approve"      && <CheckCircle2   className={`w-3.5 h-3.5 ${meta.color}`} />}
-                              {entry.action === "reject"       && <XCircle        className={`w-3.5 h-3.5 ${meta.color}`} />}
-                              {entry.action === "request_info" && <MessageSquare  className={`w-3.5 h-3.5 ${meta.color}`} />}
-                              {entry.action === "field_review" && <CheckCircle2   className={`w-3.5 h-3.5 ${meta.color}`} />}
+                        <div key={entry.id} className={`rounded-xl border ${meta.border} ${meta.bg} px-3 py-2.5`}>
+                          {/* Header row */}
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${meta.dot}`} />
+                              <span className={`text-xs font-bold ${meta.color} truncate`}>{meta.label}</span>
                             </div>
-                            {i < auditLogs.length - 1 && (
-                              <div className="w-px flex-1 bg-slate-100 my-1" style={{ minHeight: 16 }} />
-                            )}
+                            <span className="text-[10px] text-slate-400 flex-shrink-0 font-mono">{formatDateTime(entry.createdAt)}</span>
                           </div>
-                          {/* Content */}
-                          <div className="flex-1 pb-4 min-w-0">
-                            <div className="flex items-center justify-between gap-2 flex-wrap">
-                              <span className={`text-xs font-bold ${meta.color}`}>{meta.label}</span>
-                              <span className="text-[10px] text-slate-400 flex-shrink-0">{formatDate(entry.createdAt)}</span>
+                          {/* Who performed the action */}
+                          {entry.adminName && (
+                            <p className="text-[11px] text-slate-500 mt-1 pl-4">
+                              by <span className="font-semibold text-slate-700">{entry.adminName}</span>
+                            </p>
+                          )}
+                          {/* Note */}
+                          {entry.note && (
+                            <p className="text-xs text-slate-600 mt-1.5 leading-relaxed pl-4">{entry.note}</p>
+                          )}
+                          {/* Field tags */}
+                          {(approvedF.length > 0 || flaggedF.length > 0) && (
+                            <div className="flex flex-wrap gap-1 mt-2 pl-4">
+                              {approvedF.map(k => (
+                                <span key={k} className="text-[10px] px-1.5 py-0.5 rounded-md font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200">{k}</span>
+                              ))}
+                              {flaggedF.map(k => (
+                                <span key={k} className="text-[10px] px-1.5 py-0.5 rounded-md font-semibold bg-orange-100 text-orange-700 border border-orange-200">{k}</span>
+                              ))}
                             </div>
-                            {entry.note && (
-                              <p className="text-xs text-slate-500 mt-1 leading-relaxed border-l-2 border-slate-200 pl-2">{entry.note}</p>
-                            )}
-                            {fieldMap && Object.keys(fieldMap).length > 0 && (
-                              <div className="flex flex-wrap gap-1 mt-1.5">
-                                {Object.entries(fieldMap).map(([k, v]) => (
-                                  <span
-                                    key={k}
-                                    className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
-                                      v === "approved"
-                                        ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
-                                        : "bg-orange-100 text-orange-700 border border-orange-200"
-                                    }`}
-                                  >
-                                    {k}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                          </div>
+                          )}
                         </div>
                       );
                     })}
@@ -885,7 +942,7 @@ export default function DriverVettingPage() {
             )}
 
             {/* â”€â”€ ACTION BAR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-            <div className="border-t border-slate-100 px-4 py-4 bg-slate-50/70 space-y-3 flex-shrink-0">
+            <div className="border-t-2 border-slate-200 px-4 py-4 bg-white shadow-[0_-4px_16px_rgba(0,0,0,0.06)] space-y-3 flex-shrink-0">
               {showNoteInput ? (
                 <div className="space-y-2.5">
                   <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">
@@ -944,7 +1001,24 @@ export default function DriverVettingPage() {
                         <button
                           disabled={actionLoading}
                           onClick={() => {
-                            const autoNote = `Please correct the following fields: ${flaggedFields.join(", ")}.`;
+                            const fieldLabels: Record<string, string> = {
+                              name:          'Full Name',
+                              email:         'Email',
+                              phone:         'Phone Number',
+                              gender:        'Gender',
+                              region:        'Region',
+                              district:      'District',
+                              plateNumber:   'Plate Number',
+                              vehicleType:   'Vehicle Type',
+                              licenseNumber: 'License Number',
+                              operationArea: 'Operation Area',
+                              latra:         'LATRA Certificate',
+                              insurance:     'Insurance',
+                              nationalId:    'National ID',
+                              drivingLicense:'Driving Licence',
+                            };
+                            const readable = flaggedFields.map(f => fieldLabels[f] ?? f);
+                            const autoNote = `Following our review, please update the following in your driver profile: ${readable.join(', ')}.`;
                             doAction("request_info", autoNote);
                           }}
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-orange-500 hover:bg-orange-600 text-white transition-all shadow-sm disabled:opacity-50"
@@ -956,15 +1030,62 @@ export default function DriverVettingPage() {
                     </div>
                   )}
 
+                  {/* Field approval progress — must approve all before approving driver */}
+                  {selected.kycStatus !== "APPROVED_KYC" && (
+                    <div
+                      className="rounded-xl border px-3 py-2.5 space-y-1.5"
+                      style={allFieldsApproved
+                        ? { background: '#f0fdf4', borderColor: '#bbf7d0' }
+                        : { background: '#fffbeb', borderColor: '#fde68a' }}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold"
+                          style={{ color: allFieldsApproved ? '#15803d' : '#92400e' }}>
+                          {allFieldsApproved
+                            ? '✅ All fields verified — ready to approve'
+                            : `⚠️ ${reviewedCount} / ${REQUIRED_FIELDS.length} fields approved — review all before approving`}
+                        </span>
+                        <span className="text-[10px] font-mono font-bold"
+                          style={{ color: allFieldsApproved ? '#16a34a' : '#b45309' }}>
+                          {reviewedCount}/{REQUIRED_FIELDS.length}
+                        </span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-300"
+                          style={{
+                            width: `${(reviewedCount / REQUIRED_FIELDS.length) * 100}%`,
+                            background: allFieldsApproved ? '#16a34a' : '#f59e0b',
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Final approval CTA — shown prominently when all fields are verified */}
+                  {selected.kycStatus !== "APPROVED_KYC" && allFieldsApproved && (
+                    <button
+                      disabled={actionLoading}
+                      onClick={() => doAction("approve")}
+                      className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-xl text-sm font-extrabold bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white transition-all shadow-md hover:shadow-lg"
+                      style={{ letterSpacing: '0.02em' }}
+                    >
+                      {actionLoading
+                        ? <Loader2 className="w-4 h-4 animate-spin" />
+                        : <CheckCircle2 className="w-5 h-5" />}
+                      Grant Driver Access — Final Approval
+                    </button>
+                  )}
+
                   {/* Main action buttons */}
                   <div className="flex gap-2 flex-wrap">
-                    {selected.kycStatus !== "APPROVED_KYC" && (
+                    {selected.kycStatus !== "APPROVED_KYC" && !allFieldsApproved && (
                       <button
-                        disabled={actionLoading}
-                        onClick={() => doAction("approve")}
-                        className="flex-1 min-w-[100px] flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-all shadow-sm hover:shadow disabled:opacity-50"
+                        disabled={actionLoading || true}
+                        title={`Approve all ${REQUIRED_FIELDS.length} fields first (${REQUIRED_FIELDS.length - reviewedCount} remaining)`}
+                        className="flex-1 min-w-[100px] flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold bg-emerald-300 text-white cursor-not-allowed opacity-60"
                       >
-                        {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                        <CheckCircle2 className="w-4 h-4" />
                         Approve
                       </button>
                     )}
