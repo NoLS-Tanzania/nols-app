@@ -20,7 +20,9 @@ type Props = {
 
 function formatDisplay(iso?: string) {
   if (!iso) return "";
-  const parts = String(iso).split("-");
+  // Accept both date-only (YYYY-MM-DD) and full ISO datetime (YYYY-MM-DDThh:mm:ss.sssZ)
+  const datePart = String(iso).split("T")[0];
+  const parts = datePart.split("-");
   if (parts.length !== 3) return String(iso);
   const [y, m, d] = parts;
   if (!y || !m || !d) return String(iso);
@@ -154,7 +156,7 @@ export default function DatePickerField({
                 }
                 aria-hidden
               />
-              <span className={pretty ? "font-semibold" : "text-gray-400"}>{pretty || "DD Mon YYYY"}</span>
+              <span className={pretty ? "italic" : "text-gray-400"}>{pretty || "DD Mon YYYY"}</span>
             </Popover.Button>
 
             {mounted

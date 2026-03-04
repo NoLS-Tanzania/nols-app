@@ -103,6 +103,7 @@ import customerGroupStaysRouter from './routes/customer.groupStays';
 import transportMessagesRouter from './routes/transport.messages';
 import transportBookingsRouter from './routes/transport.bookings';
 import driverScheduledRouter from './routes/driver.scheduled';
+import { router as driverProfileRouter } from './routes/driver.profile';
 import geocodingRouter from './routes/geocoding';
 import publicAvailabilityRouter from './routes/public.availability';
 import customerSavedPropertiesRouter from './routes/customer.savedProperties';
@@ -666,6 +667,8 @@ app.use('/api/owner/notifications', requireRole('OWNER') as express.RequestHandl
 // Note: ownerAvailabilityRouter already has requireAuth and requireRole("OWNER") applied
 app.use('/api/owner/availability', ownerAvailabilityRouter as express.RequestHandler);
 app.use('/api/admin/email', adminEmail);
+// Driver profile update — MUST be mounted BEFORE the catch-all '/api/driver' mount
+app.use('/api/driver/profile', requireRole('DRIVER') as express.RequestHandler, driverProfileRouter as express.RequestHandler);
 // Driver-scoped endpoints (stats + map)
 app.use('/api/driver', requireRole('DRIVER') as express.RequestHandler, driverRouter as express.RequestHandler);
 // Driver reminders (list available to drivers; creation reserved for ADMIN)

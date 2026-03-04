@@ -82,9 +82,10 @@ export default function DriverSiteHeader({ unreadMessages = 0 }: { unreadMessage
         const url = "/api/account/me";
         const r = await fetch(url, { credentials: "include" });
         if (!r.ok) return;
-        const data = await r.json();
+        const json = await r.json();
+        const data = json?.data ?? json;
         if (data.avatarUrl) setAvatarUrl(data.avatarUrl);
-        if (data.fullName) setUserName(data.fullName);
+        if (data.fullName ?? data.name) setUserName(data.fullName ?? data.name);
         if (data.email) setUserEmail(data.email);
       } catch {
         // ignore
@@ -100,8 +101,24 @@ export default function DriverSiteHeader({ unreadMessages = 0 }: { unreadMessage
         setSettingsOpen(false);
       }
     };
+
+    // Update avatar instantly when the driver uploads a new profile photo
+    const handleAvatarUpdated = (e: Event) => {
+      try {
+        const ce = e as CustomEvent<any>;
+        const next = ce?.detail?.avatarUrl;
+        if (typeof next === "string" && next.trim()) setAvatarUrl(next.trim());
+      } catch { /* ignore */ }
+    };
+
     document.addEventListener("click", handleClickOutside);
-    return () => document.removeEventListener("click", handleClickOutside);
+    window.addEventListener("account:avatarUrl", handleAvatarUpdated as EventListener);
+    window.addEventListener("nolsaf:profile-updated", handleAvatarUpdated as EventListener);
+    return () => {
+      document.removeEventListener("click", handleClickOutside);
+      window.removeEventListener("account:avatarUrl", handleAvatarUpdated as EventListener);
+      window.removeEventListener("nolsaf:profile-updated", handleAvatarUpdated as EventListener);
+    };
   }, []);
 
   const handleRefresh = async () => {

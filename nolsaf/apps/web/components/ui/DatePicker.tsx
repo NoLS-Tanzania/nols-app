@@ -309,9 +309,38 @@ export default function DatePicker({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
         </button>
-        <div className="text-base font-semibold text-gray-900">
-          {twoMonths && view2 ? `${MONTHS[view.month]} ${view.year} – ${MONTHS[view2.month]} ${view2.year}` : `${MONTHS[view.month]} ${view.year}`}
-        </div>
+        {twoMonths && view2 ? (
+          <div className="text-base font-semibold text-gray-900">
+            {MONTHS[view.month]} {view.year} – {MONTHS[view2.month]} {view2.year}
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5">
+            <select
+              value={view.month}
+              onChange={(e) => setView((v) => ({ ...v, month: Number(e.target.value) }))}
+              className="text-sm font-semibold text-gray-900 bg-transparent border-0 outline-none cursor-pointer hover:text-emerald-700 focus:ring-0 appearance-none pr-1"
+              aria-label="Select month"
+            >
+              {MONTHS.map((m, i) => (
+                <option key={m} value={i}>{m}</option>
+              ))}
+            </select>
+            <select
+              value={view.year}
+              onChange={(e) => setView((v) => ({ ...v, year: Number(e.target.value) }))}
+              className="text-sm font-semibold text-gray-900 bg-transparent border-0 outline-none cursor-pointer hover:text-emerald-700 focus:ring-0 appearance-none pr-1"
+              aria-label="Select year"
+            >
+              {(() => {
+                const endY = allowPast ? new Date().getFullYear() : (maxDate ? new Date(maxDate + 'T00:00:00').getFullYear() : new Date().getFullYear() + 20);
+                const startY = allowPast ? 1920 : (minDate ? new Date(minDate + 'T00:00:00').getFullYear() : new Date().getFullYear());
+                return Array.from({ length: endY - startY + 1 }, (_, i) => startY + i).reverse().map((y) => (
+                  <option key={y} value={y}>{y}</option>
+                ));
+              })()}
+            </select>
+          </div>
+        )}
         <button
           type="button"
           onClick={() => setView((v) => ({ year: v.month === 11 ? v.year + 1 : v.year, month: (v.month + 1) % 12 }))}

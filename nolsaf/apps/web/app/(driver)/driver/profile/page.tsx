@@ -440,7 +440,23 @@ export default function DriverProfile() {
               <EditableInfoItem icon={<Globe className="w-5 h-5" />} label="Nationality" value={form.nationality} fieldKey="nationality" {...editProps} />
               <EditableInfoItem icon={<MapPin className="w-5 h-5" />} label="Region" value={form.region} fieldKey="region" {...editProps} />
               <EditableInfoItem icon={<MapPin className="w-5 h-5" />} label="District" value={form.district} fieldKey="district" {...editProps} />
-              <EditableInfoItem icon={<Calendar className="w-5 h-5" />} label="Date of birth" value={form.dateOfBirth} fieldKey="dateOfBirth" fieldType="date" {...editProps} />
+              <div className="flex items-start gap-3 group min-w-0 overflow-hidden">
+                <div className="h-10 w-10 rounded-2xl bg-[#02665e]/5 border border-[#02665e]/15 flex items-center justify-center text-[#02665e] flex-shrink-0">
+                  <Calendar className="w-5 h-5" />
+                </div>
+                <div className="min-w-0 flex-1 overflow-hidden">
+                  <div className="text-xs font-semibold text-slate-600 mb-1.5">Date of birth</div>
+                  <DatePickerField
+                    label="Date of birth"
+                    value={form.dateOfBirth || ""}
+                    onChangeAction={(iso) => editProps.onChange("dateOfBirth", iso)}
+                    allowPast={true}
+                    twoMonths={false}
+                    widthClassName="w-full"
+                    size="sm"
+                  />
+                </div>
+              </div>
               <EditableInfoItem icon={<User className="w-5 h-5" />} label="Gender" value={form.gender} fieldKey="gender" fieldType="select"
                 selectOptions={[{value:"male",label:"Male"},{value:"female",label:"Female"},{value:"other",label:"Other"},{value:"prefer_not_to_say",label:"Prefer not to say"}]}
                 {...editProps} />

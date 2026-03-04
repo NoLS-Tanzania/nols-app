@@ -1361,102 +1361,100 @@ export default function DriverLiveMapPage() {
             </div>
           )}
 
-          {/* Map layers selector (small + clean, like Google Maps) */}
+          {/* Map layers selector */}
           {layersOpen && (
             <div className="absolute inset-0 z-50 pointer-events-auto">
-              {/* Click-outside catcher (no big modal UI) */}
-              <div
-                className="absolute inset-0"
-                onClick={() => setLayersOpen(false)}
-                aria-hidden="true"
-              />
+              <div className="absolute inset-0" onClick={() => setLayersOpen(false)} aria-hidden="true" />
 
-              {/* Small popover near the layers button */}
+              {/* Compact popover — sits above the FAB stack */}
               <div
                 className={[
                   "absolute pointer-events-auto",
-                  "bottom-[calc(0.75rem+env(safe-area-inset-bottom))]",
-                  "right-[calc(4.75rem+env(safe-area-inset-right))]", // sits left of the floating actions stack
+                  "bottom-[calc(4.5rem+env(safe-area-inset-bottom))]",
+                  "right-[calc(0.6rem+env(safe-area-inset-right))]",
                 ].join(" ")}
               >
                 <div
                   className={[
-                    "rounded-2xl border shadow-xl backdrop-blur-md p-1.5",
-                    mapTheme === "dark" ? "bg-slate-950/80 border-white/15" : "bg-white/95 border-slate-200",
+                    "flex items-end gap-2.5 rounded-2xl border px-3 py-2.5 shadow-xl backdrop-blur-2xl",
+                    mapTheme === "dark"
+                      ? "bg-slate-900/90 border-white/8"
+                      : "bg-white/95 border-slate-200/80 shadow-slate-200/60",
                   ].join(" ")}
                 >
-                  <div className="flex items-center gap-2">
-                    {(
-                      [
-                        {
-                          key: "navigation",
-                          label: "Default",
-                          icon: MapIcon,
-                          thumb: mapTheme === "dark"
-                            ? "bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900"
-                            : "bg-gradient-to-br from-emerald-100 via-white to-sky-100",
-                        },
-                        {
-                          key: "satellite",
-                          label: "Satellite",
-                          icon: Globe,
-                          thumb: "bg-[linear-gradient(135deg,rgba(34,197,94,0.25),rgba(59,130,246,0.20)),linear-gradient(45deg,rgba(2,6,23,0.18),rgba(2,6,23,0.04))]",
-                        },
-                      ] as const
-                    ).map((opt) => {
-                      const selected = mapLayer === opt.key;
-                      const Icon = opt.icon;
-                      return (
-                        <button
-                          key={opt.key}
-                          type="button"
-                          onClick={() => {
-                            setMapLayer(opt.key);
-                            setLayersOpen(false);
-                          }}
-                          aria-pressed={selected}
-                          className="group flex flex-col items-center gap-1 px-1.5 py-1"
-                          title={opt.label}
+                  {([
+                    { key: "navigation", label: "Default"  },
+                    { key: "satellite",  label: "Satellite" },
+                  ] as const).map((opt) => {
+                    const selected = mapLayer === opt.key;
+                    return (
+                      <button
+                        key={opt.key}
+                        type="button"
+                        onClick={() => { setMapLayer(opt.key); setLayersOpen(false); }}
+                        aria-pressed={selected}
+                        className="flex flex-col items-center gap-1 focus-visible:outline-none"
+                      >
+                        {/* Thumbnail */}
+                        <span
+                          className={[
+                            "relative h-11 w-11 rounded-xl overflow-hidden transition-transform duration-100 active:scale-95",
+                            selected
+                              ? "ring-2 ring-[#02665e] ring-offset-[2px] " + (mapTheme === "dark" ? "ring-offset-slate-900" : "ring-offset-white")
+                              : "ring-1 " + (mapTheme === "dark" ? "ring-white/10" : "ring-black/10"),
+                          ].join(" ")}
                         >
-                          <span
-                            className={[
-                              "relative h-10 w-10 rounded-xl overflow-hidden border shadow-sm",
-                              opt.thumb,
-                              selected
-                                ? "ring-2 ring-emerald-400 border-emerald-300"
-                                : mapTheme === "dark"
-                                  ? "border-white/15"
-                                  : "border-slate-200",
-                            ].join(" ")}
-                          >
-                            {/* icon badge */}
-                            <span
-                              className={[
-                                "absolute left-1 top-1 h-6 w-6 rounded-lg border flex items-center justify-center",
-                                mapTheme === "dark" ? "bg-slate-950/55 border-white/15" : "bg-white/75 border-white/60",
-                              ].join(" ")}
-                            >
-                              <Icon className={["h-3.5 w-3.5", mapTheme === "dark" ? "text-slate-100/90" : "text-slate-700/90"].join(" ")} />
-                            </span>
-                            {/* tiny roads hint */}
-                            <span className="absolute inset-0 opacity-60">
-                              <span className="absolute left-2 top-3 h-1 w-8 rounded-full bg-white/40" />
-                              <span className="absolute left-3 top-6 h-1 w-7 rounded-full bg-white/30" />
-                              <span className="absolute left-4 top-9 h-1 w-6 rounded-full bg-white/25" />
-                            </span>
-                            {selected && (
-                              <span className="absolute -bottom-1 -right-1 h-6 w-6 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow">
-                                <Check className="h-4 w-4" />
+                          {opt.key === "navigation" ? (
+                            /* Navigation — soft topo-style colours */
+                            <>
+                              <span className={["absolute inset-0", mapTheme === "dark" ? "bg-[#1b2535]" : "bg-[#e8f0f8]"].join(" ")} />
+                              {/* A few natural-looking road strokes */}
+                              <svg className="absolute inset-0 w-full h-full" viewBox="0 0 44 44" fill="none">
+                                {/* main artery diagonal */}
+                                <path d="M0 28 Q14 22 28 16 L44 10" stroke={mapTheme === "dark" ? "#4a6fa5" : "#7baed4"} strokeWidth="2.5" strokeLinecap="round"/>
+                                {/* secondary road */}
+                                <path d="M8 44 Q18 32 26 20" stroke={mapTheme === "dark" ? "#344f70" : "#aecde4"} strokeWidth="1.5" strokeLinecap="round"/>
+                                {/* side street */}
+                                <path d="M20 0 L26 20 L30 44" stroke={mapTheme === "dark" ? "#2a3d56" : "#c4daea"} strokeWidth="1.2" strokeLinecap="round"/>
+                                {/* block fill patch */}
+                                <rect x="28" y="18" width="8" height="6" rx="1.5" fill={mapTheme === "dark" ? "rgba(60,90,130,0.3)" : "rgba(180,210,230,0.4)"} />
+                                <rect x="6" y="8" width="10" height="7" rx="1.5" fill={mapTheme === "dark" ? "rgba(60,90,130,0.25)" : "rgba(180,210,230,0.35)"} />
+                              </svg>
+                            </>
+                          ) : (
+                            /* Satellite — aerial imagery feel */
+                            <>
+                              <span className="absolute inset-0 bg-[#1a3320]" />
+                              <span className="absolute inset-0 bg-[radial-gradient(ellipse_at_30%_40%,#2d5c2e_0%,transparent_50%)]" />
+                              <span className="absolute inset-0 bg-[radial-gradient(ellipse_at_70%_65%,#163d1c_0%,transparent_45%)]" />
+                              <span className="absolute inset-0 bg-[radial-gradient(ellipse_at_55%_10%,#3a6b38_0%,transparent_35%)]" />
+                              {/* subtle road */}
+                              <svg className="absolute inset-0 w-full h-full opacity-40" viewBox="0 0 44 44" fill="none">
+                                <path d="M0 26 Q20 22 44 18" stroke="white" strokeWidth="1.2" strokeLinecap="round"/>
+                              </svg>
+                            </>
+                          )}
+
+                          {/* Active check */}
+                          {selected && (
+                            <span className="absolute inset-0 flex items-center justify-center bg-[#02665e]/30 rounded-xl">
+                              <span className="h-[18px] w-[18px] rounded-full bg-[#02665e] flex items-center justify-center shadow-lg">
+                                <Check className="h-[9px] w-[9px] text-white" strokeWidth={3} />
                               </span>
-                            )}
-                          </span>
-                          <span className={["text-[11px] font-semibold", mapTheme === "dark" ? "text-slate-100" : "text-slate-700"].join(" ")}>
-                            {opt.label}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
+                            </span>
+                          )}
+                        </span>
+
+                        {/* Label */}
+                        <span className={[
+                          "text-[10px] font-semibold leading-none",
+                          selected ? "text-[#02665e]" : (mapTheme === "dark" ? "text-slate-400" : "text-slate-500"),
+                        ].join(" ")}>
+                          {opt.label}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>
