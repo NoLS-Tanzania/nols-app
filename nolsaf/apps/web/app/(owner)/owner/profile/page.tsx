@@ -8,7 +8,7 @@ import {
   ArrowLeft, Building2, CheckCircle, CheckCircle2, Clock, CreditCard,
   Eye, FileText, History, Lock, LogOut, Mail, MapPin, Pencil,
   Phone, Save, Trash2, Upload, User, Wallet, X, AlertTriangle,
-  ChevronDown, ChevronUp, ShieldCheck,
+  ChevronDown, ChevronUp, ShieldCheck, Info,
 } from 'lucide-react';
 import DatePickerField from "@/components/DatePickerField";
 
