@@ -48,6 +48,8 @@ export interface BookingEmailData {
   propertyName: string;
   /** Booking ID (numeric) */
   bookingId: number;
+  /** Human-readable booking reference code (e.g. BK-A1B2C3) */
+  bookingCode?: string;
   checkIn: Date | string;
   checkOut: Date | string;
   totalAmount: number | string;
@@ -56,14 +58,14 @@ export interface BookingEmailData {
   bookingUrl?: string;
 }
 
-// ─── 1. Booking Received ──────────────────────────────────────────────────────
+// ─── 1. Booking Confirmed (received) ─────────────────────────────────────────
 
 /**
- * Sent immediately when a new booking is created (status: NEW).
- * Reassures the guest that their request is in the system and under review.
+ * Sent immediately when a new booking is created and payment is accepted.
+ * Celebrates the booking and shows the booking reference code prominently.
  */
 export function getBookingReceivedEmail(data: BookingEmailData): { subject: string; html: string } {
-  const GREEN = "#059669";
+  const GREEN = BRAND_TEAL;
   const nights = nightCount(data.checkIn, data.checkOut);
 
   const rows: [string, string][] = [
@@ -76,18 +78,33 @@ export function getBookingReceivedEmail(data: BookingEmailData): { subject: stri
     ["Booking #", `#${data.bookingId}`],
   ];
 
+  const refCode = data.bookingCode ?? `#${data.bookingId}`;
+
+  const codeBlock = `
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0;">
+      <tr>
+        <td align="center" style="padding:28px 20px;background:#f0fdf4;border:2px dashed #059669;border-radius:12px;">
+          <p style="margin:0 0 8px;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:#166534;">Your Booking Reference</p>
+          <p style="margin:0;font-size:32px;font-weight:800;letter-spacing:6px;color:#14532d;font-family:'Courier New',monospace;">${refCode}</p>
+          <p style="margin:10px 0 0;font-size:12px;color:#4b5563;">Keep this reference safe — you'll need it for check-in</p>
+        </td>
+      </tr>
+    </table>
+  `;
+
   const body = `
     <p style="margin:0 0 16px;font-size:16px;font-weight:600;color:${GREEN};">Hello ${data.guestName},</p>
-    <p style="margin:0 0 16px;">Thank you for choosing NoLSAF! We've received your booking request and our team is reviewing it. You'll hear from us shortly with confirmation.</p>
-    ${calloutBox(GREEN, "⏳", "What happens next?", "Our team will review your booking and send you a confirmation email with your check-in code once everything is ready.")}
+    <p style="margin:0 0 16px;">🎉 Congratulations! Your booking at <strong>${data.propertyName}</strong> is confirmed. Your payment has been received and your stay is secured.</p>
+    ${codeBlock}
     ${infoCard(GREEN, rows)}
-    ${data.bookingUrl ? ctaButton(data.bookingUrl, "View Booking", GREEN) : ""}
-    <p style="margin:24px 0 0;">Warm regards,<br><strong style="color:${BRAND_DARK};">The NoLSAF Team</strong></p>
+    ${calloutBox(GREEN, "ℹ️", "What to expect", "Your check-in code will be sent to you closer to your arrival date. If you have any questions or need to make changes, contact us at support@nolsaf.com.")}
+    ${data.bookingUrl ? ctaButton(data.bookingUrl, "View My Booking", GREEN) : ""}
+    <p style="margin:24px 0 0;">We look forward to hosting you!<br><strong style="color:${BRAND_DARK};">The NoLSAF Team</strong></p>
   `;
 
   return {
-    subject: `Booking Received – ${data.propertyName} (#${data.bookingId})`,
-    html: baseEmail(GREEN, "#047857", "Booking Received 📋", "📋", body),
+    subject: `Booking Confirmed ✓ – ${data.propertyName} (${refCode})`,
+    html: baseEmail(GREEN, "#014d47", "Booking Confirmed ✅", "✅", body),
   };
 }
 

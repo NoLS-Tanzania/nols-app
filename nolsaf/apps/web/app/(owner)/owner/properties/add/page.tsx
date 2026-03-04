@@ -837,14 +837,19 @@ function PropertyLocationMap({
                              (latitude === 0 && longitude === 0) ||
                              (Math.abs(latitude) < 0.001 && Math.abs(longitude) < 0.001);
 
-    // Auto-detect location on first load if coordinates are not set
-    if (hasDefaultCoords && !hasAutoDetectedRef.current && navigator.geolocation) {
+    // Auto-detect on first load only — GPS callback drives the re-render with real coords
+    if (hasDefaultCoords && !hasAutoDetectedRef.current) {
       hasAutoDetectedRef.current = true;
-      // Small delay to ensure map container is ready
-      setTimeout(() => {
-        detectLocation();
-      }, 500);
-      return; // Don't initialize map yet, wait for location
+      if (navigator.geolocation) {
+        setTimeout(() => { detectLocation(); }, 300);
+      }
+      // Don't initialize map at [0,0] — wait for real GPS coords from parent
+      return;
+    }
+
+    // GPS was already attempted but came back empty or failed — don't show a [0,0] ocean map
+    if (hasDefaultCoords) {
+      return;
     }
 
     // Validate coordinates are valid numbers
@@ -1064,7 +1069,7 @@ function PropertyLocationMap({
           // If postcode is provided, try to geocode it and verify/adjust location
           if (postcode) {
             // First, try to geocode the postcode to get coordinates
-            fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(postcode)}.json?access_token=${token}&country=TZ&types=postcode`)
+            fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(postcode)}.json?access_token=${token}&types=postcode,place`)
               .then(res => res.json())
               .then(data => {
                 if (data.features && data.features.length > 0) {
@@ -1145,8 +1150,10 @@ function PropertyLocationMap({
         mapRef.current = null;
       }
     };
-  // detectLocation is memoized; keeping deps accurate avoids stale closures.
-  }, [latitude, longitude, postcode, detectLocation, onLocationDetected, isDetectingLocation]);
+  // isDetectingLocation intentionally excluded from deps — it is UI-only state
+  // and must NOT trigger a full map re-init every time GPS starts/stops.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latitude, longitude, postcode, detectLocation, onLocationDetected]);
 
   return (
     <div className="w-full">
@@ -1205,6 +1212,7 @@ export default function AddProperty() {
   // Auto-save state
   const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const checkAbortRef = useRef<AbortController | null>(null);
   const DRAFT_STORAGE_KEY = 'property_draft';
   const [showResumeDraft, setShowResumeDraft] = useState(false);
   const [localDraft, setLocalDraft] = useState<any | null>(null);
@@ -1516,6 +1524,9 @@ export default function AddProperty() {
   const [totalFloors, setTotalFloors] = useState<number | "">("");
   const [latitude, setLatitude] = useState<number | "">("");
   const [longitude, setLongitude] = useState<number | "">("");
+  // pin/region consistency
+  const [pinRegionMismatch, setPinRegionMismatch] = useState<string | null>(null);
+  const [checkingPinLocation, setCheckingPinLocation] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
   const [locationTrackingEnabled, setLocationTrackingEnabled] = useState(false);
   const [freeCancellation, setFreeCancellation] = useState<boolean>(false);
@@ -1888,6 +1899,101 @@ export default function AddProperty() {
   };
 
 
+  // ── Reverse-geocoding pin-vs-region consistency check ─────────────────────
+  // Called whenever the owner moves the map pin.  Calls Mapbox reverse-
+  // geocoding and compares the returned region name to the selected regionId.
+  // A mismatch sets a warning banner and also blocks final submission.
+  async function checkPinConsistency(lat: number, lng: number): Promise<void> {
+    if (!regionId) { setPinRegionMismatch(null); return; }
+
+    // Cancel any previous in-flight request to avoid stale results
+    if (checkAbortRef.current) checkAbortRef.current.abort();
+    const controller = new AbortController();
+    checkAbortRef.current = controller;
+
+    const token =
+      (process.env.NEXT_PUBLIC_MAPBOX_TOKEN as string) ||
+      (process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN as string) ||
+      '';
+    if (!token) return;
+
+    setCheckingPinLocation(true);
+    setPinRegionMismatch(null);
+
+    try {
+      // Ask for "region" and "place" types so we get the administrative region back
+      const url =
+        'https://api.mapbox.com/geocoding/v5/mapbox.places/' +
+        lng + ',' + lat +
+        '.json?types=region,place&limit=1&access_token=' + token;
+      const resp = await fetch(url, { signal: controller.signal });
+      if (controller.signal.aborted) return;
+      if (!resp.ok) { setCheckingPinLocation(false); return; }
+
+      const data = await resp.json();
+      const feature = data.features?.[0];
+      if (!feature) { setCheckingPinLocation(false); return; }
+
+      const contexts: Array<{ id: string; text: string }> = feature.context || [];
+      // Collect all text labels (feature + all parent contexts)
+      const allTexts: string[] = [
+        feature.text || '',
+        ...contexts.map((ctx: any) => String(ctx.text || '')),
+      ];
+      const combinedLower = allTexts.join(' ').toLowerCase();
+
+      // Normalise selected regionId for word-level comparison
+      // "DAR-ES-SALAAM" → ["dar", "es", "salaam"]; "ARUSHA" → ["arusha"]
+      const selectedWords: string[] = regionId
+        .toLowerCase()
+        .replace(/-/g, ' ')
+        .split(/\s+/)
+        .filter((w: string) => w.length > 1);
+
+      const mismatch =
+        selectedWords.length > 0 &&
+        !selectedWords.every((w: string) => combinedLower.includes(w));
+
+      if (mismatch) {
+        // Pick the most descriptive Mapbox label to show in the inline warning
+        const regionCtxText: string =
+          contexts.find((ctx) => ctx.id?.startsWith('region'))?.text ||
+          contexts.find((ctx) => ctx.id?.startsWith('place'))?.text ||
+          feature.text ||
+          'an unknown area';
+        // Pretty-format the selected region (e.g. "Dar Es Salaam")
+        const selectedLabel: string = (regionName || regionId.replace(/-/g, ' '))
+          .toLowerCase()
+          .replace(/\b\w/g, (ch: string) => ch.toUpperCase());
+        setPinRegionMismatch(
+          'Your pin appears to be in "' + regionCtxText +
+          '" \u2014 you selected region "' + selectedLabel + '". ' +
+          'Please move the pin to match your selected region, or update your Region selection.'
+        );
+      } else {
+        setPinRegionMismatch(null);
+      }
+    } catch (err: any) {
+      if (err?.name === 'AbortError') return; // cancelled — ignore
+      setPinRegionMismatch(null); // network failure — fail open (do not block)
+    } finally {
+      if (!controller.signal.aborted) setCheckingPinLocation(false);
+    }
+  }
+
+  // Re-run whenever the pin or the selected Region changes
+  useEffect(() => {
+    if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+      setPinRegionMismatch(null);
+      return;
+    }
+    if (latitude === 0 && longitude === 0) { setPinRegionMismatch(null); return; }
+    // checkPinConsistency reads regionId + regionName from its closure;
+    // those are listed in deps so the effect re-runs when region selection changes.
+    checkPinConsistency(latitude, longitude);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latitude, longitude, regionId]);
+
   const goToNextStep = () => {
     if (currentStep < 5) {
       if (currentStep === 0) {
@@ -2246,6 +2352,15 @@ export default function AddProperty() {
         (isHotel && (!hotelStar || hotelStar === "")) ? "hotel star rating" : null,
       ].filter(Boolean);
       alert("Please complete: " + missing.join(", ") + ".");
+      return;
+    }
+    if (pinRegionMismatch && typeof latitude === "number" && typeof longitude === "number") {
+      alert(
+        "Your map pin does not match the selected region.\n\n" +
+        pinRegionMismatch + "\n\n" +
+        "Please move the pin to your property's exact location before submitting."
+      );
+      scrollToStep(0);
       return;
     }
     try {
@@ -2812,6 +2927,8 @@ export default function AddProperty() {
           locationLoading={locationLoading}
           handleLocationToggle={handleLocationToggle}
           PropertyLocationMap={PropertyLocationMap}
+          locationMismatchWarning={pinRegionMismatch}
+          checkingPinLocation={checkingPinLocation}
         />
 
         {/* ROOM TYPES */}

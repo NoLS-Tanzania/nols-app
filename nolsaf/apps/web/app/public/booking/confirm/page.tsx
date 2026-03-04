@@ -1100,25 +1100,21 @@ export default function BookingConfirmPage() {
             setCurrentPickupNeedsConfirm(true);
             setCurrentPickupConfirmed(false);
           } else {
-            // We still have GPS coords; if address lookup isn't available, let user type the area/street manually.
-            setTransportOriginAddress("");
+            // GPS coords are already set — address name is cosmetic. Never block on geocoding service failure.
+            // Use coordinate string as address label so the fare calc and driver navigation both work.
+            const coordLabel = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+            setTransportOriginAddress(coordLabel);
             setCurrentPickupNeedsConfirm(false);
             setCurrentPickupConfirmed(true);
-            const fallbackMsg =
-              payload?.error ||
-              payload?.message ||
-              (resp.status === 503
-                ? "Pickup area lookup is temporarily unavailable. Please type your pickup area/street to continue."
-                : "We couldn't detect your area name. Please type your pickup area/street to continue.");
-            setTransportPickupError(fallbackMsg);
-            window.setTimeout(() => pickupAddressRef.current?.focus(), 0);
+            setTransportPickupError(null);
           }
         } catch {
-          setTransportOriginAddress("");
+          // GPS coords are still valid; use them directly.
+          const coordLabel = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+          setTransportOriginAddress(coordLabel);
           setCurrentPickupNeedsConfirm(false);
           setCurrentPickupConfirmed(true);
-          setTransportPickupError("We couldn't detect your area name. Please type your pickup area/street to continue.");
-          window.setTimeout(() => pickupAddressRef.current?.focus(), 0);
+          setTransportPickupError(null);
         } finally {
           setCalculatingFare(false);
         }
@@ -1150,7 +1146,38 @@ export default function BookingConfirmPage() {
       const payload = contentType.includes("application/json") ? await resp.json() : null;
 
       if (!resp.ok) {
-        const msg = payload?.error || payload?.message || `Geocoding failed (HTTP ${resp.status})`;
+        // If the API geocoding service isn't configured (503), try calling Mapbox directly from the browser.
+        if (resp.status === 503) {
+          const browserToken =
+            process.env.NEXT_PUBLIC_MAPBOX_TOKEN ||
+            process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN ||
+            "";
+          if (browserToken) {
+            try {
+              const mbResp = await fetch(
+                `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json?country=TZ&types=address,poi,place&limit=3&access_token=${browserToken}`
+              );
+              if (mbResp.ok) {
+                const mbData = await mbResp.json();
+                const mbBest = mbData?.features?.[0];
+                if (mbBest?.geometry?.coordinates) {
+                  const [mbLng, mbLat] = mbBest.geometry.coordinates as [number, number];
+                  if (Number.isFinite(mbLat) && Number.isFinite(mbLng)) {
+                    setTransportOriginLat(mbLat);
+                    setTransportOriginLng(mbLng);
+                    const mbName = String(mbBest.place_name || mbBest.text || "").trim();
+                    if (mbName) setTransportOriginAddress(mbName);
+                    setTransportPickupError(null);
+                    return;
+                  }
+                }
+              }
+            } catch {
+              // browser fallback failed — fall through to error
+            }
+          }
+        }
+        const msg = payload?.error || payload?.message || `Geocoding failed (HTTP ${resp.status}). Try a more specific location name.`;
         setTransportPickupError(msg);
         return;
       }
@@ -2037,8 +2064,33 @@ export default function BookingConfirmPage() {
 
                         {transportOriginLat !== null && transportOriginLng !== null && (
                           <div className="flex items-center justify-between gap-2 text-xs bg-white/80 border border-emerald-200 rounded-xl px-3 py-2">
-                            <span className="font-semibold text-emerald-700">Pickup location ready</span>
-                            <span className="text-slate-500">{transportOriginLat.toFixed(5)}, {transportOriginLng.toFixed(5)}</span>
+                            <span className="font-semibold text-emerald-700 flex items-center gap-1.5 flex-shrink-0">
+                              <MapPin className="w-3 h-3" />
+                              Pickup ready
+                            </span>
+                            <span className="text-slate-400 font-mono truncate min-w-0 flex-1 text-center px-1">
+                              {transportOriginLat.toFixed(5)}, {transportOriginLng.toFixed(5)}
+                            </span>
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <a
+                                href={`https://www.openstreetmap.org/?mlat=${transportOriginLat}&mlon=${transportOriginLng}&zoom=16`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title="View on OpenStreetMap"
+                                className="h-6 px-2 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-700 font-semibold hover:bg-emerald-100 transition-colors flex items-center gap-0.5 whitespace-nowrap"
+                              >
+                                OSM ↗
+                              </a>
+                              <a
+                                href={`https://maps.google.com/?q=${transportOriginLat},${transportOriginLng}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title="View on Google Maps"
+                                className="h-6 px-2 rounded-md bg-blue-50 border border-blue-200 text-blue-700 font-semibold hover:bg-blue-100 transition-colors flex items-center gap-0.5 whitespace-nowrap"
+                              >
+                                GMaps ↗
+                              </a>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -2272,6 +2324,15 @@ export default function BookingConfirmPage() {
                           )}
                         </div>
                       </div>
+                      )}
+
+                      {includeTransport && transportOriginLat !== null && transportOriginLng !== null && !!property && (!property.latitude || !property.longitude) && (
+                        <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-300 rounded-xl animate-in fade-in">
+                          <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                          <p className="text-xs text-amber-800 font-medium">
+                            This property’s coordinates are not yet registered. Distance is calculated as 0 km and the fare shown is the minimum base rate only. The actual fare will be confirmed by your driver.
+                          </p>
+                        </div>
                       )}
 
                       {transportFare && (

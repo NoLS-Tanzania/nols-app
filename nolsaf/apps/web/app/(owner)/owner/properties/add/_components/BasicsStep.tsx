@@ -1,7 +1,7 @@
 "use client";
 
 import type { ComponentType, Dispatch, MutableRefObject, SetStateAction } from "react";
-import { Building2, CheckCircle2, ChevronDown, HelpCircle, Home, LayoutGrid, MapPin, AlertCircle, Navigation2, Pencil, X } from "lucide-react";
+import { AlertTriangle, Building2, CheckCircle2, ChevronDown, HelpCircle, Home, LayoutGrid, MapPin, AlertCircle, Navigation2, Pencil, X } from "lucide-react";
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AddPropertySection } from "./AddPropertySection";
@@ -86,6 +86,10 @@ export type BasicsStepProps = {
     postcode: string | null;
     onLocationDetected: (lat: number, lng: number) => void;
   }>;
+  /** Warning message when the map pin region doesn't match the selected Region */
+  locationMismatchWarning?: string | null;
+  /** True while the reverse-geocoding consistency check is in-flight */
+  checkingPinLocation?: boolean;
 };
 
 type TourismSiteOption = {
@@ -163,6 +167,8 @@ export const BasicsStep = forwardRef<HTMLElement, BasicsStepProps>(function Basi
   setParkPlacement,
 
 PropertyLocationMap,
+  locationMismatchWarning,
+  checkingPinLocation,
 } = props;
 
 const tourismSiteIdValue = tourismSiteId ?? "";
@@ -1563,6 +1569,23 @@ const nameOk = title.trim().length >= 3;
                       }}
                     />
                   </div>
+
+                  {/* Reverse-geocoding consistency check feedback */}
+                  {checkingPinLocation && (
+                    <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
+                      <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-slate-300 border-t-slate-500" />
+                      Verifying pin location against selected region…
+                    </div>
+                  )}
+                  {!checkingPinLocation && locationMismatchWarning && (
+                    <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-500" aria-hidden />
+                      <div className="min-w-0">
+                        <p className="font-semibold mb-0.5">Pin location mismatch</p>
+                        <p className="leading-snug">{locationMismatchWarning}</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
             </div>
           </div>

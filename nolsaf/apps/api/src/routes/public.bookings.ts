@@ -1350,6 +1350,7 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
           guestName: sanitizedGuestName || "Guest",
           propertyName: String((property as any).title || "your property"),
           bookingId: result.bookingId,
+          bookingCode: result.bookingCode ?? undefined,
           checkIn: result.checkIn,
           checkOut: result.checkOut,
           totalAmount: result.totalAmount,
