@@ -577,13 +577,15 @@ export default function PaymentPage() {
                       
                       {/* Service fee intentionally not shown here. */}
                       
-                      {/* Transportation - Always shown */}
+                      {/* Transportation - only shown when transport was included */}
+                      {(invoice.booking.includeTransport || (invoice.priceBreakdown?.transportFare && invoice.priceBreakdown.transportFare > 0)) && (
                       <div className="flex justify-between text-sm">
                         <span className="text-slate-600">Transportation</span>
-                        <span className={`font-semibold ${invoice.priceBreakdown?.transportFare && invoice.priceBreakdown.transportFare > 0 ? "text-slate-900" : "text-slate-400"}`}>
+                        <span className="font-semibold text-slate-900">
                           {invoice.priceBreakdown?.transportFare ? invoice.priceBreakdown.transportFare.toLocaleString() : "0"} {invoice.currency}
                         </span>
                       </div>
+                      )}
                       
                       {/* Subtotal - Always shown if breakdown exists */}
                       {invoice.priceBreakdown?.subtotal !== undefined && (

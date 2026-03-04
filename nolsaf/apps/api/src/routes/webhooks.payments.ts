@@ -5,8 +5,11 @@ import { makeQR } from "../lib/qr.js";
 import bodyParser from "body-parser"; // for raw parser here
 import { invalidateOwnerReports } from "../lib/cache.js";
 import { sendSms } from "../lib/sms.js";
+import { sendMail } from "../lib/mailer.js";
+import { getBookingReceivedEmail } from "../lib/bookingEmailTemplates.js";
+import { generateBookingReservationPdf, generatePaymentReceiptPdf } from "../lib/bookingPdfGen.js";
 import crypto from "crypto";
-import { generateBookingCodeForBooking, sendBookingCodeNotification } from "../lib/bookingCodeService.js";
+import { generateBookingCodeForBooking } from "../lib/bookingCodeService.js";
 import rateLimit from "express-rate-limit";
 import { safeEq } from "../lib/signature.js";
 
@@ -523,40 +526,88 @@ router.post("/azampay", webhookLimiter, async (req: any, res) => {
           provider || undefined
         );
 
-        // Generate booking code and send notification
+        // Generate booking code (idempotent — safe to call even if code already exists)
         if (updatedInvoice.booking?.id) {
           try {
-            // Ensure booking code exists
             await generateBookingCodeForBooking(updatedInvoice.booking.id);
-            
-            // Send booking code notification via SMS and Email
-            const notificationResult = await sendBookingCodeNotification(
-              updatedInvoice.booking.id,
-              { sendSms: true, sendEmail: true }
-            );
-            
-            if (notificationResult.errors.length > 0) {
-              console.warn("Booking code notification errors:", notificationResult.errors);
-            } else {
-              console.log(`Booking code sent: SMS=${notificationResult.smsSent}, Email=${notificationResult.emailSent}`);
-            }
           } catch (codeError) {
-            console.error("Failed to generate/send booking code:", codeError);
+            console.error("Failed to generate booking code:", codeError);
             // Don't fail the webhook if code generation fails
           }
         }
 
-        // Also send payment confirmation SMS (legacy, can be removed later)
+        // Send guest payment confirmation: email with PDF receipts + SMS.
+        // Uses the AzamPay-confirmed `amount` — the exact value the guest paid via M-Pesa.
+        // This fires ONLY here (after payment success) — never at booking creation.
         try {
-          const userPhone = invoice.booking?.user?.phone;
-          if (userPhone) {
-            const receiptNumber = updatedInvoice.receiptNumber || `RCPT-${invoice.id}`;
-            const smsMessage = `Payment Successful! Your payment of ${amount.toLocaleString()} TZS has been received. Receipt: ${receiptNumber}. Thank you for using NoLSAF!`;
-            await sendSms(userPhone, smsMessage);
+          const bookingId = invoice.booking.id;
+          // Email from linked account; phone from booking record or linked account.
+          const guestEmail = invoice.booking.user?.email || null;
+          const guestPhone = invoice.booking.guestPhone || invoice.booking.user?.phone || null;
+          const currency   = invoice.booking.property?.currency || "TZS";
+          // Use the AzamPay-confirmed payment amount — this is the source of truth.
+          const totalPaid  = amount;
+          const guestName  = invoice.booking.guestName || invoice.booking.user?.name || "Guest";
+          const roomsQty   = Math.max(1, Number((invoice.booking as any).roomsQty ?? 1));
+
+          // Fetch the active booking code (just generated above)
+          const checkinCode = await prisma.checkinCode.findFirst({
+            where: { bookingId, status: "ACTIVE" },
+            select: { code: true },
+          });
+          const bookingCode = checkinCode?.code;
+          const refCode = bookingCode ?? `BK-${bookingId}`;
+
+          const pdfData = {
+            guestName,
+            propertyName: String(invoice.booking.property?.title || "your property"),
+            bookingId,
+            bookingCode,
+            checkIn:     invoice.booking.checkIn,
+            checkOut:    invoice.booking.checkOut,
+            totalAmount: totalPaid,
+            roomsQty,
+            currency,
+          };
+
+          const [{ subject, html }, reservationPdf, paymentPdf] = await Promise.all([
+            Promise.resolve(getBookingReceivedEmail({
+              guestName:    pdfData.guestName,
+              propertyName: pdfData.propertyName,
+              bookingId:    pdfData.bookingId,
+              bookingCode:  pdfData.bookingCode,
+              checkIn:      pdfData.checkIn,
+              checkOut:     pdfData.checkOut,
+              totalAmount:  pdfData.totalAmount,
+              roomsQty:     pdfData.roomsQty,
+            })),
+            generateBookingReservationPdf(pdfData),
+            generatePaymentReceiptPdf(pdfData),
+          ]);
+
+          if (guestEmail) {
+            await sendMail(guestEmail, subject, html, [
+              { filename: `NolSAF-Booking-${refCode}.pdf`, content: reservationPdf },
+              { filename: `NolSAF-Payment-${refCode}.pdf`, content: paymentPdf },
+            ]);
           }
-        } catch (smsErr) {
-          console.warn("Failed to send payment confirmation SMS:", smsErr);
-          // Don't fail the webhook if SMS fails
+
+          if (guestPhone) {
+            const ci = new Date(invoice.booking.checkIn).toLocaleDateString("en-GB",  { day: "numeric", month: "short", year: "numeric" });
+            const co = new Date(invoice.booking.checkOut).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+            const smsText =
+              `NoLSAF: Payment Confirmed!\n` +
+              `Ref: ${refCode}\n` +
+              `Property: ${String(invoice.booking.property?.title || "").slice(0, 40)}\n` +
+              `Check-in: ${ci}\n` +
+              `Check-out: ${co}\n` +
+              `Paid: ${currency} ${totalPaid.toLocaleString("en-US")}\n` +
+              `Show your ref code on arrival. support@nolsaf.com`;
+            await sendSms(guestPhone, smsText);
+          }
+        } catch (confirmErr) {
+          console.warn("[PAYMENT_CONFIRMED] Guest confirmation email/SMS failed:", confirmErr);
+          // Never block webhook response due to notification failure
         }
       } else {
         console.warn(`Amount mismatch: expected ${want}, received ${amount}`);

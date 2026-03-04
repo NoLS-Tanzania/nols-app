@@ -59,8 +59,8 @@ const adminInvoicePropertyWithOwnerSelect = {
  * Conventions used across booking + invoice flows:
  * - `booking.totalAmount` is accommodation base + transport (NO commission).
  * - Commission is calculated as a % of the accommodation base (excluding transport).
- * - `invoice.total` should represent what the guest pays: booking.totalAmount + commission.
- * - Owner net payable is the accommodation base (commission and transport are not paid out).
+ * - `invoice.total` represents what the guest pays (no commission add-on).
+ * - Owner net payable is derived by extracting commission from the accommodation portion (transport excluded).
  * - Tax (if any) applies to the commission amount (platform revenue).
  */
 function compute(invoice: any, cfg?: { commissionPercent?: number; taxPercent?: number }) {

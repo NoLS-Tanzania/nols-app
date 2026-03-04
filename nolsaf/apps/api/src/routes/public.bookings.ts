@@ -10,13 +10,41 @@ import { checkPropertyAvailability, checkGuestCapacity } from "../lib/bookingAva
 import { sanitizeText } from "../lib/sanitize.js";
 import { notifyAdmins, notifyOwner } from "../lib/notifications.js";
 import { invalidateOwnerReports } from "../lib/cache.js";
-import { sendMail } from "../lib/mailer.js";
-import { sendSms } from "../lib/sms.js";
-import { getBookingReceivedEmail } from "../lib/bookingEmailTemplates.js";
-import { generateBookingReservationPdf, generatePaymentReceiptPdf } from "../lib/bookingPdfGen.js";
 import { maybeAuth } from "../middleware/auth.js";
 import { AUTO_DISPATCH_LOOKAHEAD_MS, MIN_TRANSPORT_LEAD_MS } from "../lib/transportPolicy.js";
 import { generateTransportTripCode } from "../lib/tripCode.js";
+
+async function getEffectiveCommissionPercent(params: { propertyServices: unknown }): Promise<number> {
+  // Per-property override (admin sets this via /admin/properties/:id -> services.commissionPercent)
+  const fromProperty = (() => {
+    const services = params.propertyServices as any;
+    const v = services?.commissionPercent;
+    const n = Number(v);
+    if (!Number.isFinite(n)) return null;
+    if (n < 0) return 0;
+    if (n > 100) return 100;
+    return n;
+  })();
+
+  if (fromProperty != null) return fromProperty;
+
+  // Global default (SystemSetting singleton)
+  try {
+    const s =
+      (await prisma.systemSetting.findUnique({ where: { id: 1 }, select: { commissionPercent: true } as any })) ??
+      (await prisma.systemSetting.create({ data: { id: 1 } } as any));
+    const n = Number((s as any)?.commissionPercent ?? 0);
+    if (!Number.isFinite(n)) return 0;
+    return Math.max(0, Math.min(100, n));
+  } catch {
+    return 0;
+  }
+}
+
+function roundMoney(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.round(value * 100) / 100;
+}
 
 type CreatedTransportBooking = {
   id: number;
@@ -359,6 +387,7 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
         title: true,
         basePrice: true,
         currency: true,
+        services: true,
         roomsSpec: true,
         latitude: true,
         longitude: true,
@@ -772,7 +801,16 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
       }
     }
     
-    let accommodationAmount = pricePerNight * nights * roomsQty;
+    // Pricing model:
+    // - Owner provides base/net price.
+    // - Admin sets commissionPercent (per-property override or system default).
+    // - Guest pays the published price (net + commission) + any optional transport fare.
+    const commissionPercent = await getEffectiveCommissionPercent({ propertyServices: (property as any).services });
+    const safeCommission = Number.isFinite(commissionPercent) ? Math.max(0, Math.min(100, commissionPercent)) : 0;
+
+    const accommodationNet = pricePerNight * nights * roomsQty;
+    const commissionAmount = safeCommission > 0 ? (accommodationNet * safeCommission) / 100 : 0;
+    const accommodationGross = accommodationNet + commissionAmount;
     
     // Add transportation fare if included
     let transportFare = 0;
@@ -817,7 +855,7 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
       }
     }
     
-    const totalAmount = accommodationAmount + transportFare;
+    const totalAmount = roundMoney(accommodationGross + transportFare);
 
     // Ownership linking:
     // - If authenticated, always link to the authenticated user.
@@ -1273,7 +1311,7 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
         bookingId: booking.id,
         bookingCode: codeResult.code,
         totalAmount: totalAmount,
-        accommodationAmount: accommodationAmount,
+        accommodationAmount: roundMoney(accommodationGross),
         transportFare: transportFare,
         nights: nights,
         checkIn: booking.checkIn,
@@ -1343,70 +1381,9 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
 
     } catch {}
 
-    // Send "Booking Received" email to guest with PDF attachments (best-effort — never blocks response)
-    try {
-      // Prefer explicit guest email; fall back to the authenticated user's email
-      const guestEmail = sanitizedGuestEmail || (req as any).user?.email || null;
-      if (guestEmail) {
-        const pdfData = {
-          guestName:    sanitizedGuestName || "Guest",
-          propertyName: String((property as any).title || "your property"),
-          bookingId:    result.bookingId,
-          bookingCode:  result.bookingCode ?? undefined,
-          checkIn:      result.checkIn,
-          checkOut:     result.checkOut,
-          totalAmount:  result.totalAmount,
-          roomsQty:     roomsQty,
-          currency:     (property as any).currency || "TZS",
-        };
-
-        const [{ subject, html }, reservationPdf, paymentPdf] = await Promise.all([
-          Promise.resolve(getBookingReceivedEmail({
-            guestName:    pdfData.guestName,
-            propertyName: pdfData.propertyName,
-            bookingId:    pdfData.bookingId,
-            bookingCode:  pdfData.bookingCode,
-            checkIn:      pdfData.checkIn,
-            checkOut:     pdfData.checkOut,
-            totalAmount:  pdfData.totalAmount,
-            roomsQty:     pdfData.roomsQty,
-          })),
-          generateBookingReservationPdf(pdfData),
-          generatePaymentReceiptPdf(pdfData),
-        ]);
-
-        const refCode = result.bookingCode ?? `BK-${result.bookingId}`;
-        await sendMail(guestEmail, subject, html, [
-          { filename: `NolSAF-Booking-${refCode}.pdf`,  content: reservationPdf },
-          { filename: `NolSAF-Payment-${refCode}.pdf`,  content: paymentPdf },
-        ]);
-      }
-    } catch (e) {
-      console.warn("[BOOKING_RECEIVED] Email send failed:", e);
-    }
-
-    // Send booking confirmation SMS to guest phone (best-effort — never blocks response)
-    try {
-      const guestPhone = sanitizedGuestPhone || (req as any).user?.phone || null;
-      if (guestPhone) {
-        const refCode  = result.bookingCode ?? `BK-${result.bookingId}`;
-        const currency = (property as any).currency || "TZS";
-        const amount   = Number(result.totalAmount).toLocaleString("en-US");
-        const ci = new Date(result.checkIn).toLocaleDateString("en-GB",  { day: "numeric", month: "short", year: "numeric" });
-        const co = new Date(result.checkOut).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
-        const smsText =
-          `NoLSAF: Booking Confirmed!\n` +
-          `Ref: ${refCode}\n` +
-          `Property: ${String((property as any).title || "").slice(0, 40)}\n` +
-          `Check-in: ${ci}\n` +
-          `Check-out: ${co}\n` +
-          `Paid: ${currency} ${amount}\n` +
-          `Show your ref code on arrival. Questions? support@nolsaf.com`;
-        await sendSms(guestPhone, smsText);
-      }
-    } catch (e) {
-      console.warn("[BOOKING_RECEIVED] SMS send failed:", e);
-    }
+    // NOTE: Confirmation email (with PDF receipts) and SMS are sent AFTER payment is confirmed.
+    // See: webhooks.payments.ts — the AzamPay SUCCESS handler sends the full confirmation.
+    // Sending here would fire before the guest pays, which is incorrect.
 
     // Return success response
     return res.status(201).json({

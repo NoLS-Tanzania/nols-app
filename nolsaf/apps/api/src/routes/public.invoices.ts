@@ -33,25 +33,27 @@ async function getEffectiveCommissionPercent(params: {
   }
 }
 
-function calculatePriceWithCommission(
-  originalPrice: number,
+function extractCommissionFromAccommodation(
+  accommodationAmount: number,
   commissionPercent: number
-): { total: number; commission: number } {
-  if (!originalPrice || originalPrice <= 0 || !Number.isFinite(originalPrice)) {
-    return { total: 0, commission: 0 };
+): { ownerNet: number; commissionAmount: number } {
+  if (!Number.isFinite(accommodationAmount) || accommodationAmount <= 0) {
+    return { ownerNet: 0, commissionAmount: 0 };
   }
 
   if (!Number.isFinite(commissionPercent) || commissionPercent <= 0) {
-    return { total: originalPrice, commission: 0 };
+    return { ownerNet: Math.round(accommodationAmount * 100) / 100, commissionAmount: 0 };
   }
 
   const safeCommission = Math.max(0, Math.min(100, commissionPercent));
-  const commissionAmount = (originalPrice * safeCommission) / 100;
-  const finalPrice = originalPrice + commissionAmount;
+  // Commission is extracted from the accommodation amount the guest pays.
+  // ownerNet + commissionAmount == accommodationAmount
+  const ownerNet = accommodationAmount / (1 + safeCommission / 100);
+  const commissionAmount = accommodationAmount - ownerNet;
 
   return {
-    total: Math.round(finalPrice * 100) / 100,
-    commission: Math.round(commissionAmount * 100) / 100,
+    ownerNet: Math.round(ownerNet * 100) / 100,
+    commissionAmount: Math.round(commissionAmount * 100) / 100,
   };
 }
 
@@ -341,10 +343,10 @@ router.post("/from-booking", publicInvoiceLimiter, async (req: Request, res: Res
       }
     }
 
-    // Use booking.totalAmount if present (authoritative, includes roomsQty + selected room price + transportFare).
+    // Use booking.totalAmount if present (authoritative, includes roomsQty + selected room price + embedded commission + transportFare).
     const totalAmount = booking.totalAmount ? Number(booking.totalAmount) : 0;
 
-    // Derive accommodation subtotal for notes/commission. (Avoid recomputing from basePrice; can be wrong for roomsSpec.)
+    // Derive accommodation gross subtotal for commission split. (Avoid recomputing from basePrice; can be wrong for roomsSpec.)
     const accommodationSubtotal = booking.totalAmount
       ? Math.max(0, Number(totalAmount) - Number(transportFare || 0))
       : (() => {
@@ -352,16 +354,14 @@ router.post("/from-booking", publicInvoiceLimiter, async (req: Request, res: Res
           return basePrice * nights;
         })();
 
-    // Calculate commission (NoLSAF revenue). Owner should receive ONLY the base accommodation fare.
+    // Split commission (NoLSAF revenue) out of the accommodation gross amount the guest pays.
+    // Guest pays the published price (base + commission); owner receives the extracted base (transport excluded).
     const commissionPercent = await getEffectiveCommissionPercent({ propertyServices: (booking.property as any).services });
-    const { total: accommodationTotal, commission } = calculatePriceWithCommission(
-      accommodationSubtotal,
-      commissionPercent
-    );
+    const { ownerNet, commissionAmount } = extractCommissionFromAccommodation(accommodationSubtotal, commissionPercent);
 
-    // Customer pays: accommodation (base) + commission + transport.
-    // NOTE: booking.totalAmount is base accommodation + transport (no commission).
-    const effectiveTotalAmount = Math.round((Number(accommodationTotal) + Number(transportFare || 0)) * 100) / 100;
+    // Customer pays exactly what the booking recorded (accommodation + transport).
+    // Commission is extracted from the accommodation amount for reporting/payout.
+    const effectiveTotalAmount = Math.round(Number(totalAmount) * 100) / 100;
 
     if (existingInvoice) {
       const existingTotal = Number((existingInvoice as any).total ?? 0);
@@ -372,13 +372,14 @@ router.post("/from-booking", publicInvoiceLimiter, async (req: Request, res: Res
       const missingOrStaleTotals = (() => {
         if (isPaidLikeInvoice(existingInvoice)) return false;
         if (!Number.isFinite(existingTotal) || existingTotal <= 0) return true;
-        // If the invoice total is still equal to booking.totalAmount, it likely predates commission-in-total.
-        if (Math.abs(existingTotal - totalAmount) < 0.01 && commission > 0) return true;
+        // Invoice total should match the booking total (no commission add-on).
+        if (Math.abs(existingTotal - effectiveTotalAmount) > 0.01) return true;
         // If commission fields are missing but commission should apply, refresh.
         if ((!Number.isFinite(existingCommissionPercent) || existingInvoice.commissionPercent == null) && commissionPercent > 0) return true;
-        if ((!Number.isFinite(existingCommissionAmount) || existingInvoice.commissionAmount == null) && commission > 0) return true;
+        if ((!Number.isFinite(existingCommissionAmount) || existingInvoice.commissionAmount == null) && commissionAmount > 0) return true;
         // Ensure netPayable reflects accommodation base (excluding transport).
         if (!Number.isFinite(existingNetPayable) || existingInvoice.netPayable == null) return true;
+        if (Number.isFinite(existingNetPayable) && Math.abs(existingNetPayable - ownerNet) > 0.01) return true;
         return false;
       })();
 
@@ -388,9 +389,9 @@ router.post("/from-booking", publicInvoiceLimiter, async (req: Request, res: Res
           data: {
             // Store customer-paid total in `total` and owner receivable in `netPayable`.
             total: effectiveTotalAmount as any,
-            netPayable: Math.max(0, Number(accommodationSubtotal || 0)) as any,
+            netPayable: Math.max(0, Number(ownerNet || 0)) as any,
             commissionPercent: commissionPercent > 0 ? (commissionPercent as any) : null,
-            commissionAmount: commission > 0 ? (commission as any) : null,
+            commissionAmount: commissionAmount > 0 ? (commissionAmount as any) : null,
           } as any,
         });
       }
@@ -498,9 +499,9 @@ router.post("/from-booking", publicInvoiceLimiter, async (req: Request, res: Res
           // IMPORTANT: when a booking includes transport, the customer may pay a total that includes transport,
           // but the property owner should only receive the accommodation portion.
           // We store the customer-paid total in `total` and the owner receivable in `netPayable`.
-          netPayable: Math.max(0, Number(accommodationSubtotal || 0)) as any,
+          netPayable: Math.max(0, Number(ownerNet || 0)) as any,
           commissionPercent: commissionPercent > 0 ? (commissionPercent as any) : null,
-          commissionAmount: commission > 0 ? (commission as any) : null,
+          commissionAmount: commissionAmount > 0 ? (commissionAmount as any) : null,
           taxPercent: 0,
           // Payment lifecycle (production-safe):
           // - Create invoice as REQUESTED (default)

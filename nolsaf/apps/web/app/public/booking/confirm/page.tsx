@@ -79,6 +79,7 @@ type Property = {
   latitude: number | null;
   longitude: number | null;
   roomsSpec?: any; // Room specifications array
+  services?: any; // Can include commissionPercent override
 };
 
 type BookingData = {
@@ -99,6 +100,7 @@ export default function BookingConfirmPage() {
   const [error, setError] = useState<string | null>(null);
   const [property, setProperty] = useState<Property | null>(null);
   const [bookingData, setBookingData] = useState<BookingData | null>(null);
+  const [systemCommission, setSystemCommission] = useState<number>(0);
 
   const availabilityAbortRef = useRef<AbortController | null>(null);
   const availabilityDebounceRef = useRef<NodeJS.Timeout | null>(null);
@@ -215,6 +217,29 @@ export default function BookingConfirmPage() {
   }, [property, selectedRoomCode, selectedRoomIndex]);
 
   const roomsSpecForDeps = (property as any)?.roomsSpec;
+
+  // Load system commission settings (fallback when property has no override)
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      try {
+        const res = await fetch(`/api/public/support/system-settings`, { cache: "no-store" });
+        if (res.ok) {
+          const json = await res.json();
+          if (mounted && json?.commissionPercent !== undefined) {
+            const commission = Number(json.commissionPercent);
+            setSystemCommission(isNaN(commission) ? 0 : commission);
+          }
+        }
+      } catch {
+        // Silently fail - will use 0 as default
+      }
+    };
+    load();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     // Get booking data from URL params
@@ -816,7 +841,7 @@ export default function BookingConfirmPage() {
       )
     : 0;
 
-  const commissionPercent = getPropertyCommission(property, 0);
+  const commissionPercent = getPropertyCommission(property, systemCommission);
 
   // Calculate price based on selected room or base price
   // Always show the room's price even when nights is 0, so users can see the price while selecting dates
