@@ -102,7 +102,7 @@ export default function OwnerRevenueInvoiceView() {
   const guestName = inv?.booking?.user?.fullName ?? inv?.booking?.user?.name ?? "—";
   const phone = inv?.booking?.user?.phone ?? "—";
   const codeVisible = inv?.booking?.code?.codeVisible ?? inv?.booking?.code?.code ?? "—";
-  const total = inv?.total ?? 0;
+  const total = inv?.netPayable ?? inv?.total ?? 0;
 
   // Sender (owner) info
   const senderName = inv?.owner?.fullName ?? inv?.owner?.name ?? inv?.senderName ?? guestName;

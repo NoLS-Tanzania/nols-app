@@ -190,7 +190,7 @@ export default function Page(){
   const fp = inv.financialPreview;
   const commissionPercent = Number(fp?.commissionPercent ?? inv.effectiveCommissionPercent ?? inv.commissionPercent ?? 0);
   const grossTotal = Number(fp?.grossTotal ?? inv.total ?? 0);
-  const baseAmount = Number(fp?.baseAmount ?? inv.netPayable ?? inv.total ?? 0);
+  const baseAmount = Number(fp?.netPayable ?? inv.netPayable ?? inv.total ?? 0);
   const commissionAmount = Number(fp?.commissionAmount ?? inv.commissionAmount ?? 0);
   const taxPercent = Number(fp?.taxPercent ?? (inv.taxPercent !== null && inv.taxPercent !== undefined ? inv.taxPercent : 0) ?? 0);
   const taxAmount = Number(fp?.taxAmount ?? 0);

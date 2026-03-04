@@ -738,7 +738,7 @@ export default function CheckinValidation() {
                         <DataRow label="Room Type"    value={preview.booking.roomType} />
                         <DataRow label="Rooms"        value={String(preview.booking.rooms)} />
                         <DataRow label="Nights"       value={String(preview.booking.nights)} />
-                        <DataRow label="Amount"       value={formatTZS(preview.booking.totalAmount)} highlight />
+                        <DataRow label="Amount"       value={formatTZS(preview.booking.ownerBaseAmount ?? preview.booking.totalAmount)} highlight />
                       </div>
                     </div>
 

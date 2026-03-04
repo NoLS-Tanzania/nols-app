@@ -97,7 +97,7 @@ export function getBookingReceivedEmail(data: BookingEmailData): { subject: stri
     <p style="margin:0 0 16px;">🎉 Congratulations! Your booking at <strong>${data.propertyName}</strong> is confirmed. Your payment has been received and your stay is secured.</p>
     ${codeBlock}
     ${infoCard(GREEN, rows)}
-    ${calloutBox(GREEN, "ℹ️", "What to expect", "Your check-in code will be sent to you closer to your arrival date. If you have any questions or need to make changes, contact us at support@nolsaf.com.")}
+    ${calloutBox(GREEN, "✅", "Your booking is secured", "Your booking reference code above is your key — keep it safe and present it to the property staff on arrival. For any questions or changes, contact us at <a href=\"mailto:support@nolsaf.com\" style=\"color:#02665e;\">support@nolsaf.com</a>.")}
     ${data.bookingUrl ? ctaButton(data.bookingUrl, "View My Booking", GREEN) : ""}
     <p style="margin:24px 0 0;">We look forward to hosting you!<br><strong style="color:${BRAND_DARK};">The NoLSAF Team</strong></p>
   `;

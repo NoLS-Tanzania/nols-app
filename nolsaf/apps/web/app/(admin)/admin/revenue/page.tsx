@@ -1155,7 +1155,7 @@ export default function AdminRevenue() {
                     </div>
                     <div>
                         <div className="text-xs text-gray-500">Owner Payout</div>
-                        <div className="text-sm font-bold text-[#02665e]">{fmt(inv.financialPreview?.baseAmount ?? inv.netPayable)}</div>
+                        <div className="text-sm font-bold text-[#02665e]">{fmt(inv.financialPreview?.netPayable ?? inv.netPayable)}</div>
                     </div>
                     <div>
                       <div className="text-xs text-gray-500">Commission</div>

@@ -167,7 +167,7 @@ export default function Receipt() {
     </div>
     <div class="amount-block">
       <div class="label-xs">Amount Paid</div>
-      <span class="amount-num">${esc(Number(inv.total || 0).toLocaleString())}</span><span class="amount-cur">TZS</span>
+      <span class="amount-num">${esc(Number((inv.netPayable ?? inv.total) || 0).toLocaleString())}</span><span class="amount-cur">TZS</span>
       ${inv.paidAt ? `<div class="paid-date">${esc(new Date(inv.paidAt).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" }))}</div>` : ""}
     </div>
   </div>
@@ -380,7 +380,7 @@ export default function Receipt() {
               <p className="text-[8px] font-bold uppercase tracking-[0.18em] mb-1" style={{ color: "#8aaca9" }}>Amount Paid</p>
               <div className="flex items-baseline justify-center gap-2 leading-none">
                 <span className="text-[36px] font-black tabular-nums tracking-tight" style={{ color: "#02665e" }}>
-                  {Number(inv?.total || 0).toLocaleString()}
+                  {Number((inv?.netPayable ?? inv?.total) || 0).toLocaleString()}
                 </span>
                 <span className="text-[15px] font-bold" style={{ color: "#5a9990" }}>TZS</span>
               </div>

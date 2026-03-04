@@ -14,28 +14,9 @@ export const TEXT_MAIN    = "#1a2e2c";
 export const TEXT_MUTED   = "#6b7280";
 export const BORDER       = "#e2e8e7";
 
-// ─── Social link configuration ────────────────────────────────────────────────
-// Update these when the public site footer URLs are confirmed.
-const SOCIAL_LINKS = {
-  instagram: "https://instagram.com/nolsaf",
-  linkedin:  "https://linkedin.com/company/nolsaf",
-  whatsapp:  "https://wa.me/255000000000",   // replace with real number
-  youtube:   "https://youtube.com/@nolsaf",
-};
-
 // ─── Shared footer HTML ───────────────────────────────────────────────────────
 function buildFooter(): string {
   const year = new Date().getFullYear();
-
-  const socialBtn = (label: string, url: string, bg: string) =>
-    `<a href="${url}" style="display:inline-block;background:${bg};color:#ffffff;font-size:11px;font-weight:700;letter-spacing:0.5px;text-decoration:none;padding:6px 14px;border-radius:20px;margin:0 4px;">${label}</a>`;
-
-  const socialRow = [
-    socialBtn("Instagram", SOCIAL_LINKS.instagram, "#e1306c"),
-    socialBtn("LinkedIn",  SOCIAL_LINKS.linkedin,  "#0077b5"),
-    socialBtn("WhatsApp",  SOCIAL_LINKS.whatsapp,  "#25d366"),
-    socialBtn("YouTube",   SOCIAL_LINKS.youtube,   "#ff0000"),
-  ].join("");
 
   return `
     <!-- Divider -->
@@ -48,11 +29,6 @@ function buildFooter(): string {
         <!-- Brand -->
         <p style="margin:0 0 4px;font-size:14px;font-weight:700;color:${BRAND_TEAL};letter-spacing:0.5px;">NoLSAF</p>
         <p style="margin:0 0 16px;font-size:12px;color:${TEXT_MUTED};">Your Africa Travel &amp; Events Partner</p>
-
-        <!-- Social icons -->
-        <div style="margin:0 0 20px;">
-          ${socialRow}
-        </div>
 
         <!-- Contact -->
         <p style="margin:0 0 6px;font-size:12px;color:${TEXT_MUTED};">

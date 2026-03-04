@@ -11,7 +11,9 @@ import { sanitizeText } from "../lib/sanitize.js";
 import { notifyAdmins, notifyOwner } from "../lib/notifications.js";
 import { invalidateOwnerReports } from "../lib/cache.js";
 import { sendMail } from "../lib/mailer.js";
+import { sendSms } from "../lib/sms.js";
 import { getBookingReceivedEmail } from "../lib/bookingEmailTemplates.js";
+import { generateBookingReservationPdf, generatePaymentReceiptPdf } from "../lib/bookingPdfGen.js";
 import { maybeAuth } from "../middleware/auth.js";
 import { AUTO_DISPATCH_LOOKAHEAD_MS, MIN_TRANSPORT_LEAD_MS } from "../lib/transportPolicy.js";
 import { generateTransportTripCode } from "../lib/tripCode.js";
@@ -1341,25 +1343,69 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
 
     } catch {}
 
-    // Send "Booking Received" email to guest (best-effort — never blocks response)
+    // Send "Booking Received" email to guest with PDF attachments (best-effort — never blocks response)
     try {
       // Prefer explicit guest email; fall back to the authenticated user's email
       const guestEmail = sanitizedGuestEmail || (req as any).user?.email || null;
       if (guestEmail) {
-        const { subject, html } = getBookingReceivedEmail({
-          guestName: sanitizedGuestName || "Guest",
+        const pdfData = {
+          guestName:    sanitizedGuestName || "Guest",
           propertyName: String((property as any).title || "your property"),
-          bookingId: result.bookingId,
-          bookingCode: result.bookingCode ?? undefined,
-          checkIn: result.checkIn,
-          checkOut: result.checkOut,
-          totalAmount: result.totalAmount,
-          roomsQty: roomsQty,
-        });
-        await sendMail(guestEmail, subject, html);
+          bookingId:    result.bookingId,
+          bookingCode:  result.bookingCode ?? undefined,
+          checkIn:      result.checkIn,
+          checkOut:     result.checkOut,
+          totalAmount:  result.totalAmount,
+          roomsQty:     roomsQty,
+          currency:     (property as any).currency || "TZS",
+        };
+
+        const [{ subject, html }, reservationPdf, paymentPdf] = await Promise.all([
+          Promise.resolve(getBookingReceivedEmail({
+            guestName:    pdfData.guestName,
+            propertyName: pdfData.propertyName,
+            bookingId:    pdfData.bookingId,
+            bookingCode:  pdfData.bookingCode,
+            checkIn:      pdfData.checkIn,
+            checkOut:     pdfData.checkOut,
+            totalAmount:  pdfData.totalAmount,
+            roomsQty:     pdfData.roomsQty,
+          })),
+          generateBookingReservationPdf(pdfData),
+          generatePaymentReceiptPdf(pdfData),
+        ]);
+
+        const refCode = result.bookingCode ?? `BK-${result.bookingId}`;
+        await sendMail(guestEmail, subject, html, [
+          { filename: `NolSAF-Booking-${refCode}.pdf`,  content: reservationPdf },
+          { filename: `NolSAF-Payment-${refCode}.pdf`,  content: paymentPdf },
+        ]);
       }
     } catch (e) {
       console.warn("[BOOKING_RECEIVED] Email send failed:", e);
+    }
+
+    // Send booking confirmation SMS to guest phone (best-effort — never blocks response)
+    try {
+      const guestPhone = sanitizedGuestPhone || (req as any).user?.phone || null;
+      if (guestPhone) {
+        const refCode  = result.bookingCode ?? `BK-${result.bookingId}`;
+        const currency = (property as any).currency || "TZS";
+        const amount   = Number(result.totalAmount).toLocaleString("en-US");
+        const ci = new Date(result.checkIn).toLocaleDateString("en-GB",  { day: "numeric", month: "short", year: "numeric" });
+        const co = new Date(result.checkOut).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+        const smsText =
+          `NoLSAF: Booking Confirmed!\n` +
+          `Ref: ${refCode}\n` +
+          `Property: ${String((property as any).title || "").slice(0, 40)}\n` +
+          `Check-in: ${ci}\n` +
+          `Check-out: ${co}\n` +
+          `Paid: ${currency} ${amount}\n` +
+          `Show your ref code on arrival. Questions? support@nolsaf.com`;
+        await sendSms(guestPhone, smsText);
+      }
+    } catch (e) {
+      console.warn("[BOOKING_RECEIVED] SMS send failed:", e);
     }
 
     // Return success response

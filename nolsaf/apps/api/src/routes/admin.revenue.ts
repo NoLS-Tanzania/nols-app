@@ -85,12 +85,15 @@ function compute(invoice: any, cfg?: { commissionPercent?: number; taxPercent?: 
     ? baseFromBooking
     : (Number.isFinite(baseFallback) && baseFallback > 0 ? Math.max(0, baseFallback) : Math.max(0, Number(invoice.total ?? 0)));
 
-  const commissionAmount = +Math.max(0, (baseAmount * commissionPercent) / 100).toFixed(2);
+  // baseAmount already includes commission markup (admin baked it into basePrice).
+  // Extract owner net and platform fee from the accommodation amount collected.
+  const ownerNet = commissionPercent > 0
+    ? +(baseAmount / (1 + commissionPercent / 100)).toFixed(2)
+    : baseAmount;
+  const commissionAmount = +(baseAmount - ownerNet).toFixed(2);
   const taxOnCommission = +Math.max(0, (commissionAmount * taxPercent) / 100).toFixed(2);
-
-  // Admin revenue breakdown should EXCLUDE transport.
-  // Total involved in property revenue is accommodation base + commission only.
-  const grossTotal = +(baseAmount + commissionAmount).toFixed(2);
+  // grossTotal = accommodation amount collected (equals basePrice × nights, transport excluded)
+  const grossTotal = +baseAmount.toFixed(2);
 
   return {
     grossTotal,
@@ -99,7 +102,7 @@ function compute(invoice: any, cfg?: { commissionPercent?: number; taxPercent?: 
     commissionAmount,
     taxPercent,
     taxOnCommission,
-    netPayable: +baseAmount.toFixed(2),
+    netPayable: +ownerNet.toFixed(2),
   };
 }
 
