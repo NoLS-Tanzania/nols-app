@@ -33,6 +33,9 @@ import {
   BadgeCheck,
   Users,
   TrendingUp,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
@@ -70,6 +73,7 @@ type DriverDetail = DriverRow & {
   paymentPhone: string | null;
   payout: any;
   kycFieldApprovals?: FieldApprovalsMap | null;
+  documents?: any[];
 };
 
 function formatDate(iso: string | null | undefined) {
@@ -229,9 +233,10 @@ function InfoRow({ label, value, icon: Icon, accent, fieldKey, fieldStatus, onTo
   );
 }
 
-function DocLink({ label, url, fieldKey, fieldStatus, onToggle }: {
+function DocLink({ label, url, expiryInfo, fieldKey, fieldStatus, onToggle }: {
   label: string;
   url?: string | null;
+  expiryInfo?: string | null;
   fieldKey?: string;
   fieldStatus?: FieldApprovalStatus | null;
   onToggle?: (key: string, status: FieldApprovalStatus) => void;
@@ -296,6 +301,9 @@ function DocLink({ label, url, fieldKey, fieldStatus, onToggle }: {
           ) : (
             <p className="mt-0.5 text-sm text-slate-300 italic">Not uploaded</p>
           )}
+          {expiryInfo && (
+            <p className="mt-0.5 text-[10px] text-slate-400">Expires: <span className="font-semibold text-slate-600">{expiryInfo}</span></p>
+          )}
         </div>
       </div>
       <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -314,6 +322,8 @@ export default function DriverVettingPage() {
   const [tab, setTab] = useState<Tab>("PENDING_KYC");
   const [items, setItems] = useState<DriverRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sortCol, setSortCol] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [counts, setCounts] = useState<Record<Tab, number>>({ PENDING_KYC: 0, APPROVED_KYC: 0, REJECTED_KYC: 0 });
 
   const [selected, setSelected] = useState<DriverDetail | null>(null);
@@ -335,6 +345,28 @@ export default function DriverVettingPage() {
   const [detailTab, setDetailTab] = useState<"details" | "audit">("details");
   const [auditLogs, setAuditLogs] = useState<AuditEntry[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
+
+  function toggleSort(col: string) {
+    if (sortCol === col) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortCol(col); setSortDir("asc"); }
+  }
+
+  const sortedItems = [...items].sort((a, b) => {
+    if (!sortCol) return 0;
+    let av: any, bv: any;
+    if (sortCol === "createdAt") {
+      av = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      bv = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    } else {
+      av = (a as any)[sortCol] ?? "";
+      bv = (b as any)[sortCol] ?? "";
+    }
+    if (typeof av === "string") av = av.toLowerCase();
+    if (typeof bv === "string") bv = bv.toLowerCase();
+    if (av < bv) return sortDir === "asc" ? -1 : 1;
+    if (av > bv) return sortDir === "asc" ? 1 : -1;
+    return 0;
+  });
 
   function toggleFieldApproval(fieldKey: string, status: FieldApprovalStatus) {
     setFieldApprovals(prev => {
@@ -578,11 +610,27 @@ export default function DriverVettingPage() {
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50/80">
                   <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">#</th>
-                  <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Driver</th>
-                  <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Vehicle Type</th>
-                  <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Region / District / Ward</th>
-                  <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Joined</th>
-                  <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                  {(["name", "vehicleType", "region", "createdAt", "kycStatus"] as const).map((col) => {
+                    const labels: Record<string, string> = { name: "Driver", vehicleType: "Vehicle Type", region: "Region / District / Ward", createdAt: "Joined", kycStatus: "Status" };
+                    const nowrap = col === "vehicleType" || col === "createdAt";
+                    const isActive = sortCol === col;
+                    return (
+                      <th
+                        key={col}
+                        onClick={() => toggleSort(col)}
+                        className={`px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider cursor-pointer select-none group transition-colors${nowrap ? " whitespace-nowrap" : ""} ${isActive ? "text-[#02665e]" : "text-gray-500 hover:text-[#02665e]"}`}
+                      >
+                        <span className="inline-flex items-center gap-1">
+                          {labels[col]}
+                          {isActive
+                            ? sortDir === "asc"
+                              ? <ArrowUp className="w-3 h-3" />
+                              : <ArrowDown className="w-3 h-3" />
+                            : <ArrowUpDown className="w-3 h-3 opacity-30 group-hover:opacity-60" />}
+                        </span>
+                      </th>
+                    );
+                  })}
                   <th className="px-4 py-2.5 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Action</th>
                 </tr>
               </thead>
@@ -608,9 +656,9 @@ export default function DriverVettingPage() {
                       </p>
                     </td>
                   </TableRow>
-                ) : items.map((d, i) => {
+                ) : sortedItems.map((d, i) => {
                   const isSelected = selected?.id === d.id;
-                  const rowNum = (page - 1) * pageSize + i + 1;
+                  const rowNum = sortCol ? i + 1 : (page - 1) * pageSize + i + 1;
                   const joinedDate = d.createdAt ? new Date(d.createdAt).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" }) : "—";
                   const joinedTime = d.createdAt ? new Date(d.createdAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "";
                   return (
@@ -862,10 +910,24 @@ export default function DriverVettingPage() {
                       <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.12em]">Uploaded Documents</h3>
                     </div>
                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden divide-y divide-slate-100">
-                      <DocLink label="Driving licence"   url={payoutObj?.drivingLicenseUrl || selected.payout?.drivingLicenseUrl}                                                                              fieldKey="drivingLicense" fieldStatus={fa("drivingLicense")} onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
-                      <DocLink label="National ID"       url={payoutObj?.nationalIdUrl || selected.payout?.nationalIdUrl}                                                                                        fieldKey="nationalId"     fieldStatus={fa("nationalId")}     onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
-                      <DocLink label="LATRA Certificate" url={payoutObj?.latraUrl || payoutObj?.vehicleRegistrationUrl || selected.payout?.latraUrl || selected.payout?.vehicleRegistrationUrl}                  fieldKey="latra"          fieldStatus={fa("latra")}          onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
-                      <DocLink label="Insurance"         url={payoutObj?.insuranceUrl || selected.payout?.insuranceUrl}                                                                                          fieldKey="insurance"      fieldStatus={fa("insurance")}      onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
+                      {(() => {
+                        const driverDocs: any[] = Array.isArray((selected as DriverDetail).documents) ? (selected as DriverDetail).documents! : [];
+                        const getDoc = (types: string[]) => types.map(t => driverDocs.find(d => String(d?.type ?? '').toUpperCase() === t)).find(Boolean) ?? null;
+                        const licDoc   = getDoc(['DRIVER_LICENSE','DRIVING_LICENSE','LICENSE']);
+                        const nidDoc   = getDoc(['NATIONAL_ID','ID','PASSPORT']);
+                        const latraDoc = getDoc(['VEHICLE_REGISTRATION','LATRA','VEHICLE_REG']);
+                        const insDoc   = getDoc(['INSURANCE']);
+                        const fmtExpiry = (doc: any) => doc?.metadata?.expiresOn ?? null;
+                        const urlFrom = (doc: any, fallback: string | null | undefined) => doc?.url || fallback || null;
+                        return (
+                          <>
+                            <DocLink label="Driving licence"   url={urlFrom(licDoc,   payoutObj?.drivingLicenseUrl || selected.payout?.drivingLicenseUrl)}   expiryInfo={fmtExpiry(licDoc)}  fieldKey="drivingLicense" fieldStatus={fa("drivingLicense")} onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
+                            <DocLink label="National ID"       url={urlFrom(nidDoc,   payoutObj?.nationalIdUrl || selected.payout?.nationalIdUrl)}             expiryInfo={null}               fieldKey="nationalId"     fieldStatus={fa("nationalId")}     onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
+                            <DocLink label="LATRA Certificate" url={urlFrom(latraDoc, payoutObj?.latraUrl || payoutObj?.vehicleRegistrationUrl || selected.payout?.latraUrl || selected.payout?.vehicleRegistrationUrl)} expiryInfo={null} fieldKey="latra" fieldStatus={fa("latra")} onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
+                            <DocLink label="Insurance"         url={urlFrom(insDoc,   payoutObj?.insuranceUrl || selected.payout?.insuranceUrl)}               expiryInfo={fmtExpiry(insDoc)}  fieldKey="insurance"      fieldStatus={fa("insurance")}      onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
+                          </>
+                        );
+                      })()}
                     </div>
                   </section>
                 </div>

@@ -100,12 +100,16 @@ export default function DatePickerField({
     if (typeof window === "undefined") return;
 
     const rect = el.getBoundingClientRect();
-    const width = Math.min(720, Math.max(320, window.innerWidth - 32));
+    // Single-month mode: fix to ~320 px so no empty space appears beside the calendar.
+    // Two-month mode: stretch to fill available space up to 720 px.
+    const width = twoMonths
+      ? Math.min(720, Math.max(320, window.innerWidth - 32))
+      : 320;
     const rawLeft = rect.left;
     const left = Math.max(16, Math.min(rawLeft, window.innerWidth - 16 - width));
     const top = rect.bottom + 8;
     setPanelPos({ top, left, width });
-  }, []);
+  }, [twoMonths]);
 
   const pretty = formatDisplay(value);
   const isSm = size === "sm";
@@ -171,7 +175,7 @@ export default function DatePickerField({
                       style={
                         panelPos
                           ? { top: panelPos.top, left: panelPos.left, width: panelPos.width }
-                          : { top: 0, left: 0, width: Math.min(720, Math.max(320, window.innerWidth - 32)) }
+                          : { top: 0, left: 0, width: twoMonths ? Math.min(720, Math.max(320, window.innerWidth - 32)) : 320 }
                       }
                     >
                       <DatePicker

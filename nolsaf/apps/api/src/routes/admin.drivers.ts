@@ -3266,6 +3266,38 @@ router.get("/:id(\\d+)", async (req, res) => {
     });
     if (!driver) return res.status(404).json({ error: "Driver not found" });
 
+    // Attach UserDocument records (new per-doc upload flow)
+    try {
+      if ((prisma as any).userDocument) {
+        const docs = await prisma.userDocument.findMany({
+          where: { userId: id },
+          orderBy: { id: 'desc' },
+          take: 50,
+          select: { id: true, type: true, url: true, status: true, reason: true, metadata: true, createdAt: true } as any,
+        });
+        (driver as any).documents = docs;
+        // Resolve URL fields for backward compat (admin vetting page still reads payout URLs)
+        const latestByType = new Map<string, any>();
+        for (const d of docs as any[]) {
+          const t = String((d as any).type ?? '').toUpperCase();
+          if (!t || latestByType.has(t)) continue;
+          latestByType.set(t, d);
+        }
+        const payout = (driver as any).payout ?? {};
+        const lic   = latestByType.get('DRIVER_LICENSE') || latestByType.get('DRIVING_LICENSE') || latestByType.get('LICENSE');
+        const nid   = latestByType.get('NATIONAL_ID');
+        const latra = latestByType.get('VEHICLE_REGISTRATION') || latestByType.get('LATRA');
+        const ins   = latestByType.get('INSURANCE');
+        if (lic?.url)   payout.drivingLicenseUrl    = lic.url;
+        if (nid?.url)   payout.nationalIdUrl         = nid.url;
+        if (latra?.url) { payout.latraUrl = latra.url; payout.vehicleRegistrationUrl = latra.url; }
+        if (ins?.url)   payout.insuranceUrl          = ins.url;
+        (driver as any).payout = payout;
+      }
+    } catch {
+      // UserDocument table may not exist in older DBs — ignore
+    }
+
     // Note: Booking model is for property stays, not transport
     // Transport bookings would be in TransportBooking model
     const recent: any[] = [];
@@ -5314,9 +5346,7 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
       if (driverPhone) {
         try {
           const smsTxt =
-            `NoLSAF: Congratulations ${firstName}! Your driver account has been approved. ` +
-            `You can now log in with your email and password. ` +
-            `We are excited to have you — together we are building the first modernised transport platform in Tanzania. Welcome aboard!`;
+            `NoLSAF: Congratulations ${firstName}! Your driver account is approved. Log in now and start earning with Africa's leading travel & stays platform. Welcome aboard!`;
           await sendSms(driverPhone, smsTxt);
         } catch (smsErr: any) {
           console.warn('[KYC approve] SMS failed (non-fatal):', smsErr?.message ?? smsErr);
