@@ -81,9 +81,9 @@ function EditableInfoItem({
   const editing = editingField === fieldKey;
   const display = value || "—";
   return (
-    <div className="flex items-start gap-3 group">
+    <div className="flex items-start gap-3 group w-full max-w-full min-w-0 overflow-hidden">
       <div className="h-10 w-10 rounded-2xl bg-[#02665e]/5 border border-[#02665e]/15 flex items-center justify-center text-[#02665e] flex-shrink-0">{icon}</div>
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 w-full max-w-full overflow-hidden">
         <div className="flex items-center justify-between gap-2">
           <div className="text-xs font-semibold text-slate-600">{label}</div>
           <button
@@ -97,26 +97,36 @@ function EditableInfoItem({
         </div>
         {editing ? (
           fieldType === "select" && selectOptions ? (
-            <select
-              value={value || ""}
-              onChange={(e) => onChange(fieldKey, e.target.value)}
-              autoFocus
-              onBlur={onStopEdit}
-              className="mt-0.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#02665e]/30"
-            >
-              <option value="">Select</option>
-              {selectOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
+            <div className="mt-0.5 w-full max-w-full min-w-0 overflow-hidden rounded-xl">
+              <select
+                value={value || ""}
+                onChange={(e) => onChange(fieldKey, e.target.value)}
+                autoFocus
+                onBlur={onStopEdit}
+                className="block w-full max-w-full min-w-0 box-border rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-900 appearance-none shadow-none focus:outline-none focus:ring-0 focus:shadow-none focus:ring-offset-0 focus:border-[#02665e]/30"
+              >
+                <option value="">Select</option>
+                {selectOptions.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           ) : (
-            <input
-              type={fieldType === "tel" ? "tel" : fieldType === "date" ? "date" : "text"}
-              value={value || ""}
-              onChange={(e) => onChange(fieldKey, e.target.value)}
-              autoFocus
-              onBlur={onStopEdit}
-              onKeyDown={(e) => { if (e.key === "Enter") onStopEdit(); }}
-              className="mt-0.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#02665e]/30"
-            />
+            <div className="mt-0.5 w-full max-w-full min-w-0 overflow-hidden rounded-xl">
+              <input
+                type={fieldType === "tel" ? "tel" : fieldType === "date" ? "date" : "text"}
+                value={value || ""}
+                onChange={(e) => onChange(fieldKey, e.target.value)}
+                autoFocus
+                onBlur={onStopEdit}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") onStopEdit();
+                }}
+                className="block w-full max-w-full min-w-0 box-border rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-900 appearance-none shadow-none focus:outline-none focus:ring-0 focus:shadow-none focus:ring-offset-0 focus:border-[#02665e]/30"
+              />
+            </div>
           )
         ) : (
           <div className={`text-sm font-bold mt-0.5 break-words ${!value ? "text-slate-400" : "text-slate-900"}`}>
@@ -478,9 +488,9 @@ export default function DriverProfile() {
             <div className="text-sm text-white/70 mt-1">M-Pesa / Tigo / Airtel number for payouts.</div>
           </div>
           <div className="relative p-5 sm:p-6 space-y-4">
-            <div className="flex items-start gap-3 group">
+            <div className="flex items-start gap-3 group w-full max-w-full min-w-0 overflow-hidden">
               <div className="h-10 w-10 rounded-2xl bg-[#02665e]/10 border border-[#02665e]/20 flex items-center justify-center text-[#02665e] flex-shrink-0"><Phone className="w-5 h-5" /></div>
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 w-full max-w-full overflow-hidden">
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-xs font-semibold text-white/60">Payment phone number</div>
                   <button type="button" onClick={() => setEditingField(editingField === "paymentPhone" ? null : "paymentPhone")}
@@ -489,9 +499,27 @@ export default function DriverProfile() {
                   </button>
                 </div>
                 {editingField === "paymentPhone"
-                  ? <input type="tel" value={form.paymentPhone || ""} onChange={(e) => setForm((p: any) => ({ ...p, paymentPhone: e.target.value }))}
-                      autoFocus onBlur={() => setEditingField(null)} onKeyDown={(e) => { if (e.key === "Enter") setEditingField(null); }}
-                      className="mt-0.5 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-sm font-semibold text-white focus:outline-none focus:ring-2 focus:ring-[#02665e]/40" />
+                  ? (
+                    <div className="mt-0.5 w-fit max-w-full min-w-0 overflow-hidden rounded-xl">
+                      <input
+                        type="tel"
+                        value={form.paymentPhone || ""}
+                        inputMode="numeric"
+                        pattern="\d*"
+                        maxLength={15}
+                        onChange={(e) => {
+                          const digitsOnly = e.target.value.replace(/\D/g, "").slice(0, 15);
+                          setForm((p: any) => ({ ...p, paymentPhone: digitsOnly }));
+                        }}
+                        autoFocus
+                        onBlur={() => setEditingField(null)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") setEditingField(null);
+                        }}
+                        className="block w-[16ch] max-w-full min-w-0 box-border tabular-nums rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-sm font-semibold text-white appearance-none outline-none shadow-none focus:outline-none focus-visible:outline-none focus:ring-0 focus-visible:ring-0 focus:shadow-none focus:ring-offset-0 focus:border-[#02665e]/40"
+                      />
+                    </div>
+                  )
                   : <div className={`text-sm font-bold mt-0.5 ${!form.paymentPhone ? "text-white/40" : "text-white"}`}>{form.paymentPhone || "—"}</div>}
                 {form.paymentVerified || form.paymentPhoneVerified
                   ? <span className="inline-flex items-center gap-1 mt-1.5 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400"><CheckCircle className="w-3 h-3" />Verified</span>

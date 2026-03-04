@@ -447,18 +447,17 @@ const getMe: RequestHandler = async (req, res) => {
           try {
               payout.bankAccountNumber = decrypt(payout.bankAccountNumber, { log: false });
           } catch (e) {
-            console.warn(`[account/me] Failed to decrypt bankAccountNumber, keeping as-is:`, e);
-            // If decryption fails, might be plain text (migration scenario)
-            // Keep as-is
+            // Decryption failed — null out rather than leaking ciphertext to the frontend.
+            payout.bankAccountNumber = null;
           }
         }
         if (payout.mobileMoneyNumber && typeof payout.mobileMoneyNumber === 'string') {
           try {
-            payout.mobileMoneyNumber = decrypt(payout.mobileMoneyNumber);
+            payout.mobileMoneyNumber = decrypt(payout.mobileMoneyNumber, { log: false });
           } catch (e) {
-            console.warn(`[account/me] Failed to decrypt mobileMoneyNumber, keeping as-is:`, e);
-            // If decryption fails, might be plain text (migration scenario)
-            // Keep as-is
+            // Decryption failed (wrong key or corrupted data) — null out rather than
+            // leaking an encrypted ciphertext string to the frontend.
+            payout.mobileMoneyNumber = null;
           }
         }
         
