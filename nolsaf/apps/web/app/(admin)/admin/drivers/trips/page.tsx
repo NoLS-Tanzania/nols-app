@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
-import Link from "next/link";
 import {
   Calendar,
   Search,
@@ -25,6 +24,8 @@ import {
   Loader2,
   Eye,
   FileText,
+  Printer,
+  Download,
 } from "lucide-react";
 import DatePicker from "@/components/ui/DatePicker";
 import axios from "axios";
@@ -411,6 +412,11 @@ export default function AdminDriversTripsPage() {
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [detailsData, setDetailsData] = useState<TripDetailsResponse | null>(null);
 
+  // Driver payout receipt modal
+  const [receiptOpen, setReceiptOpen] = useState(false);
+  const [receiptData, setReceiptData] = useState<TripDetailsResponse | null>(null);
+  const [receiptLoading, setReceiptLoading] = useState(false);
+
   // Payout acknowledgement modal
   const [commissionMounted, setCommissionMounted] = useState(false);
   const [commissionOpen, setCommissionOpen] = useState(false);
@@ -750,6 +756,39 @@ export default function AdminDriversTripsPage() {
   useEffect(() => {
     void refreshDetails();
   }, [refreshDetails]);
+
+  const openReceipt = async (trip: TripRow) => {
+    setReceiptOpen(true);
+    setReceiptLoading(true);
+    setReceiptData(null);
+    try {
+      const r = await api.get<TripDetailsResponse>(`/api/admin/drivers/trips/${trip.id}`);
+      setReceiptData(r.data);
+    } catch {
+      // show error state
+    } finally {
+      setReceiptLoading(false);
+    }
+  };
+
+  const printReceipt = () => {
+    const el = document.getElementById("nolsaf-driver-receipt");
+    if (!el) return;
+    const w = window.open("", "", "width=720,height=960");
+    if (!w) return;
+    w.document.write(
+      `<!DOCTYPE html><html><head><title>Driver Payout Receipt</title>
+      <style>
+        *{box-sizing:border-box}
+        body{font-family:system-ui,-apple-system,sans-serif;margin:0;padding:24px;color:#111;background:#fff}
+        .receipt-root{max-width:560px;margin:0 auto}
+      </style>
+      </head><body><div class="receipt-root">${el.innerHTML}</div></body></html>`
+    );
+    w.document.close();
+    w.focus();
+    setTimeout(() => { w.print(); }, 400);
+  };
 
   const openReasonModal = (kind: "unassign" | "cancel", trip: TripRow) => {
     setReasonKind(kind);
@@ -1370,26 +1409,15 @@ export default function AdminDriversTripsPage() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         <div className="flex items-center gap-2">
                           <span>{trip.amount.toLocaleString()}</span>
-                          {typeof trip.invoiceId === "number" && trip.invoiceId > 0 ? (
-                            <Link
-                              href={`/public/booking/receipt?invoiceId=${trip.invoiceId}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              title="Open invoice/receipt"
-                              className="text-blue-700 hover:text-blue-900"
-                              aria-label="Open invoice/receipt"
-                            >
-                              <FileText className="h-4 w-4" />
-                            </Link>
-                          ) : (
-                            <span
-                              title={trip.paymentRef ? "No matching invoice found for this payment ref" : "No payment ref"}
-                              className="text-gray-300"
-                              aria-label="No invoice available"
-                            >
-                              <FileText className="h-4 w-4" />
-                            </span>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => openReceipt(trip)}
+                            title="View driver payout receipt"
+                            className="text-indigo-600 hover:text-indigo-900 transition"
+                            aria-label="View driver payout receipt"
+                          >
+                            <FileText className="h-4 w-4" />
+                          </button>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -1580,26 +1608,15 @@ export default function AdminDriversTripsPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium text-gray-900">{trip.amount.toLocaleString()}</span>
-                        {typeof trip.invoiceId === "number" && trip.invoiceId > 0 ? (
-                          <Link
-                            href={`/public/booking/receipt?invoiceId=${trip.invoiceId}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            title="Open invoice/receipt"
-                            className="text-blue-700 hover:text-blue-900"
-                            aria-label="Open invoice/receipt"
-                          >
-                            <FileText className="h-4 w-4" />
-                          </Link>
-                        ) : (
-                          <span
-                            title={trip.paymentRef ? "No matching invoice found for this payment ref" : "No payment ref"}
-                            className="text-gray-300"
-                            aria-label="No invoice available"
-                          >
-                            <FileText className="h-4 w-4" />
-                          </span>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => openReceipt(trip)}
+                          title="View driver payout receipt"
+                          className="text-indigo-600 hover:text-indigo-900 transition"
+                          aria-label="View driver payout receipt"
+                        >
+                          <FileText className="h-4 w-4" />
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -2317,6 +2334,196 @@ export default function AdminDriversTripsPage() {
                   );
                 })()}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Driver Payout Receipt Modal */}
+      {receiptOpen && (
+        <div
+          className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6"
+          onClick={() => setReceiptOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Toolbar header – document viewer style */}
+            <div className="flex items-center gap-3 px-4 py-2.5 bg-white border-b border-gray-200 shrink-0">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={printReceipt}
+                  disabled={receiptLoading || !receiptData}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Printer className="h-3.5 w-3.5" />
+                  Print
+                </button>
+                <button
+                  type="button"
+                  onClick={printReceipt}
+                  disabled={receiptLoading || !receiptData}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 text-xs font-semibold hover:bg-gray-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Save
+                </button>
+              </div>
+              <div className="flex-1 flex items-center justify-center">
+                <span className="text-xs font-medium text-gray-500 tracking-wide hidden sm:block">
+                  Driver Payout Receipt · Page 1 of 1
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReceiptOpen(false)}
+                className="h-8 w-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 transition shrink-0"
+                aria-label="Close receipt"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Document area */}
+            <div className="flex-1 min-h-0 overflow-y-auto bg-gray-100 p-4 sm:p-6">
+              {receiptLoading ? (
+                <div className="flex items-center justify-center h-40">
+                  <Loader2 className="h-7 w-7 animate-spin text-indigo-600" />
+                </div>
+              ) : receiptData ? (
+                <div
+                  id="nolsaf-driver-receipt"
+                  className="bg-white rounded-xl shadow-sm max-w-lg mx-auto p-6 space-y-5"
+                >
+                  {/* Receipt brand header */}
+                  <div className="text-center border-b border-gray-100 pb-5">
+                    <div
+                      className="inline-flex items-center justify-center w-12 h-12 rounded-full mb-3"
+                      style={{ background: "linear-gradient(135deg, #0e2a7a 0%, #02665e 100%)" }}
+                    >
+                      <FileText className="h-6 w-6 text-white" />
+                    </div>
+                    <h1 className="text-lg font-bold text-gray-900 tracking-tight">NoLSAF</h1>
+                    <p className="text-xs text-gray-500 mt-0.5">Official Driver Payout Receipt</p>
+                    <div className="mt-3 flex items-center justify-center gap-2 flex-wrap">
+                      <span className="text-xs font-mono bg-gray-100 px-2.5 py-1 rounded text-gray-600 border border-gray-200">
+                        {receiptData.trip.tripCode}
+                      </span>
+                      <span
+                        className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
+                          receiptData.trip.payout?.status === "PAID"
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            : receiptData.trip.payout?.status === "APPROVED"
+                            ? "bg-blue-50 text-blue-700 border-blue-200"
+                            : "bg-amber-50 text-amber-700 border-amber-200"
+                        }`}
+                      >
+                        {receiptData.trip.payout?.status ?? "PENDING"}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-gray-400 mt-2">
+                      {receiptData.trip.payout?.paidAt
+                        ? `Paid: ${new Date(receiptData.trip.payout.paidAt).toLocaleString()}`
+                        : receiptData.trip.payout?.approvedAt
+                        ? `Approved: ${new Date(receiptData.trip.payout.approvedAt).toLocaleString()}`
+                        : `Trip Date: ${new Date(receiptData.trip.scheduledAt).toLocaleString()}`}
+                    </p>
+                  </div>
+
+                  {/* Driver & Route */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Driver</p>
+                      <p className="text-sm font-semibold text-gray-900">{receiptData.trip.driver?.name ?? "—"}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{receiptData.trip.driver?.email ?? "—"}</p>
+                      <p className="text-xs text-gray-500">{receiptData.trip.driver?.phone ?? "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Route</p>
+                      <p className="text-xs text-gray-700">
+                        <span className="font-medium text-gray-500">From </span>
+                        {receiptData.trip.pickup}
+                      </p>
+                      <p className="text-xs text-gray-700 mt-1">
+                        <span className="font-medium text-gray-500">To </span>
+                        {receiptData.trip.dropoff}
+                      </p>
+                      {receiptData.trip.vehicleType && (
+                        <p className="text-xs text-gray-400 mt-1">{receiptData.trip.vehicleType}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Payout breakdown */}
+                  <div className="rounded-xl border border-gray-200 overflow-hidden">
+                    <div className="px-4 py-2 bg-gray-50 border-b border-gray-200">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Payout Breakdown</p>
+                    </div>
+                    <div className="divide-y divide-gray-100">
+                      <div className="px-4 py-3 flex items-center justify-between">
+                        <span className="text-xs text-gray-600">Gross Amount</span>
+                        <span className="text-sm font-semibold text-gray-900">
+                          {receiptData.trip.payout?.currency ?? "TZS"}{" "}
+                          {Number(receiptData.trip.payout?.grossAmount ?? receiptData.trip.amount ?? 0).toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="px-4 py-3 flex items-center justify-between">
+                        <span className="text-xs text-gray-600">
+                          Commission ({Number(receiptData.trip.payout?.commissionPercent ?? 0)}%)
+                        </span>
+                        <span className="text-sm font-semibold text-red-600">
+                          − {receiptData.trip.payout?.currency ?? "TZS"}{" "}
+                          {Number(receiptData.trip.payout?.commissionAmount ?? 0).toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="px-4 py-3 flex items-center justify-between bg-emerald-50">
+                        <span className="text-xs font-bold text-emerald-800">Net To Driver</span>
+                        <span className="text-sm font-bold text-emerald-700">
+                          {receiptData.trip.payout?.currency ?? "TZS"}{" "}
+                          {Number(receiptData.trip.payout?.netPaid ?? 0).toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Payment info */}
+                  {(receiptData.trip.payout?.paymentMethod || receiptData.trip.paymentMethod) && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2.5">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Method</p>
+                        <p className="text-sm font-semibold text-gray-800 mt-0.5">
+                          {receiptData.trip.payout?.paymentMethod ?? receiptData.trip.paymentMethod ?? "—"}
+                        </p>
+                      </div>
+                      <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2.5">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Reference</p>
+                        <p
+                          className="text-sm font-semibold text-gray-800 mt-0.5 truncate"
+                          title={receiptData.trip.payout?.paymentRef ?? receiptData.trip.paymentRef ?? "—"}
+                        >
+                          {receiptData.trip.payout?.paymentRef ?? receiptData.trip.paymentRef ?? "—"}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Footer note */}
+                  <div className="border-t border-gray-100 pt-4 text-center">
+                    <p className="text-[10px] text-gray-400">
+                      Generated {new Date().toLocaleString()} · NoLSAF Admin Portal
+                    </p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">
+                      For internal administrative use only.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-white rounded-xl p-10 text-center max-w-lg mx-auto">
+                  <p className="text-sm text-gray-500">Failed to load receipt data. Please try again.</p>
+                </div>
+              )}
             </div>
           </div>
         </div>

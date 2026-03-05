@@ -1233,8 +1233,9 @@ router.get("/trips/:id(\\d+)", async (req, res) => {
     }
 
     const trip = {
-      id: booking.id,
+      id: Number(booking.id),
       tripCode: booking.tripCode || booking.paymentRef || `TRIP-${booking.id}`,
+
       status: booking.status || "PENDING",
       scheduledAt: (booking.scheduledDate ?? booking.createdAt)?.toISOString?.() ?? String(booking.scheduledDate ?? booking.createdAt ?? ""),
       pickupTime: booking.pickupTime ? new Date(booking.pickupTime).toISOString() : null,
@@ -1252,7 +1253,7 @@ router.get("/trips/:id(\\d+)", async (req, res) => {
       updatedAt: booking.updatedAt ? new Date(booking.updatedAt).toISOString() : null,
       user: booking.user
         ? {
-            id: booking.user.id,
+            id: Number(booking.user.id),
             name: booking.user.name ?? "",
             email: booking.user.email ?? "",
             phone: booking.user.phone ?? null,
@@ -1260,7 +1261,7 @@ router.get("/trips/:id(\\d+)", async (req, res) => {
         : null,
       driver: booking.driver
         ? {
-            id: booking.driver.id,
+            id: Number(booking.driver.id),
             name: booking.driver.name ?? "",
             email: booking.driver.email ?? "",
             phone: booking.driver.phone ?? null,
@@ -1268,7 +1269,7 @@ router.get("/trips/:id(\\d+)", async (req, res) => {
         : null,
       payout: payout
         ? {
-            id: payout.id,
+            id: Number(payout.id),
             status: payout.status,
             currency: payout.currency,
             grossAmount: payout.grossAmount != null ? Number(payout.grossAmount) : null,
@@ -1313,9 +1314,9 @@ router.get("/trips/:id(\\d+)", async (req, res) => {
       const afterJson = a?.afterJson;
       const reason = typeof afterJson === "object" && afterJson ? (afterJson.reason ?? null) : null;
       return {
-        id: a.id,
+        id: Number(a.id),
         action: a.action,
-        actorId: a.actorId ?? null,
+        actorId: a.actorId != null ? Number(a.actorId) : null,
         createdAt: a.createdAt ? new Date(a.createdAt).toISOString() : null,
         reason,
       };
