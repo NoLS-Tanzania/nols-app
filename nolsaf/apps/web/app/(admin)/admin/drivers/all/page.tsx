@@ -22,6 +22,7 @@ import {
   Bell,
   CheckCircle2,
   XCircle,
+  UserX,
   Clock,
   ShieldCheck,
   ShieldX,
@@ -494,11 +495,11 @@ export default function AdminAllDriversPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <div className="inline-flex items-center gap-3">
+                        <div className="inline-flex items-center justify-end gap-1.5">
                           <button
                             type="button"
                             onClick={() => openOverview(d)}
-                            className="inline-flex items-center justify-center h-9 w-9 rounded-lg text-gray-500 hover:text-gray-900 hover:bg-gray-100"
+                            className="inline-flex items-center justify-center h-8 w-8 rounded-lg text-gray-500 hover:text-gray-900 hover:bg-gray-100 border border-gray-200"
                             aria-label="Open quick driver overview"
                             title="Quick overview"
                           >
@@ -507,49 +508,50 @@ export default function AdminAllDriversPage() {
                           </button>
                           <Link
                             href={`/admin/drivers/audit/${d.id}`}
-                            className="inline-flex items-center gap-2 text-sm text-blue-700 hover:text-blue-800 no-underline"
+                            className="inline-flex items-center justify-center h-8 w-8 rounded-lg text-blue-600 hover:text-blue-800 hover:bg-blue-50 border border-gray-200 no-underline"
                             title="View driver details"
                           >
                             <Eye className="h-4 w-4" aria-hidden />
                             <span className="sr-only">Details</span>
                           </Link>
-                        </div>
-                        {/* KYC approve / reject actions */}
-                        {(d.kycStatus === 'PENDING_KYC' || d.kycStatus === 'REJECTED_KYC') && (
-                          <div className="flex items-center gap-1.5 mt-2 justify-end">
-                            <button
-                              type="button"
-                              disabled={kycLoading[d.id]}
-                              onClick={() => setDriverKyc(d.id, 'approve')}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
-                              title="Approve driver"
-                            >
-                              <CheckCircle2 className="w-3.5 h-3.5" />Approve
-                            </button>
+                          {/* KYC approve / reject actions */}
+                          {(d.kycStatus === 'PENDING_KYC' || d.kycStatus === 'REJECTED_KYC') && (
+                            <>
+                              <button
+                                type="button"
+                                disabled={kycLoading[d.id]}
+                                onClick={() => setDriverKyc(d.id, 'approve')}
+                                className="inline-flex items-center justify-center h-8 w-8 rounded-lg text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 disabled:opacity-50 transition-colors"
+                                title="Approve driver"
+                              >
+                                <CheckCircle2 className="w-4 h-4" />
+                                <span className="sr-only">Approve</span>
+                              </button>
+                              <button
+                                type="button"
+                                disabled={kycLoading[d.id]}
+                                onClick={() => setDriverKyc(d.id, 'reject')}
+                                className="inline-flex items-center justify-center h-8 w-8 rounded-lg text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 disabled:opacity-50 transition-colors"
+                                title="Reject driver"
+                              >
+                                <XCircle className="w-4 h-4" />
+                                <span className="sr-only">Reject</span>
+                              </button>
+                            </>
+                          )}
+                          {d.kycStatus === 'APPROVED_KYC' && (
                             <button
                               type="button"
                               disabled={kycLoading[d.id]}
                               onClick={() => setDriverKyc(d.id, 'reject')}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
-                              title="Reject driver"
-                            >
-                              <XCircle className="w-3.5 h-3.5" />Reject
-                            </button>
-                          </div>
-                        )}
-                        {d.kycStatus === 'APPROVED_KYC' && (
-                          <div className="flex items-center gap-1.5 mt-2 justify-end">
-                            <button
-                              type="button"
-                              disabled={kycLoading[d.id]}
-                              onClick={() => setDriverKyc(d.id, 'reject')}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-red-50 hover:text-red-700 disabled:opacity-50 transition-colors"
+                              className="inline-flex items-center justify-center h-8 w-8 rounded-lg text-slate-600 bg-slate-50 hover:bg-red-50 hover:text-red-700 border border-slate-200 hover:border-red-200 disabled:opacity-50 transition-colors"
                               title="Revoke approval"
                             >
-                              <XCircle className="w-3.5 h-3.5" />Revoke
+                              <UserX className="w-4 h-4" />
+                              <span className="sr-only">Revoke</span>
                             </button>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

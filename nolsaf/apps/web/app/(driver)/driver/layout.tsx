@@ -199,10 +199,14 @@ export default function DriverLayout({ children }: { children: ReactNode }) {
   // Loading state — show minimal spinner while checking approval
   if (kycStatus === 'loading') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="text-center">
-          <div className="w-10 h-10 border-3 border-[#02665e] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-sm text-slate-500">Loading…</p>
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div role="status" aria-live="polite" className="flex flex-col items-center justify-center text-center">
+          <div className="dot-spinner mb-3" aria-hidden>
+            <span className="dot dot-green" />
+            <span className="dot dot-yellow" />
+            <span className="dot dot-blue" />
+            <span className="dot dot-black" />
+          </div>
         </div>
       </div>
     );

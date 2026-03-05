@@ -754,143 +754,149 @@ export default function AdminDriversReferralsPage() {
 
       {/* Referral Details Modal */}
       {viewingReferral && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setViewingReferral(null)}>
-          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="sticky top-0 bg-gradient-to-r from-emerald-50 to-blue-50 px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-900">Referral Details</h2>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setViewingReferral(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div
+              className="sticky top-0 z-10 px-6 py-5 flex items-center justify-between rounded-t-2xl"
+              style={{ background: "linear-gradient(135deg, #0e2a7a 0%, #02665e 100%)" }}
+            >
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                  <span className="text-white font-bold text-sm">
+                    {(viewingReferral.name || "?").slice(0, 2).toUpperCase()}
+                  </span>
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-white leading-tight">Referral Details</h2>
+                  <p className="text-xs text-white/70 leading-tight">{viewingReferral.name}</p>
+                </div>
+              </div>
               <button
                 onClick={() => setViewingReferral(null)}
                 aria-label="Close modal"
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-white/80 rounded-full transition-colors"
+                className="p-2 text-white/70 hover:text-white hover:bg-white/20 rounded-full transition-colors"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="p-6 space-y-6">
-              <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-3">Personal Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-6 space-y-5">
+              {/* Personal Information */}
+              <div className="bg-gray-50 rounded-xl p-4">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Personal Information</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
-                    <p className="text-xs text-gray-500 mb-1">Name</p>
-                    <p className="text-sm font-medium text-gray-900">{viewingReferral.name}</p>
+                    <p className="text-xs text-gray-500 mb-0.5">Full Name</p>
+                    <p className="text-sm font-semibold text-gray-900">{viewingReferral.name}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 mb-1">Phone Number</p>
-                    <p className="text-sm font-medium text-gray-900">{viewingReferral.phone || "N/A"}</p>
+                    <p className="text-xs text-gray-500 mb-0.5">Phone Number</p>
+                    <p className="text-sm font-semibold text-gray-900">{viewingReferral.phone || "N/A"}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 mb-1">Registered As</p>
+                    <p className="text-xs text-gray-500 mb-0.5">Email</p>
+                    <p className="text-sm font-semibold text-gray-900 truncate">{viewingReferral.email || "N/A"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 mb-0.5">Registered As</p>
                     <span
-                      className={`inline-flex px-3 py-1 rounded-full text-xs font-medium ${
+                      className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ring-1 ${
                         viewingReferral.registeredAs === "OWNER"
-                          ? "bg-purple-100 text-purple-700"
+                          ? "bg-purple-50 text-purple-700 ring-purple-200"
                           : viewingReferral.registeredAs === "DRIVER"
-                          ? "bg-blue-100 text-blue-700"
-                          : "bg-emerald-100 text-emerald-700"
+                          ? "bg-blue-50 text-blue-700 ring-blue-200"
+                          : "bg-emerald-50 text-emerald-700 ring-emerald-200"
                       }`}
                     >
                       {viewingReferral.registeredAs === "OWNER" ? "Owner" : viewingReferral.registeredAs === "DRIVER" ? "Driver" : "Traveller"}
                     </span>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 mb-1">Region</p>
-                    <p className="text-sm font-medium text-gray-900">{viewingReferral.region || "N/A"}</p>
+                    <p className="text-xs text-gray-500 mb-0.5">Region</p>
+                    <p className="text-sm font-semibold text-gray-900">{viewingReferral.region || "N/A"}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 mb-1">District</p>
-                    <p className="text-sm font-medium text-gray-900">{viewingReferral.district || "N/A"}</p>
+                    <p className="text-xs text-gray-500 mb-0.5">District</p>
+                    <p className="text-sm font-semibold text-gray-900">{viewingReferral.district || "N/A"}</p>
                   </div>
                 </div>
               </div>
 
-              <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-3">Referral Timeline</h3>
-                <div className="space-y-3">
-                  <div className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg">
-                    <div className="h-2 w-2 rounded-full bg-blue-500 mt-1.5"></div>
-                    <div className="flex-1">
-                      <p className="text-xs text-gray-500 mb-1">Link Shared</p>
-                      <p className="text-sm font-medium text-gray-900">
-                        {new Date(viewingReferral.linkSharedAt).toLocaleString("en-US", {
-                          month: "long",
-                          day: "numeric",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </p>
+              {/* Referral Timeline */}
+              <div className="bg-gray-50 rounded-xl p-4">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Referral Timeline</p>
+                <div className="relative pl-5">
+                  <div className="absolute left-[7px] top-3 bottom-3 w-px bg-gradient-to-b from-blue-400 to-emerald-400" />
+                  <div className="space-y-5">
+                    <div className="flex items-start gap-3">
+                      <div className="relative z-10 h-3.5 w-3.5 rounded-full bg-blue-500 ring-2 ring-white shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-xs font-semibold text-blue-700 mb-0.5">Link Shared</p>
+                        <p className="text-sm font-medium text-gray-800">
+                          {new Date(viewingReferral.linkSharedAt).toLocaleString("en-US", {
+                            month: "long",
+                            day: "numeric",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="relative z-10 h-3.5 w-3.5 rounded-full bg-emerald-500 ring-2 ring-white shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-xs font-semibold text-emerald-700 mb-0.5">Registration Completed</p>
+                        <p className="text-sm font-medium text-gray-800">
+                          {new Date(viewingReferral.registeredAt).toLocaleString("en-US", {
+                            month: "long",
+                            day: "numeric",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-start gap-3 p-3 bg-emerald-50 rounded-lg">
-                    <div className="h-2 w-2 rounded-full bg-emerald-500 mt-1.5"></div>
-                    <div className="flex-1">
-                      <p className="text-xs text-gray-500 mb-1">Registered</p>
-                      <p className="text-sm font-medium text-gray-900">
-                        {new Date(viewingReferral.registeredAt).toLocaleString("en-US", {
-                          month: "long",
-                          day: "numeric",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </p>
-                    </div>
-                  </div>
                 </div>
               </div>
 
-              <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-3">Status, Spend & Credits</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="p-4 bg-gray-50 rounded-lg">
-                    <p className="text-xs text-gray-500 mb-1">Status</p>
-                    <span
-                      className={`inline-flex px-3 py-1 rounded-full text-xs font-medium ${
-                        viewingReferral.status === "completed"
-                          ? "bg-emerald-100 text-emerald-700"
-                          : "bg-blue-100 text-blue-700"
-                      }`}
-                    >
-                      {viewingReferral.status}
-                    </span>
-                  </div>
-                  <div className="p-4 bg-gray-50 rounded-lg">
-                    <p className="text-xs text-gray-500 mb-1">Total Spend</p>
-                    <p className="text-lg font-bold text-blue-600">{(viewingReferral.spend ?? 0).toLocaleString()} TZS</p>
-                  </div>
-                  <div className="p-4 bg-gray-50 rounded-lg">
-                    <p className="text-xs text-gray-500 mb-1">Credits Earned</p>
-                    <p className="text-lg font-bold text-emerald-600">{viewingReferral.creditsEarned.toLocaleString()} TZS</p>
-                  </div>
+              {/* Status, Spend & Credits */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className={`rounded-xl p-4 flex flex-col gap-1 ${viewingReferral.status === "completed" ? "bg-emerald-50 ring-1 ring-emerald-100" : "bg-blue-50 ring-1 ring-blue-100"}`}>
+                  <p className="text-xs text-gray-500">Status</p>
+                  <span
+                    className={`inline-flex w-fit px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                      viewingReferral.status === "completed"
+                        ? "bg-emerald-100 text-emerald-700"
+                        : "bg-blue-100 text-blue-700"
+                    }`}
+                  >
+                    {viewingReferral.status}
+                  </span>
+                </div>
+                <div className="bg-indigo-50 ring-1 ring-indigo-100 rounded-xl p-4 flex flex-col gap-1">
+                  <p className="text-xs text-gray-500">Total Spend</p>
+                  <p className="text-base font-bold text-indigo-700">{(viewingReferral.spend ?? 0).toLocaleString()}<span className="text-xs font-normal ml-1">TZS</span></p>
+                </div>
+                <div className="bg-amber-50 ring-1 ring-amber-100 rounded-xl p-4 flex flex-col gap-1">
+                  <p className="text-xs text-gray-500">Credits Earned</p>
+                  <p className="text-base font-bold text-amber-700">{viewingReferral.creditsEarned.toLocaleString()}<span className="text-xs font-normal ml-1">TZS</span></p>
                 </div>
               </div>
 
-              {/* Admin actions for this driver/referral */}
-              <div className="pt-4 border-t border-gray-200">
-                <h3 className="text-sm font-semibold text-gray-700 mb-2">Actions</h3>
-                <p className="text-xs text-gray-500 mb-3">
-                  Decide how to use this driver’s collected credits: convert to bonus or manage withdrawals.
-                </p>
-                {viewingReferral.creditsEarned > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    <Link
-                      href={`/admin/driver/referral${selectedDriver ? `?driverId=${selectedDriver}` : ""}`}
-                      className="inline-flex items-center gap-2 px-3 py-2 text-xs sm:text-sm font-semibold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition"
-                    >
-                      Manage credits
-                      <ExternalLink className="w-4 h-4" />
-                    </Link>
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="px-6 py-4 border-t border-gray-200 flex justify-end">
-              <button
-                onClick={() => setViewingReferral(null)}
-                className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors duration-200 font-medium"
-              >
-                Close
-              </button>
+              {/* Admin actions */}
+              {viewingReferral.creditsEarned > 0 && (
+                <div className="pt-1">
+                  <Link
+                    href={`/admin/driver/referral${selectedDriver ? `?driverId=${selectedDriver}` : ""}`}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-[#0e2a7a] to-[#02665e] rounded-xl hover:opacity-90 transition"
+                  >
+                    Manage Credits
+                    <ExternalLink className="w-4 h-4" />
+                  </Link>
+                </div>
+              )}
             </div>
           </div>
         </div>
