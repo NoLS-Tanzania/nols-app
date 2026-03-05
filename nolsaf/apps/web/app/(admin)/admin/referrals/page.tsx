@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import axios from "axios";
-import { CheckCircle2, AlertCircle, Loader2, Gift, DollarSign, ShieldCheck, Ban, RefreshCw, Link as LinkIcon, TrendingUp, Clock, Wallet, ArrowDownCircle } from "lucide-react";
+import { CheckCircle2, AlertCircle, Loader2, Gift, DollarSign, ShieldCheck, Ban, RefreshCw, Link as LinkIcon, TrendingUp, Clock, Wallet, ArrowDownCircle, ArrowLeft } from "lucide-react";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
 
@@ -35,7 +36,9 @@ function fmt(n: number) {
 }
 
 export default function AdminReferralsPage() {
+  const router = useRouter();
   const [earnings, setEarnings] = useState<Earning[]>([]);
+  const [allEarnings, setAllEarnings] = useState<Earning[]>([]);
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
@@ -44,9 +47,10 @@ export default function AdminReferralsPage() {
   const [wLoading, setWLoading] = useState<boolean>(false);
   const [wErr, setWErr] = useState<string | null>(null);
 
+  // Summary always computed from unfiltered allEarnings so cards never zero out
   const summary = useMemo(() => {
     const base = { total: 0, pending: 0, bonus: 0, available: 0, withdrawn: 0 };
-    earnings.forEach((e) => {
+    allEarnings.forEach((e) => {
       const amt = Number(e.amount || 0);
       base.total += amt;
       const st = (e.status || "").toUpperCase();
@@ -56,7 +60,14 @@ export default function AdminReferralsPage() {
       if (st === "WITHDRAWN") base.withdrawn += amt;
     });
     return base;
-  }, [earnings]);
+  }, [allEarnings]);
+
+  const loadAllEarnings = useCallback(async () => {
+    try {
+      const r = await api.get(`/api/admin/referral-earnings?pageSize=1000`);
+      setAllEarnings(r.data.earnings || []);
+    } catch { /* silent — summary degrades gracefully */ }
+  }, []);
 
   const loadEarnings = useCallback(async (targetStatus?: string) => {
     setLoading(true);
@@ -66,6 +77,8 @@ export default function AdminReferralsPage() {
       const url = `/api/admin/referral-earnings${status ? `?status=${encodeURIComponent(status)}` : ""}`;
       const r = await api.get(url);
       setEarnings(r.data.earnings || []);
+      // Refresh unfiltered summary whenever we do a full load
+      if (!status) setAllEarnings(r.data.earnings || []);
     } catch (e: any) {
       const status = e?.response?.status;
       setErr(e?.response?.data?.error || `Failed to load (${status ?? e?.message})`);
@@ -91,16 +104,17 @@ export default function AdminReferralsPage() {
   }, []);
 
   useEffect(() => {
+    void loadAllEarnings();
     void loadEarnings();
     void loadWithdrawals();
-  }, [loadEarnings, loadWithdrawals]);
+  }, [loadAllEarnings, loadEarnings, loadWithdrawals]);
 
   async function markAsBonus(earningId: number) {
     const ref = prompt("Bonus payment reference", `BONUS-${earningId}-${Date.now()}`);
     if (!ref) return;
     try {
       await api.post(`/api/admin/referral-earnings/mark-as-bonus`, { earningIds: [earningId], bonusPaymentRef: ref });
-      await loadEarnings();
+      await Promise.all([loadEarnings(), loadAllEarnings()]);
     } catch {
       alert("Failed to mark as bonus");
     }
@@ -166,48 +180,71 @@ export default function AdminReferralsPage() {
   const showError = err && !err.toLowerCase().includes("networkerror");
   const showWithdrawalsError = wErr && !wErr.toLowerCase().includes("networkerror");
 
+  function filterByStatus(s: string) {
+    setStatusFilter(s);
+    loadEarnings(s);
+  }
+
   const statCards = [
     {
       label: "Total Credits",
       value: summary.total,
       icon: TrendingUp,
-      color: "text-[#02665e]",
-      bg: "bg-[#02665e]/8",
-      ring: "ring-[#02665e]/15",
-      onClick: () => { setStatusFilter(""); loadEarnings(""); },
-      clickable: true,
+      color: "text-white",
+      valueBg: "bg-white/20",
+      iconBg: "bg-white/20",
+      cardBg: "bg-[#02665e]",
+      ring: "ring-white/20",
+      onClick: () => filterByStatus(""),
+      active: statusFilter === "",
     },
     {
       label: "Pending",
       value: summary.pending,
       icon: Clock,
       color: "text-amber-600",
-      bg: "bg-amber-50",
+      valueBg: "",
+      iconBg: "bg-amber-100",
+      cardBg: "bg-white",
       ring: "ring-amber-200",
+      onClick: () => filterByStatus("PENDING"),
+      active: statusFilter === "PENDING",
     },
     {
       label: "Available",
       value: summary.available,
       icon: Wallet,
       color: "text-blue-600",
-      bg: "bg-blue-50",
+      valueBg: "",
+      iconBg: "bg-blue-100",
+      cardBg: "bg-white",
       ring: "ring-blue-200",
+      onClick: () => filterByStatus("AVAILABLE_FOR_WITHDRAWAL"),
+      active: statusFilter === "AVAILABLE_FOR_WITHDRAWAL",
     },
     {
       label: "Paid as Bonus",
       value: summary.bonus,
       icon: Gift,
       color: "text-emerald-600",
-      bg: "bg-emerald-50",
+      valueBg: "",
+      iconBg: "bg-emerald-100",
+      cardBg: "bg-white",
       ring: "ring-emerald-200",
+      onClick: () => filterByStatus("PAID_AS_BONUS"),
+      active: statusFilter === "PAID_AS_BONUS",
     },
     {
       label: "Withdrawn",
       value: summary.withdrawn,
       icon: ArrowDownCircle,
       color: "text-slate-500",
-      bg: "bg-slate-100",
+      valueBg: "",
+      iconBg: "bg-slate-100",
+      cardBg: "bg-white",
       ring: "ring-slate-200",
+      onClick: () => filterByStatus("WITHDRAWN"),
+      active: statusFilter === "WITHDRAWN",
     },
   ];
 
@@ -220,8 +257,16 @@ export default function AdminReferralsPage() {
         {/* Header */}
         <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => router.back()}
+              className="h-8 w-8 rounded-lg border border-gray-200 bg-white flex items-center justify-center hover:bg-gray-50 transition-colors shadow-sm flex-shrink-0"
+              aria-label="Go back"
+            >
+              <ArrowLeft className="w-4 h-4 text-gray-500" />
+            </button>
             <div className="h-9 w-9 rounded-xl bg-[#02665e]/10 flex items-center justify-center flex-shrink-0">
-              <Gift className="w-4.5 h-4.5 text-[#02665e] w-[18px] h-[18px]" />
+              <Gift className="w-[18px] h-[18px] text-[#02665e]" />
             </div>
             <div>
               <h1 className="text-base font-bold text-gray-900 tracking-tight">Referral Credits</h1>
@@ -230,44 +275,50 @@ export default function AdminReferralsPage() {
           </div>
           <button
             type="button"
-            onClick={() => loadEarnings()}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-50 hover:text-gray-900 transition-colors"
+            onClick={() => { void loadEarnings(); void loadAllEarnings(); }}
+            className="h-8 w-8 rounded-lg border border-gray-200 bg-white flex items-center justify-center hover:bg-gray-50 transition-colors shadow-sm"
+            aria-label="Refresh"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
-            Refresh
+            <RefreshCw className={`w-3.5 h-3.5 text-gray-500 ${loading ? "animate-spin" : ""}`} />
           </button>
         </div>
 
-        {/* Summary stat cards */}
-        <div className="px-6 pt-5 pb-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        {/* Summary stat cards — dark area */}
+        <div className="bg-[#012e29] px-6 pt-5 pb-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           {statCards.map((card) => {
             const Icon = card.icon;
+            const isDark = card.cardBg === "bg-[#02665e]";
             return (
-              <div
+              <button
                 key={card.label}
-                onClick={card.clickable ? card.onClick : undefined}
-                className={`relative rounded-xl ring-1 ${card.ring} p-3.5 flex flex-col gap-1.5 ${card.clickable ? "cursor-pointer hover:shadow-md transition-shadow" : ""}`}
-                style={{ background: "white" }}
+                type="button"
+                onClick={card.onClick}
+                className={`relative rounded-xl ring-1 ${card.ring} p-3.5 flex flex-col gap-1.5 cursor-pointer text-left transition-all hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] ${
+                  card.active ? "shadow-lg scale-[1.02]" : "shadow-sm"
+                } ${card.cardBg}`}
               >
-                <div className={`h-7 w-7 rounded-lg ${card.bg} flex items-center justify-center`}>
+                <div className={`h-7 w-7 rounded-lg ${card.iconBg} flex items-center justify-center`}>
                   <Icon className={`w-3.5 h-3.5 ${card.color}`} />
                 </div>
                 <div className={`text-lg font-extrabold tabular-nums tracking-tight ${card.color}`}>
                   {fmt(card.value)}
-                  <span className="ml-1 text-[10px] font-semibold text-gray-400 tracking-wide">TZS</span>
+                  <span className={`ml-1 text-[10px] font-semibold tracking-wide ${isDark ? "text-white/50" : "text-gray-400"}`}>TZS</span>
                 </div>
-                <div className="text-[11px] font-medium text-gray-500 leading-none">{card.label}</div>
-              </div>
+                <div className={`text-[11px] font-medium leading-none ${isDark ? "text-white/70" : "text-gray-500"}`}>{card.label}</div>
+                {card.active && (
+                  <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-0.5 rounded-full bg-current opacity-50" />
+                )}
+              </button>
             );
           })}
         </div>
 
         {/* Filter bar */}
-        <div className="px-6 pb-4 flex items-center gap-2 flex-wrap">
+        <div className="px-6 pb-4 flex items-center gap-2 flex-wrap border-b border-gray-100">
           <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Filter</span>
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => filterByStatus(e.target.value)}
             className="rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 shadow-sm focus:border-[#02665e] focus:ring-1 focus:ring-[#02665e]/30 outline-none transition"
           >
             <option value="">All statuses</option>
@@ -276,13 +327,6 @@ export default function AdminReferralsPage() {
             <option value="PAID_AS_BONUS">Paid as bonus</option>
             <option value="WITHDRAWN">Withdrawn</option>
           </select>
-          <button
-            type="button"
-            onClick={() => loadEarnings()}
-            className="rounded-lg bg-[#02665e] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#014e47] transition-colors shadow-sm"
-          >
-            Apply
-          </button>
         </div>
 
         {/* Error */}
@@ -404,10 +448,10 @@ export default function AdminReferralsPage() {
           <button
             type="button"
             onClick={() => loadWithdrawals()}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-50 hover:text-gray-900 transition-colors"
+            className="h-8 w-8 rounded-lg border border-gray-200 bg-white flex items-center justify-center hover:bg-gray-50 transition-colors shadow-sm"
+            aria-label="Refresh"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${wLoading ? "animate-spin" : ""}`} />
-            Refresh
+            <RefreshCw className={`w-3.5 h-3.5 text-gray-500 ${wLoading ? "animate-spin" : ""}`} />
           </button>
         </div>
 
