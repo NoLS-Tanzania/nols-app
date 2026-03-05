@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
-import { CheckCircle2, AlertCircle, Loader2, Gift, DollarSign, ShieldCheck, Ban, RefreshCw, Link as LinkIcon } from "lucide-react";
+import { CheckCircle2, AlertCircle, Loader2, Gift, DollarSign, ShieldCheck, Ban, RefreshCw, Link as LinkIcon, TrendingUp, Clock, Wallet, ArrowDownCircle } from "lucide-react";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
 
@@ -30,6 +30,9 @@ type Withdrawal = {
   createdAt?: string;
 };
 
+function fmt(n: number) {
+  return n.toLocaleString();
+}
 
 export default function AdminReferralsPage() {
   const [earnings, setEarnings] = useState<Earning[]>([]);
@@ -138,139 +141,242 @@ export default function AdminReferralsPage() {
 
   const statusBadge = (s: string) => {
     const v = (s || "").toUpperCase();
-    if (v === "PAID_AS_BONUS") return "bg-emerald-50 text-emerald-700 border-emerald-200";
-    if (v === "AVAILABLE_FOR_WITHDRAWAL") return "bg-blue-50 text-blue-700 border-blue-200";
-    if (v === "WITHDRAWN") return "bg-gray-100 text-gray-700 border-gray-200";
-    if (v === "PENDING") return "bg-amber-50 text-amber-700 border-amber-200";
-    return "bg-slate-50 text-slate-700 border-slate-200";
+    if (v === "PAID_AS_BONUS")              return "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200";
+    if (v === "AVAILABLE_FOR_WITHDRAWAL")   return "bg-blue-50 text-blue-700 ring-1 ring-blue-200";
+    if (v === "WITHDRAWN")                  return "bg-slate-100 text-slate-600 ring-1 ring-slate-200";
+    if (v === "PENDING")                    return "bg-amber-50 text-amber-700 ring-1 ring-amber-200";
+    if (v === "APPROVED")                   return "bg-teal-50 text-teal-700 ring-1 ring-teal-200";
+    if (v === "REJECTED")                   return "bg-red-50 text-red-700 ring-1 ring-red-200";
+    if (v === "PAID")                       return "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200";
+    return "bg-slate-50 text-slate-600 ring-1 ring-slate-200";
+  };
+
+  const statusLabel = (s: string) => {
+    const v = (s || "").toUpperCase();
+    if (v === "PAID_AS_BONUS")            return "Paid as Bonus";
+    if (v === "AVAILABLE_FOR_WITHDRAWAL") return "Available";
+    if (v === "WITHDRAWN")                return "Withdrawn";
+    if (v === "PENDING")                  return "Pending";
+    if (v === "APPROVED")                 return "Approved";
+    if (v === "REJECTED")                 return "Rejected";
+    if (v === "PAID")                     return "Paid";
+    return s;
   };
 
   const showError = err && !err.toLowerCase().includes("networkerror");
   const showWithdrawalsError = wErr && !wErr.toLowerCase().includes("networkerror");
 
+  const statCards = [
+    {
+      label: "Total Credits",
+      value: summary.total,
+      icon: TrendingUp,
+      color: "text-[#02665e]",
+      bg: "bg-[#02665e]/8",
+      ring: "ring-[#02665e]/15",
+      onClick: () => { setStatusFilter(""); loadEarnings(""); },
+      clickable: true,
+    },
+    {
+      label: "Pending",
+      value: summary.pending,
+      icon: Clock,
+      color: "text-amber-600",
+      bg: "bg-amber-50",
+      ring: "ring-amber-200",
+    },
+    {
+      label: "Available",
+      value: summary.available,
+      icon: Wallet,
+      color: "text-blue-600",
+      bg: "bg-blue-50",
+      ring: "ring-blue-200",
+    },
+    {
+      label: "Paid as Bonus",
+      value: summary.bonus,
+      icon: Gift,
+      color: "text-emerald-600",
+      bg: "bg-emerald-50",
+      ring: "ring-emerald-200",
+    },
+    {
+      label: "Withdrawn",
+      value: summary.withdrawn,
+      icon: ArrowDownCircle,
+      color: "text-slate-500",
+      bg: "bg-slate-100",
+      ring: "ring-slate-200",
+    },
+  ];
+
   return (
     <div className="space-y-6">
-      <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm">
-        <div className="flex flex-col gap-2 mb-4 text-center items-center">
-          <div className="inline-flex items-center gap-2">
-            <Gift className="w-5 h-5 text-slate-500" />
-            <h1 className="text-xl font-semibold text-slate-900">Referral Credits</h1>
+
+      {/* ── Section 1: Referral Credits ─────────────────────────────── */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+
+        {/* Header */}
+        <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-xl bg-[#02665e]/10 flex items-center justify-center flex-shrink-0">
+              <Gift className="w-4.5 h-4.5 text-[#02665e] w-[18px] h-[18px]" />
+            </div>
+            <div>
+              <h1 className="text-base font-bold text-gray-900 tracking-tight">Referral Credits</h1>
+              <p className="text-xs text-gray-500 mt-0.5">Decide whether collected credits become bonuses or withdrawals.</p>
+            </div>
           </div>
-          <p className="text-sm text-slate-600">Decide whether collected credits become bonuses or withdrawals.</p>
-          <div className="flex flex-wrap justify-center gap-3 text-sm">
-            <button
-              type="button"
-              onClick={() => {
-                setStatusFilter("");
-                loadEarnings("");
-              }}
-              className="px-3 py-1 rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200 transition border border-slate-200"
-            >
-              Total: {summary.total.toLocaleString()} TZS
-            </button>
-            <span className="px-3 py-1 rounded-full bg-amber-100 text-amber-800">Pending: {summary.pending.toLocaleString()} TZS</span>
-            <span className="px-3 py-1 rounded-full bg-blue-100 text-blue-800">Available: {summary.available.toLocaleString()} TZS</span>
-            <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800">Bonus: {summary.bonus.toLocaleString()} TZS</span>
-            <span className="px-3 py-1 rounded-full bg-gray-100 text-gray-700">Withdrawn: {summary.withdrawn.toLocaleString()} TZS</span>
-          </div>
+          <button
+            type="button"
+            onClick={() => loadEarnings()}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-50 hover:text-gray-900 transition-colors"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
         </div>
 
-        <div className="flex items-center gap-2 mb-3">
-          <label className="text-sm text-slate-700">Filter by status:</label>
+        {/* Summary stat cards */}
+        <div className="px-6 pt-5 pb-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          {statCards.map((card) => {
+            const Icon = card.icon;
+            return (
+              <div
+                key={card.label}
+                onClick={card.clickable ? card.onClick : undefined}
+                className={`relative rounded-xl ring-1 ${card.ring} p-3.5 flex flex-col gap-1.5 ${card.clickable ? "cursor-pointer hover:shadow-md transition-shadow" : ""}`}
+                style={{ background: "white" }}
+              >
+                <div className={`h-7 w-7 rounded-lg ${card.bg} flex items-center justify-center`}>
+                  <Icon className={`w-3.5 h-3.5 ${card.color}`} />
+                </div>
+                <div className={`text-lg font-extrabold tabular-nums tracking-tight ${card.color}`}>
+                  {fmt(card.value)}
+                  <span className="ml-1 text-[10px] font-semibold text-gray-400 tracking-wide">TZS</span>
+                </div>
+                <div className="text-[11px] font-medium text-gray-500 leading-none">{card.label}</div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Filter bar */}
+        <div className="px-6 pb-4 flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Filter</span>
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="border border-slate-300 rounded-md px-2 py-1 text-sm"
+            className="rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 shadow-sm focus:border-[#02665e] focus:ring-1 focus:ring-[#02665e]/30 outline-none transition"
           >
-            <option value="">All</option>
+            <option value="">All statuses</option>
             <option value="PENDING">Pending</option>
             <option value="AVAILABLE_FOR_WITHDRAWAL">Available for withdrawal</option>
             <option value="PAID_AS_BONUS">Paid as bonus</option>
             <option value="WITHDRAWN">Withdrawn</option>
           </select>
           <button
-            className="inline-flex items-center gap-2 text-sm text-slate-700 hover:text-slate-900"
+            type="button"
             onClick={() => loadEarnings()}
+            className="rounded-lg bg-[#02665e] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#014e47] transition-colors shadow-sm"
           >
-            <RefreshCw className="w-4 h-4" /> Refresh
+            Apply
           </button>
         </div>
 
+        {/* Error */}
         {showError && (
-          <div className="flex items-center gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2 mb-3">
-            <AlertCircle className="w-4 h-4" /> {err}
+          <div className="mx-6 mb-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-700">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            <span>{err}</span>
           </div>
         )}
 
-        <div className="overflow-auto border border-slate-200 rounded-lg">
+        {/* Table */}
+        <div className="overflow-x-auto border-t border-gray-100">
           <table className="min-w-full text-sm">
-            <thead className="bg-slate-50">
-              <tr>
-                <th className="text-left px-3 py-2 font-semibold text-slate-700">ID</th>
-                <th className="text-left px-3 py-2 font-semibold text-slate-700">Driver</th>
-                <th className="text-left px-3 py-2 font-semibold text-slate-700">Referred User</th>
-                <th className="text-left px-3 py-2 font-semibold text-slate-700">Amount</th>
-                <th className="text-left px-3 py-2 font-semibold text-slate-700">Status</th>
-                <th className="text-left px-3 py-2 font-semibold text-slate-700">Refs</th>
-                <th className="text-left px-3 py-2 font-semibold text-slate-700">Actions</th>
+            <thead>
+              <tr className="bg-gray-50/80">
+                <th className="text-left px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-gray-500">ID</th>
+                <th className="text-left px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-gray-500">Driver</th>
+                <th className="text-left px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-gray-500">Referred User</th>
+                <th className="text-left px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-gray-500">Amount</th>
+                <th className="text-left px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-gray-500">Status</th>
+                <th className="text-left px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-gray-500">Refs</th>
+                <th className="text-left px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-gray-500">Actions</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-gray-50">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-3 py-4 text-center text-slate-500">
-                    <span className="inline-flex items-center gap-2">
-                      <Loader2 className="w-4 h-4 animate-spin" /> Loading...
+                  <td colSpan={7} className="px-4 py-10 text-center text-gray-400">
+                    <span className="inline-flex items-center gap-2 text-sm">
+                      <Loader2 className="w-4 h-4 animate-spin text-[#02665e]" />
+                      Loading referral credits…
                     </span>
                   </td>
                 </tr>
               ) : earnings.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-3 py-4 text-center text-slate-500">
+                  <td colSpan={7} className="px-4 py-10 text-center text-gray-400 text-sm">
                     No referral credits found.
                   </td>
                 </tr>
               ) : (
                 earnings.map((e) => (
-                  <tr key={e.id} className="border-t border-slate-100">
-                    <td className="px-3 py-2">{e.id}</td>
-                    <td className="px-3 py-2 text-slate-800">{e.driverId}</td>
-                    <td className="px-3 py-2 text-slate-700">
-                      {e.referredUser?.name || e.referredUser?.email || e.referredUser?.id || "-"}
-                    </td>
-                    <td className="px-3 py-2 font-semibold text-slate-900">
-                      {Number(e.amount || 0).toLocaleString()} {e.currency || "TZS"}
-                    </td>
-                    <td className="px-3 py-2">
-                      <span className={`inline-flex items-center px-2 py-1 rounded-md border text-xs font-medium ${statusBadge(e.status)}`}>
-                        {e.status}
+                  <tr key={e.id} className="hover:bg-gray-50/60 transition-colors">
+                    <td className="px-4 py-3 text-xs font-mono text-gray-400">#{e.id}</td>
+                    <td className="px-4 py-3">
+                      <span className="inline-flex items-center gap-1.5 rounded-md bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
+                        Driver #{e.driverId}
                       </span>
                     </td>
-                    <td className="px-3 py-2 text-xs text-slate-600 space-y-1">
+                    <td className="px-4 py-3 text-sm text-gray-700 font-medium">
+                      {e.referredUser?.name || e.referredUser?.email || (e.referredUser ? `User #${e.referredUser.id}` : <span className="text-gray-300">—</span>)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="font-bold text-gray-900 tabular-nums">
+                        {fmt(Number(e.amount || 0))}
+                      </span>
+                      <span className="ml-1 text-[11px] text-gray-400 font-semibold">{e.currency || "TZS"}</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold ${statusBadge(e.status)}`}>
+                        {statusLabel(e.status)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-500 space-y-1">
                       {e.bonusPaymentRef && (
-                        <div className="flex items-center gap-1">
-                          <Gift className="w-3 h-3 text-emerald-600" /> {e.bonusPaymentRef}
+                        <div className="flex items-center gap-1 font-mono">
+                          <Gift className="w-3 h-3 text-emerald-500 flex-shrink-0" />
+                          <span className="truncate max-w-[120px]" title={e.bonusPaymentRef}>{e.bonusPaymentRef}</span>
                         </div>
                       )}
                       {e.withdrawalId && (
                         <div className="flex items-center gap-1">
-                          <DollarSign className="w-3 h-3 text-blue-600" /> WD #{e.withdrawalId}
+                          <DollarSign className="w-3 h-3 text-blue-500 flex-shrink-0" />
+                          WD #{e.withdrawalId}
                         </div>
                       )}
+                      {!e.bonusPaymentRef && !e.withdrawalId && <span className="text-gray-300">—</span>}
                     </td>
-                    <td className="px-3 py-2">
+                    <td className="px-4 py-3">
                       {(e.status === "PENDING" || e.status === "AVAILABLE_FOR_WITHDRAWAL") && (
                         <button
                           onClick={() => markAsBonus(e.id)}
-                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100"
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100 transition-colors"
                         >
-                          <CheckCircle2 className="w-3 h-3" /> Mark bonus
+                          <CheckCircle2 className="w-3 h-3" /> Mark as Bonus
                         </button>
                       )}
                       {e.status === "PAID_AS_BONUS" && (
-                        <span className="text-xs text-emerald-700 inline-flex items-center gap-1">
-                          <ShieldCheck className="w-3 h-3" /> Bonus
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600">
+                          <ShieldCheck className="w-3.5 h-3.5" /> Bonus paid
                         </span>
+                      )}
+                      {e.status === "WITHDRAWN" && (
+                        <span className="text-xs text-gray-400 font-medium">Withdrawn</span>
                       )}
                     </td>
                   </tr>
@@ -281,113 +387,142 @@ export default function AdminReferralsPage() {
         </div>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm">
-        <div className="flex items-center gap-2 mb-3">
-          <DollarSign className="w-5 h-5 text-slate-500" />
-          <h2 className="text-lg font-semibold text-slate-900">Withdrawal requests</h2>
+      {/* ── Section 2: Withdrawal Requests ──────────────────────────── */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+
+        {/* Header */}
+        <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
+              <Wallet className="w-[18px] h-[18px] text-blue-600" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-gray-900 tracking-tight">Withdrawal Requests</h2>
+              <p className="text-xs text-gray-500 mt-0.5">Review and process driver payout requests.</p>
+            </div>
+          </div>
           <button
-            className="inline-flex items-center gap-2 text-sm text-slate-700 hover:text-slate-900 ml-auto"
+            type="button"
             onClick={() => loadWithdrawals()}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-50 hover:text-gray-900 transition-colors"
           >
-            <RefreshCw className="w-4 h-4" /> Refresh
+            <RefreshCw className={`w-3.5 h-3.5 ${wLoading ? "animate-spin" : ""}`} />
+            Refresh
           </button>
         </div>
 
+        {/* Error */}
         {showWithdrawalsError && (
-          <div className="flex items-center gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2 mb-3">
-            <AlertCircle className="w-4 h-4" /> {wErr}
+          <div className="mx-6 mt-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-700">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            <span>{wErr}</span>
           </div>
         )}
 
-        <div className="overflow-auto border border-slate-200 rounded-lg">
+        {/* Table */}
+        <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
-            <thead className="bg-slate-50">
-              <tr>
-                <th className="text-left px-3 py-2 font-semibold text-slate-700">ID</th>
-                <th className="text-left px-3 py-2 font-semibold text-slate-700">Driver</th>
-                <th className="text-left px-3 py-2 font-semibold text-slate-700">Amount</th>
-                <th className="text-left px-3 py-2 font-semibold text-slate-700">Status</th>
-                <th className="text-left px-3 py-2 font-semibold text-slate-700">Payment</th>
-                <th className="text-left px-3 py-2 font-semibold text-slate-700">Actions</th>
+            <thead>
+              <tr className="bg-gray-50/80">
+                <th className="text-left px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-gray-500">ID</th>
+                <th className="text-left px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-gray-500">Driver</th>
+                <th className="text-left px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-gray-500">Amount</th>
+                <th className="text-left px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-gray-500">Status</th>
+                <th className="text-left px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-gray-500">Payment</th>
+                <th className="text-left px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-gray-500">Actions</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-gray-50">
               {wLoading ? (
                 <tr>
-                  <td colSpan={6} className="px-3 py-4 text-center text-slate-500">
-                    <span className="inline-flex items-center gap-2">
-                      <Loader2 className="w-4 h-4 animate-spin" /> Loading...
+                  <td colSpan={6} className="px-4 py-10 text-center text-gray-400">
+                    <span className="inline-flex items-center gap-2 text-sm">
+                      <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                      Loading withdrawal requests…
                     </span>
                   </td>
                 </tr>
               ) : withdrawals.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-3 py-4 text-center text-slate-500">
+                  <td colSpan={6} className="px-4 py-10 text-center text-gray-400 text-sm">
                     No withdrawal requests found.
                   </td>
                 </tr>
               ) : (
                 withdrawals.map((w) => (
-                  <tr key={w.id} className="border-t border-slate-100">
-                    <td className="px-3 py-2">{w.id}</td>
-                    <td className="px-3 py-2 text-slate-800">
-                      {w.driver?.name || w.driver?.email || `Driver #${w.driver?.id ?? ""}`}
+                  <tr key={w.id} className="hover:bg-gray-50/60 transition-colors">
+                    <td className="px-4 py-3 text-xs font-mono text-gray-400">#{w.id}</td>
+                    <td className="px-4 py-3">
+                      <div className="font-semibold text-gray-800 text-sm leading-none">
+                        {w.driver?.name || w.driver?.email || `Driver #${w.driver?.id ?? "–"}`}
+                      </div>
+                      {w.driver?.phone && (
+                        <div className="text-[11px] text-gray-400 mt-0.5">{w.driver.phone}</div>
+                      )}
                     </td>
-                    <td className="px-3 py-2 font-semibold text-slate-900">
-                      {Number(w.totalAmount || 0).toLocaleString()} {w.currency || "TZS"}
+                    <td className="px-4 py-3">
+                      <span className="font-bold text-gray-900 tabular-nums">
+                        {fmt(Number(w.totalAmount || 0))}
+                      </span>
+                      <span className="ml-1 text-[11px] text-gray-400 font-semibold">{w.currency || "TZS"}</span>
                     </td>
-                    <td className="px-3 py-2">
-                      <span className={`inline-flex items-center px-2 py-1 rounded-md border text-xs font-medium ${statusBadge(w.status)}`}>
-                        {w.status}
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold ${statusBadge(w.status)}`}>
+                        {statusLabel(w.status)}
                       </span>
                     </td>
-                    <td className="px-3 py-2 text-xs text-slate-600 space-y-1">
+                    <td className="px-4 py-3 text-xs text-gray-500 space-y-1">
                       {w.paymentMethod && (
                         <div className="flex items-center gap-1">
-                          <LinkIcon className="w-3 h-3 text-slate-500" /> {w.paymentMethod}
+                          <LinkIcon className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                          <span className="font-medium">{w.paymentMethod}</span>
                         </div>
                       )}
                       {w.paymentRef && (
-                        <div className="flex items-center gap-1">
-                          <LinkIcon className="w-3 h-3 text-slate-500" /> {w.paymentRef}
+                        <div className="flex items-center gap-1 font-mono">
+                          <LinkIcon className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                          <span className="truncate max-w-[120px]" title={w.paymentRef}>{w.paymentRef}</span>
                         </div>
                       )}
+                      {!w.paymentMethod && !w.paymentRef && <span className="text-gray-300">—</span>}
                     </td>
-                    <td className="px-3 py-2 space-x-2">
-                      {w.status === "PENDING" && (
-                        <>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {w.status === "PENDING" && (
+                          <>
+                            <button
+                              onClick={() => approveWithdrawal(w.id)}
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100 transition-colors"
+                            >
+                              <CheckCircle2 className="w-3 h-3" /> Approve
+                            </button>
+                            <button
+                              onClick={() => rejectWithdrawal(w.id)}
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700 ring-1 ring-red-200 hover:bg-red-100 transition-colors"
+                            >
+                              <Ban className="w-3 h-3" /> Reject
+                            </button>
+                          </>
+                        )}
+                        {w.status === "APPROVED" && (
                           <button
-                            onClick={() => approveWithdrawal(w.id)}
-                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100"
+                            onClick={() => markPaid(w.id)}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 ring-1 ring-blue-200 hover:bg-blue-100 transition-colors"
                           >
-                            <CheckCircle2 className="w-3 h-3" /> Approve
+                            <DollarSign className="w-3 h-3" /> Mark Paid
                           </button>
-                          <button
-                            onClick={() => rejectWithdrawal(w.id)}
-                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-md bg-red-50 text-red-700 border border-red-200 hover:bg-red-100"
-                          >
-                            <Ban className="w-3 h-3" /> Reject
-                          </button>
-                        </>
-                      )}
-                      {w.status === "APPROVED" && (
-                        <button
-                          onClick={() => markPaid(w.id)}
-                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100"
-                        >
-                          <DollarSign className="w-3 h-3" /> Mark paid
-                        </button>
-                      )}
-                      {w.status === "PAID" && (
-                        <span className="text-xs text-emerald-700 inline-flex items-center gap-1">
-                          <ShieldCheck className="w-3 h-3" /> Paid
-                        </span>
-                      )}
-                      {w.status === "REJECTED" && (
-                        <span className="text-xs text-red-700 inline-flex items-center gap-1">
-                          <AlertCircle className="w-3 h-3" /> Rejected
-                        </span>
-                      )}
+                        )}
+                        {w.status === "PAID" && (
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600">
+                            <ShieldCheck className="w-3.5 h-3.5" /> Paid
+                          </span>
+                        )}
+                        {w.status === "REJECTED" && (
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-500">
+                            <AlertCircle className="w-3.5 h-3.5" /> Rejected
+                          </span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
