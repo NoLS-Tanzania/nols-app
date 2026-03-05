@@ -321,7 +321,6 @@ router.get("/", async (req, res) => {
             isAvailable: true,
             isVipDriver: true,
             kycStatus: true,
-            kycFieldApprovals: true,
             rating: true,
             vehicleType: true,
             plateNumber: true,
@@ -3266,6 +3265,17 @@ router.get("/:id(\\d+)", async (req, res) => {
     });
     if (!driver) return res.status(404).json({ error: "Driver not found" });
 
+    // Fetch kycFieldApprovals separately — column may not exist on an older DB schema
+    try {
+      const kfaRow = await prisma.user.findFirst({
+        where: { id },
+        select: { kycFieldApprovals: true } as any,
+      });
+      (driver as any).kycFieldApprovals = (kfaRow as any)?.kycFieldApprovals ?? null;
+    } catch {
+      (driver as any).kycFieldApprovals = null;
+    }
+
     // Attach UserDocument records (new per-doc upload flow)
     try {
       if ((prisma as any).userDocument) {
@@ -5570,19 +5580,21 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
       });
     }
 
-    // Write audit log entry
-    try {
-      await (prisma as any).kycAuditLog.create({
-        data: {
-          driverId,
-          adminId,
-          action,
-          note: note ?? (reason ? `Rejection reason: ${reason}` : null),
-          fieldApprovals: fieldApprovals ?? null,
-        },
-      });
-    } catch (auditErr) {
-      console.warn('KYC audit log write failed (non-fatal):', auditErr);
+    // Write audit log entry — skip field_review (silent save, not a meaningful admin decision)
+    if (action !== 'field_review') {
+      try {
+        await (prisma as any).kycAuditLog.create({
+          data: {
+            driverId,
+            adminId,
+            action,
+            note: note ?? (reason ? `Rejection reason: ${reason}` : null),
+            fieldApprovals: fieldApprovals ?? null,
+          },
+        });
+      } catch (auditErr) {
+        console.warn('KYC audit log write failed (non-fatal):', auditErr);
+      }
     }
 
     // Emit real-time notification — only for actions that the driver needs to see
@@ -5770,19 +5782,28 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
 router.get('/:id(\\d+)/kyc-audit', async (req, res) => {
   try {
     const driverId = Number(req.params.id);
-    const logs = await (prisma as any).kycAuditLog.findMany({
-      where: { driverId },
-      orderBy: { createdAt: 'desc' },
-      take: 50,
-      select: {
-        id: true,
-        action: true,
-        note: true,
-        fieldApprovals: true,
-        createdAt: true,
-        adminId: true,
-      },
-    });
+    let logs: any[] = [];
+    try {
+      logs = await (prisma as any).kycAuditLog.findMany({
+        where: { driverId },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+        select: {
+          id: true,
+          action: true,
+          note: true,
+          fieldApprovals: true,
+          createdAt: true,
+          adminId: true,
+        },
+      });
+    } catch (innerErr: any) {
+      // P2021 = table does not exist (migration not yet applied on this DB)
+      if (innerErr?.code === 'P2021' || innerErr?.message?.includes('kyc_audit_log')) {
+        return res.json({ ok: true, logs: [] });
+      }
+      throw innerErr;
+    }
 
     // Enrich with admin names
     const adminIds = [...new Set((logs as any[]).map((l: any) => l.adminId).filter(Boolean))] as number[];
