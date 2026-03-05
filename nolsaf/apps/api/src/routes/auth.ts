@@ -1248,6 +1248,8 @@ router.post('/profile', upload.any(), async (req, res) => {
         if (!currentKycStatus || currentKycStatus === 'PENDING_KYC') {
           dataToUpdate.kycStatus = 'PENDING_KYC';
         }
+        // Clear admin note so driver sees "Under Review" instead of "Action Required"
+        (dataToUpdate as any).kycNote = null;
       }
 
       // Referral fields

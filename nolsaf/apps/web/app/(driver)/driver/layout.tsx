@@ -7,7 +7,8 @@ import DriverSiteHeader from "@/components/DriverSiteHeader";
 import DriverFooter from "@/components/DriverFooter";
 import DriverSidebar from "@/components/DriverSidebar";
 import LayoutFrame from "@/components/LayoutFrame";
-import { Clock, ShieldX, CheckCircle2, AlertTriangle, RefreshCw, MessageSquare, ArrowRight, Edit3 } from "lucide-react";
+import Link from "next/link";
+import { Clock, ShieldX, CheckCircle2, AlertTriangle, RefreshCw, MessageSquare, Edit3 } from "lucide-react";
 
 type KycStatus = 'PENDING_KYC' | 'APPROVED_KYC' | 'REJECTED_KYC' | null;
 
@@ -56,15 +57,14 @@ function PendingApprovalScreen({ kycNote }: { kycNote: string | null }) {
               </div>
 
               {/* CTA */}
-              <a
+              <Link
                 href="/account/onboard/driver"
                 className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm text-white no-underline transition-all shadow-md hover:shadow-lg animate-pulse hover:animate-none"
                 style={{ background: "linear-gradient(135deg, #0e2a7a, #02665e)" }}
               >
                 <Edit3 className="w-4 h-4" />
                 Update My Application
-                <ArrowRight className="w-4 h-4" />
-              </a>
+              </Link>
 
               <div className="text-center">
                 <p className="text-xs text-slate-400">
