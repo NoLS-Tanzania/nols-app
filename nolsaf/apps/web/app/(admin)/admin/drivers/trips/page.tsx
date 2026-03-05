@@ -1841,7 +1841,7 @@ export default function AdminDriversTripsPage() {
           />
           <div className="relative h-full w-full flex items-center justify-center p-3 sm:p-6">
             <div
-              className={`relative w-full max-w-xl max-h-[96vh] sm:max-h-[92vh] overflow-hidden rounded-2xl sm:rounded-3xl border border-white/30 shadow-2xl flex flex-col bg-gradient-to-b from-slate-50 via-white to-sky-50 transition-all duration-200 ease-out ${
+              className={`relative w-full max-w-xl max-h-[calc(100vh-1.5rem)] sm:max-h-[calc(100vh-3rem)] overflow-hidden rounded-2xl sm:rounded-3xl border border-white/30 shadow-2xl flex flex-col bg-gradient-to-b from-slate-50 via-white to-sky-50 transition-all duration-200 ease-out ${
                 detailsOpen ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-[0.98] translate-y-2"
               }`}
             >
@@ -1882,7 +1882,7 @@ export default function AdminDriversTripsPage() {
               </div>
             </div>
 
-            <div className="p-5 overflow-y-auto flex-1">
+            <div className="p-5 overflow-y-auto flex-1 min-h-0">
               {detailsLoading ? (
                 <div className="py-10 text-center text-sm text-gray-500">
                   <Loader2 className="h-5 w-5 animate-spin mx-auto mb-3 text-gray-400" />
