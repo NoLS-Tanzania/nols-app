@@ -1,3 +1,9 @@
+# Private strategy & internal docs — never commit
+NOLSAF_STRATEGY.md
+*_STRATEGY.md
+*_PRIVATE.md
+*_CONFIDENTIAL.md
+
 node_modules/
 .pnp.*
 .env
