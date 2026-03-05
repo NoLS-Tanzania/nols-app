@@ -627,7 +627,9 @@ app.use("/admin/help-owners", adminHelpOwnersRouter);
 // also expose API-prefixed route so frontend using `/api/admin/help-owners` works
 app.use('/api/admin/help-owners', adminHelpOwnersRouter as express.RequestHandler);
 app.use("/admin/bonuses", adminBonusesRouter);
+app.use('/api/admin/bonuses', adminBonusesRouter as express.RequestHandler);
 app.use("/admin/referral-earnings", adminReferralEarningsRouter);
+app.use('/api/admin/referral-earnings', adminReferralEarningsRouter as express.RequestHandler);
 app.use("/webhooks", paymentWebhooksRouter);
 app.use("/api/payments/azampay", azampayPaymentsRouter);
 app.use("/admin/owners", adminOwnersRouter);

@@ -1,7 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import axios from "axios";
 import { CheckCircle2, AlertCircle, Loader2, Gift, DollarSign, ShieldCheck, Ban, RefreshCw, Link as LinkIcon } from "lucide-react";
+
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 type Earning = {
   id: number;
@@ -27,7 +30,6 @@ type Withdrawal = {
   createdAt?: string;
 };
 
-const apiBase = (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000").replace(/\/$/, "");
 
 export default function AdminReferralsPage() {
   const [earnings, setEarnings] = useState<Earning[]>([]);
@@ -58,13 +60,12 @@ export default function AdminReferralsPage() {
     setErr(null);
     try {
       const status = typeof targetStatus === "string" ? targetStatus : statusFilter;
-      const url = `${apiBase}/admin/referral-earnings${status ? `?status=${encodeURIComponent(status)}` : ""}`;
-      const r = await fetch(url);
-      if (!r.ok) throw new Error(`Failed to load (${r.status})`);
-      const j = await r.json();
-      setEarnings(j.earnings || []);
+      const url = `/api/admin/referral-earnings${status ? `?status=${encodeURIComponent(status)}` : ""}`;
+      const r = await api.get(url);
+      setEarnings(r.data.earnings || []);
     } catch (e: any) {
-      setErr(e?.message || "Failed to load referral earnings");
+      const status = e?.response?.status;
+      setErr(e?.response?.data?.error || `Failed to load (${status ?? e?.message})`);
       setEarnings([]);
     } finally {
       setLoading(false);
@@ -75,13 +76,11 @@ export default function AdminReferralsPage() {
     setWLoading(true);
     setWErr(null);
     try {
-      const url = `${apiBase}/admin/referral-earnings/withdrawals`;
-      const r = await fetch(url);
-      if (!r.ok) throw new Error(`Failed to load (${r.status})`);
-      const j = await r.json();
-      setWithdrawals(j.withdrawals || []);
+      const r = await api.get(`/api/admin/referral-earnings/withdrawals`);
+      setWithdrawals(r.data.withdrawals || []);
     } catch (e: any) {
-      setWErr(e?.message || "Failed to load withdrawals");
+      const status = e?.response?.status;
+      setWErr(e?.response?.data?.error || `Failed to load (${status ?? e?.message})`);
       setWithdrawals([]);
     } finally {
       setWLoading(false);
@@ -97,20 +96,16 @@ export default function AdminReferralsPage() {
     const ref = prompt("Bonus payment reference", `BONUS-${earningId}-${Date.now()}`);
     if (!ref) return;
     try {
-      await fetch(`${apiBase}/admin/referral-earnings/mark-as-bonus`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ earningIds: [earningId], bonusPaymentRef: ref }),
-      });
+      await api.post(`/api/admin/referral-earnings/mark-as-bonus`, { earningIds: [earningId], bonusPaymentRef: ref });
       await loadEarnings();
-    } catch (e) {
+    } catch {
       alert("Failed to mark as bonus");
     }
   }
 
   async function approveWithdrawal(id: number) {
     try {
-      await fetch(`${apiBase}/admin/referral-earnings/withdrawals/${id}/approve`, { method: "POST" });
+      await api.post(`/api/admin/referral-earnings/withdrawals/${id}/approve`);
       await loadWithdrawals();
       await loadEarnings();
     } catch {
@@ -122,11 +117,7 @@ export default function AdminReferralsPage() {
     const reason = prompt("Reason for rejection", "Not eligible");
     if (!reason) return;
     try {
-      await fetch(`${apiBase}/admin/referral-earnings/withdrawals/${id}/reject`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rejectionReason: reason }),
-      });
+      await api.post(`/api/admin/referral-earnings/withdrawals/${id}/reject`, { rejectionReason: reason });
       await loadWithdrawals();
       await loadEarnings();
     } catch {
@@ -137,11 +128,7 @@ export default function AdminReferralsPage() {
   async function markPaid(id: number) {
     const ref = prompt("Payment reference", "");
     try {
-      await fetch(`${apiBase}/admin/referral-earnings/withdrawals/${id}/mark-paid`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ paymentRef: ref }),
-      });
+      await api.post(`/api/admin/referral-earnings/withdrawals/${id}/mark-paid`, { paymentRef: ref });
       await loadWithdrawals();
       await loadEarnings();
     } catch {
