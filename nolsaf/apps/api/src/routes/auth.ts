@@ -1261,6 +1261,23 @@ router.post('/profile', upload.any(), async (req, res) => {
         data: dataToUpdate,
         select: { id: true, email: true, name: true, role: true }
       });
+
+      // After a successful resubmit, write an audit log entry so admin can see it
+      if ((dbRole === 'DRIVER') && submitForReview) {
+        try {
+          await (prisma as any).kycAuditLog.create({
+            data: {
+              driverId: userId,
+              adminId: null,
+              action: 'resubmitted',
+              note: 'Driver resubmitted application for review.',
+              fieldApprovals: null,
+            },
+          });
+        } catch {
+          // non-fatal — audit log table may not exist on older DBs
+        }
+      }
     } catch (e: any) {
       if (e?.code === 'P2002') {
         return res.status(409).json({ error: 'email_or_phone_already_in_use' });

@@ -1067,6 +1067,7 @@ export default function DriverVettingPage() {
                         reject:       { label: "Rejected",           color: "text-red-700",     bg: "bg-red-50",      border: "border-red-200",     dot: "bg-red-500" },
                         request_info: { label: "Requested Info",     color: "text-amber-700",   bg: "bg-amber-50",    border: "border-amber-200",   dot: "bg-amber-500" },
                         field_review: { label: "Field Review Saved", color: "text-blue-700",    bg: "bg-blue-50",     border: "border-blue-200",    dot: "bg-blue-400" },
+                        resubmitted:  { label: "Resubmitted",        color: "text-violet-700",  bg: "bg-violet-50",   border: "border-violet-200",  dot: "bg-violet-500" },
                       };
                       const meta = actionMeta[entry.action] ?? { label: entry.action, color: "text-slate-700", bg: "bg-slate-50", border: "border-slate-200", dot: "bg-slate-400" };
                       const fieldMap = entry.fieldApprovals as Record<string, string> | null | undefined;
@@ -1083,10 +1084,13 @@ export default function DriverVettingPage() {
                             <span className="text-[10px] text-slate-400 flex-shrink-0 font-mono">{formatDateTime(entry.createdAt)}</span>
                           </div>
                           {/* Who performed the action */}
-                          {entry.adminName && (
+                          {entry.adminName && entry.action !== 'resubmitted' && (
                             <p className="text-[11px] text-slate-500 mt-1 pl-4">
                               by <span className="font-semibold text-slate-700">{entry.adminName}</span>
                             </p>
+                          )}
+                          {entry.action === 'resubmitted' && (
+                            <p className="text-[11px] text-slate-500 mt-1 pl-4">by <span className="font-semibold text-violet-700">Driver</span></p>
                           )}
                           {/* Note */}
                           {entry.note && (
