@@ -233,20 +233,31 @@ function InfoRow({ label, value, icon: Icon, accent, fieldKey, fieldStatus, onTo
   );
 }
 
-function DocLink({ label, url, expiryInfo, fieldKey, fieldStatus, onToggle }: {
+function DocLink({ label, url, expiryInfo, docId, docStatus, rejectionReason, fieldKey, fieldStatus, onToggle, onReviewDoc }: {
   label: string;
   url?: string | null;
   expiryInfo?: string | null;
+  docId?: number | null;
+  docStatus?: string | null;
+  rejectionReason?: string | null;
   fieldKey?: string;
   fieldStatus?: FieldApprovalStatus | null;
   onToggle?: (key: string, status: FieldApprovalStatus) => void;
+  onReviewDoc?: (docId: number, action: 'approve' | 'reject' | 'pending') => void;
 }) {
+  const normalizedDocStatus = String(docStatus ?? '').toUpperCase();
+  const canReviewDoc = typeof docId === 'number' && docId > 0;
+
   const approvalButtons = fieldKey ? (
     <div className="flex items-center gap-1">
-      {fieldStatus === 'approved' ? (
+      {(fieldStatus === 'approved' || normalizedDocStatus === 'APPROVED') ? (
         <button
           title="Approved — click to undo"
-          onClick={e => { e.preventDefault(); onToggle?.(fieldKey, 'approved'); }}
+          onClick={e => {
+            e.preventDefault();
+            if (canReviewDoc) onReviewDoc?.(docId as number, 'pending');
+            else onToggle?.(fieldKey, 'approved');
+          }}
           className="w-7 h-7 rounded-lg flex items-center justify-center bg-emerald-600 text-white border border-emerald-600 shadow-sm"
         >
           <CheckCircle2 className="w-4 h-4" />
@@ -255,16 +266,24 @@ function DocLink({ label, url, expiryInfo, fieldKey, fieldStatus, onToggle }: {
         <>
           <button
             title="Approve this document"
-            onClick={e => { e.preventDefault(); onToggle?.(fieldKey, 'approved'); }}
+            onClick={e => {
+              e.preventDefault();
+              if (canReviewDoc) onReviewDoc?.(docId as number, 'approve');
+              else onToggle?.(fieldKey, 'approved');
+            }}
             className="w-7 h-7 rounded-lg flex items-center justify-center transition-all border bg-white text-slate-400 border-slate-200 hover:text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50"
           >
             <CheckCircle2 className="w-4 h-4" />
           </button>
           <button
             title="Flag this document for correction"
-            onClick={e => { e.preventDefault(); onToggle?.(fieldKey, 'flagged'); }}
+            onClick={e => {
+              e.preventDefault();
+              if (canReviewDoc) onReviewDoc?.(docId as number, 'reject');
+              else onToggle?.(fieldKey, 'flagged');
+            }}
             className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all border ${
-              fieldStatus === 'flagged'
+              (fieldStatus === 'flagged' || normalizedDocStatus === 'REJECTED')
                 ? 'bg-orange-500 text-white border-orange-500 shadow-sm'
                 : 'bg-white text-slate-400 border-slate-200 hover:text-orange-500 hover:border-orange-200 hover:bg-orange-50'
             }`}
@@ -276,6 +295,13 @@ function DocLink({ label, url, expiryInfo, fieldKey, fieldStatus, onToggle }: {
     </div>
   ) : null;
 
+  // If we have a real doc record, prefer document status for background coloring
+  const visualStatus = normalizedDocStatus === 'APPROVED'
+    ? 'approved'
+    : normalizedDocStatus === 'REJECTED'
+      ? 'flagged'
+      : fieldStatus;
+
   const Row = url ? "a" : "div";
   const rowProps = url
     ? ({ href: url, target: "_blank", rel: "noopener noreferrer" } as any)
@@ -285,8 +311,8 @@ function DocLink({ label, url, expiryInfo, fieldKey, fieldStatus, onToggle }: {
     <Row
       {...rowProps}
       className={`px-4 py-3 flex items-center justify-between gap-3 no-underline ${
-        fieldStatus === 'approved' ? 'bg-emerald-50/40' :
-        fieldStatus === 'flagged'  ? 'bg-orange-50/30'  :
+        visualStatus === 'approved' ? 'bg-emerald-50/40' :
+        visualStatus === 'flagged'  ? 'bg-orange-50/30'  :
         'bg-transparent'
       } ${url ? 'hover:bg-emerald-50/40 transition-colors' : ''}`}
     >
@@ -303,6 +329,9 @@ function DocLink({ label, url, expiryInfo, fieldKey, fieldStatus, onToggle }: {
           )}
           {expiryInfo && (
             <p className="mt-0.5 text-[10px] text-slate-400">Expires: <span className="font-semibold text-slate-600">{expiryInfo}</span></p>
+          )}
+          {normalizedDocStatus === 'REJECTED' && rejectionReason && (
+            <p className="mt-0.5 text-[10px] text-orange-700 font-semibold">Reason: {rejectionReason}</p>
           )}
         </div>
       </div>
@@ -380,6 +409,41 @@ export default function DriverVettingPage() {
       }
       return next;
     });
+  }
+
+  async function reviewDriverDoc(docId: number, action: 'approve' | 'reject' | 'pending', fieldKey?: string) {
+    if (!selected) return;
+    try {
+      const base = `/api/admin/drivers/${selected.id}/documents/${docId}`;
+      let resp: any;
+      if (action === 'approve') resp = await api.post(`${base}/approve`);
+      else if (action === 'reject') {
+        resp = await api.post(`${base}/reject`, { reason: "" });
+      } else resp = await api.post(`${base}/pending`);
+
+      const updatedDoc = resp?.data?.doc ?? resp?.data?.data?.doc ?? null;
+      if (updatedDoc) {
+        setSelected(prev => {
+          if (!prev) return prev;
+          const docs: any[] = Array.isArray((prev as any).documents) ? (prev as any).documents : [];
+          const nextDocs = docs.map((d: any) => (d?.id === updatedDoc.id ? { ...d, ...updatedDoc } : d));
+          return { ...prev, documents: nextDocs } as any;
+        });
+      }
+
+      // Keep the legacy fieldApprovals map in sync for docs
+      if (fieldKey) {
+        setFieldApprovals(prev => {
+          const next = { ...(prev ?? {}) } as any;
+          if (action === 'approve') next[fieldKey] = 'approved';
+          else if (action === 'reject') next[fieldKey] = 'flagged';
+          else delete next[fieldKey];
+          return next;
+        });
+      }
+    } catch (e: any) {
+      setActionMsg({ type: 'error', text: e?.response?.data?.message || e?.response?.data?.error || e?.message || 'Document review failed' });
+    }
   }
 
   const load = useCallback(async (activeTab: Tab, currentPage = 1) => {
@@ -913,7 +977,7 @@ export default function DriverVettingPage() {
                       {(() => {
                         const driverDocs: any[] = Array.isArray((selected as DriverDetail).documents) ? (selected as DriverDetail).documents! : [];
                         const getDoc = (types: string[]) => types.map(t => driverDocs.find(d => String(d?.type ?? '').toUpperCase() === t)).find(Boolean) ?? null;
-                        const licDoc   = getDoc(['DRIVER_LICENSE','DRIVING_LICENSE','LICENSE']);
+                        const licDoc   = getDoc(['DRIVER_LICENSE','DRIVING_LICENSE','DRIVER_LICENCE','DRIVING_LICENCE','LICENSE']);
                         const nidDoc   = getDoc(['NATIONAL_ID','ID','PASSPORT']);
                         const latraDoc = getDoc(['VEHICLE_REGISTRATION','LATRA','VEHICLE_REG']);
                         const insDoc   = getDoc(['INSURANCE']);
@@ -921,10 +985,54 @@ export default function DriverVettingPage() {
                         const urlFrom = (doc: any, fallback: string | null | undefined) => doc?.url || fallback || null;
                         return (
                           <>
-                            <DocLink label="Driving licence"   url={urlFrom(licDoc,   payoutObj?.drivingLicenseUrl || selected.payout?.drivingLicenseUrl)}   expiryInfo={fmtExpiry(licDoc)}  fieldKey="drivingLicense" fieldStatus={fa("drivingLicense")} onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
-                            <DocLink label="National ID"       url={urlFrom(nidDoc,   payoutObj?.nationalIdUrl || selected.payout?.nationalIdUrl)}             expiryInfo={null}               fieldKey="nationalId"     fieldStatus={fa("nationalId")}     onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
-                            <DocLink label="LATRA Certificate" url={urlFrom(latraDoc, payoutObj?.latraUrl || payoutObj?.vehicleRegistrationUrl || selected.payout?.latraUrl || selected.payout?.vehicleRegistrationUrl)} expiryInfo={null} fieldKey="latra" fieldStatus={fa("latra")} onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
-                            <DocLink label="Insurance"         url={urlFrom(insDoc,   payoutObj?.insuranceUrl || selected.payout?.insuranceUrl)}               expiryInfo={fmtExpiry(insDoc)}  fieldKey="insurance"      fieldStatus={fa("insurance")}      onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
+                            <DocLink
+                              label="Driving License"
+                              url={urlFrom(licDoc, payoutObj?.drivingLicenseUrl || selected.payout?.drivingLicenseUrl)}
+                              expiryInfo={fmtExpiry(licDoc)}
+                              docId={licDoc?.id ?? null}
+                              docStatus={licDoc?.status ?? null}
+                              rejectionReason={licDoc?.reason ?? null}
+                              fieldKey="drivingLicense"
+                              fieldStatus={fa("drivingLicense")}
+                              onToggle={toggleFieldApproval}
+                              onReviewDoc={(id, act) => reviewDriverDoc(id, act, 'drivingLicense')}
+                            />
+                            <DocLink
+                              label="National ID"
+                              url={urlFrom(nidDoc, payoutObj?.nationalIdUrl || selected.payout?.nationalIdUrl)}
+                              expiryInfo={null}
+                              docId={nidDoc?.id ?? null}
+                              docStatus={nidDoc?.status ?? null}
+                              rejectionReason={nidDoc?.reason ?? null}
+                              fieldKey="nationalId"
+                              fieldStatus={fa("nationalId")}
+                              onToggle={toggleFieldApproval}
+                              onReviewDoc={(id, act) => reviewDriverDoc(id, act, 'nationalId')}
+                            />
+                            <DocLink
+                              label="LATRA Certificate"
+                              url={urlFrom(latraDoc, payoutObj?.latraUrl || payoutObj?.vehicleRegistrationUrl || selected.payout?.latraUrl || selected.payout?.vehicleRegistrationUrl)}
+                              expiryInfo={null}
+                              docId={latraDoc?.id ?? null}
+                              docStatus={latraDoc?.status ?? null}
+                              rejectionReason={latraDoc?.reason ?? null}
+                              fieldKey="latra"
+                              fieldStatus={fa("latra")}
+                              onToggle={toggleFieldApproval}
+                              onReviewDoc={(id, act) => reviewDriverDoc(id, act, 'latra')}
+                            />
+                            <DocLink
+                              label="Insurance"
+                              url={urlFrom(insDoc, payoutObj?.insuranceUrl || selected.payout?.insuranceUrl)}
+                              expiryInfo={fmtExpiry(insDoc)}
+                              docId={insDoc?.id ?? null}
+                              docStatus={insDoc?.status ?? null}
+                              rejectionReason={insDoc?.reason ?? null}
+                              fieldKey="insurance"
+                              fieldStatus={fa("insurance")}
+                              onToggle={toggleFieldApproval}
+                              onReviewDoc={(id, act) => reviewDriverDoc(id, act, 'insurance')}
+                            />
                           </>
                         );
                       })()}

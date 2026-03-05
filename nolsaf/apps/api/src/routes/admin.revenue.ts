@@ -637,12 +637,29 @@ router.post("/invoices/:id/approve", async (req, res) => {
                 services: true,
               },
             },
+            code: {
+              select: {
+                id: true,
+                status: true,
+                usedByOwner: true,
+                usedAt: true,
+              },
+            },
           },
         },
       },
     });
     if (!inv) {
       return res.status(404).json({ error: "Invoice not found" });
+    }
+
+    if (!(inv as any)?.booking?.code?.usedByOwner) {
+      return res.status(403).json({
+        error: "Owner validation required",
+        detail: "Owner must validate the booking code before admin can approve/process payout actions for this invoice.",
+        bookingId: (inv as any).bookingId,
+        code: (inv as any)?.booking?.code ?? null,
+      });
     }
     if (inv.status === "PAID") {
       return res.status(400).json({ error: "Already PAID" });
@@ -797,11 +814,28 @@ router.post("/invoices/:id/mark-paid", async (req, res) => {
             property: {
               select: adminInvoicePropertySelect,
             },
+            code: {
+              select: {
+                id: true,
+                status: true,
+                usedByOwner: true,
+                usedAt: true,
+              },
+            },
           },
         },
       },
     });
     if (!inv) return res.status(404).json({ error: "Invoice not found" });
+
+    if (!(inv as any)?.booking?.code?.usedByOwner) {
+      return res.status(403).json({
+        error: "Owner validation required",
+        detail: "Owner must validate the booking code before admin can mark this invoice as paid.",
+        bookingId: (inv as any).bookingId,
+        code: (inv as any)?.booking?.code ?? null,
+      });
+    }
     if (inv.status === "PAID") return res.status(400).json({ error: "Already PAID" });
 
     // paymentRef is UNIQUE and primarily used as a gateway/merchant reference.

@@ -3331,6 +3331,244 @@ router.get("/:id(\\d+)", async (req, res) => {
   }
 });
 
+/**
+ * POST /admin/drivers/:id/documents/:docId/approve
+ * Approves a specific uploaded document for a driver.
+ */
+router.post("/:id(\\d+)/documents/:docId(\\d+)/approve", async (req, res) => {
+  try {
+    const driverId = Number(req.params.id);
+    const docId = Number(req.params.docId);
+    const me = (req.user as any)?.id;
+
+    if (!(prisma as any).userDocument) {
+      return res.status(400).json({ error: "UserDocument not supported" });
+    }
+
+    const doc = await prisma.userDocument.findUnique({ where: { id: docId } as any });
+    if (!doc || (doc as any).userId !== driverId) {
+      return res.status(404).json({ error: "Document not found" });
+    }
+
+    const updated = await prisma.userDocument.update({
+      where: { id: docId } as any,
+      data: { status: "APPROVED", reason: null } as any,
+    });
+
+    // Best-effort: sync kycFieldApprovals for doc-type keys
+    try {
+      const keyByType: Record<string, string> = {
+        DRIVER_LICENSE: "drivingLicense",
+        DRIVING_LICENSE: "drivingLicense",
+        DRIVER_LICENCE: "drivingLicense",
+        DRIVING_LICENCE: "drivingLicense",
+        LICENSE: "drivingLicense",
+        NATIONAL_ID: "nationalId",
+        ID: "nationalId",
+        PASSPORT: "nationalId",
+        VEHICLE_REGISTRATION: "latra",
+        LATRA: "latra",
+        VEHICLE_REG: "latra",
+        INSURANCE: "insurance",
+      };
+      const t = String((doc as any).type ?? "").toUpperCase();
+      const key = keyByType[t];
+      if (key) {
+        const u = await prisma.user.findUnique({ where: { id: driverId }, select: { kycFieldApprovals: true } as any });
+        const prev = (u as any)?.kycFieldApprovals && typeof (u as any).kycFieldApprovals === "object" ? (u as any).kycFieldApprovals : {};
+        await prisma.user.update({ where: { id: driverId }, data: { kycFieldApprovals: { ...(prev as any), [key]: "approved" } } as any });
+      }
+    } catch {
+      // ignore
+    }
+
+    try {
+      await prisma.adminAudit.create({
+        data: {
+          adminId: me,
+          targetUserId: driverId,
+          action: "DRIVER_DOCUMENT_APPROVE",
+          details: JSON.stringify({ documentId: docId, documentType: (doc as any).type || "Unknown" }),
+        },
+      });
+    } catch {
+      // ignore audit errors
+    }
+
+    try {
+      req.app.get("io")?.to?.(`driver:${driverId}`)?.emit?.("driver:documents:updated", { driverId, at: new Date().toISOString() });
+      req.app.get("io")?.to?.(`user:${driverId}`)?.emit?.("driver:documents:updated", { driverId, at: new Date().toISOString() });
+    } catch {
+      // ignore socket errors
+    }
+
+    return res.json({ ok: true, doc: updated });
+  } catch (err: any) {
+    console.error("POST /admin/drivers/:id/documents/:docId/approve error:", err);
+    return res.status(500).json({ error: "internal_error", message: err?.message });
+  }
+});
+
+/**
+ * POST /admin/drivers/:id/documents/:docId/reject {reason}
+ * Rejects a specific uploaded document for a driver.
+ */
+router.post("/:id(\\d+)/documents/:docId(\\d+)/reject", async (req, res) => {
+  try {
+    const driverId = Number(req.params.id);
+    const docId = Number(req.params.docId);
+    const reason = String(req.body?.reason ?? "").trim();
+    const me = (req.user as any)?.id;
+
+    if (!(prisma as any).userDocument) {
+      return res.status(400).json({ error: "UserDocument not supported" });
+    }
+
+    const doc = await prisma.userDocument.findUnique({ where: { id: docId } as any });
+    if (!doc || (doc as any).userId !== driverId) {
+      return res.status(404).json({ error: "Document not found" });
+    }
+
+    const updated = await prisma.userDocument.update({
+      where: { id: docId } as any,
+      data: { status: "REJECTED", reason: reason || null } as any,
+    });
+
+    // Best-effort: sync kycFieldApprovals for doc-type keys
+    try {
+      const keyByType: Record<string, string> = {
+        DRIVER_LICENSE: "drivingLicense",
+        DRIVING_LICENSE: "drivingLicense",
+        DRIVER_LICENCE: "drivingLicense",
+        DRIVING_LICENCE: "drivingLicense",
+        LICENSE: "drivingLicense",
+        NATIONAL_ID: "nationalId",
+        ID: "nationalId",
+        PASSPORT: "nationalId",
+        VEHICLE_REGISTRATION: "latra",
+        LATRA: "latra",
+        VEHICLE_REG: "latra",
+        INSURANCE: "insurance",
+      };
+      const t = String((doc as any).type ?? "").toUpperCase();
+      const key = keyByType[t];
+      if (key) {
+        const u = await prisma.user.findUnique({ where: { id: driverId }, select: { kycFieldApprovals: true } as any });
+        const prev = (u as any)?.kycFieldApprovals && typeof (u as any).kycFieldApprovals === "object" ? (u as any).kycFieldApprovals : {};
+        await prisma.user.update({ where: { id: driverId }, data: { kycFieldApprovals: { ...(prev as any), [key]: "flagged" } } as any });
+      }
+    } catch {
+      // ignore
+    }
+
+    try {
+      await prisma.adminAudit.create({
+        data: {
+          adminId: me,
+          targetUserId: driverId,
+          action: "DRIVER_DOCUMENT_REJECT",
+          details: JSON.stringify({ documentId: docId, documentType: (doc as any).type || "Unknown", reason }),
+        },
+      });
+    } catch {
+      // ignore audit errors
+    }
+
+    try {
+      req.app.get("io")?.to?.(`driver:${driverId}`)?.emit?.("driver:documents:updated", { driverId, at: new Date().toISOString() });
+      req.app.get("io")?.to?.(`user:${driverId}`)?.emit?.("driver:documents:updated", { driverId, at: new Date().toISOString() });
+    } catch {
+      // ignore socket errors
+    }
+
+    return res.json({ ok: true, doc: updated });
+  } catch (err: any) {
+    console.error("POST /admin/drivers/:id/documents/:docId/reject error:", err);
+    return res.status(500).json({ error: "internal_error", message: err?.message });
+  }
+});
+
+/**
+ * POST /admin/drivers/:id/documents/:docId/pending
+ * Resets a driver document back to PENDING (undo approve/reject).
+ */
+router.post("/:id(\\d+)/documents/:docId(\\d+)/pending", async (req, res) => {
+  try {
+    const driverId = Number(req.params.id);
+    const docId = Number(req.params.docId);
+    const me = (req.user as any)?.id;
+
+    if (!(prisma as any).userDocument) {
+      return res.status(400).json({ error: "UserDocument not supported" });
+    }
+
+    const doc = await prisma.userDocument.findUnique({ where: { id: docId } as any });
+    if (!doc || (doc as any).userId !== driverId) {
+      return res.status(404).json({ error: "Document not found" });
+    }
+
+    const updated = await prisma.userDocument.update({
+      where: { id: docId } as any,
+      data: { status: "PENDING", reason: null } as any,
+    });
+
+    // Best-effort: remove the approval flag for this doc field
+    try {
+      const keyByType: Record<string, string> = {
+        DRIVER_LICENSE: "drivingLicense",
+        DRIVING_LICENSE: "drivingLicense",
+        DRIVER_LICENCE: "drivingLicense",
+        DRIVING_LICENCE: "drivingLicense",
+        LICENSE: "drivingLicense",
+        NATIONAL_ID: "nationalId",
+        ID: "nationalId",
+        PASSPORT: "nationalId",
+        VEHICLE_REGISTRATION: "latra",
+        LATRA: "latra",
+        VEHICLE_REG: "latra",
+        INSURANCE: "insurance",
+      };
+      const t = String((doc as any).type ?? "").toUpperCase();
+      const key = keyByType[t];
+      if (key) {
+        const u = await prisma.user.findUnique({ where: { id: driverId }, select: { kycFieldApprovals: true } as any });
+        const prev = (u as any)?.kycFieldApprovals && typeof (u as any).kycFieldApprovals === "object" ? { ...(u as any).kycFieldApprovals } : {};
+        if (Object.prototype.hasOwnProperty.call(prev, key)) {
+          delete (prev as any)[key];
+          await prisma.user.update({ where: { id: driverId }, data: { kycFieldApprovals: prev } as any });
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    try {
+      await prisma.adminAudit.create({
+        data: {
+          adminId: me,
+          targetUserId: driverId,
+          action: "DRIVER_DOCUMENT_PENDING",
+          details: JSON.stringify({ documentId: docId, documentType: (doc as any).type || "Unknown" }),
+        },
+      });
+    } catch {
+      // ignore audit errors
+    }
+
+    try {
+      req.app.get("io")?.to?.(`driver:${driverId}`)?.emit?.("driver:documents:updated", { driverId, at: new Date().toISOString() });
+      req.app.get("io")?.to?.(`user:${driverId}`)?.emit?.("driver:documents:updated", { driverId, at: new Date().toISOString() });
+    } catch {
+      // ignore socket errors
+    }
+
+    return res.json({ ok: true, doc: updated });
+  } catch (err: any) {
+    console.error("POST /admin/drivers/:id/documents/:docId/pending error:", err);
+    return res.status(500).json({ error: "internal_error", message: err?.message });
+  }
+});
+
 /** POST /admin/drivers/:id/suspend {reason} */
 router.post("/:id/suspend", async (req, res) => {
   const id = Number(req.params.id);
@@ -5239,18 +5477,91 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
     else if (action === 'reject') kycStatus = 'REJECTED_KYC';
     // request_info and field_review keep current kycStatus
 
+    // When admins approve/flag driver documents in the vetting UI we store it in kycFieldApprovals.
+    // The driver portal, however, renders statuses from UserDocument.status (PENDING/APPROVED/REJECTED).
+    // Keep these in sync so the driver sees changes immediately.
+    const syncDriverDocumentStatusesFromFieldApprovals = async (approvals: any) => {
+      try {
+        if (!approvals || typeof approvals !== 'object') return;
+        const io = (req as any).app?.get?.('io');
+
+        const docFieldToTypes: Record<string, string[]> = {
+          drivingLicense: ['DRIVER_LICENSE', 'DRIVING_LICENSE', 'DRIVER_LICENCE', 'DRIVING_LICENCE', 'LICENSE'],
+          nationalId: ['NATIONAL_ID', 'ID', 'PASSPORT'],
+          latra: ['VEHICLE_REGISTRATION', 'LATRA', 'VEHICLE_REG'],
+          insurance: ['INSURANCE'],
+        };
+
+        const normalize = (v: any) => String(v ?? '').toLowerCase();
+        const desiredStatusFor = (v: any): 'PENDING' | 'APPROVED' | 'REJECTED' => {
+          const nv = normalize(v);
+          if (nv === 'approved') return 'APPROVED';
+          if (nv === 'flagged') return 'REJECTED';
+          return 'PENDING';
+        };
+
+        const updates: Promise<any>[] = [];
+        for (const [fieldKey, types] of Object.entries(docFieldToTypes)) {
+          if (!Object.prototype.hasOwnProperty.call(approvals, fieldKey)) continue;
+          const desired = desiredStatusFor((approvals as any)[fieldKey]);
+          const latest = await prisma.userDocument.findFirst({
+            where: {
+              userId: driverId,
+              type: { in: types },
+              url: { not: null },
+            } as any,
+            orderBy: { createdAt: 'desc' },
+            select: { id: true, status: true },
+          });
+          if (!latest) continue;
+
+          const current = String(latest.status ?? '').toUpperCase();
+          if (current === desired) continue;
+
+          updates.push(
+            prisma.userDocument.update({
+              where: { id: latest.id },
+              data: {
+                status: desired,
+                reason: desired === 'REJECTED'
+                  ? (typeof note === 'string' && note.trim() ? note.trim() : null)
+                  : null,
+              } as any,
+            })
+          );
+        }
+        if (updates.length > 0) {
+          await Promise.all(updates);
+          try {
+            io?.to?.(`driver:${driverId}`)?.emit?.('driver:documents:updated', { driverId, at: new Date().toISOString() });
+            io?.to?.(`user:${driverId}`)?.emit?.('driver:documents:updated', { driverId, at: new Date().toISOString() });
+          } catch {
+            // ignore socket errors
+          }
+        }
+      } catch {
+        // best-effort; do not block admin actions on doc sync
+      }
+    };
+
     if (action === 'field_review') {
       // Silent save: persist field approvals only, no notification to driver
       await prisma.user.update({
         where: { id: driverId },
         data: { kycFieldApprovals: fieldApprovals ?? null } as any,
       });
+
+      // Keep driver-facing document statuses in sync (realtime refresh)
+      await syncDriverDocumentStatusesFromFieldApprovals(fieldApprovals);
     } else if (action === 'request_info') {
       // Persist note + field approvals, then notify driver
       await prisma.user.update({
         where: { id: driverId },
         data: { kycNote: note ?? null, kycFieldApprovals: fieldApprovals ?? null } as any,
       });
+
+      // Keep driver-facing document statuses in sync (realtime refresh)
+      await syncDriverDocumentStatusesFromFieldApprovals(fieldApprovals);
     } else {
       // approve / reject — update status, clear note + field approvals
       await prisma.user.update({

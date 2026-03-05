@@ -11,6 +11,64 @@ import type { RequestHandler } from "express";
 
 router.use(requireAuth as RequestHandler, requireRole("ADMIN") as RequestHandler);
 
+async function getInvoiceOwnerValidationState(invoiceId: number) {
+  const inv = await prisma.invoice.findUnique({
+    where: { id: invoiceId },
+    select: {
+      id: true,
+      bookingId: true,
+      booking: {
+        select: {
+          id: true,
+          code: {
+            select: {
+              id: true,
+              status: true,
+              usedByOwner: true,
+              usedAt: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!inv) return { exists: false as const };
+  const code = (inv as any).booking?.code ?? null;
+  const validated = !!(code?.usedByOwner);
+  return {
+    exists: true as const,
+    bookingId: inv.bookingId,
+    validated,
+    code: code
+      ? {
+          id: code.id,
+          status: code.status,
+          usedByOwner: code.usedByOwner,
+          usedAt: code.usedAt,
+        }
+      : null,
+  };
+}
+
+async function requireOwnerValidatedForInvoice(invoiceId: number, res: any) {
+  const v = await getInvoiceOwnerValidationState(invoiceId);
+  if (!v.exists) {
+    res.status(404).json({ error: "Invoice not found" });
+    return false;
+  }
+  if (!v.validated) {
+    res.status(403).json({
+      error: "Owner validation required",
+      detail: "Owner must validate the booking code before admin can process payout/payment actions for this invoice.",
+      bookingId: v.bookingId,
+      code: v.code,
+    });
+    return false;
+  }
+  return true;
+}
+
 async function createAdminAuditSafe(data: { adminId: number; targetUserId?: number | null; action: string; details?: any }) {
   try {
     await prisma.adminAudit.create({
@@ -148,6 +206,7 @@ function nextReceiptNumber(prefix = "RCPT", seq: number) {
 /** POST /admin/invoices/:id/approve */
 router.post("/:id/approve", async (req, res) => {
   const id = Number(req.params.id);
+  if (!(await requireOwnerValidatedForInvoice(id, res))) return;
   const me = (req as AuthedRequest).user?.id;
   const before = await prisma.invoice.findUnique({ where: { id }, select: { status: true, ownerId: true, invoiceNumber: true } });
   const inv = await prisma.invoice.update({ where: { id }, data: { status: "APPROVED", approvedAt: new Date() } });
@@ -167,6 +226,7 @@ router.post("/:id/approve", async (req, res) => {
 /** POST /admin/invoices/:id/process */
 router.post("/:id/process", async (req, res) => {
   const id = Number(req.params.id);
+  if (!(await requireOwnerValidatedForInvoice(id, res))) return;
   const me = (req as AuthedRequest).user?.id;
   const before = await prisma.invoice.findUnique({ where: { id }, select: { status: true, ownerId: true, invoiceNumber: true } });
   const inv = await prisma.invoice.update({ where: { id }, data: { status: "PROCESSING" } });
@@ -190,6 +250,8 @@ router.post("/:id/process", async (req, res) => {
 router.post("/:id/pay", async (req, res) => {
   const id = Number(req.params.id);
   const { paymentRef, commissionPercent } = req.body ?? {};
+
+  if (!(await requireOwnerValidatedForInvoice(id, res))) return;
 
   const me = (req as AuthedRequest).user?.id;
   const before = await prisma.invoice.findUnique({ where: { id }, select: { status: true, ownerId: true, invoiceNumber: true, total: true } });
@@ -413,6 +475,8 @@ router.post("/:id/mark-paid", async (req, res) => {
     const authReq = req as AuthedRequest;
     const adminId = authReq.user?.id;
     if (!adminId) return res.status(401).json({ error: "Unauthorized" });
+
+    if (!(await requireOwnerValidatedForInvoice(id, res))) return;
     
     const method = String(req.body?.method ?? "BANK");
     const ref = String(req.body?.ref ?? "");

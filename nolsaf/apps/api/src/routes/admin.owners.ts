@@ -713,10 +713,41 @@ router.post("/:id/payouts", async (req, res) => {
         ownerId: id,
         status: { in: ["SUBMITTED", "VERIFIED", "APPROVED"] },
       },
+      include: {
+        booking: {
+          select: {
+            id: true,
+            code: {
+              select: {
+                id: true,
+                status: true,
+                usedByOwner: true,
+                usedAt: true,
+              },
+            },
+          },
+        },
+      },
     });
 
     if (invoices.length === 0) {
       return res.status(400).json({ error: "No pending invoices to payout" });
+    }
+
+    const notValidated = invoices
+      .filter((inv: any) => !(inv as any)?.booking?.code?.usedByOwner)
+      .map((inv: any) => ({
+        invoiceId: inv.id,
+        bookingId: inv.bookingId,
+        code: (inv as any)?.booking?.code ?? null,
+      }));
+    if (notValidated.length) {
+      return res.status(403).json({
+        error: "Owner validation required",
+        detail: "Owner must validate the booking code before admin can process payouts for these invoices.",
+        count: notValidated.length,
+        invoices: notValidated.slice(0, 20),
+      });
     }
 
     // Mark all invoices as PAID
