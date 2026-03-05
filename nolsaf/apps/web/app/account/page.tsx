@@ -85,6 +85,16 @@ export default function AccountIndex() {
       const response = await api.get("/api/account/me");
       setUser(response.data);
       setForm(response.data);
+
+      // If a traveller hasn't completed their profile (no name set), send them to onboard
+      const data = response.data;
+      const role = String(data?.role || '').toUpperCase();
+      const isCustomer = role === 'CUSTOMER' || role === 'USER' || role === 'TRAVELLER' || role === '';
+      const hasName = !!(data?.name || data?.fullName);
+      if (isCustomer && !hasName && typeof window !== 'undefined') {
+        window.location.href = '/account/onboard/traveller';
+        return;
+      }
     } catch (err) {
       console.error("Failed to load profile", err);
       const anyErr: any = err as any;
