@@ -832,15 +832,26 @@ function PropertyLocationMap({
     setLocationError(null);
     setLocationAccuracy(null);
 
-    // Auto-stop after 30 s regardless of accuracy reached
+    // Auto-stop after 60 s. If we still can't reach <=50 m,
+    // do NOT commit an imprecise location.
     watchTimeoutRef.current = window.setTimeout(() => {
       if (watchIdRef.current !== null) {
         navigator.geolocation.clearWatch(watchIdRef.current);
         watchIdRef.current = null;
-        if (isMountedRef.current) setIsDetectingLocation(false);
       }
+
+      const lastAcc = lastAccuracyUiRef.current?.accuracy;
+      if (isMountedRef.current) {
+        setIsDetectingLocation(false);
+        if (typeof lastAcc === 'number' && Number.isFinite(lastAcc) && lastAcc > 50) {
+          setLocationError(`GPS accuracy is still ±${lastAcc}m. Please wait for ≤50m, then try again (or drag the map to pin your exact building).`);
+        } else {
+          setLocationError('Unable to get a precise GPS fix. Please try again (or drag the map to pin your exact building).');
+        }
+      }
+
       watchTimeoutRef.current = null;
-    }, 30000);
+    }, 60000);
 
     watchIdRef.current = navigator.geolocation.watchPosition(
       (position) => {
@@ -861,65 +872,37 @@ function PropertyLocationMap({
           if (isMountedRef.current) setLocationAccuracy(accuracyRounded);
         }
 
-        // Throttle heavy updates (React state + map animations).
-        const lastEmit = lastEmitRef.current;
+        // Strict mode: only accept/save a fix once accuracy is <= 50 m.
+        // This prevents pinning a coarse cell-tower/IP location (e.g., ±212 m).
+        if (accuracy > 50) return;
 
-        const movedMeters = (() => {
-          if (!lastEmit) return Infinity;
-          const metersPerDegLat = 111320;
-          const metersPerDegLng = 111320 * Math.cos((lat * Math.PI) / 180);
-          const dLat = (lat - lastEmit.lat) * metersPerDegLat;
-          const dLng = (lng - lastEmit.lng) * metersPerDegLng;
-          return Math.sqrt(dLat * dLat + dLng * dLng);
-        })();
-
-        const accuracyImproved =
-          !lastEmit ||
-          accuracyRounded <= Math.max(0, lastEmit.accuracy - 25) ||
-          accuracyRounded <= Math.round(lastEmit.accuracy * 0.8);
-
-        const timeSinceLast = lastEmit ? now - lastEmit.t : Infinity;
-        const minEmitIntervalMs = 1100;
-        const movedEnough = movedMeters >= 12;
-        const forceFinal = accuracy <= 50;
-
-        const shouldEmit =
-          !lastEmit ||
-          forceFinal ||
-          ((accuracyImproved || movedEnough) && timeSinceLast >= minEmitIntervalMs);
-
-        if (!shouldEmit) return;
-
-        // Update parent occasionally (instead of every GPS tick)
+        // Commit coordinates
         if (onLocationDetectedRef.current) {
           onLocationDetectedRef.current(lat, lng);
         }
 
-        lastEmitRef.current = { lat, lng, accuracy: accuracyRounded, t: now };
-
-        // Smoothly re-center the map, but avoid expensive flyTo spam.
+        // Re-center map once (final)
         if (mapRef.current) {
           const targetZoom = accuracy > 2000 ? 11 : accuracy > 500 ? 13 : accuracy > 100 ? 15 : 17;
-          const currentZoom = typeof mapRef.current.getZoom === 'function' ? mapRef.current.getZoom() : null;
-          const zoomDelta = typeof currentZoom === 'number' ? Math.abs(currentZoom - targetZoom) : Infinity;
           mapRef.current.easeTo({
             center: [lng, lat],
-            ...(zoomDelta >= 0.35 ? { zoom: targetZoom } : {}),
-            duration: forceFinal ? 900 : 550,
+            zoom: targetZoom,
+            duration: 900,
             essential: true,
           });
         }
 
-        // Stop once we have a precise enough fix (<=50 m)
-        if (forceFinal && watchIdRef.current !== null) {
-          if (watchTimeoutRef.current !== null) {
-            clearTimeout(watchTimeoutRef.current);
-            watchTimeoutRef.current = null;
-          }
+        // Stop watchers
+        if (watchTimeoutRef.current !== null) {
+          clearTimeout(watchTimeoutRef.current);
+          watchTimeoutRef.current = null;
+        }
+        if (watchIdRef.current !== null) {
           navigator.geolocation.clearWatch(watchIdRef.current);
           watchIdRef.current = null;
-          if (isMountedRef.current) setIsDetectingLocation(false);
         }
+        if (isMountedRef.current) setIsDetectingLocation(false);
+
       },
       (error) => {
         if (watchTimeoutRef.current !== null) {
@@ -1683,6 +1666,25 @@ export default function AddProperty() {
   const [checkingPinLocation, setCheckingPinLocation] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
   const [locationTrackingEnabled, setLocationTrackingEnabled] = useState(false);
+  const locationWatchIdRef = useRef<number | null>(null);
+  const locationWatchTimeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (locationWatchTimeoutRef.current !== null) {
+        clearTimeout(locationWatchTimeoutRef.current);
+        locationWatchTimeoutRef.current = null;
+      }
+      if (locationWatchIdRef.current !== null) {
+        try {
+          navigator.geolocation?.clearWatch(locationWatchIdRef.current);
+        } catch {
+          // ignore
+        }
+        locationWatchIdRef.current = null;
+      }
+    };
+  }, []);
   const [freeCancellation, setFreeCancellation] = useState<boolean>(false);
   const [paymentModes, setPaymentModes] = useState<string[]>([]);
 
@@ -1719,34 +1721,86 @@ export default function AddProperty() {
         return;
       }
       setLocationLoading(true);
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          // Ensure correct coordinate order: latitude, longitude
-          const lat = parseFloat(position.coords.latitude.toFixed(6));
-          const lng = parseFloat(position.coords.longitude.toFixed(6));
-          
-          setLatitude(lat);
-          setLongitude(lng);
-          setLocationLoading(false);
-        },
-        (error) => {
-          setLocationLoading(false);
-          setLocationTrackingEnabled(false);
-          if (error.code === error.PERMISSION_DENIED) {
-            alert("Location access denied. Please enable location permissions in your browser settings.");
-          } else if (error.code === error.POSITION_UNAVAILABLE) {
-            alert("Location information unavailable. Please try again or enter coordinates manually.");
-          } else {
-            alert("An error occurred while getting your location. Please try again or enter coordinates manually.");
-          }
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0
+
+      // Clear any previous watch
+      if (locationWatchTimeoutRef.current !== null) {
+        clearTimeout(locationWatchTimeoutRef.current);
+        locationWatchTimeoutRef.current = null;
+      }
+      if (locationWatchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(locationWatchIdRef.current);
+        locationWatchIdRef.current = null;
+      }
+
+      // Require <=50m accuracy before saving coordinates
+      locationWatchTimeoutRef.current = window.setTimeout(() => {
+        if (locationWatchIdRef.current !== null) {
+          navigator.geolocation.clearWatch(locationWatchIdRef.current);
+          locationWatchIdRef.current = null;
         }
-      );
+        locationWatchTimeoutRef.current = null;
+        setLocationLoading(false);
+        setLocationTrackingEnabled(false);
+        alert("GPS accuracy did not reach ≤50m. Please try again (or drag the map pin to your exact building).");
+      }, 60000);
+
+      locationWatchIdRef.current =             locationWatchIdRef.current = navigator.geolocation.watchPosition(
+              (position) => {
+                const accuracy = position.coords.accuracy;
+                if (accuracy > 50) return;
+      
+                // Ensure correct coordinate order: latitude, longitude
+                const lat = parseFloat(position.coords.latitude.toFixed(6));
+                const lng = parseFloat(position.coords.longitude.toFixed(6));
+      
+                setLatitude(lat);
+                setLongitude(lng);
+                setLocationLoading(false);
+      
+                if (locationWatchTimeoutRef.current !== null) {
+                  clearTimeout(locationWatchTimeoutRef.current);
+                  locationWatchTimeoutRef.current = null;
+                }
+                if (locationWatchIdRef.current !== null) {
+                  navigator.geolocation.clearWatch(locationWatchIdRef.current);
+                  locationWatchIdRef.current = null;
+                }
+              },
+              (error) => {
+                if (locationWatchTimeoutRef.current !== null) {
+                  clearTimeout(locationWatchTimeoutRef.current);
+                  locationWatchTimeoutRef.current = null;
+                }
+                if (locationWatchIdRef.current !== null) {
+                  navigator.geolocation.clearWatch(locationWatchIdRef.current);
+                  locationWatchIdRef.current = null;
+                }
+                setLocationLoading(false);
+                setLocationTrackingEnabled(false);
+                if (error.code === error.PERMISSION_DENIED) {
+                  alert("Location access denied. Please enable location permissions in your browser settings.");
+                } else if (error.code === error.POSITION_UNAVAILABLE) {
+                  alert("Location information unavailable. Please try again or enter coordinates manually.");
+                } else {
+                  alert("An error occurred while getting your location. Please try again or enter coordinates manually.");
+                }
+              },
+              {
+                enableHighAccuracy: true,
+                timeout: 30000,
+                maximumAge: 5000
+              }
+            )
     } else {
+      // Clear any running GPS watch
+      if (locationWatchTimeoutRef.current !== null) {
+        clearTimeout(locationWatchTimeoutRef.current);
+        locationWatchTimeoutRef.current = null;
+      }
+      if (locationWatchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(locationWatchIdRef.current);
+        locationWatchIdRef.current = null;
+      }
       // Clear coordinates when toggled off
       setLatitude("");
       setLongitude("");
