@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import type { ReactNode } from "react";
 import { useMemo, useRef, useState, useEffect, useCallback } from "react";
 import { twMerge } from "tailwind-merge";
@@ -768,6 +768,8 @@ function PropertyLocationMap({
   const centerMarkerRef = useRef<HTMLDivElement | null>(null);
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const onLocationDetectedRef = useRef(onLocationDetected);
+  useEffect(() => { onLocationDetectedRef.current = onLocationDetected; });
   const hasAutoDetectedRef = useRef(false);
 
   // Function to detect user's current location
@@ -788,8 +790,8 @@ function PropertyLocationMap({
         console.log('ðŸ“ Location detected:', { latitude: lat, longitude: lng, accuracy: position.coords.accuracy });
         
         // Update parent component if callback provided
-        if (onLocationDetected) {
-          onLocationDetected(lat, lng);
+        if (onLocationDetectedRef.current) {
+          onLocationDetectedRef.current(lat, lng);
         }
         
         // Center map on detected location
@@ -824,7 +826,7 @@ function PropertyLocationMap({
         maximumAge: 0
       }
     );
-  }, [onLocationDetected]);
+  }, [pulseCenterPin]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -954,7 +956,7 @@ function PropertyLocationMap({
           locateIcon.setAttribute('height', '18');
           locateIcon.setAttribute('viewBox', '0 0 24 24');
           locateIcon.setAttribute('fill', 'none');
-          locateIcon.setAttribute('stroke', isDetectingLocation ? '#10b981' : '#02665e');
+          locateIcon.setAttribute('stroke', '#02665e');
           locateIcon.setAttribute('stroke-width', '2');
           locateIcon.setAttribute('stroke-linecap', 'round');
           locateIcon.setAttribute('stroke-linejoin', 'round');
@@ -1028,7 +1030,7 @@ function PropertyLocationMap({
           // The pin point is at y=22 (bottom of viewBox), so we position it at the bottom
           const pinPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
           pinPath.setAttribute('d', 'M20 10c0 4.418-8 12-8 12s-8-7.582-8-12a8 8 0 1 1 16 0z');
-          pinPath.setAttribute('fill', '#3b82f6'); // Blue color like the image
+          pinPath.setAttribute('fill', '#ef4444'); // Red - standard GPS pin colour
           pinPath.setAttribute('stroke', '#fff');
           pinPath.setAttribute('stroke-width', '1.5');
           
@@ -1057,8 +1059,8 @@ function PropertyLocationMap({
             const centerLng = center.lng;
 
             // Update parent component with center coordinates
-            if (onLocationDetected) {
-              onLocationDetected(centerLat, centerLng);
+            if (onLocationDetectedRef.current) {
+              onLocationDetectedRef.current(centerLat, centerLng);
             }
           };
           
@@ -1103,13 +1105,7 @@ function PropertyLocationMap({
           }
         });
 
-        // Add mapbox CSS if not already added
-        if (!document.querySelector('link[href*="mapbox-gl.css"]')) {
-          const link = document.createElement('link');
-          link.href = 'https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.css';
-          link.rel = 'stylesheet';
-          document.head.appendChild(link);
-        }
+        // CSS already loaded globally via styles/globals.css @import
       } catch (error) {
         console.error('Error initializing map:', error);
       }
@@ -1153,7 +1149,7 @@ function PropertyLocationMap({
   // isDetectingLocation intentionally excluded from deps — it is UI-only state
   // and must NOT trigger a full map re-init every time GPS starts/stops.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [latitude, longitude, postcode, detectLocation, onLocationDetected]);
+  }, [latitude, longitude, postcode, detectLocation]);
 
   return (
     <div className="w-full">
