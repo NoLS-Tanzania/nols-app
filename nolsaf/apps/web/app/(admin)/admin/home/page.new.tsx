@@ -266,7 +266,7 @@ export default function AdminHomePage() {
   const truncateLabel = (label: string, maxLen = 16) => {
     const s = String(label ?? "");
     if (s.length <= maxLen) return s;
-    return s.slice(0, Math.max(1, maxLen - 1)) + "â€¦";
+    return s.slice(0, Math.max(1, maxLen - 1)) + "…";
   };
 
   const revenueRangeTabClass = (tab: "hours" | "months" | "properties") => {
@@ -410,7 +410,7 @@ export default function AdminHomePage() {
     const s = String(value ?? "").replace(/\s+/g, " ").trim();
     if (!s) return "";
     if (s.length <= maxLen) return s;
-    return s.slice(0, Math.max(1, maxLen - 1)) + "â€¦";
+    return s.slice(0, Math.max(1, maxLen - 1)) + "…";
   };
 
   const parseDetails = (details: unknown): any => {
@@ -1381,7 +1381,7 @@ export default function AdminHomePage() {
 
                 <div className="p-5 sm:p-6">
                   {chartData === null ? (
-                    <div className="py-10 text-center text-sm text-slate-400">Loading revenue dataâ€¦</div>
+                    <div className="py-10 text-center text-sm text-slate-400">Loading revenue data…</div>
                   ) : (
                     (() => {
                       const commissionArr = chartData.datasets[0].data;

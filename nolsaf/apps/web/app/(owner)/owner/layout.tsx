@@ -8,6 +8,7 @@ import OwnerSiteHeader from "@/components/OwnerSiteHeader";
 import OwnerFooter from "@/components/OwnerFooter";
 import OwnerSidebar from "@/components/OwnerSidebar";
 import LayoutFrame from "@/components/LayoutFrame";
+import MobileOwnerNav from "@/components/MobileOwnerNav";
 
 export default function OwnerLayout({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -81,16 +82,20 @@ export default function OwnerLayout({ children }: { children: ReactNode }) {
           )}
 
           {/* Main content: add left padding on md+ equal to sidebar width plus small gap so content clears it */}
-          <div className={`pt-16 pb-6 transition-all duration-300 ease-in-out box-border max-w-full overflow-x-hidden ${sidebarOpen ? 'owner-content-gap' : 'md:ml-16'} h-full overflow-y-auto scroll-smooth`}>
+          <div className={`pt-16 pb-24 md:pb-6 transition-all duration-300 ease-in-out box-border max-w-full overflow-x-hidden ${sidebarOpen ? 'owner-content-gap' : 'md:ml-16'} h-full overflow-y-auto scroll-smooth`}>
             <main>
               <div className="w-full">
                 {children}
               </div>
             </main>
-            <OwnerFooter />
+            <div className="hidden md:block">
+              <OwnerFooter />
+            </div>
           </div>
         </div>
       </div>
+
+      <MobileOwnerNav />
     </div>
   );
 }

@@ -1059,7 +1059,7 @@ export default function PropertyAvailabilityPage() {
 
           {/* Summary Cards */}
           {availabilitySummary && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {/* Total Rooms Card */}
               <div className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-xl shadow-black/20">
                 <div className="flex items-center justify-between mb-3">
