@@ -805,12 +805,14 @@ function PropertyLocationMap({
           onLocationDetectedRef.current(lat, lng);
         }
         
-        // Center map on detected location
-        // The center pin marker will automatically show the location
+        // Center map on detected location with accuracy-aware zoom
         if (mapRef.current) {
+          const accuracy = position.coords.accuracy;
+          // Coarse GPS (>500m accuracy) → zoom 13, precise → zoom 17
+          const targetZoom = accuracy > 2000 ? 11 : accuracy > 500 ? 13 : accuracy > 100 ? 15 : 17;
           mapRef.current.flyTo({
             center: [lng, lat],
-            zoom: 17,
+            zoom: targetZoom,
             duration: 1500,
             essential: true
           });
@@ -929,10 +931,12 @@ function PropertyLocationMap({
 
         map = new mapboxgl.Map({
           container: containerEl,
-          style: 'mapbox://styles/mapbox/light-v10',
-          center: [exactLng, exactLat], // [longitude, latitude] - Mapbox format
-          zoom: 17, // Higher zoom for very precise location
+          style: 'mapbox://styles/mapbox/streets-v12',
+          center: [exactLng, exactLat],
+          zoom: 17,
           interactive: true,
+          dragRotate: false,   // no 3-D tilt — keeps map flat for property pinning
+          pitchWithRotate: false,
         });
 
         mapRef.current = map;
@@ -1093,10 +1097,8 @@ function PropertyLocationMap({
                     Math.pow(postcodeCoords[1] - exactLat, 2)
                   ) * 111; // Approximate km
                   
-                  // If coordinates are far from postcode center, log warning
-                  if (distance > 5) {
-                    console.warn('Location may be inaccurate: coordinates are far from postcode center');
-                  }
+                  // Postcode distance check — gap >5 km is common in Tanzania
+                  // (admin postcode areas are large); GPS coords are correct.
                 }
               })
               .catch(() => {});
@@ -1168,7 +1170,7 @@ function PropertyLocationMap({
       <div className="relative">
       <div 
         ref={containerRef} 
-        className="w-full h-64 sm:h-80 min-h-64 rounded-lg overflow-hidden border-2 border-gray-200 shadow-sm bg-gray-50"
+        className="w-full h-80 sm:h-[440px] min-h-[320px] rounded-xl overflow-hidden border-2 border-gray-200 shadow-sm bg-gray-50"
       />
         {/* Loading overlay when detecting location */}
         {isDetectingLocation && (
