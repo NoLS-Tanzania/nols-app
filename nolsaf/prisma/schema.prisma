@@ -528,7 +528,7 @@ model AuditLog {
   actorId    Int?
   actorRole  String? // ADMIN, OWNER, CUSTOMER, DRIVER
   action     String   @db.VarChar(80) // e.g., PROPERTY_APPROVE
-  entity     String   @db.VarChar(80) // e.g., PROPERTY, BOOKING, INVOICE
+  entity     String   @db.VarChar(200) // e.g., PROPERTY, BOOKING, INVOICE or OTP:PHONE:+255xxx:sha256hash
   entityId   Int?
   beforeJson Json?
   afterJson  Json?
