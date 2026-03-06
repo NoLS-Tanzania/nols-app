@@ -176,6 +176,8 @@ export default function DriverLiveMapCanvas({
   const [snappedDriverPos, setSnappedDriverPos] = useState<LngLat | null>(null);
   const [routeRetryNonce, setRouteRetryNonce] = useState(0);
   const [styleRevision, setStyleRevision] = useState(0);
+  const [runtimeToken, setRuntimeToken] = useState("");
+  const [tokenFetchDone, setTokenFetchDone] = useState(false);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any | null>(null);
@@ -190,10 +192,27 @@ export default function DriverLiveMapCanvas({
   const routeRetryRef = useRef<{ attempts: number; timer?: number | null } | null>(null);
   const lastEmittedOptionsKeyRef = useRef<string | null>(null);
 
+  // NEXT_PUBLIC_* vars are baked at build time. Use a runtime fetch so newly-set
+  // tokens on the host start working immediately without a rebuild.
+  useEffect(() => {
+    fetch('/config/map-token')
+      .then((r) => r.json())
+      .then((d) => {
+        if (d?.token) setRuntimeToken(d.token);
+      })
+      .catch(() => {
+        // ignore
+      })
+      .finally(() => {
+        setTokenFetchDone(true);
+      });
+  }, []);
+
   const mapboxToken =
     (process.env.NEXT_PUBLIC_MAPBOX_TOKEN as string) ||
     (process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN as string) ||
     (typeof window !== "undefined" ? (window as any).__MAPBOX_TOKEN : "") ||
+    runtimeToken ||
     "";
 
   const desiredStyleUrl = useMemo(() => {
@@ -1177,7 +1196,7 @@ export default function DriverLiveMapCanvas({
     };
   }, []);
 
-  if (!mapboxToken) {
+  if (tokenFetchDone && !mapboxToken) {
     return (
       <div className={className}>
         <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-emerald-50">
