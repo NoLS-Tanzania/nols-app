@@ -1,7 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import axios from "axios";
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft, FileText, DollarSign, Building2, Calendar, CheckCircle2, Clock, Receipt, CreditCard, AlertCircle, ShieldCheck } from "lucide-react";
 
@@ -443,11 +442,6 @@ export default function Page(){
                   <>
                     <p className="mt-1 text-sm text-amber-900 font-medium">Owner validation required</p>
                     <p className="mt-1 text-xs text-amber-800">Admin cannot verify or approve this invoice until the owner validates the booking code.</p>
-                    {inv.booking?.id ? (
-                      <Link href={`/owner/bookings/validate?bookingId=${inv.booking.id}`} className="mt-3 inline-flex items-center rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-medium text-amber-900 hover:bg-amber-50">
-                        Open validation flow
-                      </Link>
-                    ) : null}
                   </>
                 )}
               </div>
