@@ -777,7 +777,7 @@ function PropertyLocationMap({
   // build time, so a freshly-set env var on the host won't appear until
   // a rebuild. This API route reads process.env server-side at request time.
   useEffect(() => {
-    fetch('/api/config/map-token')
+    fetch('/config/map-token')
       .then(r => r.json())
       .then(d => { if (d.token) setRuntimeToken(d.token); })
       .catch(() => {});
