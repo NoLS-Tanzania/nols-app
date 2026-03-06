@@ -771,9 +771,32 @@ function PropertyLocationMap({
   const [runtimeToken, setRuntimeToken] = useState('');
   const [locationAccuracy, setLocationAccuracy] = useState<number | null>(null);
   const watchIdRef = useRef<number | null>(null);
+  const watchTimeoutRef = useRef<number | null>(null);
+  const lastEmitRef = useRef<{ lat: number; lng: number; accuracy: number; t: number } | null>(null);
+  const lastAccuracyUiRef = useRef<{ accuracy: number; t: number } | null>(null);
+  const isMountedRef = useRef(true);
   const onLocationDetectedRef = useRef(onLocationDetected);
   useEffect(() => { onLocationDetectedRef.current = onLocationDetected; });
   const hasAutoDetectedRef = useRef(false);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (watchTimeoutRef.current !== null) {
+        clearTimeout(watchTimeoutRef.current);
+        watchTimeoutRef.current = null;
+      }
+      if (watchIdRef.current !== null) {
+        try {
+          navigator.geolocation?.clearWatch(watchIdRef.current);
+        } catch {
+          // ignore
+        }
+        watchIdRef.current = null;
+      }
+    };
+  }, []);
 
   // Fetch the Mapbox token at runtime. NEXT_PUBLIC_* vars are baked at
   // build time, so a freshly-set env var on the host won't appear until
@@ -792,23 +815,31 @@ function PropertyLocationMap({
       return;
     }
 
-    // Stop any previous watch
+    // Stop any previous watch + timer
     if (watchIdRef.current !== null) {
       navigator.geolocation.clearWatch(watchIdRef.current);
       watchIdRef.current = null;
     }
+    if (watchTimeoutRef.current !== null) {
+      clearTimeout(watchTimeoutRef.current);
+      watchTimeoutRef.current = null;
+    }
+
+    lastEmitRef.current = null;
+    lastAccuracyUiRef.current = null;
 
     setIsDetectingLocation(true);
     setLocationError(null);
     setLocationAccuracy(null);
 
     // Auto-stop after 30 s regardless of accuracy reached
-    const watchTimeout = setTimeout(() => {
+    watchTimeoutRef.current = window.setTimeout(() => {
       if (watchIdRef.current !== null) {
         navigator.geolocation.clearWatch(watchIdRef.current);
         watchIdRef.current = null;
-        setIsDetectingLocation(false);
+        if (isMountedRef.current) setIsDetectingLocation(false);
       }
+      watchTimeoutRef.current = null;
     }, 30000);
 
     watchIdRef.current = navigator.geolocation.watchPosition(
@@ -816,40 +847,91 @@ function PropertyLocationMap({
         const lat = parseFloat(position.coords.latitude.toFixed(6));
         const lng = parseFloat(position.coords.longitude.toFixed(6));
         const accuracy = position.coords.accuracy;
+        const accuracyRounded = Math.round(accuracy);
+        const now = Date.now();
 
-        setLocationAccuracy(Math.round(accuracy));
+        // Update the accuracy UI, but throttle it to avoid excessive re-renders.
+        const lastUi = lastAccuracyUiRef.current;
+        const shouldUpdateAccuracyUi =
+          !lastUi ||
+          now - lastUi.t >= 600 ||
+          Math.abs(accuracyRounded - lastUi.accuracy) >= 15;
+        if (shouldUpdateAccuracyUi) {
+          lastAccuracyUiRef.current = { accuracy: accuracyRounded, t: now };
+          if (isMountedRef.current) setLocationAccuracy(accuracyRounded);
+        }
 
-        // Update parent with every improved fix so the pin refines
+        // Throttle heavy updates (React state + map animations).
+        const lastEmit = lastEmitRef.current;
+
+        const movedMeters = (() => {
+          if (!lastEmit) return Infinity;
+          const metersPerDegLat = 111320;
+          const metersPerDegLng = 111320 * Math.cos((lat * Math.PI) / 180);
+          const dLat = (lat - lastEmit.lat) * metersPerDegLat;
+          const dLng = (lng - lastEmit.lng) * metersPerDegLng;
+          return Math.sqrt(dLat * dLat + dLng * dLng);
+        })();
+
+        const accuracyImproved =
+          !lastEmit ||
+          accuracyRounded <= Math.max(0, lastEmit.accuracy - 25) ||
+          accuracyRounded <= Math.round(lastEmit.accuracy * 0.8);
+
+        const timeSinceLast = lastEmit ? now - lastEmit.t : Infinity;
+        const minEmitIntervalMs = 1100;
+        const movedEnough = movedMeters >= 12;
+        const forceFinal = accuracy <= 50;
+
+        const shouldEmit =
+          !lastEmit ||
+          forceFinal ||
+          ((accuracyImproved || movedEnough) && timeSinceLast >= minEmitIntervalMs);
+
+        if (!shouldEmit) return;
+
+        // Update parent occasionally (instead of every GPS tick)
         if (onLocationDetectedRef.current) {
           onLocationDetectedRef.current(lat, lng);
         }
 
-        // Fly to this fix with accuracy-aware zoom
+        lastEmitRef.current = { lat, lng, accuracy: accuracyRounded, t: now };
+
+        // Smoothly re-center the map, but avoid expensive flyTo spam.
         if (mapRef.current) {
           const targetZoom = accuracy > 2000 ? 11 : accuracy > 500 ? 13 : accuracy > 100 ? 15 : 17;
-          mapRef.current.flyTo({
+          const currentZoom = typeof mapRef.current.getZoom === 'function' ? mapRef.current.getZoom() : null;
+          const zoomDelta = typeof currentZoom === 'number' ? Math.abs(currentZoom - targetZoom) : Infinity;
+          mapRef.current.easeTo({
             center: [lng, lat],
-            zoom: targetZoom,
-            duration: accuracy < 200 ? 1200 : 600,
+            ...(zoomDelta >= 0.35 ? { zoom: targetZoom } : {}),
+            duration: forceFinal ? 900 : 550,
             essential: true,
           });
         }
 
         // Stop once we have a precise enough fix (<=50 m)
-        if (accuracy <= 50 && watchIdRef.current !== null) {
-          clearTimeout(watchTimeout);
+        if (forceFinal && watchIdRef.current !== null) {
+          if (watchTimeoutRef.current !== null) {
+            clearTimeout(watchTimeoutRef.current);
+            watchTimeoutRef.current = null;
+          }
           navigator.geolocation.clearWatch(watchIdRef.current);
           watchIdRef.current = null;
-          setIsDetectingLocation(false);
+          if (isMountedRef.current) setIsDetectingLocation(false);
         }
       },
       (error) => {
-        clearTimeout(watchTimeout);
+        if (watchTimeoutRef.current !== null) {
+          clearTimeout(watchTimeoutRef.current);
+          watchTimeoutRef.current = null;
+        }
         if (watchIdRef.current !== null) {
           navigator.geolocation.clearWatch(watchIdRef.current);
           watchIdRef.current = null;
         }
-        setIsDetectingLocation(false);
+        if (isMountedRef.current) setIsDetectingLocation(false);
+
         let errorMsg = 'Failed to get your location.';
         if (error.code === error.PERMISSION_DENIED) {
           errorMsg = 'Location access denied. Please enable location permissions in your browser.';
@@ -858,12 +940,12 @@ function PropertyLocationMap({
         } else if (error.code === error.TIMEOUT) {
           errorMsg = 'GPS timed out. Drag the map manually to your property.';
         }
-        setLocationError(errorMsg);
+        if (isMountedRef.current) setLocationError(errorMsg);
       },
       {
         enableHighAccuracy: true,
         timeout: 30000,
-        maximumAge: 0,
+        maximumAge: 5000,
       }
     );
   }, []);
