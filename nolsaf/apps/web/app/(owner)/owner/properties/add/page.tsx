@@ -769,6 +769,8 @@ function PropertyLocationMap({
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [runtimeToken, setRuntimeToken] = useState('');
+  const [locationAccuracy, setLocationAccuracy] = useState<number | null>(null);
+  const watchIdRef = useRef<number | null>(null);
   const onLocationDetectedRef = useRef(onLocationDetected);
   useEffect(() => { onLocationDetectedRef.current = onLocationDetected; });
   const hasAutoDetectedRef = useRef(false);
@@ -783,60 +785,85 @@ function PropertyLocationMap({
       .catch(() => {});
   }, []);
 
-  // Function to detect user's current location
+  // Detect location using watchPosition for progressive GPS accuracy
   const detectLocation = useCallback(() => {
     if (!navigator.geolocation) {
       setLocationError('Geolocation is not supported by your browser.');
       return;
     }
 
+    // Stop any previous watch
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+    }
+
     setIsDetectingLocation(true);
     setLocationError(null);
+    setLocationAccuracy(null);
 
-    navigator.geolocation.getCurrentPosition(
+    // Auto-stop after 30 s regardless of accuracy reached
+    const watchTimeout = setTimeout(() => {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+        setIsDetectingLocation(false);
+      }
+    }, 30000);
+
+    watchIdRef.current = navigator.geolocation.watchPosition(
       (position) => {
         const lat = parseFloat(position.coords.latitude.toFixed(6));
         const lng = parseFloat(position.coords.longitude.toFixed(6));
-        
-        console.log('ðŸ“ Location detected:', { latitude: lat, longitude: lng, accuracy: position.coords.accuracy });
-        
-        // Update parent component if callback provided
+        const accuracy = position.coords.accuracy;
+
+        setLocationAccuracy(Math.round(accuracy));
+
+        // Update parent with every improved fix so the pin refines
         if (onLocationDetectedRef.current) {
           onLocationDetectedRef.current(lat, lng);
         }
-        
-        // Center map on detected location with accuracy-aware zoom
+
+        // Fly to this fix with accuracy-aware zoom
         if (mapRef.current) {
-          const accuracy = position.coords.accuracy;
-          // Coarse GPS (>500m accuracy) → zoom 13, precise → zoom 17
           const targetZoom = accuracy > 2000 ? 11 : accuracy > 500 ? 13 : accuracy > 100 ? 15 : 17;
           mapRef.current.flyTo({
             center: [lng, lat],
             zoom: targetZoom,
-            duration: 1500,
-            essential: true
+            duration: accuracy < 200 ? 1200 : 600,
+            essential: true,
           });
         }
-        
-        setIsDetectingLocation(false);
+
+        // Stop once we have a precise enough fix (<=50 m)
+        if (accuracy <= 50 && watchIdRef.current !== null) {
+          clearTimeout(watchTimeout);
+          navigator.geolocation.clearWatch(watchIdRef.current);
+          watchIdRef.current = null;
+          setIsDetectingLocation(false);
+        }
       },
       (error) => {
+        clearTimeout(watchTimeout);
+        if (watchIdRef.current !== null) {
+          navigator.geolocation.clearWatch(watchIdRef.current);
+          watchIdRef.current = null;
+        }
         setIsDetectingLocation(false);
         let errorMsg = 'Failed to get your location.';
         if (error.code === error.PERMISSION_DENIED) {
-          errorMsg = 'Location access denied. Please enable location permissions.';
+          errorMsg = 'Location access denied. Please enable location permissions in your browser.';
         } else if (error.code === error.POSITION_UNAVAILABLE) {
-          errorMsg = 'Location information unavailable.';
+          errorMsg = 'Location unavailable. Try on mobile with GPS enabled.';
         } else if (error.code === error.TIMEOUT) {
-          errorMsg = 'Location request timed out.';
+          errorMsg = 'GPS timed out. Drag the map manually to your property.';
         }
         setLocationError(errorMsg);
-        console.error('Geolocation error:', error);
       },
       {
         enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0
+        timeout: 30000,
+        maximumAge: 0,
       }
     );
   }, []);
@@ -1184,29 +1211,64 @@ function PropertyLocationMap({
       </div>
       
       {/* Location info and error messages */}
-      <div className="mt-2 space-y-1">
-        <div className="text-xs text-gray-600 flex items-center gap-2">
-        <MapPin className="w-3.5 h-3.5 text-[#02665e]" />
-          <span>
-            {Number.isFinite(latitude) && Number.isFinite(longitude) 
-              ? `Location: ${Number(latitude).toFixed(6)}, ${Number(longitude).toFixed(6)}`
-              : 'No location set. Click "Locate Me" button on map to detect your location.'}
-          </span>
-        {postcode && <span className="text-[#02665e] font-medium">â€¢ Postcode: {postcode}</span>}
-        </div>
-        
+      <div className="mt-2 space-y-1.5">
+
+        {/* Detecting — show live accuracy progress */}
+        {isDetectingLocation && (
+          <div className="flex items-center gap-2 text-xs text-[#02665e] font-medium">
+            <div className="w-3.5 h-3.5 border-2 border-[#02665e] border-t-transparent rounded-full animate-spin flex-shrink-0" />
+            <span>
+              {locationAccuracy !== null
+                ? `Refining GPS… accuracy ±${locationAccuracy} m`
+                : 'Requesting GPS signal…'}
+            </span>
+          </div>
+        )}
+
+        {/* Coordinates + accuracy badge once we have a fix */}
+        {!isDetectingLocation && Number.isFinite(latitude) && Number.isFinite(longitude) && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+            <span className="flex items-center gap-1 text-emerald-700 font-medium">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              Location pinned
+              {locationAccuracy !== null && (
+                <span className="ml-1 px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold">
+                  ±{locationAccuracy} m
+                </span>
+              )}
+            </span>
+            <span className="text-gray-400">{Number(latitude).toFixed(6)}, {Number(longitude).toFixed(6)}</span>
+          </div>
+        )}
+
+        {/* Drag hint */}
+        {Number.isFinite(latitude) && Number.isFinite(longitude) && (
+          <div className="flex items-center gap-1.5 text-xs text-slate-500">
+            <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4" />
+            </svg>
+            <span>Drag the map to fine-tune the pin to your exact building</span>
+          </div>
+        )}
+
+        {/* No location yet */}
+        {!isDetectingLocation && !Number.isFinite(latitude) && (
+          <div className="flex items-center gap-1.5 text-xs text-gray-500">
+            <MapPin className="w-3.5 h-3.5 text-[#02665e]" />
+            <span>Tap the <span className="font-semibold text-[#02665e]">locate button</span> on the map to auto-detect your location</span>
+          </div>
+        )}
+
+        {/* Error */}
         {locationError && (
-          <div className="text-xs text-rose-600 flex items-center gap-1">
-            <AlertCircle className="w-3.5 h-3.5" />
+          <div className="text-xs text-rose-600 flex items-center gap-1.5">
+            <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
             <span>{locationError}</span>
           </div>
         )}
-        
-        {!isDetectingLocation && Number.isFinite(latitude) && Number.isFinite(longitude) && (
-          <div className="text-xs text-emerald-600 flex items-center gap-1">
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>Location detected successfully</span>
-          </div>
+
+        {postcode && (
+          <div className="text-xs text-slate-500">Postcode: <span className="text-[#02665e] font-medium">{postcode}</span></div>
         )}
       </div>
     </div>
