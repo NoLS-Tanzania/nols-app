@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import axios from "axios";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, FileText, DollarSign, Building2, Calendar, CheckCircle2, Clock, Receipt, CreditCard } from "lucide-react";
+import { ArrowLeft, FileText, DollarSign, Building2, Calendar, CheckCircle2, Clock, Receipt, CreditCard, AlertCircle, ShieldCheck } from "lucide-react";
 
 // Use same-origin calls + secure httpOnly cookie session.
 const api = axios.create({ baseURL: "", withCredentials: true });
@@ -12,6 +12,17 @@ type Inv = {
   id:number; invoiceNumber:string|null; receiptNumber:string|null; status:string;
   issuedAt:string; total:number; commissionPercent:number; commissionAmount:number; taxPercent:number; netPayable:number;
   booking: { id:number; property: { id:number; title:string } };
+  ownerValidation?: {
+    required: boolean;
+    validated: boolean;
+    validatedAt: string | null;
+    code?: {
+      id: number;
+      status: string | null;
+      usedByOwner: boolean | null;
+      usedAt: string | null;
+    } | null;
+  } | null;
   relatedInvoices?: Array<{ id: number; invoiceNumber: string | null; status: string }>;
   effectiveCommissionPercent?: number;
   financialPreview?: {
@@ -49,6 +60,7 @@ export default function Page(){
   const [payMethod, setPayMethod] = useState("BANK");
   const [payRef, setPayRef] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
+  const [actionMessage, setActionMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
   
   const defaultVerificationMessage = "Invoice verified and approved for processing.";
 
@@ -57,6 +69,7 @@ export default function Page(){
     try {
       const r = await api.get<Inv>(`/api/admin/revenue/invoices/${id}`);
       setInv(r.data);
+      setActionMessage(null);
     } catch (err: any) {
       console.error("Failed to load invoice:", err);
     } finally {
@@ -81,19 +94,29 @@ export default function Page(){
   }, [inv?.ownerPayout?.payoutPreferred]);
 
   async function verify(){
+    if (!inv?.ownerValidation?.validated) {
+      setActionMessage({ type: "error", text: "Owner validation is required before admin can verify this invoice." });
+      return;
+    }
     setActionLoading(true);
     try {
       const verificationNotes = notes.trim() || defaultVerificationMessage;
       await api.post(`/api/admin/revenue/invoices/${id}/verify`, { notes: verificationNotes });
       await load();
       setNotes("");
+      setActionMessage({ type: "success", text: "Invoice verified successfully." });
     } catch (err: any) {
-      alert(err?.response?.data?.error || "Failed to verify invoice");
+      const detail = err?.response?.data?.detail;
+      setActionMessage({ type: "error", text: detail || err?.response?.data?.error || "Failed to verify invoice" });
     } finally {
       setActionLoading(false);
     }
   }
   async function approve(){
+    if (!inv?.ownerValidation?.validated) {
+      setActionMessage({ type: "error", text: "Owner validation is required before admin can approve this invoice." });
+      return;
+    }
     setActionLoading(true);
     try {
       await api.post(`/api/admin/revenue/invoices/${id}/approve`, {
@@ -101,15 +124,17 @@ export default function Page(){
       });
       await load();
       setOverrideTax("");
+      setActionMessage({ type: "success", text: "Invoice approved successfully." });
     } catch (err: any) {
-      alert(err?.response?.data?.error || "Failed to approve invoice");
+      const detail = err?.response?.data?.detail;
+      setActionMessage({ type: "error", text: detail || err?.response?.data?.error || "Failed to approve invoice" });
     } finally {
       setActionLoading(false);
     }
   }
   async function markPaid(){
     if (!payRef.trim()) {
-      alert("Please enter a payment reference");
+      setActionMessage({ type: "error", text: "Please enter a payment reference." });
       return;
     }
     setActionLoading(true);
@@ -117,8 +142,10 @@ export default function Page(){
       await api.post(`/api/admin/revenue/invoices/${id}/mark-paid`, { method: payMethod, ref: payRef });
       await load();
       setPayRef("");
+      setActionMessage({ type: "success", text: "Invoice marked as paid successfully." });
     } catch (err: any) {
-      alert(err?.response?.data?.error || "Failed to mark as paid");
+      const detail = err?.response?.data?.detail;
+      setActionMessage({ type: "error", text: detail || err?.response?.data?.error || "Failed to mark as paid" });
     } finally {
       setActionLoading(false);
     }
@@ -209,6 +236,8 @@ export default function Page(){
     if (!n) return false;
     return isOwnerClaim ? n.startsWith("INV-") : n.startsWith("OINV-");
   }) ?? (inv.relatedInvoices || [])[0] ?? null;
+  const ownerValidated = !!inv.ownerValidation?.validated;
+  const ownerValidatedAt = inv.ownerValidation?.validatedAt ?? null;
 
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 xl:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6 min-w-0">
@@ -394,6 +423,48 @@ export default function Page(){
 
         {/* Sidebar - Actions */}
         <div className="space-y-4 sm:space-y-6 min-w-0">
+          <div className={`rounded-xl border p-4 sm:p-5 overflow-hidden ${ownerValidated ? 'border-emerald-200 bg-emerald-50/70' : 'border-amber-200 bg-amber-50/80'}`}>
+            <div className="flex items-start gap-3">
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${ownerValidated ? 'bg-emerald-100' : 'bg-amber-100'}`}>
+                {ownerValidated ? <ShieldCheck className="h-5 w-5 text-emerald-700" /> : <AlertCircle className="h-5 w-5 text-amber-700" />}
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-base font-semibold text-gray-900">Owner validation</h3>
+                {ownerValidated ? (
+                  <>
+                    <p className="mt-1 text-sm text-emerald-900 font-medium">Validated</p>
+                    {ownerValidatedAt && (
+                      <p className="mt-1 text-xs text-emerald-800">
+                        {new Date(ownerValidatedAt).toLocaleDateString()} at {new Date(ownerValidatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <p className="mt-1 text-sm text-amber-900 font-medium">Owner validation required</p>
+                    <p className="mt-1 text-xs text-amber-800">Admin cannot verify or approve this invoice until the owner validates the booking code.</p>
+                    {inv.booking?.id ? (
+                      <Link href={`/owner/bookings/validate?bookingId=${inv.booking.id}`} className="mt-3 inline-flex items-center rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-medium text-amber-900 hover:bg-amber-50">
+                        Open validation flow
+                      </Link>
+                    ) : null}
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {actionMessage && (
+            <div className={`rounded-xl border p-4 overflow-hidden ${actionMessage.type === 'error' ? 'border-rose-200 bg-rose-50' : 'border-emerald-200 bg-emerald-50'}`}>
+              <div className="flex items-start gap-3">
+                <div className={`mt-0.5 ${actionMessage.type === 'error' ? 'text-rose-600' : 'text-emerald-600'}`}>
+                  {actionMessage.type === 'error' ? <AlertCircle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
+                </div>
+                <p className={`text-sm ${actionMessage.type === 'error' ? 'text-rose-900' : 'text-emerald-900'}`}>{actionMessage.text}</p>
+              </div>
+            </div>
+          )}
+
           {/* Saved payout details */}
           {(inv.ownerPayout?.payoutPreferred || inv.ownerPayout?.bankAccountNumber || inv.ownerPayout?.mobileMoneyNumber) && (
             <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden">
@@ -458,7 +529,7 @@ export default function Page(){
                 <button
                   className="w-full px-4 py-2.5 sm:py-3 bg-blue-600 text-white rounded-lg text-sm sm:text-base font-medium hover:bg-blue-700 active:bg-blue-800 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   onClick={verify}
-                  disabled={actionLoading}
+                  disabled={actionLoading || !ownerValidated}
                 >
                   {actionLoading ? (
                     <>
@@ -522,7 +593,7 @@ export default function Page(){
                 <button
                   className="w-full px-4 py-2.5 sm:py-3 bg-emerald-600 text-white rounded-lg text-sm sm:text-base font-medium hover:bg-emerald-700 active:bg-emerald-800 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   onClick={approve}
-                  disabled={actionLoading}
+                  disabled={actionLoading || !ownerValidated}
                 >
                   {actionLoading ? (
                     <>
@@ -620,6 +691,21 @@ export default function Page(){
               </div>
 
               {/* Verified */}
+              {ownerValidatedAt && (
+                <div className="flex items-start gap-3 p-3 sm:p-4 bg-sky-50 rounded-lg border-l-4 border-sky-500">
+                  <ShieldCheck className="h-4 w-4 text-sky-600 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-gray-900">Owner Validated Booking</div>
+                    <div className="text-xs text-gray-600 mt-1">
+                      {new Date(ownerValidatedAt).toLocaleDateString()} at {new Date(ownerValidatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                    </div>
+                    {inv.ownerValidation?.code?.status && (
+                      <div className="text-xs text-gray-500 mt-1">Code status: {inv.ownerValidation.code.status}</div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {inv.verifiedAt && (
                 <div className="flex items-start gap-3 p-3 sm:p-4 bg-blue-50 rounded-lg border-l-4 border-blue-500">
                   <CheckCircle2 className="h-4 w-4 text-blue-600 flex-shrink-0 mt-0.5" />

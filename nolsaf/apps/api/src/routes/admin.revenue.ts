@@ -365,6 +365,14 @@ router.get("/invoices/:id(\\d+)", async (req, res) => {
             property: {
               select: adminInvoicePropertyWithOwnerSelect,
             },
+            code: {
+              select: {
+                id: true,
+                status: true,
+                usedByOwner: true,
+                usedAt: true,
+              },
+            },
           },
         },
         verifiedByUser: { select: { id: true, name: true } },
@@ -415,6 +423,12 @@ router.get("/invoices/:id(\\d+)", async (req, res) => {
     // Add accountNumber to response
     const response: any = { ...inv };
     response.accountNumber = accountNumber;
+    response.ownerValidation = {
+      required: true,
+      validated: !!((inv as any)?.booking?.code?.usedByOwner),
+      validatedAt: (inv as any)?.booking?.code?.usedAt ?? null,
+      code: (inv as any)?.booking?.code ?? null,
+    };
 
     // Mirror invoices: for the same booking we may have both a public payment invoice (INV-...)
     // and an owner-claim invoice (OINV-...). Expose them so Admin can navigate without losing records.
