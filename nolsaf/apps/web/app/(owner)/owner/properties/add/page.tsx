@@ -768,9 +768,20 @@ function PropertyLocationMap({
   const centerMarkerRef = useRef<HTMLDivElement | null>(null);
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [runtimeToken, setRuntimeToken] = useState('');
   const onLocationDetectedRef = useRef(onLocationDetected);
   useEffect(() => { onLocationDetectedRef.current = onLocationDetected; });
   const hasAutoDetectedRef = useRef(false);
+
+  // Fetch the Mapbox token at runtime. NEXT_PUBLIC_* vars are baked at
+  // build time, so a freshly-set env var on the host won't appear until
+  // a rebuild. This API route reads process.env server-side at request time.
+  useEffect(() => {
+    fetch('/api/config/map-token')
+      .then(r => r.json())
+      .then(d => { if (d.token) setRuntimeToken(d.token); })
+      .catch(() => {});
+  }, []);
 
   // Function to detect user's current location
   const detectLocation = useCallback(() => {
@@ -870,6 +881,7 @@ function PropertyLocationMap({
       (process.env.NEXT_PUBLIC_MAPBOX_TOKEN as string) ||
       (process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN as string) ||
       (window as any).__MAPBOX_TOKEN ||
+      runtimeToken ||
       '';
 
     if (!token) {
@@ -1149,7 +1161,7 @@ function PropertyLocationMap({
   // isDetectingLocation intentionally excluded from deps — it is UI-only state
   // and must NOT trigger a full map re-init every time GPS starts/stops.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [latitude, longitude, postcode, detectLocation]);
+  }, [latitude, longitude, postcode, detectLocation, runtimeToken]);
 
   return (
     <div className="w-full">
