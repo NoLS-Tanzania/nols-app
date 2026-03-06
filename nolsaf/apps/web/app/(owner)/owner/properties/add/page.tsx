@@ -826,7 +826,7 @@ function PropertyLocationMap({
         maximumAge: 0
       }
     );
-  }, [pulseCenterPin]);
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
