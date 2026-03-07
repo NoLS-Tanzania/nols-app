@@ -201,6 +201,13 @@ export default function AdminAllDriversPage() {
   const [revokeSubmitting, setRevokeSubmitting] = useState(false);
   const [revokeError, setRevokeError] = useState<string | null>(null);
 
+  // Unrevoke modal state
+  const [unrevokeTarget, setUnrevokeTarget] = useState<DriverRow | null>(null);
+  const [unrevokeReason, setUnrevokeReason] = useState("");
+  const [unrevokePolicyAgreed, setUnrevokePolicyAgreed] = useState(false);
+  const [unrevokeSubmitting, setUnrevokeSubmitting] = useState(false);
+  const [unrevokeError, setUnrevokeError] = useState<string | null>(null);
+
   // Reject modal state
   const [rejectTarget, setRejectTarget] = useState<DriverRow | null>(null);
   const [rejectReason, setRejectReason] = useState("");
@@ -218,6 +225,13 @@ export default function AdminAllDriversPage() {
     setRejectTarget(driver);
     setRejectReason("");
     setRejectError(null);
+  }
+
+  function openUnrevokeModal(driver: DriverRow) {
+    setUnrevokeTarget(driver);
+    setUnrevokeReason("");
+    setUnrevokePolicyAgreed(false);
+    setUnrevokeError(null);
   }
 
   async function submitRevoke() {
@@ -254,6 +268,28 @@ export default function AdminAllDriversPage() {
       setRejectError(e?.response?.data?.message || e?.message || 'Failed to reject driver');
     } finally {
       setRejectSubmitting(false);
+    }
+  }
+
+  async function submitUnrevoke() {
+    if (!unrevokeTarget || !unrevokeReason || !unrevokePolicyAgreed) return;
+    setUnrevokeSubmitting(true);
+    setUnrevokeError(null);
+    try {
+      await api.patch(`/api/admin/drivers/${unrevokeTarget.id}/kyc`, {
+        action: 'unrevoke',
+        reason: unrevokeReason,
+      });
+      setItems(prev => prev.map(d =>
+        d.id === unrevokeTarget.id
+          ? { ...d, suspendedAt: null, kycStatus: 'APPROVED_KYC' }
+          : d
+      ));
+      setUnrevokeTarget(null);
+    } catch (e: any) {
+      setUnrevokeError(e?.response?.data?.message || e?.message || 'Failed to lift driver suspension');
+    } finally {
+      setUnrevokeSubmitting(false);
     }
   }
 
@@ -618,14 +654,15 @@ export default function AdminAllDriversPage() {
                             </button>
                           )}
                           {d.suspendedAt && (
-                            <Link
-                              href={`/admin/drivers/vetting`}
-                              className="inline-flex items-center justify-center h-8 w-8 rounded-lg text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 no-underline"
-                              title="Manage revoked driver in vetting"
+                            <button
+                              type="button"
+                              onClick={() => openUnrevokeModal(d)}
+                              className="inline-flex items-center justify-center h-8 w-8 rounded-lg text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors"
+                              title="Lift driver suspension"
                             >
-                              <ShieldX className="w-4 h-4" aria-hidden />
-                              <span className="sr-only">Manage revoked driver</span>
-                            </Link>
+                              <CheckCircle2 className="w-4 h-4" aria-hidden />
+                              <span className="sr-only">Lift driver suspension</span>
+                            </button>
                           )}
                         </div>
                       </td>
@@ -727,6 +764,94 @@ export default function AdminAllDriversPage() {
               >
                 Cancel
               </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Unrevoke confirmation modal ───────────────────────────────── */}
+      {unrevokeTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-4 sm:p-6">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-[2px]" onClick={() => setUnrevokeTarget(null)} aria-hidden />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Lift driver suspension"
+            className="relative my-auto w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/10 max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3rem)] flex flex-col"
+          >
+            <div className="px-5 py-4 border-b border-slate-200 bg-emerald-50 flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                <CheckCircle2 className="w-5 h-5 text-emerald-700" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-base font-bold text-emerald-900">Lift Driver Suspension</h2>
+                <p className="text-xs text-emerald-700 mt-0.5 truncate">{unrevokeTarget.name} — {unrevokeTarget.email}</p>
+              </div>
+              <button onClick={() => setUnrevokeTarget(null)} className="p-1 rounded-lg hover:bg-emerald-100 text-emerald-700 transition-colors flex-shrink-0">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+              <div className="flex items-start gap-2.5 p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                <AlertTriangle className="w-4 h-4 text-emerald-700 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-emerald-700 leading-relaxed">
+                  You are about to unsuspend this driver and restore access to the NoLSAF driver portal. The driver will receive a dedicated unsuspension SMS and email.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">
+                  Reason for unsuspend <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={unrevokeReason}
+                  onChange={e => setUnrevokeReason(e.target.value)}
+                  className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none bg-white"
+                >
+                  <option value="">— Select a reason —</option>
+                  <option value="Appeal reviewed and approved">Appeal reviewed and approved</option>
+                  <option value="Issue resolved">Issue resolved</option>
+                  <option value="Documents verified and cleared">Documents verified and cleared</option>
+                  <option value="Administrative correction">Administrative correction</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              <label className="flex items-start gap-2.5 cursor-pointer p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                <input
+                  type="checkbox"
+                  checked={unrevokePolicyAgreed}
+                  onChange={e => setUnrevokePolicyAgreed(e.target.checked)}
+                  className="mt-0.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 flex-shrink-0 cursor-pointer"
+                />
+                <span className="text-xs text-slate-600 leading-relaxed">
+                  I confirm that I have reviewed this suspension case, that restoring access is justified, and that I take responsibility for this unsuspend action.
+                </span>
+              </label>
+
+              {unrevokeError && (
+                <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{unrevokeError}</p>
+              )}
+            </div>
+
+            <div className="shrink-0 border-t border-slate-200 px-5 py-4">
+              <div className="flex gap-3">
+                <button
+                  disabled={unrevokeSubmitting || !unrevokeReason || !unrevokePolicyAgreed}
+                  onClick={submitUnrevoke}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {unrevokeSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                  Confirm Unsuspend
+                </button>
+                <button
+                  onClick={() => setUnrevokeTarget(null)}
+                  className="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 transition-colors"
+                >
+                  Cancel
+                </button>
               </div>
             </div>
           </div>
