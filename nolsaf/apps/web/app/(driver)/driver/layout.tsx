@@ -336,8 +336,8 @@ export default function DriverLayout({ children }: { children: ReactNode }) {
                 className="absolute inset-0 bg-black/20 backdrop-blur-sm nols-soft-overlay"
                 onClick={() => setMobileSidebarOpen(false)}
               />
-              <aside className="absolute left-0 top-16 h-[calc(100%-4rem)] w-[min(20rem,calc(100vw-1rem))] p-3 nols-soft-popover">
-                <div className="sidebar-scroll h-full overflow-y-auto rounded-3xl">
+              <aside className="absolute left-0 top-16 h-[calc(100%-4rem)] w-[min(17.5rem,calc(100vw-1rem))] p-2 nols-soft-popover">
+                <div className="sidebar-scroll h-full overflow-y-auto scroll-smooth rounded-3xl">
                   <DriverSidebar />
                 </div>
               </aside>

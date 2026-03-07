@@ -39,9 +39,9 @@ function Item({
       aria-current={active ? "page" : undefined}
       className={[
         "no-underline group relative flex items-center justify-between",
-        "rounded-2xl border transition-all duration-150",
+        "rounded-xl sm:rounded-2xl border transition-all duration-150",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-200 focus-visible:ring-offset-0",
-        isSubItem ? "ml-3 px-3 py-2" : "px-3 py-2.5",
+        isSubItem ? "ml-2 sm:ml-3 px-2.5 sm:px-3 py-1.5 sm:py-2" : "px-2.5 sm:px-3 py-2 sm:py-2.5",
         active
           ? "border-brand-200/80 bg-brand-50/80 text-slate-900 shadow-sm"
           : "border-transparent bg-white/0 text-slate-700 hover:bg-white/70 hover:border-slate-200/70 hover:shadow-sm",
@@ -53,7 +53,7 @@ function Item({
           <span
             className={[
               "relative inline-flex items-center justify-center flex-shrink-0",
-              isSubItem ? "h-8 w-8 rounded-2xl" : "h-9 w-9 rounded-2xl",
+              isSubItem ? "h-7 w-7 sm:h-8 sm:w-8 rounded-xl sm:rounded-2xl" : "h-8 w-8 sm:h-9 sm:w-9 rounded-xl sm:rounded-2xl",
               "border bg-white/70 shadow-sm ring-1 ring-slate-900/5",
               active
                 ? "border-brand-200/70 bg-brand-50 text-brand-700"
@@ -62,14 +62,14 @@ function Item({
             aria-hidden
           >
             <span className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-br from-brand/10 via-transparent to-transparent" aria-hidden />
-            <Icon className={isSubItem ? "relative h-4 w-4" : "relative h-[18px] w-[18px]"} aria-hidden />
+            <Icon className={isSubItem ? "relative h-3.5 w-3.5 sm:h-4 sm:w-4" : "relative h-4 w-4 sm:h-[18px] sm:w-[18px]"} aria-hidden />
           </span>
         ) : null}
 
         <span
           className={[
             "truncate",
-            isSubItem ? "text-[13px] font-medium" : "text-[13px] font-semibold tracking-tight",
+            isSubItem ? "text-[12px] sm:text-[13px] font-medium" : "text-[12px] sm:text-[13px] font-semibold tracking-tight",
           ].join(" ")}
         >
           {label}
@@ -78,7 +78,7 @@ function Item({
 
       <ChevronRight
         className={[
-          "h-4 w-4 flex-shrink-0 transition-opacity",
+          "h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0 transition-opacity",
           active ? "text-brand-700/70 opacity-100" : "text-slate-400 opacity-70 group-hover:opacity-100",
         ].join(" ")}
         aria-hidden
@@ -117,11 +117,11 @@ export default function DriverSidebar() {
 
   return (
     <div>
-      <div className="relative overflow-hidden rounded-3xl border border-slate-200/70 bg-white/75 backdrop-blur shadow-card ring-1 ring-slate-900/5">
+      <div className="relative overflow-hidden rounded-[1.4rem] sm:rounded-3xl border border-slate-200/70 bg-white/75 backdrop-blur shadow-card ring-1 ring-slate-900/5">
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-brand/10 via-white/80 to-slate-50" aria-hidden />
         <div className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full bg-brand/10 blur-3xl" aria-hidden />
-        <div className="relative p-2.5">
-          <div className="space-y-1">
+        <div className="relative p-2 sm:p-2.5">
+          <div className="space-y-0.5 sm:space-y-1">
           {/* Dashboard */}
           <Item href="/driver" label="Dashboard" Icon={LayoutDashboard} currentPath={path} />
 
@@ -146,7 +146,7 @@ export default function DriverSidebar() {
               onClick={() => setRevenueOpen(v => !v)} 
               className={[
                 "w-full group relative flex items-center justify-between",
-                "rounded-2xl px-3 py-2.5 text-[13px] font-semibold tracking-tight",
+                "rounded-xl sm:rounded-2xl px-2.5 sm:px-3 py-2 sm:py-2.5 text-[12px] sm:text-[13px] font-semibold tracking-tight",
                 "border transition-all duration-150",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-200 focus-visible:ring-offset-0",
                 revenueOpen || isRevenueRoute
@@ -155,10 +155,10 @@ export default function DriverSidebar() {
               ].join(" ")}
               style={{ backfaceVisibility: 'hidden', transform: 'translateZ(0)' }}
             >
-              <span className="flex items-center gap-3 min-w-0">
+              <span className="flex items-center gap-2.5 sm:gap-3 min-w-0">
                 <span
                   className={[
-                    "relative inline-flex h-9 w-9 items-center justify-center rounded-2xl flex-shrink-0",
+                    "relative inline-flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl sm:rounded-2xl flex-shrink-0",
                     "border bg-white/70 shadow-sm ring-1 ring-slate-900/5",
                     revenueOpen || isRevenueRoute
                       ? "border-brand-200/70 bg-brand-50 text-brand-700"
@@ -167,14 +167,14 @@ export default function DriverSidebar() {
                   aria-hidden
                 >
                   <span className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-br from-brand/10 via-transparent to-transparent" aria-hidden />
-                  <BadgeDollarSign className="relative h-[18px] w-[18px]" aria-hidden />
+                  <BadgeDollarSign className="relative h-4 w-4 sm:h-[18px] sm:w-[18px]" aria-hidden />
                 </span>
                 <span className="truncate">My Revenue</span>
               </span>
               {revenueOpen ? (
-                <ChevronDown className="h-4 w-4 text-slate-500 group-hover:text-slate-600" aria-hidden />
+                <ChevronDown className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-slate-500 group-hover:text-slate-600" aria-hidden />
               ) : (
-                <ChevronRight className="h-4 w-4 text-slate-500 group-hover:text-slate-600" aria-hidden />
+                <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-slate-500 group-hover:text-slate-600" aria-hidden />
               )}
             </button>
             {revenueOpen && (
