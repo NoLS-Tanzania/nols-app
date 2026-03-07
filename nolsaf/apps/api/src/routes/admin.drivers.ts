@@ -8,6 +8,7 @@ import { hashTripCode, normalizeTripCode } from "../lib/tripCode.js";
 import { sendSms } from "../lib/sms.js";
 import { sendMail } from "../lib/mailer.js";
 import { baseEmail, infoCard, calloutBox, ctaButton, BRAND_TEAL, BRAND_DARK } from "../lib/emailBase.js";
+import { buildDriverCaseRef } from "../lib/driverCaseRef.js";
 
 export const router = Router();
 router.use(requireAuth as unknown as RequestHandler, requireRole("ADMIN") as unknown as RequestHandler);
@@ -5817,12 +5818,14 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
       const driverEmail = (driver as any).email as string | null | undefined;
       const driverPhone = (driver as any).phone as string | null | undefined;
       const firstName   = driverName.split(' ')[0];
+      const revokedAt = (driver as any).suspendedAt ?? new Date();
+      const caseRef = buildDriverCaseRef(driverId, revokedAt) ?? `NOLS-DRV-${String(driverId).padStart(5, '0')}-REVOKED`;
 
       // ── SMS ──────────────────────────────────────────────────────────────────
       if (driverPhone) {
         try {
           const smsTxt =
-            `NoLSAF: Your driver account access has been revoked. ${reason ? `Reason: ${reason}.` : ''} For assistance contact support@nolsaf.com or call our support line.`;
+            `NoLSAF: Your driver account access has been revoked. Ref: ${caseRef}. ${reason ? `Reason: ${reason}. ` : ''}For assistance contact support@nolsaf.com.`;
           await sendSms(driverPhone, smsTxt, { bypassEligibilityCheck: true });
         } catch (smsErr: any) {
           console.warn('[KYC revoke] SMS failed (non-fatal):', smsErr?.message ?? smsErr);
@@ -5870,6 +5873,7 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
             ${infoCard(REVOKE_RED, [
               ['Driver',      driverName],
               ['Email',       driverEmail],
+              ['Reference Number', caseRef],
               ['Status',      '❌ Access Revoked'],
               ['Reason',      reason || 'Not specified'],
               ['Effective',   new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })],
@@ -5879,11 +5883,11 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
             ${calloutBox(REVOKE_RED, '📞', 'What to do next',
               `<p style="margin:0 0 10px;font-size:14px;color:#374151;line-height:1.75;">
                 If you believe this action was taken in error or you would like to appeal,
-                please contact our support team as soon as possible:
+                please contact our support team as soon as possible and include your reference number <strong>${caseRef}</strong>:
               </p>
               <ul style="margin:0;padding-left:20px;font-size:14px;color:#374151;line-height:1.8;">
                 <li>Email: <a href="mailto:support@nolsaf.com" style="color:${REVOKE_RED};text-decoration:none;">support@nolsaf.com</a></li>
-                <li>Include your registered email address and a description of your situation.</li>
+                <li>Include your registered email address, the reference number, and a description of your situation.</li>
               </ul>`
             )}
 

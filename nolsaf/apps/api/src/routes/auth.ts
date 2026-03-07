@@ -18,6 +18,7 @@ import { maybeAuth, requireAuth } from '../middleware/auth.js';
 import { limitOtpSend, limitOtpVerify, limitLoginAttempts, limitRegisterAttempts } from '../middleware/rateLimit.js';
 import { isEmailLocked, recordFailedAttempt, clearFailedAttempts, getRemainingAttempts, getLockoutStatus } from '../lib/loginAttemptTracker.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
+import { buildDriverCaseRef } from '../lib/driverCaseRef.js';
 
 const router = Router();
 
@@ -51,9 +52,11 @@ function formatBlockedReason(note: string | null | undefined): string {
 }
 
 function buildBlockedAccountPayload(user: any) {
+  const caseRef = buildDriverCaseRef(user?.id, user?.suspendedAt);
   return {
     name: String(user?.name ?? 'Driver').trim() || 'Driver',
     email: user?.email ?? null,
+    caseRef,
     reason: formatBlockedReason(user?.kycNote),
     nextSteps: 'If you believe this action was taken in error, contact NoLSAF support and include your registered account details for review.',
     payoutMessage: 'Any active and unpaid payout recorded before the revocation date will still be reviewed and processed under NoLSAF payout policy.',

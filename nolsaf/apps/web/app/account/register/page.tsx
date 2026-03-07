@@ -50,7 +50,7 @@ export default function RegisterPage() {
   const [lockoutRemainingSeconds, setLockoutRemainingSeconds] = useState<number>(0);
   const [lockoutMessage, setLockoutMessage] = useState<string | null>(null);
   const [passkeyLoading, setPasskeyLoading] = useState<boolean>(false);
-  const [blockedAccount, setBlockedAccount] = useState<null | { name: string; email?: string | null; reason: string; nextSteps: string; payoutMessage: string }>(null);
+  const [blockedAccount, setBlockedAccount] = useState<null | { name: string; email?: string | null; caseRef?: string | null; reason: string; nextSteps: string; payoutMessage: string }>(null);
   
   // Passkey sign-in helper
   const handlePasskeySignIn = async () => {
@@ -586,6 +586,12 @@ export default function RegisterPage() {
             <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-red-500">Account holder</p>
             <p className="mt-1 text-base font-bold text-slate-900">{blockedAccount.name}</p>
             {blockedAccount.email ? <p className="mt-1 text-xs text-slate-500">{blockedAccount.email}</p> : null}
+            {blockedAccount.caseRef ? (
+              <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-red-500">Reference Number</p>
+                <p className="mt-1 font-mono text-xs font-bold text-red-800">{blockedAccount.caseRef}</p>
+              </div>
+            ) : null}
           </div>
           <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4">
             <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-500" />
@@ -596,7 +602,10 @@ export default function RegisterPage() {
           </div>
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
             <p className="mb-2 text-sm font-medium text-slate-800">What to do next</p>
-            <p className="text-xs leading-relaxed text-slate-600">{blockedAccount.nextSteps}</p>
+            <p className="text-xs leading-relaxed text-slate-600">
+              {blockedAccount.nextSteps}
+              {blockedAccount.caseRef ? ` Use reference number ${blockedAccount.caseRef} when contacting support.` : ''}
+            </p>
           </div>
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
             <p className="mb-1 text-sm font-medium text-amber-900">Payout handling</p>

@@ -194,6 +194,7 @@ export default function DriverLayout({ children }: { children: ReactNode }) {
   const [kycStatus, setKycStatus] = useState<KycStatus | 'loading'>('loading');
   const [kycNote, setKycNote] = useState<string | null>(null);
   const [driverName, setDriverName] = useState<string | null>(null);
+  const [accountSuspended, setAccountSuspended] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -205,6 +206,7 @@ export default function DriverLayout({ children }: { children: ReactNode }) {
         setKycStatus((me?.kycStatus as KycStatus) ?? null);
         setKycNote(me?.kycNote ?? null);
         setDriverName(me?.name ?? null);
+        setAccountSuspended(Boolean(me?.suspendedAt) || Boolean(me?.isDisabled));
       } catch {
         setKycStatus(null);
       }
@@ -236,6 +238,55 @@ export default function DriverLayout({ children }: { children: ReactNode }) {
 
   // Pending KYC — driver must wait for admin approval (or action required if note present)
   if (kycStatus === 'PENDING_KYC') return <PendingApprovalScreen kycNote={kycNote} />;
+
+  if (accountSuspended) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-red-50/30 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-lg border border-red-200/60 overflow-hidden">
+          <div className="bg-gradient-to-r from-red-600 to-red-500 p-6 text-center">
+            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3">
+              <ShieldX className="w-9 h-9 text-white" />
+            </div>
+            <h1 className="text-xl font-bold text-white">Your Account Is Suspended</h1>
+            <p className="text-red-100 text-sm mt-1">This driver account cannot access the NoLSAF platform right now</p>
+          </div>
+          <div className="p-6 space-y-4">
+            <div className="bg-white border border-red-100 rounded-xl p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-red-500">Account holder</p>
+              <p className="mt-1 text-base font-bold text-slate-900">{String(driverName ?? 'Driver').trim() || 'Driver'}</p>
+            </div>
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-red-800 mb-1">Reason for suspension</p>
+                <p className="text-xs text-red-700 leading-relaxed">{cleanDecisionReason(kycNote)}</p>
+              </div>
+            </div>
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+              <p className="text-sm font-medium text-slate-800 mb-2">What to do next</p>
+              <ul className="text-xs text-slate-600 space-y-1.5 list-disc pl-4">
+                <li>Contact NoLSAF support if you want this suspension reviewed</li>
+                <li>Use your suspension reference number from the email or login notice when appealing</li>
+                <li>Wait for an official review before trying to use this account again</li>
+              </ul>
+            </div>
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+              <p className="text-sm font-medium text-amber-900 mb-1">Payout handling</p>
+              <p className="text-xs text-amber-800 leading-relaxed">
+                Any active and unpaid payout already recorded before the suspension date will still be reviewed and processed under NoLSAF payout policy.
+              </p>
+            </div>
+            <a
+              href="mailto:support@nolsaf.com"
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-red-600 text-white text-sm font-medium no-underline hover:bg-red-700 transition-colors animate-pulse hover:animate-none"
+            >
+              Contact Support
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Rejected — application was denied
   if (kycStatus === 'REJECTED_KYC') return <RejectedScreen driverName={driverName} kycNote={kycNote} />;
