@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import axios from 'axios';
-import { AlertCircle, Check, UserPlus, Lock, LogIn, User, Truck, Building2, Mail, ArrowLeft, Phone, Eye, EyeOff, Shield, Fingerprint } from 'lucide-react';
+import { AlertCircle, Check, UserPlus, Lock, LogIn, User, Truck, Building2, Mail, ArrowLeft, Phone, Eye, EyeOff, Shield, Fingerprint, ShieldX, AlertTriangle } from 'lucide-react';
 import { useRouter, useSearchParams } from "next/navigation";
 import LogoSpinner from "@/components/LogoSpinner";
 
@@ -50,6 +50,7 @@ export default function RegisterPage() {
   const [lockoutRemainingSeconds, setLockoutRemainingSeconds] = useState<number>(0);
   const [lockoutMessage, setLockoutMessage] = useState<string | null>(null);
   const [passkeyLoading, setPasskeyLoading] = useState<boolean>(false);
+  const [blockedAccount, setBlockedAccount] = useState<null | { name: string; email?: string | null; reason: string; nextSteps: string; payoutMessage: string }>(null);
   
   // Passkey sign-in helper
   const handlePasskeySignIn = async () => {
@@ -214,6 +215,10 @@ export default function RegisterPage() {
     else if (modeParam === 'forgot') setAuthMode('forgot');
     else if (modeParam === 'register') setAuthMode('register');
   }, [modeParam]);
+
+  useEffect(() => {
+    setBlockedAccount(null);
+  }, [authMode, loginMethod]);
 
   useEffect(() => {
     if (!lockoutUntil) {
@@ -564,6 +569,50 @@ export default function RegisterPage() {
     );
   };
 
+  const renderBlockedAccountCard = () => {
+    if (!blockedAccount) return null;
+
+    return (
+      <div className="mb-4 overflow-hidden rounded-2xl border border-red-200 bg-white shadow-lg">
+        <div className="bg-gradient-to-r from-red-600 to-red-500 px-6 py-5 text-center">
+          <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-white/20">
+            <ShieldX className="h-9 w-9 text-white" />
+          </div>
+          <h2 className="text-xl font-bold text-white">Driver Access Revoked</h2>
+          <p className="mt-1 text-sm text-red-100">This account cannot access the NoLSAF driver portal right now.</p>
+        </div>
+        <div className="space-y-4 p-6">
+          <div className="rounded-xl border border-red-100 bg-white p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-red-500">Account holder</p>
+            <p className="mt-1 text-base font-bold text-slate-900">{blockedAccount.name}</p>
+            {blockedAccount.email ? <p className="mt-1 text-xs text-slate-500">{blockedAccount.email}</p> : null}
+          </div>
+          <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4">
+            <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-500" />
+            <div>
+              <p className="mb-1 text-sm font-medium text-red-800">Why you cannot access this account</p>
+              <p className="text-xs leading-relaxed text-red-700">{blockedAccount.reason}</p>
+            </div>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <p className="mb-2 text-sm font-medium text-slate-800">What to do next</p>
+            <p className="text-xs leading-relaxed text-slate-600">{blockedAccount.nextSteps}</p>
+          </div>
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <p className="mb-1 text-sm font-medium text-amber-900">Payout handling</p>
+            <p className="text-xs leading-relaxed text-amber-800">{blockedAccount.payoutMessage}</p>
+          </div>
+          <a
+            href="mailto:support@nolsaf.com"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 py-2.5 text-sm font-medium text-white no-underline transition-colors hover:bg-red-700 animate-pulse hover:animate-none"
+          >
+            Contact Support
+          </a>
+        </div>
+      </div>
+    );
+  };
+
   // Login Page
   const renderLoginPage = () => {
     return (
@@ -620,6 +669,8 @@ export default function RegisterPage() {
         </div>
 
         <div className="px-6 py-5 min-w-0">
+          {renderBlockedAccountCard()}
+
           {isLockedOut && (
             <div className="mb-4 rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 to-white p-4">
               <div className="flex items-start gap-3">
@@ -793,6 +844,7 @@ export default function RegisterPage() {
                         if (isLockedOut) return;
                         setLoginLoading(true);
                         setError(null);
+                        setBlockedAccount(null);
                         try {
                           const email = loginIdentifier.trim();
                           if (!email || !loginPassword) {
@@ -816,6 +868,12 @@ export default function RegisterPage() {
                               setLockoutUntil(until);
                               setLockoutTotalSeconds(remaining);
                               setLockoutMessage(String((data as any)?.message || (data as any)?.error || 'Too many failed login attempts.'));
+                              setError(null);
+                              return;
+                            }
+
+                            if (r.status === 403 && code === 'ACCOUNT_SUSPENDED' && (data as any)?.blockedAccount) {
+                              setBlockedAccount((data as any).blockedAccount);
                               setError(null);
                               return;
                             }
@@ -923,6 +981,7 @@ export default function RegisterPage() {
                     <button
                       onClick={async () => {
                         setLoginLoading(true);
+                        setBlockedAccount(null);
                         // Verify login OTP with API
                         try {
                           const response = await api.post('/api/auth/verify-otp', {
@@ -935,7 +994,13 @@ export default function RegisterPage() {
                             await redirectAfterAuth();
                           }
                         } catch (err: any) {
-                          setError(err?.response?.data?.error || 'Invalid OTP. Please try again.');
+                          const data = err?.response?.data;
+                          if (err?.response?.status === 403 && data?.code === 'ACCOUNT_SUSPENDED' && data?.blockedAccount) {
+                            setBlockedAccount(data.blockedAccount);
+                            setError(null);
+                          } else {
+                            setError(data?.error || 'Invalid OTP. Please try again.');
+                          }
                       } finally {
                         setLoginLoading(false);
                       }

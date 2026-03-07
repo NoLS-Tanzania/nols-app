@@ -5579,7 +5579,11 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
       await syncDriverDocumentStatusesFromFieldApprovals(fieldApprovals);
     } else {
       // approve / reject / revoke — update status, clear note + field approvals
-      const statusData: any = { kycStatus, kycNote: null, kycFieldApprovals: null };
+      const statusData: any = {
+        kycStatus,
+        kycNote: (action === 'reject' || action === 'revoke') ? (reason ?? null) : null,
+        kycFieldApprovals: null,
+      };
       if (action === 'revoke') {
         statusData.suspendedAt = new Date();
       }
@@ -5614,9 +5618,12 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
       try {
         const io = (req as any).app?.get?.('io');
         if (io) {
+          const wasSuspended = Boolean((driver as any)?.suspendedAt);
           const message =
             action === 'approve'
-              ? 'Your driver application has been approved! You can now access your dashboard.'
+              ? (wasSuspended
+                  ? 'Your NoLSAF driver access has been restored. You can log in again and continue using your dashboard.'
+                  : 'Your driver application has been approved! You can now access your dashboard.')
               : action === 'revoke'
                 ? `Your access to the NoLSAF driver portal has been revoked. ${reason ? `Reason: ${reason}` : 'Please contact support for more details.'}`
                 : action === 'reject'
@@ -5678,12 +5685,15 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
       const driverPhone = (driver as any).phone as string | null | undefined;
       const firstName   = driverName.split(' ')[0];
       const loginUrl    = `${process.env.APP_ORIGIN ?? 'https://app.nolsaf.com'}/login`;
+      const wasSuspended = Boolean((driver as any).suspendedAt);
 
       // ── SMS ──────────────────────────────────────────────────────────────────
       if (driverPhone) {
         try {
           const smsTxt =
-            `NoLSAF: Congratulations ${firstName}! Your driver account is approved. Log in now and start earning with Africa's leading travel & stays platform. Welcome aboard!`;
+            wasSuspended
+              ? `NoLSAF: Hello ${firstName}, your driver account access has been restored. You can now log in again and continue with your NoLSAF driver account.`
+              : `NoLSAF: Congratulations ${firstName}! Your driver account is approved. Log in now and start earning with Africa's leading travel & stays platform. Welcome aboard!`;
           await sendSms(driverPhone, smsTxt);
         } catch (smsErr: any) {
           console.warn('[KYC approve] SMS failed (non-fatal):', smsErr?.message ?? smsErr);
@@ -5693,52 +5703,66 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
       // ── Email ─────────────────────────────────────────────────────────────────
       if (driverEmail) {
         try {
+          const subjectLine = wasSuspended ? 'Driver Access Restored' : 'Application Approved';
+          const heroEmoji = wasSuspended ? '✅' : '🎉';
+          const heroTitle = wasSuspended ? 'Access Restored' : 'Application Approved';
+          const heroSubTitle = wasSuspended ? 'Your NoLSAF driver portal access is active again' : 'You are officially a NoLSAF Driver';
+          const opening = wasSuspended
+            ? `Your driver account has been <strong style="color:${BRAND_TEAL};">re-activated</strong>. You can log in again, access your dashboard, and continue operating on NoLSAF.`
+            : `After reviewing your application, we are delighted to confirm that your driver account has been <strong style="color:${BRAND_TEAL};">fully approved and activated</strong>. Your profile is live, your documents are verified, and you are ready to roll.`;
+          const statusLabel = wasSuspended ? '✅ Access Restored — Account Active' : '✅ Approved — Account Active';
+          const ctaLabel = wasSuspended ? 'Log In Again' : 'Log In & Start Driving';
+          const stepsHtml = wasSuspended
+            ? `<ol style="margin:8px 0 0;padding-left:20px;color:#374151;font-size:14px;line-height:1.8;">
+                <li><strong>Log in again</strong> using your registered email and password.</li>
+                <li><strong>Review any pending trips, payouts, or account notices</strong> in your dashboard.</li>
+                <li><strong>Continue operating</strong> in line with NoLSAF driver policies.</li>
+              </ol>`
+            : `<ol style="margin:8px 0 0;padding-left:20px;color:#374151;font-size:14px;line-height:1.8;">
+                <li><strong>Log in</strong> using the email and password you registered with.</li>
+                <li><strong>Complete your driver profile</strong> — add your photo and preferred zones.</li>
+                <li><strong>Go online</strong> and start accepting your first trips!</li>
+              </ol>`;
           const html = baseEmail(
             BRAND_TEAL,
             BRAND_DARK,
-            'Application Approved',
-            '🎉',
+            subjectLine,
+            heroEmoji,
             `
             <!-- ── Hero greeting ────────────────────────────────────────── -->
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
               style="background:linear-gradient(135deg,${BRAND_TEAL}12 0%,#e6faf8 100%);border:1px solid ${BRAND_TEAL}22;border-radius:12px;margin:0 0 28px;">
               <tr><td style="padding:28px 28px 24px;text-align:center;">
-                <div style="font-size:48px;line-height:1;margin-bottom:12px;">🎉</div>
+                <div style="font-size:48px;line-height:1;margin-bottom:12px;">${heroEmoji}</div>
                 <h1 style="margin:0 0 8px;font-size:26px;font-weight:800;color:#0d2623;letter-spacing:-0.3px;">
-                  Congratulations, ${firstName}!
+                  ${wasSuspended ? `Welcome back, ${firstName}!` : `Congratulations, ${firstName}!`}
                 </h1>
                 <p style="margin:0;font-size:16px;color:${BRAND_TEAL};font-weight:600;letter-spacing:0.2px;">
-                  You are officially a NoLSAF Driver
+                  ${heroSubTitle}
                 </p>
               </td></tr>
             </table>
 
             <!-- ── Opening ──────────────────────────────────────────────── -->
             <p style="margin:0 0 18px;font-size:15px;color:#374151;line-height:1.75;">
-              After reviewing your application, we are delighted to confirm that your
-              driver account has been <strong style="color:${BRAND_TEAL};">fully approved and activated</strong>.
-              Your profile is live, your documents are verified, and you are ready to roll.
+              ${opening}
             </p>
 
             <!-- ── Account details card ──────────────────────────────────── -->
             ${infoCard(BRAND_TEAL, [
-              ['Status',    '✅ Approved — Account Active'],
+              ['Status',    statusLabel],
               ['Login Email', driverEmail],
               ['Platform',  'NoLSAF Driver App'],
               ['Effective', new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })],
             ])}
 
             <!-- ── What's next callout ───────────────────────────────────── -->
-            ${calloutBox(BRAND_TEAL, '🚀', 'Get Started in 3 Simple Steps',
-              `<ol style="margin:8px 0 0;padding-left:20px;color:#374151;font-size:14px;line-height:1.8;">
-                <li><strong>Log in</strong> using the email and password you registered with.</li>
-                <li><strong>Complete your driver profile</strong> — add your photo and preferred zones.</li>
-                <li><strong>Go online</strong> and start accepting your first trips!</li>
-              </ol>`
+            ${calloutBox(BRAND_TEAL, '🚀', wasSuspended ? 'What to do next' : 'Get Started in 3 Simple Steps',
+              stepsHtml
             )}
 
             <!-- ── CTA ───────────────────────────────────────────────────── -->
-            ${ctaButton(loginUrl, 'Log In & Start Driving', BRAND_TEAL)}
+            ${ctaButton(loginUrl, ctaLabel, BRAND_TEAL)}
 
             <!-- ── Mission paragraph ─────────────────────────────────────── -->
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
@@ -5776,7 +5800,9 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
 
           await sendMail(
             driverEmail,
-            `🎉 Congratulations ${firstName} — Your NoLSAF Driver Account is Approved!`,
+            wasSuspended
+              ? `✅ ${firstName}, your NoLSAF driver access has been restored`
+              : `🎉 Congratulations ${firstName} — Your NoLSAF Driver Account is Approved!`,
             html,
           );
         } catch (emailErr: any) {
@@ -5797,7 +5823,7 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
         try {
           const smsTxt =
             `NoLSAF: Your driver account access has been revoked. ${reason ? `Reason: ${reason}.` : ''} For assistance contact support@nolsaf.com or call our support line.`;
-          await sendSms(driverPhone, smsTxt);
+          await sendSms(driverPhone, smsTxt, { bypassEligibilityCheck: true });
         } catch (smsErr: any) {
           console.warn('[KYC revoke] SMS failed (non-fatal):', smsErr?.message ?? smsErr);
         }
@@ -5836,6 +5862,10 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
               <strong style="color:${REVOKE_RED};">revoked</strong> by an administrator.
               Your account is no longer active and you will not be able to log in to the driver app.
             </p>
+            <p style="margin:0 0 18px;font-size:15px;color:#374151;line-height:1.75;">
+              In line with NoLSAF policy, any <strong>active and unpaid payout</strong> already due to you at the time of revocation
+              will still be reviewed and processed through our payout procedure.
+            </p>
 
             ${infoCard(REVOKE_RED, [
               ['Driver',      driverName],
@@ -5871,6 +5901,8 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
             driverEmail,
             `Important Notice: Your NoLSAF Driver Access Has Been Revoked`,
             html,
+            undefined,
+            { bypassEligibilityCheck: true },
           );
         } catch (emailErr: any) {
           console.warn('[KYC revoke] Email failed (non-fatal):', emailErr?.message ?? emailErr);

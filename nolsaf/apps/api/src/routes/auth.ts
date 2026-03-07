@@ -41,6 +41,25 @@ function maskOtp(code: string): string {
   return `••••${s.slice(-2)}`;
 }
 
+function formatBlockedReason(note: string | null | undefined): string {
+  const raw = String(note ?? '').trim();
+  if (!raw) return 'Your NoLSAF driver access is currently inactive.';
+  return raw
+    .replace(/^Rejection reason:\s*/i, '')
+    .replace(/^Revocation reason:\s*/i, '')
+    .trim();
+}
+
+function buildBlockedAccountPayload(user: any) {
+  return {
+    name: String(user?.name ?? 'Driver').trim() || 'Driver',
+    email: user?.email ?? null,
+    reason: formatBlockedReason(user?.kycNote),
+    nextSteps: 'If you believe this action was taken in error, contact NoLSAF support and include your registered account details for review.',
+    payoutMessage: 'Any active and unpaid payout recorded before the revocation date will still be reviewed and processed under NoLSAF payout policy.',
+  };
+}
+
 function otpEntityKey(destinationType: "PHONE" | "EMAIL", destination: string, codeHash: string): string {
   // Encode enough to support string filtering in admin dashboards without JSON queries.
   return `OTP:${destinationType}:${destination}:${codeHash}`;
@@ -380,13 +399,22 @@ router.post('/verify-otp', limitOtpVerify, async (req, res) => {
     try {
       const existing = await prisma.user.findFirst({
         where: { phone: normalizedPhone },
-        select: { id: true, role: true, email: true, phone: true },
+        select: { id: true, role: true, email: true, phone: true, name: true, suspendedAt: true, isDisabled: true, kycStatus: true, kycNote: true },
       });
       if (!existing) {
         return res.status(404).json({
           error: 'account_not_found',
           message: 'No account found for this phone number. Please register first.',
           action: 'register',
+        });
+      }
+
+      if ((existing as any).suspendedAt || (existing as any).isDisabled) {
+        return res.status(403).json({
+          error: 'account_suspended',
+          code: 'ACCOUNT_SUSPENDED',
+          message: 'This account cannot access NoLSAF at the moment.',
+          blockedAccount: buildBlockedAccountPayload(existing),
         });
       }
 
@@ -566,7 +594,7 @@ router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res,
             ...phoneCandidates.map((p) => ({ phone: p } as any)),
           ] as any,
         } as any,
-        select: { id: true, role: true, email: true, passwordHash: true },
+        select: { id: true, role: true, email: true, passwordHash: true, name: true, phone: true, suspendedAt: true, isDisabled: true, kycStatus: true, kycNote: true },
       });
     } catch (dbError: any) {
       console.error('[LOGIN] Database query error:', dbError);
@@ -702,6 +730,15 @@ router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res,
         error: "invalid_credentials",
         message: "Incorrect email or password.",
         remainingAttempts: remaining
+      });
+    }
+
+    if ((user as any).suspendedAt || (user as any).isDisabled) {
+      return res.status(403).json({
+        error: 'account_suspended',
+        code: 'ACCOUNT_SUSPENDED',
+        message: 'This account cannot access NoLSAF at the moment.',
+        blockedAccount: buildBlockedAccountPayload(user),
       });
     }
 
@@ -1467,6 +1504,15 @@ router.post('/passkeys/verify', async (req, res) => {
     // Find user and issue session
     const user = await prisma.user.findUnique({ where: { id: stored.userId } } as any);
     if (!user) return res.status(400).json({ error: 'user not found' });
+
+    if ((user as any).suspendedAt || (user as any).isDisabled) {
+      return res.status(403).json({
+        error: 'account_suspended',
+        code: 'ACCOUNT_SUSPENDED',
+        message: 'This account cannot access NoLSAF at the moment.',
+        blockedAccount: buildBlockedAccountPayload(user),
+      });
+    }
 
     const token = await signUserJwt({ id: (user as any).id, role: (user as any).role, email: (user as any).email });
     await setAuthCookie(res, token, (user as any).role);

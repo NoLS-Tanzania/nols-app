@@ -146,13 +146,15 @@ async function sendViaTwilio(to: string, message: string): Promise<SmsResult> {
  *   2. Twilio            (set TWILIO_ACCOUNT_SID)
  *   3. Console log       (dev / staging only — never blocks OTP flows)
  */
-export async function sendSms(to: string, text: string): Promise<SmsResult> {
-  const eligibility = await canReceiveNotifications({ phone: to });
-  if (!eligibility.allowed) {
+export async function sendSms(to: string, text: string, options?: { bypassEligibilityCheck?: boolean }): Promise<SmsResult> {
+  if (!options?.bypassEligibilityCheck) {
+    const eligibility = await canReceiveNotifications({ phone: to });
+    if (!eligibility.allowed) {
     console.log(
       `[SMS] Suppressed SMS to=${to} reason=${eligibility.reason ?? 'blocked'} userId=${eligibility.matchedUserId ?? 'unknown'}`,
     );
     return { success: true, messageId: `suppressed-${Date.now()}`, provider: 'suppressed' };
+  }
   }
 
   const phone = normaliseTo255(to);

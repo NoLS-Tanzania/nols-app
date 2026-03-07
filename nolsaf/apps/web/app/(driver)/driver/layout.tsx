@@ -12,6 +12,15 @@ import { Clock, ShieldX, CheckCircle2, AlertTriangle, RefreshCw, MessageSquare, 
 
 type KycStatus = 'PENDING_KYC' | 'APPROVED_KYC' | 'REJECTED_KYC' | null;
 
+function cleanDecisionReason(note: string | null | undefined): string {
+  const value = String(note ?? '').trim();
+  if (!value) return 'Your access to the NoLSAF driver account is currently inactive.';
+  return value
+    .replace(/^Rejection reason:\s*/i, '')
+    .replace(/^Revocation reason:\s*/i, '')
+    .trim();
+}
+
 function PendingApprovalScreen({ kycNote }: { kycNote: string | null }) {
   const hasNote = !!kycNote;
 
@@ -127,7 +136,9 @@ function PendingApprovalScreen({ kycNote }: { kycNote: string | null }) {
   );
 }
 
-function RejectedScreen() {
+function RejectedScreen({ driverName, kycNote }: { driverName: string | null; kycNote: string | null }) {
+  const displayName = String(driverName ?? 'Driver').trim() || 'Driver';
+  const reason = cleanDecisionReason(kycNote);
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-red-50/30 flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-white rounded-2xl shadow-lg border border-red-200/60 overflow-hidden">
@@ -139,27 +150,36 @@ function RejectedScreen() {
           <p className="text-red-100 text-sm mt-1">Your driver application was not accepted</p>
         </div>
         <div className="p-6 space-y-4">
+          <div className="bg-white border border-red-100 rounded-xl p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-red-500">Account holder</p>
+            <p className="mt-1 text-base font-bold text-slate-900">{displayName}</p>
+          </div>
           <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm font-medium text-red-800 mb-1">What this means</p>
+              <p className="text-sm font-medium text-red-800 mb-1">Why you cannot access this account</p>
               <p className="text-xs text-red-700 leading-relaxed">
-                Your registration was reviewed but could not be approved at this time. This may be due to incomplete 
-                documents, a failed verification check, or not meeting our driver requirements.
+                {reason}
               </p>
             </div>
           </div>
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
             <p className="text-sm font-medium text-slate-800 mb-2">Next steps</p>
             <ul className="text-xs text-slate-600 space-y-1.5 list-disc pl-4">
-              <li>Contact our support team for the specific reason</li>
-              <li>Ensure your documents are clear and valid</li>
-              <li>You may reapply after addressing the issues</li>
+              <li>Contact NoLSAF support if you believe this decision should be reviewed</li>
+              <li>Prepare any corrected documents or clarification requested by the team</li>
+              <li>Wait for the support review before attempting to use this account again</li>
             </ul>
+          </div>
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+            <p className="text-sm font-medium text-amber-900 mb-1">Payout handling</p>
+            <p className="text-xs text-amber-800 leading-relaxed">
+              Any active and unpaid payout already recorded before the revocation date will still be reviewed and processed under NoLSAF payout policy.
+            </p>
           </div>
           <a
             href="mailto:support@nolsaf.com"
-            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition-colors"
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-red-600 text-white text-sm font-medium no-underline hover:bg-red-700 transition-colors animate-pulse hover:animate-none"
           >
             Contact Support
           </a>
@@ -173,6 +193,7 @@ export default function DriverLayout({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [kycStatus, setKycStatus] = useState<KycStatus | 'loading'>('loading');
   const [kycNote, setKycNote] = useState<string | null>(null);
+  const [driverName, setDriverName] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -183,6 +204,7 @@ export default function DriverLayout({ children }: { children: ReactNode }) {
         const me = json?.data ?? json;
         setKycStatus((me?.kycStatus as KycStatus) ?? null);
         setKycNote(me?.kycNote ?? null);
+        setDriverName(me?.name ?? null);
       } catch {
         setKycStatus(null);
       }
@@ -216,7 +238,7 @@ export default function DriverLayout({ children }: { children: ReactNode }) {
   if (kycStatus === 'PENDING_KYC') return <PendingApprovalScreen kycNote={kycNote} />;
 
   // Rejected — application was denied
-  if (kycStatus === 'REJECTED_KYC') return <RejectedScreen />;
+  if (kycStatus === 'REJECTED_KYC') return <RejectedScreen driverName={driverName} kycNote={kycNote} />;
 
   // null (legacy / pre-approval drivers) or APPROVED_KYC — allow access
   return (
