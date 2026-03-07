@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { Bell } from "lucide-react";
+import { Bell, CheckCircle2, Clock3 } from "lucide-react";
 import BackIcon from "@/components/BackIcon";
 
 type Note = {
@@ -8,6 +8,8 @@ type Note = {
   title: string;
   body: string;
   createdAt: string;
+  sourceLabel?: string;
+  kind?: "notification" | "reminder";
 };
 
 export default function DriverReadNotificationsPage() {
@@ -19,7 +21,6 @@ export default function DriverReadNotificationsPage() {
     const controller = new AbortController();
     (async () => {
       setLoading(true);
-      const startTime = Date.now();
       try {
         const r = await fetch('/api/driver/notifications?tab=viewed&page=1&pageSize=50', { credentials: "include", signal: controller.signal });
         if (!mounted) return;
@@ -29,21 +30,27 @@ export default function DriverReadNotificationsPage() {
           id: String(it.id), 
           title: it.title ?? '', 
           body: it.body ?? '', 
-          createdAt: it.createdAt ?? new Date().toISOString() 
+          createdAt: it.createdAt ?? new Date().toISOString(),
+          sourceLabel: it.sourceLabel ?? undefined,
+          kind: it.kind ?? "notification",
         })));
       } catch (err: any) {
         if (err?.name === 'AbortError') return;
         console.debug('Could not load driver notifications', err);
       } finally {
-        const elapsed = Date.now() - startTime;
-        const remaining = Math.max(0, 3000 - elapsed);
-        setTimeout(() => {
-          if (mounted) setLoading(false);
-        }, remaining);
+        if (mounted) setLoading(false);
       }
     })();
     return () => { mounted = false; controller.abort(); };
   }, []);
+
+  const formatDate = (value: string) => {
+    try {
+      return new Intl.DateTimeFormat("en-TZ", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+    } catch {
+      return value;
+    }
+  };
 
   if (loading) {
     return (
@@ -59,30 +66,42 @@ export default function DriverReadNotificationsPage() {
   }
 
   return (
-    <div className="min-h-[60vh] px-4 sm:px-6 lg:px-8">
-      <div className="max-w-lg mx-auto text-center space-y-4 py-8">
-        <div className="flex justify-center">
-          <Bell className="h-10 w-10 text-blue-600" aria-hidden />
+    <div className="min-h-[60vh] px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-4xl space-y-5">
+        <div className="flex flex-col gap-4 rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700">
+              <CheckCircle2 className="h-6 w-6" aria-hidden />
+            </div>
+            <div>
+              <h1 className="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">Read notifications</h1>
+              <p className="mt-1 text-sm text-slate-600">Updates you have already reviewed.</p>
+            </div>
+          </div>
+          <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-700">
+            <Bell className="h-4 w-4 text-slate-500" />
+            {items.length} archived
+          </div>
         </div>
 
-        <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-gray-900">
-          Read Notifications
-        </h1>
-
-        <p className="text-sm text-gray-600">These are your previously read notifications.</p>
-      </div>
-
-      <div className="max-w-5xl mx-auto space-y-6">
-        <div className="bg-white rounded-lg shadow-sm p-4 space-y-4">
+        <div className="space-y-4">
           {items.length === 0 ? (
-            <div className="text-center py-8 text-gray-600">No read notifications.</div>
+            <div className="rounded-[1.5rem] border border-dashed border-slate-200 bg-white px-6 py-12 text-center text-slate-500 shadow-sm">No read notifications.</div>
           ) : (
             items.map((n) => (
-              <div key={n.id} className="border rounded-md p-4 opacity-75">
-                <div>
-                  <h4 className="text-sm font-bold text-gray-900">{n.title}</h4>
-                  <p className="text-xs text-gray-500">{new Date(n.createdAt).toLocaleString()}</p>
-                  <p className="mt-2 text-sm text-gray-700">{n.body}</p>
+              <div key={n.id} className="rounded-[1.25rem] border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs text-slate-500">{n.sourceLabel || (n.kind === "reminder" ? "Admin reminder" : "System notification")}</span>
+                    </div>
+                    <h4 className="mt-2 text-base font-semibold text-slate-900">{n.title}</h4>
+                    <p className="mt-1 text-sm italic leading-6 text-slate-600">{n.body}</p>
+                  </div>
+                  <div className="inline-flex items-center gap-1 text-xs text-slate-400">
+                    <Clock3 className="h-3.5 w-3.5" />
+                    {formatDate(n.createdAt)}
+                  </div>
                 </div>
               </div>
             ))

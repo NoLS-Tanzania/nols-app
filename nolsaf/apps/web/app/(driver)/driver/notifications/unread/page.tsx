@@ -1,8 +1,7 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { Bell } from "lucide-react";
+import { AlertCircle, ArrowRight, Bell, Clock3 } from "lucide-react";
 import Link from "next/link";
-import MarkReadButton from "@/components/MarkReadButton";
 import BackIcon from "@/components/BackIcon";
 
 type Note = {
@@ -10,6 +9,11 @@ type Note = {
   title: string;
   body: string;
   createdAt: string;
+  sourceLabel?: string;
+  severity?: "info" | "warning";
+  kind?: "notification" | "reminder";
+  action?: string | null;
+  actionLink?: string | null;
 };
 
 export default function DriverUnreadNotificationsPage() {
@@ -21,7 +25,6 @@ export default function DriverUnreadNotificationsPage() {
     const controller = new AbortController();
     (async () => {
       setLoading(true);
-      const startTime = Date.now();
       try {
         const r = await fetch('/api/driver/notifications?tab=unread&page=1&pageSize=50', { credentials: "include", signal: controller.signal });
         if (!mounted) return;
@@ -31,17 +34,18 @@ export default function DriverUnreadNotificationsPage() {
           id: String(it.id), 
           title: it.title ?? '', 
           body: it.body ?? '', 
-          createdAt: it.createdAt ?? new Date().toISOString() 
+          createdAt: it.createdAt ?? new Date().toISOString(),
+          sourceLabel: it.sourceLabel ?? undefined,
+          severity: it.severity ?? "info",
+          kind: it.kind ?? "notification",
+          action: it.action ?? null,
+          actionLink: it.actionLink ?? null,
         })));
       } catch (err: any) {
         if (err?.name === 'AbortError') return;
         console.debug('Could not load driver notifications', err);
       } finally {
-        const elapsed = Date.now() - startTime;
-        const remaining = Math.max(0, 3000 - elapsed);
-        setTimeout(() => {
-          if (mounted) setLoading(false);
-        }, remaining);
+        if (mounted) setLoading(false);
       }
     })();
     return () => { mounted = false; controller.abort(); };
@@ -57,9 +61,16 @@ export default function DriverUnreadNotificationsPage() {
     } catch (err) {
       console.error('markRead failed', err);
       setItems(before);
-      alert('Could not mark notification as read. Please try again.');
     }
   }
+
+  const formatDate = (value: string) => {
+    try {
+      return new Intl.DateTimeFormat("en-TZ", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+    } catch {
+      return value;
+    }
+  };
 
   if (loading) {
     return (
@@ -75,37 +86,59 @@ export default function DriverUnreadNotificationsPage() {
   }
 
   return (
-    <div className="min-h-[60vh] px-4 sm:px-6 lg:px-8">
-      <div className="max-w-lg mx-auto text-center space-y-4 py-8">
-        <div className="flex justify-center">
-          <Bell className="h-10 w-10 text-blue-600" aria-hidden />
+    <div className="min-h-[60vh] px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-4xl space-y-5">
+        <div className="flex flex-col gap-4 rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700">
+              <Bell className="h-6 w-6" aria-hidden />
+            </div>
+            <div>
+              <h1 className="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">Unread notifications</h1>
+              <p className="mt-1 text-sm text-slate-600">Items that still need attention.</p>
+            </div>
+          </div>
+          <div className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#02665e]/12 via-[#0b7a71]/12 to-[#35a79c]/12 px-3 py-1.5 text-sm font-medium text-[#02665e] ring-1 ring-[#02665e]/12">
+            <AlertCircle className="h-4 w-4 text-[#02665e]" />
+            {items.length} pending
+          </div>
         </div>
 
-        <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-gray-900">
-          Unread Notifications
-        </h1>
-
-        <p className="text-sm text-gray-600">These are your unread notifications.</p>
-      </div>
-
-      <div className="max-w-5xl mx-auto space-y-6">
-        <div className="bg-white rounded-lg shadow-sm p-4 space-y-4">
+        <div className="space-y-4">
           {items.length === 0 ? (
-            <div className="text-center py-8 text-gray-600">No unread notifications.</div>
+            <div className="rounded-[1.5rem] border border-dashed border-slate-200 bg-white px-6 py-12 text-center text-slate-500 shadow-sm">No unread notifications.</div>
           ) : (
             items.map((n) => (
-              <div key={n.id} className="border rounded-md p-4 flex items-start justify-between">
-                <div>
-                  <h4 className="text-sm font-bold text-gray-900">{n.title}</h4>
-                  <p className="text-xs text-gray-500">{new Date(n.createdAt).toLocaleString()}</p>
-                  <p className="mt-2 text-sm text-gray-700">{n.body}</p>
-                </div>
+              <div key={n.id} className="rounded-[1.25rem] border border-[#02665e]/10 bg-gradient-to-br from-white via-[#f3fbfa] to-[#e7f6f4] p-4 shadow-sm shadow-[#02665e]/10">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center rounded-full bg-gradient-to-r from-[#02665e] via-[#0b7a71] to-[#35a79c] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-white shadow-sm shadow-[#02665e]/20">Needs attention</span>
+                      <span className="text-xs font-medium text-slate-500">{n.sourceLabel || (n.kind === "reminder" ? "Admin reminder" : "System notification")}</span>
+                      <span className="inline-flex items-center gap-1 text-xs text-slate-400">
+                        <Clock3 className="h-3.5 w-3.5" />
+                        {formatDate(n.createdAt)}
+                      </span>
+                    </div>
 
-                <div className="ml-4 flex-shrink-0 flex flex-col gap-2">
-                  <MarkReadButton onClick={() => markRead(n.id)} label="Mark as read" />
-                  <Link href="/driver/notifications" className="text-sm text-gray-500">
-                    Details
-                  </Link>
+                    <h4 className="mt-2 text-base font-semibold text-slate-900">{n.title}</h4>
+                    <p className="mt-1 text-sm italic leading-6 text-slate-600">{n.body}</p>
+                  </div>
+
+                  <div className="flex flex-col gap-2 sm:ml-4 sm:min-w-[10rem]">
+                    {n.action && n.actionLink ? (
+                      <Link href={n.actionLink} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 no-underline transition hover:bg-slate-50">
+                        {n.action}
+                        <ArrowRight className="h-4 w-4" />
+                      </Link>
+                    ) : null}
+                    <button onClick={() => markRead(n.id)} className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-[#02665e] via-[#0b7a71] to-[#35a79c] px-3 py-2 text-sm font-semibold text-white shadow-[0_14px_28px_rgba(2,102,94,0.22)] transition hover:brightness-105">
+                      Mark as read
+                    </button>
+                    <Link href="/driver/notifications" className="text-center text-sm text-slate-500 no-underline transition hover:text-slate-700">
+                      Overview
+                    </Link>
+                  </div>
                 </div>
               </div>
             ))

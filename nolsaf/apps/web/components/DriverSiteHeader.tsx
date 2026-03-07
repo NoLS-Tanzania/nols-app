@@ -61,6 +61,7 @@ if (typeof document !== "undefined") {
 export default function DriverSiteHeader({ unreadMessages = 0 }: { unreadMessages?: number }) {
   const [open, setOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [unreadCount, setUnreadCount] = useState<number>(unreadMessages);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
@@ -76,6 +77,34 @@ export default function DriverSiteHeader({ unreadMessages = 0 }: { unreadMessage
     if (typeof window !== "undefined") {
       sessionStorage.setItem("navigationContext", "driver");
     }
+
+    const fetchUnreadCount = async () => {
+      const ac = new AbortController();
+      const timeout = window.setTimeout(() => ac.abort(), 8_000);
+      try {
+        const response = await fetch("/api/driver/notifications?tab=unread&page=1&pageSize=1", {
+          credentials: "include",
+          signal: ac.signal,
+        });
+        if (!response.ok) return;
+        const data = await response.json();
+        if (typeof data?.totalUnread === "number") {
+          setUnreadCount(data.totalUnread);
+        } else if (typeof data?.total === "number") {
+          setUnreadCount(data.total);
+        }
+      } catch {
+        // ignore unread badge failures
+      } finally {
+        window.clearTimeout(timeout);
+      }
+    };
+
+    fetchUnreadCount();
+
+    const handleWindowFocus = () => {
+      fetchUnreadCount();
+    };
 
     (async () => {
       try {
@@ -112,10 +141,12 @@ export default function DriverSiteHeader({ unreadMessages = 0 }: { unreadMessage
     };
 
     document.addEventListener("click", handleClickOutside);
+    window.addEventListener("focus", handleWindowFocus);
     window.addEventListener("account:avatarUrl", handleAvatarUpdated as EventListener);
     window.addEventListener("nolsaf:profile-updated", handleAvatarUpdated as EventListener);
     return () => {
       document.removeEventListener("click", handleClickOutside);
+      window.removeEventListener("focus", handleWindowFocus);
       window.removeEventListener("account:avatarUrl", handleAvatarUpdated as EventListener);
       window.removeEventListener("nolsaf:profile-updated", handleAvatarUpdated as EventListener);
     };
@@ -180,7 +211,7 @@ export default function DriverSiteHeader({ unreadMessages = 0 }: { unreadMessage
 
           {/* Right: tools (visible). Action icons scroll on small screens. */}
           <div className="flex items-center gap-2 min-w-0 text-white">
-            <div className="flex items-center gap-1 min-w-0 overflow-x-auto scrollbar-hide pr-1 text-white">
+            <div className="-my-1 flex items-center gap-1 min-w-0 overflow-x-auto px-1 py-1 scrollbar-hide text-white">
               <button
                 onClick={handleRefresh}
                 className="group relative inline-flex items-center justify-center h-10 w-10 rounded-xl text-white hover:bg-white/10 hover:backdrop-blur-sm hover:border hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out"
@@ -198,9 +229,9 @@ export default function DriverSiteHeader({ unreadMessages = 0 }: { unreadMessage
                 title="Notifications"
               >
                 <Bell className="h-5 w-5 text-white opacity-90 group-hover:opacity-100 transition-all duration-300 ease-out group-hover:animate-pulse" />
-                {unreadMessages > 0 && (
+                {unreadCount > 0 && (
                   <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 rounded-full bg-rose-500 text-[10px] leading-4 text-white font-semibold ring-2 ring-[#02665e] text-center animate-scale-in">
-                    {unreadMessages > 9 ? "9+" : unreadMessages}
+                    {unreadCount > 9 ? "9+" : unreadCount}
                   </span>
                 )}
               </Link>
@@ -405,9 +436,9 @@ export default function DriverSiteHeader({ unreadMessages = 0 }: { unreadMessage
                 </button>
                 <Link href="/driver/notifications" onClick={() => setOpen(false)} className="relative inline-flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out" aria-label="Notifications">
                   <Bell className="h-5 w-5 text-white" />
-                  {unreadMessages > 0 && (
+                  {unreadCount > 0 && (
                     <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 rounded-full bg-rose-500 text-[10px] leading-4 text-white font-bold ring-2 ring-[#02665e] text-center flex items-center justify-center">
-                      {unreadMessages > 9 ? "9+" : unreadMessages}
+                      {unreadCount > 9 ? "9+" : unreadCount}
                     </span>
                   )}
                 </Link>

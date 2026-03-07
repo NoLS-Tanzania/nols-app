@@ -8,6 +8,7 @@ import DriverSiteHeader from "@/components/DriverSiteHeader";
 import DriverFooter from "@/components/DriverFooter";
 import DriverSidebar from "@/components/DriverSidebar";
 import LayoutFrame from "@/components/LayoutFrame";
+import MobileDriverNav from "@/components/MobileDriverNav";
 import Link from "next/link";
 import { Clock, ShieldX, CheckCircle2, AlertTriangle, RefreshCw, MessageSquare, Edit3 } from "lucide-react";
 
@@ -345,7 +346,7 @@ export default function DriverLayout({ children }: { children: ReactNode }) {
           )}
 
           {/* Main content with gap matching sidebar (owner style) */}
-          <div className={`pt-16 pb-6 app-driver-layout ${sidebarOpen ? "owner-content-gap" : ""} ${sidebarOpen ? "md:border-l md:border-slate-200" : ""}`}>
+          <div className={`pt-16 pb-24 md:pb-6 app-driver-layout ${sidebarOpen ? "owner-content-gap" : ""} ${sidebarOpen ? "md:border-l md:border-slate-200" : ""}`}>
             <main className="w-full max-w-full overflow-x-hidden">
               {children}
             </main>
@@ -353,9 +354,11 @@ export default function DriverLayout({ children }: { children: ReactNode }) {
         </div>
       </div>
 
-      <div className="relative z-20">
+      <div className="relative z-20 hidden md:block">
         <DriverFooter />
       </div>
+
+      <MobileDriverNav />
     </div>
   );
 }

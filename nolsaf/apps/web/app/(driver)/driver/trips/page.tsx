@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import TableRow from "@/components/TableRow"
-import { CalendarClock, CheckCircle2, Eye, Flag, ListChecks, MapPin, Navigation, Sparkles, Wallet, X, XCircle, Zap } from "lucide-react"
+import { ArrowUpDown, CalendarClock, CheckCircle2, ChevronDown, ChevronUp, Eye, Flag, ListChecks, MapPin, Navigation, Sparkles, Wallet, X, XCircle, Zap } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 type TripDetails = {
@@ -25,6 +25,15 @@ type TripDetails = {
   assignmentSource?: "ADMIN" | "AUTO" | string | null
 }
 
+type LocationSummary = {
+  title: string
+  street: string | null
+  region: string | null
+}
+
+type SortField = "scheduled" | "pickupAt" | "dropoffAt" | "amount"
+type SortDirection = "asc" | "desc"
+
 export default function DriverTripsPage() {
   const router = useRouter()
   const [trips, setTrips] = useState<any[] | null>(null)
@@ -34,6 +43,8 @@ export default function DriverTripsPage() {
   const [viewTrip, setViewTrip] = useState<TripDetails | null>(null)
   const [viewLoading, setViewLoading] = useState(false)
   const [viewError, setViewError] = useState<string | null>(null)
+  const [sortField, setSortField] = useState<SortField>("scheduled")
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc")
 
   const refreshInterval = useRef<number | null>(null)
   const toastShown = useRef(false)
@@ -144,6 +155,67 @@ export default function DriverTripsPage() {
     }
   }
 
+  const toTitleCase = (value: string) =>
+    value
+      .toLowerCase()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((word) => {
+        if (word.length <= 3 && /^(cbd|usa|uk|tzs)$/i.test(word)) return word.toUpperCase()
+        return word.charAt(0).toUpperCase() + word.slice(1)
+      })
+      .join(" ")
+
+  const normalizeLocationToken = (value: string) => value.replace(/[^a-z0-9]/gi, "").toLowerCase()
+
+  const summarizeLocation = (value?: string | null): LocationSummary => {
+    const raw = String(value ?? "").trim()
+    if (!raw) {
+      return { title: "—", street: null, region: null }
+    }
+
+    const tokens = raw
+      .split(/\s+-\s+|,\s*/)
+      .map((part) => part.trim())
+      .filter(Boolean)
+
+    const uniqueTokens = tokens.filter((token, index, arr) => {
+      const key = normalizeLocationToken(token)
+      return arr.findIndex((entry) => normalizeLocationToken(entry) === key) === index
+    })
+
+    const [first = raw, ...rest] = uniqueTokens
+    const title = toTitleCase(first)
+
+    if (rest.length === 0) {
+      return { title, street: null, region: null }
+    }
+
+    if (rest.length === 1) {
+      return { title, street: toTitleCase(rest[0]), region: null }
+    }
+
+    const streetParts = rest.slice(0, Math.min(2, rest.length - 1)).map(toTitleCase)
+    const regionParts = rest.slice(Math.min(2, rest.length - 1)).map(toTitleCase)
+
+    return {
+      title,
+      street: streetParts.join(", "),
+      region: regionParts.join(", "),
+    }
+  }
+
+  const renderLocationSummary = (value?: string | null) => {
+    const location = summarizeLocation(value)
+    return (
+      <div className="space-y-1">
+        <div className="font-semibold text-slate-900">{location.title}</div>
+        {location.street ? <div className="text-slate-700">Street: {location.street}</div> : null}
+        {location.region ? <div className="text-slate-500">Region: {location.region}</div> : null}
+      </div>
+    )
+  }
+
   const formatDate = (iso?: string) => {
     if (!iso) return "-"
     const d = new Date(iso)
@@ -195,6 +267,43 @@ export default function DriverTripsPage() {
         {source === "ADMIN" ? "Admin assigned" : "Auto allocated"}
       </span>
     )
+  }
+
+  const getSortValue = (trip: any, field: SortField) => {
+    if (field === "amount") {
+      const raw = trip?.amount ?? trip?.fare ?? trip?.total ?? 0
+      const amount = typeof raw === "number" ? raw : Number(String(raw).replace(/,/g, ""))
+      return Number.isFinite(amount) ? amount : 0
+    }
+
+    const raw =
+      field === "pickupAt"
+        ? trip?.pickupTime
+        : field === "dropoffAt"
+          ? trip?.dropoffTime
+          : trip?.scheduledDate ?? trip?.datetime ?? trip?.date ?? trip?.createdAt
+
+    const value = raw ? new Date(raw).getTime() : 0
+    return Number.isFinite(value) ? value : 0
+  }
+
+  const toggleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection((current) => (current === "asc" ? "desc" : "asc"))
+      return
+    }
+
+    setSortField(field)
+    setSortDirection(field === "amount" ? "desc" : "asc")
+  }
+
+  const renderSortIcon = (field: SortField) => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="h-4 w-4 shrink-0 text-slate-400" strokeWidth={2.2} aria-hidden />
+    }
+    return sortDirection === "asc"
+      ? <ChevronUp className="h-4 w-4 shrink-0 text-[#02665e]" strokeWidth={2.4} aria-hidden />
+      : <ChevronDown className="h-4 w-4 shrink-0 text-[#02665e]" strokeWidth={2.4} aria-hidden />
   }
 
   const closeView = () => {
@@ -388,35 +497,6 @@ export default function DriverTripsPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-            <div className="rounded-3xl border border-white/70 bg-white/80 p-5 shadow-[0_14px_40px_-24px_rgba(15,23,42,0.45)] backdrop-blur">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="text-sm font-bold text-slate-900">Admin dispatch</div>
-                  <div className="mt-1 text-sm text-slate-500">Structured trips routed directly by operations.</div>
-                </div>
-                <div className="rounded-full bg-indigo-50 px-3 py-1 text-sm font-bold text-indigo-700">{adminTrips.length}</div>
-              </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">Priority lane</span>
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">Direct oversight</span>
-              </div>
-            </div>
-
-            <div className="rounded-3xl border border-white/70 bg-white/80 p-5 shadow-[0_14px_40px_-24px_rgba(15,23,42,0.45)] backdrop-blur">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="text-sm font-bold text-slate-900">Auto allocated</div>
-                  <div className="mt-1 text-sm text-slate-500">Trips flowing through live demand and instant matching.</div>
-                </div>
-                <div className="rounded-full bg-emerald-50 px-3 py-1 text-sm font-bold text-emerald-700">{autoTrips.length}</div>
-              </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">Live demand</span>
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">Instant matching</span>
-              </div>
-            </div>
-          </div>
         </div>
 
         <div className="mt-6">
@@ -433,7 +513,14 @@ export default function DriverTripsPage() {
           )}
 
           {(() => {
-            const TripsTable = ({ items, defaultAction }: { items: any[]; defaultAction: "START" | "VIEW" }) => (
+            const TripsTable = ({ items, defaultAction }: { items: any[]; defaultAction: "START" | "VIEW" }) => {
+              const sortedItems = items.slice().sort((left: any, right: any) => {
+                const leftValue = getSortValue(left, sortField)
+                const rightValue = getSortValue(right, sortField)
+                return sortDirection === "asc" ? leftValue - rightValue : rightValue - leftValue
+              })
+
+              return (
               <div className="mt-4 overflow-hidden rounded-[1.4rem] border border-slate-200/80 bg-white/90 shadow-[0_16px_40px_-28px_rgba(15,23,42,0.55)] backdrop-blur">
                 <div className="flex items-center justify-between border-b border-slate-200/80 bg-slate-950 px-4 py-3 text-white">
                   <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-300">Trip Ledger</div>
@@ -446,22 +533,47 @@ export default function DriverTripsPage() {
                 <table className="w-full min-w-[1360px] divide-y divide-slate-200 table-auto">
                   <thead>
                     <tr className="bg-slate-50">
-                      <th className="px-5 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-[0.18em] border-b border-slate-200 whitespace-nowrap">Date</th>
-                      <th className="px-5 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-[0.18em] border-b border-slate-200 whitespace-nowrap">Time</th>
-                      <th className="px-5 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-[0.18em] border-b border-slate-200 whitespace-nowrap">Pickup At</th>
-                      <th className="px-5 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-[0.18em] border-b border-slate-200 whitespace-nowrap">Drop-off At</th>
+                      <th className="px-5 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-[0.18em] border-b border-slate-200 whitespace-nowrap">
+                        <button type="button" onClick={() => toggleSort("scheduled")} className="inline-flex items-center gap-1.5 rounded-none border-0 bg-transparent p-0 text-inherit shadow-none outline-none">
+                          <span>Date</span>
+                          {renderSortIcon("scheduled")}
+                        </button>
+                      </th>
+                      <th className="px-5 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-[0.18em] border-b border-slate-200 whitespace-nowrap">
+                        <button type="button" onClick={() => toggleSort("scheduled")} className="inline-flex items-center gap-1.5 rounded-none border-0 bg-transparent p-0 text-inherit shadow-none outline-none">
+                          <span>Time</span>
+                          {renderSortIcon("scheduled")}
+                        </button>
+                      </th>
+                      <th className="px-5 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-[0.18em] border-b border-slate-200 whitespace-nowrap">
+                        <button type="button" onClick={() => toggleSort("pickupAt")} className="inline-flex items-center gap-1.5 rounded-none border-0 bg-transparent p-0 text-inherit shadow-none outline-none">
+                          <span>Pickup At</span>
+                          {renderSortIcon("pickupAt")}
+                        </button>
+                      </th>
+                      <th className="px-5 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-[0.18em] border-b border-slate-200 whitespace-nowrap">
+                        <button type="button" onClick={() => toggleSort("dropoffAt")} className="inline-flex items-center gap-1.5 rounded-none border-0 bg-transparent p-0 text-inherit shadow-none outline-none">
+                          <span>Drop-off At</span>
+                          {renderSortIcon("dropoffAt")}
+                        </button>
+                      </th>
                       <th className="px-5 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-[0.18em] border-b border-slate-200">Pick-Up</th>
                       <th className="px-5 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-[0.18em] border-b border-slate-200">Drop-off</th>
                       <th className="px-5 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-[0.18em] border-b border-slate-200 whitespace-nowrap">Trip Code</th>
                       <th className="px-5 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-[0.18em] border-b border-slate-200 whitespace-nowrap">Type</th>
                       <th className="px-5 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-[0.18em] border-b border-slate-200 whitespace-nowrap">Status</th>
-                      <th className="px-5 py-3 text-right text-[11px] font-semibold text-slate-500 uppercase tracking-[0.18em] border-b border-slate-200 whitespace-nowrap">Amount</th>
+                      <th className="px-5 py-3 text-right text-[11px] font-semibold text-slate-500 uppercase tracking-[0.18em] border-b border-slate-200 whitespace-nowrap">
+                        <button type="button" onClick={() => toggleSort("amount")} className="ml-auto inline-flex items-center gap-1.5 rounded-none border-0 bg-transparent p-0 text-inherit shadow-none outline-none">
+                          <span>Amount</span>
+                          {renderSortIcon("amount")}
+                        </button>
+                      </th>
                       <th className="px-5 py-3 text-right text-[11px] font-semibold text-slate-500 uppercase tracking-[0.18em] border-b border-slate-200 whitespace-nowrap">Action</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-slate-100">
-                    {items.length > 0 ? (
-                      items.map((t: any) => {
+                    {sortedItems.length > 0 ? (
+                      sortedItems.map((t: any) => {
                         const source = normalizeAssignmentSource(t)
                         const statusLower = String(t?.status ?? "").toLowerCase()
                         const isClosed = isCompletedStatus(t?.status) || statusLower.includes("cancel")
@@ -478,8 +590,8 @@ export default function DriverTripsPage() {
                             <td className="px-5 py-4 text-sm text-slate-700 whitespace-nowrap align-top">
                               {canShowDropoff ? `${formatDate(dropoffIso)} ${formatTime(dropoffIso)}` : "—"}
                             </td>
-                            <td className="px-5 py-4 text-sm text-slate-700 max-w-[280px] break-words leading-5 align-top">{t.pickup || t.from || '—'}</td>
-                            <td className="px-5 py-4 text-sm text-slate-700 max-w-[280px] break-words leading-5 align-top">{t.dropoff || t.to || '—'}</td>
+                            <td className="px-5 py-4 text-sm text-slate-700 max-w-[280px] break-words leading-5 align-top">{renderLocationSummary(t.pickup || t.from || '—')}</td>
+                            <td className="px-5 py-4 text-sm text-slate-700 max-w-[280px] break-words leading-5 align-top">{renderLocationSummary(t.dropoff || t.to || '—')}</td>
                             <td className="px-5 py-4 text-sm text-slate-700 font-mono font-medium whitespace-nowrap align-top">{t.trip_code || t.code || t.reference || t.tripCode || '—'}</td>
                             <td className="px-5 py-4 text-sm whitespace-nowrap align-top">{renderAssignmentBadge(source)}</td>
                             <td className="px-5 py-4 text-sm whitespace-nowrap align-top">{renderStatusBadge(t.status)}</td>
@@ -533,7 +645,8 @@ export default function DriverTripsPage() {
                 </table>
                 </div>
               </div>
-            )
+              )
+            }
 
             return (
               <div className="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-5">
@@ -620,11 +733,15 @@ export default function DriverTripsPage() {
                     <div className="grid grid-cols-1 sm:grid-cols-[1fr_300px]">
                       <div className="p-4 sm:p-5">
                         <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-[0.22em]">Route</div>
-                        <div className="mt-2 text-sm font-semibold text-slate-900 leading-6 break-words">
-                          {viewTrip.pickup ?? "—"}
-                        </div>
-                        <div className="mt-2 text-sm text-slate-700 leading-6 break-words">
-                          → {viewTrip.dropoff ?? "—"}
+                        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                            <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Pick-up</div>
+                            <div className="mt-2 text-sm leading-5">{renderLocationSummary(viewTrip.pickup)}</div>
+                          </div>
+                          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                            <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Drop-off</div>
+                            <div className="mt-2 text-sm leading-5">{renderLocationSummary(viewTrip.dropoff)}</div>
+                          </div>
                         </div>
                       </div>
 
@@ -646,9 +763,12 @@ export default function DriverTripsPage() {
 
                   <div className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
                     <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-[0.22em]">Route status</div>
-                    <div className="mt-4 space-y-2.5">
+                    <div className="relative mt-4 space-y-2.5">
                       {routeStatusSteps(viewTrip).map((s, idx, arr) => {
                         const Icon = s.icon
+                        const isStart = idx === 0
+                        const isEnd = idx === arr.length - 1
+                        const routeHint = isStart ? "Start point" : isEnd ? "End point" : "Route stop"
                         const badgeClass =
                           s.state === "done"
                             ? "bg-emerald-100 text-emerald-800"
@@ -661,26 +781,91 @@ export default function DriverTripsPage() {
                             : s.state === "active"
                               ? "bg-blue-600"
                               : "bg-slate-300"
-
                         return (
-                          <div key={s.key} className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 sm:px-4">
-                            <div className="flex items-start gap-3">
-                              <div className="flex flex-col items-center">
-                                <div className={`h-10 w-10 rounded-full border border-slate-200 bg-white flex items-center justify-center ${s.state === "done" ? "text-emerald-700" : s.state === "active" ? "text-blue-700" : "text-slate-500"}`}>
+                          <div key={s.key} className="relative rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 sm:px-4">
+                            {idx < arr.length - 1 ? (
+                              <div
+                                className="pointer-events-none absolute left-[1.1rem] top-[3.05rem] w-7"
+                                style={{ height: "calc(100% + 1rem)" }}
+                                aria-hidden
+                              >
+                                <svg className="h-full w-full overflow-visible" viewBox="0 0 28 140" preserveAspectRatio="none">
+                                  <defs>
+                                    <linearGradient id={`driver-route-thread-${idx}`} x1="0" y1="0" x2="0" y2="1">
+                                      {s.state === "done" ? (
+                                        <>
+                                          <stop offset="0%" stopColor="#10b981" />
+                                          <stop offset="55%" stopColor="#6ee7b7" stopOpacity="0.72" />
+                                          <stop offset="100%" stopColor="#cbd5e1" stopOpacity="0.3" />
+                                        </>
+                                      ) : s.state === "active" ? (
+                                        <>
+                                          <stop offset="0%" stopColor="#02665e" />
+                                          <stop offset="52%" stopColor="#35a79c" stopOpacity="0.75" />
+                                          <stop offset="100%" stopColor="#cbd5e1" stopOpacity="0.3" />
+                                        </>
+                                      ) : (
+                                        <>
+                                          <stop offset="0%" stopColor="#cbd5e1" />
+                                          <stop offset="60%" stopColor="#e2e8f0" stopOpacity="0.72" />
+                                          <stop offset="100%" stopColor="#f1f5f9" stopOpacity="0.2" />
+                                        </>
+                                      )}
+                                    </linearGradient>
+                                  </defs>
+                                  <path
+                                    d={idx % 2 === 0 ? "M14 0 C14 16 22 22 22 42 C22 64 8 72 8 95 C8 113 14 122 14 140" : "M14 0 C14 16 6 22 6 42 C6 64 20 72 20 95 C20 113 14 122 14 140"}
+                                    fill="none"
+                                    stroke={`url(#driver-route-thread-${idx})`}
+                                    strokeWidth="2.4"
+                                    strokeLinecap="round"
+                                  />
+                                  <path
+                                    d={idx % 2 === 0 ? "M14 0 C14 16 22 22 22 42 C22 64 8 72 8 95 C8 113 14 122 14 140" : "M14 0 C14 16 6 22 6 42 C6 64 20 72 20 95 C20 113 14 122 14 140"}
+                                    fill="none"
+                                    stroke="rgba(255,255,255,0.45)"
+                                    strokeWidth="5.5"
+                                    strokeLinecap="round"
+                                    opacity="0.18"
+                                  />
+                                </svg>
+                              </div>
+                            ) : null}
+                            <div className="flex items-start gap-2">
+                              <div className="flex w-12 flex-col items-center pt-1">
+                                <div className={`relative h-10 w-10 rounded-full border border-slate-200 bg-white flex items-center justify-center ${s.state === "done" ? "text-emerald-700" : s.state === "active" ? "text-[#02665e]" : "text-slate-500"}`}>
+                                  <span className={`pointer-events-none absolute inset-0 rounded-full ${s.state === "done" ? "bg-emerald-100/50" : s.state === "active" ? "bg-[#02665e]/10" : "bg-slate-100/60"}`} aria-hidden />
                                   <Icon className="h-4 w-4" />
                                 </div>
-                                {idx < arr.length - 1 ? <div className={`w-px flex-1 my-1 ${dotClass}`} style={{ opacity: 0.35 }} /> : null}
+                                <div className={`mt-1 h-2 w-2 rounded-full ${dotClass}`} style={{ opacity: 0.7 }} aria-hidden />
                               </div>
 
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-start justify-between gap-3">
-                                  <div className="min-w-0">
-                                    <div className="text-sm font-semibold text-slate-900">{s.label}</div>
-                                    <div className="mt-0.5 text-xs text-slate-600">{fmtDateTime(s.at)}</div>
+                              <div className={`relative min-w-0 flex-1 ${idx % 2 === 0 ? "pl-2 sm:pl-3" : "pl-5 sm:pl-6"}`}>
+                                <div className="pointer-events-none absolute left-[-1.1rem] top-5 h-10 w-10 sm:left-[-1.35rem]" aria-hidden>
+                                  <svg className="h-full w-full overflow-visible" viewBox="0 0 40 40" preserveAspectRatio="none">
+                                    <path
+                                      d={idx % 2 === 0 ? "M2 18 C10 18 10 8 20 8 C28 8 30 12 38 12" : "M2 18 C12 18 14 30 24 30 C30 30 32 24 38 24"}
+                                      fill="none"
+                                      stroke={s.state === "done" ? "rgba(16,185,129,0.75)" : s.state === "active" ? "rgba(2,102,94,0.78)" : "rgba(148,163,184,0.55)"}
+                                      strokeWidth="2.1"
+                                      strokeLinecap="round"
+                                    />
+                                  </svg>
+                                </div>
+
+                                <div className="rounded-[1.15rem] border border-white/80 bg-white px-3 py-3 shadow-sm sm:px-4">
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                      <div className={`text-[10px] font-semibold uppercase tracking-[0.18em] ${isStart ? "text-emerald-700" : isEnd ? "text-[#02665e]" : "text-slate-400"}`}>
+                                        {routeHint}
+                                      </div>
+                                      <div className="mt-1 text-sm font-semibold text-slate-900">{s.label}</div>
+                                      <div className="mt-0.5 text-xs text-slate-600">{fmtDateTime(s.at)}</div>
+                                    </div>
+                                    <span className={`mt-0.5 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${badgeClass}`}>
+                                      {s.state === "done" ? "Done" : s.state === "active" ? "Active" : "Pending"}
+                                    </span>
                                   </div>
-                                  <span className={`mt-0.5 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${badgeClass}`}>
-                                    {s.state === "done" ? "Done" : s.state === "active" ? "Active" : "Pending"}
-                                  </span>
                                 </div>
                               </div>
                             </div>

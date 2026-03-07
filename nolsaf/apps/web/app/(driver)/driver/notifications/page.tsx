@@ -6,27 +6,29 @@ import { Bell } from "lucide-react";
 export default function DriverNotificationsPage() {
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [readCount, setReadCount] = useState<number>(0);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
     const controller = new AbortController();
     (async () => {
       try {
-        // fetch unread totals
-        const ru = await fetch('/api/driver/notifications?tab=unread&page=1&pageSize=1', { credentials: "include", signal: controller.signal });
-        if (ru.ok) {
-          const ju = await ru.json();
-          if (mounted) setUnreadCount(Number(ju.totalUnread ?? ju.total ?? 0));
-        }
+        setLoading(true);
+        const [ru, rr] = await Promise.all([
+          fetch('/api/driver/notifications?tab=unread&page=1&pageSize=3', { credentials: "include", signal: controller.signal }),
+          fetch('/api/driver/notifications?tab=viewed&page=1&pageSize=1', { credentials: "include", signal: controller.signal }),
+        ]);
 
-        // fetch read totals
-        const rr = await fetch('/api/driver/notifications?tab=viewed&page=1&pageSize=1', { credentials: "include", signal: controller.signal });
-        if (rr.ok) {
-          const jr = await rr.json();
-          if (mounted) setReadCount(Number(jr.total ?? 0));
-        }
+        const ju = ru.ok ? await ru.json() : null;
+        const jr = rr.ok ? await rr.json() : null;
+        if (!mounted) return;
+
+        setUnreadCount(Number(ju?.totalUnread ?? ju?.total ?? 0));
+        setReadCount(Number(jr?.totalViewed ?? jr?.total ?? 0));
       } catch (err) {
         // ignore errors here; show zeros by default
+      } finally {
+        if (mounted) setLoading(false);
       }
     })();
     return () => { mounted = false; controller.abort(); };
@@ -48,16 +50,16 @@ export default function DriverNotificationsPage() {
         <div className="flex justify-center gap-3">
           <Link
             href="/driver/notifications/unread"
-            className="inline-flex items-center px-4 py-1.5 rounded-full text-sm font-medium transition-colors border border-gray-200 text-gray-700 bg-white shadow-sm hover:bg-gray-50 no-underline hover:no-underline focus:outline-none focus:ring-4 focus:ring-indigo-300/40 focus:ring-offset-2 focus:ring-offset-white"
+            className="inline-flex items-center px-4 py-1.5 rounded-full text-sm font-medium transition-colors border border-gray-200 text-gray-700 bg-white shadow-sm hover:bg-gray-50 no-underline hover:no-underline focus:outline-none focus:ring-4 focus:ring-[#02665e]/15 focus:ring-offset-2 focus:ring-offset-white"
           >
-            Unread ({unreadCount})
+            Unread ({loading ? "..." : unreadCount})
           </Link>
 
           <Link
             href="/driver/notifications/read"
-            className="inline-flex items-center px-4 py-1.5 rounded-full text-sm font-medium transition-colors border border-gray-200 text-gray-700 bg-white shadow-sm hover:bg-gray-50 no-underline hover:no-underline focus:outline-none focus:ring-4 focus:ring-indigo-300/40 focus:ring-offset-2 focus:ring-offset-white"
+            className="inline-flex items-center px-4 py-1.5 rounded-full text-sm font-medium transition-colors border border-gray-200 text-gray-700 bg-white shadow-sm hover:bg-gray-50 no-underline hover:no-underline focus:outline-none focus:ring-4 focus:ring-[#02665e]/15 focus:ring-offset-2 focus:ring-offset-white"
           >
-            Read ({readCount})
+            Read ({loading ? "..." : readCount})
           </Link>
         </div>
       </div>
