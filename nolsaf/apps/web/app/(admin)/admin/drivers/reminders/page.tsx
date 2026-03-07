@@ -54,6 +54,12 @@ type ReminderData = {
 
 type ReminderType = "POLICY_VIOLATION" | "SAFETY" | "LICENSE_EXPIRY" | "INSURANCE_EXPIRY" | "WARNING" | "INFO" | "ALERT";
 
+type NoticeState = {
+  kind: "success" | "error" | "info";
+  title: string;
+  message: string;
+} | null;
+
 const REMINDER_TYPES: Array<{ value: ReminderType; label: string; icon: any; description: string; color: string }> = [
   { value: "POLICY_VIOLATION", label: "Policy Violation", icon: FileWarning, description: "Driver violated company policy", color: "bg-red-100 text-red-700 border-red-200" },
   { value: "SAFETY", label: "Safety Measure", icon: Shield, description: "Safety reminder (e.g., helmet for Motorcycle)", color: "bg-amber-100 text-amber-700 border-amber-200" },
@@ -67,11 +73,6 @@ const REMINDER_TYPES: Array<{ value: ReminderType; label: string; icon: any; des
 const getReminderIcon = (type: string) => {
   const reminderType = REMINDER_TYPES.find(r => r.value === type);
   return reminderType?.icon || Info;
-};
-
-const getReminderColor = (type: string) => {
-  const reminderType = REMINDER_TYPES.find(r => r.value === type);
-  return reminderType?.color || "bg-gray-100 text-gray-700 border-gray-200";
 };
 
 export default function AdminDriversRemindersPage() {
@@ -104,6 +105,11 @@ export default function AdminDriversRemindersPage() {
   const [reminderActionLink, setReminderActionLink] = useState("");
   const [reminderExpiresAt, setReminderExpiresAt] = useState("");
   const [reminderGoal, setReminderGoal] = useState("");
+  const [notice, setNotice] = useState<NoticeState>(null);
+
+  function showNotice(kind: "success" | "error" | "info", title: string, message: string) {
+    setNotice({ kind, title, message });
+  }
 
   useEffect(() => {
     authify();
@@ -151,14 +157,14 @@ export default function AdminDriversRemindersPage() {
         `• Security: ${stats.security}\n` +
         `• Goals: ${stats.goals}\n` +
         `• Earnings: ${stats.earnings}`;
-      alert(message);
+      showNotice("success", "Automatic reminders created", message);
       await loadExpiringDocuments();
       if (selectedDriver) {
         await loadDriverReminders(selectedDriver);
       }
     } catch (err) {
       console.error("Failed to auto-create reminders", err);
-      alert("Failed to auto-create reminders. Please try again.");
+      showNotice("error", "Automatic reminder creation failed", "Failed to auto-create reminders. Please try again.");
     } finally {
       setAutoCreating(false);
     }
@@ -234,7 +240,7 @@ export default function AdminDriversRemindersPage() {
         payload.meta = { goal: reminderGoal.trim() };
       }
 
-      await api.post("/api/driver/reminders", payload);
+      await api.post(`/api/admin/drivers/${selectedDriver}/reminders`, payload);
       
       // Reset form
       setReminderMessage("");
@@ -244,6 +250,7 @@ export default function AdminDriversRemindersPage() {
       setReminderGoal("");
       setReminderType("INFO");
       setShowCreateModal(false);
+      showNotice("success", "Reminder created", "The reminder was created and sent through the admin reminder channel.");
       
       // Reload reminders
       if (selectedDriver) {
@@ -253,16 +260,16 @@ export default function AdminDriversRemindersPage() {
       // Handle 501 (Not Implemented) - reminders feature not enabled
       if (err?.response?.status === 501) {
         console.debug("Reminders feature not enabled:", err.response?.data);
-        alert("Reminders feature is not enabled. The driver reminders table may not be set up in the database.");
+        showNotice("error", "Reminders unavailable", "Reminders feature is not enabled. The driver reminders table may not be set up in the database.");
       } else if (err?.response?.status === 403) {
         console.debug("Permission denied:", err.response?.data);
-        alert("You don't have permission to create reminders.");
+        showNotice("error", "Permission denied", "Only authenticated admins can create reminders from this page.");
       } else if (err?.response?.status === 400) {
         const errorMsg = err.response?.data?.error || "Invalid request data";
-        alert(`Failed to create reminder: ${errorMsg}`);
+        showNotice("error", "Reminder creation failed", `Failed to create reminder: ${errorMsg}`);
       } else {
         console.error("Failed to create reminder", err);
-        alert("Failed to create reminder. Please try again.");
+        showNotice("error", "Reminder creation failed", "Failed to create reminder. Please try again.");
       }
     } finally {
       setCreating(false);
@@ -598,6 +605,56 @@ export default function AdminDriversRemindersPage() {
           )}
         </div>
       </div>
+
+      {notice && (
+        <div
+          className="rounded-2xl border px-4 py-4 shadow-sm"
+          style={{
+            background:
+              notice.kind === "success"
+                ? "linear-gradient(135deg, rgba(6,95,70,0.18), rgba(16,185,129,0.12))"
+                : notice.kind === "error"
+                  ? "linear-gradient(135deg, rgba(127,29,29,0.18), rgba(239,68,68,0.12))"
+                  : "linear-gradient(135deg, rgba(30,64,175,0.18), rgba(59,130,246,0.12))",
+            borderColor:
+              notice.kind === "success"
+                ? "rgba(16,185,129,0.28)"
+                : notice.kind === "error"
+                  ? "rgba(239,68,68,0.28)"
+                  : "rgba(59,130,246,0.28)",
+          }}
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div
+                className="text-sm font-semibold"
+                style={{
+                  color:
+                    notice.kind === "success"
+                      ? "#86efac"
+                      : notice.kind === "error"
+                        ? "#fca5a5"
+                        : "#93c5fd",
+                }}
+              >
+                {notice.title}
+              </div>
+              <div className="mt-1 whitespace-pre-line text-sm" style={{ color: "rgba(255,255,255,0.82)" }}>
+                {notice.message}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setNotice(null)}
+              className="rounded-full p-1 transition-colors"
+              style={{ background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.72)" }}
+              aria-label="Dismiss notice"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 w-full">
         <div className="lg:col-span-1 w-full min-w-0 max-w-full">

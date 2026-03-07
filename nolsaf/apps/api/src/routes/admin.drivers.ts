@@ -4404,6 +4404,82 @@ router.get("/:id(\\d+)/reminders", async (req, res) => {
   }
 });
 
+/** POST /admin/drivers/:id/reminders
+ * Creates a reminder for a specific driver. Admin-only by router guard.
+ */
+router.post("/:id(\\d+)/reminders", async (req, res) => {
+  try {
+    const driverId = Number(req.params.id);
+    if (!Number.isFinite(driverId) || driverId <= 0) return res.status(400).json({ error: "Invalid driver id" });
+
+    const driver = await prisma.user.findFirst({
+      where: { id: driverId, role: "DRIVER" },
+      select: { id: true, name: true, email: true },
+    });
+    if (!driver) return res.status(404).json({ error: "Driver not found" });
+
+    if (!(prisma as any).driverReminder) {
+      return res.status(501).json({ error: "Reminders feature is not enabled" });
+    }
+
+    const { type, message, action, actionLink, expiresAt, meta } = req.body ?? {};
+    const cleanedMessage = String(message ?? "").trim();
+    const cleanedAction = action != null ? String(action).trim() : "";
+    const cleanedActionLink = actionLink != null ? String(actionLink).trim() : "";
+    if (!cleanedMessage) return res.status(400).json({ error: "message required" });
+
+    const created = await (prisma as any).driverReminder.create({
+      data: {
+        driverId,
+        type: String(type ?? "INFO").trim() || "INFO",
+        message: cleanedMessage,
+        action: cleanedAction || null,
+        actionLink: cleanedActionLink || null,
+        expiresAt: expiresAt ? new Date(expiresAt) : null,
+        meta: meta ?? null,
+      },
+    });
+
+    const io = (req as any).app?.get("io");
+    if (io && typeof io.to === "function") {
+      io.to(`driver:${driverId}`).emit("new-reminder", {
+        id: String(created.id),
+        type: created.type || "INFO",
+        message: created.message,
+        action: created.action || null,
+        actionLink: created.actionLink || null,
+        expiresAt: created.expiresAt ? new Date(created.expiresAt).toISOString() : null,
+        createdAt: created.createdAt ? new Date(created.createdAt).toISOString() : new Date().toISOString(),
+        meta: created.meta || null,
+      });
+    }
+
+    return res.status(201).json({
+      id: String(created.id),
+      driver: {
+        id: driver.id,
+        name: driver.name,
+        email: driver.email,
+      },
+      type: created.type || "INFO",
+      message: created.message,
+      action: created.action || null,
+      actionLink: created.actionLink || null,
+      expiresAt: created.expiresAt ? new Date(created.expiresAt).toISOString() : null,
+      isRead: Boolean((created as any).read ?? false),
+      createdAt: created.createdAt ? new Date(created.createdAt).toISOString() : new Date().toISOString(),
+      meta: created.meta || null,
+    });
+  } catch (err: any) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && (err.code === 'P2021' || err.code === 'P2022')) {
+      console.warn('Prisma schema mismatch when creating driver reminder:', err.message);
+      return res.status(501).json({ error: 'Reminders feature is not enabled' });
+    }
+    console.error('Unhandled error in POST /admin/drivers/:id/reminders:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 /** GET /admin/drivers/expiring-documents
  * Get all drivers with expiring documents (license/insurance)
  * License: checks 100 days before expiry
