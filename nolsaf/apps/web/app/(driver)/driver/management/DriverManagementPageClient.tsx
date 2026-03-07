@@ -6,7 +6,6 @@ import { useSearchParams } from "next/navigation"
 import {
   AlertCircle,
   ArrowRight,
-  Calendar,
   CheckCircle2,
   Eye,
   FileText,
@@ -99,12 +98,6 @@ function getDocUploadedAt(doc: DocumentRecord | null) {
   return doc?.createdAt ?? null
 }
 
-function getDocFileName(doc: DocumentRecord | null) {
-  const meta = doc?.metadata as Record<string, unknown> | null | undefined
-  const raw = meta?.fileName
-  return typeof raw === "string" && raw.trim() ? raw : null
-}
-
 function isDocExpiringSoon(doc: DocumentRecord | null) {
   const expiry = getDocExpiry(doc)
   if (!expiry) return false
@@ -148,9 +141,9 @@ function statusPill(status: string, hasFile: boolean) {
 
 function StatCard({ label, value, tone }: { label: string; value: string; tone: string }) {
   return (
-    <div className={`rounded-[28px] border px-5 py-5 shadow-sm ${tone}`}>
-      <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">{label}</div>
-      <div className="mt-3 text-3xl font-semibold text-slate-950">{value}</div>
+    <div className={`rounded-[22px] border px-5 py-4 backdrop-blur-md ${tone}`}>
+      <div className="text-[11px] font-medium uppercase tracking-[0.24em] text-white/70">{label}</div>
+      <div className="mt-2 text-3xl font-semibold text-white">{value}</div>
     </div>
   )
 }
@@ -161,10 +154,10 @@ function TabButton({ active, children, onClick }: { active: boolean; children: R
       type="button"
       onClick={onClick}
       className={[
-        "rounded-full border px-5 py-3 text-sm font-semibold transition-all",
+        "rounded-full border px-5 py-3 text-sm font-semibold backdrop-blur-sm transition-all",
         active
-          ? "border-[#0d8f6f] bg-[#0d8f6f] text-white shadow-[0_12px_35px_rgba(13,143,111,0.24)]"
-          : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50",
+          ? "border-white/20 bg-white/16 text-white shadow-[0_10px_30px_rgba(15,23,42,0.18)]"
+          : "border-white/10 bg-white/8 text-white/78 hover:border-white/20 hover:bg-white/12",
       ].join(" ")}
     >
       {children}
@@ -291,39 +284,44 @@ export default function DriverManagementPageClient() {
 
   return (
     <div className="w-full max-w-full space-y-8 overflow-x-hidden pb-8">
-      <section className="relative overflow-hidden rounded-[34px] border border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(13,143,111,0.16),_transparent_35%),linear-gradient(135deg,_#f8f6ef_0%,_#ffffff_55%,_#eef8f2_100%)] px-6 py-8 shadow-[0_24px_60px_rgba(15,23,42,0.08)] sm:px-8 lg:px-10">
-        <div className="absolute -right-12 top-8 h-40 w-40 rounded-full bg-[#0d8f6f]/10 blur-3xl" aria-hidden />
-        <div className="absolute bottom-0 left-0 h-32 w-32 rounded-full bg-amber-200/25 blur-3xl" aria-hidden />
-
-        <div className="relative flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-3xl">
-            <div className="inline-flex h-14 w-14 items-center justify-center rounded-full border border-[#0d8f6f]/20 bg-[#0d8f6f]/10 text-[#0d8f6f]">
-              <Settings className="h-7 w-7" aria-hidden />
-            </div>
-            <h1 className="mt-5 text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">Management</h1>
-            <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600 sm:text-lg">
-              Review the records already attached to your driver profile, keep expiry-sensitive documents current, and access your account controls from one place.
-            </p>
-            <div className="mt-6 flex flex-wrap gap-3 text-sm text-slate-700">
-              <span className="rounded-full border border-white/70 bg-white/80 px-4 py-2 shadow-sm">Profile-backed document state</span>
-              <span className="rounded-full border border-white/70 bg-white/80 px-4 py-2 shadow-sm">Live expiry overview</span>
-              <span className="rounded-full border border-white/70 bg-white/80 px-4 py-2 shadow-sm">Quick links to review pages</span>
-            </div>
-          </div>
-
-          <div className="grid w-full max-w-xl grid-cols-1 gap-3 sm:grid-cols-3">
-            <StatCard label="On file" value={`${availableCount}/4`} tone="border-white/80 bg-white/80" />
-            <StatCard label="Pending review" value={String(pendingCount)} tone="border-white/80 bg-white/80" />
-            <StatCard label="Expiring soon" value={String(expiringCount)} tone="border-white/80 bg-white/80" />
-          </div>
+      <section className="relative overflow-hidden rounded-[36px] border border-slate-900/40 bg-[linear-gradient(135deg,#0f2d68_0%,#0a6a74_52%,#0c6b5f_100%)] px-6 py-8 shadow-[0_30px_80px_rgba(15,23,42,0.26)] sm:px-8 lg:px-10 lg:py-10">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.14),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(52,211,153,0.12),transparent_30%)]" aria-hidden />
+        <div className="absolute inset-x-0 top-10 h-px bg-white/10" aria-hidden />
+        <div className="absolute inset-x-0 top-24 h-px bg-white/10" aria-hidden />
+        <div className="absolute inset-x-0 bottom-20 h-px bg-white/10" aria-hidden />
+        <div className="absolute left-6 right-6 top-[42%] hidden h-[2px] bg-white/20 md:block" aria-hidden />
+        <div className="absolute left-[5%] top-[53%] hidden h-[2px] w-[16%] rotate-[-18deg] bg-white/28 md:block" aria-hidden />
+        <div className="absolute left-[20%] top-[45%] hidden h-[2px] w-[13%] rotate-[8deg] bg-white/28 md:block" aria-hidden />
+        <div className="absolute left-[32%] top-[34%] hidden h-[2px] w-[15%] rotate-[-10deg] bg-white/28 md:block" aria-hidden />
+        <div className="absolute left-[46%] top-[40%] hidden h-[2px] w-[16%] rotate-[12deg] bg-white/28 md:block" aria-hidden />
+        <div className="absolute left-[61%] top-[30%] hidden h-[2px] w-[14%] rotate-[-8deg] bg-white/28 md:block" aria-hidden />
+        <div className="absolute left-[74%] top-[38%] hidden h-[2px] w-[18%] rotate-[10deg] bg-white/28 md:block" aria-hidden />
+        <div className="absolute bottom-3 left-0 right-0 flex items-end justify-between px-6 opacity-20 md:px-10" aria-hidden>
+          {[34, 48, 28, 58, 41, 66, 36, 54, 24, 70, 46, 38, 59, 43, 52].map((height, index) => (
+            <span key={index} className="w-[4.8%] rounded-t-2xl bg-white/40" style={{ height: `${height}%` }} />
+          ))}
         </div>
-      </section>
 
-      <section className="rounded-[30px] border border-slate-200 bg-white/95 p-4 shadow-[0_20px_50px_rgba(15,23,42,0.06)] sm:p-5">
-        <div className="flex flex-wrap gap-3">
-          <TabButton active={tab === "documents"} onClick={() => setTab("documents")}>Documents</TabButton>
-          <TabButton active={tab === "safety"} onClick={() => setTab("safety")}>Safety Measures</TabButton>
-          <TabButton active={tab === "settings"} onClick={() => setTab("settings")}>Settings</TabButton>
+        <div className="relative">
+          <div className="flex flex-col items-center text-center">
+            <div className="relative inline-flex h-20 w-20 items-center justify-center rounded-full border border-white/18 bg-white/10 text-white shadow-[0_0_0_10px_rgba(255,255,255,0.06),0_18px_50px_rgba(15,23,42,0.24)] backdrop-blur-md">
+              <Settings className="h-9 w-9" aria-hidden />
+            </div>
+            <h1 className="mt-8 text-4xl font-semibold tracking-tight text-white sm:text-5xl">Management</h1>
+            <p className="mt-4 max-w-2xl text-base text-white/70 sm:text-lg">Driver document control and account access in one place.</p>
+          </div>
+
+          <div className="mt-10 grid gap-3 sm:grid-cols-3 xl:max-w-2xl xl:mx-auto">
+            <StatCard label="On file" value={`${availableCount}/4`} tone="border-white/10 bg-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]" />
+            <StatCard label="Pending" value={String(pendingCount)} tone="border-white/10 bg-emerald-400/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]" />
+            <StatCard label="Expiring" value={String(expiringCount)} tone="border-white/10 bg-sky-400/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]" />
+          </div>
+
+          <div className="mt-8 flex flex-wrap justify-center gap-3">
+            <TabButton active={tab === "documents"} onClick={() => setTab("documents")}>Documents</TabButton>
+            <TabButton active={tab === "safety"} onClick={() => setTab("safety")}>Safety Measures</TabButton>
+            <TabButton active={tab === "settings"} onClick={() => setTab("settings")}>Settings</TabButton>
+          </div>
         </div>
       </section>
 
@@ -358,177 +356,139 @@ export default function DriverManagementPageClient() {
       ) : (
         <>
           {tab === "documents" && (
-            <section className="grid gap-5 xl:grid-cols-[1.45fr_0.55fr]">
-              <div className="rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_18px_45px_rgba(15,23,42,0.05)] sm:p-7">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <section className="space-y-5">
+              <div className="rounded-[28px] border border-slate-200/90 bg-white p-5 shadow-[0_18px_45px_rgba(15,23,42,0.05)] sm:p-6">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div>
-                    <h2 className="text-2xl font-semibold tracking-tight text-slate-950">Document vault</h2>
-                    <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-                      This view reads the latest document records already saved on your driver profile. If a file is missing here, update it on your profile and the management dashboard will reflect it.
-                    </p>
+                    <h2 className="text-xl font-semibold tracking-tight text-slate-950 sm:text-2xl">Documents</h2>
+                    <p className="mt-1 text-sm text-slate-500">Compact view of your current driver records.</p>
                   </div>
-                  <Link
-                    href="/driver/profile"
-                    className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-                  >
-                    <span>Open profile</span>
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
-                </div>
-
-                <div className="mt-6 grid gap-4 md:grid-cols-2">
-                  {docCards.map((card) => {
-                    const fileUrl = card.doc?.url ?? card.fallbackUrl ?? null
-                    const status = normalizeStatus(card.doc?.status)
-                    const pill = statusPill(status, Boolean(fileUrl))
-                    const PillIcon = pill.Icon
-                    const expiry = getDocExpiry(card.doc)
-                    const uploadedAt = getDocUploadedAt(card.doc)
-                    const fileName = getDocFileName(card.doc)
-                    const expiryRelative = formatRelativeDate(expiry)
-
-                    return (
-                      <article key={card.key} className="group rounded-[26px] border border-slate-200 bg-[linear-gradient(180deg,_#ffffff_0%,_#fbfbfc_100%)] p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_18px_36px_rgba(15,23,42,0.08)]">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex min-w-0 items-center gap-3">
-                            <div className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl ${card.tint}`}>
-                              {card.icon}
-                            </div>
-                            <div className="min-w-0">
-                              <h3 className="text-lg font-semibold text-slate-950">{card.title}</h3>
-                              <p className="mt-1 text-sm leading-6 text-slate-500">{card.subtitle}</p>
-                            </div>
-                          </div>
-                          <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold ${pill.className}`}>
-                            <PillIcon className="h-3.5 w-3.5" />
-                            {pill.label}
-                          </span>
-                        </div>
-
-                        <div className="mt-5 space-y-3 rounded-[22px] border border-slate-100 bg-slate-50/80 p-4">
-                          <div className="flex items-start justify-between gap-4 text-sm">
-                            <span className="text-slate-500">File</span>
-                            <span className="max-w-[60%] text-right font-medium text-slate-900">{fileName ?? (fileUrl ? "Stored on profile" : "Not uploaded")}</span>
-                          </div>
-                          <div className="flex items-start justify-between gap-4 text-sm">
-                            <span className="text-slate-500">Submitted</span>
-                            <span className="text-right font-medium text-slate-900">{uploadedAt ? formatDisplayDate(uploadedAt) : "Not recorded"}</span>
-                          </div>
-                          <div className="flex items-start justify-between gap-4 text-sm">
-                            <span className="text-slate-500">Expiry</span>
-                            <span className="text-right font-medium text-slate-900">{expiry ? formatDisplayDate(expiry) : "No expiry attached"}</span>
-                          </div>
-                          {expiryRelative && (
-                            <div className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
-                              <Calendar className="h-3.5 w-3.5" />
-                              {expiryRelative}
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="mt-5 flex flex-wrap gap-3">
-                          {card.href && fileUrl ? (
-                            <Link
-                              href={card.href}
-                              className="inline-flex items-center gap-2 rounded-full bg-[#0d8f6f] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0b7d61]"
-                            >
-                              <Eye className="h-4 w-4" />
-                              Review file
-                            </Link>
-                          ) : card.externalUrl ? (
-                            <a
-                              href={card.externalUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-2 rounded-full bg-[#0d8f6f] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0b7d61]"
-                            >
-                              <Eye className="h-4 w-4" />
-                              Open file
-                            </a>
-                          ) : (
-                            <Link
-                              href="/driver/profile"
-                              className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-                            >
-                              <span>Upload on profile</span>
-                              <ArrowRight className="h-4 w-4" />
-                            </Link>
-                          )}
-                        </div>
-                      </article>
-                    )
-                  })}
+                  <div className="flex flex-wrap gap-2">
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm font-medium text-slate-700">{availableCount}/4 on file</span>
+                    <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-700">{pendingCount} pending</span>
+                    <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700">{expiringCount} expiring</span>
+                  </div>
                 </div>
               </div>
 
-              <div className="space-y-5">
-                <aside className="rounded-[30px] border border-slate-200 bg-[#0f172a] p-6 text-white shadow-[0_22px_48px_rgba(15,23,42,0.22)]">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-emerald-300">
-                      <ShieldCheck className="h-6 w-6" />
+              <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+                {docCards.map((card) => {
+                  const fileUrl = card.doc?.url ?? card.fallbackUrl ?? null
+                  const status = normalizeStatus(card.doc?.status)
+                  const pill = statusPill(status, Boolean(fileUrl))
+                  const PillIcon = pill.Icon
+                  const expiry = getDocExpiry(card.doc)
+                  const uploadedAt = getDocUploadedAt(card.doc)
+                  const expiryRelative = formatRelativeDate(expiry)
+                  const metaLine = expiry
+                    ? `Expires ${formatDisplayDate(expiry)}`
+                    : uploadedAt
+                      ? `Updated ${formatDisplayDate(uploadedAt)}`
+                      : fileUrl
+                        ? "Document on file"
+                        : "Not uploaded yet"
+
+                  return (
+                    <article key={card.key} className="rounded-[26px] border border-slate-200/90 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-5 shadow-[0_14px_34px_rgba(15,23,42,0.06)] transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_22px_44px_rgba(15,23,42,0.08)]">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-start gap-3">
+                          <div className={`mt-0.5 flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] ring-1 ring-black/5 ${card.tint}`}>
+                            {card.icon}
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-semibold text-slate-950">{card.title}</h3>
+                            <p className="mt-1 max-w-[18rem] text-sm leading-6 text-slate-500">{card.subtitle}</p>
+                          </div>
+                        </div>
+                        <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold ${pill.className}`}>
+                          <PillIcon className="h-3.5 w-3.5" />
+                          {pill.label}
+                        </span>
+                      </div>
+
+                      <div className="mt-5 rounded-[20px] border border-slate-100 bg-white/75 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
+                        <div className="text-sm font-medium text-slate-900">{metaLine}</div>
+                        {expiryRelative ? <div className="mt-1 text-xs font-medium uppercase tracking-[0.18em] text-amber-700">{expiryRelative}</div> : null}
+                      </div>
+
+                      <div className="mt-5 flex items-center justify-between gap-3">
+                        <div className="text-xs uppercase tracking-[0.18em] text-slate-400">{fileUrl ? "Ready to review" : "Profile update needed"}</div>
+                        {card.href && fileUrl ? (
+                          <Link
+                            href={card.href}
+                            className="inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,#0f2d68_0%,#0c6b5f_100%)] px-4 py-2 text-sm font-semibold text-white no-underline shadow-[0_10px_24px_rgba(15,23,42,0.18)] transition hover:brightness-105"
+                          >
+                            <Eye className="h-4 w-4" />
+                            Open
+                          </Link>
+                        ) : card.externalUrl ? (
+                          <a
+                            href={card.externalUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,#0f2d68_0%,#0c6b5f_100%)] px-4 py-2 text-sm font-semibold text-white no-underline shadow-[0_10px_24px_rgba(15,23,42,0.18)] transition hover:brightness-105"
+                          >
+                            <Eye className="h-4 w-4" />
+                            Open
+                          </a>
+                        ) : (
+                          <Link
+                            href="/driver/profile"
+                            className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 no-underline transition hover:border-slate-300 hover:bg-slate-50"
+                          >
+                            Update
+                            <ArrowRight className="h-4 w-4" />
+                          </Link>
+                        )}
+                      </div>
+                    </article>
+                  )
+                })}
+
+                <article className="rounded-[26px] border border-slate-200/90 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-5 shadow-[0_14px_34px_rgba(15,23,42,0.06)] transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_22px_44px_rgba(15,23,42,0.08)]">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-emerald-50 text-emerald-700 ring-1 ring-black/5">
+                        <Lock className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-slate-950">Contract</h3>
+                        <p className="mt-1 text-sm leading-6 text-slate-500">Signed operating terms for your driver account.</p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="text-lg font-semibold">Compliance pulse</h3>
-                      <p className="mt-1 text-sm text-white/70">A quick operational view of your document readiness.</p>
+                    <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold ${contractUrl ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-slate-50 text-slate-600"}`}>
+                      {contractUrl ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
+                      {contractUrl ? "Available" : "Unavailable"}
+                    </span>
+                  </div>
+
+                  <div className="mt-5 rounded-[20px] border border-slate-100 bg-white/75 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
+                    <div className="text-sm font-medium text-slate-900">
+                      {contractUrl ? "Contract file ready to review" : "No contract file exposed yet"}
                     </div>
                   </div>
 
-                  <div className="mt-6 space-y-4">
-                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                      <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/55">Ready now</div>
-                      <div className="mt-2 text-3xl font-semibold">{availableCount}</div>
-                      <p className="mt-2 text-sm text-white/70">Records with an attached file and visible link.</p>
-                    </div>
-                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                      <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/55">Needs review</div>
-                      <div className="mt-2 text-3xl font-semibold">{pendingCount}</div>
-                      <p className="mt-2 text-sm text-white/70">Submitted files still awaiting final approval or correction.</p>
-                    </div>
-                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                      <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/55">Action lane</div>
-                      <p className="mt-2 text-sm leading-6 text-white/75">
-                        Keep licence and insurance documents current first. Those two records drive expiry reminders and admin follow-up.
-                      </p>
-                    </div>
-                  </div>
-                </aside>
-
-                <article className="rounded-[30px] border border-slate-200 bg-white p-6 shadow-sm">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
-                      <Lock className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-slate-950">Contract</h3>
-                      <p className="mt-1 text-sm text-slate-500">Access the signed operating terms tied to your driver account.</p>
-                    </div>
-                  </div>
-
-                  <div className="mt-5 rounded-[22px] border border-slate-100 bg-slate-50 p-4">
-                    <div className="flex items-center justify-between gap-3 text-sm">
-                      <span className="text-slate-500">Status</span>
-                      <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold ${contractUrl ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-white text-slate-600"}`}>
-                        {contractUrl ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
-                        {contractUrl ? "Available" : "Not available"}
-                      </span>
-                    </div>
-                    <p className="mt-3 text-sm leading-6 text-slate-600">
-                      {contractUrl
-                        ? "Your contract can be opened from the linked review page."
-                        : "No contract file is exposed for self-service review yet."}
-                    </p>
-                  </div>
-
-                  <div className="mt-5 flex gap-3">
+                  <div className="mt-5 flex items-center justify-between gap-3">
+                    <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Contract access</div>
                     <Link
                       href="/driver/management/contract"
-                      className="inline-flex items-center gap-2 rounded-full bg-[#0d8f6f] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0b7d61]"
+                      className="inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,#0f2d68_0%,#0c6b5f_100%)] px-4 py-2 text-sm font-semibold text-white no-underline shadow-[0_10px_24px_rgba(15,23,42,0.18)] transition hover:brightness-105"
                     >
                       <Eye className="h-4 w-4" />
-                      Open contract
+                      Open
                     </Link>
                   </div>
                 </article>
+              </div>
+
+              <div className="flex justify-end">
+                <Link
+                  href="/driver/profile"
+                  className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 no-underline transition hover:border-slate-300 hover:bg-slate-50"
+                >
+                  Manage profile records
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
               </div>
             </section>
           )}
