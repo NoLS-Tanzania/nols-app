@@ -149,7 +149,7 @@ function statusPill(status: string, hasFile: boolean) {
 
 function StatCard({ label, value, tone }: { label: string; value: string; tone: string }) {
   return (
-    <div className={`rounded-[22px] border px-5 py-4 backdrop-blur-md ${tone}`}>
+    <div className={`rounded-[22px] border px-4 py-4 backdrop-blur-md sm:px-5 ${tone}`}>
       <div className="text-[11px] font-medium uppercase tracking-[0.24em] text-white/70">{label}</div>
       <div className="mt-2 text-3xl font-semibold text-white">{value}</div>
     </div>
@@ -334,10 +334,10 @@ export default function DriverManagementPageClient() {
             <p className="mt-3 max-w-xl text-sm text-white/70 sm:text-base">Driver document control and account access in one place.</p>
           </div>
 
-          <div className="mt-7 grid gap-3 sm:grid-cols-3 xl:max-w-xl xl:mx-auto">
+          <div className="mt-7 grid grid-cols-3 gap-3 xl:max-w-xl xl:mx-auto">
             <StatCard label="On file" value={`${availableCount}/4`} tone="border-white/10 bg-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]" />
             <StatCard label="Pending" value={String(pendingCount)} tone="border-white/10 bg-emerald-400/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]" />
-            <StatCard label="Expiring" value={String(expiringCount)} tone="border-white/10 bg-sky-400/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]" />
+            <StatCard label="Expiring" value={String(expiringCount)} tone="border-rose-300/20 bg-rose-400/14 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]" />
           </div>
 
           <div className="mt-6 flex flex-wrap justify-center gap-3">

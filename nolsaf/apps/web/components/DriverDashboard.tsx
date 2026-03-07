@@ -103,6 +103,19 @@ type DashboardStats = {
   }>;
 };
 
+const getDriverFirstName = (profile: any) => {
+  const directFirstName = String(profile?.firstName ?? profile?.firstname ?? "").trim();
+  if (directFirstName) return directFirstName;
+
+  const fullName = String(profile?.fullName ?? profile?.name ?? "").trim();
+  if (fullName) {
+    const [firstPart] = fullName.split(/\s+/).filter(Boolean);
+    if (firstPart) return firstPart;
+  }
+
+  return "Driver";
+};
+
 export default function DriverDashboard({ className }: { className?: string }) {
   const [me, setMe] = useState<any | null | undefined>(undefined);
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -421,7 +434,8 @@ export default function DriverDashboard({ className }: { className?: string }) {
 
   // Map initialization is centralized in DriverLiveMap to avoid duplicate instances.
 
-  const name = me && (me.fullName || me.email) ? (me.fullName || me.email) : "Driver";
+  const profileLoaded = me !== undefined;
+  const name = getDriverFirstName(me);
   const greeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return "Good morning";
@@ -443,18 +457,136 @@ export default function DriverDashboard({ className }: { className?: string }) {
 
   
 
-  if (loading) {
+  if (loading || !profileLoaded) {
     return (
-      <div className={`space-y-6 ${className || ""}`}>
+      <div className={`w-full max-w-full space-y-6 ${className || ""}`}>
         <div className="animate-pulse space-y-6">
-          <div className="h-16 bg-gray-200 rounded-lg" />
-          <div className="h-12 bg-gray-200 rounded-lg" />
+          <div className="rounded-2xl border border-slate-800 bg-gradient-to-r from-slate-900 via-slate-800 to-blue-700 p-6 shadow-lg">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="space-y-3 flex-1">
+                <div className="h-4 w-36 rounded-full bg-white/20" />
+                <div className="h-9 w-full max-w-xl rounded-full bg-white/20" />
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="h-9 w-28 rounded-full bg-white/15" />
+                  <div className="h-5 w-44 rounded-full bg-white/10" />
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="space-y-2 text-right">
+                  <div className="ml-auto h-4 w-14 rounded-full bg-white/15" />
+                  <div className="ml-auto h-6 w-20 rounded-full bg-white/20" />
+                </div>
+                <div className="h-11 w-20 rounded-full bg-white/15" />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
+            <div className="col-span-1 lg:col-span-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-1 items-center gap-2 min-w-0">
+                  <div className="h-10 w-10 rounded-full bg-slate-200" />
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <div className="h-3 w-20 rounded-full bg-slate-200" />
+                    <div className="h-7 w-56 max-w-full rounded-full bg-slate-200" />
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="h-4 w-10 rounded-full bg-slate-200" />
+                  <div className="h-8 w-24 rounded-lg bg-slate-200" />
+                </div>
+              </div>
+              <div className="mt-4 h-3 w-full rounded-full bg-slate-200" />
+              <div className="mt-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="h-3 w-20 rounded-full bg-slate-200" />
+                  <div className="h-3 w-10 rounded-full bg-slate-200" />
+                </div>
+                <div className="h-2 w-full rounded-full bg-slate-200" />
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 w-16 rounded-full bg-slate-200" />
+                  <div className="h-8 w-20 rounded-full bg-slate-200" />
+                  <div className="h-3 w-24 rounded-full bg-slate-200" />
+                </div>
+                <div className="h-12 w-12 rounded-full bg-slate-200" />
+              </div>
+              <div className="mt-4 border-t border-slate-100 pt-3 space-y-2">
+                <div className="h-3 w-24 rounded-full bg-slate-200" />
+                <div className="h-6 w-16 rounded-full bg-slate-200" />
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-20 sm:h-24 bg-gray-200 rounded-lg" />
+              <div key={i} className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-full bg-slate-200" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-3 w-14 rounded-full bg-slate-200" />
+                    <div className="h-5 w-16 rounded-full bg-slate-200" />
+                    <div className="h-3 w-20 rounded-full bg-slate-200" />
+                  </div>
+                </div>
+              </div>
             ))}
           </div>
-          <div className="h-64 bg-gray-200 rounded-lg" />
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="rounded-lg bg-white p-4 shadow-sm space-y-4">
+              <div className="h-5 w-32 rounded-full bg-slate-200" />
+              <div className="h-[150px] w-full rounded-lg bg-slate-200" />
+            </div>
+            <div className="rounded-lg bg-white p-4 shadow-sm space-y-4">
+              <div className="h-5 w-36 rounded-full bg-slate-200" />
+              <div className="h-[240px] w-full rounded-lg bg-slate-200" />
+            </div>
+          </div>
+
+          <div className="rounded-lg bg-white p-5 shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="h-5 w-28 rounded-full bg-slate-200" />
+              <div className="h-8 w-8 rounded-full bg-slate-200" />
+            </div>
+            <div className="space-y-3">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="flex items-center justify-between rounded-lg bg-slate-50 p-3">
+                  <div className="flex flex-1 items-center gap-3">
+                    <div className="h-4 w-12 rounded-full bg-slate-200" />
+                    <div className="h-4 w-4 rounded-full bg-slate-200" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 w-40 max-w-full rounded-full bg-slate-200" />
+                      <div className="h-3 w-20 rounded-full bg-slate-200" />
+                    </div>
+                  </div>
+                  <div className="h-4 w-20 rounded-full bg-slate-200" />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-lg bg-white p-5 shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="h-5 w-32 rounded-full bg-slate-200" />
+              <div className="h-4 w-16 rounded-full bg-slate-200" />
+            </div>
+            <div className="space-y-3">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="flex items-center justify-between rounded-lg border border-slate-200 p-3">
+                  <div className="flex flex-1 items-center gap-3">
+                    <div className="h-5 w-5 rounded-full bg-slate-200" />
+                    <div className="h-4 w-52 max-w-full rounded-full bg-slate-200" />
+                  </div>
+                  <div className="h-4 w-14 rounded-full bg-slate-200" />
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     );
