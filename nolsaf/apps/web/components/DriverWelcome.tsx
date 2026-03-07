@@ -9,6 +9,27 @@ import DriverAvailabilitySwitch from "@/components/DriverAvailabilitySwitch";
 // Use same-origin calls + secure httpOnly cookie session.
 const api = axios.create({ baseURL: "", withCredentials: true });
 
+const unwrapAccountPayload = (payload: any) => {
+  if (payload && typeof payload === "object" && "data" in payload && payload.data) {
+    return payload.data;
+  }
+  return payload;
+};
+
+const getDriverFirstName = (profile: any) => {
+  const account = unwrapAccountPayload(profile);
+  const directFirstName = String(account?.firstName ?? account?.firstname ?? "").trim();
+  if (directFirstName) return directFirstName;
+
+  const fullName = String(account?.fullName ?? account?.name ?? "").trim();
+  if (fullName) {
+    const [firstPart] = fullName.split(/\s+/).filter(Boolean);
+    if (firstPart) return firstPart;
+  }
+
+  return "Driver";
+};
+
 export default function DriverWelcome({ className }: { className?: string }) {
   // me === undefined -> loading; null -> not authenticated / fallback; object -> user
   const [me, setMe] = useState<any | null | undefined>(undefined);
@@ -16,11 +37,11 @@ export default function DriverWelcome({ className }: { className?: string }) {
   useEffect(() => {
     api
       .get("/api/account/me")
-      .then((r) => setMe(r.data))
+      .then((r) => setMe(unwrapAccountPayload(r.data)))
       .catch(() => setMe(null));
   }, []);
 
-  const name = me && (me.fullName || me.email) ? (me.fullName || me.email) : "Driver";
+  const name = getDriverFirstName(me);
   const isoDate = (new Date()).toISOString().slice(0,10);
   
   const [available, setAvailable] = useState<boolean>(false);

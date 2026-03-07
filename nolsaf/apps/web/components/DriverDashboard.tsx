@@ -103,11 +103,19 @@ type DashboardStats = {
   }>;
 };
 
+const unwrapAccountPayload = (payload: any) => {
+  if (payload && typeof payload === "object" && "data" in payload && payload.data) {
+    return payload.data;
+  }
+  return payload;
+};
+
 const getDriverFirstName = (profile: any) => {
-  const directFirstName = String(profile?.firstName ?? profile?.firstname ?? "").trim();
+  const account = unwrapAccountPayload(profile);
+  const directFirstName = String(account?.firstName ?? account?.firstname ?? "").trim();
   if (directFirstName) return directFirstName;
 
-  const fullName = String(profile?.fullName ?? profile?.name ?? "").trim();
+  const fullName = String(account?.fullName ?? account?.name ?? "").trim();
   if (fullName) {
     const [firstPart] = fullName.split(/\s+/).filter(Boolean);
     if (firstPart) return firstPart;
@@ -235,7 +243,7 @@ export default function DriverDashboard({ className }: { className?: string }) {
       try {
         const r = await fetch("/api/account/me", { credentials: "include" });
         if (!r.ok) return;
-        const me = await r.json();
+        const me = unwrapAccountPayload(await r.json());
         if (me?.id) socket.emit("join-driver-room", { driverId: me.id });
       } catch {
         // ignore
@@ -301,7 +309,7 @@ export default function DriverDashboard({ className }: { className?: string }) {
     try {
       api
         .get("/api/account/me")
-        .then((r) => setMe(r.data))
+        .then((r) => setMe(unwrapAccountPayload(r.data)))
         .catch(() => setMe(null));
     } catch (err) {
       setMe(null);
