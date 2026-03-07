@@ -15,10 +15,8 @@ import {
   LogOut,
   RefreshCw,
   Settings as SettingsIcon,
-  Shield,
   Share2,
   Trophy,
-  Truck,
   User,
 } from "lucide-react";
 
@@ -59,7 +57,6 @@ if (typeof document !== "undefined") {
 }
 
 export default function DriverSiteHeader({ unreadMessages = 0 }: { unreadMessages?: number }) {
-  const [open, setOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
@@ -71,6 +68,15 @@ export default function DriverSiteHeader({ unreadMessages = 0 }: { unreadMessage
   const settingsDropdownRef = useRef<HTMLDivElement>(null);
 
   const logoutRedirect = "/driver/login";
+
+  const dispatchSidebarToggle = () => {
+    try {
+      const evt = new CustomEvent("toggle-driver-sidebar", { detail: { source: "header" } });
+      window.dispatchEvent(evt);
+    } catch {
+      // ignore
+    }
+  };
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -150,14 +156,7 @@ export default function DriverSiteHeader({ unreadMessages = 0 }: { unreadMessage
           {/* Left: sidebar toggle + brand (kept inside bar) */}
           <div className="inline-flex items-center gap-3">
             <button
-              onClick={() => {
-                try {
-                  const evt = new CustomEvent("toggle-driver-sidebar", { detail: { source: "header" } });
-                  window.dispatchEvent(evt);
-                } catch {
-                  // ignore
-                }
-              }}
+              onClick={dispatchSidebarToggle}
               aria-label="Toggle sidebar"
               title="Toggle sidebar"
               className="group hidden md:inline-flex items-center justify-center h-10 w-10 rounded-2xl transition-all duration-300 ease-out bg-[#02665e]/25 backdrop-blur-md border border-[#02665e]/35 hover:bg-[#02665e]/35 hover:border-[#02665e]/45 hover:scale-105 active:scale-95"
@@ -219,11 +218,12 @@ export default function DriverSiteHeader({ unreadMessages = 0 }: { unreadMessage
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  setSettingsOpen(!settingsOpen);
+                  setSettingsOpen((v) => !v);
+                  setProfileDropdownOpen(false);
                 }}
-                className="group relative inline-flex items-center justify-center h-10 w-10 rounded-xl bg-transparent border-0 text-white hover:bg-white/10 hover:backdrop-blur-sm hover:border hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out"
-                aria-label="Settings"
+                aria-label="Open settings"
                 title="Settings"
+                className="group inline-flex items-center justify-center h-10 w-10 rounded-xl text-white hover:bg-white/10 hover:backdrop-blur-sm hover:border hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out"
               >
                 <SettingsIcon className={`h-5 w-5 opacity-90 group-hover:opacity-100 transition-all duration-300 ease-out ${settingsOpen ? "rotate-90" : "group-hover:rotate-45"}`} />
               </button>
@@ -231,81 +231,71 @@ export default function DriverSiteHeader({ unreadMessages = 0 }: { unreadMessage
               {settingsOpen && (
                 <div className="absolute right-0 top-full mt-3 w-72 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200/50 py-2 z-50 animate-fade-in-up overflow-hidden">
                   <div className="px-4 py-3 border-b border-gray-100/50 bg-gradient-to-r from-emerald-50/30 to-slate-50/30">
-                    <h3 className="font-semibold text-gray-900 text-sm">Management</h3>
+                    <h3 className="font-semibold text-gray-900 text-sm">Quick Access</h3>
+                    <p className="text-xs text-gray-500 mt-1">Manage documents, profile, and driver tools.</p>
                   </div>
 
                   <div className="py-1.5">
-                    <Link href="/driver/management?tab=documents" onClick={() => setSettingsOpen(false)} className="group block px-4 py-2.5 text-sm text-gray-700 hover:bg-emerald-50/50 hover:text-emerald-700 transition-all duration-200 no-underline rounded-lg mx-1">
-                      <div className="font-medium flex items-center gap-2.5">
-                        <FileText className="h-4 w-4 text-emerald-600 transition-transform duration-200 group-hover:scale-110" />
-                        <span>Documents</span>
+                    <Link href="/driver/management" onClick={() => setSettingsOpen(false)} className="group flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-emerald-50/50 hover:text-emerald-700 transition-all duration-200 no-underline">
+                      <FileText className="h-4 w-4 text-gray-500 group-hover:text-emerald-600 transition-all duration-200 group-hover:scale-110" />
+                      <div>
+                        <div className="font-medium">Documents</div>
+                        <div className="text-xs text-gray-500">License, insurance, contracts</div>
                       </div>
-                      <div className="text-xs text-gray-500 ml-6.5 mt-0.5">License, insurance, contracts</div>
                     </Link>
-
-                    <Link href="/driver/management?tab=safety" onClick={() => setSettingsOpen(false)} className="group block px-4 py-2.5 text-sm text-gray-700 hover:bg-emerald-50/50 hover:text-emerald-700 transition-all duration-200 no-underline rounded-lg mx-1">
-                      <div className="font-medium flex items-center gap-2.5">
-                        <Shield className="h-4 w-4 text-emerald-600 transition-transform duration-200 group-hover:scale-110" />
-                        <span>Safety Measures</span>
+                    <Link href="/driver/management" onClick={() => setSettingsOpen(false)} className="group flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-emerald-50/50 hover:text-emerald-700 transition-all duration-200 no-underline">
+                      <SettingsIcon className="h-4 w-4 text-gray-500 group-hover:text-emerald-600 transition-all duration-200 group-hover:scale-110" />
+                      <div>
+                        <div className="font-medium">Management</div>
+                        <div className="text-xs text-gray-500">Settings and account controls</div>
                       </div>
-                      <div className="text-xs text-gray-500 ml-6.5 mt-0.5">Incidents and safety summary</div>
                     </Link>
-
-                    <Link href="/driver/security" onClick={() => setSettingsOpen(false)} className="group block px-4 py-2.5 text-sm text-gray-700 hover:bg-emerald-50/50 hover:text-emerald-700 transition-all duration-200 no-underline rounded-lg mx-1">
-                      <div className="font-medium flex items-center gap-2.5">
-                        <Lock className="h-4 w-4 text-emerald-600 transition-transform duration-200 group-hover:scale-110" />
-                        <span>Security</span>
+                    <Link href="/account" onClick={() => setSettingsOpen(false)} className="group flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-emerald-50/50 hover:text-emerald-700 transition-all duration-200 no-underline">
+                      <Lock className="h-4 w-4 text-gray-500 group-hover:text-emerald-600 transition-all duration-200 group-hover:scale-110" />
+                      <div>
+                        <div className="font-medium">Account Security</div>
+                        <div className="text-xs text-gray-500">Password and account protection</div>
                       </div>
-                      <div className="text-xs text-gray-500 ml-6.5 mt-0.5">Password and contact details</div>
-                    </Link>
-
-                    <Link href="/driver/management?tab=settings" onClick={() => setSettingsOpen(false)} className="group block px-4 py-2.5 text-sm text-gray-700 hover:bg-emerald-50/50 hover:text-emerald-700 transition-all duration-200 no-underline rounded-lg mx-1">
-                      <div className="font-medium flex items-center gap-2.5">
-                        <Truck className="h-4 w-4 text-emerald-600 transition-transform duration-200 group-hover:scale-110" />
-                        <span>Vehicle Settings</span>
-                      </div>
-                      <div className="text-xs text-gray-500 ml-6.5 mt-0.5">Vehicle details and registration</div>
                     </Link>
                   </div>
                 </div>
               )}
             </div>
 
-            <div className="hidden sm:block mx-1 h-6 w-px bg-white/20" />
-
-            <div ref={profileDropdownRef} className="relative flex-shrink-0">
+            <div ref={profileDropdownRef} className="relative">
               <button
-                onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-                className="group inline-flex items-center justify-center gap-2 h-10 px-2 rounded-xl bg-transparent border-0 hover:bg-white/10 hover:backdrop-blur-sm hover:border hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setProfileDropdownOpen((v) => !v);
+                  setSettingsOpen(false);
+                }}
                 aria-label="Profile menu"
+                aria-haspopup="menu"
                 aria-expanded={profileDropdownOpen}
+                className="inline-flex items-center gap-2 rounded-full pl-1 pr-2 py-1 hover:bg-white/10 transition-all duration-300 ease-out"
               >
                 {avatarUrl ? (
-                  <div className="h-9 w-9 rounded-full overflow-hidden transition-all duration-300 ease-out group-hover:ring-2 group-hover:ring-white/10">
-                    <Image src={avatarUrl} alt="Profile" width={36} height={36} className="object-cover w-full h-full transition-transform duration-300 ease-out group-hover:scale-110" />
-                  </div>
+                  <Image src={avatarUrl} alt={userName || "Driver"} width={40} height={40} className="h-10 w-10 rounded-full object-cover border border-white/20" />
                 ) : (
-                  <div className="h-9 w-9 rounded-full flex items-center justify-center transition-all duration-300 ease-out group-hover:ring-2 group-hover:ring-white/10">
-                    <User className="h-5 w-5 text-white/90" />
+                  <div className="h-10 w-10 rounded-full border border-white/20 bg-gradient-to-br from-sky-300 to-blue-500 flex items-center justify-center">
+                    <User className="h-5 w-5 text-white" />
                   </div>
                 )}
-                <ChevronDown className={`h-4 w-4 text-white/90 transition-all duration-300 ease-out ${profileDropdownOpen ? "rotate-180" : ""}`} />
+                <ChevronDown className={`hidden sm:block h-4 w-4 text-white/80 transition-transform duration-200 ${profileDropdownOpen ? "rotate-180" : ""}`} />
               </button>
 
               {profileDropdownOpen && (
-                <div className="absolute right-0 top-full mt-3 w-64 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200/50 overflow-hidden z-50 animate-fade-in-up">
-                  <div className="px-4 py-3 border-b border-gray-100/50 bg-gradient-to-r from-emerald-50/40 to-slate-50/40">
+                <div role="menu" className="absolute right-0 top-full mt-3 w-72 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200/50 py-2 z-50 animate-fade-in-up overflow-hidden">
+                  <div className="px-4 py-3 border-b border-gray-100/50 bg-gradient-to-r from-emerald-50/30 to-slate-50/30">
                     <div className="flex items-center gap-3">
                       {avatarUrl ? (
-                        <div className="h-10 w-10 rounded-full border-2 border-emerald-200 overflow-hidden flex-shrink-0 transition-transform duration-300 hover:scale-110 ring-2 ring-emerald-100">
-                          <Image src={avatarUrl} alt="Profile" width={40} height={40} className="object-cover w-full h-full" />
-                        </div>
+                        <Image src={avatarUrl} alt={userName || "Driver"} width={40} height={40} className="h-10 w-10 rounded-full object-cover border border-emerald-200" />
                       ) : (
-                        <div className="h-10 w-10 rounded-full border-2 border-emerald-200 bg-gradient-to-br from-emerald-100 to-emerald-50 flex items-center justify-center flex-shrink-0 transition-transform duration-300 hover:scale-110 ring-2 ring-emerald-100">
+                        <div className="h-10 w-10 rounded-full border-2 border-emerald-200 bg-gradient-to-br from-emerald-100 to-emerald-50 flex items-center justify-center flex-shrink-0 ring-2 ring-emerald-100">
                           <User className="h-5 w-5 text-emerald-600" />
                         </div>
                       )}
-                      <div className="flex-1 min-w-0">
+                      <div className="min-w-0 flex-1">
                         <div className="font-semibold text-sm text-gray-900 truncate">{userName || "Driver"}</div>
                         <div className="text-xs text-gray-500 truncate">{userEmail || "No email"}</div>
                       </div>
@@ -335,13 +325,14 @@ export default function DriverSiteHeader({ unreadMessages = 0 }: { unreadMessage
                     </Link>
                     <Link href="/driver/management" onClick={() => setProfileDropdownOpen(false)} className="group flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-emerald-50/50 hover:text-emerald-700 transition-all duration-200 no-underline">
                       <SettingsIcon className="h-4 w-4 text-gray-500 group-hover:text-emerald-600 transition-all duration-200 group-hover:scale-110" />
-                      <span className="font-medium">Setting</span>
+                      <span className="font-medium">Management</span>
                     </Link>
 
                     <div className="my-1 mx-2 h-px bg-gray-200" />
 
                     <button
                       onClick={async () => {
+                        setProfileDropdownOpen(false);
                         try {
                           await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
                         } catch {}
@@ -356,98 +347,25 @@ export default function DriverSiteHeader({ unreadMessages = 0 }: { unreadMessage
                 </div>
               )}
             </div>
-          </div>
 
-          {/* Mobile burger */}
-          <button
-            className={`md:hidden inline-flex items-center justify-center h-10 w-10 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/15 hover:border-white/20 active:scale-95 transition-all duration-300 ease-out ${open ? "bg-white/15 border-white/25" : ""}`}
-            onClick={() => setOpen((v) => !v)}
-            aria-label="Toggle menu"
-            aria-expanded={open}
-          >
-            <svg
-              className={`w-5 h-5 text-white transition-all duration-300 ease-out ${open ? "rotate-90" : ""}`}
-              viewBox="0 0 24 24"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              aria-hidden
+            <button
+              className="md:hidden inline-flex items-center justify-center h-10 w-10 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/15 hover:border-white/20 active:scale-95 transition-all duration-300 ease-out"
+              onClick={dispatchSidebarToggle}
+              aria-label="Toggle sidebar"
             >
-              {open ? (
-                <path d="M6 18L18 6M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              ) : (
+              <svg
+                className="w-5 h-5 text-white transition-all duration-300 ease-out"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                aria-hidden
+              >
                 <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              )}
-            </svg>
-          </button>
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
-
-      {/* Mobile drawer */}
-      {open && (
-        <>
-          <div className="md:hidden fixed inset-0 bg-black/20 backdrop-blur-sm z-40 transition-opacity duration-300" onClick={() => setOpen(false)} aria-hidden="true" />
-          <div className="md:hidden relative z-50 border-t border-white/10 backdrop-blur-xl animate-slide-down overflow-hidden bg-[#0b1220]/95 text-white" style={{ willChange: "transform, opacity" }}>
-            <nav className="mx-auto max-w-6xl px-4 py-4 flex flex-col gap-2.5">
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <button
-                  onClick={() => {
-                    handleRefresh();
-                    setOpen(false);
-                  }}
-                  aria-label="Refresh"
-                  title="Refresh"
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out"
-                  disabled={isRefreshing}
-                >
-                  <RefreshCw className={`h-5 w-5 text-white transition-transform duration-300 ${isRefreshing ? "animate-spin" : ""}`} />
-                </button>
-                <Link href="/driver/notifications" onClick={() => setOpen(false)} className="relative inline-flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out" aria-label="Notifications">
-                  <Bell className="h-5 w-5 text-white" />
-                  {unreadMessages > 0 && (
-                    <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 rounded-full bg-rose-500 text-[10px] leading-4 text-white font-bold ring-2 ring-[#02665e] text-center flex items-center justify-center">
-                      {unreadMessages > 9 ? "9+" : unreadMessages}
-                    </span>
-                  )}
-                </Link>
-                <Link href="/driver/support" onClick={() => setOpen(false)} className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out" aria-label="Support">
-                  <LifeBuoy className="h-5 w-5 text-white" />
-                </Link>
-                <Link href="/driver/profile" onClick={() => setOpen(false)} className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out" aria-label="Profile">
-                  <User className="h-5 w-5 text-white" />
-                </Link>
-              </div>
-
-              <div className="my-2 h-px w-full bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-
-              <Link href="/driver/profile" className="px-3 py-2 rounded-xl text-sm hover:bg-white/10 no-underline" onClick={() => setOpen(false)}>
-                My Profile
-              </Link>
-              <Link href="/driver/bonus" className="px-3 py-2 rounded-xl text-sm hover:bg-white/10 no-underline" onClick={() => setOpen(false)}>
-                My Bonus
-              </Link>
-              <Link href="/driver/management" className="px-3 py-2 rounded-xl text-sm hover:bg-white/10 no-underline" onClick={() => setOpen(false)}>
-                Management
-              </Link>
-              <Link href="/account" className="px-3 py-2 rounded-xl text-sm hover:bg-white/10 no-underline" onClick={() => setOpen(false)}>
-                Account Settings
-              </Link>
-
-              <button
-                onClick={async () => {
-                  setOpen(false);
-                  try {
-                    await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-                  } catch {}
-                  window.location.href = logoutRedirect;
-                }}
-                className="mt-2 w-full text-left px-3 py-2 rounded-xl text-sm font-semibold text-red-200 hover:text-red-50 hover:bg-white/10 transition-colors"
-              >
-                Logout
-              </button>
-            </nav>
-          </div>
-        </>
-      )}
 
       <ClientErrorBoundary>
         <LegalModal />

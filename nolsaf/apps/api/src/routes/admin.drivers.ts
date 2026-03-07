@@ -6127,7 +6127,7 @@ router.patch('/:id(\\d+)/kyc', limitAdminTripsWrite, async (req, res) => {
 
       if (driverPhone) {
         try {
-          const smsTxt = `NoLSAF: Hello ${firstName}, your driver account suspension has been lifted.${restoreReason ? ` Reason: ${restoreReason}.` : ''} You can now log in again and continue using your NoLSAF driver account.`;
+          const smsTxt = `Hello ${firstName}, your driver account suspension has been lifted.${restoreReason ? ` Reason: ${restoreReason}.` : ''} You can now log in again and continue using your NoLSAF driver account.`;
           await sendSms(driverPhone, smsTxt);
         } catch (smsErr: any) {
           console.warn('[KYC unrevoke] SMS failed (non-fatal):', smsErr?.message ?? smsErr);

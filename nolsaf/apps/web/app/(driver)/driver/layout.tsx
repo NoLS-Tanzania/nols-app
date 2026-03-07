@@ -3,6 +3,7 @@
 import "@/styles/globals.css";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import DriverSiteHeader from "@/components/DriverSiteHeader";
 import DriverFooter from "@/components/DriverFooter";
 import DriverSidebar from "@/components/DriverSidebar";
@@ -190,7 +191,9 @@ function RejectedScreen({ driverName, kycNote }: { driverName: string | null; ky
 }
 
 export default function DriverLayout({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [kycStatus, setKycStatus] = useState<KycStatus | 'loading'>('loading');
   const [kycNote, setKycNote] = useState<string | null>(null);
   const [driverName, setDriverName] = useState<string | null>(null);
@@ -215,10 +218,21 @@ export default function DriverLayout({ children }: { children: ReactNode }) {
 
   // Listen for global toggle events (header hamburger can dispatch `toggle-driver-sidebar`)
   useEffect(() => {
-    const handler = () => setSidebarOpen((v) => !v);
+    const handler = () => {
+      const isDesktop = window.matchMedia("(min-width: 768px)").matches;
+      if (isDesktop) {
+        setSidebarOpen((v) => !v);
+      } else {
+        setMobileSidebarOpen((v) => !v);
+      }
+    };
     window.addEventListener("toggle-driver-sidebar", handler as EventListener);
     return () => window.removeEventListener("toggle-driver-sidebar", handler as EventListener);
   }, []);
+
+  useEffect(() => {
+    setMobileSidebarOpen(false);
+  }, [pathname]);
 
   // Loading state — show minimal spinner while checking approval
   if (kycStatus === 'loading') {
@@ -304,9 +318,7 @@ export default function DriverLayout({ children }: { children: ReactNode }) {
 
           {/* Sidebar anchored inside the frame container */}
           <aside
-            className={`${
-              sidebarOpen ? "block" : "hidden"
-            } ${sidebarOpen ? "md:block" : "md:hidden"} absolute left-2 sm:left-3 md:left-4 top-16 w-56 shadow-sm bg-emerald-50/60 border border-slate-200 owner-sidebar-container rounded-l-2xl z-0 h-[calc(100vh-4rem)]`}
+            className={`${sidebarOpen ? "md:block" : "md:hidden"} hidden absolute left-2 sm:left-3 md:left-4 top-16 w-56 shadow-sm bg-emerald-50/60 border border-slate-200 owner-sidebar-container rounded-l-2xl z-0 h-[calc(100vh-4rem)]`}
           >
             <div className="sidebar-scroll h-full">
               <div className="p-4 pt-2">
@@ -315,13 +327,21 @@ export default function DriverLayout({ children }: { children: ReactNode }) {
             </div>
           </aside>
 
-          {/* Overlay for mobile when sidebar open */}
-          {sidebarOpen && (
-            <div
-              className="md:hidden fixed inset-0 bg-black/30 z-10"
-              onClick={() => setSidebarOpen(false)}
-              aria-hidden
-            />
+          {/* Mobile off-canvas sidebar */}
+          {mobileSidebarOpen && (
+            <div className="md:hidden fixed inset-0 z-40">
+              <button
+                type="button"
+                aria-label="Close sidebar"
+                className="absolute inset-0 bg-black/20 backdrop-blur-sm nols-soft-overlay"
+                onClick={() => setMobileSidebarOpen(false)}
+              />
+              <aside className="absolute left-0 top-16 h-[calc(100%-4rem)] w-[min(20rem,calc(100vw-1rem))] p-3 nols-soft-popover">
+                <div className="sidebar-scroll h-full overflow-y-auto rounded-3xl">
+                  <DriverSidebar />
+                </div>
+              </aside>
+            </div>
           )}
 
           {/* Main content with gap matching sidebar (owner style) */}
