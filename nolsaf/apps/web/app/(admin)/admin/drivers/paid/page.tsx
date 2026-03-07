@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
-import { CreditCard, Search, X, Calendar, Clock, TrendingUp, PieChart } from "lucide-react";
+import { CreditCard, Search, X, Calendar, Clock, TrendingUp, PieChart, ExternalLink, MapPinned, Route, ShieldCheck, UserRound } from "lucide-react";
 import DatePicker from "@/components/ui/DatePicker";
 import axios from "axios";
 import Chart from "@/components/Chart";
@@ -31,10 +31,15 @@ function authify() {
 
 type PaidRow = {
   id: number;
-  invoiceId: number;
-  invoiceNumber: string;
-  receiptNumber: string | null;
-  tripCode: string | null;
+  trip: {
+    id: number;
+    code: string;
+    status: string;
+    scheduledAt: string | null;
+    pickup: string;
+    dropoff: string;
+    vehicleType: string | null;
+  };
   driver: { id: number; name: string; email: string; phone: string | null } | null;
   gross: number;
   commissionAmount: number;
@@ -42,6 +47,52 @@ type PaidRow = {
   paidAt: string;
   paymentMethod: string | null;
   paymentRef: string | null;
+  paidBy: { id: number; name: string; email: string } | null;
+};
+
+type TripDetailsResponse = {
+  trip: {
+    id: number;
+    tripCode: string;
+    status: string;
+    scheduledAt: string | null;
+    pickupTime: string | null;
+    dropoffTime: string | null;
+    accomplishedAt: string | null;
+    pickup: string;
+    dropoff: string;
+    vehicleType: string | null;
+    passengerCount: number | null;
+    amount: number;
+    currency: string;
+    paymentStatus: string | null;
+    paymentMethod: string | null;
+    paymentRef: string | null;
+    notes: string | null;
+    customerRating: number | null;
+    customerReview: string | null;
+    driverRating: number | null;
+    driverReview: string | null;
+    createdAt: string | null;
+    updatedAt: string | null;
+    user: { id: number; name: string; email: string; phone: string | null } | null;
+    driver: { id: number; name: string; email: string; phone: string | null } | null;
+    payout: {
+      id: number;
+      status: string;
+      currency: string;
+      grossAmount: number | null;
+      commissionPercent: number | null;
+      commissionAmount: number | null;
+      netPaid: number | null;
+      approvedAt: string | null;
+      paidAt: string | null;
+      paymentMethod: string | null;
+      paymentRef: string | null;
+      createdAt: string | null;
+      updatedAt: string | null;
+    } | null;
+  };
 };
 
 type PaidStats = {
@@ -64,6 +115,41 @@ type PaidStatsResponse = {
   endDate: string;
 };
 
+const moneyFormatter = new Intl.NumberFormat("en-US");
+const dateTimeFormatter = new Intl.DateTimeFormat("en-US", {
+  year: "numeric",
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+});
+const dateFormatter = new Intl.DateTimeFormat("en-US", {
+  year: "numeric",
+  month: "short",
+  day: "numeric",
+});
+
+function formatMoney(value: number) {
+  return `${moneyFormatter.format(Math.round(value))} TZS`;
+}
+
+function formatDateTime(value: string | null | undefined) {
+  if (!value) return "N/A";
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? "N/A" : dateTimeFormatter.format(parsed);
+}
+
+function formatDate(value: string | null | undefined) {
+  if (!value) return "N/A";
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? "N/A" : dateFormatter.format(parsed);
+}
+
+function formatRating(value: number | null | undefined) {
+  if (value == null) return "Not rated";
+  return `${value.toFixed(1)}/5`;
+}
+
 export default function AdminDriversPaidPage() {
   const [date, setDate] = useState<string | string[]>("");
   const [q, setQ] = useState("");
@@ -80,6 +166,11 @@ export default function AdminDriversPaidPage() {
   const [statsPeriod, setStatsPeriod] = useState<string>("30d");
   const [statsData, setStatsData] = useState<PaidStatsResponse | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
+  const [detailsTripId, setDetailsTripId] = useState<number | null>(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsError, setDetailsError] = useState<string | null>(null);
+  const [detailsData, setDetailsData] = useState<TripDetailsResponse | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -133,6 +224,31 @@ export default function AdminDriversPaidPage() {
   useEffect(() => {
     loadStats();
   }, [loadStats]);
+
+  const openDetails = useCallback(async (tripId: number) => {
+    setDetailsTripId(tripId);
+    setDetailsOpen(true);
+    setDetailsLoading(true);
+    setDetailsError(null);
+    try {
+      const response = await api.get<TripDetailsResponse>(`/api/admin/drivers/trips/${tripId}`);
+      setDetailsData(response.data);
+    } catch (err) {
+      console.error("Failed to load trip details", err);
+      setDetailsData(null);
+      setDetailsError("Unable to load trip details right now.");
+    } finally {
+      setDetailsLoading(false);
+    }
+  }, []);
+
+  const closeDetails = useCallback(() => {
+    setDetailsOpen(false);
+    setDetailsTripId(null);
+    setDetailsLoading(false);
+    setDetailsError(null);
+    setDetailsData(null);
+  }, []);
 
   const pages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -273,7 +389,7 @@ export default function AdminDriversPaidPage() {
             </div>
             <div>
               <h1 className="text-xl sm:text-2xl font-black tracking-tight" style={{ color: "#ffffff", textShadow: "0 2px 12px rgba(0,0,0,0.40)" }}>Driver Payments</h1>
-              <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.58)" }}>View and manage all driver payments and payouts</p>
+              <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.58)" }}>Completed transport trip payouts from admins to drivers, with full trip visibility and payment accountability</p>
             </div>
           </div>
 
@@ -282,7 +398,7 @@ export default function AdminDriversPaidPage() {
             {[
               {
                 label: "Total Paid",
-                value: statsData?.summary ? new Intl.NumberFormat("en-US").format(Math.round(statsData.summary.totalPaid)) + " TZS" : null,
+                value: statsData?.summary ? formatMoney(statsData.summary.totalPaid) : null,
                 bg: "rgba(56,189,248,0.18)", border: "rgba(56,189,248,0.32)", color: "#7dd3fc",
               },
               {
@@ -292,12 +408,12 @@ export default function AdminDriversPaidPage() {
               },
               {
                 label: "Total Commission",
-                value: statsData?.summary ? new Intl.NumberFormat("en-US").format(Math.round(statsData.summary.totalCommission)) + " TZS" : null,
+                value: statsData?.summary ? formatMoney(statsData.summary.totalCommission) : null,
                 bg: "rgba(245,158,11,0.18)", border: "rgba(245,158,11,0.32)", color: "#fcd34d",
               },
               {
                 label: "Avg Payment",
-                value: statsData?.summary ? new Intl.NumberFormat("en-US").format(Math.round(statsData.summary.averagePayment)) + " TZS" : null,
+                value: statsData?.summary ? formatMoney(statsData.summary.averagePayment) : null,
                 bg: "rgba(99,102,241,0.18)", border: "rgba(99,102,241,0.32)", color: "#a5b4fc",
               },
             ].map((kpi) => (
@@ -525,7 +641,7 @@ export default function AdminDriversPaidPage() {
                   ref={searchRef}
                   type="text"
                   className="w-full box-border pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
-                  placeholder="Search payments..."
+                  placeholder="Search by trip, driver, payer, or payment reference..."
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
                   onKeyDown={(e) => {
@@ -610,20 +726,33 @@ export default function AdminDriversPaidPage() {
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoice #</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trip</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Driver</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Route</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gross</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Commission</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Net Paid</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Paid At</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Method</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Paid By</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {list.map((payment) => (
                     <tr key={payment.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {payment.invoiceNumber || `INV-${payment.invoiceId}`}
+                      <td className="px-6 py-4 text-sm text-gray-900 min-w-[220px]">
+                        <div className="flex items-start gap-3">
+                          <div className="mt-0.5 rounded-xl border border-sky-200 bg-sky-50 p-2 text-sky-700">
+                            <Route className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <div className="font-semibold text-gray-900">{payment.trip.code}</div>
+                            <div className="mt-1 text-xs text-gray-500">{payment.trip.vehicleType || "Transport trip"}</div>
+                            <div className="mt-1 inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-700">
+                              {payment.trip.status}
+                            </div>
+                          </div>
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {payment.driver ? (
@@ -635,23 +764,55 @@ export default function AdminDriversPaidPage() {
                           <span className="text-gray-400">Unassigned</span>
                         )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {payment.gross.toLocaleString()} TZS
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-amber-600">
-                        -{payment.commissionAmount.toLocaleString()} TZS
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-emerald-600">
-                        {payment.netPaid.toLocaleString()} TZS
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                          <span>{new Date(payment.paidAt).toLocaleDateString()}</span>
+                      <td className="px-6 py-4 text-sm text-gray-900 min-w-[280px]">
+                        <div className="space-y-2">
+                          <div className="flex items-start gap-2 text-gray-700">
+                            <MapPinned className="mt-0.5 h-4 w-4 text-sky-600 flex-shrink-0" />
+                            <span className="line-clamp-2">{payment.trip.pickup}</span>
+                          </div>
+                          <div className="flex items-start gap-2 text-gray-500">
+                            <ExternalLink className="mt-0.5 h-4 w-4 text-emerald-600 flex-shrink-0" />
+                            <span className="line-clamp-2">{payment.trip.dropoff}</span>
+                          </div>
                         </div>
                       </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {formatMoney(payment.gross)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-amber-600">
+                        -{formatMoney(payment.commissionAmount)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-emerald-600">
+                        {formatMoney(payment.netPaid)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 min-w-[170px]">
+                        <div className="flex items-start gap-2">
+                          <Clock className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                          <div>
+                            <div>{formatDateTime(payment.paidAt)}</div>
+                            <div className="text-xs text-gray-500">{payment.paymentMethod || "Method not recorded"}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 min-w-[160px]">
+                        {payment.paidBy ? (
+                          <div>
+                            <div className="font-medium">{payment.paidBy.name || "Admin"}</div>
+                            <div className="text-xs text-gray-500">{payment.paidBy.email}</div>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">Unknown admin</span>
+                        )}
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {payment.paymentMethod || "N/A"}
+                        <button
+                          type="button"
+                          onClick={() => openDetails(payment.trip.id)}
+                          className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-3 py-1.5 font-medium text-slate-700 shadow-sm transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                          Trip Details
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -662,29 +823,68 @@ export default function AdminDriversPaidPage() {
             {/* Mobile Cards */}
             <div className="md:hidden space-y-2 p-4">
               {list.map((payment) => (
-                <div key={payment.id} className="border rounded-lg p-3 bg-white">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1">
-                      <div className="font-medium text-gray-900">{payment.invoiceNumber || `INV-${payment.invoiceId}`}</div>
-                      <div className="text-sm text-gray-500 mt-1">
-                        {payment.driver?.name || "Unassigned"}
+                <div key={payment.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                  <div className="bg-gradient-to-r from-slate-900 via-sky-900 to-emerald-800 px-4 py-3 text-white">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold tracking-wide">{payment.trip.code}</div>
+                        <div className="mt-1 text-xs text-slate-200">{payment.trip.vehicleType || "Transport trip"}</div>
                       </div>
-                      <div className="text-xs text-gray-400 mt-1">
-                        {new Date(payment.paidAt).toLocaleDateString()}
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-end">
-                      <div className="text-sm font-semibold text-emerald-600">
-                        {payment.netPaid.toLocaleString()} TZS
-                      </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        {payment.paymentMethod || "N/A"}
+                      <div className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-100">
+                        {payment.trip.status}
                       </div>
                     </div>
                   </div>
-                  <div className="mt-2 pt-2 border-t border-gray-100 flex justify-between text-xs">
-                    <span className="text-gray-500">Gross: {payment.gross.toLocaleString()} TZS</span>
-                    <span className="text-amber-600">Commission: -{payment.commissionAmount.toLocaleString()} TZS</span>
+                  <div className="p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-900">{payment.driver?.name || "Unassigned"}</div>
+                        <div className="mt-1 text-sm text-gray-500">{payment.driver?.email || "No driver email"}</div>
+                        <div className="mt-3 space-y-2 text-xs text-gray-600">
+                          <div className="flex items-start gap-2">
+                            <MapPinned className="mt-0.5 h-3.5 w-3.5 text-sky-600 flex-shrink-0" />
+                            <span>{payment.trip.pickup}</span>
+                          </div>
+                          <div className="flex items-start gap-2">
+                            <ExternalLink className="mt-0.5 h-3.5 w-3.5 text-emerald-600 flex-shrink-0" />
+                            <span>{payment.trip.dropoff}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end">
+                        <div className="text-sm font-semibold text-emerald-600">{formatMoney(payment.netPaid)}</div>
+                        <div className="mt-1 text-xs text-gray-500">{payment.paymentMethod || "Method not recorded"}</div>
+                      </div>
+                    </div>
+                    <div className="mt-4 grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-3 text-xs">
+                      <div>
+                        <div className="text-slate-500">Gross</div>
+                        <div className="mt-1 font-semibold text-slate-900">{formatMoney(payment.gross)}</div>
+                      </div>
+                      <div>
+                        <div className="text-slate-500">Commission</div>
+                        <div className="mt-1 font-semibold text-amber-600">-{formatMoney(payment.commissionAmount)}</div>
+                      </div>
+                      <div>
+                        <div className="text-slate-500">Paid at</div>
+                        <div className="mt-1 font-semibold text-slate-900">{formatDateTime(payment.paidAt)}</div>
+                      </div>
+                      <div>
+                        <div className="text-slate-500">Paid by</div>
+                        <div className="mt-1 font-semibold text-slate-900">{payment.paidBy?.name || "Unknown admin"}</div>
+                      </div>
+                    </div>
+                    <div className="mt-4 flex items-center justify-between gap-3 border-t border-slate-100 pt-4 text-xs text-slate-500">
+                      <span>{payment.paymentRef || "No payment reference"}</span>
+                      <button
+                        type="button"
+                        onClick={() => openDetails(payment.trip.id)}
+                        className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 font-medium text-sky-700"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        Trip Details
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -719,6 +919,206 @@ export default function AdminDriversPaidPage() {
           </>
         )}
       </div>
+
+      {detailsOpen && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/55 p-0 sm:items-center sm:p-6">
+          <button type="button" className="absolute inset-0 cursor-default" onClick={closeDetails} aria-label="Close trip details" />
+          <div className="relative z-10 max-h-[92vh] w-full overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:max-w-4xl sm:rounded-3xl">
+            <div className="relative overflow-hidden bg-gradient-to-r from-slate-950 via-sky-900 to-emerald-800 px-6 py-5 text-white sm:px-8">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(125,211,252,0.2),transparent_40%),radial-gradient(circle_at_bottom_left,rgba(110,231,183,0.16),transparent_38%)]" />
+              <div className="relative flex items-start justify-between gap-4">
+                <div>
+                  <div className="text-xs uppercase tracking-[0.28em] text-slate-300">Trip Payout Details</div>
+                  <h2 className="mt-2 text-xl font-black tracking-tight">
+                    {detailsData?.trip.tripCode || (detailsTripId ? `Trip #${detailsTripId}` : "Trip Details")}
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-200">Customer, route, payout history, timestamps, and ratings for this completed driver payout.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeDetails}
+                  className="rounded-full border border-white/15 bg-white/10 p-2 text-white transition hover:bg-white/20"
+                  aria-label="Close trip details"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="max-h-[calc(92vh-96px)] overflow-y-auto px-6 py-6 sm:px-8">
+              {detailsLoading ? (
+                <div className="flex min-h-[260px] items-center justify-center">
+                  <div className="inline-block h-7 w-7 animate-spin rounded-full border-2 border-slate-300 border-t-sky-600"></div>
+                </div>
+              ) : detailsError ? (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-5 text-sm text-rose-700">{detailsError}</div>
+              ) : detailsData ? (
+                <div className="space-y-6">
+                  <div className="grid gap-4 lg:grid-cols-4">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 lg:col-span-2">
+                      <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Route</div>
+                      <div className="mt-3 space-y-3 text-sm text-slate-700">
+                        <div className="flex gap-3">
+                          <MapPinned className="mt-0.5 h-4 w-4 text-sky-600 flex-shrink-0" />
+                          <div>
+                            <div className="text-xs uppercase tracking-wide text-slate-500">Pickup</div>
+                            <div className="font-medium text-slate-900">{detailsData.trip.pickup}</div>
+                          </div>
+                        </div>
+                        <div className="flex gap-3">
+                          <ExternalLink className="mt-0.5 h-4 w-4 text-emerald-600 flex-shrink-0" />
+                          <div>
+                            <div className="text-xs uppercase tracking-wide text-slate-500">Dropoff</div>
+                            <div className="font-medium text-slate-900">{detailsData.trip.dropoff}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                      <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Customer</div>
+                      <div className="mt-3 space-y-1">
+                        <div className="font-semibold text-slate-900">{detailsData.trip.user?.name || "N/A"}</div>
+                        <div className="text-sm text-slate-600">{detailsData.trip.user?.phone || detailsData.trip.user?.email || "No contact recorded"}</div>
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                      <div className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">Net Paid</div>
+                      <div className="mt-3 text-2xl font-black text-emerald-700">{formatMoney(detailsData.trip.payout?.netPaid ?? detailsData.trip.amount)}</div>
+                      <div className="mt-2 text-xs text-emerald-700/80">Status: {detailsData.trip.payout?.status || detailsData.trip.status}</div>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                        <ShieldCheck className="h-4 w-4 text-sky-600" />
+                        Trip Timeline
+                      </div>
+                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <div className="text-xs uppercase tracking-wide text-slate-500">Scheduled</div>
+                          <div className="mt-1 text-sm font-medium text-slate-900">{formatDateTime(detailsData.trip.scheduledAt)}</div>
+                        </div>
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <div className="text-xs uppercase tracking-wide text-slate-500">Accomplished</div>
+                          <div className="mt-1 text-sm font-medium text-slate-900">{formatDateTime(detailsData.trip.accomplishedAt)}</div>
+                        </div>
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <div className="text-xs uppercase tracking-wide text-slate-500">Picked Up</div>
+                          <div className="mt-1 text-sm font-medium text-slate-900">{formatDateTime(detailsData.trip.pickupTime)}</div>
+                        </div>
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <div className="text-xs uppercase tracking-wide text-slate-500">Dropped Off</div>
+                          <div className="mt-1 text-sm font-medium text-slate-900">{formatDateTime(detailsData.trip.dropoffTime)}</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                        <UserRound className="h-4 w-4 text-emerald-600" />
+                        Trip Context
+                      </div>
+                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <div className="text-xs uppercase tracking-wide text-slate-500">Driver</div>
+                          <div className="mt-1 text-sm font-medium text-slate-900">{detailsData.trip.driver?.name || "Unassigned"}</div>
+                        </div>
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <div className="text-xs uppercase tracking-wide text-slate-500">Vehicle Type</div>
+                          <div className="mt-1 text-sm font-medium text-slate-900">{detailsData.trip.vehicleType || "N/A"}</div>
+                        </div>
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <div className="text-xs uppercase tracking-wide text-slate-500">Passengers</div>
+                          <div className="mt-1 text-sm font-medium text-slate-900">{detailsData.trip.passengerCount ?? "N/A"}</div>
+                        </div>
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <div className="text-xs uppercase tracking-wide text-slate-500">Payment Status</div>
+                          <div className="mt-1 text-sm font-medium text-slate-900">{detailsData.trip.paymentStatus || "N/A"}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 lg:grid-cols-3">
+                    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-2">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                        <CreditCard className="h-4 w-4 text-violet-600" />
+                        Payout Breakdown
+                      </div>
+                      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <div className="text-xs uppercase tracking-wide text-slate-500">Gross</div>
+                          <div className="mt-1 text-sm font-semibold text-slate-900">{formatMoney(detailsData.trip.payout?.grossAmount ?? detailsData.trip.amount)}</div>
+                        </div>
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <div className="text-xs uppercase tracking-wide text-slate-500">Commission</div>
+                          <div className="mt-1 text-sm font-semibold text-amber-600">-{formatMoney(detailsData.trip.payout?.commissionAmount ?? 0)}</div>
+                        </div>
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <div className="text-xs uppercase tracking-wide text-slate-500">Net Paid</div>
+                          <div className="mt-1 text-sm font-semibold text-emerald-600">{formatMoney(detailsData.trip.payout?.netPaid ?? detailsData.trip.amount)}</div>
+                        </div>
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <div className="text-xs uppercase tracking-wide text-slate-500">Payment Method</div>
+                          <div className="mt-1 text-sm font-medium text-slate-900">{detailsData.trip.payout?.paymentMethod || detailsData.trip.paymentMethod || "N/A"}</div>
+                        </div>
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <div className="text-xs uppercase tracking-wide text-slate-500">Reference</div>
+                          <div className="mt-1 text-sm font-medium text-slate-900 break-words">{detailsData.trip.payout?.paymentRef || detailsData.trip.paymentRef || "N/A"}</div>
+                        </div>
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <div className="text-xs uppercase tracking-wide text-slate-500">Paid At</div>
+                          <div className="mt-1 text-sm font-medium text-slate-900">{formatDateTime(detailsData.trip.payout?.paidAt)}</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                        <ShieldCheck className="h-4 w-4 text-amber-600" />
+                        Ratings
+                      </div>
+                      <div className="mt-4 space-y-3">
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <div className="text-xs uppercase tracking-wide text-slate-500">Customer Rating</div>
+                          <div className="mt-1 text-sm font-semibold text-slate-900">{formatRating(detailsData.trip.customerRating)}</div>
+                          <div className="mt-1 text-xs text-slate-500">{detailsData.trip.customerReview || "No customer review provided."}</div>
+                        </div>
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <div className="text-xs uppercase tracking-wide text-slate-500">Driver Rating</div>
+                          <div className="mt-1 text-sm font-semibold text-slate-900">{formatRating(detailsData.trip.driverRating)}</div>
+                          <div className="mt-1 text-xs text-slate-500">{detailsData.trip.driverReview || "No driver review provided."}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {detailsData.trip.notes && (
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                        <CreditCard className="h-4 w-4 text-slate-600" />
+                        Notes
+                      </div>
+                      <p className="mt-2 text-sm text-slate-700">{detailsData.trip.notes}</p>
+                    </div>
+                  )}
+
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600 shadow-sm">
+                    <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+                      <span>Booked: {formatDate(detailsData.trip.createdAt)}</span>
+                      <span>Updated: {formatDateTime(detailsData.trip.updatedAt)}</span>
+                      <span>Reference: {detailsData.trip.paymentRef || "N/A"}</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-600">No trip details available.</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -132,6 +132,27 @@ const normalizeReason = (v: unknown, maxLen = 500) => {
   return s.length > maxLen ? s.slice(0, maxLen) : s;
 };
 
+const sanitizeFieldApprovals = (v: unknown) => {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+
+  const allowedKeys = new Set([
+    "name", "email", "phone", "gender", "nationality", "nin",
+    "region", "district", "operationArea",
+    "vehicleType", "plateNumber", "licenseNumber",
+    "paymentPhone",
+    "drivingLicense", "nationalId", "latra", "insurance",
+  ]);
+  const allowedValues = new Set(["approved", "flagged"]);
+
+  const cleaned = Object.fromEntries(
+    Object.entries(v as Record<string, unknown>)
+      .filter(([key, value]) => allowedKeys.has(key) && allowedValues.has(String(value)))
+      .map(([key, value]) => [key, String(value)])
+  );
+
+  return Object.keys(cleaned).length > 0 ? cleaned : null;
+};
+
 type DriverEligibilityResult = { eligible: boolean; reasons: string[] };
 
 const normalizeArea = (v: unknown) => String(v ?? "").trim().toLowerCase();
@@ -1263,15 +1284,21 @@ router.get("/trips/:id(\\d+)", async (req, res) => {
       scheduledAt: (booking.scheduledDate ?? booking.createdAt)?.toISOString?.() ?? String(booking.scheduledDate ?? booking.createdAt ?? ""),
       pickupTime: booking.pickupTime ? new Date(booking.pickupTime).toISOString() : null,
       dropoffTime: booking.dropoffTime ? new Date(booking.dropoffTime).toISOString() : null,
+      accomplishedAt: (booking.dropoffTime ?? booking.updatedAt ?? booking.scheduledDate ?? booking.createdAt)?.toISOString?.() ?? String(booking.dropoffTime ?? booking.updatedAt ?? booking.scheduledDate ?? booking.createdAt ?? ""),
       pickup: booking.fromAddress || [booking.fromWard, booking.fromDistrict, booking.fromRegion].filter(Boolean).join(", ") || "N/A",
       dropoff: booking.toAddress || [booking.toWard, booking.toDistrict, booking.toRegion].filter(Boolean).join(", ") || "N/A",
       vehicleType: booking.vehicleType ?? null,
+      passengerCount: booking.numberOfPassengers != null ? Number(booking.numberOfPassengers) : null,
       amount: booking.amount != null ? Number(booking.amount) : 0,
       currency: booking.currency ?? "TZS",
       paymentStatus: booking.paymentStatus ?? null,
       paymentMethod: booking.paymentMethod ?? null,
       paymentRef: booking.paymentRef ?? null,
       notes: booking.notes ?? null,
+      customerRating: booking.userRating != null ? Number(booking.userRating) : booking.rating != null ? Number(booking.rating) : null,
+      customerReview: booking.userReview ?? booking.ratingComment ?? null,
+      driverRating: booking.driverRating != null ? Number(booking.driverRating) : null,
+      driverReview: booking.driverReview ?? null,
       createdAt: booking.createdAt ? new Date(booking.createdAt).toISOString() : null,
       updatedAt: booking.updatedAt ? new Date(booking.updatedAt).toISOString() : null,
       user: booking.user
@@ -2733,18 +2760,24 @@ router.get("/invoices/stats", async (req, res) => {
 router.get("/paid", async (req, res) => {
   try {
     const { driverId, date, start, end, page = "1", pageSize = "50", q = "" } = req.query as any;
-    
-    const where: any = {};
-    
-    // Filter by driver if specified
+
+    if (!(prisma as any).transportPayout) {
+      return res.json({ total: 0, page: Number(page), pageSize: Math.min(Number(pageSize), 100), items: [] });
+    }
+
+    const where: any = {
+      status: "PAID",
+      booking: {
+        is: {
+          status: "COMPLETED",
+        },
+      },
+    };
+
     if (driverId) {
       where.driverId = Number(driverId);
-    } else {
-      // Only show payouts for drivers
-      where.driverId = { not: null };
     }
-    
-    // Date filtering
+
     if (date) {
       const s = new Date(String(date) + "T00:00:00.000Z");
       const e = new Date(String(date) + "T23:59:59.999Z");
@@ -2754,114 +2787,103 @@ router.get("/paid", async (req, res) => {
       const e = end ? new Date(String(end) + "T23:59:59.999Z") : new Date();
       where.paidAt = { gte: s, lte: e };
     }
-    
-    // Search query
+
     if (q) {
       where.OR = [
-        // MySQL doesn't support `mode: "insensitive"`, so use plain contains.
-        { invoiceNumber: { contains: q } },
-        { receiptNumber: { contains: q } },
-        { tripCode: { contains: q } },
+        { booking: { is: { tripCode: { contains: q } } } },
         { paymentRef: { contains: q } },
+        { paymentMethod: { contains: q } },
+        { driver: { is: { name: { contains: q } } } },
+        { driver: { is: { email: { contains: q } } } },
+        { payer: { is: { name: { contains: q } } } },
+        { payer: { is: { email: { contains: q } } } },
       ];
     }
-    
+
     const skip = (Number(page) - 1) * Number(pageSize);
     const take = Math.min(Number(pageSize), 100);
-    
-    // Try to use Payout model first, fallback to Invoice
-    let items: any[] = [];
-    let total = 0;
-    
+
     try {
-      if ((prisma as any).payout) {
-        const [payouts, count] = await Promise.all([
-          (prisma as any).payout.findMany({
-            where,
-            include: {
-              driver: {
-                select: { id: true, name: true, email: true, phone: true },
+      const [payouts, total] = await Promise.all([
+        (prisma as any).transportPayout.findMany({
+          where,
+          include: {
+            driver: {
+              select: { id: true, name: true, email: true, phone: true },
+            },
+            payer: {
+              select: { id: true, name: true, email: true },
+            },
+            booking: {
+              select: {
+                id: true,
+                tripCode: true,
+                status: true,
+                scheduledDate: true,
+                fromAddress: true,
+                fromWard: true,
+                fromDistrict: true,
+                fromRegion: true,
+                toAddress: true,
+                toWard: true,
+                toDistrict: true,
+                toRegion: true,
+                vehicleType: true,
               },
             },
-            orderBy: { paidAt: "desc" },
-            skip,
-            take,
-          }),
-          (prisma as any).payout.count({ where }),
-        ]);
-        
-        items = payouts.map((p: any) => ({
-          id: p.id,
-          invoiceId: p.invoiceId,
-          invoiceNumber: p.invoiceNumber || `INV-${p.invoiceId}`,
-          receiptNumber: p.receiptNumber,
-          tripCode: p.tripCode,
-          driver: p.driver,
-          gross: p.gross ?? 0,
-          commissionAmount: p.commissionAmount ?? 0,
-          netPaid: p.netPaid ?? 0,
-          paidAt: p.paidAt || p.createdAt,
-          paymentMethod: p.paymentMethod,
-          paymentRef: p.paymentRef,
-        }));
-        total = count;
-      } else {
-        // Fallback to paid invoices
-        const invoiceWhere: any = {
-          status: "PAID",
-        };
-        // Note: Invoice is for property bookings, not transport bookings
-        // Driver filtering doesn't apply to invoices as they're for property owners
-        if (date) {
-          const s = new Date(String(date) + "T00:00:00.000Z");
-          const e = new Date(String(date) + "T23:59:59.999Z");
-          invoiceWhere.paidAt = { gte: s, lte: e };
-        } else if (start || end) {
-          const s = start ? new Date(String(start) + "T00:00:00.000Z") : new Date(0);
-          const e = end ? new Date(String(end) + "T23:59:59.999Z") : new Date();
-          invoiceWhere.paidAt = { gte: s, lte: e };
-        }
-        
-        const [invoices, count] = await Promise.all([
-          prisma.invoice.findMany({
-            where: invoiceWhere,
-            include: {
-              booking: {
-                include: {
-                  user: {
-                    select: { id: true, name: true, email: true, phone: true },
-                  },
-                },
-              },
-            },
-            orderBy: { paidAt: "desc" },
-            skip,
-            take,
-          }),
-          prisma.invoice.count({ where: invoiceWhere }),
-        ]);
-        
-        items = invoices.map((inv: any) => ({
-          id: inv.id,
-          invoiceId: inv.id,
-          invoiceNumber: inv.invoiceNumber || `INV-${inv.id}`,
-          receiptNumber: inv.receiptNumber,
-          tripCode: inv.booking?.tripCode || inv.booking?.code,
-          driver: inv.booking?.driver,
-          gross: inv.totalAmount ?? inv.total ?? 0,
-          commissionAmount: inv.commissionAmount ?? 0,
-          netPaid: inv.netPayable ?? 0,
-          paidAt: inv.paidAt || inv.createdAt,
-          paymentMethod: inv.paymentMethod,
-          paymentRef: inv.paymentRef,
-        }));
-        total = count;
-      }
+          },
+          orderBy: [{ paidAt: "desc" }, { id: "desc" }],
+          skip,
+          take,
+        }),
+        (prisma as any).transportPayout.count({ where }),
+      ]);
+
+      const items = payouts.map((p: any) => ({
+        id: Number(p.id),
+        trip: {
+          id: Number(p.booking.id),
+          code: p.booking.tripCode || p.paymentRef || `TRIP-${p.booking.id}`,
+          status: p.booking.status || "COMPLETED",
+          scheduledAt: p.booking.scheduledDate ? new Date(p.booking.scheduledDate).toISOString() : null,
+          pickup:
+            p.booking.fromAddress ||
+            [p.booking.fromWard, p.booking.fromDistrict, p.booking.fromRegion].filter(Boolean).join(", ") ||
+            "N/A",
+          dropoff:
+            p.booking.toAddress ||
+            [p.booking.toWard, p.booking.toDistrict, p.booking.toRegion].filter(Boolean).join(", ") ||
+            "N/A",
+          vehicleType: p.booking.vehicleType ?? null,
+        },
+        driver: p.driver
+          ? {
+              id: Number(p.driver.id),
+              name: p.driver.name ?? "",
+              email: p.driver.email ?? "",
+              phone: p.driver.phone ?? null,
+            }
+          : null,
+        gross: p.grossAmount != null ? Number(p.grossAmount) : 0,
+        commissionAmount: p.commissionAmount != null ? Number(p.commissionAmount) : 0,
+        netPaid: p.netPaid != null ? Number(p.netPaid) : 0,
+        paidAt: p.paidAt ? new Date(p.paidAt).toISOString() : new Date(p.updatedAt ?? p.createdAt).toISOString(),
+        paymentMethod: p.paymentMethod ?? null,
+        paymentRef: p.paymentRef ?? null,
+        paidBy: p.payer
+          ? {
+              id: Number(p.payer.id),
+              name: p.payer.name ?? "",
+              email: p.payer.email ?? "",
+            }
+          : null,
+      }));
+
+      return res.json({ total, page: Number(page), pageSize: take, items });
     } catch (err: any) {
-      console.warn("Error querying payouts/invoices:", err.message);
+      console.warn("Error querying transport payouts:", err.message);
+      return res.json({ total: 0, page: Number(page), pageSize: take, items: [] });
     }
-    
-    return res.json({ total, page: Number(page), pageSize: take, items });
   } catch (err: any) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && (err.code === 'P2021' || err.code === 'P2022')) {
       console.warn('Prisma schema mismatch when querying driver payments:', err.message);
@@ -2878,7 +2900,7 @@ router.get("/paid", async (req, res) => {
 router.get("/paid/stats", async (req, res) => {
   try {
     const { period = "30d" } = req.query as any;
-    
+
     let startDate: Date;
     const endDate = new Date();
     endDate.setHours(23, 59, 59, 999);
@@ -2908,50 +2930,38 @@ router.get("/paid/stats", async (req, res) => {
     }
     startDate.setHours(0, 0, 0, 0);
 
+    if (!(prisma as any).transportPayout) {
+      return res.json({
+        stats: [],
+        summary: { totalPaid: 0, totalCount: 0, totalCommission: 0, averagePayment: 0 },
+        period,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+      });
+    }
+
     let payments: any[] = [];
-    
+
     try {
-      if ((prisma as any).payout) {
-        payments = await (prisma as any).payout.findMany({
-          where: {
-            driverId: { not: null },
-            paidAt: {
-              gte: startDate,
-              lte: endDate,
+      payments = await (prisma as any).transportPayout.findMany({
+        where: {
+          status: "PAID",
+          paidAt: {
+            gte: startDate,
+            lte: endDate,
+          },
+          booking: {
+            is: {
+              status: "COMPLETED",
             },
           },
-          select: {
-            paidAt: true,
-            netPaid: true,
-            commissionAmount: true,
-          },
-        });
-      } else {
-        // Note: Invoice is for property bookings, not transport bookings
-        // Transport bookings don't have invoices in the same way
-        const invoices = await prisma.invoice.findMany({
-          where: {
-            status: "PAID",
-            paidAt: {
-              gte: startDate,
-              lte: endDate,
-            },
-          },
-          select: {
-            paidAt: true,
-            netPayable: true,
-            commissionAmount: true,
-            total: true,
-          },
-        });
-        
-        payments = invoices.map((inv: any) => ({
-          paidAt: inv.paidAt,
-          netPaid: inv.netPayable ?? 0,
-          commissionAmount: inv.commissionAmount ?? 0,
-          gross: Number(inv.total ?? 0),
-        }));
-      }
+        },
+        select: {
+          paidAt: true,
+          netPaid: true,
+          commissionAmount: true,
+        },
+      });
     } catch (err: any) {
       console.warn("Error querying payment stats:", err.message);
     }
@@ -5505,14 +5515,23 @@ router.get("/:id(\\d+)/activities", async (req, res) => {
 });
 
 /** PATCH /admin/drivers/:id/kyc — approve, reject, request_info, or field_review */
-router.patch('/:id(\\d+)/kyc', async (req, res) => {
+router.patch('/:id(\\d+)/kyc', limitAdminTripsWrite, async (req, res) => {
   try {
     const driverId = Number(req.params.id);
+    if (!Number.isFinite(driverId) || driverId <= 0) {
+      return res.status(400).json({ error: 'Invalid driver id' });
+    }
+
     const { action, reason, note, fieldApprovals } = req.body ?? {};
     const validActions = ['approve', 'reject', 'request_info', 'field_review', 'revoke', 'unrevoke'];
     if (!validActions.includes(String(action))) {
       return res.status(400).json({ error: `action must be one of: ${validActions.join(', ')}` });
     }
+
+    const sanitizedReason = normalizeReason(reason);
+    const sanitizedNote = normalizeReason(note, 1000);
+    const sanitizedFieldApprovals = sanitizeFieldApprovals(fieldApprovals);
+
     const driver = await prisma.user.findUnique({ where: { id: driverId, role: 'DRIVER' } as any });
     if (!driver) return res.status(404).json({ error: 'Driver not found' });
 
@@ -5599,25 +5618,25 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
       // Silent save: persist field approvals only, no notification to driver
       await prisma.user.update({
         where: { id: driverId },
-        data: { kycFieldApprovals: fieldApprovals ?? null } as any,
+        data: { kycFieldApprovals: sanitizedFieldApprovals } as any,
       });
 
       // Keep driver-facing document statuses in sync (realtime refresh)
-      await syncDriverDocumentStatusesFromFieldApprovals(fieldApprovals);
+      await syncDriverDocumentStatusesFromFieldApprovals(sanitizedFieldApprovals);
     } else if (action === 'request_info') {
       // Persist note + field approvals, then notify driver
       await prisma.user.update({
         where: { id: driverId },
-        data: { kycNote: note ?? null, kycFieldApprovals: fieldApprovals ?? null } as any,
+        data: { kycNote: sanitizedNote || null, kycFieldApprovals: sanitizedFieldApprovals } as any,
       });
 
       // Keep driver-facing document statuses in sync (realtime refresh)
-      await syncDriverDocumentStatusesFromFieldApprovals(fieldApprovals);
+      await syncDriverDocumentStatusesFromFieldApprovals(sanitizedFieldApprovals);
     } else {
       // approve / reject / revoke / unrevoke — update status, clear note + field approvals
       const statusData: any = {
         kycStatus,
-        kycNote: (action === 'reject' || action === 'revoke') ? (reason ?? null) : null,
+        kycNote: (action === 'reject' || action === 'revoke') ? (sanitizedReason || null) : null,
         kycFieldApprovals: null,
       };
       if (action === 'revoke') {
@@ -5640,14 +5659,14 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
             driverId,
             adminId,
             action,
-            note: note ?? (reason
+            note: sanitizedNote || (sanitizedReason
               ? `${action === 'revoke'
                   ? 'Revocation reason'
                   : action === 'unrevoke'
                     ? 'Restoration reason'
-                    : 'Rejection reason'}: ${reason}`
+                    : 'Rejection reason'}: ${sanitizedReason}`
               : null),
-            fieldApprovals: fieldApprovals ?? null,
+            fieldApprovals: sanitizedFieldApprovals,
           },
         });
       } catch (auditErr) {
@@ -5664,12 +5683,12 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
             action === 'approve'
               ? 'Your driver application has been approved! You can now access your dashboard.'
               : action === 'unrevoke'
-                ? `Your NoLSAF driver account suspension has been lifted. ${reason ? `Reason: ${reason}` : 'You can log in again and continue using your dashboard.'}`
+                ? `Your NoLSAF driver account suspension has been lifted. ${sanitizedReason ? `Reason: ${sanitizedReason}` : 'You can log in again and continue using your dashboard.'}`
               : action === 'revoke'
-                ? `Your access to the NoLSAF driver portal has been revoked. ${reason ? `Reason: ${reason}` : 'Please contact support for more details.'}`
+                ? `Your access to the NoLSAF driver portal has been revoked. ${sanitizedReason ? `Reason: ${sanitizedReason}` : 'Please contact support for more details.'}`
                 : action === 'reject'
-                  ? `Your driver application was not approved. ${reason ? `Reason: ${reason}` : 'Please contact support for more details.'}`
-                  : `The admin needs more information to process your application. ${note ? `Message: ${note}` : 'Please update your profile with the required details.'}`;
+                  ? `Your driver application was not approved. ${sanitizedReason ? `Reason: ${sanitizedReason}` : 'Please contact support for more details.'}`
+                  : `The admin needs more information to process your application. ${sanitizedNote ? `Message: ${sanitizedNote}` : 'Please update your profile with the required details.'}`;
           io.to(`user:${driverId}`).emit('kyc_status_update', { kycStatus, action, message });
         }
       } catch (e) { /* socket errors are non-fatal */ }
@@ -5699,14 +5718,14 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
 
           // Collect the flagged fields from fieldApprovals (value !== "approved")
           const flagged: string[] = fieldApprovals
-            ? Object.entries(fieldApprovals as Record<string, string>)
+            ? Object.entries(sanitizedFieldApprovals as Record<string, string>)
                 .filter(([, v]) => v !== 'approved')
                 .map(([k]) => fieldLabels[k] ?? k)
             : [];
 
           const fieldList = flagged.length > 0
             ? flagged.join(', ')
-            : note ?? 'your profile information';
+            : sanitizedNote || 'your profile information';
 
           const smsText =
             `NoLSAF: Following our review of your driver application, please update the following: ${fieldList}. ` +
@@ -5842,7 +5861,7 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
       const driverEmail = (driver as any).email as string | null | undefined;
       const driverPhone = (driver as any).phone as string | null | undefined;
       const firstName   = driverName.split(' ')[0];
-      const rejectReason = normalizeReason(reason);
+      const rejectReason = sanitizedReason;
 
       if (driverPhone) {
         try {
@@ -5932,7 +5951,7 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
       if (driverPhone) {
         try {
           const smsTxt =
-            `Your driver account access has been revoked. Ref: ${caseRef}. ${reason ? `Reason: ${reason}. ` : ''}For assistance contact support@nolsaf.com.`;
+            `Your driver account access has been revoked. Ref: ${caseRef}. ${sanitizedReason ? `Reason: ${sanitizedReason}. ` : ''}For assistance contact support@nolsaf.com.`;
           await sendSms(driverPhone, smsTxt, { bypassEligibilityCheck: true });
         } catch (smsErr: any) {
           console.warn('[KYC revoke] SMS failed (non-fatal):', smsErr?.message ?? smsErr);
@@ -5982,7 +6001,7 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
               ['Email',       driverEmail],
               ['Reference Number', caseRef],
               ['Status',      '❌ Access Revoked'],
-              ['Reason',      reason || 'Not specified'],
+              ['Reason',      sanitizedReason || 'Not specified'],
               ['Effective',   new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })],
             ])}
 
@@ -6027,7 +6046,7 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
       const driverEmail = (driver as any).email as string | null | undefined;
       const driverPhone = (driver as any).phone as string | null | undefined;
       const firstName   = driverName.split(' ')[0];
-      const restoreReason = normalizeReason(reason);
+      const restoreReason = sanitizedReason;
       const loginUrl    = `${process.env.APP_ORIGIN ?? 'https://app.nolsaf.com'}/login`;
 
       if (driverPhone) {
