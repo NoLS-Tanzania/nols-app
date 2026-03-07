@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import TableRow from "@/components/TableRow"
-import { ArrowRight, CalendarClock, CheckCircle2, Eye, Flag, ListChecks, MapPin, Navigation, Sparkles, Wallet, Waves, X, XCircle, Zap } from "lucide-react"
+import { CalendarClock, CheckCircle2, Eye, Flag, ListChecks, MapPin, Navigation, Sparkles, Wallet, X, XCircle, Zap } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 type TripDetails = {
@@ -389,31 +389,31 @@ export default function DriverTripsPage() {
           </div>
 
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-            <div className="rounded-3xl border border-white/70 bg-white/75 p-5 shadow-[0_14px_40px_-24px_rgba(15,23,42,0.45)] backdrop-blur">
+            <div className="rounded-3xl border border-white/70 bg-white/80 p-5 shadow-[0_14px_40px_-24px_rgba(15,23,42,0.45)] backdrop-blur">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <div className="text-sm font-bold text-slate-900">Assigned by Admin</div>
-                  <div className="mt-1 text-sm leading-6 text-slate-600">High-intent trips manually awarded or re-routed by operations.</div>
+                  <div className="text-sm font-bold text-slate-900">Admin dispatch</div>
+                  <div className="mt-1 text-sm text-slate-500">Structured trips routed directly by operations.</div>
                 </div>
                 <div className="rounded-full bg-indigo-50 px-3 py-1 text-sm font-bold text-indigo-700">{adminTrips.length}</div>
               </div>
-              <div className="mt-4 flex items-center gap-2 text-xs font-medium text-indigo-700">
-                <Waves className="h-4 w-4" />
-                Priority dispatch lane with direct admin oversight
+              <div className="mt-4 flex flex-wrap gap-2">
+                <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">Priority lane</span>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">Direct oversight</span>
               </div>
             </div>
 
-            <div className="rounded-3xl border border-white/70 bg-white/75 p-5 shadow-[0_14px_40px_-24px_rgba(15,23,42,0.45)] backdrop-blur">
+            <div className="rounded-3xl border border-white/70 bg-white/80 p-5 shadow-[0_14px_40px_-24px_rgba(15,23,42,0.45)] backdrop-blur">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <div className="text-sm font-bold text-slate-900">Auto allocated / On-demand</div>
-                  <div className="mt-1 text-sm leading-6 text-slate-600">Trips accepted organically through the live demand stream and automatic matching.</div>
+                  <div className="text-sm font-bold text-slate-900">Auto allocated</div>
+                  <div className="mt-1 text-sm text-slate-500">Trips flowing through live demand and instant matching.</div>
                 </div>
                 <div className="rounded-full bg-emerald-50 px-3 py-1 text-sm font-bold text-emerald-700">{autoTrips.length}</div>
               </div>
-              <div className="mt-4 flex items-center gap-2 text-xs font-medium text-emerald-700">
-                <ArrowRight className="h-4 w-4" />
-                Faster response flow with driver-led pickup behavior
+              <div className="mt-4 flex flex-wrap gap-2">
+                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">Live demand</span>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">Instant matching</span>
               </div>
             </div>
           </div>
@@ -436,10 +436,7 @@ export default function DriverTripsPage() {
             const TripsTable = ({ items, defaultAction }: { items: any[]; defaultAction: "START" | "VIEW" }) => (
               <div className="mt-4 overflow-hidden rounded-[1.4rem] border border-slate-200/80 bg-white/90 shadow-[0_16px_40px_-28px_rgba(15,23,42,0.55)] backdrop-blur">
                 <div className="flex items-center justify-between border-b border-slate-200/80 bg-slate-950 px-4 py-3 text-white">
-                  <div>
-                    <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-300">Trip Ledger</div>
-                    <div className="mt-1 text-sm text-slate-100">Operational view with route, payment, and next action control.</div>
-                  </div>
+                  <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-300">Trip Ledger</div>
                   <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-slate-200">
                     {items.length} record{items.length === 1 ? "" : "s"}
                   </div>
@@ -523,10 +520,10 @@ export default function DriverTripsPage() {
                             <div className="mt-4 text-base font-semibold text-slate-900">
                               {loading ? 'Loading trips...' : 'No trips found'}
                             </div>
-                            <div className="mt-1 text-sm leading-6 text-slate-500">
+                            <div className="mt-1 text-sm text-slate-500">
                               {loading
-                                ? 'We are preparing your trip ledger and live actions.'
-                                : 'This lane is empty for now. New trips will appear here with route, amount, and next-step controls.'}
+                                ? 'Preparing the trip ledger.'
+                                : 'This lane is empty for now.'}
                             </div>
                           </div>
                         </td>
@@ -535,58 +532,41 @@ export default function DriverTripsPage() {
                   </tbody>
                 </table>
                 </div>
-
-                <div className="flex items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-500">
-                  <span>Optimized for quick route review, payout awareness, and next action clarity.</span>
-                  <span className="hidden sm:inline">Scroll horizontally for the full route ledger.</span>
-                </div>
               </div>
             )
 
             return (
               <div className="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-5">
-                <div className="rounded-[1.75rem] border border-slate-200/80 bg-white/70 p-5 shadow-[0_20px_50px_-30px_rgba(15,23,42,0.4)] backdrop-blur">
+                <div className="rounded-[1.75rem] border border-slate-200/80 bg-white/75 p-5 shadow-[0_20px_50px_-30px_rgba(15,23,42,0.4)] backdrop-blur">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="text-base font-bold text-slate-950">Assigned by Admin</div>
-                      <div className="mt-1 text-sm leading-6 text-slate-600">Trips assigned manually or awarded by admin for structured execution and direct oversight.</div>
+                      <div className="mt-1 text-sm text-slate-500">Directly managed operational trips.</div>
                     </div>
                     <div className="shrink-0 flex h-11 min-w-[3rem] items-center justify-center rounded-2xl bg-indigo-50 px-3 text-sm font-black text-indigo-700 shadow-sm">
                       {adminTrips.length}
                     </div>
                   </div>
-                  <div className="mt-4 grid grid-cols-2 gap-3 rounded-2xl bg-slate-50 p-3 text-xs text-slate-600">
-                    <div>
-                      <div className="uppercase tracking-[0.16em] text-slate-400">Mode</div>
-                      <div className="mt-1 font-semibold text-slate-900">Managed dispatch</div>
-                    </div>
-                    <div>
-                      <div className="uppercase tracking-[0.16em] text-slate-400">Preferred action</div>
-                      <div className="mt-1 font-semibold text-slate-900">Start trip</div>
-                    </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">Managed dispatch</span>
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">Start-ready</span>
                   </div>
                   <TripsTable items={adminTrips} defaultAction="START" />
                 </div>
 
-                <div className="rounded-[1.75rem] border border-slate-200/80 bg-white/70 p-5 shadow-[0_20px_50px_-30px_rgba(15,23,42,0.4)] backdrop-blur">
+                <div className="rounded-[1.75rem] border border-slate-200/80 bg-white/75 p-5 shadow-[0_20px_50px_-30px_rgba(15,23,42,0.4)] backdrop-blur">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="text-base font-bold text-slate-950">Auto allocated / On-demand</div>
-                      <div className="mt-1 text-sm leading-6 text-slate-600">Trips picked up automatically or accepted by drivers through live demand and instant matching.</div>
+                      <div className="mt-1 text-sm text-slate-500">Driver-led demand and instant matching flow.</div>
                     </div>
                     <div className="shrink-0 flex h-11 min-w-[3rem] items-center justify-center rounded-2xl bg-emerald-50 px-3 text-sm font-black text-emerald-700 shadow-sm">
                       {autoTrips.length}
                     </div>
                   </div>
-                  <div className="mt-4 grid grid-cols-2 gap-3 rounded-2xl bg-slate-50 p-3 text-xs text-slate-600">
-                    <div>
-                      <div className="uppercase tracking-[0.16em] text-slate-400">Mode</div>
-                      <div className="mt-1 font-semibold text-slate-900">Live demand stream</div>
-                    </div>
-                    <div>
-                      <div className="uppercase tracking-[0.16em] text-slate-400">Preferred action</div>
-                      <div className="mt-1 font-semibold text-slate-900">Review flow</div>
-                    </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">Live demand</span>
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">Review flow</span>
                   </div>
                   <TripsTable items={autoTrips} defaultAction="VIEW" />
                 </div>

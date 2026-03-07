@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { AlertCircle, ChevronLeft, Eye, FileText, Shield, ShieldCheck } from "lucide-react"
+import { AlertCircle, ChevronLeft, FileText, Shield, ShieldCheck } from "lucide-react"
 import DriverPageHeader from "@/components/DriverPageHeader"
 
 type DocumentRecord = {
@@ -163,15 +163,6 @@ export default function InsurancePage() {
                 <h3 className="text-xl font-semibold text-slate-950">Current insurance file</h3>
                 <p className="mt-1 text-sm text-slate-500">{fileName ?? "Insurance document stored on your profile."}</p>
               </div>
-              <a
-                href={insuranceUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-2 rounded-full bg-[#0d8f6f] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0b7d61]"
-              >
-                <Eye className="h-4 w-4" />
-                Open or download
-              </a>
             </div>
 
             <div className="overflow-hidden rounded-[26px] border border-slate-200 bg-slate-50">

@@ -104,10 +104,6 @@ export default function LicensePage() {
               {renderViewer()}
             </div>
 
-            <div className="flex justify-between items-center">
-              <div className="text-sm text-slate-600">If the document does not display, you can download it.</div>
-              <a href={licenseUrl} target="_blank" rel="noreferrer" className="text-sky-600 text-sm">Open / Download</a>
-            </div>
           </div>
         ) : (
           <div>

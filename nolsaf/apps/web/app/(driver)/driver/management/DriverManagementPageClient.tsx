@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useEffect, useMemo, useState } from "react"
+import Image from "next/image"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import {
@@ -10,6 +11,7 @@ import {
   Eye,
   FileText,
   Lock,
+  X,
   Settings,
   Shield,
   ShieldCheck,
@@ -48,8 +50,14 @@ type DocCardModel = {
   tint: string
   doc: DocumentRecord | null
   fallbackUrl?: string | null
-  href?: string
   externalUrl?: string | null
+}
+
+type PreviewState = {
+  title: string
+  subtitle: string
+  url: string
+  metaLine: string
 }
 
 const LICENSE_TYPES = ["DRIVER_LICENSE", "DRIVING_LICENSE", "DRIVER_LICENCE", "DRIVING_LICENCE", "LICENSE"]
@@ -173,6 +181,7 @@ export default function DriverManagementPageClient() {
   const [error, setError] = useState<string | null>(null)
   const [account, setAccount] = useState<AccountPayload | null>(null)
   const [contractUrl, setContractUrl] = useState<string | null>(null)
+  const [preview, setPreview] = useState<PreviewState | null>(null)
 
   useEffect(() => {
     if (tabParam === "safety" || tabParam === "settings" || tabParam === "documents") {
@@ -241,7 +250,6 @@ export default function DriverManagementPageClient() {
       tint: "bg-emerald-50 text-emerald-700",
       doc: licenseDoc,
       fallbackUrl: account?.drivingLicenseUrl,
-      href: "/driver/management/license",
     },
     {
       key: "insurance",
@@ -251,7 +259,6 @@ export default function DriverManagementPageClient() {
       tint: "bg-amber-50 text-amber-700",
       doc: insuranceDoc,
       fallbackUrl: account?.insuranceUrl,
-      href: "/driver/management/insurance",
     },
     {
       key: "national-id",
@@ -282,13 +289,29 @@ export default function DriverManagementPageClient() {
   }).length
   const expiringCount = [licenseDoc, insuranceDoc].filter((doc) => isDocExpiringSoon(doc)).length
 
+  function openPreview(card: DocCardModel, metaLine: string) {
+    const url = card.doc?.url ?? card.fallbackUrl ?? card.externalUrl ?? null
+    if (!url) return
+    setPreview({
+      title: card.title,
+      subtitle: card.subtitle,
+      url,
+      metaLine,
+    })
+  }
+
+  const previewUrl = preview?.url ?? null
+  const previewLowerUrl = String(previewUrl ?? "").toLowerCase()
+  const previewIsPdf = previewLowerUrl.endsWith(".pdf") || previewLowerUrl.includes(".pdf?")
+  const previewIsImage = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".avif"].some((ext) => previewLowerUrl.includes(ext))
+
   return (
     <div className="w-full max-w-full space-y-8 overflow-x-hidden pb-8">
-      <section className="relative overflow-hidden rounded-[36px] border border-slate-900/40 bg-[linear-gradient(135deg,#0f2d68_0%,#0a6a74_52%,#0c6b5f_100%)] px-6 py-8 shadow-[0_30px_80px_rgba(15,23,42,0.26)] sm:px-8 lg:px-10 lg:py-10">
+      <section className="relative overflow-hidden rounded-[34px] border border-slate-900/40 bg-[linear-gradient(135deg,#0f2d68_0%,#0a6a74_52%,#0c6b5f_100%)] px-5 py-6 shadow-[0_24px_60px_rgba(15,23,42,0.24)] sm:px-7 lg:px-8 lg:py-7">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.14),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(52,211,153,0.12),transparent_30%)]" aria-hidden />
         <div className="absolute inset-x-0 top-10 h-px bg-white/10" aria-hidden />
-        <div className="absolute inset-x-0 top-24 h-px bg-white/10" aria-hidden />
-        <div className="absolute inset-x-0 bottom-20 h-px bg-white/10" aria-hidden />
+        <div className="absolute inset-x-0 top-20 h-px bg-white/10" aria-hidden />
+        <div className="absolute inset-x-0 bottom-16 h-px bg-white/10" aria-hidden />
         <div className="absolute left-6 right-6 top-[42%] hidden h-[2px] bg-white/20 md:block" aria-hidden />
         <div className="absolute left-[5%] top-[53%] hidden h-[2px] w-[16%] rotate-[-18deg] bg-white/28 md:block" aria-hidden />
         <div className="absolute left-[20%] top-[45%] hidden h-[2px] w-[13%] rotate-[8deg] bg-white/28 md:block" aria-hidden />
@@ -304,20 +327,20 @@ export default function DriverManagementPageClient() {
 
         <div className="relative">
           <div className="flex flex-col items-center text-center">
-            <div className="relative inline-flex h-20 w-20 items-center justify-center rounded-full border border-white/18 bg-white/10 text-white shadow-[0_0_0_10px_rgba(255,255,255,0.06),0_18px_50px_rgba(15,23,42,0.24)] backdrop-blur-md">
-              <Settings className="h-9 w-9" aria-hidden />
+            <div className="relative inline-flex h-16 w-16 items-center justify-center rounded-full border border-white/18 bg-white/10 text-white shadow-[0_0_0_8px_rgba(255,255,255,0.05),0_14px_36px_rgba(15,23,42,0.22)] backdrop-blur-md">
+              <Settings className="h-7 w-7" aria-hidden />
             </div>
-            <h1 className="mt-8 text-4xl font-semibold tracking-tight text-white sm:text-5xl">Management</h1>
-            <p className="mt-4 max-w-2xl text-base text-white/70 sm:text-lg">Driver document control and account access in one place.</p>
+            <h1 className="mt-6 text-3xl font-semibold tracking-tight text-white sm:text-4xl">Management</h1>
+            <p className="mt-3 max-w-xl text-sm text-white/70 sm:text-base">Driver document control and account access in one place.</p>
           </div>
 
-          <div className="mt-10 grid gap-3 sm:grid-cols-3 xl:max-w-2xl xl:mx-auto">
+          <div className="mt-7 grid gap-3 sm:grid-cols-3 xl:max-w-xl xl:mx-auto">
             <StatCard label="On file" value={`${availableCount}/4`} tone="border-white/10 bg-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]" />
             <StatCard label="Pending" value={String(pendingCount)} tone="border-white/10 bg-emerald-400/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]" />
             <StatCard label="Expiring" value={String(expiringCount)} tone="border-white/10 bg-sky-400/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]" />
           </div>
 
-          <div className="mt-8 flex flex-wrap justify-center gap-3">
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
             <TabButton active={tab === "documents"} onClick={() => setTab("documents")}>Documents</TabButton>
             <TabButton active={tab === "safety"} onClick={() => setTab("safety")}>Safety Measures</TabButton>
             <TabButton active={tab === "settings"} onClick={() => setTab("settings")}>Settings</TabButton>
@@ -413,24 +436,15 @@ export default function DriverManagementPageClient() {
 
                       <div className="mt-5 flex items-center justify-between gap-3">
                         <div className="text-xs uppercase tracking-[0.18em] text-slate-400">{fileUrl ? "Ready to review" : "Profile update needed"}</div>
-                        {card.href && fileUrl ? (
-                          <Link
-                            href={card.href}
+                        {fileUrl ? (
+                          <button
+                            type="button"
+                            onClick={() => openPreview(card, metaLine)}
                             className="inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,#0f2d68_0%,#0c6b5f_100%)] px-4 py-2 text-sm font-semibold text-white no-underline shadow-[0_10px_24px_rgba(15,23,42,0.18)] transition hover:brightness-105"
                           >
                             <Eye className="h-4 w-4" />
                             Open
-                          </Link>
-                        ) : card.externalUrl ? (
-                          <a
-                            href={card.externalUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,#0f2d68_0%,#0c6b5f_100%)] px-4 py-2 text-sm font-semibold text-white no-underline shadow-[0_10px_24px_rgba(15,23,42,0.18)] transition hover:brightness-105"
-                          >
-                            <Eye className="h-4 w-4" />
-                            Open
-                          </a>
+                          </button>
                         ) : (
                           <Link
                             href="/driver/profile"
@@ -470,13 +484,23 @@ export default function DriverManagementPageClient() {
 
                   <div className="mt-5 flex items-center justify-between gap-3">
                     <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Contract access</div>
-                    <Link
-                      href="/driver/management/contract"
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!contractUrl) return
+                        setPreview({
+                          title: "Contract",
+                          subtitle: "Signed operating terms for your driver account.",
+                          url: contractUrl,
+                          metaLine: contractUrl ? "Contract file ready to review" : "No contract file exposed yet",
+                        })
+                      }}
                       className="inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,#0f2d68_0%,#0c6b5f_100%)] px-4 py-2 text-sm font-semibold text-white no-underline shadow-[0_10px_24px_rgba(15,23,42,0.18)] transition hover:brightness-105"
+                      disabled={!contractUrl}
                     >
                       <Eye className="h-4 w-4" />
                       Open
-                    </Link>
+                    </button>
                   </div>
                 </article>
               </div>
@@ -539,46 +563,46 @@ export default function DriverManagementPageClient() {
           )}
 
           {tab === "settings" && (
-            <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              <article className="rounded-[30px] border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <article className="rounded-[24px] border border-slate-200/90 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-5 shadow-[0_14px_34px_rgba(15,23,42,0.06)]">
+                <div className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-emerald-50 text-emerald-700 ring-1 ring-black/5">
                   <Lock className="h-6 w-6" />
                 </div>
-                <h3 className="mt-5 text-xl font-semibold text-slate-950">Security</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-600">Password controls, sign-in protection, and account access settings.</p>
+                <h3 className="mt-4 text-lg font-semibold text-slate-950">Security</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-600">Password controls and account protection.</p>
                 <Link
                   href="/driver/security"
-                  className="mt-6 inline-flex items-center gap-2 rounded-full bg-[#0d8f6f] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0b7d61]"
+                  className="mt-5 inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,#0f2d68_0%,#0c6b5f_100%)] px-4 py-2 text-sm font-semibold text-white no-underline shadow-[0_10px_24px_rgba(15,23,42,0.18)] transition hover:brightness-105"
                 >
                   <Eye className="h-4 w-4" />
                   Open security
                 </Link>
               </article>
 
-              <article className="rounded-[30px] border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-50 text-sky-700">
+              <article className="rounded-[24px] border border-slate-200/90 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-5 shadow-[0_14px_34px_rgba(15,23,42,0.06)]">
+                <div className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-sky-50 text-sky-700 ring-1 ring-black/5">
                   <Truck className="h-6 w-6" />
                 </div>
-                <h3 className="mt-5 text-xl font-semibold text-slate-950">Vehicle profile</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-600">Update core vehicle details and related registration records from your driver profile.</p>
+                <h3 className="mt-4 text-lg font-semibold text-slate-950">Vehicle profile</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-600">Update vehicle and registration details.</p>
                 <Link
                   href="/driver/profile"
-                  className="mt-6 inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                  className="mt-5 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 no-underline transition hover:border-slate-300 hover:bg-slate-50"
                 >
                   <ArrowRight className="h-4 w-4" />
                   Manage profile
                 </Link>
               </article>
 
-              <article className="rounded-[30px] border border-slate-200 bg-white p-6 shadow-sm md:col-span-2 xl:col-span-1">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
+              <article className="rounded-[24px] border border-slate-200/90 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-5 shadow-[0_14px_34px_rgba(15,23,42,0.06)] md:col-span-2 xl:col-span-1">
+                <div className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-amber-50 text-amber-700 ring-1 ring-black/5">
                   <Settings className="h-6 w-6" />
                 </div>
-                <h3 className="mt-5 text-xl font-semibold text-slate-950">Profile records</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-600">If a document appears missing in management, the fix belongs in the main driver profile workflow.</p>
+                <h3 className="mt-4 text-lg font-semibold text-slate-950">Profile records</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-600">Use the main profile flow if a record is missing here.</p>
                 <Link
                   href="/driver/profile"
-                  className="mt-6 inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                  className="mt-5 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 no-underline transition hover:border-slate-300 hover:bg-slate-50"
                 >
                   <ArrowRight className="h-4 w-4" />
                   Go to profile
@@ -588,6 +612,44 @@ export default function DriverManagementPageClient() {
           )}
         </>
       )}
+
+      {preview ? (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/55 px-4 py-6 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={preview.title}>
+          <div className="relative w-full max-w-5xl overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_32px_90px_rgba(15,23,42,0.28)]">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 sm:px-6">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-950">{preview.title}</h2>
+                <p className="mt-1 text-sm text-slate-500">{preview.metaLine}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreview(null)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+                aria-label="Close preview"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="max-h-[80vh] overflow-auto bg-slate-50 p-4 sm:p-5">
+              {previewIsPdf ? (
+                <iframe src={preview.url} title={preview.title} className="h-[78vh] min-h-[520px] w-full rounded-[20px] border border-slate-200 bg-white" />
+              ) : previewIsImage ? (
+                <div className="overflow-hidden rounded-[20px] border border-slate-200 bg-white p-3">
+                  <div className="relative h-[72vh] min-h-[420px] w-full">
+                    <Image src={preview.url} alt={preview.title} fill className="object-contain" />
+                  </div>
+                </div>
+              ) : (
+                <div className="flex min-h-[320px] flex-col items-center justify-center rounded-[20px] border border-slate-200 bg-white p-8 text-center">
+                  <FileText className="h-10 w-10 text-slate-400" />
+                  <p className="mt-3 max-w-md text-sm leading-6 text-slate-600">This file type cannot be previewed inline here.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
