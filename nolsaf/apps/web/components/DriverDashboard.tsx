@@ -124,6 +124,19 @@ const getDriverFirstName = (profile: any) => {
   return "Driver";
 };
 
+const getEastAfricaGreeting = () => {
+  const hourText = new Intl.DateTimeFormat("en-GB", {
+    hour: "numeric",
+    hour12: false,
+    timeZone: "Africa/Dar_es_Salaam",
+  }).format(new Date());
+  const hour = Number.parseInt(hourText, 10);
+
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+};
+
 export default function DriverDashboard({ className }: { className?: string }) {
   const [me, setMe] = useState<any | null | undefined>(undefined);
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -444,12 +457,7 @@ export default function DriverDashboard({ className }: { className?: string }) {
 
   const profileLoaded = me !== undefined;
   const name = getDriverFirstName(me);
-  const greeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return "Good morning";
-    if (hour < 18) return "Good afternoon";
-    return "Good evening";
-  };
+  const greeting = getEastAfricaGreeting;
 
   const fmtMoney = (n: number | null | undefined) => {
     const val = Number.isFinite(Number(n)) ? Number(n) : 0;
