@@ -360,7 +360,10 @@ export default function DriverVettingPage() {
 
   const [actionLoading, setActionLoading] = useState(false);
   const [actionNote, setActionNote] = useState("");
-  const [showNoteInput, setShowNoteInput] = useState<"reject" | "request_info" | null>(null);
+  const [showNoteInput, setShowNoteInput] = useState<"reject" | "request_info" | "revoke" | null>(null);
+  const [revokeReason, setRevokeReason] = useState<string>("");
+  const [revokeDetails, setRevokeDetails] = useState<string>("");
+  const [revokePolicyAgreed, setRevokePolicyAgreed] = useState(false);
   const [actionMsg, setActionMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [fieldApprovals, setFieldApprovals] = useState<FieldApprovalsMap>({});
   const [_saveFieldsLoading, _setSaveFieldsLoading] = useState(false);
@@ -502,6 +505,9 @@ export default function DriverVettingPage() {
     setShowNoteInput(null);
     setFieldApprovals({});
     setAuditLogs([]);
+    setRevokeReason("");
+    setRevokeDetails("");
+    setRevokePolicyAgreed(false);
     try {
       const [detailRes] = await Promise.all([
         api.get(`/api/admin/drivers/${row.id}`),
@@ -518,20 +524,20 @@ export default function DriverVettingPage() {
     }
   }
 
-  async function doAction(action: "approve" | "reject" | "request_info", overrideNote?: string) {
+  async function doAction(action: "approve" | "reject" | "request_info" | "revoke", overrideNote?: string) {
     if (!selected) return;
     setActionLoading(true);
     setActionMsg(null);
     try {
       await api.patch(`/api/admin/drivers/${selected.id}/kyc`, {
         action,
-        reason: action === "reject" ? actionNote : undefined,
+        reason: (action === "reject" || action === "revoke") ? (overrideNote ?? actionNote) : undefined,
         note: action === "request_info" ? (overrideNote ?? actionNote) : undefined,
         fieldApprovals: action === "request_info" ? fieldApprovals : undefined,
       });
       const newStatus =
         action === "approve" ? "APPROVED_KYC" :
-        action === "reject" ? "REJECTED_KYC" : "PENDING_KYC";
+        (action === "reject" || action === "revoke") ? "REJECTED_KYC" : "PENDING_KYC";
       setSelected(prev => prev ? { ...prev, kycStatus: newStatus as KycStatus } : prev);
       setItems(prev => prev.map(d => d.id === selected.id ? { ...d, kycStatus: newStatus as KycStatus } : d));
       if (action !== "request_info") {
@@ -541,11 +547,15 @@ export default function DriverVettingPage() {
       setActionMsg({
         type: "success",
         text: action === "approve" ? "Driver approved successfully." :
+              action === "revoke" ? "Driver access revoked. The driver has been notified via SMS and email." :
               action === "reject" ? "Driver application rejected." :
               "Field reviews saved and driver notified.",
       });
       setShowNoteInput(null);
       setActionNote("");
+      setRevokeReason("");
+      setRevokeDetails("");
+      setRevokePolicyAgreed(false);
       loadCounts();
       // Reload audit logs to reflect the new action
       if (selected) loadAudit(selected.id);
@@ -1065,6 +1075,7 @@ export default function DriverVettingPage() {
                       const actionMeta: Record<string, { label: string; color: string; bg: string; border: string; dot: string }> = {
                         approve:      { label: "Approved",           color: "text-emerald-700", bg: "bg-emerald-50",  border: "border-emerald-200", dot: "bg-emerald-500" },
                         reject:       { label: "Rejected",           color: "text-red-700",     bg: "bg-red-50",      border: "border-red-200",     dot: "bg-red-500" },
+                        revoke:       { label: "Access Revoked",     color: "text-red-800",     bg: "bg-red-100",     border: "border-red-300",     dot: "bg-red-700" },
                         request_info: { label: "Requested Info",     color: "text-amber-700",   bg: "bg-amber-50",    border: "border-amber-200",   dot: "bg-amber-500" },
                         field_review: { label: "Field Review Saved", color: "text-blue-700",    bg: "bg-blue-50",     border: "border-blue-200",    dot: "bg-blue-400" },
                         resubmitted:  { label: "Resubmitted",        color: "text-violet-700",  bg: "bg-violet-50",   border: "border-violet-200",  dot: "bg-violet-500" },
@@ -1117,7 +1128,84 @@ export default function DriverVettingPage() {
 
             {/* â”€â”€ ACTION BAR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
             <div className="border-t-2 border-slate-200 px-4 py-4 bg-white shadow-[0_-4px_16px_rgba(0,0,0,0.06)] space-y-3 flex-shrink-0">
-              {showNoteInput ? (
+              {showNoteInput === "revoke" ? (
+                <div className="space-y-3">
+                  {/* Warning banner */}
+                  <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-xl">
+                    <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-bold text-red-700 uppercase tracking-wide">Access Revocation</p>
+                      <p className="text-xs text-red-600 mt-0.5">This will immediately remove the driver's access to the NoLSAF driver portal. The driver will be notified by SMS and email.</p>
+                    </div>
+                  </div>
+
+                  {/* Reason category */}
+                  <div>
+                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">Reason for revocation <span className="text-red-500">*</span></label>
+                    <select
+                      value={revokeReason}
+                      onChange={e => setRevokeReason(e.target.value)}
+                      className="mt-1.5 w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none bg-white box-border"
+                    >
+                      <option value="">— Select a reason —</option>
+                      <option value="Policy violation">Policy violation</option>
+                      <option value="Fraudulent documents">Fraudulent documents</option>
+                      <option value="Unacceptable conduct">Unacceptable conduct</option>
+                      <option value="Extended inactivity">Extended inactivity</option>
+                      <option value="Account security concern">Account security concern</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+
+                  {/* Additional details */}
+                  <div>
+                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">Additional details <span className="font-normal text-slate-400">(sent to driver)</span></label>
+                    <textarea
+                      rows={2}
+                      value={revokeDetails}
+                      onChange={e => setRevokeDetails(e.target.value)}
+                      placeholder="Provide specific details about why access is being revoked..."
+                      className="mt-1.5 w-full block px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none resize-none bg-white box-border"
+                    />
+                  </div>
+
+                  {/* Policy agreement */}
+                  <label className="flex items-start gap-2.5 cursor-pointer p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+                    <input
+                      type="checkbox"
+                      checked={revokePolicyAgreed}
+                      onChange={e => setRevokePolicyAgreed(e.target.checked)}
+                      className="mt-0.5 rounded border-slate-300 text-red-600 focus:ring-red-500 flex-shrink-0 cursor-pointer"
+                    />
+                    <span className="text-xs text-slate-600 leading-relaxed">
+                      I confirm that I have reviewed this driver's record, that revocation is warranted, and that I take full responsibility for this action.
+                    </span>
+                  </label>
+
+                  {/* Buttons */}
+                  <div className="flex gap-2">
+                    <button
+                      disabled={actionLoading || !revokeReason || !revokePolicyAgreed}
+                      onClick={() => {
+                        const combined = revokeDetails.trim()
+                          ? `${revokeReason}: ${revokeDetails.trim()}`
+                          : revokeReason;
+                        doAction("revoke", combined);
+                      }}
+                      className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold bg-red-600 hover:bg-red-700 text-white transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldX className="w-4 h-4" />}
+                      Confirm Revocation
+                    </button>
+                    <button
+                      onClick={() => { setShowNoteInput(null); setRevokeReason(""); setRevokeDetails(""); setRevokePolicyAgreed(false); }}
+                      className="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : showNoteInput ? (
                 <div className="space-y-2.5">
                   <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">
                     {showNoteInput === "reject" ? "Rejection reason (visible to driver)" : "What info is needed? (sent to driver)"}
@@ -1284,7 +1372,7 @@ export default function DriverVettingPage() {
                     {selected.kycStatus === "APPROVED_KYC" && (
                       <button
                         disabled={actionLoading}
-                        onClick={() => setShowNoteInput("reject")}
+                        onClick={() => setShowNoteInput("revoke")}
                         className="flex-1 min-w-[120px] flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold text-slate-600 bg-white border border-slate-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all disabled:opacity-50"
                       >
                         <ShieldX className="w-4 h-4" />

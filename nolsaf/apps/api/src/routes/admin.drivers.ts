@@ -5477,7 +5477,7 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
   try {
     const driverId = Number(req.params.id);
     const { action, reason, note, fieldApprovals } = req.body ?? {};
-    const validActions = ['approve', 'reject', 'request_info', 'field_review'];
+    const validActions = ['approve', 'reject', 'request_info', 'field_review', 'revoke'];
     if (!validActions.includes(String(action))) {
       return res.status(400).json({ error: `action must be one of: ${validActions.join(', ')}` });
     }
@@ -5489,7 +5489,7 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
 
     let kycStatus: string = (driver as any).kycStatus ?? 'PENDING_KYC';
     if (action === 'approve') kycStatus = 'APPROVED_KYC';
-    else if (action === 'reject') kycStatus = 'REJECTED_KYC';
+    else if (action === 'reject' || action === 'revoke') kycStatus = 'REJECTED_KYC';
     // request_info and field_review keep current kycStatus
 
     // When admins approve/flag driver documents in the vetting UI we store it in kycFieldApprovals.
@@ -5593,7 +5593,7 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
             driverId,
             adminId,
             action,
-            note: note ?? (reason ? `Rejection reason: ${reason}` : null),
+            note: note ?? (reason ? `${action === 'revoke' ? 'Revocation reason' : 'Rejection reason'}: ${reason}` : null),
             fieldApprovals: fieldApprovals ?? null,
           },
         });
@@ -5610,9 +5610,11 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
           const message =
             action === 'approve'
               ? 'Your driver application has been approved! You can now access your dashboard.'
-              : action === 'reject'
-                ? `Your driver application was not approved. ${reason ? `Reason: ${reason}` : 'Please contact support for more details.'}`
-                : `The admin needs more information to process your application. ${note ? `Message: ${note}` : 'Please update your profile with the required details.'}`;
+              : action === 'revoke'
+                ? `Your access to the NoLSAF driver portal has been revoked. ${reason ? `Reason: ${reason}` : 'Please contact support for more details.'}`
+                : action === 'reject'
+                  ? `Your driver application was not approved. ${reason ? `Reason: ${reason}` : 'Please contact support for more details.'}`
+                  : `The admin needs more information to process your application. ${note ? `Message: ${note}` : 'Please update your profile with the required details.'}`;
           io.to(`user:${driverId}`).emit('kyc_status_update', { kycStatus, action, message });
         }
       } catch (e) { /* socket errors are non-fatal */ }
@@ -5772,6 +5774,99 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
           );
         } catch (emailErr: any) {
           console.warn('[KYC approve] Email failed (non-fatal):', emailErr?.message ?? emailErr);
+        }
+      }
+    }
+
+    // Send SMS + Email on revoke
+    if (action === 'revoke') {
+      const driverName  = (driver as any).name  as string | null ?? 'Driver';
+      const driverEmail = (driver as any).email as string | null | undefined;
+      const driverPhone = (driver as any).phone as string | null | undefined;
+      const firstName   = driverName.split(' ')[0];
+
+      // ── SMS ──────────────────────────────────────────────────────────────────
+      if (driverPhone) {
+        try {
+          const smsTxt =
+            `NoLSAF: Your driver account access has been revoked. ${reason ? `Reason: ${reason}.` : ''} For assistance contact support@nolsaf.com or call our support line.`;
+          await sendSms(driverPhone, smsTxt);
+        } catch (smsErr: any) {
+          console.warn('[KYC revoke] SMS failed (non-fatal):', smsErr?.message ?? smsErr);
+        }
+      }
+
+      // ── Email ─────────────────────────────────────────────────────────────────
+      if (driverEmail) {
+        try {
+          const REVOKE_RED = '#dc2626';
+          const html = baseEmail(
+            REVOKE_RED,
+            BRAND_DARK,
+            'Driver Access Revoked',
+            '🔒',
+            `
+            <!-- ── Hero ───────────────────────────────────────────────────── -->
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+              style="background:#fff5f5;border:1px solid #fecaca;border-radius:12px;margin:0 0 28px;">
+              <tr><td style="padding:28px 28px 24px;text-align:center;">
+                <div style="font-size:48px;line-height:1;margin-bottom:12px;">🔒</div>
+                <h1 style="margin:0 0 8px;font-size:24px;font-weight:800;color:#7f1d1d;letter-spacing:-0.3px;">
+                  Driver Access Revoked
+                </h1>
+                <p style="margin:0;font-size:15px;color:${REVOKE_RED};font-weight:600;">
+                  Your NoLSAF driver portal access has been removed
+                </p>
+              </td></tr>
+            </table>
+
+            <!-- ── Body ───────────────────────────────────────────────────── -->
+            <p style="margin:0 0 18px;font-size:15px;color:#374151;line-height:1.75;">
+              Dear <strong>${firstName}</strong>,
+            </p>
+            <p style="margin:0 0 18px;font-size:15px;color:#374151;line-height:1.75;">
+              We are writing to inform you that your access to the NoLSAF driver portal has been
+              <strong style="color:${REVOKE_RED};">revoked</strong> by an administrator.
+              Your account is no longer active and you will not be able to log in to the driver app.
+            </p>
+
+            ${infoCard(REVOKE_RED, [
+              ['Driver',      driverName],
+              ['Email',       driverEmail],
+              ['Status',      '❌ Access Revoked'],
+              ['Reason',      reason || 'Not specified'],
+              ['Effective',   new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })],
+            ])}
+
+            <!-- ── Next steps ───────────────────────────────────────────── -->
+            ${calloutBox(REVOKE_RED, '📞', 'What to do next',
+              `<p style="margin:0 0 10px;font-size:14px;color:#374151;line-height:1.75;">
+                If you believe this action was taken in error or you would like to appeal,
+                please contact our support team as soon as possible:
+              </p>
+              <ul style="margin:0;padding-left:20px;font-size:14px;color:#374151;line-height:1.8;">
+                <li>Email: <a href="mailto:support@nolsaf.com" style="color:${REVOKE_RED};text-decoration:none;">support@nolsaf.com</a></li>
+                <li>Include your registered email address and a description of your situation.</li>
+              </ul>`
+            )}
+
+            <!-- ── Sign-off ──────────────────────────────────────────────── -->
+            <p style="margin:24px 0 4px;font-size:14px;color:#374151;line-height:1.7;">
+              The NoLSAF Team
+            </p>
+            <p style="margin:2px 0 0;font-size:12px;color:#9ca3af;">
+              Dar es Salaam, Tanzania &bull; <a href="mailto:support@nolsaf.com" style="color:${REVOKE_RED};text-decoration:none;">support@nolsaf.com</a>
+            </p>
+            `
+          );
+
+          await sendMail(
+            driverEmail,
+            `Important Notice: Your NoLSAF Driver Access Has Been Revoked`,
+            html,
+          );
+        } catch (emailErr: any) {
+          console.warn('[KYC revoke] Email failed (non-fatal):', emailErr?.message ?? emailErr);
         }
       }
     }
