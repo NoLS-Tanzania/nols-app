@@ -832,6 +832,32 @@ export default function DriverLiveMapCanvas({
     }
   }, [driverPos, smoothedDriverPos, snappedDriverPos, liveOnly]);
 
+  // Allow external UI controls to re-center the camera on the driver's current tracked position.
+  useEffect(() => {
+    const handler = () => {
+      const map = mapRef.current;
+      if (!map) return;
+      try {
+        const focusPos = snappedDriverPos ?? smoothedDriverPos ?? driverPos;
+        userInteractingRef.current = false;
+        map.easeTo({
+          center: [focusPos.lng, focusPos.lat],
+          zoom: clamp(map.getZoom?.() ?? (liveOnly ? 15 : 14), 13, 17),
+          pitch: liveOnly ? clamp(map.getPitch?.() ?? 50, 35, 60) : clamp(map.getPitch?.() ?? 0, 0, 30),
+          bearing: map.getBearing?.() ?? 0,
+          duration: 700,
+        });
+      } catch {
+        // ignore
+      }
+    };
+
+    window.addEventListener("nols:map:center-driver", handler as EventListener);
+    return () => {
+      window.removeEventListener("nols:map:center-driver", handler as EventListener);
+    };
+  }, [driverPos, smoothedDriverPos, snappedDriverPos, liveOnly]);
+
   // Directions-based route & ETA (Mapbox Directions API)
   useEffect(() => {
     if (!mapboxToken) return;

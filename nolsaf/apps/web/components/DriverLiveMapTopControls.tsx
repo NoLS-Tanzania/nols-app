@@ -2,29 +2,16 @@
 import React from "react";
 import { Menu} from "lucide-react";
 import DriverAvailabilitySwitch from "./DriverAvailabilitySwitch";
-import Notifications, { NotificationItem } from "./Notifications";
 
 interface DriverLiveMapTopControlsProps {
   isDark?: boolean;
   onMenuClick?: () => void;
-  notifications: NotificationItem[];
-  onNotificationRead?: (id: string) => void;
-  onNotificationDelete?: (id: string) => void;
-  onNotificationReply?: (id: string, message: string) => void;
-  onNotificationsOpen?: () => void;
-  onNotificationsClose?: () => void;
   hideAvailability?: boolean;
 }
 
 export default function DriverLiveMapTopControls({ 
   isDark,
   onMenuClick,
-  notifications,
-  onNotificationRead,
-  onNotificationDelete,
-  onNotificationReply,
-  onNotificationsOpen,
-  onNotificationsClose,
   hideAvailability = false,
 }: DriverLiveMapTopControlsProps) {
   const themed = (light: string, dark: string) => (isDark ? dark : light);
@@ -42,7 +29,7 @@ export default function DriverLiveMapTopControls({
     <div className="absolute top-0 left-0 right-0 z-30 px-4 pt-4 pb-2 pointer-events-none">
       {/* Use a 3-column layout so center stays centered and right stays free (Mapbox controls live top-right). */}
       <div className="grid grid-cols-3 items-center max-w-6xl mx-auto">
-        {/* Left: Menu + Notifications (moved away from top-right to avoid covering Mapbox controls) */}
+        {/* Left: Menu only. Notifications live in the shared portal holder. */}
         <div className="flex items-center gap-2 justify-start">
           <button
             onClick={onMenuClick}
@@ -51,19 +38,6 @@ export default function DriverLiveMapTopControls({
           >
             <Menu className={["h-[18px] w-[18px]", icon].join(" ")} />
           </button>
-
-          <div className="relative pointer-events-auto">
-            <Notifications
-              items={notifications}
-              isDark={isDark}
-              onRead={onNotificationRead}
-              onDelete={onNotificationDelete}
-              onReply={onNotificationReply}
-              onOpen={onNotificationsOpen}
-              onClose={onNotificationsClose}
-              panelAlign="left"
-            />
-          </div>
         </div>
 
         {/* Center: Status Indicator */}

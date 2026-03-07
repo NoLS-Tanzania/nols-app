@@ -17,7 +17,7 @@ import { ToastContainer } from "@/components/Toast";
 import { useConnectionStatus } from "@/hooks/useConnectionStatus";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ConnectionStatusIndicator from "@/components/ConnectionStatusIndicator";
-import { Check, Globe, Map as MapIcon, Route as RouteIcon, X, Info } from "lucide-react";
+import { Check, Route as RouteIcon, X, Info } from "lucide-react";
 import { openInMaps } from "@/lib/navigation";
 
 // Trip stages
@@ -711,6 +711,41 @@ export default function DriverLiveMapPage() {
     return () => window.removeEventListener("nols:driver:pos", handler as EventListener);
   }, []);
 
+  const handleCenterOnLocation = useCallback(() => {
+    const emitCenter = () => {
+      try {
+        window.dispatchEvent(new CustomEvent("nols:map:center-driver"));
+      } catch {
+        // ignore
+      }
+    };
+
+    if (driverPos) {
+      emitCenter();
+      return;
+    }
+
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      warning("Location unavailable", "This device cannot provide a current location for centering the map.");
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setDriverPos({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          speedMps: typeof position.coords.speed === "number" ? position.coords.speed : undefined,
+        });
+        window.setTimeout(emitCenter, 0);
+      },
+      () => {
+        warning("Location blocked", "Enable location access so the map can center on your current position.");
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 3000 }
+    );
+  }, [driverPos, warning]);
+
   // Listen to turn-by-turn nav banner from the map canvas
   useEffect(() => {
     const handler = (ev: Event) => {
@@ -1055,21 +1090,6 @@ export default function DriverLiveMapPage() {
       setResponseMessage(latestUserMessage);
     }
   }, [waitingReply, latestUserMessage]);
-
-  const handleNotificationRead = (id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, unread: false } : n))
-    );
-  };
-
-  const handleNotificationDelete = (id: string) => {
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
-  };
-
-  const handleNotificationReply = (id: string, message: string) => {
-    console.log("Reply to", id, message);
-    handleNotificationRead(id);
-  };
 
   // Live-only mode uses the ride-sharing app layout (with real Mapbox map behind UI)
   if (liveOnly) {
@@ -1464,10 +1484,6 @@ export default function DriverLiveMapPage() {
           <div className="absolute inset-0 pointer-events-none z-20">
             <div className="pointer-events-auto">
               <DriverLiveMapTopControls 
-                notifications={notifications}
-                onNotificationRead={handleNotificationRead}
-                onNotificationDelete={handleNotificationDelete}
-                onNotificationReply={handleNotificationReply}
                 hideAvailability={!!activeTrip && tripStage !== 'completed'}
                 onMenuClick={() => router.push('/driver')}
                 isDark={mapTheme === "dark"}
@@ -1481,7 +1497,7 @@ export default function DriverLiveMapPage() {
               <DriverLiveMapFloatingActions
                 isDark={mapTheme === "dark"}
                 raiseForEarningsFab={bottomSheetCollapsed && !tripRequest && !activeTrip}
-                onLocationClick={() => console.log('Center on location')}
+                onLocationClick={handleCenterOnLocation}
                 onLayersClick={() => setLayersOpen(true)}
                 onRoutesClick={() => setRoutesOpen(true)}
                 mapThemeToggle={{

@@ -74,14 +74,14 @@ export default function DriverLiveMapFloatingActions({
         className={[
           base,
           themed(
-            "hover:border-blue-200 hover:bg-blue-50 active:bg-blue-100 focus-visible:ring-blue-300",
-            "hover:border-blue-300/40 hover:bg-blue-500/15 active:bg-blue-500/20 focus-visible:ring-blue-400/50"
+            "border-[#02665e]/18 bg-white hover:border-[#02665e]/28 hover:bg-[#02665e]/[0.06] active:bg-[#02665e]/[0.1] focus-visible:ring-[#02665e]/30",
+            "border-[#02665e]/30 bg-slate-950/60 hover:border-[#35a79c]/45 hover:bg-[#02665e]/18 active:bg-[#02665e]/24 focus-visible:ring-[#35a79c]/40"
           ),
         ].join(" ")}
         aria-label="Center on location"
         title="Center on my location"
       >
-        <MapPin className={["h-5 w-5", themed("text-blue-600", "text-blue-300")].join(" ")} />
+        <MapPin className={["h-5 w-5", themed("text-[#02665e]", "text-[#63c7bc]")].join(" ")} />
       </button>
 
       {/* Routes Button - Always visible for route control */}
