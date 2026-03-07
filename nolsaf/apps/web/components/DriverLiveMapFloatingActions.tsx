@@ -1,9 +1,10 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { ChevronDown, Layers, MapPin, MessageCircle, Moon, Navigation, Route, Sun, Phone, CheckCircle } from "lucide-react";
+import { CheckCircle, ChevronDown, Layers, MapPin, MessageCircle, Moon, Navigation, Phone, Route, SlidersHorizontal, Sun } from "lucide-react";
 
 interface DriverLiveMapFloatingActionsProps {
   isDark?: boolean;
+  activeTripMode?: boolean;
   raiseForEarningsFab?: boolean;
   onLocationClick?: () => void;
   onLayersClick?: () => void;
@@ -28,6 +29,7 @@ interface DriverLiveMapFloatingActionsProps {
 
 export default function DriverLiveMapFloatingActions({
   isDark,
+  activeTripMode,
   raiseForEarningsFab,
   onLocationClick,
   onLayersClick,
@@ -39,6 +41,7 @@ export default function DriverLiveMapFloatingActions({
 }: DriverLiveMapFloatingActionsProps) {
   // Menu state - only shows when phone icon is clicked
   const [showTripMenu, setShowTripMenu] = useState(false);
+  const [showMapTools, setShowMapTools] = useState(false);
   
   // Close menu when tripActions is removed or changes
   useEffect(() => {
@@ -46,6 +49,12 @@ export default function DriverLiveMapFloatingActions({
       setShowTripMenu(false);
     }
   }, [tripActions]);
+
+  useEffect(() => {
+    if (!activeTripMode) {
+      setShowMapTools(false);
+    }
+  }, [activeTripMode]);
   
   const base = [
     "h-12 w-12 rounded-full flex items-center justify-center shadow-md hover:shadow-lg transition-all duration-200 hover:scale-105 active:scale-95 border",
@@ -57,6 +66,8 @@ export default function DriverLiveMapFloatingActions({
   ].join(" ");
 
   const themed = (light: string, dark: string) => (isDark ? dark : light);
+  const showCondensedTools = Boolean(activeTripMode);
+  const hasSecondaryMapTools = Boolean(onRoutesClick || onLayersClick || mapThemeToggle);
   return (
     <div
       className={[
@@ -84,24 +95,24 @@ export default function DriverLiveMapFloatingActions({
         <MapPin className={["h-5 w-5", themed("text-[#02665e]", "text-[#63c7bc]")].join(" ")} />
       </button>
 
-      {/* Routes Button - Always visible for route control */}
-      <button
-        onClick={onRoutesClick || (() => {})}
-        className={[
-          base,
-          themed(
-            "hover:border-violet-200 hover:bg-violet-50 active:bg-violet-100 focus-visible:ring-violet-300",
-            "hover:border-violet-300/40 hover:bg-violet-500/15 active:bg-violet-500/20 focus-visible:ring-violet-400/50"
-          ),
-        ].join(" ")}
-        aria-label="Routes"
-        title="Routes"
-      >
-        <Route className={["h-5 w-5", themed("text-violet-600", "text-violet-300")].join(" ")} />
-      </button>
+      {!showCondensedTools && (
+        <button
+          onClick={onRoutesClick || (() => {})}
+          className={[
+            base,
+            themed(
+              "hover:border-violet-200 hover:bg-violet-50 active:bg-violet-100 focus-visible:ring-violet-300",
+              "hover:border-violet-300/40 hover:bg-violet-500/15 active:bg-violet-500/20 focus-visible:ring-violet-400/50"
+            ),
+          ].join(" ")}
+          aria-label="Routes"
+          title="Routes"
+        >
+          <Route className={["h-5 w-5", themed("text-violet-600", "text-violet-300")].join(" ")} />
+        </button>
+      )}
 
-      {/* Map Theme (Light/Dark) */}
-      {mapThemeToggle && (
+      {!showCondensedTools && mapThemeToggle && (
         <button
           onClick={mapThemeToggle.onToggle}
           className={[
@@ -138,21 +149,116 @@ export default function DriverLiveMapFloatingActions({
         <Navigation className={["h-5 w-5", themed("text-emerald-600", "text-emerald-300")].join(" ")} />
       </button>
 
-      {/* Map Layers Button */}
-      <button
-        onClick={onLayersClick}
-        className={[
-          base,
-          themed(
-            "hover:border-amber-200 hover:bg-amber-50 active:bg-amber-100 focus-visible:ring-amber-300",
-            "hover:border-amber-300/40 hover:bg-amber-500/15 active:bg-amber-500/20 focus-visible:ring-amber-400/50"
-          ),
-        ].join(" ")}
-        aria-label="Map layers"
-        title="Map layers"
-      >
-        <Layers className={["h-5 w-5", themed("text-amber-600", "text-amber-300")].join(" ")} />
-      </button>
+      {!showCondensedTools && (
+        <button
+          onClick={onLayersClick}
+          className={[
+            base,
+            themed(
+              "hover:border-amber-200 hover:bg-amber-50 active:bg-amber-100 focus-visible:ring-amber-300",
+              "hover:border-amber-300/40 hover:bg-amber-500/15 active:bg-amber-500/20 focus-visible:ring-amber-400/50"
+            ),
+          ].join(" ")}
+          aria-label="Map layers"
+          title="Map layers"
+        >
+          <Layers className={["h-5 w-5", themed("text-amber-600", "text-amber-300")].join(" ")} />
+        </button>
+      )}
+
+      {showCondensedTools && hasSecondaryMapTools && (
+        <>
+          <button
+            onClick={() => setShowMapTools((open) => !open)}
+            className={[
+              base,
+              showMapTools
+                ? themed(
+                    "border-slate-300 bg-slate-100 hover:bg-slate-200 active:bg-slate-200 focus-visible:ring-slate-300",
+                    "border-white/25 bg-white/10 hover:bg-white/15 active:bg-white/20 focus-visible:ring-white/30"
+                  )
+                : themed(
+                    "hover:border-slate-300 hover:bg-slate-50 active:bg-slate-100 focus-visible:ring-slate-300",
+                    "hover:border-white/25 hover:bg-white/10 active:bg-white/15 focus-visible:ring-white/30"
+                  ),
+            ].join(" ")}
+            aria-label="Map tools"
+            title="Map tools"
+          >
+            <SlidersHorizontal className={["h-5 w-5", themed("text-slate-700", "text-slate-200")].join(" ")} />
+          </button>
+
+          {showMapTools && (
+            <>
+              <div className="fixed inset-0 z-[100]" onClick={() => setShowMapTools(false)} aria-hidden="true" />
+              <div
+                className={[
+                  "absolute bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-0 z-[110] min-w-[214px] rounded-2xl border shadow-2xl overflow-hidden animate-fade-in-up",
+                  themed("bg-white border-slate-200", "bg-slate-950/90 border-white/15 backdrop-blur-md"),
+                ].join(" ")}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="p-2 space-y-1.5">
+                  {onRoutesClick && (
+                    <button
+                      onClick={() => {
+                        onRoutesClick();
+                        setShowMapTools(false);
+                      }}
+                      className={[
+                        "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors text-sm font-medium border",
+                        themed(
+                          "hover:bg-violet-50 text-violet-700 border-violet-200 bg-white",
+                          "hover:bg-violet-500/15 text-violet-200 border-violet-400/25 bg-white/5"
+                        ),
+                      ].join(" ")}
+                    >
+                      <Route className="h-4 w-4" />
+                      <span>Route options</span>
+                    </button>
+                  )}
+                  {onLayersClick && (
+                    <button
+                      onClick={() => {
+                        onLayersClick();
+                        setShowMapTools(false);
+                      }}
+                      className={[
+                        "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors text-sm font-medium border",
+                        themed(
+                          "hover:bg-amber-50 text-amber-700 border-amber-200 bg-white",
+                          "hover:bg-amber-500/15 text-amber-200 border-amber-400/25 bg-white/5"
+                        ),
+                      ].join(" ")}
+                    >
+                      <Layers className="h-4 w-4" />
+                      <span>Map layers</span>
+                    </button>
+                  )}
+                  {mapThemeToggle && (
+                    <button
+                      onClick={() => {
+                        mapThemeToggle.onToggle();
+                        setShowMapTools(false);
+                      }}
+                      className={[
+                        "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors text-sm font-medium border",
+                        themed(
+                          "hover:bg-slate-50 text-slate-700 border-slate-200 bg-white",
+                          "hover:bg-white/10 text-slate-100 border-white/15 bg-white/5"
+                        ),
+                      ].join(" ")}
+                    >
+                      {mapThemeToggle.isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                      <span>{mapThemeToggle.isDark ? "Light map" : "Dark map"}</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </>
+      )}
 
       {/* Trip Actions Button - Call, SMS, Confirm Pickup */}
       {tripActions && (

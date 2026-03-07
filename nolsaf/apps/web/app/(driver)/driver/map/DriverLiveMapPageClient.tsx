@@ -712,18 +712,13 @@ export default function DriverLiveMapPage() {
   }, []);
 
   const handleCenterOnLocation = useCallback(() => {
-    const emitCenter = () => {
+    const emitCenter = (coords?: { lat: number; lng: number; speedMps?: number }) => {
       try {
-        window.dispatchEvent(new CustomEvent("nols:map:center-driver"));
+        window.dispatchEvent(new CustomEvent("nols:map:center-driver", { detail: coords }));
       } catch {
         // ignore
       }
     };
-
-    if (driverPos) {
-      emitCenter();
-      return;
-    }
 
     if (typeof navigator === "undefined" || !navigator.geolocation) {
       warning("Location unavailable", "This device cannot provide a current location for centering the map.");
@@ -732,19 +727,20 @@ export default function DriverLiveMapPage() {
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        setDriverPos({
+        const coords = {
           lat: position.coords.latitude,
           lng: position.coords.longitude,
           speedMps: typeof position.coords.speed === "number" ? position.coords.speed : undefined,
-        });
-        window.setTimeout(emitCenter, 0);
+        };
+        setDriverPos(coords);
+        window.setTimeout(() => emitCenter(coords), 0);
       },
       () => {
         warning("Location blocked", "Enable location access so the map can center on your current position.");
       },
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 3000 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
-  }, [driverPos, warning]);
+  }, [warning]);
 
   // Listen to turn-by-turn nav banner from the map canvas
   useEffect(() => {
@@ -1093,6 +1089,8 @@ export default function DriverLiveMapPage() {
 
   // Live-only mode uses the ride-sharing app layout (with real Mapbox map behind UI)
   if (liveOnly) {
+    const isFocusedTripFlow = Boolean(activeTrip && tripStage !== 'completed' && tripStage !== 'waiting');
+    const showPickupFocusCard = Boolean(activeTrip && bottomSheetCollapsed && overlayVisible && tripStage === 'accepted' && !hasClearLocationInfo);
     const arriveMin =
       destinationCountdownSec !== null ? Math.max(1, Math.round(destinationCountdownSec / 60)) : destinationETA;
 
@@ -1485,6 +1483,7 @@ export default function DriverLiveMapPage() {
             <div className="pointer-events-auto">
               <DriverLiveMapTopControls 
                 hideAvailability={!!activeTrip && tripStage !== 'completed'}
+                compact={isFocusedTripFlow}
                 onMenuClick={() => router.push('/driver')}
                 isDark={mapTheme === "dark"}
               />
@@ -1496,6 +1495,7 @@ export default function DriverLiveMapPage() {
             <div className="pointer-events-auto">
               <DriverLiveMapFloatingActions
                 isDark={mapTheme === "dark"}
+                activeTripMode={isFocusedTripFlow}
                 raiseForEarningsFab={bottomSheetCollapsed && !tripRequest && !activeTrip}
                 onLocationClick={handleCenterOnLocation}
                 onLayersClick={() => setLayersOpen(true)}
@@ -1571,12 +1571,12 @@ export default function DriverLiveMapPage() {
             </div>
           </div>
 
-          {/* Active trip overlay - Shows Call/Message to get clear location, hidden after confirming location info */}
-          {activeTrip && bottomSheetCollapsed && overlayVisible && tripStage === 'accepted' && !hasClearLocationInfo && (
+          {/* Active pickup focus card - keep one clear task path while driver is heading to pickup. */}
+          {showPickupFocusCard && (
             <div className="absolute bottom-6 right-4 z-30 pointer-events-auto animate-fade-in-up">
               <div
                 className={[
-                  "backdrop-blur-sm rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 p-4 w-80 max-w-full space-y-3 border",
+                  "backdrop-blur-sm rounded-2xl shadow-xl transition-all duration-300 p-4 w-[18.5rem] max-w-[calc(100vw-2rem)] space-y-3 border",
                   mapTheme === "dark"
                     ? "bg-slate-950/70 border-white/15 text-slate-100"
                     : "bg-white/95 border-slate-200 text-slate-900",
@@ -1606,42 +1606,20 @@ export default function DriverLiveMapPage() {
                     Going to Pickup
                   </span>
                 </div>
-                {/* Call and Message buttons - Get clear location from client */}
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <button
-                  
-                      className={[
-                        "flex-1 inline-flex items-center justify-center gap-2 rounded-xl border active:scale-[0.98] transition-all duration-200 py-2 text-sm font-medium",
-                        mapTheme === "dark"
-                          ? "border-emerald-400/25 bg-emerald-500/12 text-emerald-200 hover:bg-emerald-500/18"
-                          : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
-                      ].join(" ")}
-                    >
-                      📞 Call
-                    </button>
-                    <button
-                      onClick={() => setShowQuickModal(true)}
-                      className={[
-                        "flex-1 inline-flex items-center justify-center gap-2 rounded-xl border active:scale-[0.98] transition-all duration-200 py-2 text-sm font-medium",
-                        mapTheme === "dark"
-                          ? "border-blue-400/25 bg-blue-500/12 text-blue-200 hover:bg-blue-500/18"
-                          : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100",
-                      ].join(" ")}
-                    >
-                      💬 Message
-                    </button>
-                  </div>
+                  <p className={["text-[12px] leading-5", mapTheme === "dark" ? "text-slate-300/75" : "text-slate-500"].join(" ")}>
+                    Use the phone action on the right for call or SMS, then confirm once the pickup instructions are clear.
+                  </p>
                   
                   {/* Confirm Location Info Button - Only show if not confirmed yet */}
                   {!hasClearLocationInfo && (
                     <button
                       onClick={handleConfirmLocationInfo}
                       className={[
-                        "w-full py-2 rounded-lg text-sm font-medium active:scale-[0.98] transition-all duration-200 border",
+                        "w-full py-2.5 rounded-xl text-sm font-medium active:scale-[0.98] transition-all duration-200 border",
                         mapTheme === "dark"
-                          ? "bg-white/8 text-slate-100 hover:bg-white/12 border-white/15"
-                          : "bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-300",
+                          ? "bg-[#02665e]/18 text-[#bbf1ea] hover:bg-[#02665e]/24 border-[#35a79c]/30"
+                          : "bg-[#02665e]/8 text-[#02665e] hover:bg-[#02665e]/12 border-[#02665e]/20",
                       ].join(" ")}
                     >
                       ✓ I have clear location info
@@ -1654,7 +1632,7 @@ export default function DriverLiveMapPage() {
                       onClick={() => handleCancelTrip(activeTrip.id)}
                       disabled={isCancelling}
                       className={[
-                        "w-full py-2 rounded-lg text-sm font-medium active:scale-[0.98] transition-all duration-200 border disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2",
+                        "w-full py-2 rounded-xl text-sm font-medium active:scale-[0.98] transition-all duration-200 border disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2",
                         mapTheme === "dark"
                           ? "bg-red-500/10 text-red-200 hover:bg-red-500/15 border-red-400/25"
                           : "bg-red-50 text-red-700 hover:bg-red-100 border-red-200",
@@ -1681,7 +1659,7 @@ export default function DriverLiveMapPage() {
           {/* Overlay toggle button moved into the floating actions stack (consistent sizing/spacing). */}
           
           {/* Trip Steps / ETA badge - keep inside rounded map frame */}
-          {activeTrip && tripStage !== 'dropoff' && tripStage !== 'completed' && (
+          {activeTrip && tripStage !== 'dropoff' && tripStage !== 'completed' && !showPickupFocusCard && (
             <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-30 pointer-events-auto">
               <TripSteps
                 currentStep={getCurrentStep()}

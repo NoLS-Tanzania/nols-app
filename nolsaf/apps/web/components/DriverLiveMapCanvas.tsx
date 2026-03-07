@@ -174,6 +174,7 @@ export default function DriverLiveMapCanvas({
   >([]);
   const [smoothedDriverPos, setSmoothedDriverPos] = useState<LngLat | null>(null);
   const [snappedDriverPos, setSnappedDriverPos] = useState<LngLat | null>(null);
+  const [manualDriverPos, setManualDriverPos] = useState<LngLat | null>(null);
   const [routeRetryNonce, setRouteRetryNonce] = useState(0);
   const [styleRevision, setStyleRevision] = useState(0);
   const [runtimeToken, setRuntimeToken] = useState("");
@@ -607,9 +608,10 @@ export default function DriverLiveMapCanvas({
               map,
               "driver-location-icon",
               `
-<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
-  <circle cx="32" cy="32" r="18" fill="#2563eb" stroke="#ffffff" stroke-width="4"/>
-  <path d="M32 18 L40 40 L32 36 L24 40 Z" fill="#ffffff" opacity="0.95"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80">
+  <circle cx="40" cy="40" r="26" fill="rgba(2,102,94,0.18)"/>
+  <circle cx="40" cy="40" r="17" fill="#ffffff" stroke="#02665e" stroke-width="5"/>
+  <path d="M40 23 L49 45 L40 40.5 L31 45 Z" fill="#02665e"/>
 </svg>`.trim()
             );
 
@@ -653,9 +655,9 @@ export default function DriverLiveMapCanvas({
                 type: "circle",
                 source: "driver-point",
                 paint: {
-                  "circle-radius": ["interpolate", ["linear"], ["zoom"], 12, 10, 15, 16, 18, 20],
-                  "circle-color": "#2563eb",
-                  "circle-opacity": 0.16,
+                  "circle-radius": ["interpolate", ["linear"], ["zoom"], 12, 14, 15, 22, 18, 28],
+                  "circle-color": "#02665e",
+                  "circle-opacity": 0.14,
                 } as any,
               });
             }
@@ -666,7 +668,7 @@ export default function DriverLiveMapCanvas({
                 source: "driver-point",
                 layout: {
                   "icon-image": "driver-location-icon",
-                  "icon-size": 0.82,
+                  "icon-size": ["interpolate", ["linear"], ["zoom"], 12, 0.95, 15, 1.15, 18, 1.28],
                   "icon-anchor": "center",
                   "icon-allow-overlap": true,
                 },
@@ -834,15 +836,23 @@ export default function DriverLiveMapCanvas({
 
   // Allow external UI controls to re-center the camera on the driver's current tracked position.
   useEffect(() => {
-    const handler = () => {
+    const handler = (event: Event) => {
       const map = mapRef.current;
       if (!map) return;
       try {
-        const focusPos = snappedDriverPos ?? smoothedDriverPos ?? driverPos;
+        const detail = (event as CustomEvent | undefined)?.detail;
+        const eventPos =
+          Number.isFinite(Number(detail?.lat)) && Number.isFinite(Number(detail?.lng))
+            ? { lat: Number(detail.lat), lng: Number(detail.lng) }
+            : null;
+        if (eventPos) {
+          setManualDriverPos(eventPos);
+        }
+        const focusPos = eventPos ?? manualDriverPos ?? snappedDriverPos ?? smoothedDriverPos ?? driverPos;
         userInteractingRef.current = false;
         map.easeTo({
           center: [focusPos.lng, focusPos.lat],
-          zoom: clamp(map.getZoom?.() ?? (liveOnly ? 15 : 14), 13, 17),
+          zoom: Math.max(clamp(map.getZoom?.() ?? (liveOnly ? 15.8 : 14.8), 14.5, 18), liveOnly ? 16 : 15),
           pitch: liveOnly ? clamp(map.getPitch?.() ?? 50, 35, 60) : clamp(map.getPitch?.() ?? 0, 0, 30),
           bearing: map.getBearing?.() ?? 0,
           duration: 700,
@@ -856,7 +866,7 @@ export default function DriverLiveMapCanvas({
     return () => {
       window.removeEventListener("nols:map:center-driver", handler as EventListener);
     };
-  }, [driverPos, smoothedDriverPos, snappedDriverPos, liveOnly]);
+  }, [driverPos, manualDriverPos, smoothedDriverPos, snappedDriverPos, liveOnly]);
 
   // Directions-based route & ETA (Mapbox Directions API)
   useEffect(() => {
@@ -1088,8 +1098,8 @@ export default function DriverLiveMapCanvas({
       }
     };
 
-    const displayDriverPos = snappedDriverPos ?? smoothedDriverPos ?? driverPos;
-    setPoint("driver-point", (data as any).driverLocation ? displayDriverPos : null);
+    const displayDriverPos = manualDriverPos ?? snappedDriverPos ?? smoothedDriverPos ?? driverPos;
+    setPoint("driver-point", ((data as any).driverLocation || manualDriverPos) ? displayDriverPos : null);
     setPoint("pickup-point", pickupPos);
     setPoint("dropoff-point", dropoffPos);
 
@@ -1117,6 +1127,7 @@ export default function DriverLiveMapCanvas({
   }, [
     data,
     driverPos,
+    manualDriverPos,
     smoothedDriverPos,
     snappedDriverPos,
     assignmentFeatures,
