@@ -448,17 +448,22 @@ export default function AdminAllDriversPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        {d.kycStatus === 'PENDING_KYC' && (
+                        {d.suspendedAt && (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-800 border border-red-200">
+                            <ShieldX className="w-3 h-3" />Revoked
+                          </span>
+                        )}
+                        {!d.suspendedAt && d.kycStatus === 'PENDING_KYC' && (
                           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
                             <Clock className="w-3 h-3" />Pending
                           </span>
                         )}
-                        {d.kycStatus === 'APPROVED_KYC' && (
+                        {!d.suspendedAt && d.kycStatus === 'APPROVED_KYC' && (
                           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                             <ShieldCheck className="w-3 h-3" />Approved
                           </span>
                         )}
-                        {d.kycStatus === 'REJECTED_KYC' && (
+                        {!d.suspendedAt && d.kycStatus === 'REJECTED_KYC' && (
                           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-700 border border-red-200">
                             <ShieldX className="w-3 h-3" />Rejected
                           </span>
@@ -578,7 +583,7 @@ export default function AdminAllDriversPage() {
                             <span className="sr-only">Details</span>
                           </Link>
                           {/* KYC approve / reject / revoke actions */}
-                          {(d.kycStatus === 'PENDING_KYC' || d.kycStatus === 'REJECTED_KYC') && (
+                          {(d.kycStatus === 'PENDING_KYC' || (d.kycStatus === 'REJECTED_KYC' && !d.suspendedAt)) && (
                             <>
                               <button
                                 type="button"
@@ -601,7 +606,7 @@ export default function AdminAllDriversPage() {
                               </button>
                             </>
                           )}
-                          {d.kycStatus === 'APPROVED_KYC' && (
+                          {d.kycStatus === 'APPROVED_KYC' && !d.suspendedAt && (
                             <button
                               type="button"
                               onClick={() => openRevokeModal(d)}
@@ -611,6 +616,16 @@ export default function AdminAllDriversPage() {
                               <UserX className="w-4 h-4" />
                               <span className="sr-only">Revoke</span>
                             </button>
+                          )}
+                          {d.suspendedAt && (
+                            <Link
+                              href={`/admin/drivers/vetting`}
+                              className="inline-flex items-center justify-center h-8 w-8 rounded-lg text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 no-underline"
+                              title="Manage revoked driver in vetting"
+                            >
+                              <ShieldX className="w-4 h-4" aria-hidden />
+                              <span className="sr-only">Manage revoked driver</span>
+                            </Link>
                           )}
                         </div>
                       </td>

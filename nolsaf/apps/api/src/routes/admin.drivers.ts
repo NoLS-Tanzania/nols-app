@@ -293,8 +293,15 @@ router.get("/", async (req, res) => {
         ];
       }
       if (status === "PENDING_KYC") where.kycStatus = "PENDING_KYC";
-      if (status === "APPROVED_KYC") where.kycStatus = "APPROVED_KYC";
-      if (status === "REJECTED_KYC") where.kycStatus = "REJECTED_KYC";
+      if (status === "APPROVED_KYC") {
+        where.kycStatus = "APPROVED_KYC";
+        where.suspendedAt = null;
+      }
+      if (status === "REJECTED_KYC") {
+        where.kycStatus = "REJECTED_KYC";
+        where.suspendedAt = null;
+      }
+      if (status === "REVOKED") where.suspendedAt = { not: null };
     }
 
     const skip = (Number(page) - 1) * Number(pageSize);
@@ -322,6 +329,7 @@ router.get("/", async (req, res) => {
             isAvailable: true,
             isVipDriver: true,
             kycStatus: true,
+            kycNote: true,
             rating: true,
             vehicleType: true,
             plateNumber: true,
@@ -445,6 +453,10 @@ router.get("/", async (req, res) => {
       isAvailable: item.isAvailable ?? null,
       isVipDriver: Boolean(item.isVipDriver ?? false),
       kycStatus: item.kycStatus ?? null,
+      kycNote: item.kycNote ?? null,
+      isRevoked: Boolean(item.suspendedAt),
+      revocationReason: item.suspendedAt ? (item.kycNote ?? null) : null,
+      revocationCaseRef: item.suspendedAt ? buildDriverCaseRef(item.id, item.suspendedAt) : null,
       district: item.district ?? null,
       needsKycFix: (item.kycStatus === "PENDING_KYC") ? hasFlaggedKycFields(item.kycFieldApprovals) : false,
       rating: numOrNull(item.rating),
@@ -3245,9 +3257,10 @@ router.get("/:id(\\d+)", async (req, res) => {
       where: { id, role: "DRIVER" },
       select: {
         id: true, name: true, email: true, phone: true,
-        suspendedAt: true, createdAt: true,
+        suspendedAt: true, isDisabled: true, createdAt: true,
         // vetting fields
         kycStatus: true,
+        kycNote: true,
         kycFieldApprovals: true,
         licenseNumber: true,
         plateNumber: true,
@@ -3309,6 +3322,14 @@ router.get("/:id(\\d+)", async (req, res) => {
     } catch {
       // UserDocument table may not exist in older DBs — ignore
     }
+
+    (driver as any).isRevoked = Boolean((driver as any).suspendedAt);
+    (driver as any).revocationCaseRef = (driver as any).suspendedAt
+      ? buildDriverCaseRef(id, (driver as any).suspendedAt)
+      : null;
+    (driver as any).revocationReason = (driver as any).suspendedAt
+      ? ((driver as any).kycNote ?? null)
+      : null;
 
     // Note: Booking model is for property stays, not transport
     // Transport bookings would be in TransportBooking model
@@ -5478,7 +5499,7 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
   try {
     const driverId = Number(req.params.id);
     const { action, reason, note, fieldApprovals } = req.body ?? {};
-    const validActions = ['approve', 'reject', 'request_info', 'field_review', 'revoke'];
+    const validActions = ['approve', 'reject', 'request_info', 'field_review', 'revoke', 'unrevoke'];
     if (!validActions.includes(String(action))) {
       return res.status(400).json({ error: `action must be one of: ${validActions.join(', ')}` });
     }
@@ -5488,9 +5509,13 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
     // Determine requesting admin id (best-effort)
     const adminId: number | null = (req as any).user?.id ?? null;
 
+    const actionAt = new Date();
+    const wasSuspended = Boolean((driver as any).suspendedAt);
+
     let kycStatus: string = (driver as any).kycStatus ?? 'PENDING_KYC';
     if (action === 'approve') kycStatus = 'APPROVED_KYC';
     else if (action === 'reject' || action === 'revoke') kycStatus = 'REJECTED_KYC';
+    else if (action === 'unrevoke') kycStatus = 'APPROVED_KYC';
     // request_info and field_review keep current kycStatus
 
     // When admins approve/flag driver documents in the vetting UI we store it in kycFieldApprovals.
@@ -5579,16 +5604,16 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
       // Keep driver-facing document statuses in sync (realtime refresh)
       await syncDriverDocumentStatusesFromFieldApprovals(fieldApprovals);
     } else {
-      // approve / reject / revoke — update status, clear note + field approvals
+      // approve / reject / revoke / unrevoke — update status, clear note + field approvals
       const statusData: any = {
         kycStatus,
         kycNote: (action === 'reject' || action === 'revoke') ? (reason ?? null) : null,
         kycFieldApprovals: null,
       };
       if (action === 'revoke') {
-        statusData.suspendedAt = new Date();
+        statusData.suspendedAt = actionAt;
       }
-      if (action === 'approve') {
+      if (action === 'approve' || action === 'unrevoke') {
         statusData.suspendedAt = null;
       }
       await prisma.user.update({
@@ -5605,7 +5630,13 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
             driverId,
             adminId,
             action,
-            note: note ?? (reason ? `${action === 'revoke' ? 'Revocation reason' : 'Rejection reason'}: ${reason}` : null),
+            note: note ?? (reason
+              ? `${action === 'revoke'
+                  ? 'Revocation reason'
+                  : action === 'unrevoke'
+                    ? 'Restoration reason'
+                    : 'Rejection reason'}: ${reason}`
+              : null),
             fieldApprovals: fieldApprovals ?? null,
           },
         });
@@ -5619,12 +5650,11 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
       try {
         const io = (req as any).app?.get?.('io');
         if (io) {
-          const wasSuspended = Boolean((driver as any)?.suspendedAt);
           const message =
             action === 'approve'
-              ? (wasSuspended
-                  ? 'Your NoLSAF driver access has been restored. You can log in again and continue using your dashboard.'
-                  : 'Your driver application has been approved! You can now access your dashboard.')
+              ? 'Your driver application has been approved! You can now access your dashboard.'
+              : action === 'unrevoke'
+                ? `Your NoLSAF driver account suspension has been lifted. ${reason ? `Reason: ${reason}` : 'You can log in again and continue using your dashboard.'}`
               : action === 'revoke'
                 ? `Your access to the NoLSAF driver portal has been revoked. ${reason ? `Reason: ${reason}` : 'Please contact support for more details.'}`
                 : action === 'reject'
@@ -5686,15 +5716,11 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
       const driverPhone = (driver as any).phone as string | null | undefined;
       const firstName   = driverName.split(' ')[0];
       const loginUrl    = `${process.env.APP_ORIGIN ?? 'https://app.nolsaf.com'}/login`;
-      const wasSuspended = Boolean((driver as any).suspendedAt);
 
       // ── SMS ──────────────────────────────────────────────────────────────────
       if (driverPhone) {
         try {
-          const smsTxt =
-            wasSuspended
-              ? `NoLSAF: Hello ${firstName}, your driver account access has been restored. You can now log in again and continue with your NoLSAF driver account.`
-              : `NoLSAF: Congratulations ${firstName}! Your driver account is approved. Log in now and start earning with Africa's leading travel & stays platform. Welcome aboard!`;
+          const smsTxt = `NoLSAF: Congratulations ${firstName}! Your driver account is approved. Log in now and start earning with Africa's leading travel & stays platform. Welcome aboard!`;
           await sendSms(driverPhone, smsTxt);
         } catch (smsErr: any) {
           console.warn('[KYC approve] SMS failed (non-fatal):', smsErr?.message ?? smsErr);
@@ -5704,22 +5730,12 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
       // ── Email ─────────────────────────────────────────────────────────────────
       if (driverEmail) {
         try {
-          const subjectLine = wasSuspended ? 'Driver Access Restored' : 'Application Approved';
-          const heroEmoji = wasSuspended ? '✅' : '🎉';
-          const heroTitle = wasSuspended ? 'Access Restored' : 'Application Approved';
-          const heroSubTitle = wasSuspended ? 'Your NoLSAF driver portal access is active again' : 'You are officially a NoLSAF Driver';
-          const opening = wasSuspended
-            ? `Your driver account has been <strong style="color:${BRAND_TEAL};">re-activated</strong>. You can log in again, access your dashboard, and continue operating on NoLSAF.`
-            : `After reviewing your application, we are delighted to confirm that your driver account has been <strong style="color:${BRAND_TEAL};">fully approved and activated</strong>. Your profile is live, your documents are verified, and you are ready to roll.`;
-          const statusLabel = wasSuspended ? '✅ Access Restored — Account Active' : '✅ Approved — Account Active';
-          const ctaLabel = wasSuspended ? 'Log In Again' : 'Log In & Start Driving';
-          const stepsHtml = wasSuspended
-            ? `<ol style="margin:8px 0 0;padding-left:20px;color:#374151;font-size:14px;line-height:1.8;">
-                <li><strong>Log in again</strong> using your registered email and password.</li>
-                <li><strong>Review any pending trips, payouts, or account notices</strong> in your dashboard.</li>
-                <li><strong>Continue operating</strong> in line with NoLSAF driver policies.</li>
-              </ol>`
-            : `<ol style="margin:8px 0 0;padding-left:20px;color:#374151;font-size:14px;line-height:1.8;">
+          const heroEmoji = '🎉';
+          const heroSubTitle = 'You are officially a NoLSAF Driver';
+          const opening = `After reviewing your application, we are delighted to confirm that your driver account has been <strong style="color:${BRAND_TEAL};">fully approved and activated</strong>. Your profile is live, your documents are verified, and you are ready to roll.`;
+          const statusLabel = '✅ Approved — Account Active';
+          const ctaLabel = 'Log In & Start Driving';
+          const stepsHtml = `<ol style="margin:8px 0 0;padding-left:20px;color:#374151;font-size:14px;line-height:1.8;">
                 <li><strong>Log in</strong> using the email and password you registered with.</li>
                 <li><strong>Complete your driver profile</strong> — add your photo and preferred zones.</li>
                 <li><strong>Go online</strong> and start accepting your first trips!</li>
@@ -5727,7 +5743,7 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
           const html = baseEmail(
             BRAND_TEAL,
             BRAND_DARK,
-            subjectLine,
+            'Application Approved',
             heroEmoji,
             `
             <!-- ── Hero greeting ────────────────────────────────────────── -->
@@ -5736,7 +5752,7 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
               <tr><td style="padding:28px 28px 24px;text-align:center;">
                 <div style="font-size:48px;line-height:1;margin-bottom:12px;">${heroEmoji}</div>
                 <h1 style="margin:0 0 8px;font-size:26px;font-weight:800;color:#0d2623;letter-spacing:-0.3px;">
-                  ${wasSuspended ? `Welcome back, ${firstName}!` : `Congratulations, ${firstName}!`}
+                  Congratulations, ${firstName}!
                 </h1>
                 <p style="margin:0;font-size:16px;color:${BRAND_TEAL};font-weight:600;letter-spacing:0.2px;">
                   ${heroSubTitle}
@@ -5758,7 +5774,7 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
             ])}
 
             <!-- ── What's next callout ───────────────────────────────────── -->
-            ${calloutBox(BRAND_TEAL, '🚀', wasSuspended ? 'What to do next' : 'Get Started in 3 Simple Steps',
+            ${calloutBox(BRAND_TEAL, '🚀', 'Get Started in 3 Simple Steps',
               stepsHtml
             )}
 
@@ -5801,13 +5817,94 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
 
           await sendMail(
             driverEmail,
-            wasSuspended
-              ? `✅ ${firstName}, your NoLSAF driver access has been restored`
-              : `🎉 Congratulations ${firstName} — Your NoLSAF Driver Account is Approved!`,
+            `🎉 Congratulations ${firstName} — Your NoLSAF Driver Account is Approved!`,
             html,
           );
         } catch (emailErr: any) {
           console.warn('[KYC approve] Email failed (non-fatal):', emailErr?.message ?? emailErr);
+        }
+      }
+    }
+
+    // Send SMS + Email on reject
+    if (action === 'reject') {
+      const driverName  = (driver as any).name  as string | null ?? 'Driver';
+      const driverEmail = (driver as any).email as string | null | undefined;
+      const driverPhone = (driver as any).phone as string | null | undefined;
+      const firstName   = driverName.split(' ')[0];
+      const rejectReason = normalizeReason(reason);
+
+      if (driverPhone) {
+        try {
+          const smsTxt = `NoLSAF: Hello ${firstName}, your driver application was not approved.${rejectReason ? ` Reason: ${rejectReason}.` : ''} Review the feedback in your account or contact support@nolsaf.com for guidance.`;
+          await sendSms(driverPhone, smsTxt);
+        } catch (smsErr: any) {
+          console.warn('[KYC reject] SMS failed (non-fatal):', smsErr?.message ?? smsErr);
+        }
+      }
+
+      if (driverEmail) {
+        try {
+          const REJECT_RED = '#dc2626';
+          const html = baseEmail(
+            REJECT_RED,
+            BRAND_DARK,
+            'Driver Application Not Approved',
+            '📄',
+            `
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+              style="background:#fff5f5;border:1px solid #fecaca;border-radius:12px;margin:0 0 28px;">
+              <tr><td style="padding:28px 28px 24px;text-align:center;">
+                <div style="font-size:48px;line-height:1;margin-bottom:12px;">📄</div>
+                <h1 style="margin:0 0 8px;font-size:24px;font-weight:800;color:#7f1d1d;letter-spacing:-0.3px;">
+                  Application Not Approved
+                </h1>
+                <p style="margin:0;font-size:15px;color:${REJECT_RED};font-weight:600;">
+                  Your NoLSAF driver application requires correction before it can be accepted
+                </p>
+              </td></tr>
+            </table>
+
+            <p style="margin:0 0 18px;font-size:15px;color:#374151;line-height:1.75;">
+              Dear <strong>${firstName}</strong>,
+            </p>
+            <p style="margin:0 0 18px;font-size:15px;color:#374151;line-height:1.75;">
+              We reviewed your driver application and it was <strong style="color:${REJECT_RED};">not approved</strong> at this time.
+              This is not a suspension of an active driver account. It means your onboarding application still needs correction or clarification.
+            </p>
+
+            ${infoCard(REJECT_RED, [
+              ['Applicant', driverName],
+              ['Email', driverEmail],
+              ['Status', '❌ Application Not Approved'],
+              ['Reason', rejectReason || 'Not specified'],
+              ['Reviewed', actionAt.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })],
+            ])}
+
+            ${calloutBox(REJECT_RED, '🛠️', 'What happens next',
+              `<ol style="margin:8px 0 0;padding-left:20px;color:#374151;font-size:14px;line-height:1.8;">
+                <li>Review the reason above carefully and correct the affected information or documents.</li>
+                <li>Contact <a href="mailto:support@nolsaf.com" style="color:${REJECT_RED};text-decoration:none;">support@nolsaf.com</a> if you need clarification.</li>
+                <li>Resubmit once your documents and details are complete and accurate.</li>
+              </ol>`
+            )}
+
+            <p style="margin:24px 0 4px;font-size:14px;color:#374151;line-height:1.7;">
+              The NoLSAF Team
+            </p>
+            <p style="margin:2px 0 0;font-size:12px;color:#9ca3af;">
+              Dar es Salaam, Tanzania &bull; <a href="mailto:support@nolsaf.com" style="color:${REJECT_RED};text-decoration:none;">support@nolsaf.com</a>
+            </p>
+            `
+          );
+
+          await sendMail(
+            driverEmail,
+            `Update Needed: Your NoLSAF Driver Application Was Not Approved`,
+            html,
+          );
+        } catch (emailErr: any) {
+          console.warn('[KYC reject] Email failed (non-fatal):', emailErr?.message ?? emailErr);
         }
       }
     }
@@ -5818,14 +5915,14 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
       const driverEmail = (driver as any).email as string | null | undefined;
       const driverPhone = (driver as any).phone as string | null | undefined;
       const firstName   = driverName.split(' ')[0];
-      const revokedAt = (driver as any).suspendedAt ?? new Date();
+      const revokedAt = actionAt;
       const caseRef = buildDriverCaseRef(driverId, revokedAt) ?? `NOLS-DRV-${String(driverId).padStart(5, '0')}-REVOKED`;
 
       // ── SMS ──────────────────────────────────────────────────────────────────
       if (driverPhone) {
         try {
           const smsTxt =
-            `NoLSAF: Your driver account access has been revoked. Ref: ${caseRef}. ${reason ? `Reason: ${reason}. ` : ''}For assistance contact support@nolsaf.com.`;
+            `Your driver account access has been revoked. Ref: ${caseRef}. ${reason ? `Reason: ${reason}. ` : ''}For assistance contact support@nolsaf.com.`;
           await sendSms(driverPhone, smsTxt, { bypassEligibilityCheck: true });
         } catch (smsErr: any) {
           console.warn('[KYC revoke] SMS failed (non-fatal):', smsErr?.message ?? smsErr);
@@ -5914,7 +6011,102 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
       }
     }
 
-    return res.json({ ok: true, driverId, kycStatus, action });
+    // Send SMS + Email on unrevoke
+    if (action === 'unrevoke') {
+      const driverName  = (driver as any).name  as string | null ?? 'Driver';
+      const driverEmail = (driver as any).email as string | null | undefined;
+      const driverPhone = (driver as any).phone as string | null | undefined;
+      const firstName   = driverName.split(' ')[0];
+      const restoreReason = normalizeReason(reason);
+      const loginUrl    = `${process.env.APP_ORIGIN ?? 'https://app.nolsaf.com'}/login`;
+
+      if (driverPhone) {
+        try {
+          const smsTxt = `NoLSAF: Hello ${firstName}, your driver account suspension has been lifted.${restoreReason ? ` Reason: ${restoreReason}.` : ''} You can now log in again and continue using your NoLSAF driver account.`;
+          await sendSms(driverPhone, smsTxt);
+        } catch (smsErr: any) {
+          console.warn('[KYC unrevoke] SMS failed (non-fatal):', smsErr?.message ?? smsErr);
+        }
+      }
+
+      if (driverEmail) {
+        try {
+          const RESTORE_TEAL = '#0f766e';
+          const html = baseEmail(
+            RESTORE_TEAL,
+            BRAND_DARK,
+            'Driver Suspension Lifted',
+            '🔓',
+            `
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+              style="background:linear-gradient(135deg,${RESTORE_TEAL}12 0%,#e6faf8 100%);border:1px solid ${RESTORE_TEAL}22;border-radius:12px;margin:0 0 28px;">
+              <tr><td style="padding:28px 28px 24px;text-align:center;">
+                <div style="font-size:48px;line-height:1;margin-bottom:12px;">🔓</div>
+                <h1 style="margin:0 0 8px;font-size:24px;font-weight:800;color:#0d2623;letter-spacing:-0.3px;">
+                  Suspension Lifted
+                </h1>
+                <p style="margin:0;font-size:15px;color:${RESTORE_TEAL};font-weight:600;">
+                  Your NoLSAF driver account is active again
+                </p>
+              </td></tr>
+            </table>
+
+            <p style="margin:0 0 18px;font-size:15px;color:#374151;line-height:1.75;">
+              Dear <strong>${firstName}</strong>,
+            </p>
+            <p style="margin:0 0 18px;font-size:15px;color:#374151;line-height:1.75;">
+              Your driver account suspension has been <strong style="color:${RESTORE_TEAL};">lifted</strong> by the NoLSAF admin team.
+              You may now sign in again and continue using your driver dashboard.
+            </p>
+
+            ${infoCard(RESTORE_TEAL, [
+              ['Driver', driverName],
+              ['Email', driverEmail],
+              ['Status', '✅ Suspension Lifted — Account Active'],
+              ['Restoration reason', restoreReason || 'Administrative review completed'],
+              ['Effective', actionAt.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })],
+            ])}
+
+            ${calloutBox(RESTORE_TEAL, '🚀', 'What to do next',
+              `<ol style="margin:8px 0 0;padding-left:20px;color:#374151;font-size:14px;line-height:1.8;">
+                <li><strong>Log in again</strong> using your registered email and password.</li>
+                <li><strong>Review any pending trips, payouts, or notices</strong> in your dashboard.</li>
+                <li><strong>Continue operating</strong> in line with NoLSAF driver policies.</li>
+              </ol>`
+            )}
+
+            ${ctaButton(loginUrl, 'Log In Again', RESTORE_TEAL)}
+
+            <p style="margin:24px 0 4px;font-size:14px;color:#374151;line-height:1.7;">
+              The NoLSAF Team
+            </p>
+            <p style="margin:2px 0 0;font-size:12px;color:#9ca3af;">
+              Dar es Salaam, Tanzania &bull; <a href="mailto:support@nolsaf.com" style="color:${RESTORE_TEAL};text-decoration:none;">support@nolsaf.com</a>
+            </p>
+            `
+          );
+
+          await sendMail(
+            driverEmail,
+            `🔓 ${firstName}, your NoLSAF driver suspension has been lifted`,
+            html,
+          );
+        } catch (emailErr: any) {
+          console.warn('[KYC unrevoke] Email failed (non-fatal):', emailErr?.message ?? emailErr);
+        }
+      }
+    }
+
+    return res.json({
+      ok: true,
+      driverId,
+      kycStatus,
+      action,
+      suspendedAt: action === 'revoke' ? actionAt.toISOString() : null,
+      isRevoked: action === 'revoke',
+      revocationCaseRef: action === 'revoke' ? (buildDriverCaseRef(driverId, actionAt) ?? null) : null,
+      wasSuspended,
+    });
   } catch (err: any) {
     console.error('PATCH /admin/drivers/:id/kyc error:', err);
     return res.status(500).json({ error: 'internal_error', message: err?.message });

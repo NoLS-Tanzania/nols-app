@@ -41,7 +41,7 @@ import {
 const api = axios.create({ baseURL: "", withCredentials: true });
 
 type KycStatus = "PENDING_KYC" | "APPROVED_KYC" | "REJECTED_KYC";
-type Tab = "PENDING_KYC" | "APPROVED_KYC" | "REJECTED_KYC";
+type Tab = "PENDING_KYC" | "APPROVED_KYC" | "REJECTED_KYC" | "REVOKED";
 
 type DriverRow = {
   id: number;
@@ -49,7 +49,12 @@ type DriverRow = {
   email: string;
   phone: string | null;
   kycStatus: KycStatus | null;
+  kycNote?: string | null;
   needsKycFix?: boolean;
+  suspendedAt?: string | null;
+  isRevoked?: boolean;
+  revocationReason?: string | null;
+  revocationCaseRef?: string | null;
   vehicleType: string | null;
   plateNumber: string | null;
   licenseNumber: string | null;
@@ -70,6 +75,7 @@ type DriverDetail = DriverRow & {
   nationality: string | null;
   nin: string | null;
   district: string | null;
+  isDisabled?: boolean;
   paymentPhone: string | null;
   payout: any;
   kycFieldApprovals?: FieldApprovalsMap | null;
@@ -107,8 +113,14 @@ function deduplicateAuditLogs(logs: AuditEntry[]): AuditEntry[] {
   return result;
 }
 
-function KycBadge({ status }: { status: KycStatus | null }) {
+function KycBadge({ status, suspendedAt }: { status: KycStatus | null; suspendedAt?: string | null }) {
   const base = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors";
+  if (suspendedAt)
+    return (
+      <span title="Revoked" className={`${base} bg-red-50 text-red-800 border-red-200 hover:bg-red-100`}>
+        <ShieldX className="w-3.5 h-3.5" /> Revoked
+      </span>
+    );
   if (status === "APPROVED_KYC")
     return (
       <span title="Approved" className={`${base} bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100`}>
@@ -130,8 +142,14 @@ function KycBadge({ status }: { status: KycStatus | null }) {
   return <span className="text-xs text-slate-400">—</span>;
 }
 
-function VettingStatusPill({ status, needsFix }: { status: KycStatus | null; needsFix?: boolean }) {
+function VettingStatusPill({ status, needsFix, suspendedAt }: { status: KycStatus | null; needsFix?: boolean; suspendedAt?: string | null }) {
   const base = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors";
+  if (suspendedAt)
+    return (
+      <span title="Revoked" className={`${base} bg-red-50 text-red-800 border-red-200 hover:bg-red-100`}>
+        <ShieldX className="w-3.5 h-3.5" /> Revoked
+      </span>
+    );
   if (status === "APPROVED_KYC")
     return (
       <span title="Approved" className={`${base} bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100`}>
@@ -353,17 +371,18 @@ export default function DriverVettingPage() {
   const [loading, setLoading] = useState(true);
   const [sortCol, setSortCol] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
-  const [counts, setCounts] = useState<Record<Tab, number>>({ PENDING_KYC: 0, APPROVED_KYC: 0, REJECTED_KYC: 0 });
+  const [counts, setCounts] = useState<Record<Tab, number>>({ PENDING_KYC: 0, APPROVED_KYC: 0, REJECTED_KYC: 0, REVOKED: 0 });
 
   const [selected, setSelected] = useState<DriverDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
   const [actionLoading, setActionLoading] = useState(false);
   const [actionNote, setActionNote] = useState("");
-  const [showNoteInput, setShowNoteInput] = useState<"reject" | "request_info" | "revoke" | null>(null);
+  const [showNoteInput, setShowNoteInput] = useState<"reject" | "request_info" | "revoke" | "unrevoke" | null>(null);
   const [revokeReason, setRevokeReason] = useState<string>("");
-  const [revokeDetails, setRevokeDetails] = useState<string>("");
   const [revokePolicyAgreed, setRevokePolicyAgreed] = useState(false);
+  const [unrevokeReason, setUnrevokeReason] = useState<string>("");
+  const [unrevokePolicyAgreed, setUnrevokePolicyAgreed] = useState(false);
   const [actionMsg, setActionMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [fieldApprovals, setFieldApprovals] = useState<FieldApprovalsMap>({});
   const [_saveFieldsLoading, _setSaveFieldsLoading] = useState(false);
@@ -467,15 +486,17 @@ export default function DriverVettingPage() {
 
   const loadCounts = useCallback(async () => {
     try {
-      const [p, a, r] = await Promise.all([
+      const [p, a, r, revoked] = await Promise.all([
         api.get("/api/admin/drivers", { params: { status: "PENDING_KYC", page: 1, pageSize: 1 } }),
         api.get("/api/admin/drivers", { params: { status: "APPROVED_KYC", page: 1, pageSize: 1 } }),
         api.get("/api/admin/drivers", { params: { status: "REJECTED_KYC", page: 1, pageSize: 1 } }),
+        api.get("/api/admin/drivers", { params: { status: "REVOKED", page: 1, pageSize: 1 } }),
       ]);
       setCounts({
         PENDING_KYC: p.data?.total ?? 0,
         APPROVED_KYC: a.data?.total ?? 0,
         REJECTED_KYC: r.data?.total ?? 0,
+        REVOKED: revoked.data?.total ?? 0,
       });
     } catch { /* best-effort */ }
   }, []);
@@ -506,8 +527,9 @@ export default function DriverVettingPage() {
     setFieldApprovals({});
     setAuditLogs([]);
     setRevokeReason("");
-    setRevokeDetails("");
     setRevokePolicyAgreed(false);
+    setUnrevokeReason("");
+    setUnrevokePolicyAgreed(false);
     try {
       const [detailRes] = await Promise.all([
         api.get(`/api/admin/drivers/${row.id}`),
@@ -524,22 +546,41 @@ export default function DriverVettingPage() {
     }
   }
 
-  async function doAction(action: "approve" | "reject" | "request_info" | "revoke", overrideNote?: string) {
+  async function doAction(action: "approve" | "reject" | "request_info" | "revoke" | "unrevoke", overrideNote?: string) {
     if (!selected) return;
     setActionLoading(true);
     setActionMsg(null);
     try {
-      await api.patch(`/api/admin/drivers/${selected.id}/kyc`, {
+      const response = await api.patch(`/api/admin/drivers/${selected.id}/kyc`, {
         action,
-        reason: (action === "reject" || action === "revoke") ? (overrideNote ?? actionNote) : undefined,
+        reason: (action === "reject" || action === "revoke" || action === "unrevoke") ? (overrideNote ?? actionNote) : undefined,
         note: action === "request_info" ? (overrideNote ?? actionNote) : undefined,
         fieldApprovals: action === "request_info" ? fieldApprovals : undefined,
       });
       const newStatus =
-        action === "approve" ? "APPROVED_KYC" :
+        (action === "approve" || action === "unrevoke") ? "APPROVED_KYC" :
         (action === "reject" || action === "revoke") ? "REJECTED_KYC" : "PENDING_KYC";
-      setSelected(prev => prev ? { ...prev, kycStatus: newStatus as KycStatus } : prev);
-      setItems(prev => prev.map(d => d.id === selected.id ? { ...d, kycStatus: newStatus as KycStatus } : d));
+      const suspendedAt = action === "revoke" ? (response.data?.suspendedAt ?? new Date().toISOString()) : null;
+      const revocationCaseRef = action === "revoke" ? (response.data?.revocationCaseRef ?? null) : null;
+      const resolutionNote = overrideNote ?? actionNote;
+      setSelected(prev => prev ? {
+        ...prev,
+        kycStatus: newStatus as KycStatus,
+        suspendedAt,
+        isRevoked: action === "revoke",
+        revocationReason: action === "revoke" ? resolutionNote : null,
+        revocationCaseRef,
+        kycNote: (action === "reject" || action === "revoke") ? resolutionNote : null,
+      } : prev);
+      setItems(prev => prev.map(d => d.id === selected.id ? {
+        ...d,
+        kycStatus: newStatus as KycStatus,
+        suspendedAt,
+        isRevoked: action === "revoke",
+        revocationReason: action === "revoke" ? resolutionNote : null,
+        revocationCaseRef,
+        kycNote: (action === "reject" || action === "revoke") ? resolutionNote : null,
+      } : d));
       if (action !== "request_info") {
         setItems(prev => prev.filter(d => d.id !== selected.id));
         setFieldApprovals({});
@@ -548,14 +589,16 @@ export default function DriverVettingPage() {
         type: "success",
         text: action === "approve" ? "Driver approved successfully." :
               action === "revoke" ? "Driver access revoked. The driver has been notified via SMS and email." :
+              action === "unrevoke" ? "Driver suspension lifted. The driver has been notified with a dedicated restoration message." :
               action === "reject" ? "Driver application rejected." :
               "Field reviews saved and driver notified.",
       });
       setShowNoteInput(null);
       setActionNote("");
       setRevokeReason("");
-      setRevokeDetails("");
       setRevokePolicyAgreed(false);
+            setUnrevokeReason("");
+            setUnrevokePolicyAgreed(false);
       loadCounts();
       // Reload audit logs to reflect the new action
       if (selected) loadAudit(selected.id);
@@ -566,9 +609,11 @@ export default function DriverVettingPage() {
     }
   }
 
-  const total = counts.PENDING_KYC + counts.APPROVED_KYC + counts.REJECTED_KYC;
+  const total = counts.PENDING_KYC + counts.APPROVED_KYC + counts.REJECTED_KYC + counts.REVOKED;
   const approvalRate = total > 0 ? Math.round((counts.APPROVED_KYC / total) * 100) : 0;
   const payoutObj = (selected?.payout && typeof selected.payout === "object") ? selected.payout as any : {};
+  const selectedRevoked = Boolean(selected?.suspendedAt);
+  const fieldsLocked = Boolean(selected?.suspendedAt) || selected?.kycStatus === "APPROVED_KYC";
   const REQUIRED_FIELDS = [
     'name', 'email', 'phone', 'gender', 'nationality', 'nin',
     'region', 'district', 'operationArea',
@@ -587,6 +632,7 @@ export default function DriverVettingPage() {
     { key: "PENDING_KYC",  label: "Pending Review", shortLabel: "Pending",  icon: Clock,       color: "#f59e0b" },
     { key: "APPROVED_KYC", label: "Approved",        shortLabel: "Approved", icon: ShieldCheck, color: "#10b981" },
     { key: "REJECTED_KYC", label: "Rejected",         shortLabel: "Rejected", icon: ShieldX,     color: "#ef4444" },
+    { key: "REVOKED",      label: "Revoked",          shortLabel: "Revoked",  icon: ShieldX,     color: "#991b1b" },
   ];
 
   return (
@@ -726,7 +772,8 @@ export default function DriverVettingPage() {
                       </div>
                       <p className="text-sm font-semibold text-slate-400">
                         {tab === "PENDING_KYC" ? "No pending applications" :
-                         tab === "APPROVED_KYC" ? "No approved drivers" : "No rejected applications"}
+                         tab === "APPROVED_KYC" ? "No approved drivers" :
+                         tab === "REJECTED_KYC" ? "No rejected applications" : "No revoked drivers"}
                       </p>
                     </td>
                   </TableRow>
@@ -769,7 +816,7 @@ export default function DriverVettingPage() {
                         </div>
                       </td>
                       <td className="px-4 py-2.5">
-                        <VettingStatusPill status={d.kycStatus} needsFix={d.needsKycFix} />
+                        <VettingStatusPill status={d.kycStatus} needsFix={d.needsKycFix} suspendedAt={d.suspendedAt} />
                       </td>
                       <td className="px-4 py-2.5 text-center">
                         <button
@@ -835,7 +882,7 @@ export default function DriverVettingPage() {
                     <h2 className="text-base font-bold text-white leading-tight">{selected.name}</h2>
                     <p className="text-white/55 text-xs mt-0.5">{selected.email}</p>
                     <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                      <KycBadge status={selected.kycStatus} />
+                      <KycBadge status={selected.kycStatus} suspendedAt={selected.suspendedAt} />
                       <span className="text-white/40 text-xs">Joined {formatDate(selected.createdAt)}</span>
                     </div>
                   </div>
@@ -901,8 +948,34 @@ export default function DriverVettingPage() {
                     </div>
                   )}
 
+                  {selectedRevoked && (
+                    <div className="space-y-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-4">
+                      <div className="flex items-start gap-3">
+                        <ShieldX className="w-5 h-5 text-red-700 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-bold text-red-800">Driver access is currently revoked</p>
+                          <p className="text-xs text-red-700 mt-0.5">This driver is suspended from the NoLSAF driver portal until an admin completes the un-revoke procedure.</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                        <div className="rounded-xl border border-red-200 bg-white px-3 py-2.5">
+                          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Revoked on</p>
+                          <p className="mt-1 text-sm font-semibold text-slate-800">{formatDateTime(selected.suspendedAt)}</p>
+                        </div>
+                        <div className="rounded-xl border border-red-200 bg-white px-3 py-2.5">
+                          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Ref No.</p>
+                          <p className="mt-1 break-all text-sm font-semibold text-slate-800">{selected.revocationCaseRef ?? 'Pending reference'}</p>
+                        </div>
+                        <div className="rounded-xl border border-red-200 bg-white px-3 py-2.5">
+                          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Reason for suspension</p>
+                          <p className="mt-1 text-sm font-semibold text-slate-800">{selected.revocationReason ?? selected.kycNote ?? 'Not specified'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Read-only banner for approved drivers */}
-                  {selected.kycStatus === "APPROVED_KYC" && (
+                  {selected.kycStatus === "APPROVED_KYC" && !selectedRevoked && (
                     <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
                       <ShieldCheck className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
                       <div>
@@ -921,12 +994,12 @@ export default function DriverVettingPage() {
                       <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.12em]">Personal Information</h3>
                     </div>
                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden divide-y divide-slate-100">
-                      <InfoRow label="Full name"    value={selected.name}                          icon={User}        accent="bg-blue-50"    fieldKey="name"        fieldStatus={fa("name")}        onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
-                      <InfoRow label="Email"        value={selected.email}                         icon={Mail}        accent="bg-violet-50"  fieldKey="email"       fieldStatus={fa("email")}       onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
-                      <InfoRow label="Phone"        value={selected.phone}                         icon={Phone}       accent="bg-emerald-50" fieldKey="phone"       fieldStatus={fa("phone")}       onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
-                      <InfoRow label="Gender"       value={(selected as DriverDetail).gender}      icon={UserCircle2} accent="bg-pink-50"    fieldKey="gender"      fieldStatus={fa("gender")}      onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
-                      <InfoRow label="Nationality"  value={(selected as DriverDetail).nationality} icon={Globe}       accent="bg-sky-50"     fieldKey="nationality" fieldStatus={fa("nationality")} onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
-                      <InfoRow label="NIN"          value={(selected as DriverDetail).nin}         icon={IdCard}      accent="bg-amber-50"   fieldKey="nin"         fieldStatus={fa("nin")}         onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
+                      <InfoRow label="Full name"    value={selected.name}                          icon={User}        accent="bg-blue-50"    fieldKey="name"        fieldStatus={fa("name")}        onToggle={!fieldsLocked ? toggleFieldApproval : undefined} />
+                      <InfoRow label="Email"        value={selected.email}                         icon={Mail}        accent="bg-violet-50"  fieldKey="email"       fieldStatus={fa("email")}       onToggle={!fieldsLocked ? toggleFieldApproval : undefined} />
+                      <InfoRow label="Phone"        value={selected.phone}                         icon={Phone}       accent="bg-emerald-50" fieldKey="phone"       fieldStatus={fa("phone")}       onToggle={!fieldsLocked ? toggleFieldApproval : undefined} />
+                      <InfoRow label="Gender"       value={(selected as DriverDetail).gender}      icon={UserCircle2} accent="bg-pink-50"    fieldKey="gender"      fieldStatus={fa("gender")}      onToggle={!fieldsLocked ? toggleFieldApproval : undefined} />
+                      <InfoRow label="Nationality"  value={(selected as DriverDetail).nationality} icon={Globe}       accent="bg-sky-50"     fieldKey="nationality" fieldStatus={fa("nationality")} onToggle={!fieldsLocked ? toggleFieldApproval : undefined} />
+                      <InfoRow label="NIN"          value={(selected as DriverDetail).nin}         icon={IdCard}      accent="bg-amber-50"   fieldKey="nin"         fieldStatus={fa("nin")}         onToggle={!fieldsLocked ? toggleFieldApproval : undefined} />
                     </div>
                   </section>
 
@@ -939,9 +1012,9 @@ export default function DriverVettingPage() {
                       <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.12em]">Location</h3>
                     </div>
                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden divide-y divide-slate-100">
-                      <InfoRow label="Region"         value={selected.region}                     icon={MapPin} accent="bg-emerald-50" fieldKey="region"        fieldStatus={fa("region")}        onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
-                      <InfoRow label="District"       value={(selected as DriverDetail).district} icon={MapPin} accent="bg-teal-50"    fieldKey="district"      fieldStatus={fa("district")}      onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
-                      <InfoRow label="Operation area" value={selected.operationArea}              icon={MapPin} accent="bg-cyan-50"    fieldKey="operationArea" fieldStatus={fa("operationArea")} onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
+                      <InfoRow label="Region"         value={selected.region}                     icon={MapPin} accent="bg-emerald-50" fieldKey="region"        fieldStatus={fa("region")}        onToggle={!fieldsLocked ? toggleFieldApproval : undefined} />
+                      <InfoRow label="District"       value={(selected as DriverDetail).district} icon={MapPin} accent="bg-teal-50"    fieldKey="district"      fieldStatus={fa("district")}      onToggle={!fieldsLocked ? toggleFieldApproval : undefined} />
+                      <InfoRow label="Operation area" value={selected.operationArea}              icon={MapPin} accent="bg-cyan-50"    fieldKey="operationArea" fieldStatus={fa("operationArea")} onToggle={!fieldsLocked ? toggleFieldApproval : undefined} />
                     </div>
                   </section>
 
@@ -954,9 +1027,9 @@ export default function DriverVettingPage() {
                       <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.12em]">Vehicle &amp; Licence</h3>
                     </div>
                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden divide-y divide-slate-100">
-                      <InfoRow label="Vehicle type"  value={selected.vehicleType}   icon={Car}      accent="bg-amber-50"  fieldKey="vehicleType"  fieldStatus={fa("vehicleType")}  onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
-                      <InfoRow label="Plate number"  value={selected.plateNumber}   icon={IdCard}   accent="bg-orange-50" fieldKey="plateNumber"  fieldStatus={fa("plateNumber")}  onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
-                      <InfoRow label="Licence no."   value={selected.licenseNumber} icon={FileText} accent="bg-yellow-50" fieldKey="licenseNumber" fieldStatus={fa("licenseNumber")} onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
+                      <InfoRow label="Vehicle type"  value={selected.vehicleType}   icon={Car}      accent="bg-amber-50"  fieldKey="vehicleType"  fieldStatus={fa("vehicleType")}  onToggle={!fieldsLocked ? toggleFieldApproval : undefined} />
+                      <InfoRow label="Plate number"  value={selected.plateNumber}   icon={IdCard}   accent="bg-orange-50" fieldKey="plateNumber"  fieldStatus={fa("plateNumber")}  onToggle={!fieldsLocked ? toggleFieldApproval : undefined} />
+                      <InfoRow label="Licence no."   value={selected.licenseNumber} icon={FileText} accent="bg-yellow-50" fieldKey="licenseNumber" fieldStatus={fa("licenseNumber")} onToggle={!fieldsLocked ? toggleFieldApproval : undefined} />
                       <InfoRow label="VIP class"     value={selected.isVipDriver ? "VIP declared" : "Standard"} icon={Star} accent="bg-violet-50" />
                     </div>
                   </section>
@@ -970,7 +1043,7 @@ export default function DriverVettingPage() {
                       <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.12em]">Payment</h3>
                     </div>
                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden divide-y divide-slate-100">
-                      <InfoRow label="Payment phone"  value={(selected as DriverDetail).paymentPhone}                 icon={Phone}      accent="bg-indigo-50" fieldKey="paymentPhone" fieldStatus={fa("paymentPhone")} onToggle={selected.kycStatus !== "APPROVED_KYC" ? toggleFieldApproval : undefined} />
+                      <InfoRow label="Payment phone"  value={(selected as DriverDetail).paymentPhone}                 icon={Phone}      accent="bg-indigo-50" fieldKey="paymentPhone" fieldStatus={fa("paymentPhone")} onToggle={!fieldsLocked ? toggleFieldApproval : undefined} />
                       <InfoRow label="Phone verified" value={selected.paymentVerified ? "Verified" : "Not verified"} icon={BadgeCheck} accent={selected.paymentVerified ? "bg-emerald-50" : "bg-red-50"} />
                     </div>
                   </section>
@@ -1004,8 +1077,8 @@ export default function DriverVettingPage() {
                               rejectionReason={licDoc?.reason ?? null}
                               fieldKey="drivingLicense"
                               fieldStatus={fa("drivingLicense")}
-                              onToggle={toggleFieldApproval}
-                              onReviewDoc={(id, act) => reviewDriverDoc(id, act, 'drivingLicense')}
+                              onToggle={!fieldsLocked ? toggleFieldApproval : undefined}
+                              onReviewDoc={!fieldsLocked ? (id, act) => reviewDriverDoc(id, act, 'drivingLicense') : undefined}
                             />
                             <DocLink
                               label="National ID"
@@ -1016,8 +1089,8 @@ export default function DriverVettingPage() {
                               rejectionReason={nidDoc?.reason ?? null}
                               fieldKey="nationalId"
                               fieldStatus={fa("nationalId")}
-                              onToggle={toggleFieldApproval}
-                              onReviewDoc={(id, act) => reviewDriverDoc(id, act, 'nationalId')}
+                              onToggle={!fieldsLocked ? toggleFieldApproval : undefined}
+                              onReviewDoc={!fieldsLocked ? (id, act) => reviewDriverDoc(id, act, 'nationalId') : undefined}
                             />
                             <DocLink
                               label="LATRA Certificate"
@@ -1028,8 +1101,8 @@ export default function DriverVettingPage() {
                               rejectionReason={latraDoc?.reason ?? null}
                               fieldKey="latra"
                               fieldStatus={fa("latra")}
-                              onToggle={toggleFieldApproval}
-                              onReviewDoc={(id, act) => reviewDriverDoc(id, act, 'latra')}
+                              onToggle={!fieldsLocked ? toggleFieldApproval : undefined}
+                              onReviewDoc={!fieldsLocked ? (id, act) => reviewDriverDoc(id, act, 'latra') : undefined}
                             />
                             <DocLink
                               label="Insurance"
@@ -1040,8 +1113,8 @@ export default function DriverVettingPage() {
                               rejectionReason={insDoc?.reason ?? null}
                               fieldKey="insurance"
                               fieldStatus={fa("insurance")}
-                              onToggle={toggleFieldApproval}
-                              onReviewDoc={(id, act) => reviewDriverDoc(id, act, 'insurance')}
+                              onToggle={!fieldsLocked ? toggleFieldApproval : undefined}
+                              onReviewDoc={!fieldsLocked ? (id, act) => reviewDriverDoc(id, act, 'insurance') : undefined}
                             />
                           </>
                         );
@@ -1076,6 +1149,7 @@ export default function DriverVettingPage() {
                         approve:      { label: "Approved",           color: "text-emerald-700", bg: "bg-emerald-50",  border: "border-emerald-200", dot: "bg-emerald-500" },
                         reject:       { label: "Rejected",           color: "text-red-700",     bg: "bg-red-50",      border: "border-red-200",     dot: "bg-red-500" },
                         revoke:       { label: "Access Revoked",     color: "text-red-800",     bg: "bg-red-100",     border: "border-red-300",     dot: "bg-red-700" },
+                        unrevoke:     { label: "Suspension Lifted",  color: "text-emerald-800", bg: "bg-emerald-100", border: "border-emerald-300", dot: "bg-emerald-700" },
                         request_info: { label: "Requested Info",     color: "text-amber-700",   bg: "bg-amber-50",    border: "border-amber-200",   dot: "bg-amber-500" },
                         field_review: { label: "Field Review Saved", color: "text-blue-700",    bg: "bg-blue-50",     border: "border-blue-200",    dot: "bg-blue-400" },
                         resubmitted:  { label: "Resubmitted",        color: "text-violet-700",  bg: "bg-violet-50",   border: "border-violet-200",  dot: "bg-violet-500" },
@@ -1157,18 +1231,6 @@ export default function DriverVettingPage() {
                     </select>
                   </div>
 
-                  {/* Additional details */}
-                  <div>
-                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">Additional details <span className="font-normal text-slate-400">(sent to driver)</span></label>
-                    <textarea
-                      rows={2}
-                      value={revokeDetails}
-                      onChange={e => setRevokeDetails(e.target.value)}
-                      placeholder="Provide specific details about why access is being revoked..."
-                      className="mt-1.5 w-full block px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none resize-none bg-white box-border"
-                    />
-                  </div>
-
                   {/* Policy agreement */}
                   <label className="flex items-start gap-2.5 cursor-pointer p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
                     <input
@@ -1186,19 +1248,69 @@ export default function DriverVettingPage() {
                   <div className="flex gap-2">
                     <button
                       disabled={actionLoading || !revokeReason || !revokePolicyAgreed}
-                      onClick={() => {
-                        const combined = revokeDetails.trim()
-                          ? `${revokeReason}: ${revokeDetails.trim()}`
-                          : revokeReason;
-                        doAction("revoke", combined);
-                      }}
+                      onClick={() => doAction("revoke", revokeReason)}
                       className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold bg-red-600 hover:bg-red-700 text-white transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldX className="w-4 h-4" />}
                       Confirm Revocation
                     </button>
                     <button
-                      onClick={() => { setShowNoteInput(null); setRevokeReason(""); setRevokeDetails(""); setRevokePolicyAgreed(false); }}
+                      onClick={() => { setShowNoteInput(null); setRevokeReason(""); setRevokePolicyAgreed(false); }}
+                      className="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : showNoteInput === "unrevoke" ? (
+                <div className="space-y-3">
+                  <div className="flex items-start gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                    <AlertTriangle className="w-4 h-4 text-emerald-700 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-bold text-emerald-700 uppercase tracking-wide">Lift Driver Suspension</p>
+                      <p className="text-xs text-emerald-700 mt-0.5">You are about to un-suspend this driver and restore portal access. A dedicated restoration email and SMS will be sent immediately.</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">Reason for un-revoke <span className="text-red-500">*</span></label>
+                    <select
+                      value={unrevokeReason}
+                      onChange={e => setUnrevokeReason(e.target.value)}
+                      className="mt-1.5 w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none bg-white box-border"
+                    >
+                      <option value="">— Select a reason —</option>
+                      <option value="Appeal reviewed and approved">Appeal reviewed and approved</option>
+                      <option value="Issue resolved">Issue resolved</option>
+                      <option value="Documents verified and cleared">Documents verified and cleared</option>
+                      <option value="Administrative correction">Administrative correction</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+
+                  <label className="flex items-start gap-2.5 cursor-pointer p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+                    <input
+                      type="checkbox"
+                      checked={unrevokePolicyAgreed}
+                      onChange={e => setUnrevokePolicyAgreed(e.target.checked)}
+                      className="mt-0.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 flex-shrink-0 cursor-pointer"
+                    />
+                    <span className="text-xs text-slate-600 leading-relaxed">
+                      I confirm that I have reviewed the revocation record, that restoring this driver's access is appropriate, and that I accept responsibility for reactivating this account.
+                    </span>
+                  </label>
+
+                  <div className="flex gap-2">
+                    <button
+                      disabled={actionLoading || !unrevokeReason || !unrevokePolicyAgreed}
+                      onClick={() => doAction("unrevoke", unrevokeReason)}
+                      className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                      Confirm Un-Revoke
+                    </button>
+                    <button
+                      onClick={() => { setShowNoteInput(null); setUnrevokeReason(""); setUnrevokePolicyAgreed(false); }}
                       className="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 transition-colors"
                     >
                       Cancel
@@ -1244,6 +1356,23 @@ export default function DriverVettingPage() {
                 </div>
               ) : (
                 <div className="space-y-2.5">
+                  {selectedRevoked ? (
+                    <>
+                      <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-3">
+                        <p className="text-xs font-bold text-red-700 uppercase tracking-wide">Revoked driver workflow</p>
+                        <p className="mt-1 text-xs leading-relaxed text-red-700">This record is in a revoked state. Rejection and field-review actions are locked while the suspension is active. Use the action below to restore access.</p>
+                      </div>
+                      <button
+                        disabled={actionLoading}
+                        onClick={() => setShowNoteInput("unrevoke")}
+                        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-all shadow-sm disabled:opacity-50"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        Un-Revoke Driver Access
+                      </button>
+                    </>
+                  ) : (
+                    <>
                   {/* Field review summary + Send Field Feedback */}
                   {(approvedFields.length > 0 || flaggedFields.length > 0) && (
                     <div className="flex items-center gap-2 flex-wrap p-2.5 rounded-xl bg-white border border-slate-200">
@@ -1380,6 +1509,8 @@ export default function DriverVettingPage() {
                       </button>
                     )}
                   </div>
+                      </>
+                    )}
                 </div>
               )}
             </div>
