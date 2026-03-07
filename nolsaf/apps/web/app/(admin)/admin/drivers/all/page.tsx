@@ -26,6 +26,8 @@ import {
   Clock,
   ShieldCheck,
   ShieldX,
+  AlertTriangle,
+  Loader2,
 } from "lucide-react";
 
 // Use same-origin for HTTP calls so Next.js rewrites proxy to the API
@@ -192,17 +194,83 @@ export default function AdminAllDriversPage() {
   const [overviewBonuses, setOverviewBonuses] = useState<DriverBonusesData | null>(null);
   const [kycLoading, setKycLoading] = useState<Record<number, boolean>>({});
 
-  async function setDriverKyc(driverId: number, action: 'approve' | 'reject') {
+  // Revoke modal state
+  const [revokeTarget, setRevokeTarget] = useState<DriverRow | null>(null);
+  const [revokeReason, setRevokeReason] = useState("");
+  const [revokeDetails, setRevokeDetails] = useState("");
+  const [revokePolicyAgreed, setRevokePolicyAgreed] = useState(false);
+  const [revokeSubmitting, setRevokeSubmitting] = useState(false);
+  const [revokeError, setRevokeError] = useState<string | null>(null);
+
+  // Reject modal state
+  const [rejectTarget, setRejectTarget] = useState<DriverRow | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectSubmitting, setRejectSubmitting] = useState(false);
+  const [rejectError, setRejectError] = useState<string | null>(null);
+
+  function openRevokeModal(driver: DriverRow) {
+    setRevokeTarget(driver);
+    setRevokeReason("");
+    setRevokeDetails("");
+    setRevokePolicyAgreed(false);
+    setRevokeError(null);
+  }
+
+  function openRejectModal(driver: DriverRow) {
+    setRejectTarget(driver);
+    setRejectReason("");
+    setRejectError(null);
+  }
+
+  async function submitRevoke() {
+    if (!revokeTarget || !revokeReason || !revokePolicyAgreed) return;
+    setRevokeSubmitting(true);
+    setRevokeError(null);
+    try {
+      const combined = revokeDetails.trim()
+        ? `${revokeReason}: ${revokeDetails.trim()}`
+        : revokeReason;
+      await api.patch(`/api/admin/drivers/${revokeTarget.id}/kyc`, { action: 'revoke', reason: combined });
+      setItems(prev => prev.map(d =>
+        d.id === revokeTarget.id ? { ...d, kycStatus: 'REJECTED_KYC' } : d
+      ));
+      setRevokeTarget(null);
+    } catch (e: any) {
+      setRevokeError(e?.response?.data?.message || e?.message || 'Failed to revoke driver access');
+    } finally {
+      setRevokeSubmitting(false);
+    }
+  }
+
+  async function submitReject() {
+    if (!rejectTarget) return;
+    setRejectSubmitting(true);
+    setRejectError(null);
+    try {
+      await api.patch(`/api/admin/drivers/${rejectTarget.id}/kyc`, {
+        action: 'reject',
+        reason: rejectReason.trim() || undefined,
+      });
+      setItems(prev => prev.map(d =>
+        d.id === rejectTarget.id ? { ...d, kycStatus: 'REJECTED_KYC' } : d
+      ));
+      setRejectTarget(null);
+    } catch (e: any) {
+      setRejectError(e?.response?.data?.message || e?.message || 'Failed to reject driver');
+    } finally {
+      setRejectSubmitting(false);
+    }
+  }
+
+  async function approveDriver(driverId: number) {
     setKycLoading(prev => ({ ...prev, [driverId]: true }));
     try {
-      await api.patch(`/api/admin/drivers/${driverId}/kyc`, { action });
+      await api.patch(`/api/admin/drivers/${driverId}/kyc`, { action: 'approve' });
       setItems(prev => prev.map(d =>
-        d.id === driverId
-          ? { ...d, kycStatus: action === 'approve' ? 'APPROVED_KYC' : 'REJECTED_KYC' }
-          : d
+        d.id === driverId ? { ...d, kycStatus: 'APPROVED_KYC' } : d
       ));
     } catch (e: any) {
-      alert(e?.response?.data?.message || e?.message || 'Failed to update driver status');
+      alert(e?.response?.data?.message || e?.message || 'Failed to approve driver');
     } finally {
       setKycLoading(prev => ({ ...prev, [driverId]: false }));
     }
@@ -514,24 +582,23 @@ export default function AdminAllDriversPage() {
                             <Eye className="h-4 w-4" aria-hidden />
                             <span className="sr-only">Details</span>
                           </Link>
-                          {/* KYC approve / reject actions */}
+                          {/* KYC approve / reject / revoke actions */}
                           {(d.kycStatus === 'PENDING_KYC' || d.kycStatus === 'REJECTED_KYC') && (
                             <>
                               <button
                                 type="button"
                                 disabled={kycLoading[d.id]}
-                                onClick={() => setDriverKyc(d.id, 'approve')}
+                                onClick={() => approveDriver(d.id)}
                                 className="inline-flex items-center justify-center h-8 w-8 rounded-lg text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 disabled:opacity-50 transition-colors"
                                 title="Approve driver"
                               >
-                                <CheckCircle2 className="w-4 h-4" />
+                                {kycLoading[d.id] ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
                                 <span className="sr-only">Approve</span>
                               </button>
                               <button
                                 type="button"
-                                disabled={kycLoading[d.id]}
-                                onClick={() => setDriverKyc(d.id, 'reject')}
-                                className="inline-flex items-center justify-center h-8 w-8 rounded-lg text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 disabled:opacity-50 transition-colors"
+                                onClick={() => openRejectModal(d)}
+                                className="inline-flex items-center justify-center h-8 w-8 rounded-lg text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 transition-colors"
                                 title="Reject driver"
                               >
                                 <XCircle className="w-4 h-4" />
@@ -542,10 +609,9 @@ export default function AdminAllDriversPage() {
                           {d.kycStatus === 'APPROVED_KYC' && (
                             <button
                               type="button"
-                              disabled={kycLoading[d.id]}
-                              onClick={() => setDriverKyc(d.id, 'reject')}
-                              className="inline-flex items-center justify-center h-8 w-8 rounded-lg text-slate-600 bg-slate-50 hover:bg-red-50 hover:text-red-700 border border-slate-200 hover:border-red-200 disabled:opacity-50 transition-colors"
-                              title="Revoke approval"
+                              onClick={() => openRevokeModal(d)}
+                              className="inline-flex items-center justify-center h-8 w-8 rounded-lg text-slate-600 bg-slate-50 hover:bg-red-50 hover:text-red-700 border border-slate-200 hover:border-red-200 transition-colors"
+                              title="Revoke driver access"
                             >
                               <UserX className="w-4 h-4" />
                               <span className="sr-only">Revoke</span>
@@ -561,6 +627,178 @@ export default function AdminAllDriversPage() {
           </div>
         )}
       </div>
+
+      {/* ── Revoke confirmation modal ─────────────────────────────────── */}
+      {revokeTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-[2px]" onClick={() => setRevokeTarget(null)} aria-hidden />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Revoke driver access"
+            className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl ring-1 ring-black/10 overflow-hidden"
+          >
+            {/* Header */}
+            <div className="px-5 py-4 border-b border-slate-200 bg-red-50 flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
+                <ShieldX className="w-5 h-5 text-red-700" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-base font-bold text-red-900">Revoke Driver Access</h2>
+                <p className="text-xs text-red-700 mt-0.5 truncate">{revokeTarget.name} — {revokeTarget.email}</p>
+              </div>
+              <button onClick={() => setRevokeTarget(null)} className="p-1 rounded-lg hover:bg-red-100 text-red-600 transition-colors flex-shrink-0">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="px-5 py-4 space-y-4">
+              {/* Warning */}
+              <div className="flex items-start gap-2.5 p-3 bg-red-50 border border-red-200 rounded-xl">
+                <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-red-700 leading-relaxed">
+                  This will immediately remove the driver's access to the NoLSAF driver portal. The driver will be notified by SMS and email.
+                </p>
+              </div>
+
+              {/* Reason dropdown */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">
+                  Reason for revocation <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={revokeReason}
+                  onChange={e => setRevokeReason(e.target.value)}
+                  className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none bg-white"
+                >
+                  <option value="">— Select a reason —</option>
+                  <option value="Policy violation">Policy violation</option>
+                  <option value="Fraudulent documents">Fraudulent documents</option>
+                  <option value="Unacceptable conduct">Unacceptable conduct</option>
+                  <option value="Extended inactivity">Extended inactivity</option>
+                  <option value="Account security concern">Account security concern</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              {/* Details */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">
+                  Additional details <span className="text-slate-400 font-normal">(sent to driver)</span>
+                </label>
+                <textarea
+                  rows={2}
+                  value={revokeDetails}
+                  onChange={e => setRevokeDetails(e.target.value)}
+                  placeholder="Provide specific details about why access is being revoked..."
+                  className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none resize-none bg-white"
+                />
+              </div>
+
+              {/* Policy checkbox */}
+              <label className="flex items-start gap-2.5 cursor-pointer p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                <input
+                  type="checkbox"
+                  checked={revokePolicyAgreed}
+                  onChange={e => setRevokePolicyAgreed(e.target.checked)}
+                  className="mt-0.5 rounded border-slate-300 text-red-600 focus:ring-red-500 flex-shrink-0 cursor-pointer"
+                />
+                <span className="text-xs text-slate-600 leading-relaxed">
+                  I confirm that I have reviewed this driver's record, that revocation is warranted, and that I take full responsibility for this action.
+                </span>
+              </label>
+
+              {revokeError && (
+                <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{revokeError}</p>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 py-4 border-t border-slate-200 flex gap-3">
+              <button
+                disabled={revokeSubmitting || !revokeReason || !revokePolicyAgreed}
+                onClick={submitRevoke}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold bg-red-600 hover:bg-red-700 text-white transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {revokeSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldX className="w-4 h-4" />}
+                Confirm Revocation
+              </button>
+              <button
+                onClick={() => setRevokeTarget(null)}
+                className="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Reject confirmation modal ─────────────────────────────────── */}
+      {rejectTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-[2px]" onClick={() => setRejectTarget(null)} aria-hidden />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Reject driver"
+            className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl ring-1 ring-black/10 overflow-hidden"
+          >
+            {/* Header */}
+            <div className="px-5 py-4 border-b border-slate-200 bg-red-50 flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
+                <XCircle className="w-5 h-5 text-red-700" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-base font-bold text-red-900">Reject Driver Application</h2>
+                <p className="text-xs text-red-700 mt-0.5 truncate">{rejectTarget.name} — {rejectTarget.email}</p>
+              </div>
+              <button onClick={() => setRejectTarget(null)} className="p-1 rounded-lg hover:bg-red-100 text-red-600 transition-colors flex-shrink-0">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="px-5 py-4 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">
+                  Rejection reason <span className="text-slate-400 font-normal">(sent to driver)</span>
+                </label>
+                <textarea
+                  rows={3}
+                  value={rejectReason}
+                  onChange={e => setRejectReason(e.target.value)}
+                  placeholder="e.g. Driving licence image is blurry or unreadable"
+                  className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none resize-none bg-white"
+                />
+              </div>
+
+              {rejectError && (
+                <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{rejectError}</p>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 py-4 border-t border-slate-200 flex gap-3">
+              <button
+                disabled={rejectSubmitting}
+                onClick={submitReject}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold bg-red-600 hover:bg-red-700 text-white transition-all shadow-sm disabled:opacity-50"
+              >
+                {rejectSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+                Confirm Rejection
+              </button>
+              <button
+                onClick={() => setRejectTarget(null)}
+                className="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {overviewOpen && overviewDriver ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
