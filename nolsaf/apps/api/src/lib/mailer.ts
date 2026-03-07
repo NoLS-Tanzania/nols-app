@@ -1,6 +1,7 @@
 import { Resend } from "resend";
 import nodemailer from "nodemailer";
 import sanitizeHtml from "sanitize-html";
+import { canReceiveNotifications } from "./notificationEligibility.js";
 
 // ─── HTML → Plain text conversion ────────────────────────────────────────────
 // Generates a readable plain-text alternative from any HTML email.
@@ -67,6 +68,14 @@ export async function sendMail(
   html: string,
   attachments?: MailAttachment[]
 ) {
+  const eligibility = await canReceiveNotifications({ email: to });
+  if (!eligibility.allowed) {
+    console.log(
+      `[Email] Suppressed email to=${to} subject="${subject}" reason=${eligibility.reason ?? "blocked"} userId=${eligibility.matchedUserId ?? "unknown"}`,
+    );
+    return { success: true, messageId: `suppressed-${Date.now()}`, provider: 'suppressed' };
+  }
+
   const from = process.env.EMAIL_FROM || process.env.RESEND_FROM_DOMAIN || "no-reply@nolsaf.com";
   
   // Sanitize HTML content

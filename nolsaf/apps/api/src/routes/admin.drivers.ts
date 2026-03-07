@@ -5578,10 +5578,17 @@ router.patch('/:id(\\d+)/kyc', async (req, res) => {
       // Keep driver-facing document statuses in sync (realtime refresh)
       await syncDriverDocumentStatusesFromFieldApprovals(fieldApprovals);
     } else {
-      // approve / reject — update status, clear note + field approvals
+      // approve / reject / revoke — update status, clear note + field approvals
+      const statusData: any = { kycStatus, kycNote: null, kycFieldApprovals: null };
+      if (action === 'revoke') {
+        statusData.suspendedAt = new Date();
+      }
+      if (action === 'approve') {
+        statusData.suspendedAt = null;
+      }
       await prisma.user.update({
         where: { id: driverId },
-        data: { kycStatus, kycNote: null, kycFieldApprovals: null } as any,
+        data: statusData as any,
       });
     }
 

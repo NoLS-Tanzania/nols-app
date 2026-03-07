@@ -11,6 +11,7 @@
  */
 
 import { createRequire } from 'module';
+import { canReceiveNotifications } from './notificationEligibility.js';
 const _require = createRequire(import.meta.url);
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -146,6 +147,14 @@ async function sendViaTwilio(to: string, message: string): Promise<SmsResult> {
  *   3. Console log       (dev / staging only — never blocks OTP flows)
  */
 export async function sendSms(to: string, text: string): Promise<SmsResult> {
+  const eligibility = await canReceiveNotifications({ phone: to });
+  if (!eligibility.allowed) {
+    console.log(
+      `[SMS] Suppressed SMS to=${to} reason=${eligibility.reason ?? 'blocked'} userId=${eligibility.matchedUserId ?? 'unknown'}`,
+    );
+    return { success: true, messageId: `suppressed-${Date.now()}`, provider: 'suppressed' };
+  }
+
   const phone = normaliseTo255(to);
 
   // 1 — Africa's Talking
