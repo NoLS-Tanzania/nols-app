@@ -329,7 +329,6 @@ router.get("/", async (req, res) => {
             isAvailable: true,
             isVipDriver: true,
             kycStatus: true,
-            kycNote: true,
             rating: true,
             vehicleType: true,
             plateNumber: true,
@@ -348,26 +347,37 @@ router.get("/", async (req, res) => {
       console.log('[GET /admin/drivers] Found drivers:', total, 'items:', items.length);
     } catch (queryErr: any) {
       console.error('[GET /admin/drivers] Query error:', queryErr);
-      // If the query fails, try a simpler query without suspendedAt
+      // If the rich query fails, keep the same filters and retry with a reduced field set.
       try {
-        const simpleWhere: any = { role: "DRIVER" };
         [items, total] = await Promise.all([
           prisma.user.findMany({
-            where: simpleWhere,
+            where,
             select: {
               id: true, 
               name: true, 
               email: true, 
               phone: true,
+              suspendedAt: true,
+              isDisabled: true,
+              available: true,
+              isAvailable: true,
+              isVipDriver: true,
+              kycStatus: true,
+              rating: true,
+              vehicleType: true,
+              plateNumber: true,
+              operationArea: true,
+              region: true,
+              district: true,
               createdAt: true,
             },
             orderBy: { id: "desc" },
             skip, 
             take,
           }),
-          prisma.user.count({ where: simpleWhere }),
+          prisma.user.count({ where }),
         ]);
-        console.log('[GET /admin/drivers] Fallback query found:', total, 'drivers');
+        console.log('[GET /admin/drivers] Reduced-field fallback found:', total, 'drivers');
       } catch (fallbackErr: any) {
         console.error('[GET /admin/drivers] Fallback query also failed:', fallbackErr);
         throw fallbackErr;
@@ -453,9 +463,9 @@ router.get("/", async (req, res) => {
       isAvailable: item.isAvailable ?? null,
       isVipDriver: Boolean(item.isVipDriver ?? false),
       kycStatus: item.kycStatus ?? null,
-      kycNote: item.kycNote ?? null,
+      kycNote: null,
       isRevoked: Boolean(item.suspendedAt),
-      revocationReason: item.suspendedAt ? (item.kycNote ?? null) : null,
+      revocationReason: null,
       revocationCaseRef: item.suspendedAt ? buildDriverCaseRef(item.id, item.suspendedAt) : null,
       district: item.district ?? null,
       needsKycFix: (item.kycStatus === "PENDING_KYC") ? hasFlaggedKycFields(item.kycFieldApprovals) : false,
