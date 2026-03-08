@@ -179,6 +179,7 @@ export default function DriverLiveMapCanvas({
   const [smoothedDriverPos, setSmoothedDriverPos] = useState<LngLat | null>(null);
   const [snappedDriverPos, setSnappedDriverPos] = useState<LngLat | null>(null);
   const [manualDriverPos, setManualDriverPos] = useState<LngLat | null>(startupDriverPos ?? null);
+  const [driverPulseActive, setDriverPulseActive] = useState(false);
   const [routeRetryNonce, setRouteRetryNonce] = useState(0);
   const [styleRevision, setStyleRevision] = useState(0);
   const [runtimeToken, setRuntimeToken] = useState("");
@@ -202,6 +203,7 @@ export default function DriverLiveMapCanvas({
   const routeAbortRef = useRef<AbortController | null>(null);
   const routeRetryRef = useRef<{ attempts: number; timer?: number | null } | null>(null);
   const lastEmittedOptionsKeyRef = useRef<string | null>(null);
+  const driverPulseTimerRef = useRef<number | null>(null);
 
   // NEXT_PUBLIC_* vars are baked at build time. Use a runtime fetch so newly-set
   // tokens on the host start working immediately without a rebuild.
@@ -656,9 +658,10 @@ export default function DriverLiveMapCanvas({
               "driver-location-icon",
               `
 <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80">
-  <circle cx="40" cy="40" r="26" fill="rgba(2,102,94,0.18)"/>
-  <circle cx="40" cy="40" r="17" fill="#ffffff" stroke="#02665e" stroke-width="5"/>
-  <path d="M40 23 L49 45 L40 40.5 L31 45 Z" fill="#02665e"/>
+  <circle cx="40" cy="40" r="30" fill="rgba(2,102,94,0.22)"/>
+  <circle cx="40" cy="40" r="21" fill="#ffffff" stroke="#02665e" stroke-width="6"/>
+  <circle cx="40" cy="40" r="11" fill="#e6fffb"/>
+  <path d="M40 20 L51 46 L40 40.5 L29 46 Z" fill="#02665e"/>
 </svg>`.trim()
             );
 
@@ -702,9 +705,24 @@ export default function DriverLiveMapCanvas({
                 type: "circle",
                 source: "driver-point",
                 paint: {
-                  "circle-radius": ["interpolate", ["linear"], ["zoom"], 12, 14, 15, 22, 18, 28],
+                  "circle-radius": ["interpolate", ["linear"], ["zoom"], 12, 16, 15, 25, 18, 32],
                   "circle-color": "#02665e",
-                  "circle-opacity": 0.14,
+                  "circle-opacity": ["case", ["==", ["get", "pulse"], 1], 0.28, 0.18],
+                } as any,
+              });
+            }
+            if (!map.getLayer("driver-focus-layer")) {
+              map.addLayer({
+                id: "driver-focus-layer",
+                type: "circle",
+                source: "driver-point",
+                paint: {
+                  "circle-radius": ["case", ["==", ["get", "pulse"], 1], ["interpolate", ["linear"], ["zoom"], 12, 24, 15, 34, 18, 44], ["interpolate", ["linear"], ["zoom"], 12, 0, 15, 0, 18, 0]],
+                  "circle-color": "#26b3a5",
+                  "circle-opacity": ["case", ["==", ["get", "pulse"], 1], 0.18, 0],
+                  "circle-stroke-width": ["case", ["==", ["get", "pulse"], 1], 2, 0],
+                  "circle-stroke-color": "rgba(255,255,255,0.9)",
+                  "circle-stroke-opacity": ["case", ["==", ["get", "pulse"], 1], 0.55, 0],
                 } as any,
               });
             }
@@ -715,7 +733,7 @@ export default function DriverLiveMapCanvas({
                 source: "driver-point",
                 layout: {
                   "icon-image": "driver-location-icon",
-                  "icon-size": ["interpolate", ["linear"], ["zoom"], 12, 0.95, 15, 1.15, 18, 1.28],
+                  "icon-size": ["interpolate", ["linear"], ["zoom"], 12, 1.08, 15, 1.3, 18, 1.44],
                   "icon-anchor": "center",
                   "icon-allow-overlap": true,
                 },
@@ -936,17 +954,28 @@ export default function DriverLiveMapCanvas({
           Number.isFinite(Number(detail?.lat)) && Number.isFinite(Number(detail?.lng))
             ? { lat: Number(detail.lat), lng: Number(detail.lng) }
             : null;
-        if (eventPos) {
-          setManualDriverPos(eventPos);
-        }
         const focusPos = eventPos ?? manualDriverPos ?? snappedDriverPos ?? smoothedDriverPos ?? driverPos;
         userInteractingRef.current = false;
+        if (driverPulseTimerRef.current) {
+          window.clearTimeout(driverPulseTimerRef.current);
+          driverPulseTimerRef.current = null;
+        }
+        setDriverPulseActive(true);
+        driverPulseTimerRef.current = window.setTimeout(() => {
+          setDriverPulseActive(false);
+          driverPulseTimerRef.current = null;
+        }, 950);
+        try {
+          map.stop?.();
+        } catch {
+          // ignore
+        }
         map.easeTo({
           center: [focusPos.lng, focusPos.lat],
           zoom: Math.max(clamp(map.getZoom?.() ?? (liveOnly ? 15.8 : 14.8), 14.5, 18), liveOnly ? 16 : 15),
           pitch: liveOnly ? clamp(map.getPitch?.() ?? 50, 35, 60) : clamp(map.getPitch?.() ?? 0, 0, 30),
           bearing: map.getBearing?.() ?? 0,
-          duration: 700,
+          duration: 420,
         });
       } catch {
         // ignore
@@ -955,6 +984,10 @@ export default function DriverLiveMapCanvas({
 
     window.addEventListener("nols:map:center-driver", handler as EventListener);
     return () => {
+      if (driverPulseTimerRef.current) {
+        window.clearTimeout(driverPulseTimerRef.current);
+        driverPulseTimerRef.current = null;
+      }
       window.removeEventListener("nols:map:center-driver", handler as EventListener);
     };
   }, [driverPos, manualDriverPos, smoothedDriverPos, snappedDriverPos, liveOnly]);
@@ -1190,7 +1223,7 @@ export default function DriverLiveMapCanvas({
     };
 
     const displayDriverPos = manualDriverPos ?? snappedDriverPos ?? smoothedDriverPos ?? driverPos;
-    setPoint("driver-point", hasTrackedDriverPos ? displayDriverPos : null);
+    setPoint("driver-point", hasTrackedDriverPos ? displayDriverPos : null, { pulse: driverPulseActive ? 1 : 0 });
     setPoint("pickup-point", pickupPos);
     setPoint("dropoff-point", dropoffPos);
 
@@ -1218,6 +1251,7 @@ export default function DriverLiveMapCanvas({
   }, [
     data,
     driverPos,
+    driverPulseActive,
     hasTrackedDriverPos,
     manualDriverPos,
     smoothedDriverPos,

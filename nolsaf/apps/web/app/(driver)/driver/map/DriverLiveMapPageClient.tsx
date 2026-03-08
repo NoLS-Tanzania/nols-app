@@ -130,6 +130,7 @@ export default function DriverLiveMapPage() {
   const destinationEtaAtRef = useRef<number | null>(null);
   const [startupDriverPos, setStartupDriverPos] = useState<{ lat: number; lng: number; speedMps?: number } | null>(null);
   const [startupLocationResolved, setStartupLocationResolved] = useState(false);
+  const trackedDriverPosRef = useRef<{ lat: number; lng: number; speedMps?: number } | null>(null);
   
   // Toast notifications
   const { toasts, success, error, info, warning, removeToast } = useToast();
@@ -721,6 +722,10 @@ export default function DriverLiveMapPage() {
     return () => window.removeEventListener("nols:driver:pos", handler as EventListener);
   }, []);
 
+  useEffect(() => {
+    trackedDriverPosRef.current = driverPos;
+  }, [driverPos]);
+
   // Continuously bind the live map to the device's actual GPS position when permission is enabled.
   // The recenter button remains useful for restoring focus after the driver pans away manually.
   useEffect(() => {
@@ -829,6 +834,12 @@ export default function DriverLiveMapPage() {
       }
     };
 
+    const trackedPos = trackedDriverPosRef.current;
+    if (trackedPos) {
+      emitCenter(trackedPos);
+      return;
+    }
+
     if (typeof navigator === "undefined" || !navigator.geolocation) {
       warning("Location unavailable", "This device cannot provide a current location for centering the map.");
       return;
@@ -841,6 +852,7 @@ export default function DriverLiveMapPage() {
           lng: position.coords.longitude,
           speedMps: typeof position.coords.speed === "number" ? position.coords.speed : undefined,
         };
+        trackedDriverPosRef.current = coords;
         setDriverPos(coords);
         window.setTimeout(() => emitCenter(coords), 0);
       },
