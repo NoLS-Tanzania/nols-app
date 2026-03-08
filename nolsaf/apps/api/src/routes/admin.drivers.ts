@@ -137,7 +137,7 @@ const sanitizeFieldApprovals = (v: unknown) => {
   if (!v || typeof v !== "object" || Array.isArray(v)) return null;
 
   const allowedKeys = new Set([
-    "name", "email", "phone", "gender", "nationality", "nin",
+    "name", "email", "phone", "gender", "nationality", "dateOfBirth", "nin",
     "region", "district", "operationArea",
     "vehicleType", "plateNumber", "licenseNumber",
     "paymentPhone",
@@ -3290,6 +3290,7 @@ router.get("/:id(\\d+)", async (req, res) => {
         isVipDriver: true,
         gender: true,
         nationality: true,
+        dateOfBirth: true,
         nin: true,
         region: true,
         district: true,
@@ -5620,6 +5621,7 @@ router.patch('/:id(\\d+)/kyc', limitAdminTripsWrite, async (req, res) => {
       if (!String((driver as any).phone ?? '').trim()) missingFields.push('phone');
       if (!String((driver as any).gender ?? '').trim()) missingFields.push('gender');
       if (!String((driver as any).nationality ?? '').trim()) missingFields.push('nationality');
+      if (!(driver as any).dateOfBirth) missingFields.push('date of birth');
       if (!String((driver as any).nin ?? '').trim()) missingFields.push('NIN');
       if (!String((driver as any).region ?? '').trim()) missingFields.push('region');
       if (!String((driver as any).district ?? '').trim()) missingFields.push('district');
@@ -5634,7 +5636,7 @@ router.patch('/:id(\\d+)/kyc', limitAdminTripsWrite, async (req, res) => {
         ? (driver as any).kycFieldApprovals as Record<string, string>
         : {};
       const requiredApprovalKeys = [
-        'name', 'email', 'phone', 'gender', 'nationality', 'nin',
+        'name', 'email', 'phone', 'gender', 'nationality', 'dateOfBirth', 'nin',
         'region', 'district', 'operationArea', 'vehicleType', 'plateNumber',
         'licenseNumber', 'paymentPhone', 'drivingLicense', 'nationalId', 'latra', 'insurance',
       ];
@@ -5655,10 +5657,29 @@ router.patch('/:id(\\d+)/kyc', limitAdminTripsWrite, async (req, res) => {
       }
 
       const requiredDocumentGroups = [
-        { label: 'driving licence', types: ['DRIVER_LICENSE', 'DRIVING_LICENSE', 'DRIVER_LICENCE', 'DRIVING_LICENCE', 'LICENSE'] },
-        { label: 'National ID', types: ['NATIONAL_ID', 'ID', 'PASSPORT'] },
-        { label: 'vehicle registration', types: ['VEHICLE_REGISTRATION', 'LATRA', 'VEHICLE_REG'] },
-        { label: 'insurance certificate', types: ['INSURANCE'] },
+        {
+          label: 'driving licence',
+          types: ['DRIVER_LICENSE', 'DRIVING_LICENSE', 'DRIVER_LICENCE', 'DRIVING_LICENCE', 'LICENSE'],
+          fallbackUrls: [String((driver as any)?.payout?.drivingLicenseUrl ?? '').trim()],
+        },
+        {
+          label: 'National ID',
+          types: ['NATIONAL_ID', 'ID', 'PASSPORT'],
+          fallbackUrls: [String((driver as any)?.payout?.nationalIdUrl ?? '').trim()],
+        },
+        {
+          label: 'vehicle registration',
+          types: ['VEHICLE_REGISTRATION', 'LATRA', 'VEHICLE_REG'],
+          fallbackUrls: [
+            String((driver as any)?.payout?.latraUrl ?? '').trim(),
+            String((driver as any)?.payout?.vehicleRegistrationUrl ?? '').trim(),
+          ],
+        },
+        {
+          label: 'insurance certificate',
+          types: ['INSURANCE'],
+          fallbackUrls: [String((driver as any)?.payout?.insuranceUrl ?? '').trim()],
+        },
       ];
       const docs = await prisma.userDocument.findMany({
         where: { userId: driverId, url: { not: null } } as any,
@@ -5666,7 +5687,7 @@ router.patch('/:id(\\d+)/kyc', limitAdminTripsWrite, async (req, res) => {
       });
       const presentTypes = new Set((docs as any[]).map((doc) => String(doc?.type ?? '').toUpperCase()));
       const missingDocuments = requiredDocumentGroups
-        .filter((group) => !group.types.some((type) => presentTypes.has(type)))
+        .filter((group) => !group.types.some((type) => presentTypes.has(type)) && !group.fallbackUrls.some((url) => url.length > 0))
         .map((group) => group.label);
 
       if (missingFields.length > 0 || missingDocuments.length > 0) {

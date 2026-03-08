@@ -29,6 +29,7 @@ import {
   UserCircle2,
   Globe,
   IdCard,
+  Calendar,
   Star,
   BadgeCheck,
   Users,
@@ -73,6 +74,7 @@ type AuditEntry = { id: number; action: string; note: string | null; fieldApprov
 type DriverDetail = DriverRow & {
   gender: string | null;
   nationality: string | null;
+  dateOfBirth?: string | null;
   nin: string | null;
   district: string | null;
   isDisabled?: boolean;
@@ -93,6 +95,11 @@ function formatDateTime(iso: string | null | undefined) {
   const date = d.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
   const time = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false });
   return `${date}, ${time}`;
+}
+
+function formatStoredDate(value: string | null | undefined) {
+  if (!value) return "—";
+  return String(value).split('T')[0];
 }
 
 /** Collapse consecutive field_review entries with identical fieldApprovals — keep only the latest. */
@@ -603,7 +610,16 @@ export default function DriverVettingPage() {
       // Reload audit logs to reflect the new action
       if (selected) loadAudit(selected.id);
     } catch (e: any) {
-      setActionMsg({ type: "error", text: e?.response?.data?.message || e?.message || "Action failed" });
+      const payload = e?.response?.data ?? {};
+      const details = [
+        ...(Array.isArray(payload?.missingFields) ? [`Missing fields: ${payload.missingFields.join(', ')}`] : []),
+        ...(Array.isArray(payload?.missingDocuments) ? [`Missing documents: ${payload.missingDocuments.join(', ')}`] : []),
+        ...(Array.isArray(payload?.missingApprovals) ? [`Missing approvals: ${payload.missingApprovals.join(', ')}`] : []),
+      ];
+      setActionMsg({
+        type: "error",
+        text: [payload?.message || payload?.error || e?.message || "Action failed", ...details].filter(Boolean).join(' '),
+      });
     } finally {
       setActionLoading(false);
     }
@@ -614,8 +630,16 @@ export default function DriverVettingPage() {
   const payoutObj = (selected?.payout && typeof selected.payout === "object") ? selected.payout as any : {};
   const selectedRevoked = Boolean(selected?.suspendedAt);
   const fieldsLocked = Boolean(selected?.suspendedAt) || selected?.kycStatus === "APPROVED_KYC";
+  const selectedDocuments: any[] = Array.isArray(selected?.documents) ? selected.documents : [];
+  const getSelectedDoc = (types: string[]) => types.map((t) => selectedDocuments.find((doc) => String(doc?.type ?? '').toUpperCase() === t)).find(Boolean) ?? null;
+  const selectedLicenseDoc = getSelectedDoc(['DRIVER_LICENSE', 'DRIVING_LICENSE', 'DRIVER_LICENCE', 'DRIVING_LICENCE', 'LICENSE']);
+  const selectedNationalIdDoc = getSelectedDoc(['NATIONAL_ID', 'ID', 'PASSPORT']);
+  const selectedLatraDoc = getSelectedDoc(['VEHICLE_REGISTRATION', 'LATRA', 'VEHICLE_REG']);
+  const selectedInsuranceDoc = getSelectedDoc(['INSURANCE']);
+  const selectedLicenseExpiry = String(selectedLicenseDoc?.metadata?.expiresOn ?? selectedLicenseDoc?.metadata?.expiresAt ?? '').split('T')[0] || null;
+  const selectedInsuranceExpiry = String(selectedInsuranceDoc?.metadata?.expiresOn ?? selectedInsuranceDoc?.metadata?.expiresAt ?? '').split('T')[0] || null;
   const REQUIRED_FIELDS = [
-    'name', 'email', 'phone', 'gender', 'nationality', 'nin',
+    'name', 'email', 'phone', 'gender', 'nationality', 'dateOfBirth', 'nin',
     'region', 'district', 'operationArea',
     'vehicleType', 'plateNumber', 'licenseNumber',
     'paymentPhone',
@@ -999,6 +1023,7 @@ export default function DriverVettingPage() {
                       <InfoRow label="Phone"        value={selected.phone}                         icon={Phone}       accent="bg-emerald-50" fieldKey="phone"       fieldStatus={fa("phone")}       onToggle={!fieldsLocked ? toggleFieldApproval : undefined} />
                       <InfoRow label="Gender"       value={(selected as DriverDetail).gender}      icon={UserCircle2} accent="bg-pink-50"    fieldKey="gender"      fieldStatus={fa("gender")}      onToggle={!fieldsLocked ? toggleFieldApproval : undefined} />
                       <InfoRow label="Nationality"  value={(selected as DriverDetail).nationality} icon={Globe}       accent="bg-sky-50"     fieldKey="nationality" fieldStatus={fa("nationality")} onToggle={!fieldsLocked ? toggleFieldApproval : undefined} />
+                      <InfoRow label="Date of birth" value={formatStoredDate((selected as DriverDetail).dateOfBirth)} icon={Calendar} accent="bg-indigo-50" fieldKey="dateOfBirth" fieldStatus={fa("dateOfBirth")} onToggle={!fieldsLocked ? toggleFieldApproval : undefined} />
                       <InfoRow label="NIN"          value={(selected as DriverDetail).nin}         icon={IdCard}      accent="bg-amber-50"   fieldKey="nin"         fieldStatus={fa("nin")}         onToggle={!fieldsLocked ? toggleFieldApproval : undefined} />
                     </div>
                   </section>
@@ -1030,6 +1055,7 @@ export default function DriverVettingPage() {
                       <InfoRow label="Vehicle type"  value={selected.vehicleType}   icon={Car}      accent="bg-amber-50"  fieldKey="vehicleType"  fieldStatus={fa("vehicleType")}  onToggle={!fieldsLocked ? toggleFieldApproval : undefined} />
                       <InfoRow label="Plate number"  value={selected.plateNumber}   icon={IdCard}   accent="bg-orange-50" fieldKey="plateNumber"  fieldStatus={fa("plateNumber")}  onToggle={!fieldsLocked ? toggleFieldApproval : undefined} />
                       <InfoRow label="Licence no."   value={selected.licenseNumber} icon={FileText} accent="bg-yellow-50" fieldKey="licenseNumber" fieldStatus={fa("licenseNumber")} onToggle={!fieldsLocked ? toggleFieldApproval : undefined} />
+                      <InfoRow label="Licence expiry" value={selectedLicenseExpiry} icon={Calendar} accent="bg-lime-50" />
                       <InfoRow label="VIP class"     value={selected.isVipDriver ? "VIP declared" : "Standard"} icon={Star} accent="bg-violet-50" />
                     </div>
                   </section>
@@ -1058,23 +1084,17 @@ export default function DriverVettingPage() {
                     </div>
                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden divide-y divide-slate-100">
                       {(() => {
-                        const driverDocs: any[] = Array.isArray((selected as DriverDetail).documents) ? (selected as DriverDetail).documents! : [];
-                        const getDoc = (types: string[]) => types.map(t => driverDocs.find(d => String(d?.type ?? '').toUpperCase() === t)).find(Boolean) ?? null;
-                        const licDoc   = getDoc(['DRIVER_LICENSE','DRIVING_LICENSE','DRIVER_LICENCE','DRIVING_LICENCE','LICENSE']);
-                        const nidDoc   = getDoc(['NATIONAL_ID','ID','PASSPORT']);
-                        const latraDoc = getDoc(['VEHICLE_REGISTRATION','LATRA','VEHICLE_REG']);
-                        const insDoc   = getDoc(['INSURANCE']);
                         const fmtExpiry = (doc: any) => doc?.metadata?.expiresOn ?? null;
                         const urlFrom = (doc: any, fallback: string | null | undefined) => doc?.url || fallback || null;
                         return (
                           <>
                             <DocLink
                               label="Driving License"
-                              url={urlFrom(licDoc, payoutObj?.drivingLicenseUrl || selected.payout?.drivingLicenseUrl)}
-                              expiryInfo={fmtExpiry(licDoc)}
-                              docId={licDoc?.id ?? null}
-                              docStatus={licDoc?.status ?? null}
-                              rejectionReason={licDoc?.reason ?? null}
+                              url={urlFrom(selectedLicenseDoc, payoutObj?.drivingLicenseUrl || selected.payout?.drivingLicenseUrl)}
+                              expiryInfo={selectedLicenseExpiry || fmtExpiry(selectedLicenseDoc)}
+                              docId={selectedLicenseDoc?.id ?? null}
+                              docStatus={selectedLicenseDoc?.status ?? null}
+                              rejectionReason={selectedLicenseDoc?.reason ?? null}
                               fieldKey="drivingLicense"
                               fieldStatus={fa("drivingLicense")}
                               onToggle={!fieldsLocked ? toggleFieldApproval : undefined}
@@ -1082,11 +1102,11 @@ export default function DriverVettingPage() {
                             />
                             <DocLink
                               label="National ID"
-                              url={urlFrom(nidDoc, payoutObj?.nationalIdUrl || selected.payout?.nationalIdUrl)}
+                              url={urlFrom(selectedNationalIdDoc, payoutObj?.nationalIdUrl || selected.payout?.nationalIdUrl)}
                               expiryInfo={null}
-                              docId={nidDoc?.id ?? null}
-                              docStatus={nidDoc?.status ?? null}
-                              rejectionReason={nidDoc?.reason ?? null}
+                              docId={selectedNationalIdDoc?.id ?? null}
+                              docStatus={selectedNationalIdDoc?.status ?? null}
+                              rejectionReason={selectedNationalIdDoc?.reason ?? null}
                               fieldKey="nationalId"
                               fieldStatus={fa("nationalId")}
                               onToggle={!fieldsLocked ? toggleFieldApproval : undefined}
@@ -1094,11 +1114,11 @@ export default function DriverVettingPage() {
                             />
                             <DocLink
                               label="LATRA Certificate"
-                              url={urlFrom(latraDoc, payoutObj?.latraUrl || payoutObj?.vehicleRegistrationUrl || selected.payout?.latraUrl || selected.payout?.vehicleRegistrationUrl)}
+                              url={urlFrom(selectedLatraDoc, payoutObj?.latraUrl || payoutObj?.vehicleRegistrationUrl || selected.payout?.latraUrl || selected.payout?.vehicleRegistrationUrl)}
                               expiryInfo={null}
-                              docId={latraDoc?.id ?? null}
-                              docStatus={latraDoc?.status ?? null}
-                              rejectionReason={latraDoc?.reason ?? null}
+                              docId={selectedLatraDoc?.id ?? null}
+                              docStatus={selectedLatraDoc?.status ?? null}
+                              rejectionReason={selectedLatraDoc?.reason ?? null}
                               fieldKey="latra"
                               fieldStatus={fa("latra")}
                               onToggle={!fieldsLocked ? toggleFieldApproval : undefined}
@@ -1106,11 +1126,11 @@ export default function DriverVettingPage() {
                             />
                             <DocLink
                               label="Insurance"
-                              url={urlFrom(insDoc, payoutObj?.insuranceUrl || selected.payout?.insuranceUrl)}
-                              expiryInfo={fmtExpiry(insDoc)}
-                              docId={insDoc?.id ?? null}
-                              docStatus={insDoc?.status ?? null}
-                              rejectionReason={insDoc?.reason ?? null}
+                              url={urlFrom(selectedInsuranceDoc, payoutObj?.insuranceUrl || selected.payout?.insuranceUrl)}
+                              expiryInfo={selectedInsuranceExpiry || fmtExpiry(selectedInsuranceDoc)}
+                              docId={selectedInsuranceDoc?.id ?? null}
+                              docStatus={selectedInsuranceDoc?.status ?? null}
+                              rejectionReason={selectedInsuranceDoc?.reason ?? null}
                               fieldKey="insurance"
                               fieldStatus={fa("insurance")}
                               onToggle={!fieldsLocked ? toggleFieldApproval : undefined}
@@ -1397,6 +1417,7 @@ export default function DriverVettingPage() {
                               email:         'Email',
                               phone:         'Phone Number',
                               gender:        'Gender',
+                              dateOfBirth:   'Date of Birth',
                               region:        'Region',
                               district:      'District',
                               plateNumber:   'Plate Number',
