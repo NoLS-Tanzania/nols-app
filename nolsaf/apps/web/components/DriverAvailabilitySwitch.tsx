@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { LoaderCircle, Power } from "lucide-react";
 import { useSocket } from "@/hooks/useSocket";
+import useDriverAvailability from "@/hooks/useDriverAvailability";
 
 // Use same-origin calls + secure httpOnly cookie session.
 const api = axios.create({ baseURL: "", withCredentials: true });
@@ -14,10 +15,8 @@ export default function DriverAvailabilitySwitch({
   className?: string;
   variant?: "default" | "compact";
 }) {
-  // Start with false to match server-side render (prevents hydration mismatch)
-  const [available, setAvailable] = useState<boolean>(false);
   const [isClient, setIsClient] = useState(false);
-  const [meId, setMeId] = useState<string | number | undefined>(undefined);
+  const { available, meId, refreshAvailability, setConfirmedAvailability } = useDriverAvailability();
 
   const { socket } = useSocket(meId);
 
@@ -26,98 +25,6 @@ export default function DriverAvailabilitySwitch({
     setIsClient(true);
   }, []);
 
-  const broadcastAvailability = React.useCallback((next: boolean) => {
-    try {
-      if (meId) localStorage.setItem(`driver_available:${String(meId)}`, next ? '1' : '0');
-    } catch {
-      // ignore
-    }
-    try {
-      window.dispatchEvent(
-        new CustomEvent('nols:availability:changed', {
-          detail: { available: next, confirmed: true },
-          bubbles: true,
-          composed: true,
-        } as any)
-      );
-    } catch {
-      // ignore
-    }
-  }, [meId]);
-
-  const refreshAvailability = React.useCallback(async () => {
-    try {
-      const r = await api.get('/api/driver/availability');
-      const serverAvailable = Boolean(r?.data?.available);
-      setAvailable(serverAvailable);
-      broadcastAvailability(serverAvailable);
-      return serverAvailable;
-    } catch {
-      return null;
-    }
-  }, [broadcastAvailability]);
-
-  // Resolve current user id for socket room scoping.
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const r = await fetch("/api/account/me", { credentials: "include" });
-        if (!r.ok) return;
-        const me = await r.json();
-        if (!mounted) return;
-        if (me?.id) setMeId(me.id);
-      } catch {
-        // ignore
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  // Load availability only from the server once we know who the driver is.
-  useEffect(() => {
-    if (!isClient) return;
-    if (!meId) return;
-
-    let cancelled = false;
-    (async () => {
-      const next = await refreshAvailability();
-      if (cancelled || next === null) return;
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isClient, meId, refreshAvailability]);
-
-  useEffect(() => {
-    const handler = (ev: Event) => {
-      try {
-        const detail = (ev as CustomEvent).detail || {};
-        if (typeof detail.available === 'boolean' && detail.confirmed !== false) {
-          setAvailable(detail.available);
-        }
-      } catch {
-        // ignore
-      }
-    };
-
-    const storageHandler = (event: StorageEvent) => {
-      const key = meId ? `driver_available:${String(meId)}` : 'driver_available';
-      if (event.key !== key) return;
-      const next = event.newValue === '1' || event.newValue === 'true';
-      setAvailable(next);
-    };
-
-    window.addEventListener('nols:availability:changed', handler as EventListener);
-    window.addEventListener('storage', storageHandler as any);
-    return () => {
-      window.removeEventListener('nols:availability:changed', handler as EventListener);
-      window.removeEventListener('storage', storageHandler as any);
-    };
-  }, [meId]);
   // transient status control: idle | pending | success | error
   const [status, setStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle');
   const [pendingTarget, setPendingTarget] = useState<boolean | null>(null);
@@ -165,8 +72,7 @@ export default function DriverAvailabilitySwitch({
       const elapsed = Date.now() - start;
       const remaining = Math.max(0, desiredDelay - elapsed);
       if (remaining > 0) await new Promise((r) => window.setTimeout(r, remaining));
-        setAvailable(next);
-        broadcastAvailability(next);
+      setConfirmedAvailability(next);
       setStatus('success');
       if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
       timeoutRef.current = window.setTimeout(() => {
@@ -186,7 +92,7 @@ export default function DriverAvailabilitySwitch({
       if (remaining > 0) await new Promise((r) => window.setTimeout(r, remaining));
       // eslint-disable-next-line no-console
       console.warn("Failed to update availability (server)", err);
-      await refreshAvailability();
+      await refreshAvailability(true);
       setStatus('error');
       if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
       timeoutRef.current = window.setTimeout(() => {

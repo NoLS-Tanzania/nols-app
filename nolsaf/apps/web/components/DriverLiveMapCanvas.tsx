@@ -144,6 +144,8 @@ function addSvgImageOnce(map: any, id: string, svg: string, pixelRatio = 2) {
 export default function DriverLiveMapCanvas({
   liveOnly,
   className,
+  startupDriverPos,
+  allowServerDriverFallback = true,
   tripRequest,
   activeTrip,
   tripStage,
@@ -152,6 +154,8 @@ export default function DriverLiveMapCanvas({
 }: {
   liveOnly?: boolean;
   className?: string;
+  startupDriverPos?: LngLat | null;
+  allowServerDriverFallback?: boolean;
   tripRequest?: any | null;
   activeTrip?: any | null;
   tripStage?: string;
@@ -174,7 +178,7 @@ export default function DriverLiveMapCanvas({
   >([]);
   const [smoothedDriverPos, setSmoothedDriverPos] = useState<LngLat | null>(null);
   const [snappedDriverPos, setSnappedDriverPos] = useState<LngLat | null>(null);
-  const [manualDriverPos, setManualDriverPos] = useState<LngLat | null>(null);
+  const [manualDriverPos, setManualDriverPos] = useState<LngLat | null>(startupDriverPos ?? null);
   const [routeRetryNonce, setRouteRetryNonce] = useState(0);
   const [styleRevision, setStyleRevision] = useState(0);
   const [runtimeToken, setRuntimeToken] = useState("");
@@ -230,10 +234,28 @@ export default function DriverLiveMapCanvas({
     return mapTheme === "dark" ? MAPBOX_STYLE_DARK : MAPBOX_STYLE_LIGHT;
   }, [mapTheme, mapLayer]);
 
+  const serverDriverPos = useMemo(() => toLngLatMaybe((data as any)?.driverLocation), [data]);
+
   const driverPos = useMemo((): LngLat => {
-    const p = toLngLatMaybe((data as any)?.driverLocation);
-    return p ?? { lat: -6.7924, lng: 39.2083 };
-  }, [data]);
+    if (allowServerDriverFallback && serverDriverPos) return serverDriverPos;
+    return startupDriverPos ?? { lat: -6.7924, lng: 39.2083 };
+  }, [allowServerDriverFallback, serverDriverPos, startupDriverPos]);
+
+  const startupCenter = useMemo((): LngLat | null => {
+    if (manualDriverPos) return manualDriverPos;
+    if (startupDriverPos) return startupDriverPos;
+    if (allowServerDriverFallback) return serverDriverPos ?? { lat: -6.7924, lng: 39.2083 };
+    return null;
+  }, [allowServerDriverFallback, manualDriverPos, serverDriverPos, startupDriverPos]);
+
+  const hasTrackedDriverPos = Boolean(
+    manualDriverPos || snappedDriverPos || smoothedDriverPos || startupDriverPos || (allowServerDriverFallback && serverDriverPos)
+  );
+
+  useEffect(() => {
+    if (!startupDriverPos) return;
+    setManualDriverPos((current) => current ?? startupDriverPos);
+  }, [startupDriverPos]);
 
   // GPS smoothing + low-speed jitter control
   useEffect(() => {
@@ -461,6 +483,7 @@ export default function DriverLiveMapCanvas({
     if (typeof window === "undefined") return;
     if (!containerRef.current) return;
     if (!data) return;
+    if (!startupCenter) return;
     if (!mapboxToken) return;
     if (mapRef.current) return;
 
@@ -476,7 +499,7 @@ export default function DriverLiveMapCanvas({
           container: containerRef.current as HTMLElement,
           // Base style (switchable by driver)
           style: desiredStyleUrl,
-          center: [driverPos.lng, driverPos.lat],
+          center: [startupCenter.lng, startupCenter.lat],
           zoom: liveOnly ? 15 : 13,
           pitch: liveOnly ? 50 : 0,
           bearing: 0,
@@ -834,7 +857,7 @@ export default function DriverLiveMapCanvas({
       mapLoadedRef.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, mapboxToken, desiredStyleUrl]);
+  }, [data, mapboxToken, desiredStyleUrl, liveOnly, startupCenter]);
 
   // Switch base map style (light/dark) without remounting the whole page.
   useEffect(() => {
@@ -1167,7 +1190,7 @@ export default function DriverLiveMapCanvas({
     };
 
     const displayDriverPos = manualDriverPos ?? snappedDriverPos ?? smoothedDriverPos ?? driverPos;
-    setPoint("driver-point", ((data as any).driverLocation || manualDriverPos) ? displayDriverPos : null);
+    setPoint("driver-point", hasTrackedDriverPos ? displayDriverPos : null);
     setPoint("pickup-point", pickupPos);
     setPoint("dropoff-point", dropoffPos);
 
@@ -1195,6 +1218,7 @@ export default function DriverLiveMapCanvas({
   }, [
     data,
     driverPos,
+    hasTrackedDriverPos,
     manualDriverPos,
     smoothedDriverPos,
     snappedDriverPos,

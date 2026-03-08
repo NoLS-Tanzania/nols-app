@@ -3,35 +3,22 @@ import React, { useEffect, useState } from "react";
 import { Map, MapPin, X, Loader } from 'lucide-react';
 import DriverAvailabilitySwitch from './DriverAvailabilitySwitch';
 import { useRouter } from "next/navigation";
+import useDriverAvailability from "@/hooks/useDriverAvailability";
 
 type LiveMapProps = {
   isOpen: boolean;
-  onClose: () => void;
-  onGoToDashboard?: () => void;
+  onCloseAction: () => void;
+  onGoToDashboardAction?: () => void;
 };
 
 type GeoPermission = 'unknown' | 'granted' | 'prompt' | 'denied' | 'unsupported';
 
-export default function LiveMap({ isOpen, onClose, onGoToDashboard }: LiveMapProps) {
+export default function LiveMap({ isOpen, onCloseAction, onGoToDashboardAction }: LiveMapProps) {
   const router = useRouter();
   const [permission, setPermission] = useState<GeoPermission>('unknown');
   const [requesting, setRequesting] = useState(false);
   const [showSpinner, setShowSpinner] = useState(false);
-  const [available, setAvailable] = useState<boolean>(false);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    (async () => {
-      try {
-        const r = await fetch('/api/driver/availability', { credentials: 'include' });
-        if (!r.ok) return;
-        const data = await r.json();
-        setAvailable(Boolean(data?.available));
-      } catch {
-        // ignore
-      }
-    })();
-  }, [isOpen]);
+  const { available } = useDriverAvailability();
 
   useEffect(() => {
     if (!isOpen) return;
@@ -64,27 +51,15 @@ export default function LiveMap({ isOpen, onClose, onGoToDashboard }: LiveMapPro
     run();
   }, [isOpen]);
 
-  // If the availability switch is toggled ON elsewhere, automatically open live map.
   useEffect(() => {
-    const onAvail = (ev: any) => {
-      try {
-        const available = ev?.detail?.available;
-        if (available) {
-          setAvailable(true);
-          // close modal then navigate to live map view
-          onClose?.();
-          if (onGoToDashboard) return onGoToDashboard();
-          try { router.push('/driver?live=1'); } catch { /* ignore */ }
-        }
-      } catch (e) {}
-    };
-    try {
-      window.addEventListener('nols:availability:changed', onAvail as EventListener);
-    } catch (e) {}
-    return () => {
-      try { window.removeEventListener('nols:availability:changed', onAvail as EventListener); } catch (e) {}
-    };
-  }, [onClose, onGoToDashboard, router]);
+    if (!isOpen || !available) return;
+    onCloseAction?.();
+    if (onGoToDashboardAction) {
+      onGoToDashboardAction();
+      return;
+    }
+    try { router.push('/driver?live=1'); } catch { /* ignore */ }
+  }, [available, isOpen, onCloseAction, onGoToDashboardAction, router]);
 
   if (!isOpen) return null;
 
@@ -146,7 +121,7 @@ export default function LiveMap({ isOpen, onClose, onGoToDashboard }: LiveMapPro
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onCloseAction} />
       <div className="relative card w-full max-w-md z-20">
         <div className="card-section">
           <div className="flex flex-col items-center text-center gap-4">
@@ -179,7 +154,7 @@ export default function LiveMap({ isOpen, onClose, onGoToDashboard }: LiveMapPro
 
             <div className="mt-4 w-full">
               <div className="flex items-center justify-center gap-6">
-                <button onClick={onClose} aria-label="Close" className="px-3 py-2 rounded-md text-sm bg-gray-100 hover:bg-gray-200"><X className="h-4 w-4" /></button>
+                <button onClick={onCloseAction} aria-label="Close" className="px-3 py-2 rounded-md text-sm bg-gray-100 hover:bg-gray-200"><X className="h-4 w-4" /></button>
 
                 <div className="flex flex-col items-center">
                   <div className="text-sm text-gray-600 mb-2">Availability</div>

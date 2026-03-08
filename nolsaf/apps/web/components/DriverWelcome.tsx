@@ -5,6 +5,7 @@ import axios from "axios";
 import RefreshButton from "@/components/RefreshButton";
 import { Calendar, DollarSign, Star } from 'lucide-react';
 import DriverAvailabilitySwitch from "@/components/DriverAvailabilitySwitch";
+import useDriverAvailability from "@/hooks/useDriverAvailability";
 
 // Use same-origin calls + secure httpOnly cookie session.
 const api = axios.create({ baseURL: "", withCredentials: true });
@@ -44,56 +45,15 @@ export default function DriverWelcome({ className }: { className?: string }) {
   const name = getDriverFirstName(me);
   const isoDate = (new Date()).toISOString().slice(0,10);
   
-  const [available, setAvailable] = useState<boolean>(false);
+  const { available } = useDriverAvailability();
 
   // minimal placeholder state for the welcome card's map area (map is mounted on the Live Map page)
   const [mapVisible, setMapVisible] = useState<boolean>(false);
   const [mapError, _setMapError] = useState<string | null>(null);
 
   useEffect(() => {
-    const id = me?.id;
-    if (!id) return;
-
-    // Server source of truth
-    (async () => {
-      try {
-        const r = await api.get('/api/driver/availability');
-        const serverAvailable = Boolean(r?.data?.available);
-        setAvailable(serverAvailable);
-      } catch {
-        // ignore
-      }
-    })();
-  }, [me?.id]);
-
-  useEffect(() => {
-    const handler = (ev: Event) => {
-      try {
-        const detail = (ev as CustomEvent).detail || {};
-        if (typeof detail.available === 'boolean' && detail.confirmed !== false) {
-          setAvailable(detail.available);
-          try { setMapVisible(detail.available); } catch (e) {}
-        }
-      } catch (e) {
-        // ignore
-      }
-    };
-    const storageHandler = (e: StorageEvent) => {
-      const key = me?.id ? `driver_available:${String(me.id)}` : 'driver_available';
-      if (e.key === key) {
-        const val = e.newValue;
-        const avail = val === '1' || val === 'true';
-        setAvailable(avail);
-        try { setMapVisible(avail); } catch (e) {}
-      }
-    };
-    window.addEventListener('nols:availability:changed', handler as EventListener);
-    window.addEventListener('storage', storageHandler as any);
-    return () => {
-      window.removeEventListener('nols:availability:changed', handler as EventListener);
-      window.removeEventListener('storage', storageHandler as any);
-    };
-  }, [me?.id]);
+    setMapVisible(available);
+  }, [available]);
   
 
   // Map is provided by the Live Map page; welcome card shows a placeholder.

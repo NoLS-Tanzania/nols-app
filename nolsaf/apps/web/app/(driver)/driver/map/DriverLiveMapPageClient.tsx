@@ -13,6 +13,7 @@ import axios from "axios";
 import { notifyDriver, LocationMonitor } from "@/lib/driverNotifications";
 import TripSteps, { TripStep } from "@/components/TripSteps";
 import { useToast } from "@/hooks/useToast";
+import useDriverAvailability from "@/hooks/useDriverAvailability";
 import { ToastContainer } from "@/components/Toast";
 import { useConnectionStatus } from "@/hooks/useConnectionStatus";
 import LoadingSpinner from "@/components/LoadingSpinner";
@@ -117,6 +118,7 @@ export default function DriverLiveMapPage() {
   const countdownTimerRef = useRef<number | null>(null);
   const geoWatchIdRef = useRef<number | null>(null);
   const locationWarningShownRef = useRef(false);
+  const startupLocationResolvedRef = useRef(false);
   const lastAcceptedGpsRef = useRef<{ lat: number; lng: number; speedMps?: number; accuracyM?: number } | null>(null);
   const lastAcceptedGpsAtRef = useRef<number | null>(null);
   const pickupDwellRef = useRef<number | null>(null);
@@ -126,9 +128,12 @@ export default function DriverLiveMapPage() {
   const [isAtPickup, setIsAtPickup] = useState(false);
   const pickupEtaAtRef = useRef<number | null>(null);
   const destinationEtaAtRef = useRef<number | null>(null);
+  const [startupDriverPos, setStartupDriverPos] = useState<{ lat: number; lng: number; speedMps?: number } | null>(null);
+  const [startupLocationResolved, setStartupLocationResolved] = useState(false);
   
   // Toast notifications
   const { toasts, success, error, info, warning, removeToast } = useToast();
+  const { available, loaded: availabilityLoaded } = useDriverAvailability();
   
   // Connection status
   const { status: connectionStatus, isOnline } = useConnectionStatus();
@@ -251,35 +256,10 @@ export default function DriverLiveMapPage() {
     }
   }, [completedSteps]);
 
-  const [, setIsAvailable] = useState<boolean>(false);
-
   useEffect(() => {
-    const loadAvailability = async () => {
-      try {
-        const r = await fetch('/api/driver/availability', { credentials: 'include' });
-        if (!r.ok) return;
-        const data = await r.json();
-        const available = Boolean(data?.available);
-        setIsAvailable(available);
-        if (liveOnly && !available) setShowLiveOverlay(true);
-        if (liveOnly && available) setShowLiveOverlay(false);
-      } catch {
-        // ignore
-      }
-    };
-    loadAvailability();
-    // Listen for availability changes
-    const handleAvailabilityChange = (e: any) => {
-      const next = e.detail?.available ?? false;
-      setIsAvailable(next);
-      if (liveOnly && !next) setShowLiveOverlay(true);
-      if (liveOnly && next) setShowLiveOverlay(false);
-    };
-    window.addEventListener('nols:availability:changed', handleAvailabilityChange as EventListener);
-    return () => {
-      window.removeEventListener('nols:availability:changed', handleAvailabilityChange as EventListener);
-    };
-  }, [liveOnly]);
+    if (!liveOnly || !availabilityLoaded) return;
+    setShowLiveOverlay(!available);
+  }, [available, availabilityLoaded, liveOnly]);
 
   // Map theme (light/dark) preference for driver map
   useEffect(() => {
@@ -745,7 +725,21 @@ export default function DriverLiveMapPage() {
   // The recenter button remains useful for restoring focus after the driver pans away manually.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (typeof navigator === "undefined" || !navigator.geolocation) return;
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      startupLocationResolvedRef.current = true;
+      setStartupLocationResolved(true);
+      return;
+    }
+
+    const resolveStartupLocation = () => {
+      if (startupLocationResolvedRef.current) return;
+      startupLocationResolvedRef.current = true;
+      setStartupLocationResolved(true);
+    };
+
+    const startupFallbackTimer = window.setTimeout(() => {
+      resolveStartupLocation();
+    }, 4500);
 
     const emitSync = (coords: { lat: number; lng: number; speedMps?: number }) => {
       try {
@@ -793,10 +787,13 @@ export default function DriverLiveMapPage() {
         lastAcceptedGpsRef.current = next;
         lastAcceptedGpsAtRef.current = now;
         locationWarningShownRef.current = false;
+        setStartupDriverPos((current) => current ?? next);
+        resolveStartupLocation();
         setDriverPos(next);
         emitSync(next);
       },
       () => {
+        resolveStartupLocation();
         if (locationWarningShownRef.current) return;
         locationWarningShownRef.current = true;
         warning("Live location unavailable", "Enable device location for this site so the driver marker stays on your real position automatically.");
@@ -811,6 +808,7 @@ export default function DriverLiveMapPage() {
     geoWatchIdRef.current = watchId;
 
     return () => {
+      window.clearTimeout(startupFallbackTimer);
       if (geoWatchIdRef.current !== null) {
         try {
           navigator.geolocation.clearWatch(geoWatchIdRef.current);
@@ -1225,6 +1223,8 @@ export default function DriverLiveMapPage() {
             <DriverLiveMapCanvas
               className="absolute inset-0 z-0"
               liveOnly
+              startupDriverPos={startupDriverPos}
+              allowServerDriverFallback={startupLocationResolved}
               tripRequest={tripRequest}
               activeTrip={activeTrip}
               tripStage={tripStage}
@@ -1941,8 +1941,8 @@ export default function DriverLiveMapPage() {
 
       <LiveMap
         isOpen={showLiveOverlay}
-        onClose={() => setShowLiveOverlay(false)}
-        onGoToDashboard={() => { setShowLiveOverlay(false); router.push('/driver'); }}
+        onCloseAction={() => setShowLiveOverlay(false)}
+        onGoToDashboardAction={() => { setShowLiveOverlay(false); router.push('/driver'); }}
       />
     </div>
   );

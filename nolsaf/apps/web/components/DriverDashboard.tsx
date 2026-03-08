@@ -46,6 +46,7 @@ import {
   Eye,
 } from 'lucide-react';
 import DriverAvailabilitySwitch from "@/components/DriverAvailabilitySwitch";
+import useDriverAvailability from "@/hooks/useDriverAvailability";
 import {
   LineChart,
   Line,
@@ -143,7 +144,7 @@ export default function DriverDashboard({ className }: { className?: string }) {
   const [loading, setLoading] = useState(true);
   const [reminders, setReminders] = useState<Array<DashboardStats['reminders'][number]>>([]);
   const socketRef = useRef<Socket | null>(null);
-  const [available, setAvailable] = useState<boolean>(false);
+  const { available } = useDriverAvailability();
 
   // mapVisible state removed (was unused)
 
@@ -201,16 +202,6 @@ export default function DriverDashboard({ className }: { className?: string }) {
     } catch {
       // ignore
     }
-    // Source of truth: server availability
-    (async () => {
-      try {
-        const r = await api.get('/api/driver/availability');
-        const serverAvailable = Boolean(r?.data?.available);
-        setAvailable(serverAvailable);
-      } catch {
-        // ignore
-      }
-    })();
   }, [me?.id]);
 
   // Setup Socket.IO for real-time reminder updates
@@ -410,34 +401,6 @@ export default function DriverDashboard({ className }: { className?: string }) {
 
     loadStats();
   }, []);
-
-  // Listen to availability changes
-  useEffect(() => {
-    const handler = (ev: Event) => {
-      try {
-        const detail = (ev as CustomEvent).detail || {};
-        if (typeof detail.available === 'boolean' && detail.confirmed !== false) {
-          setAvailable(detail.available);
-        }
-      } catch (e) {}
-    };
-
-    const storageHandler = (e: StorageEvent) => {
-      const key = me?.id ? `driver_available:${String(me.id)}` : 'driver_available';
-      if (e.key === key) {
-        const val = e.newValue;
-        const avail = val === '1' || val === 'true';
-        setAvailable(avail);
-      }
-    };
-
-    window.addEventListener('nols:availability:changed', handler as EventListener);
-    window.addEventListener('storage', storageHandler as any);
-    return () => {
-      window.removeEventListener('nols:availability:changed', handler as EventListener);
-      window.removeEventListener('storage', storageHandler as any);
-    };
-  }, [me?.id]);
 
   // Map initialization is centralized in DriverLiveMap to avoid duplicate instances.
 
