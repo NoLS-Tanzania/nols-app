@@ -2,7 +2,7 @@
 
 import type { ComponentType, Dispatch, MutableRefObject, SetStateAction } from "react";
 import { AlertTriangle, Building2, CheckCircle2, ChevronDown, HelpCircle, Home, LayoutGrid, MapPin, AlertCircle, Navigation2, Pencil, X } from "lucide-react";
-import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AddPropertySection } from "./AddPropertySection";
 import { StepFooter } from "./StepFooter";
@@ -74,6 +74,7 @@ export type BasicsStepProps = {
   locationTrackingEnabled: boolean;
   locationLoading: boolean;
   handleLocationToggle: (enabled: boolean) => void;
+  onLocationDetected?: (lat: number, lng: number, meta?: { source?: "gps" | "pin"; accuracy?: number | null }) => void;
 
   tourismSiteId?: number | "";
   setTourismSiteId?: Dispatch<SetStateAction<number | "">>;
@@ -84,12 +85,19 @@ export type BasicsStepProps = {
     latitude: number;
     longitude: number;
     postcode: string | null;
-    onLocationDetected: (lat: number, lng: number) => void;
+    onLocationDetected: (lat: number, lng: number, meta?: { source?: "gps" | "pin"; accuracy?: number | null }) => void;
   }>;
   /** Warning message when the map pin region doesn't match the selected Region */
   locationMismatchWarning?: string | null;
   /** True while the reverse-geocoding consistency check is in-flight */
   checkingPinLocation?: boolean;
+  locationSource?: "gps" | "pin" | null;
+  locationAccuracyMeters?: number | null;
+  detectedAddress?: string | null;
+  detectedRegion?: string | null;
+  detectedDistrict?: string | null;
+  detectedWard?: string | null;
+  detectedPostcode?: string | null;
 };
 
 type TourismSiteOption = {
@@ -129,7 +137,6 @@ export const BasicsStep = forwardRef<HTMLElement, BasicsStepProps>(function Basi
 
   PROPERTY_TYPES,
   PROPERTY_TYPE_ICONS,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   PROPERTY_TYPE_STYLES,
   HOTEL_STAR_OPTIONS,
 
@@ -160,6 +167,7 @@ export const BasicsStep = forwardRef<HTMLElement, BasicsStepProps>(function Basi
   locationTrackingEnabled,
   locationLoading,
   handleLocationToggle,
+  onLocationDetected,
 
   tourismSiteId,
   setTourismSiteId,
@@ -169,6 +177,13 @@ export const BasicsStep = forwardRef<HTMLElement, BasicsStepProps>(function Basi
 PropertyLocationMap,
   locationMismatchWarning,
   checkingPinLocation,
+  locationSource,
+  locationAccuracyMeters,
+  detectedAddress,
+  detectedRegion,
+  detectedDistrict,
+  detectedWard,
+  detectedPostcode,
 } = props;
 
 const tourismSiteIdValue = tourismSiteId ?? "";
@@ -437,65 +452,95 @@ const nameOk = title.trim().length >= 3;
   }, [nameOk, typeOk, buildingType, totalFloors, regionId, district, ward, street, showTypeExtras, otherType, hotelStar, type]);
 
   const totalFields = 6;
+  const completionPercent = Math.round((completionCount / totalFields) * 100);
 
   return (
     <AddPropertySection
       as="section"
       sectionRef={handleSectionRef}
       isVisible={isVisible}
-      className="bg-white rounded-xl border border-slate-200 p-4 sm:p-6 shadow-sm"
+      className="add-property-section-premium"
     >
       {isVisible && (
         <div id="propertyBasicsInner" className="w-full">
-          <StepHeader
-            step={1}
-            title="Basic details"
-            description="Name your property, choose the type, and set the exact location."
-          />
-          <div className="pt-4">
-            {/* Status Card - Modern Design */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border-2 border-gray-200 bg-gradient-to-br from-gray-50 to-white px-4 sm:px-5 py-4 shadow-sm mb-6">
-              <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-base transition-all duration-300 ${
-                  basicsCompleted
-                    ? "bg-emerald-100 text-emerald-700"
-                    : "bg-amber-100 text-amber-700"
-                }`}>
-                  {completionCount}/{totalFields}
-                </div>
-                <div className="text-sm text-gray-700">
-                  <span className="font-semibold text-gray-900">Basic details</span>
-                  <span className="text-gray-500 mx-1">·</span>
-                  <span className="text-gray-600">
-                    {basicsCompleted ? (
-                      <span className="font-bold text-emerald-600 flex items-center gap-1">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> Complete
-                      </span>
-                    ) : (
-                      <span className="font-bold text-amber-600 flex items-center gap-1">
-                        <AlertCircle className="w-3.5 h-3.5" /> {totalFields - completionCount} remaining
-                      </span>
-                    )}
-                  </span>
+          <div className="add-property-section-hero">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div className="min-w-0">
+                <span className="add-property-kicker">Premium Listing Setup</span>
+                <div className="mt-4">
+                  <StepHeader
+                    step={1}
+                    title="Basic details"
+                    description="Shape the first impression with a strong property identity, precise location, and structured listing data."
+                  />
                 </div>
               </div>
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200/50">
-                <div className="text-xs font-semibold text-emerald-700">
-                  All fields required <span className="text-red-500">*</span>
+              <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                <span className="add-property-metric-chip">{completionPercent}% ready</span>
+                <span className="add-property-metric-chip">Step 1 of 6</span>
+              </div>
+            </div>
+          </div>
+          <div className="pt-4">
+            <div className="add-property-status-premium mb-6">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`flex h-12 w-12 items-center justify-center rounded-2xl font-bold text-base transition-all duration-300 ${
+                  basicsCompleted
+                    ? "bg-emerald-100 text-emerald-700 shadow-sm shadow-emerald-200/50"
+                    : "bg-amber-100 text-amber-700 shadow-sm shadow-amber-200/50"
+                }`}>
+                  {completionCount}/{totalFields}
+                  </div>
+                  <div className="text-sm text-gray-700">
+                    <div className="font-semibold text-slate-900">Basic details</div>
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-gray-600">
+                      {basicsCompleted ? (
+                        <span className="flex items-center gap-1 font-bold text-emerald-600">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Complete and ready for the next step
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 font-bold text-amber-600">
+                          <AlertCircle className="w-3.5 h-3.5" /> {totalFields - completionCount} required items remaining
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200/60 bg-emerald-50/80 px-3 py-1.5 text-xs font-semibold text-emerald-700">
+                    All fields required <span className="text-red-500">*</span>
+                  </div>
+                  <div className="inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-white/85 px-3 py-1.5 text-xs font-semibold text-slate-600">
+                    Exact location verification enabled
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 space-y-2">
+                <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  <span>Section progress</span>
+                  <span>{completionPercent}%</span>
+                </div>
+                <div className="add-property-progress-track">
+                  <div className="add-property-progress-fill" style={{ width: `${completionPercent}%` }} />
                 </div>
               </div>
             </div>
 
           <div className="space-y-6 w-full">
-            {/* Property Type Selection - Modern Card Design */}
-            <div className="rounded-xl border border-gray-200 bg-white p-5 sm:p-6 shadow-sm transition-all duration-300 hover:shadow-md">
+            <div className="add-property-panel-premium">
               <div className="flex items-center justify-between gap-3 mb-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-900" id="propertyTypeLabel">
                     Property Type <span className="text-red-500">*</span>
                   </label>
-                  <p className="text-xs text-gray-500 mt-1">Select the type of property you&apos;re listing</p>
+                  <p className="mt-1 text-xs text-gray-500">Select the category that best matches the guest experience you want to present.</p>
                 </div>
+                {typeOk ? (
+                  <div className="hidden sm:inline-flex items-center rounded-full border border-slate-200/80 bg-white/90 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm shadow-slate-200/40">
+                    Chosen type: <span className="ml-1 text-emerald-700">{type}</span>
+                  </div>
+                ) : null}
                 {collapseTypes ? (
                   <button
                     type="button"
@@ -516,14 +561,19 @@ const nameOk = title.trim().length >= 3;
                   const selected = type === pt;
                   const labelText = pt === "Other" ? "Specify if none of the above" : `Typical ${pt.toLowerCase()}`;
                   const IconComponent = PROPERTY_TYPE_ICONS[pt] || HelpCircle;
+                  const tone = PROPERTY_TYPE_STYLES[pt] || PROPERTY_TYPE_STYLES.Other || {
+                    border: "border-slate-400",
+                    text: "text-slate-700",
+                    bg: "from-white to-slate-50",
+                  };
 
                   return (
                     <label
                       key={pt}
-                      className={`group relative bg-gradient-to-br from-gray-50 to-white p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 ${
+                      className={`group relative overflow-hidden rounded-2xl border cursor-pointer transition-all duration-300 ${
                         selected
-                          ? "border-emerald-500 shadow-md shadow-emerald-500/20"
-                          : "border-gray-200 hover:border-emerald-300"
+                          ? `${tone.border} bg-gradient-to-br ${tone.bg} shadow-lg shadow-slate-200/50 ring-1 ring-black/5`
+                          : "border-slate-200/80 bg-white/88 shadow-sm shadow-slate-200/35 hover:-translate-y-1 hover:border-slate-300 hover:shadow-lg"
                       }`}
                     >
                       <input
@@ -541,34 +591,37 @@ const nameOk = title.trim().length >= 3;
                         }}
                         className="sr-only"
                       />
-                      <div className="flex items-center justify-center">
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all duration-300 mr-3 ${
+                      <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${selected ? "from-[#02665e] via-emerald-400 to-transparent" : "from-slate-200 via-slate-100 to-transparent"}`} />
+                      <div className="flex h-full flex-col justify-between gap-4 p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className={`flex h-12 w-12 items-center justify-center rounded-2xl transition-all duration-300 ${
                           selected
-                            ? "bg-emerald-100 group-hover:bg-emerald-200 group-hover:scale-110"
-                            : "bg-gray-100 group-hover:bg-emerald-100"
+                            ? `bg-white/80 ${tone.text} shadow-sm shadow-white/60`
+                            : "bg-slate-100 text-slate-600 group-hover:bg-slate-50"
                         }`}>
                           <IconComponent
-                            className={`w-5 h-5 transition-colors duration-300 ${
-                              selected ? "text-emerald-600" : "text-gray-600"
+                            className={`h-5 w-5 transition-colors duration-300 ${
+                              selected ? tone.text : "text-slate-600"
                             }`}
                           />
                         </div>
-                        <div className="flex-1">
-                          <div className={`text-sm font-semibold transition-colors duration-300 ${
-                            selected ? "text-emerald-700" : "text-gray-900"
+                          <div className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] transition-all ${
+                            selected
+                              ? "border-white/60 bg-white/75 text-slate-700"
+                              : "border-slate-200 bg-slate-50 text-slate-500"
                           }`}>
+                            {selected ? "Selected" : "Type"}
+                          </div>
+                        </div>
+                        <div>
+                          <div className={`text-[15px] font-semibold transition-colors duration-300 ${selected ? tone.text : "text-slate-900"}`}>
                             {pt}
                           </div>
-                          <div className={`text-xs transition-colors line-clamp-2 ${
-                            selected ? "text-emerald-600" : "text-gray-500"
-                          }`}>
+                          <div className={`mt-1 text-xs leading-relaxed transition-colors line-clamp-2 ${selected ? "text-slate-700" : "text-slate-500"}`}>
                             {labelText}
                           </div>
                         </div>
                       </div>
-                      {selected && (
-                        <div className="absolute top-2 right-2 w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse border-2 border-white" />
-                      )}
                     </label>
                   );
                 })}
@@ -585,8 +638,7 @@ const nameOk = title.trim().length >= 3;
               {/* Property name appears AFTER type is selected */}
               {typeOk ? (
                 <div className="space-y-6 w-full max-w-4xl">
-                  {/* Property Name & Type Extras - Modern Card Design */}
-                  <div className="rounded-xl border border-gray-200 bg-white p-5 sm:p-6 shadow-sm transition-all duration-300 hover:shadow-md">
+                  <div className="add-property-panel-premium">
                     <div className="mb-4">
                       <h3 className="text-sm font-semibold text-gray-900 mb-1">Property Information</h3>
                       <p className="text-xs text-gray-500">Enter your property name and any additional details</p>
@@ -683,8 +735,7 @@ const nameOk = title.trim().length >= 3;
                     </div>
                   </div>
 
-                  {/* Building layout - Modern Card Design */}
-                  <div className="rounded-xl border border-gray-200 bg-white p-5 sm:p-6 shadow-sm transition-all duration-300 hover:shadow-md">
+                  <div className="add-property-panel-premium">
                     <div className="mb-4">
                       <label className="block text-sm font-semibold text-gray-900" id="buildingLayoutLabel">
                         Building Layout <span className="text-red-500">*</span>
@@ -820,32 +871,44 @@ const nameOk = title.trim().length >= 3;
             </div>
 
             {/* Property Location */}
-            <div className="rounded-2xl border border-slate-200 bg-white/70 p-5 sm:p-6 shadow-sm ring-1 ring-black/5 transition-all duration-300 hover:shadow-md">
-              <div className="mb-6">
-                <h2 className="text-lg font-semibold text-slate-900 mb-1">
-                  Property Location <span className="text-rose-600">*</span>
-                </h2>
-                <p className="text-xs text-slate-600">Provide the location details for your property</p>
+            <div className="add-property-location-module">
+              <div className="add-property-location-hero">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-lg shadow-slate-300/40">
+                      <MapPin className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <span className="add-property-kicker">Address foundation</span>
+                      <h2 className="mt-3 text-xl font-semibold text-slate-900 mb-1">
+                        Property Location <span className="text-rose-600">*</span>
+                      </h2>
+                      <p className="max-w-2xl text-sm leading-relaxed text-slate-600">Build the official address in the right order so the property pin, postcode, and destination discovery stay consistent across the listing.</p>
+                    </div>
+                  </div>
+                  <div className="add-property-location-workflow">
+                    <span className="add-property-location-step"><span className="add-property-location-step-index">1</span> Region</span>
+                    <span className="add-property-location-step"><span className="add-property-location-step-index">2</span> District</span>
+                    <span className="add-property-location-step"><span className="add-property-location-step-index">3</span> Ward and street</span>
+                  </div>
+                </div>
               </div>
 
-              {/* Region, District, Ward - Uniform Grid Layout */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Region */}
                 <div className="flex flex-col space-y-2">
-                  <label className="block text-sm font-medium text-slate-700">
-                    Region <span className="text-rose-600">*</span>
-                  </label>
-                  <div
-                    className={[
-                      "relative rounded-xl shadow-sm transition-colors",
-                      regionId ? "border border-transparent bg-slate-50" : "border border-slate-200 bg-white",
-                    ].join(" ")}
-                  >
-                    {regionId ? (
-                      <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-emerald-600 z-10">
-                        <CheckCircle2 className="h-4 w-4" />
+                  <div className={[
+                    "add-property-field-card",
+                    regionId ? "add-property-field-card-valid" : "",
+                  ].join(" ")}>
+                    <div className="add-property-field-card-head">
+                      <div>
+                        <div className="add-property-field-card-label">Region <span className="text-rose-600">*</span></div>
+                        <div className="add-property-field-card-value">{regionId ? (REGIONS.find((region) => region.id === regionId)?.name ?? regionId) : "Choose property region"}</div>
                       </div>
-                    ) : null}
+                      <span className={`add-property-field-badge ${regionId ? "add-property-field-badge-valid" : "add-property-field-badge-disabled"}`}>
+                        {regionId ? "set" : "required"}
+                      </span>
+                    </div>
                     <select
                       title="Region"
                       value={regionId}
@@ -854,10 +917,7 @@ const nameOk = title.trim().length >= 3;
                         setDistrict("");
                         setWard("");
                       }}
-                      className={[
-                        "appearance-none w-full h-12 pl-10 pr-10 text-sm text-slate-900 rounded-xl bg-transparent border border-transparent shadow-none",
-                        "transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 cursor-pointer",
-                      ].join(" ")}
+                      className={["add-property-field-control", "h-12 cursor-pointer appearance-none px-4 pr-10"].join(" ")}
                       aria-required={true}
                     >
                       <option value="">Select region</option>
@@ -873,27 +933,35 @@ const nameOk = title.trim().length >= 3;
                   </div>
                 </div>
 
-                {/* District */}
                 <div className="flex flex-col space-y-2">
-                  <label className="block text-sm font-medium text-slate-700">
-                    District <span className="text-rose-600">*</span>
-                  </label>
                   <div
-                    className={`relative rounded-xl shadow-sm transition-colors ${
+                    className={`add-property-field-card ${
                       touchedBasics.district && !district
-                        ? "border-2 border-rose-400 bg-rose-50"
+                        ? "add-property-field-card-error"
                         : !regionId
-                          ? "border border-slate-200 bg-slate-50"
+                          ? "add-property-field-card-disabled"
                           : district
-                            ? "border border-transparent bg-slate-50"
-                            : "border border-slate-200 bg-white"
+                            ? "add-property-field-card-valid"
+                            : ""
                     }`}
                   >
-                    {district ? (
-                      <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-emerald-600 z-10">
-                        <CheckCircle2 className="h-4 w-4" />
+                    <div className="add-property-field-card-head">
+                      <div>
+                        <div className="add-property-field-card-label">District <span className="text-rose-600">*</span></div>
+                        <div className="add-property-field-card-value">{district || (regionId ? "Choose district" : "Unlock after region")}</div>
                       </div>
-                    ) : null}
+                      <span className={`add-property-field-badge ${
+                        touchedBasics.district && !district
+                          ? "add-property-field-badge-error"
+                          : !regionId
+                            ? "add-property-field-badge-disabled"
+                            : district
+                              ? "add-property-field-badge-valid"
+                              : "add-property-field-badge-disabled"
+                      }`}>
+                        {touchedBasics.district && !district ? "fix" : !regionId ? "locked" : district ? "set" : "required"}
+                      </span>
+                    </div>
                     <select
                       title="District"
                       value={district}
@@ -905,7 +973,7 @@ const nameOk = title.trim().length >= 3;
                       }}
                       onBlur={() => setTouchedBasics((t) => ({ ...t, district: true }))}
                       disabled={!regionId}
-                      className={`appearance-none w-full h-12 pl-10 pr-10 text-sm rounded-xl shadow-none bg-transparent border border-transparent transition-colors focus:outline-none focus:ring-2 cursor-pointer ${
+                      className={`add-property-field-control appearance-none h-12 cursor-pointer px-4 pr-10 ${
                         touchedBasics.district && !district
                           ? "text-slate-900 focus:ring-rose-200 focus:border-rose-500"
                           : !regionId
@@ -937,27 +1005,35 @@ const nameOk = title.trim().length >= 3;
                   )}
                 </div>
 
-                {/* Ward */}
                 <div className="flex flex-col space-y-2">
-                  <label className="block text-sm font-medium text-slate-700">
-                    Ward <span className="text-rose-600">*</span>
-                  </label>
                   <div
-                    className={`relative rounded-xl shadow-sm transition-colors ${
+                    className={`add-property-field-card ${
                       touchedBasics.ward && !ward
-                        ? "border-2 border-rose-400 bg-rose-50"
+                        ? "add-property-field-card-error"
                         : !district
-                          ? "border border-slate-200 bg-slate-50"
+                          ? "add-property-field-card-disabled"
                           : ward
-                            ? "border border-transparent bg-slate-50"
-                            : "border border-slate-200 bg-white"
+                            ? "add-property-field-card-valid"
+                            : ""
                     }`}
                   >
-                    {ward ? (
-                      <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-emerald-600 z-10">
-                        <CheckCircle2 className="h-4 w-4" />
+                    <div className="add-property-field-card-head">
+                      <div>
+                        <div className="add-property-field-card-label">Ward <span className="text-rose-600">*</span></div>
+                        <div className="add-property-field-card-value">{ward || (district ? "Choose ward" : "Unlock after district")}</div>
                       </div>
-                    ) : null}
+                      <span className={`add-property-field-badge ${
+                        touchedBasics.ward && !ward
+                          ? "add-property-field-badge-error"
+                          : !district
+                            ? "add-property-field-badge-disabled"
+                            : ward
+                              ? "add-property-field-badge-valid"
+                              : "add-property-field-badge-disabled"
+                      }`}>
+                        {touchedBasics.ward && !ward ? "fix" : !district ? "locked" : ward ? "set" : "required"}
+                      </span>
+                    </div>
                     <select
                       title="Ward"
                       value={ward}
@@ -968,7 +1044,7 @@ const nameOk = title.trim().length >= 3;
                       }}
                       onBlur={() => setTouchedBasics((t) => ({ ...t, ward: true }))}
                       disabled={!district}
-                      className={`appearance-none w-full h-12 pl-10 pr-10 text-sm rounded-xl shadow-none bg-transparent border border-transparent transition-colors focus:outline-none focus:ring-2 cursor-pointer ${
+                      className={`add-property-field-control appearance-none h-12 cursor-pointer px-4 pr-10 ${
                         touchedBasics.ward && !ward
                           ? "text-slate-900 focus:ring-rose-200 focus:border-rose-500"
                           : !district
@@ -1001,28 +1077,36 @@ const nameOk = title.trim().length >= 3;
                 </div>
               </div>
 
-              {/* Street Address, City, Zip Code - Uniform Grid Layout */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div className="flex min-w-0 flex-col space-y-2">
-                  <label htmlFor="streetAddress" className="block text-sm font-medium text-slate-700">
-                    Street Address <span className="text-rose-600">*</span>
-                  </label>
                   <div
-                    className={`relative rounded-xl shadow-sm transition-colors ${
+                    className={`add-property-field-card ${
                       touchedBasics.street && !street
-                        ? "border-2 border-rose-400 bg-rose-50"
+                        ? "add-property-field-card-error"
                         : !ward
-                          ? "border border-slate-200 bg-slate-50"
+                          ? "add-property-field-card-disabled"
                           : street
-                            ? "border border-transparent bg-slate-50"
-                            : "border border-slate-200 bg-white"
+                            ? "add-property-field-card-valid"
+                            : ""
                     }`}
                   >
-                    {street ? (
-                      <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-emerald-600 z-10">
-                        <CheckCircle2 className="h-4 w-4" />
+                    <div className="add-property-field-card-head">
+                      <div>
+                        <div className="add-property-field-card-label">Street address <span className="text-rose-600">*</span></div>
+                        <div className="add-property-field-card-value">{street || (ward ? "Choose street" : "Unlock after ward")}</div>
                       </div>
-                    ) : null}
+                      <span className={`add-property-field-badge ${
+                        touchedBasics.street && !street
+                          ? "add-property-field-badge-error"
+                          : !ward
+                            ? "add-property-field-badge-disabled"
+                            : street
+                              ? "add-property-field-badge-valid"
+                              : "add-property-field-badge-disabled"
+                      }`}>
+                        {touchedBasics.street && !street ? "fix" : !ward ? "locked" : street ? "set" : "required"}
+                      </span>
+                    </div>
                     <select
                       id="streetAddress"
                       title="Street"
@@ -1030,7 +1114,7 @@ const nameOk = title.trim().length >= 3;
                       onChange={(e) => setStreet(e.target.value)}
                       onBlur={() => setTouchedBasics((t) => ({ ...t, street: true }))}
                       disabled={!ward}
-                      className={`min-w-0 appearance-none w-full h-12 pl-10 pr-10 text-sm rounded-xl shadow-none bg-transparent border border-transparent transition-colors focus:outline-none focus:ring-2 cursor-pointer ${
+                      className={`add-property-field-control min-w-0 appearance-none h-12 cursor-pointer px-4 pr-10 ${
                         touchedBasics.street && !street
                           ? "text-slate-900 focus:ring-rose-200 focus:border-rose-500"
                           : !ward
@@ -1062,45 +1146,53 @@ const nameOk = title.trim().length >= 3;
                   )}
                 </div>
                 <div className="flex min-w-0 flex-col space-y-2">
-                  <label htmlFor="city" className="block text-sm font-medium text-slate-700">
-                    City <span className="text-xs text-slate-400 font-normal">(optional)</span>
-                  </label>
-                  <div
-                    className={[
-                      "rounded-xl border shadow-sm transition-colors",
-                      city.trim() ? "border-transparent bg-slate-50" : "border-slate-200 bg-white",
-                    ].join(" ")}
-                  >
+                  <div className={["add-property-field-card", city.trim() ? "add-property-field-card-valid" : ""].join(" ")}>
+                    <div className="add-property-field-card-head">
+                      <div>
+                        <div className="add-property-field-card-label">City <span className="text-slate-400 normal-case tracking-normal">optional</span></div>
+                        <div className="add-property-field-card-value">{city.trim() || "Add a city name"}</div>
+                      </div>
+                      <span className={`add-property-field-badge ${city.trim() ? "add-property-field-badge-valid" : "add-property-field-badge-disabled"}`}>
+                        {city.trim() ? "set" : "optional"}
+                      </span>
+                    </div>
                     <input
                       id="city"
                       type="text"
                       value={city}
                       onChange={(e) => setCity(e.target.value)}
-                      className="min-w-0 w-full h-12 px-4 text-sm text-slate-900 placeholder-slate-400 rounded-xl bg-transparent border border-transparent shadow-none transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      className="add-property-field-control h-12 px-4 placeholder-slate-400"
                       placeholder="City"
                     />
                   </div>
                 </div>
                 <div className="flex min-w-0 flex-col space-y-2">
-                  <label htmlFor="zip" className="block text-sm font-medium text-slate-700">
-                    Zip Code{" "}
-                    {selectedWardPostcode ? (
-                      <span className="text-rose-600">*</span>
-                    ) : (
-                      <span className="text-xs text-slate-400 font-normal">(optional)</span>
-                    )}
-                  </label>
                   <div
-                    className={`rounded-xl shadow-sm transition-colors ${
+                    className={`add-property-field-card ${
                       touchedBasics.zip && selectedWardPostcode && (!zip || zip.trim().length === 0)
-                        ? "border-2 border-rose-400 bg-rose-50"
+                        ? "add-property-field-card-error"
                         : selectedWardPostcode
-                          ? "border border-transparent bg-slate-50"
+                          ? "add-property-field-card-valid"
                           : zip.trim()
-                            ? "border border-transparent bg-slate-50"
-                            : "border border-slate-200 bg-white"
+                            ? "add-property-field-card-valid"
+                            : ""
                     }`}
                   >
+                    <div className="add-property-field-card-head">
+                      <div>
+                        <div className="add-property-field-card-label">Zip code {selectedWardPostcode ? <span className="text-rose-600">*</span> : <span className="text-slate-400 normal-case tracking-normal">optional</span>}</div>
+                        <div className="add-property-field-card-value">{zip.trim() || (selectedWardPostcode ? "Auto-filled by selected ward" : "Add postcode if available")}</div>
+                      </div>
+                      <span className={`add-property-field-badge ${
+                        touchedBasics.zip && selectedWardPostcode && (!zip || zip.trim().length === 0)
+                          ? "add-property-field-badge-error"
+                          : (selectedWardPostcode || zip.trim())
+                            ? "add-property-field-badge-valid"
+                            : "add-property-field-badge-disabled"
+                      }`}>
+                        {touchedBasics.zip && selectedWardPostcode && (!zip || zip.trim().length === 0) ? "fix" : (selectedWardPostcode || zip.trim()) ? "set" : "optional"}
+                      </span>
+                    </div>
                     <input
                       id="zip"
                       type="text"
@@ -1108,7 +1200,7 @@ const nameOk = title.trim().length >= 3;
                       onChange={(e) => setZip(e.target.value)}
                       onBlur={() => setTouchedBasics((t) => ({ ...t, zip: true }))}
                       readOnly={!!selectedWardPostcode}
-                      className={`min-w-0 w-full h-12 px-4 text-sm rounded-xl shadow-none bg-transparent border border-transparent transition-colors focus:outline-none focus:ring-2 ${
+                      className={`add-property-field-control min-w-0 h-12 px-4 ${
                         touchedBasics.zip && selectedWardPostcode && (!zip || zip.trim().length === 0)
                           ? "text-slate-900 focus:ring-rose-200 focus:border-rose-500"
                           : selectedWardPostcode
@@ -1130,231 +1222,264 @@ const nameOk = title.trim().length >= 3;
                     </p>
                   )}
                   {selectedWardPostcode && zip && (
-                    <p className="text-xs text-emerald-600 mt-0.5">Auto-filled from selected ward</p>
+                    <p className="add-property-field-note-success mt-0.5">Auto-filled from selected ward</p>
                   )}
                   {!selectedWardPostcode && ward && (
-                    <p className="text-xs text-amber-600 mt-0.5">
+                    <p className="add-property-field-note-warning mt-0.5">
                       Postcode not available for this ward - please enter manually
                     </p>
                   )}
                 </div>
               </div>
 
-              {/* Park / Tourism Site (Optional) */}
-              <div className="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-5 sm:p-6 shadow-sm ring-1 ring-black/5 transition-all duration-300 hover:shadow-md">
-                <div className="mb-4 flex items-start justify-between gap-3">
+              <div className="mt-6 add-property-location-submodule">
+                <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                   <div className="min-w-0">
-                    <h3 className="text-sm font-semibold text-slate-900 mb-1">Park / Tourism Site</h3>
-                    <p className="text-xs text-slate-600">
-                      If your property is inside or near a park, link it here so travelers can find it under that destination.
+                    <span className="add-property-kicker">Destination discovery</span>
+                    <h3 className="mt-3 text-lg font-semibold text-slate-900 mb-1">Park / Tourism Site</h3>
+                    <p className="max-w-2xl text-sm leading-relaxed text-slate-600">
+                      Link the property to a known destination only if it is genuinely inside or near that park, so travelers discover it in the right context.
                     </p>
                   </div>
-                  <span className="shrink-0 inline-flex items-center rounded-full border border-slate-200 bg-white/70 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
-                    Optional
-                  </span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="add-property-metric-chip">Optional</span>
+                    <span className="add-property-metric-chip">Improves destination visibility</span>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 gap-6 md:grid-cols-12">
                   <div className="md:col-span-7 flex flex-col space-y-2">
-                    <div className="flex items-center justify-between gap-3">
-                      <label className="block text-sm font-medium text-slate-700">Tourism site / Park</label>
-                    </div>
-
-                    {parkIsLocked ? (
-                      <div className="w-full h-12 px-4 text-sm rounded-xl border border-slate-300 bg-slate-50 shadow-sm inline-flex items-center justify-between gap-3">
-                        <div className="min-w-0 truncate font-semibold text-slate-900 inline-flex items-center gap-2">
-                          <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                          <span className="truncate">
-                            {selectedTourismSite?.name}
-                            {selectedTourismSite?.country ? (
-                              <span className="ml-2 font-medium text-slate-500">({selectedTourismSite.country})</span>
-                            ) : null}
-                          </span>
+                    <div className={[
+                      "add-property-field-card",
+                      selectedTourismSite ? "add-property-field-card-valid" : !tourismCountry ? "add-property-field-card-disabled" : "",
+                    ].join(" ")}>
+                      <div className="add-property-field-card-head">
+                        <div>
+                          <div className="add-property-field-card-label">Tourism site / Park</div>
+                          <div className="add-property-field-card-value">
+                            {selectedTourismSite?.name || (!tourismCountry ? "Unlock after location setup" : "Not linked to a park")}
+                          </div>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsEditingPark(true);
-                            setIsEditingPlacement(true);
-                            window.setTimeout(() => {
-                              if (tourismSitesLoading || !tourismCountry) return;
-                              setParkPickerOpen(true);
-                              setParkQuery(selectedTourismSite?.name ?? "");
-                              parkInputRef.current?.focus();
-                            }, 0);
-                          }}
-                          className="shrink-0 inline-flex items-center justify-center h-9 w-9 rounded-lg border border-transparent bg-transparent text-emerald-600 transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                          aria-label="Edit park"
-                          title="Edit"
-                        >
-                            <Pencil className="h-4 w-4 text-emerald-600" />
-                        </button>
+                        <span className={`add-property-field-badge ${selectedTourismSite ? "add-property-field-badge-valid" : !tourismCountry ? "add-property-field-badge-disabled" : "add-property-field-badge-disabled"}`}>
+                          {selectedTourismSite ? "linked" : !tourismCountry ? "locked" : "optional"}
+                        </span>
                       </div>
-                    ) : (
-                      <div ref={parkPickerRef} className="relative">
-                        <input
-                          ref={parkInputRef}
-                          value={parkPickerOpen ? parkQuery : selectedTourismSite?.name ?? ""}
-                          onFocus={() => {
-                            if (tourismSitesLoading || !tourismCountry) return;
-                            setParkPickerOpen(true);
-                            setParkQuery(selectedTourismSite?.name ?? "");
-                          }}
-                          onChange={(e) => {
-                            setParkQuery(e.target.value);
-                            if (!tourismSitesLoading && tourismCountry) setParkPickerOpen(true);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === "Escape") {
-                              setParkPickerOpen(false);
-                              setParkQuery("");
-                            }
-                          }}
-                          placeholder={
-                            !tourismCountry
-                              ? "Select location first (region/district/ward)"
-                              : tourismSitesLoading
-                                ? "Loading parks…"
-                                : "Not linked to a park"
-                          }
-                          className="w-full h-12 pl-4 pr-24 text-sm text-slate-900 bg-white border border-slate-300 rounded-xl shadow-sm transition-all duration-200 hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
-                          role="combobox"
-                          aria-haspopup="listbox"
-                          aria-expanded={parkPickerOpen}
-                          aria-controls="parkListbox"
-                          disabled={tourismSitesLoading || !tourismCountry}
-                          title="Tourism site"
-                        />
 
-                        {selectedTourismSite ? (
+                      {parkIsLocked ? (
+                        <div className="add-property-field-shell add-property-field-shell-valid w-full h-12 px-4 text-sm inline-flex items-center justify-between gap-3">
+                          <div className="min-w-0 truncate font-semibold text-slate-900 inline-flex items-center gap-2">
+                            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                            <span className="truncate">
+                              {selectedTourismSite?.name}
+                              {selectedTourismSite?.country ? (
+                                <span className="ml-2 font-medium text-slate-500">({selectedTourismSite.country})</span>
+                              ) : null}
+                            </span>
+                          </div>
                           <button
                             type="button"
                             onClick={() => {
-                              setTourismSiteIdValue("");
-                              setLocalTourismSiteId("");
-                              setParkPlacementValue("");
-                              setLocalParkPlacement("");
-                              setParkPickerOpen(false);
-                              setParkQuery("");
-                              setIsEditingPark(false);
-                              setIsEditingPlacement(false);
-                              window.setTimeout(() => parkInputRef.current?.focus(), 0);
+                              setIsEditingPark(true);
+                              setIsEditingPlacement(true);
+                              window.setTimeout(() => {
+                                if (tourismSitesLoading || !tourismCountry) return;
+                                setParkPickerOpen(true);
+                                setParkQuery(selectedTourismSite?.name ?? "");
+                                parkInputRef.current?.focus();
+                              }, 0);
                             }}
-                            className="absolute right-10 top-1/2 -translate-y-1/2 inline-flex items-center justify-center h-8 w-8 rounded-lg border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                            title="Clear park"
-                            aria-label="Clear park"
+                            className="shrink-0 inline-flex items-center justify-center h-9 w-9 rounded-xl border border-transparent bg-transparent text-emerald-600 transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                            aria-label="Edit park"
+                            title="Edit"
                           >
-                            <X className="h-4 w-4" />
+                              <Pencil className="h-4 w-4 text-emerald-600" />
                           </button>
-                        ) : null}
+                        </div>
+                      ) : (
+                        <div ref={parkPickerRef} className="relative">
+                          <input
+                            ref={parkInputRef}
+                            value={parkPickerOpen ? parkQuery : selectedTourismSite?.name ?? ""}
+                            onFocus={() => {
+                              if (tourismSitesLoading || !tourismCountry) return;
+                              setParkPickerOpen(true);
+                              setParkQuery(selectedTourismSite?.name ?? "");
+                            }}
+                            onChange={(e) => {
+                              setParkQuery(e.target.value);
+                              if (!tourismSitesLoading && tourismCountry) setParkPickerOpen(true);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Escape") {
+                                setParkPickerOpen(false);
+                                setParkQuery("");
+                              }
+                            }}
+                            placeholder={
+                              !tourismCountry
+                                ? "Select location first (region/district/ward)"
+                                : tourismSitesLoading
+                                  ? "Loading parks…"
+                                  : "Search or keep this unlinked"
+                            }
+                            className="add-property-field-control h-12 border border-slate-300 bg-white pl-4 pr-24 hover:border-slate-400 disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
+                            role="combobox"
+                            aria-haspopup="listbox"
+                            aria-expanded={parkPickerOpen}
+                            aria-controls="parkListbox"
+                            disabled={tourismSitesLoading || !tourismCountry}
+                            title="Tourism site"
+                          />
 
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 z-10">
-                        <ChevronDown className={["h-5 w-5 transition-transform duration-200", parkPickerOpen ? "rotate-180" : ""].join(" ")} />
-                      </div>
+                          {selectedTourismSite ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTourismSiteIdValue("");
+                                setLocalTourismSiteId("");
+                                setParkPlacementValue("");
+                                setLocalParkPlacement("");
+                                setParkPickerOpen(false);
+                                setParkQuery("");
+                                setIsEditingPark(false);
+                                setIsEditingPlacement(false);
+                                window.setTimeout(() => parkInputRef.current?.focus(), 0);
+                              }}
+                              className="absolute right-10 top-1/2 -translate-y-1/2 inline-flex items-center justify-center h-8 w-8 rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                              title="Clear park"
+                              aria-label="Clear park"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          ) : null}
 
-                        {parkPickerOpen ? (
-                          <div className="absolute z-30 mt-2 w-full rounded-xl border border-slate-200 bg-white shadow-lg ring-1 ring-black/5 overflow-hidden">
-                            <div id="parkListbox" role="listbox" className="max-h-72 overflow-auto py-1">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setTourismSiteIdValue("");
-                                  setLocalTourismSiteId("");
-                                  setParkPlacementValue("");
-                                  setLocalParkPlacement("");
-                                  setParkPickerOpen(false);
-                                  setParkQuery("");
-                                  setIsEditingPark(false);
-                                  setIsEditingPlacement(false);
-                                }}
-                                className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                                role="option"
-                                aria-selected={effectiveTourismSiteIdValue === ""}
-                              >
-                                Not linked to a park
-                              </button>
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 z-10">
+                          <ChevronDown className={["h-5 w-5 transition-transform duration-200", parkPickerOpen ? "rotate-180" : ""].join(" ")} />
+                        </div>
 
-                              {tourismSitesLoading ? (
-                                <div className="px-3 py-2 text-sm text-slate-500">Loading parks…</div>
-                              ) : null}
+                          {parkPickerOpen ? (
+                            <div className="absolute z-30 mt-2 w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/50 ring-1 ring-black/5">
+                              <div id="parkListbox" role="listbox" className="max-h-72 overflow-auto py-1">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setTourismSiteIdValue("");
+                                    setLocalTourismSiteId("");
+                                    setParkPlacementValue("");
+                                    setLocalParkPlacement("");
+                                    setParkPickerOpen(false);
+                                    setParkQuery("");
+                                    setIsEditingPark(false);
+                                    setIsEditingPlacement(false);
+                                  }}
+                                  className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                                  role="option"
+                                  aria-selected={effectiveTourismSiteIdValue === ""}
+                                >
+                                  Not linked to a park
+                                </button>
 
-                              {!tourismSitesLoading && filteredTourismSites.length === 0 ? (
-                                <div className="px-3 py-2 text-sm text-slate-500">No parks found.</div>
-                              ) : null}
+                                {tourismSitesLoading ? (
+                                  <div className="px-3 py-2 text-sm text-slate-500">Loading parks…</div>
+                                ) : null}
 
-                              {!tourismSitesLoading
-                                ? filteredTourismSites.map((s) => {
-                                    const selected =
-                                      effectiveTourismSiteIdValue !== "" &&
-                                      Number(effectiveTourismSiteIdValue) === Number(s.id);
-                                    const isMajor = MAJOR_TOURISM_SLUGS.has(s.slug);
-                                    return (
-                                      <button
-                                        key={s.id}
-                                        type="button"
-                                        onClick={() => {
-                                          const nextId = Number(s.id);
-                                          setLocalTourismSiteId(nextId);
-                                          setTourismSiteIdValue(nextId);
-                                          if (!effectiveParkPlacementValue) {
-                                            setLocalParkPlacement("NEARBY");
-                                            setParkPlacementValue("NEARBY");
-                                          }
-                                          setParkPickerOpen(false);
-                                          setParkQuery("");
-                                          setIsEditingPark(false);
-                                          setIsEditingPlacement(false);
-                                        }}
-                                        className={[
-                                          "w-full text-left px-3 py-2 text-sm transition-colors hover:bg-slate-50",
-                                          selected ? "bg-emerald-50" : "",
-                                        ].join(" ")}
-                                        role="option"
-                                        aria-selected={selected}
-                                      >
-                                        <div className="flex items-center justify-between gap-2">
-                                          <div className="min-w-0">
-                                            <div className="truncate text-slate-900">
-                                              {s.name}{" "}
-                                              {isMajor ? (
-                                                <span className="ml-1 text-[11px] font-semibold text-emerald-700">Major</span>
-                                              ) : null}
+                                {!tourismSitesLoading && filteredTourismSites.length === 0 ? (
+                                  <div className="px-3 py-2 text-sm text-slate-500">No parks found.</div>
+                                ) : null}
+
+                                {!tourismSitesLoading
+                                  ? filteredTourismSites.map((s) => {
+                                      const selected =
+                                        effectiveTourismSiteIdValue !== "" &&
+                                        Number(effectiveTourismSiteIdValue) === Number(s.id);
+                                      const isMajor = MAJOR_TOURISM_SLUGS.has(s.slug);
+                                      return (
+                                        <button
+                                          key={s.id}
+                                          type="button"
+                                          onClick={() => {
+                                            const nextId = Number(s.id);
+                                            setLocalTourismSiteId(nextId);
+                                            setTourismSiteIdValue(nextId);
+                                            if (!effectiveParkPlacementValue) {
+                                              setLocalParkPlacement("NEARBY");
+                                              setParkPlacementValue("NEARBY");
+                                            }
+                                            setParkPickerOpen(false);
+                                            setParkQuery("");
+                                            setIsEditingPark(false);
+                                            setIsEditingPlacement(false);
+                                          }}
+                                          className={[
+                                            "w-full text-left px-3 py-2 text-sm transition-colors hover:bg-slate-50",
+                                            selected ? "bg-emerald-50" : "",
+                                          ].join(" ")}
+                                          role="option"
+                                          aria-selected={selected}
+                                        >
+                                          <div className="flex items-center justify-between gap-2">
+                                            <div className="min-w-0">
+                                              <div className="truncate text-slate-900">
+                                                {s.name}{" "}
+                                                {isMajor ? (
+                                                  <span className="ml-1 text-[11px] font-semibold text-emerald-700">Major</span>
+                                                ) : null}
+                                              </div>
+                                              <div className="truncate text-[11px] text-slate-500">{s.country}</div>
                                             </div>
-                                            <div className="truncate text-[11px] text-slate-500">{s.country}</div>
+                                            {selected ? (
+                                              <span className="text-[11px] font-semibold text-emerald-700">Selected</span>
+                                            ) : null}
                                           </div>
-                                          {selected ? (
-                                            <span className="text-[11px] font-semibold text-emerald-700">Selected</span>
-                                          ) : null}
-                                        </div>
-                                      </button>
-                                    );
-                                  })
-                                : null}
+                                        </button>
+                                      );
+                                    })
+                                  : null}
+                              </div>
                             </div>
-                          </div>
-                        ) : null}
-                      </div>
-                    )}
-                    {tourismSitesError ? (
-                      <p className="text-xs text-rose-600">{tourismSitesError}</p>
-                    ) : !tourismCountry ? (
-                      <p className="text-xs text-slate-500">Set your location first to load parks.</p>
-                    ) : tourismSitesLoading ? (
-                      <p className="text-xs text-slate-500">Loading parks…</p>
-                    ) : null}
+                          ) : null}
+                        </div>
+                      )}
+                      {tourismSitesError ? (
+                        <p className="text-xs text-rose-600">{tourismSitesError}</p>
+                      ) : !tourismCountry ? (
+                        <p className="add-property-field-note">Finish the address above first, then destination options will load automatically.</p>
+                      ) : tourismSitesLoading ? (
+                        <p className="add-property-field-note">Loading parks…</p>
+                      ) : selectedTourismSite ? (
+                        <p className="add-property-field-note-success">Linked to a discoverable destination for park-based browsing.</p>
+                      ) : (
+                        <p className="add-property-field-note">Leave this blank if the property is not marketed relative to a park or tourism site.</p>
+                      )}
+                    </div>
                   </div>
 
                   <div className="md:col-span-5 flex flex-col space-y-2">
-                    <div className="flex items-end justify-between gap-3">
-                      <label className="block text-sm font-medium text-slate-700">Placement</label>
-                      {effectiveTourismSiteIdValue === "" ? (
-                        <span className="text-[11px] font-medium text-slate-500">Select a park to enable</span>
-                      ) : null}
-                    </div>
+                    <div className={[
+                      "add-property-field-card",
+                      effectiveTourismSiteIdValue === "" ? "add-property-field-card-disabled" : effectiveParkPlacementValue ? "add-property-field-card-valid" : "",
+                    ].join(" ")}>
+                      <div className="add-property-field-card-head">
+                        <div>
+                          <div className="add-property-field-card-label">Placement</div>
+                          <div className="add-property-field-card-value">
+                            {effectiveTourismSiteIdValue === ""
+                              ? "Select a park to unlock placement"
+                              : effectiveParkPlacementValue === "INSIDE"
+                                ? "Inside the selected destination"
+                                : effectiveParkPlacementValue === "NEARBY"
+                                  ? "Near the selected destination"
+                                  : "Choose how the property relates to the park"}
+                          </div>
+                        </div>
+                        <span className={`add-property-field-badge ${effectiveTourismSiteIdValue === "" ? "add-property-field-badge-disabled" : effectiveParkPlacementValue ? "add-property-field-badge-valid" : "add-property-field-badge-disabled"}`}>
+                          {effectiveTourismSiteIdValue === "" ? "locked" : effectiveParkPlacementValue ? "set" : "required"}
+                        </span>
+                      </div>
 
-                    <div className="rounded-xl border border-slate-200 bg-white/70 shadow-sm p-2">
+                      <div className="rounded-2xl border border-slate-200 bg-white/80 p-2 shadow-sm shadow-slate-200/30">
                       {placementIsLocked ? (
-                        <div className="h-10 rounded-lg border border-slate-200 bg-white inline-flex items-center justify-between gap-2 w-full px-3 text-sm font-semibold text-slate-900">
+                        <div className="h-10 w-full rounded-xl border border-slate-200 bg-white inline-flex items-center justify-between gap-2 px-3 text-sm font-semibold text-slate-900 shadow-sm shadow-slate-200/20">
                           <span className="inline-flex items-center justify-center gap-2">
                             <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                             {effectiveParkPlacementValue === "INSIDE" ? "Inside" : "Nearby"}
@@ -1362,7 +1487,7 @@ const nameOk = title.trim().length >= 3;
                           <button
                             type="button"
                             onClick={() => setIsEditingPlacement(true)}
-                            className="shrink-0 inline-flex items-center justify-center h-8 w-8 rounded-lg border border-transparent bg-transparent text-emerald-600 transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                            className="shrink-0 inline-flex items-center justify-center h-8 w-8 rounded-xl border border-transparent bg-transparent text-emerald-600 transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                             aria-label="Edit placement"
                             title="Edit"
                           >
@@ -1380,7 +1505,7 @@ const nameOk = title.trim().length >= 3;
                           }}
                           disabled={effectiveTourismSiteIdValue === ""}
                           className={[
-                            "w-full h-10 px-3 text-sm font-semibold rounded-lg shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500",
+                            "w-full h-10 px-3 text-sm font-semibold rounded-xl shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500",
                             effectiveTourismSiteIdValue === ""
                               ? "cursor-not-allowed bg-slate-50 text-slate-400 border border-slate-200"
                               : "bg-white text-slate-900 border border-slate-200 hover:border-slate-300",
@@ -1394,9 +1519,14 @@ const nameOk = title.trim().length >= 3;
                           <option value="NEARBY">Nearby</option>
                         </select>
                       )}
-                    </div>
+                      </div>
 
-                    <p className="text-xs text-slate-600">Choose where the property is relative to the selected park.</p>
+                      <p className="add-property-field-note mt-2">
+                        {effectiveTourismSiteIdValue === ""
+                          ? "Pick a destination on the left first."
+                          : "Choose where the property sits relative to the selected park so the listing appears in the right context."}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1530,20 +1660,22 @@ const nameOk = title.trim().length >= 3;
                 {locationTrackingEnabled && latitude && longitude && (
                   <p className="mt-2 text-xs text-emerald-600 flex items-center gap-1">
                     <CheckCircle2 className="w-3.5 h-3.5" />
-                    Location detected: {Number(latitude).toFixed(6)}, {Number(longitude).toFixed(6)}
+                    Live detection active: {Number(latitude).toFixed(6)}, {Number(longitude).toFixed(6)}
                   </p>
                 )}
               </div>
 
-              {/* Map Display - Modern Icon-Based Card Design */}
-              <div className="mt-6 rounded-xl border border-gray-200 bg-white p-5 sm:p-6 shadow-sm transition-all duration-300 hover:shadow-md">
+              <div className="add-property-panel-premium-strong mt-6">
                   <div className="flex items-start gap-4 mb-4">
-                    <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center">
+                    <div className="flex-shrink-0 w-12 h-12 rounded-2xl bg-emerald-100/90 shadow-sm shadow-emerald-200/50 flex items-center justify-center">
                       <Navigation2 className="w-6 h-6 text-emerald-600" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-semibold text-gray-900 mb-1">Property Location Map</h3>
-                      <p className="text-xs text-gray-500">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="add-property-kicker">Location intelligence</span>
+                      </div>
+                      <h3 className="mt-3 text-base font-semibold text-gray-900 mb-1">Property Location Map</h3>
+                      <p className="text-xs text-gray-500 leading-relaxed">
                         Exact coordinates:{" "}
                         {latitude && longitude ? (
                           <span className="font-mono text-gray-700">{Number(latitude).toFixed(6)}, {Number(longitude).toFixed(6)}</span>
@@ -1556,25 +1688,70 @@ const nameOk = title.trim().length >= 3;
                           Postcode: <span className="font-semibold text-gray-700">{zip || selectedWardPostcode}</span>
                         </p>
                       ) : null}
+                      <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-slate-600">
+                        <span className="inline-flex items-center rounded-full border border-slate-200 bg-white/90 px-2.5 py-1 font-semibold uppercase tracking-wide text-slate-700 shadow-sm shadow-slate-200/40">
+                          {locationSource === "gps" ? "GPS detected" : "Pin selected"}
+                        </span>
+                        {typeof locationAccuracyMeters === "number" && Number.isFinite(locationAccuracyMeters) ? (
+                          <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50/90 px-2.5 py-1 font-semibold text-emerald-700 shadow-sm shadow-emerald-100/50">
+                            Accuracy {Math.round(locationAccuracyMeters)} m
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
                   </div>
-                  <div className="rounded-lg overflow-hidden border border-gray-200">
+                  <div className="overflow-hidden rounded-[20px] border border-slate-200/80 bg-white shadow-inner shadow-slate-200/40">
                     <PropertyLocationMap
                       latitude={typeof latitude === "number" ? latitude : 0}
                       longitude={typeof longitude === "number" ? longitude : 0}
                       postcode={zip || selectedWardPostcode || null}
-                      onLocationDetected={(lat, lng) => {
-                        setLatitude(lat);
-                        setLongitude(lng);
+                      onLocationDetected={(lat, lng, meta) => {
+                        if (onLocationDetected) {
+                          onLocationDetected(lat, lng, meta);
+                          return;
+                        }
+                        startTransition(() => {
+                          setLatitude(lat);
+                          setLongitude(lng);
+                        });
                       }}
                     />
+                  </div>
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <div className="add-property-location-stat">
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Detected address</div>
+                      <div className="mt-1 text-sm font-medium text-slate-900">
+                        {detectedAddress || "Move the pin or enable GPS to confirm the exact address."}
+                      </div>
+                    </div>
+                    <div className="add-property-location-stat">
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Detected admin area</div>
+                      <div className="mt-1 text-sm font-medium text-slate-900">
+                        {[detectedWard, detectedDistrict, detectedRegion].filter(Boolean).join(", ") || "Waiting for location confirmation"}
+                      </div>
+                      {(detectedPostcode || zip || selectedWardPostcode) ? (
+                        <div className="mt-1 text-xs text-slate-500">
+                          Postcode: {detectedPostcode || zip || selectedWardPostcode}
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
 
                   {/* Reverse-geocoding consistency check feedback */}
                   {checkingPinLocation && (
                     <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
                       <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-slate-300 border-t-slate-500" />
-                      Verifying pin location against selected region…
+                      Verifying pin location against selected region, district, and ward…
+                    </div>
+                  )}
+                  {!checkingPinLocation && !locationMismatchWarning && detectedAddress && (
+                    <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-600" aria-hidden />
+                      <div className="min-w-0">
+                        <p className="font-semibold mb-0.5">Location confirmed</p>
+                        <p className="leading-snug">The detected address and selected admin area are aligned.</p>
+                      </div>
                     </div>
                   )}
                   {!checkingPinLocation && locationMismatchWarning && (

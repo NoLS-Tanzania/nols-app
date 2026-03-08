@@ -86,6 +86,61 @@ function normalizeHotelStar(v: unknown): string | null {
   return map[Math.trunc(n)] ?? String(v);
 }
 
+function normalizeLocationText(value: unknown): string {
+  return String(value ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function locationMatches(expected: unknown, candidates: Array<unknown>): boolean {
+  const normalizedExpected = normalizeLocationText(expected);
+  if (!normalizedExpected) return true;
+
+  const expectedTerms = normalizedExpected.split(/\s+/).filter((term) => term.length > 1);
+  if (!expectedTerms.length) return true;
+
+  const combined = candidates
+    .map((candidate) => normalizeLocationText(candidate))
+    .filter(Boolean)
+    .join(" ");
+
+  if (!combined) return false;
+  return expectedTerms.every((term) => combined.includes(term));
+}
+
+function getContextText(feature: any, prefixes: string[]): string | null {
+  const context = Array.isArray(feature?.context) ? feature.context : [];
+  const match = context.find((entry: any) => prefixes.some((prefix) => String(entry?.id || "").startsWith(prefix)));
+  return match?.text ? String(match.text) : null;
+}
+
+async function reverseGeocodePropertyLocation(lat: number, lng: number) {
+  const token = process.env.MAPBOX_ACCESS_TOKEN || process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
+  if (!token) {
+    throw new Error("Location validation service is not configured");
+  }
+
+  const params = new URLSearchParams({
+    access_token: token,
+    limit: "1",
+    types: "address,neighborhood,locality,place,district,postcode,region",
+  });
+
+  const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?${params.toString()}`, {
+    headers: {
+      "User-Agent": "NoLS-API/1.0",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Reverse geocoding failed with status ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data?.features?.[0] ?? null;
+}
+
 
 function cleanServices(services: unknown): any {
   // Handle legacy array format
@@ -1003,7 +1058,12 @@ router.post("/:id/submit", (async (req: AuthedRequest, res) => {
         ownerId: true,
         title: true,
         regionId: true,
+        regionName: true,
         district: true,
+        ward: true,
+        zip: true,
+        latitude: true,
+        longitude: true,
         photos: true,
         roomsSpec: true,
       },
@@ -1017,13 +1077,67 @@ router.post("/:id/submit", (async (req: AuthedRequest, res) => {
       (p.title?.trim()?.length ?? 0) >= 3 &&
       !!p.regionId &&
       !!p.district &&
+      typeof p.latitude === "number" &&
+      typeof p.longitude === "number" &&
+      Number.isFinite(p.latitude) &&
+      Number.isFinite(p.longitude) &&
       (Array.isArray(p.photos) ? p.photos.length : 0) >= 3 &&
       Array.isArray(p.roomsSpec) && p.roomsSpec.length >= 1 &&
       submitGuard(p);
 
     if (!complete) {
       console.error(`Property ${id} incomplete. Title: ${p.title?.length}, regionId: ${!!p.regionId}, district: ${!!p.district}, photos: ${Array.isArray(p.photos) ? p.photos.length : 0}, rooms: ${Array.isArray(p.roomsSpec) ? p.roomsSpec.length : 0}`);
-      return res.status(400).json({ error: "Incomplete property. Please complete required fields (name, location, ≥3 photos, ≥1 room type)." });
+      return res.status(400).json({ error: "Incomplete property. Please complete required fields (name, exact location pin, ≥3 photos, ≥1 room type)." });
+    }
+
+    let detectedLocation: {
+      address: string | null;
+      region: string | null;
+      district: string | null;
+      ward: string | null;
+      postcode: string | null;
+    } | null = null;
+
+    try {
+      const feature = await reverseGeocodePropertyLocation(p.latitude!, p.longitude!);
+      if (!feature) {
+        return res.status(400).json({ error: "Unable to confirm the selected map pin. Move the pin to the exact property location and try again." });
+      }
+
+      detectedLocation = {
+        address: feature.place_name || feature.text || null,
+        region: getContextText(feature, ["region"]) || getContextText(feature, ["place"]),
+        district: getContextText(feature, ["district"]) || getContextText(feature, ["place"]),
+        ward: getContextText(feature, ["locality", "neighborhood"]),
+        postcode: getContextText(feature, ["postcode"]),
+      };
+
+      const mismatches: string[] = [];
+      const selectedRegion = p.regionName || p.regionId;
+
+      if (selectedRegion && detectedLocation.region && !locationMatches(selectedRegion, [detectedLocation.region, detectedLocation.address])) {
+        mismatches.push(`Detected region is "${detectedLocation.region}" but selected region is "${selectedRegion}".`);
+      }
+      if (p.district && detectedLocation.district && !locationMatches(p.district, [detectedLocation.district, detectedLocation.address])) {
+        mismatches.push(`Detected district is "${detectedLocation.district}" but selected district is "${p.district}".`);
+      }
+      if (p.ward && detectedLocation.ward && !locationMatches(p.ward, [detectedLocation.ward, detectedLocation.address])) {
+        mismatches.push(`Detected ward is "${detectedLocation.ward}" but selected ward is "${p.ward}".`);
+      }
+      if (p.zip && detectedLocation.postcode && !locationMatches(p.zip, [detectedLocation.postcode])) {
+        mismatches.push(`Detected postcode is "${detectedLocation.postcode}" but selected postcode is "${p.zip}".`);
+      }
+
+      if (mismatches.length) {
+        return res.status(400).json({
+          error: "The property pin does not match the selected address fields.",
+          mismatches,
+          detectedLocation,
+        });
+      }
+    } catch (validationError: any) {
+      console.error(`Property ${id} location validation failed:`, validationError);
+      return res.status(503).json({ error: "Location validation is temporarily unavailable. Please try submitting again." });
     }
 
     const updated = await prisma.property.update({
