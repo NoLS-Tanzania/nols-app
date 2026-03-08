@@ -836,10 +836,10 @@ export default function DriverLiveMapCanvas({
     if (!map) return;
     if (userInteractingRef.current) return;
     try {
-      const followPos = snappedDriverPos ?? smoothedDriverPos ?? driverPos;
+      const followPos = manualDriverPos ?? snappedDriverPos ?? smoothedDriverPos ?? driverPos;
       const prev = lastDriverPosRef.current;
-      const bearing =
-        prev && (smoothedDriverPos ?? driverPos) ? bearingDeg(prev, smoothedDriverPos ?? driverPos) : map.getBearing?.() ?? 0;
+      const bearingTarget = manualDriverPos ?? smoothedDriverPos ?? driverPos;
+      const bearing = prev && bearingTarget ? bearingDeg(prev, bearingTarget) : map.getBearing?.() ?? 0;
       // Keep zoom/pitch stable for a driver-friendly camera
       map.easeTo({
         center: [followPos.lng, followPos.lat],
@@ -848,11 +848,33 @@ export default function DriverLiveMapCanvas({
         bearing,
         duration: 520,
       });
-      lastDriverPosRef.current = smoothedDriverPos ?? driverPos;
+      lastDriverPosRef.current = bearingTarget;
     } catch {
       // ignore
     }
-  }, [driverPos, smoothedDriverPos, snappedDriverPos, liveOnly]);
+  }, [driverPos, manualDriverPos, smoothedDriverPos, snappedDriverPos, liveOnly]);
+
+  // Keep the driver's marker anchored to live browser GPS without forcing a recenter.
+  useEffect(() => {
+    const handler = (event: Event) => {
+      try {
+        const detail = (event as CustomEvent | undefined)?.detail;
+        const eventPos =
+          Number.isFinite(Number(detail?.lat)) && Number.isFinite(Number(detail?.lng))
+            ? { lat: Number(detail.lat), lng: Number(detail.lng) }
+            : null;
+        if (!eventPos) return;
+        setManualDriverPos(eventPos);
+      } catch {
+        // ignore
+      }
+    };
+
+    window.addEventListener("nols:map:driver-location-sync", handler as EventListener);
+    return () => {
+      window.removeEventListener("nols:map:driver-location-sync", handler as EventListener);
+    };
+  }, []);
 
   // Allow external UI controls to re-center the camera on the driver's current tracked position.
   useEffect(() => {
@@ -895,7 +917,7 @@ export default function DriverLiveMapCanvas({
     const stage = String(tripStage ?? "");
     const inTransit = stage === "picked_up" || stage === "in_transit" || stage === "arrived" || stage === "dropoff";
     const to = inTransit && dropoffPos ? dropoffPos : pickupPos;
-    const from = smoothedDriverPos ?? driverPos;
+    const from = manualDriverPos ?? smoothedDriverPos ?? driverPos;
 
     const key = `${from.lng.toFixed(5)},${from.lat.toFixed(5)}->${to.lng.toFixed(5)},${to.lat.toFixed(5)}`;
     setRouteKey(key);
@@ -1038,11 +1060,11 @@ export default function DriverLiveMapCanvas({
         }
       }
     })();
-  }, [mapboxToken, driverPos, smoothedDriverPos, pickupPos, dropoffPos, tripStage, routeRetryNonce, activeRouteIndex]);
+  }, [mapboxToken, driverPos, manualDriverPos, smoothedDriverPos, pickupPos, dropoffPos, tripStage, routeRetryNonce, activeRouteIndex]);
 
   // Route snapping for the displayed driver dot
   useEffect(() => {
-    const pos = smoothedDriverPos ?? driverPos;
+    const pos = manualDriverPos ?? smoothedDriverPos ?? driverPos;
     const coords = selectedRouteFeature?.geometry?.coordinates;
     if (!pos || !Array.isArray(coords) || coords.length < 2) {
       setSnappedDriverPos(null);
@@ -1052,7 +1074,7 @@ export default function DriverLiveMapCanvas({
     // only snap if reasonably close to route (avoid snapping onto wrong road)
     if (nearest && nearest.distanceMeters <= 35) setSnappedDriverPos(nearest.snapped);
     else setSnappedDriverPos(null);
-  }, [selectedRouteFeature, smoothedDriverPos, driverPos]);
+  }, [selectedRouteFeature, manualDriverPos, smoothedDriverPos, driverPos]);
 
   // update source + markers
   useEffect(() => {

@@ -89,6 +89,8 @@ export default function DriverLiveMapPage() {
   const [destinationCountdownSec, setDestinationCountdownSec] = useState<number | null>(null);
   const [pickupCountdownSec, setPickupCountdownSec] = useState<number | null>(null);
   const countdownTimerRef = useRef<number | null>(null);
+  const geoWatchIdRef = useRef<number | null>(null);
+  const locationWarningShownRef = useRef(false);
   const pickupDwellRef = useRef<number | null>(null);
   const destinationDwellRef = useRef<number | null>(null);
   const pickupAutoTriggeredRef = useRef(false);
@@ -710,6 +712,57 @@ export default function DriverLiveMapPage() {
     window.addEventListener("nols:driver:pos", handler as EventListener);
     return () => window.removeEventListener("nols:driver:pos", handler as EventListener);
   }, []);
+
+  // Continuously bind the live map to the device's actual GPS position when permission is enabled.
+  // The recenter button remains useful for restoring focus after the driver pans away manually.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (typeof navigator === "undefined" || !navigator.geolocation) return;
+
+    const emitSync = (coords: { lat: number; lng: number; speedMps?: number }) => {
+      try {
+        window.dispatchEvent(new CustomEvent("nols:map:driver-location-sync", { detail: coords }));
+      } catch {
+        // ignore
+      }
+    };
+
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const next = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          speedMps: typeof position.coords.speed === "number" ? position.coords.speed : undefined,
+        };
+        locationWarningShownRef.current = false;
+        setDriverPos(next);
+        emitSync(next);
+      },
+      () => {
+        if (locationWarningShownRef.current) return;
+        locationWarningShownRef.current = true;
+        warning("Live location unavailable", "Enable device location for this site so the driver marker stays on your real position automatically.");
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 15000,
+      }
+    );
+
+    geoWatchIdRef.current = watchId;
+
+    return () => {
+      if (geoWatchIdRef.current !== null) {
+        try {
+          navigator.geolocation.clearWatch(geoWatchIdRef.current);
+        } catch {
+          // ignore
+        }
+        geoWatchIdRef.current = null;
+      }
+    };
+  }, [warning]);
 
   const handleCenterOnLocation = useCallback(() => {
     const emitCenter = (coords?: { lat: number; lng: number; speedMps?: number }) => {
