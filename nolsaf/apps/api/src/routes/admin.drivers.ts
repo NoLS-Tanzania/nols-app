@@ -5632,9 +5632,14 @@ router.patch('/:id(\\d+)/kyc', limitAdminTripsWrite, async (req, res) => {
       if (!String((driver as any).paymentPhone ?? '').trim()) missingFields.push('payment phone');
       if (!Boolean((driver as any).paymentVerified)) missingFields.push('verified payment phone');
 
-      const currentApprovals = ((driver as any).kycFieldApprovals && typeof (driver as any).kycFieldApprovals === 'object')
-        ? (driver as any).kycFieldApprovals as Record<string, string>
-        : {};
+      const currentApprovals = {
+        ...(((driver as any).kycFieldApprovals && typeof (driver as any).kycFieldApprovals === 'object')
+          ? (driver as any).kycFieldApprovals as Record<string, string>
+          : {}),
+        ...((sanitizedFieldApprovals && typeof sanitizedFieldApprovals === 'object')
+          ? sanitizedFieldApprovals as Record<string, string>
+          : {}),
+      };
       const requiredApprovalKeys = [
         'name', 'email', 'phone', 'gender', 'nationality', 'dateOfBirth', 'nin',
         'region', 'district', 'operationArea', 'vehicleType', 'plateNumber',

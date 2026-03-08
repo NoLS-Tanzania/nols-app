@@ -562,7 +562,7 @@ export default function DriverVettingPage() {
         action,
         reason: (action === "reject" || action === "revoke" || action === "unrevoke") ? (overrideNote ?? actionNote) : undefined,
         note: action === "request_info" ? (overrideNote ?? actionNote) : undefined,
-        fieldApprovals: action === "request_info" ? fieldApprovals : undefined,
+        fieldApprovals: (action === "request_info" || action === "approve") ? fieldApprovals : undefined,
       });
       const newStatus =
         (action === "approve" || action === "unrevoke") ? "APPROVED_KYC" :
