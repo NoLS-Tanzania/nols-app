@@ -186,6 +186,12 @@ export default function DriverLiveMapCanvas({
   const mapLoadedRef = useRef(false);
   const userInteractingRef = useRef(false);
   const lastAppliedStyleRef = useRef<string | null>(null);
+  const pendingStyleCameraRef = useRef<{
+    center: [number, number];
+    zoom: number;
+    bearing: number;
+    pitch: number;
+  } | null>(null);
   const lastDriverPosRef = useRef<LngLat | null>(null);
   const lastPosAtRef = useRef<number | null>(null);
   const lastRouteFetchRef = useRef<{ key: string; at: number } | null>(null);
@@ -793,6 +799,20 @@ export default function DriverLiveMapCanvas({
         // Re-apply overlays every time the new style finishes loading.
         map.on("style.load", () => {
           normalizeBaseStyle();
+          const pendingCamera = pendingStyleCameraRef.current;
+          if (pendingCamera) {
+            try {
+              map.jumpTo({
+                center: pendingCamera.center,
+                zoom: pendingCamera.zoom,
+                bearing: pendingCamera.bearing,
+                pitch: pendingCamera.pitch,
+              });
+            } catch {
+              // ignore
+            }
+            pendingStyleCameraRef.current = null;
+          }
           stripIncidents();
           ensureOverlays();
           setStyleRevision((n) => n + 1);
@@ -822,6 +842,12 @@ export default function DriverLiveMapCanvas({
     if (!map) return;
     try {
       if (lastAppliedStyleRef.current === desiredStyleUrl) return;
+      pendingStyleCameraRef.current = {
+        center: [map.getCenter().lng, map.getCenter().lat],
+        zoom: map.getZoom?.() ?? 15,
+        bearing: map.getBearing?.() ?? 0,
+        pitch: map.getPitch?.() ?? 0,
+      };
       lastAppliedStyleRef.current = desiredStyleUrl;
       map.setStyle(desiredStyleUrl);
     } catch {
