@@ -1607,7 +1607,6 @@ export default function DriverLiveMapPage() {
               <DriverLiveMapTopControls 
                 hideAvailability={!!activeTrip && tripStage !== 'completed'}
                 compact={isFocusedTripFlow}
-                onMenuClick={() => router.push('/driver')}
                 isDark={mapTheme === "dark"}
               />
             </div>

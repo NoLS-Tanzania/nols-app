@@ -509,7 +509,6 @@ export default function DriverLiveMapCanvas({
 
         lastAppliedStyleRef.current = desiredStyleUrl;
         mapRef.current = map;
-        map.addControl(new mapboxgl.NavigationControl({ showCompass: true }), "top-right");
 
         const normalizeBaseStyle = () => {
           try {
