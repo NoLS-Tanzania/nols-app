@@ -189,7 +189,7 @@ export default function DriverLiveMapCanvas({
   const mapRef = useRef<any | null>(null);
   const mapboxRef = useRef<any | null>(null);
   const mapLoadedRef = useRef(false);
-  const userInteractingRef = useRef(false);
+  const autoFollowRef = useRef(true);
   const lastAppliedStyleRef = useRef<string | null>(null);
   const pendingStyleCameraRef = useRef<{
     center: [number, number];
@@ -567,17 +567,14 @@ export default function DriverLiveMapCanvas({
           }
         };
 
-        // Track user interactions so we don't fight the user while panning/zooming
-        const markInteracting = () => {
-          userInteractingRef.current = true;
-          window.setTimeout(() => {
-            userInteractingRef.current = false;
-          }, 9000);
+        // As soon as the driver browses the map manually, stop auto-following until recenter is requested.
+        const disableAutoFollow = () => {
+          autoFollowRef.current = false;
         };
-        map.on("dragstart", markInteracting);
-        map.on("zoomstart", markInteracting);
-        map.on("rotatestart", markInteracting);
-        map.on("pitchstart", markInteracting);
+        map.on("dragstart", disableAutoFollow);
+        map.on("zoomstart", disableAutoFollow);
+        map.on("rotatestart", disableAutoFollow);
+        map.on("pitchstart", disableAutoFollow);
 
         const ensureOverlays = () => {
           try {
@@ -901,7 +898,7 @@ export default function DriverLiveMapCanvas({
     if (!liveOnly) return;
     const map = mapRef.current;
     if (!map) return;
-    if (userInteractingRef.current) return;
+    if (!autoFollowRef.current) return;
     try {
       const followPos = manualDriverPos ?? snappedDriverPos ?? smoothedDriverPos ?? driverPos;
       const prev = lastDriverPosRef.current;
@@ -955,7 +952,7 @@ export default function DriverLiveMapCanvas({
             ? { lat: Number(detail.lat), lng: Number(detail.lng) }
             : null;
         const focusPos = eventPos ?? manualDriverPos ?? snappedDriverPos ?? smoothedDriverPos ?? driverPos;
-        userInteractingRef.current = false;
+        autoFollowRef.current = true;
         if (driverPulseTimerRef.current) {
           window.clearTimeout(driverPulseTimerRef.current);
           driverPulseTimerRef.current = null;
@@ -964,7 +961,7 @@ export default function DriverLiveMapCanvas({
         driverPulseTimerRef.current = window.setTimeout(() => {
           setDriverPulseActive(false);
           driverPulseTimerRef.current = null;
-        }, 950);
+        }, 520);
         try {
           map.stop?.();
         } catch {
