@@ -9,6 +9,7 @@ import { sendSms } from "../lib/sms.js";
 import { sendMail } from "../lib/mailer.js";
 import { baseEmail, infoCard, calloutBox, ctaButton, BRAND_TEAL, BRAND_DARK } from "../lib/emailBase.js";
 import { buildDriverCaseRef } from "../lib/driverCaseRef.js";
+import { isTrustedUserDocumentUrl, sanitizeUserDocument } from "../lib/userDocumentSecurity.js";
 
 export const router = Router();
 router.use(requireAuth as unknown as RequestHandler, requireRole("ADMIN") as unknown as RequestHandler);
@@ -3320,10 +3321,11 @@ router.get("/:id(\\d+)", async (req, res) => {
           take: 50,
           select: { id: true, type: true, url: true, status: true, reason: true, metadata: true, createdAt: true } as any,
         });
-        (driver as any).documents = docs;
+        const sanitizedDocs = (docs as any[]).map((doc) => sanitizeUserDocument(doc, 'DRIVER'));
+        (driver as any).documents = sanitizedDocs;
         // Resolve URL fields for backward compat (admin vetting page still reads payout URLs)
         const latestByType = new Map<string, any>();
-        for (const d of docs as any[]) {
+        for (const d of sanitizedDocs as any[]) {
           const t = String((d as any).type ?? '').toUpperCase();
           if (!t || latestByType.has(t)) continue;
           latestByType.set(t, d);
@@ -6287,6 +6289,9 @@ router.post('/:id(\\d+)/upload-doc', async (req, res) => {
     const normalizedType = String(docType).toUpperCase();
     if (!allowedTypes.includes(normalizedType)) {
       return res.status(400).json({ error: 'invalid_doc_type', allowed: allowedTypes });
+    }
+    if (!isTrustedUserDocumentUrl(docUrl, 'DRIVER')) {
+      return res.status(400).json({ error: 'invalid_doc_url', message: 'Document URL must point to approved NoLSAF-managed storage.' });
     }
 
     const driver = await prisma.user.findFirst({ where: { id: driverId, role: 'DRIVER' } as any });

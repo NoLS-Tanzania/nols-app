@@ -5,6 +5,7 @@ import { requireAuth, requireRole } from "../middleware/auth.js";
 import jwt from "jsonwebtoken";
 import { Prisma } from "@prisma/client";
 import { toCsv } from "../lib/csv.js";
+import { sanitizeUserDocument } from "../lib/userDocumentSecurity.js";
 
 export const router = Router();
 router.use(requireAuth as unknown as RequestHandler, requireRole("ADMIN") as unknown as RequestHandler);
@@ -486,7 +487,7 @@ router.get("/:id/documents", async (req, res) => {
     where: { userId: id },
     orderBy: { id: "desc" },
   });
-  res.json({ items: docs });
+  res.json({ items: docs.map((doc: any) => sanitizeUserDocument(doc, "OWNER")) });
 });
 
 /** POST /admin/owners/:id/documents/:docId/approve */
@@ -496,7 +497,7 @@ router.post("/:id/documents/:docId/approve", async (req, res) => {
   const me = (req.user as any).id;
   
   const doc = await prisma.userDocument.findUnique({ where: { id: docId } });
-  if (!doc) return res.status(404).json({ error: "Document not found" });
+  if (!doc || Number((doc as any).userId) !== id) return res.status(404).json({ error: "Document not found" });
   
   await prisma.userDocument.update({
     where: { id: docId },
@@ -524,7 +525,7 @@ router.post("/:id/documents/:docId/reject", async (req, res) => {
   const me = (req.user as any).id;
   
   const doc = await prisma.userDocument.findUnique({ where: { id: docId } });
-  if (!doc) return res.status(404).json({ error: "Document not found" });
+  if (!doc || Number((doc as any).userId) !== id) return res.status(404).json({ error: "Document not found" });
   
   await prisma.userDocument.update({
     where: { id: docId },

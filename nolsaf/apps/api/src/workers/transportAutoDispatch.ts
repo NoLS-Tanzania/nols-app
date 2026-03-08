@@ -1,6 +1,7 @@
 import type { Server } from "socket.io";
 import { prisma } from "@nolsaf/prisma";
 import { AUTO_DISPATCH_GRACE_MS, AUTO_DISPATCH_LOOKAHEAD_MS } from "../lib/transportPolicy.js";
+import { isDriverApprovedForProtectedAccess } from "../lib/driverAccess.js";
 
 const AUTO_DISPATCH_WARN_MS = 5 * 60 * 1000;
 const AUTO_DISPATCH_EARLY_ESCALATION_MS = 2 * 60 * 1000;
@@ -47,10 +48,7 @@ function kmToLngDelta(km: number, atLatDeg: number): number {
 }
 
 function isDriverOnlineToggled(driver: any): boolean {
-  if (!driver) return false;
-  if (String(driver?.role ?? "").toUpperCase() !== "DRIVER") return false;
-  if (driver?.isDisabled) return false;
-  if (driver?.suspendedAt) return false;
+  if (!isDriverApprovedForProtectedAccess(driver)) return false;
   // Support both schema variants.
   if (driver?.available === false) return false;
   if (driver?.isAvailable === false) return false;

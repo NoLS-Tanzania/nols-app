@@ -12,6 +12,7 @@ import { authenticator } from "otplib";
 import QRCode from "qrcode";
 import rateLimit from "express-rate-limit";
 import { sendSms } from "../lib/sms.js";
+import { isAllowedDocumentTypeForRole, isTrustedUserDocumentUrl } from "../lib/userDocumentSecurity.js";
 import {
   generateRegistrationOptions,
   verifyRegistrationResponse,
@@ -162,10 +163,17 @@ const revokeSessionSchema = z.object({
   sessionId: z.string().min(1),
 }).strict();
 
+const documentMetadataValueSchema = z.union([
+  z.string().max(1000),
+  z.number().finite(),
+  z.boolean(),
+  z.null(),
+]);
+
 const upsertDocumentSchema = z.object({
   type: z.string().min(1).max(80),
   url: z.string().url().max(2000),
-  metadata: z.any().optional(),
+  metadata: z.record(documentMetadataValueSchema).optional(),
 }).strict();
 
 const listSessionsSchema = z.object({
@@ -530,6 +538,7 @@ router.get("/me", getMe as unknown as RequestHandler);
  */
 const upsertMyDocument: RequestHandler = async (req, res) => {
   const userId = getUserId(req as AuthedRequest);
+  const role = String((req as AuthedRequest).user?.role ?? "").trim().toUpperCase();
 
   const parsed = upsertDocumentSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -539,6 +548,14 @@ const upsertMyDocument: RequestHandler = async (req, res) => {
   const type = String(parsed.data.type).toUpperCase().trim();
   const url = parsed.data.url;
   const metadata = parsed.data.metadata;
+
+  if (!isAllowedDocumentTypeForRole(role, type)) {
+    return sendError(res, 400, "Unsupported document type for this account.");
+  }
+
+  if (!isTrustedUserDocumentUrl(url, role)) {
+    return sendError(res, 400, "Document URL must point to approved NoLSAF-managed storage.");
+  }
 
   if (!(prisma as any).userDocument) {
     return sendSuccess(res, { type, url, status: "PENDING" }, "Document saved");

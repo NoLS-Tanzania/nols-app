@@ -6,6 +6,7 @@ import { prisma } from "@nolsaf/prisma";
 import { AuthedRequest, requireAuth, requireRole } from "../middleware/auth.js";
 import { audit } from "../lib/audit.js";
 import { sanitizeText } from "../lib/sanitize.js";
+import { sanitizeUserDocument } from "../lib/userDocumentSecurity.js";
 import rateLimit from "express-rate-limit";
 import { Prisma } from "@prisma/client";
 import { sendMail } from "../lib/mailer.js";
@@ -1097,7 +1098,7 @@ router.get("/:id/documents", validate(getAgentParamsSchema, "params"), async (re
       } as any,
     });
 
-    return sendSuccess(res, { documents });
+    return sendSuccess(res, { documents: documents.map((doc: any) => sanitizeUserDocument(doc, "AGENT")) });
   } catch (err: any) {
     console.error("[GET /admin/agents/:id/documents] Error:", err);
     return sendError(res, 500, "Failed to fetch agent documents");

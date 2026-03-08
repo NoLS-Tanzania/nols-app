@@ -118,11 +118,13 @@ import { healthRouter } from "./routes/health";
 import { socketAuthMiddleware, AuthenticatedSocket } from './middleware/socketAuth.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { adminOriginGuard } from "./middleware/adminOriginGuard.js";
+import { requireApprovedDriver } from "./middleware/requireApprovedDriver.js";
 import { performanceMiddleware } from './middleware/performance.js';
 import { prisma } from "@nolsaf/prisma";
 import { getRedis } from "./lib/redis.js";
 import { startTransportAutoDispatch } from "./workers/transportAutoDispatch.js";
 import { startOwnerBusinessLicenceExpiryReminders } from "./workers/ownerBusinessLicenceExpiryReminders.js";
+import { getProtectedDriverAccessDenial, getProtectedDriverState, isDriverApprovedForProtectedAccess } from "./lib/driverAccess.js";
 
 // moved the POST handler to after the app is created
 // Create app and server before using them
@@ -206,6 +208,7 @@ io.on('connection', (socket: AuthenticatedSocket) => {
       // Best-effort: join/leave the available-drivers room from DB state on connect.
       (async () => {
         try {
+          const driverState = await getProtectedDriverState(user.id);
           let isAvailable = false;
           try {
             if ((prisma as any).driverAvailability) {
@@ -221,7 +224,7 @@ io.on('connection', (socket: AuthenticatedSocket) => {
           } catch {
             isAvailable = false;
           }
-          if (isAvailable) socket.join('drivers:available');
+          if (isAvailable && isDriverApprovedForProtectedAccess(driverState)) socket.join('drivers:available');
           else socket.leave('drivers:available');
         } catch {
           // ignore
@@ -236,6 +239,17 @@ io.on('connection', (socket: AuthenticatedSocket) => {
     try {
       if (!user || user.role !== 'DRIVER') {
         if (callback) callback({ error: 'Unauthorized' });
+        return;
+      }
+      const driverState = await getProtectedDriverState(user.id);
+      const denial = getProtectedDriverAccessDenial(driverState);
+      if (denial) {
+        try {
+          socket.leave('drivers:available');
+        } catch {
+          // ignore
+        }
+        if (callback) callback({ error: denial.code, message: denial.message });
         return;
       }
       const available = (data as any)?.available;
@@ -672,31 +686,31 @@ app.use('/api/admin/email', adminEmail);
 // Driver profile update — MUST be mounted BEFORE the catch-all '/api/driver' mount
 app.use('/api/driver/profile', requireRole('DRIVER') as express.RequestHandler, driverProfileRouter as express.RequestHandler);
 // Driver-scoped endpoints (stats + map)
-app.use('/api/driver', requireRole('DRIVER') as express.RequestHandler, driverRouter as express.RequestHandler);
+app.use('/api/driver', requireRole('DRIVER') as express.RequestHandler, requireApprovedDriver as express.RequestHandler, driverRouter as express.RequestHandler);
 // Driver reminders (list available to drivers; creation reserved for ADMIN)
-app.use('/api/driver/reminders', driverRemindersRouter as express.RequestHandler);
+app.use('/api/driver/reminders', requireRole('DRIVER') as express.RequestHandler, requireApprovedDriver as express.RequestHandler, driverRemindersRouter as express.RequestHandler);
 // Driver bonus endpoints
-app.use('/api/driver/bonus', requireRole('DRIVER') as express.RequestHandler, driverBonusRouter as express.RequestHandler);
+app.use('/api/driver/bonus', requireRole('DRIVER') as express.RequestHandler, requireApprovedDriver as express.RequestHandler, driverBonusRouter as express.RequestHandler);
 // Driver level endpoints
-app.use('/api/driver/level', requireRole('DRIVER') as express.RequestHandler, driverLevelRouter as express.RequestHandler);
+app.use('/api/driver/level', requireRole('DRIVER') as express.RequestHandler, requireApprovedDriver as express.RequestHandler, driverLevelRouter as express.RequestHandler);
 // Driver referral endpoints
-app.use('/api/driver/referral', requireRole('DRIVER') as express.RequestHandler, driverReferralRouter as express.RequestHandler);
+app.use('/api/driver/referral', requireRole('DRIVER') as express.RequestHandler, requireApprovedDriver as express.RequestHandler, driverReferralRouter as express.RequestHandler);
 // Driver referral earnings endpoints
-app.use('/api/driver/referral-earnings', requireRole('DRIVER') as express.RequestHandler, driverReferralEarningsRouter as express.RequestHandler);
+app.use('/api/driver/referral-earnings', requireRole('DRIVER') as express.RequestHandler, requireApprovedDriver as express.RequestHandler, driverReferralEarningsRouter as express.RequestHandler);
 // Driver referral performance metrics
-app.use('/api/driver/referral/performance', requireRole('DRIVER') as express.RequestHandler, driverReferralPerformanceRouter as express.RequestHandler);
+app.use('/api/driver/referral/performance', requireRole('DRIVER') as express.RequestHandler, requireApprovedDriver as express.RequestHandler, driverReferralPerformanceRouter as express.RequestHandler);
 // Driver messaging (prepared messages and send)
-app.use('/api/driver/messages', requireRole('DRIVER') as express.RequestHandler, driverMessagesRouter as express.RequestHandler);
+app.use('/api/driver/messages', requireRole('DRIVER') as express.RequestHandler, requireApprovedDriver as express.RequestHandler, driverMessagesRouter as express.RequestHandler);
 // Driver matching (find best driver for trip request)
-app.use('/api/driver/matching', requireRole('DRIVER') as express.RequestHandler, driverMatchingRouter as express.RequestHandler);
+app.use('/api/driver/matching', requireRole('DRIVER') as express.RequestHandler, requireApprovedDriver as express.RequestHandler, driverMatchingRouter as express.RequestHandler);
 // Driver performance metrics for bonus eligibility
-app.use('/api/driver/performance', requireRole('DRIVER') as express.RequestHandler, driverPerformanceRouter as express.RequestHandler);
+app.use('/api/driver/performance', requireRole('DRIVER') as express.RequestHandler, requireApprovedDriver as express.RequestHandler, driverPerformanceRouter as express.RequestHandler);
 // Driver notifications
-app.use('/api/driver/notifications', requireRole('DRIVER') as express.RequestHandler, driverNotificationsRouter as express.RequestHandler);
+app.use('/api/driver/notifications', requireRole('DRIVER') as express.RequestHandler, requireApprovedDriver as express.RequestHandler, driverNotificationsRouter as express.RequestHandler);
 // Driver license
-app.use('/api/driver/license', requireRole('DRIVER') as express.RequestHandler, driverLicenseRouter as express.RequestHandler);
+app.use('/api/driver/license', requireRole('DRIVER') as express.RequestHandler, requireApprovedDriver as express.RequestHandler, driverLicenseRouter as express.RequestHandler);
 // Driver scheduled trips (claim system)
-app.use('/api/driver/trips', driverScheduledRouter as express.RequestHandler);
+app.use('/api/driver/trips', requireRole('DRIVER') as express.RequestHandler, requireApprovedDriver as express.RequestHandler, driverScheduledRouter as express.RequestHandler);
 app.use('/api/owner/phone', ownerPhone);
 app.use('/api/owner/email', ownerEmail);
 app.use("/admin/2fa", admin2faRouter);

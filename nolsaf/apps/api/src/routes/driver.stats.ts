@@ -12,6 +12,7 @@ import { validatePasswordWithSettings } from '../lib/securitySettings.js';
 import { requireAuth, AuthedRequest } from "../middleware/auth.js";
 import { z } from "zod";
 import { limitDriverTripsList, limitDriverTripAction, limitDriverLocationUpdate, limitDriverAvailabilityToggle } from "../middleware/rateLimit.js";
+import { isTrustedUserDocumentUrl } from "../lib/userDocumentSecurity.js";
 
 // local no-op audit helper to satisfy references to `audit`
 // If the application provides an audit function via req.app.get('audit'), delegate to it.
@@ -1522,6 +1523,23 @@ const updateDriverProfile: RequestHandler = async (req, res) => {
     district,
   } = req.body ?? {};
   const userId = (req as AuthedRequest).user!.id;
+  const role = String((req as AuthedRequest).user?.role ?? "").trim().toUpperCase();
+
+  const submittedDocumentUrls = [
+    { field: 'drivingLicenseUrl', value: drivingLicenseUrl },
+    { field: 'nationalIdUrl', value: nationalIdUrl },
+    { field: 'latraUrl', value: latraUrl },
+    { field: 'insuranceUrl', value: insuranceUrl },
+  ];
+  for (const submittedDocument of submittedDocumentUrls) {
+    if (typeof submittedDocument.value !== 'string' || !submittedDocument.value.trim()) continue;
+    if (!isTrustedUserDocumentUrl(submittedDocument.value, role)) {
+      return res.status(400).json({
+        error: 'invalid_document_url',
+        message: `${submittedDocument.field} must point to approved NoLSAF-managed storage.`,
+      });
+    }
+  }
 
   // Best-effort: only include fields if Prisma user model has them
   const meta = (prisma as any).user?._meta ?? {};
@@ -1622,6 +1640,9 @@ const updateDriverProfile: RequestHandler = async (req, res) => {
   const upsertDoc = async (type: string, url: string | undefined, metadata?: any) => {
     if (!url || typeof url !== 'string') return;
     if (!(prisma as any).userDocument) return;
+    if (!isTrustedUserDocumentUrl(url, role)) {
+      throw new Error(`Untrusted document URL for ${type}`);
+    }
     const existing = await prisma.userDocument.findFirst({ where: { userId, type }, orderBy: { id: 'desc' } });
     if (existing) {
       await prisma.userDocument.update({ where: { id: existing.id }, data: { url, status: 'PENDING', metadata } as any });

@@ -22,8 +22,16 @@ import { buildDriverCaseRef } from '../lib/driverCaseRef.js';
 
 const router = Router();
 
-// Configure multer for file uploads (for profile creation with documents)
-const upload = multer({ storage: multer.memoryStorage() });
+// Onboarding profile accepts multipart form fields but not binary files.
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    files: 0,
+    fields: 50,
+    fieldSize: 64 * 1024,
+    parts: 50,
+  },
+});
 
 // Simple in-memory OTP store for dev/testing only
 const OTP_TTL_MS = 2 * 60 * 1000; // 2 minutes
@@ -1126,7 +1134,7 @@ router.post('/register', limitRegisterAttempts, async (req, res) => {
  * Creates or updates user profile after OTP verification and onboarding
  * Body: FormData with role, name, email, and optional referralCode
  */
-router.post('/profile', upload.any(), async (req, res) => {
+router.post('/profile', upload.none(), async (req, res) => {
   try {
     // Parse form data (multer handles multipart/form-data)
     const body = req.body;
