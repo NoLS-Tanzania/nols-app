@@ -83,6 +83,11 @@ function smoothEma(prev: LngLat, next: LngLat, alpha: number): LngLat {
   return { lat: lerp(prev.lat, next.lat, alpha), lng: lerp(prev.lng, next.lng, alpha) };
 }
 
+function angularDelta(a: number, b: number) {
+  const delta = Math.abs(a - b) % 360;
+  return delta > 180 ? 360 - delta : delta;
+}
+
 function nearestPointOnLineStringMeters(
   point: LngLat,
   coords: Array<[number, number]>
@@ -184,7 +189,6 @@ export default function DriverLiveMapCanvas({
   const [smoothedDriverPos, setSmoothedDriverPos] = useState<LngLat | null>(null);
   const [snappedDriverPos, setSnappedDriverPos] = useState<LngLat | null>(null);
   const [manualDriverPos, setManualDriverPos] = useState<LngLat | null>(startupDriverPos ?? null);
-  const [driverPulseActive, setDriverPulseActive] = useState(false);
   const [routeRetryNonce, setRouteRetryNonce] = useState(0);
   const [styleRevision, setStyleRevision] = useState(0);
   const [runtimeToken, setRuntimeToken] = useState("");
@@ -203,12 +207,13 @@ export default function DriverLiveMapCanvas({
     pitch: number;
   } | null>(null);
   const lastDriverPosRef = useRef<LngLat | null>(null);
+  const lastFollowCameraRef = useRef<{ center: LngLat; bearing: number } | null>(null);
   const lastPosAtRef = useRef<number | null>(null);
   const lastRouteFetchRef = useRef<{ key: string; at: number } | null>(null);
   const routeAbortRef = useRef<AbortController | null>(null);
   const routeRetryRef = useRef<{ attempts: number; timer?: number | null } | null>(null);
   const lastEmittedOptionsKeyRef = useRef<string | null>(null);
-  const driverPulseTimerRef = useRef<number | null>(null);
+  const snappedRouteActiveRef = useRef(false);
 
   // NEXT_PUBLIC_* vars are baked at build time. Use a runtime fetch so newly-set
   // tokens on the host start working immediately without a rebuild.
@@ -716,22 +721,7 @@ export default function DriverLiveMapCanvas({
                 paint: {
                   "circle-radius": ["interpolate", ["linear"], ["zoom"], 12, 16, 15, 25, 18, 32],
                   "circle-color": "#02665e",
-                  "circle-opacity": ["case", ["==", ["get", "pulse"], 1], 0.28, 0.18],
-                } as any,
-              });
-            }
-            if (!map.getLayer("driver-focus-layer")) {
-              map.addLayer({
-                id: "driver-focus-layer",
-                type: "circle",
-                source: "driver-point",
-                paint: {
-                  "circle-radius": ["case", ["==", ["get", "pulse"], 1], ["interpolate", ["linear"], ["zoom"], 12, 24, 15, 34, 18, 44], ["interpolate", ["linear"], ["zoom"], 12, 0, 15, 0, 18, 0]],
-                  "circle-color": "#26b3a5",
-                  "circle-opacity": ["case", ["==", ["get", "pulse"], 1], 0.18, 0],
-                  "circle-stroke-width": ["case", ["==", ["get", "pulse"], 1], 2, 0],
-                  "circle-stroke-color": "rgba(255,255,255,0.9)",
-                  "circle-stroke-opacity": ["case", ["==", ["get", "pulse"], 1], 0.55, 0],
+                  "circle-opacity": 0.18,
                 } as any,
               });
             }
@@ -916,6 +906,15 @@ export default function DriverLiveMapCanvas({
       const prev = lastDriverPosRef.current;
       const bearingTarget = manualDriverPos ?? smoothedDriverPos ?? driverPos;
       const bearing = prev && bearingTarget ? bearingDeg(prev, bearingTarget) : map.getBearing?.() ?? 0;
+      const lastCamera = lastFollowCameraRef.current;
+      const movementSinceLastFollow = lastCamera ? haversineMeters(lastCamera.center, followPos) : Number.POSITIVE_INFINITY;
+      const bearingDelta = lastCamera ? angularDelta(lastCamera.bearing, bearing) : Number.POSITIVE_INFINITY;
+
+      if (lastCamera && movementSinceLastFollow < 2.5 && bearingDelta < 5) {
+        lastDriverPosRef.current = bearingTarget;
+        return;
+      }
+
       // Keep zoom/pitch stable for a driver-friendly camera
       map.easeTo({
         center: [followPos.lng, followPos.lat],
@@ -924,6 +923,7 @@ export default function DriverLiveMapCanvas({
         bearing,
         duration: 520,
       });
+      lastFollowCameraRef.current = { center: followPos, bearing };
       lastDriverPosRef.current = bearingTarget;
     } catch {
       // ignore
@@ -965,15 +965,6 @@ export default function DriverLiveMapCanvas({
             : null;
         const focusPos = eventPos ?? manualDriverPos ?? snappedDriverPos ?? smoothedDriverPos ?? driverPos;
         autoFollowRef.current = true;
-        if (driverPulseTimerRef.current) {
-          window.clearTimeout(driverPulseTimerRef.current);
-          driverPulseTimerRef.current = null;
-        }
-        setDriverPulseActive(true);
-        driverPulseTimerRef.current = window.setTimeout(() => {
-          setDriverPulseActive(false);
-          driverPulseTimerRef.current = null;
-        }, 520);
         try {
           map.stop?.();
         } catch {
@@ -986,6 +977,7 @@ export default function DriverLiveMapCanvas({
           bearing: map.getBearing?.() ?? 0,
           duration: 420,
         });
+        lastFollowCameraRef.current = { center: focusPos, bearing: map.getBearing?.() ?? 0 };
       } catch {
         // ignore
       }
@@ -993,10 +985,6 @@ export default function DriverLiveMapCanvas({
 
     window.addEventListener("nols:map:center-driver", handler as EventListener);
     return () => {
-      if (driverPulseTimerRef.current) {
-        window.clearTimeout(driverPulseTimerRef.current);
-        driverPulseTimerRef.current = null;
-      }
       window.removeEventListener("nols:map:center-driver", handler as EventListener);
     };
   }, [driverPos, manualDriverPos, smoothedDriverPos, snappedDriverPos, liveOnly]);
@@ -1158,13 +1146,30 @@ export default function DriverLiveMapCanvas({
     const pos = manualDriverPos ?? smoothedDriverPos ?? driverPos;
     const coords = selectedRouteFeature?.geometry?.coordinates;
     if (!pos || !Array.isArray(coords) || coords.length < 2) {
+      snappedRouteActiveRef.current = false;
       setSnappedDriverPos(null);
       return;
     }
     const nearest = nearestPointOnLineStringMeters(pos, coords);
-    // only snap if reasonably close to route (avoid snapping onto wrong road)
-    if (nearest && nearest.distanceMeters <= 35) setSnappedDriverPos(nearest.snapped);
-    else setSnappedDriverPos(null);
+    if (!nearest) {
+      snappedRouteActiveRef.current = false;
+      setSnappedDriverPos(null);
+      return;
+    }
+
+    const snapThresholdMeters = 28;
+    const unsnapThresholdMeters = 46;
+    const shouldStaySnapped = snappedRouteActiveRef.current && nearest.distanceMeters <= unsnapThresholdMeters;
+    const shouldSnap = nearest.distanceMeters <= snapThresholdMeters;
+
+    if (shouldSnap || shouldStaySnapped) {
+      snappedRouteActiveRef.current = true;
+      setSnappedDriverPos(nearest.snapped);
+      return;
+    }
+
+    snappedRouteActiveRef.current = false;
+    setSnappedDriverPos(null);
   }, [selectedRouteFeature, manualDriverPos, smoothedDriverPos, driverPos]);
 
   // update source + markers
@@ -1232,7 +1237,7 @@ export default function DriverLiveMapCanvas({
     };
 
     const displayDriverPos = manualDriverPos ?? snappedDriverPos ?? smoothedDriverPos ?? driverPos;
-    setPoint("driver-point", hasTrackedDriverPos ? displayDriverPos : null, { pulse: driverPulseActive ? 1 : 0 });
+    setPoint("driver-point", hasTrackedDriverPos ? displayDriverPos : null);
     setPoint("pickup-point", pickupPos);
     setPoint("dropoff-point", dropoffPos);
 
@@ -1260,7 +1265,6 @@ export default function DriverLiveMapCanvas({
   }, [
     data,
     driverPos,
-    driverPulseActive,
     hasTrackedDriverPos,
     manualDriverPos,
     smoothedDriverPos,
