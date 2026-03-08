@@ -5989,14 +5989,14 @@ router.patch('/:id(\\d+)/kyc', limitAdminTripsWrite, async (req, res) => {
                 </p>
                 <p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.75;">
                   At NoLSAF, we are building Tanzania's first truly modernised transport and
-                  logistics platform — one that puts <strong>drivers, customers, and communities
+                  logistics platform; one that puts <strong>drivers, customers, and communities
                   first</strong>. No hidden fees. No surprises. Just fair, transparent, and
                   reliable service that earns trust every kilometre.
                 </p>
                 <p style="margin:0;font-size:14px;color:#374151;line-height:1.75;">
                   You are not just a driver. You are a <strong style="color:${BRAND_TEAL};">founding partner</strong>
-                  in this journey. Every trip you complete helps write a new chapter for transport
-                  in Tanzania — and we are incredibly proud to have you with us.
+                  in this journey. Every trip you complete helps write a new chapter for tourism, travel, and economic opportunity
+                  in Tanzania; and we are incredibly proud to have you with us.
                 </p>
               </td></tr>
             </table>

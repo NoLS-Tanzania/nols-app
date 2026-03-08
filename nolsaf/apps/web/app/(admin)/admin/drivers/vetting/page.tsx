@@ -71,6 +71,27 @@ type FieldApprovalStatus = 'approved' | 'flagged';
 type FieldApprovalsMap = Record<string, FieldApprovalStatus>;
 type AuditEntry = { id: number; action: string; note: string | null; fieldApprovals: FieldApprovalsMap | null; createdAt: string; adminId: number | null; adminName?: string | null; };
 
+const FIELD_LABELS: Record<string, string> = {
+  name: 'Full Name',
+  email: 'Email',
+  phone: 'Phone Number',
+  gender: 'Gender',
+  nationality: 'Nationality',
+  dateOfBirth: 'Date of Birth',
+  nin: 'National ID Number',
+  region: 'Region',
+  district: 'District',
+  operationArea: 'Operation Area',
+  vehicleType: 'Vehicle Type',
+  plateNumber: 'Plate Number',
+  licenseNumber: 'Licence Number',
+  paymentPhone: 'Payment Phone',
+  drivingLicense: 'Driving Licence',
+  nationalId: 'National ID',
+  latra: 'LATRA Certificate',
+  insurance: 'Insurance',
+};
+
 type DriverDetail = DriverRow & {
   gender: string | null;
   nationality: string | null;
@@ -100,6 +121,10 @@ function formatDateTime(iso: string | null | undefined) {
 function formatStoredDate(value: string | null | undefined) {
   if (!value) return "—";
   return String(value).split('T')[0];
+}
+
+function formatFieldLabel(key: string) {
+  return FIELD_LABELS[key] ?? key;
 }
 
 /** Collapse consecutive field_review entries with identical fieldApprovals — keep only the latest. */
@@ -196,24 +221,24 @@ function InfoRow({ label, value, icon: Icon, accent, fieldKey, fieldStatus, onTo
   const isEmpty = !value;
   return (
     <div
-      className={`px-4 py-3 flex items-center justify-between gap-3 ${
-        fieldStatus === 'approved' ? 'bg-emerald-50/40' :
-        fieldStatus === 'flagged'  ? 'bg-orange-50/30'  :
-        'bg-transparent'
+      className={`group px-4 py-4 flex items-center justify-between gap-3 transition-colors ${
+        fieldStatus === 'approved' ? 'bg-emerald-50/60' :
+        fieldStatus === 'flagged'  ? 'bg-orange-50/40'  :
+        'bg-white hover:bg-slate-50/70'
       }`}
     >
       <div className="flex items-center gap-2.5 min-w-0">
         {Icon && (
-          <span className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${accent ?? 'bg-slate-100'}`}>
-            <Icon className="w-4 h-4 text-slate-500" />
+          <span className={`w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 ring-1 ring-black/5 ${accent ?? 'bg-slate-100'}`}>
+            <Icon className="w-4 h-4 text-slate-600" />
           </span>
         )}
         <div className="min-w-0">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.12em] truncate">{label}</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.16em] truncate">{label}</p>
           {isEmpty ? (
-            <p className="mt-0.5 text-sm text-slate-300 italic">Not provided</p>
+            <p className="mt-1 text-sm text-slate-300 italic">Not provided</p>
           ) : (
-            <p className="mt-0.5 text-sm font-bold text-slate-900 break-words">{value}</p>
+            <p className="mt-1 text-sm font-semibold text-slate-900 break-words leading-snug">{value}</p>
           )}
         </div>
       </div>
@@ -224,7 +249,7 @@ function InfoRow({ label, value, icon: Icon, accent, fieldKey, fieldStatus, onTo
             <button
               title="Approved — click to undo"
               onClick={() => onToggle?.(fieldKey, 'approved')}
-              className="w-7 h-7 rounded-lg flex items-center justify-center bg-emerald-600 text-white border border-emerald-600 shadow-sm"
+              className="w-8 h-8 rounded-xl flex items-center justify-center bg-emerald-600 text-white border border-emerald-600 shadow-sm shadow-emerald-600/20"
             >
               <CheckCircle2 className="w-4 h-4" />
             </button>
@@ -233,8 +258,8 @@ function InfoRow({ label, value, icon: Icon, accent, fieldKey, fieldStatus, onTo
               <button
                 title="Approve this field"
                 onClick={() => onToggle?.(fieldKey, 'approved')}
-                className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all border ${
-                  'bg-white text-slate-400 border-slate-200 hover:text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50'
+                className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all border ${
+                  'bg-white text-slate-400 border-slate-200 hover:text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50 hover:shadow-sm'
                 }`}
               >
                 <CheckCircle2 className="w-4 h-4" />
@@ -242,10 +267,10 @@ function InfoRow({ label, value, icon: Icon, accent, fieldKey, fieldStatus, onTo
               <button
                 title="Flag this field for correction"
                 onClick={() => onToggle?.(fieldKey, 'flagged')}
-                className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all border ${
+                className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all border ${
                   fieldStatus === 'flagged'
-                    ? 'bg-orange-500 text-white border-orange-500 shadow-sm'
-                    : 'bg-white text-slate-400 border-slate-200 hover:text-orange-500 hover:border-orange-200 hover:bg-orange-50'
+                    ? 'bg-orange-500 text-white border-orange-500 shadow-sm shadow-orange-500/20'
+                    : 'bg-white text-slate-400 border-slate-200 hover:text-orange-500 hover:border-orange-200 hover:bg-orange-50 hover:shadow-sm'
                 }`}
               >
                 <AlertTriangle className="w-4 h-4" />
@@ -335,34 +360,34 @@ function DocLink({ label, url, expiryInfo, docId, docStatus, rejectionReason, fi
   return (
     <Row
       {...rowProps}
-      className={`px-4 py-3 flex items-center justify-between gap-3 no-underline ${
-        visualStatus === 'approved' ? 'bg-emerald-50/40' :
-        visualStatus === 'flagged'  ? 'bg-orange-50/30'  :
-        'bg-transparent'
-      } ${url ? 'hover:bg-emerald-50/40 transition-colors' : ''}`}
+      className={`px-4 py-4 flex items-center justify-between gap-3 no-underline transition-colors ${
+        visualStatus === 'approved' ? 'bg-emerald-50/60' :
+        visualStatus === 'flagged'  ? 'bg-orange-50/40'  :
+        'bg-white'
+      } ${url ? 'hover:bg-slate-50' : ''}`}
     >
       <div className="flex items-center gap-2.5 min-w-0">
-        <span className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center flex-shrink-0">
-          <FileText className="w-4 h-4 text-slate-400" />
+        <span className="w-10 h-10 rounded-2xl bg-slate-100 flex items-center justify-center flex-shrink-0 ring-1 ring-black/5">
+          <FileText className="w-4 h-4 text-slate-500" />
         </span>
         <div className="min-w-0">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.12em] truncate">{label}</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.16em] truncate">{label}</p>
           {url ? (
-            <p className="mt-0.5 text-sm font-bold text-slate-900">Open document</p>
+            <p className="mt-1 text-sm font-semibold text-slate-900">Open document</p>
           ) : (
-            <p className="mt-0.5 text-sm text-slate-300 italic">Not uploaded</p>
+            <p className="mt-1 text-sm text-slate-300 italic">Not uploaded</p>
           )}
           {expiryInfo && (
-            <p className="mt-0.5 text-[10px] text-slate-400">Expires: <span className="font-semibold text-slate-600">{expiryInfo}</span></p>
+            <p className="mt-1 text-[11px] text-slate-500">Expires: <span className="font-semibold text-slate-700">{expiryInfo}</span></p>
           )}
           {normalizedDocStatus === 'REJECTED' && rejectionReason && (
-            <p className="mt-0.5 text-[10px] text-orange-700 font-semibold">Reason: {rejectionReason}</p>
+            <p className="mt-1 text-[11px] text-orange-700 font-semibold">Reason: {rejectionReason}</p>
           )}
         </div>
       </div>
       <div className="flex items-center gap-1.5 flex-shrink-0">
         {url && (
-          <span className="w-7 h-7 rounded-lg border border-slate-200 bg-white text-slate-500 flex items-center justify-center">
+          <span className="w-8 h-8 rounded-xl border border-slate-200 bg-white text-slate-500 flex items-center justify-center shadow-sm">
             <Eye className="w-4 h-4" />
           </span>
         )}
@@ -925,69 +950,82 @@ export default function DriverVettingPage() {
               onClick={() => setSelected(null)}
             />
             {/* Drawer */}
-            <div className="fixed right-0 top-0 h-screen w-[600px] max-w-[95vw] z-50 bg-white shadow-2xl border-l border-slate-200 flex flex-col overflow-hidden">
+            <div className="fixed right-0 top-0 h-screen w-[620px] max-w-[96vw] z-50 bg-[#f7f7f2] shadow-2xl border-l border-slate-200/80 flex flex-col overflow-hidden">
 
             {/* Detail header */}
-            <div style={{ background: "linear-gradient(135deg, #0e2a7a 0%, #0a5c82 45%, #02665e 100%)" }} className="px-5 py-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3.5">
-                  <div className="w-12 h-12 rounded-2xl bg-white/15 border border-white/25 flex items-center justify-center flex-shrink-0 shadow-inner">
-                    <UserCircle2 className="w-7 h-7 text-white/90" />
+            <div style={{ background: "linear-gradient(145deg, #132968 0%, #0e4a70 46%, #0a7a68 100%)" }} className="px-5 pt-5 pb-4 relative overflow-hidden">
+              <div className="absolute inset-0 opacity-20" style={{ background: "radial-gradient(circle at top right, rgba(255,255,255,0.35), transparent 34%), radial-gradient(circle at bottom left, rgba(255,255,255,0.2), transparent 28%)" }} />
+              <div className="relative flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3.5 min-w-0 flex-1">
+                  <div className="w-14 h-14 rounded-[22px] bg-white/14 border border-white/20 flex items-center justify-center flex-shrink-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.2)] backdrop-blur-sm">
+                    <UserCircle2 className="w-8 h-8 text-white/90" />
                   </div>
-                  <div>
-                    <h2 className="text-base font-bold text-white leading-tight">{selected.name}</h2>
-                    <p className="text-white/55 text-xs mt-0.5">{selected.email}</p>
-                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className="text-[20px] font-black text-white leading-tight tracking-[-0.02em] truncate">{selected.name}</h2>
+                      {selected.isVipDriver && <span className="inline-flex items-center rounded-full border border-white/20 bg-white/12 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] text-white/85">VIP</span>}
+                    </div>
+                    <p className="text-white/70 text-sm mt-1 truncate">{selected.email}</p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2.5">
                       <KycBadge status={selected.kycStatus} suspendedAt={selected.suspendedAt} />
-                      <span className="text-white/40 text-xs">Joined {formatDate(selected.createdAt)}</span>
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-white/80">
+                        <Calendar className="w-3.5 h-3.5" />
+                        Joined {formatDate(selected.createdAt)}
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-white/80">
+                        <History className="w-3.5 h-3.5" />
+                        {auditLogs.length} audit event{auditLogs.length === 1 ? '' : 's'}
+                      </span>
                     </div>
                   </div>
                 </div>
                 <button
                   onClick={() => setSelected(null)}
-                  className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 flex items-center justify-center text-white/60 hover:text-white flex-shrink-0 transition-all"
+                  className="w-9 h-9 rounded-2xl bg-white/10 hover:bg-white/18 border border-white/15 flex items-center justify-center text-white/60 hover:text-white flex-shrink-0 transition-all backdrop-blur-sm"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
             </div>
 
             {/* Tab switcher */}
-            <div className="flex border-b border-slate-100 bg-slate-50/40 flex-shrink-0">
-              {([
-                { key: "details" as const, label: "Details",       icon: User    },
-                { key: "audit"   as const, label: "Audit History", icon: History },
-              ]).map(({ key, label, icon: Icon }) => (
-                <button
-                  key={key}
-                  onClick={() => setDetailTab(key)}
-                  className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold border-b-2 transition-all ${
-                    detailTab === key
-                      ? "border-[#02665e] text-[#02665e] bg-white"
-                      : "border-transparent text-slate-400 hover:text-slate-600 hover:bg-white/60"
-                  }`}
-                >
-                  <Icon className="w-3 h-3" />
-                  {label}
-                  {key === "audit" && auditLogs.length > 0 && (
-                    <span className="ml-0.5 px-1.5 py-0.5 bg-slate-200 text-slate-600 rounded text-[9px] font-bold leading-none">
-                      {auditLogs.length}
-                    </span>
-                  )}
-                </button>
-              ))}
+            <div className="px-5 py-3 border-b border-slate-200/70 bg-white/85 backdrop-blur flex-shrink-0">
+              <div className="inline-flex rounded-2xl bg-slate-100 p-1 ring-1 ring-slate-200/80">
+                {([
+                  { key: "details" as const, label: "Details",       icon: User    },
+                  { key: "audit"   as const, label: "Audit History", icon: History },
+                ]).map(({ key, label, icon: Icon }) => (
+                  <button
+                    key={key}
+                    onClick={() => setDetailTab(key)}
+                    className={`flex items-center gap-2 rounded-[14px] px-4 py-2 text-xs font-bold transition-all ${
+                      detailTab === key
+                        ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200"
+                        : "text-slate-500 hover:text-slate-700"
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    {label}
+                    {key === "audit" && auditLogs.length > 0 && (
+                      <span className={`ml-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-black leading-none ${detailTab === key ? 'bg-[#02665e] text-white' : 'bg-slate-200 text-slate-600'}`}>
+                        {auditLogs.length}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* ── DETAILS TAB ── */}
             {detailTab === "details" && (
-            <div className="overflow-y-auto flex-1 bg-slate-50/40">
+            <div className="overflow-y-auto flex-1 bg-[linear-gradient(180deg,#f7f7f2_0%,#f5f7fb_100%)]">
               {detailLoading ? (
                 <div className="p-10 text-center">
                   <div className="w-8 h-8 rounded-full border-2 border-[#02665e] border-t-transparent animate-spin mx-auto mb-3" />
                   <p className="text-sm text-slate-400">Loading full details…</p>
                 </div>
               ) : (
-                <div className="p-6 space-y-6">
+                <div className="p-5 space-y-5">
                   {/* Action result */}
                   {actionMsg && (
                     <div className={`p-3.5 rounded-xl flex items-center gap-3 ${
@@ -1180,23 +1218,36 @@ export default function DriverVettingPage() {
 
             {/* AUDIT HISTORY TAB */}
             {detailTab === "audit" && (
-              <div className="overflow-y-auto flex-1 p-4 bg-slate-50/40">
+              <div className="overflow-y-auto flex-1 px-5 py-5 bg-[linear-gradient(180deg,#f7f7f2_0%,#f6f4fb_100%)]">
                 {auditLoading ? (
                   <div className="p-10 text-center">
                     <div className="w-7 h-7 rounded-full border-2 border-[#02665e] border-t-transparent animate-spin mx-auto mb-3" />
                     <p className="text-xs text-slate-400">Loading history…</p>
                   </div>
                 ) : auditLogs.length === 0 ? (
-                  <div className="p-10 text-center">
-                    <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-3">
+                  <div className="p-10 text-center rounded-[28px] border border-white/70 bg-white/75 shadow-sm backdrop-blur">
+                    <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-3 ring-1 ring-slate-200">
                       <History className="w-6 h-6 text-slate-300" />
                     </div>
                     <p className="text-xs font-semibold text-slate-400">No audit history yet</p>
                     <p className="text-[11px] text-slate-400 mt-1">Actions taken on this driver will appear here</p>
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    {deduplicateAuditLogs(auditLogs).map((entry) => {
+                  <div className="space-y-4">
+                    <div className="rounded-[28px] border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Review Timeline</p>
+                          <h3 className="mt-1 text-lg font-black tracking-[-0.02em] text-slate-900">Decision history and reviewer actions</h3>
+                        </div>
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-right">
+                          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Events</p>
+                          <p className="text-base font-black text-slate-900">{auditLogs.length}</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-4">
+                    {deduplicateAuditLogs(auditLogs).map((entry, index, arr) => {
                       const actionMeta: Record<string, { label: string; color: string; bg: string; border: string; dot: string }> = {
                         approve:      { label: "Approved",           color: "text-emerald-700", bg: "bg-emerald-50",  border: "border-emerald-200", dot: "bg-emerald-500" },
                         reject:       { label: "Rejected",           color: "text-red-700",     bg: "bg-red-50",      border: "border-red-200",     dot: "bg-red-500" },
@@ -1208,45 +1259,73 @@ export default function DriverVettingPage() {
                       };
                       const meta = actionMeta[entry.action] ?? { label: entry.action, color: "text-slate-700", bg: "bg-slate-50", border: "border-slate-200", dot: "bg-slate-400" };
                       const fieldMap = entry.fieldApprovals as Record<string, string> | null | undefined;
-                      const approvedF = fieldMap ? Object.entries(fieldMap).filter(([, v]) => v === "approved").map(([k]) => k) : [];
-                      const flaggedF  = fieldMap ? Object.entries(fieldMap).filter(([, v]) => v !== "approved").map(([k]) => k) : [];
+                      const approvedF = fieldMap ? Object.entries(fieldMap).filter(([, v]) => v === "approved").map(([k]) => formatFieldLabel(k)) : [];
+                      const flaggedF  = fieldMap ? Object.entries(fieldMap).filter(([, v]) => v !== "approved").map(([k]) => formatFieldLabel(k)) : [];
+                      const previewApproved = approvedF.slice(0, 4);
+                      const previewFlagged = flaggedF.slice(0, 4);
                       return (
-                        <div key={entry.id} className={`rounded-xl border ${meta.border} ${meta.bg} px-3 py-2.5`}>
-                          {/* Header row */}
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${meta.dot}`} />
-                              <span className={`text-xs font-bold ${meta.color} truncate`}>{meta.label}</span>
-                            </div>
-                            <span className="text-[10px] text-slate-400 flex-shrink-0 font-mono">{formatDateTime(entry.createdAt)}</span>
+                        <div key={entry.id} className="grid grid-cols-[28px_1fr] gap-3">
+                          <div className="flex flex-col items-center pt-2">
+                            <span className={`w-3.5 h-3.5 rounded-full ring-4 ring-white shadow-sm ${meta.dot}`} />
+                            {index < arr.length - 1 && <span className="mt-2 w-px flex-1 bg-gradient-to-b from-slate-300 via-slate-200 to-transparent" />}
                           </div>
-                          {/* Who performed the action */}
-                          {entry.adminName && entry.action !== 'resubmitted' && (
-                            <p className="text-[11px] text-slate-500 mt-1 pl-4">
-                              by <span className="font-semibold text-slate-700">{entry.adminName}</span>
-                            </p>
-                          )}
-                          {entry.action === 'resubmitted' && (
-                            <p className="text-[11px] text-slate-500 mt-1 pl-4">by <span className="font-semibold text-violet-700">Driver</span></p>
-                          )}
-                          {/* Note */}
-                          {entry.note && (
-                            <p className="text-xs text-slate-600 mt-1.5 leading-relaxed pl-4">{entry.note}</p>
-                          )}
-                          {/* Field tags */}
-                          {(approvedF.length > 0 || flaggedF.length > 0) && (
-                            <div className="flex flex-wrap gap-1 mt-2 pl-4">
-                              {approvedF.map(k => (
-                                <span key={k} className="text-[10px] px-1.5 py-0.5 rounded-md font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200">{k}</span>
-                              ))}
-                              {flaggedF.map(k => (
-                                <span key={k} className="text-[10px] px-1.5 py-0.5 rounded-md font-semibold bg-orange-100 text-orange-700 border border-orange-200">{k}</span>
-                              ))}
+                          <div className={`rounded-[26px] border ${meta.border} ${meta.bg} px-4 py-4 shadow-sm`}>
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.14em] ${meta.color} bg-white/75 border border-white/70`}>
+                                    <span className={`w-2 h-2 rounded-full ${meta.dot}`} />
+                                    {meta.label}
+                                  </span>
+                                  <span className="text-[11px] text-slate-500">
+                                    {entry.action === 'resubmitted' ? 'by Driver' : `by ${entry.adminName ?? 'Admin'}`}
+                                  </span>
+                                </div>
+                                {entry.note && (
+                                  <p className="mt-3 text-sm leading-relaxed text-slate-700">{entry.note}</p>
+                                )}
+                              </div>
+                              <div className="text-right flex-shrink-0">
+                                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Timestamp</p>
+                                <p className="mt-1 text-[11px] font-semibold text-slate-600">{formatDateTime(entry.createdAt)}</p>
+                              </div>
                             </div>
-                          )}
+
+                            {(approvedF.length > 0 || flaggedF.length > 0) && (
+                              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                {approvedF.length > 0 && (
+                                  <div className="rounded-2xl border border-emerald-200/80 bg-white/70 p-3">
+                                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-700">Approved items</p>
+                                    <div className="mt-2 flex flex-wrap gap-1.5">
+                                      {previewApproved.map((item) => (
+                                        <span key={item} className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700">{item}</span>
+                                      ))}
+                                      {approvedF.length > previewApproved.length && (
+                                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-600">+{approvedF.length - previewApproved.length} more</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                                {flaggedF.length > 0 && (
+                                  <div className="rounded-2xl border border-orange-200/80 bg-white/70 p-3">
+                                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-orange-700">Needs correction</p>
+                                    <div className="mt-2 flex flex-wrap gap-1.5">
+                                      {previewFlagged.map((item) => (
+                                        <span key={item} className="rounded-full border border-orange-200 bg-orange-50 px-2 py-1 text-[11px] font-semibold text-orange-700">{item}</span>
+                                      ))}
+                                      {flaggedF.length > previewFlagged.length && (
+                                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-600">+{flaggedF.length - previewFlagged.length} more</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
+                    </div>
                   </div>
                 )}
               </div>
