@@ -18,8 +18,8 @@ type MapTheme = "light" | "dark";
 type MapLayer = "navigation" | "streets" | "outdoors" | "satellite";
 
 // Mapbox base styles (kept simple so we can reliably re-add our layers after setStyle()).
-const MAPBOX_STYLE_LIGHT = "mapbox://styles/mapbox/navigation-day-v1";
-const MAPBOX_STYLE_DARK = "mapbox://styles/mapbox/navigation-night-v1";
+const MAPBOX_STYLE_LIGHT = "mapbox://styles/mapbox/light-v11";
+const MAPBOX_STYLE_DARK = "mapbox://styles/mapbox/dark-v11";
 const MAPBOX_STYLE_STREETS = "mapbox://styles/mapbox/streets-v12";
 const MAPBOX_STYLE_OUTDOORS = "mapbox://styles/mapbox/outdoors-v12";
 const MAPBOX_STYLE_SATELLITE = "mapbox://styles/mapbox/satellite-streets-v12";
@@ -480,6 +480,24 @@ export default function DriverLiveMapCanvas({
         mapRef.current = map;
         map.addControl(new mapboxgl.NavigationControl({ showCompass: true }), "top-right");
 
+        const normalizeBaseStyle = () => {
+          try {
+            map.setProjection?.("mercator");
+          } catch {
+            // ignore
+          }
+          try {
+            map.setTerrain?.(null);
+          } catch {
+            // ignore
+          }
+          try {
+            map.setFog?.(null);
+          } catch {
+            // ignore
+          }
+        };
+
         // Some Mapbox styles reference optional datasets like "incidents".
         // Those can return 404 tiles in certain regions/plans and spam the console.
         // We remove them best-effort to keep the map clean.
@@ -765,6 +783,7 @@ export default function DriverLiveMapCanvas({
 
         map.on("load", () => {
           mapLoadedRef.current = true;
+          normalizeBaseStyle();
           stripIncidents();
           ensureOverlays();
           setStyleRevision((n) => n + 1);
@@ -773,6 +792,7 @@ export default function DriverLiveMapCanvas({
         // When switching styles (setStyle), Mapbox clears custom layers/sources/images.
         // Re-apply overlays every time the new style finishes loading.
         map.on("style.load", () => {
+          normalizeBaseStyle();
           stripIncidents();
           ensureOverlays();
           setStyleRevision((n) => n + 1);

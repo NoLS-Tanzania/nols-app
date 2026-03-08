@@ -1,13 +1,19 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-import { Power } from "lucide-react";
+import { LoaderCircle, Power } from "lucide-react";
 import { useSocket } from "@/hooks/useSocket";
 
 // Use same-origin calls + secure httpOnly cookie session.
 const api = axios.create({ baseURL: "", withCredentials: true });
 
-export default function DriverAvailabilitySwitch({ className = "" }: { className?: string }) {
+export default function DriverAvailabilitySwitch({
+  className = "",
+  variant = "default",
+}: {
+  className?: string;
+  variant?: "default" | "compact";
+}) {
   // Start with false to match server-side render (prevents hydration mismatch)
   const [available, setAvailable] = useState<boolean>(false);
   const [isClient, setIsClient] = useState(false);
@@ -173,24 +179,40 @@ export default function DriverAvailabilitySwitch({ className = "" }: { className
     }
   };
 
+  const isCompact = variant === "compact";
+
   return (
     <div className={className}>
-      <div className="flex flex-col items-center gap-3">
+      <div className={isCompact ? "flex items-center" : "flex flex-col items-center gap-3"}>
         <button
           onClick={toggle}
           disabled={status === 'pending'}
           aria-label={available ? "Go offline" : "Go online"}
           title={available ? "Go offline" : "Go online"}
-          className={`inline-flex items-center justify-center h-10 w-10 rounded-full shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 ${status === 'pending' ? 'transform scale-95 opacity-80' : ''} ${isClient && available ? 'bg-green-600 text-white hover:bg-green-700 focus:ring-green-300' : 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-300'}`}
+          className={[
+            "relative inline-flex items-center justify-center rounded-full shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2",
+            isCompact ? "h-11 w-11" : "h-10 w-10",
+            status === 'pending' ? 'scale-[0.97]' : '',
+            isClient && available ? 'bg-green-600 text-white hover:bg-green-700 focus:ring-green-300' : 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-300',
+          ].join(" ")}
         >
           <Power 
-            className={`h-5 w-5 transition-colors duration-200 ${!isClient ? 'text-red-200' : available ? 'text-green-200' : 'text-red-200'}`} 
+            className={[
+              isCompact ? "h-5 w-5" : "h-5 w-5",
+              "transition-colors duration-200",
+              !isClient ? 'text-red-200' : available ? 'text-green-200' : 'text-red-200',
+              status === 'pending' ? 'opacity-0' : '',
+            ].join(" ")}
             aria-hidden="true"
             suppressHydrationWarning
           />
+          {status === 'pending' ? (
+            <LoaderCircle className="absolute h-5 w-5 animate-spin text-white" aria-hidden="true" />
+          ) : null}
         </button>
 
-        <div aria-live="polite" role="status">
+        {!isCompact && (
+          <div aria-live="polite" role="status">
           {status === 'pending' ? (
             <div className="flex items-center gap-2 px-3 py-1 rounded-md text-sm font-medium bg-white">
               <span aria-hidden className="dot-spinner dot-sm" aria-live="polite">
@@ -202,7 +224,8 @@ export default function DriverAvailabilitySwitch({ className = "" }: { className
               <span className={isClient && available ? 'text-green-600' : 'text-red-600'}>{isClient && available ? 'Going live...' : 'Going offline...'}</span>
             </div>
           ) : null}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
