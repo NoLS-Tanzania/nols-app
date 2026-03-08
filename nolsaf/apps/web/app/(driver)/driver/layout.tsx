@@ -14,6 +14,61 @@ import { Clock, ShieldX, CheckCircle2, AlertTriangle, RefreshCw, MessageSquare, 
 
 type KycStatus = 'PENDING_KYC' | 'APPROVED_KYC' | 'REJECTED_KYC' | null;
 
+type DriverAccountSnapshot = {
+  name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  gender?: string | null;
+  nationality?: string | null;
+  nin?: string | null;
+  region?: string | null;
+  district?: string | null;
+  operationArea?: string | null;
+  vehicleType?: string | null;
+  plateNumber?: string | null;
+  licenseNumber?: string | null;
+  paymentPhone?: string | null;
+  paymentVerified?: boolean | null;
+  documents?: Array<{ type?: string | null; url?: string | null }> | null;
+};
+
+const REQUIRED_DRIVER_DOCUMENT_GROUPS = [
+  ['DRIVER_LICENSE', 'DRIVING_LICENSE', 'DRIVER_LICENCE', 'DRIVING_LICENCE', 'LICENSE'],
+  ['NATIONAL_ID', 'ID', 'PASSPORT'],
+  ['VEHICLE_REGISTRATION', 'LATRA', 'VEHICLE_REG'],
+  ['INSURANCE'],
+];
+
+function isDriverOnboardingComplete(account: DriverAccountSnapshot | null | undefined): boolean {
+  if (!account) return false;
+  const requiredTextFields = [
+    account.name,
+    account.email,
+    account.phone,
+    account.gender,
+    account.nationality,
+    account.nin,
+    account.region,
+    account.district,
+    account.operationArea,
+    account.vehicleType,
+    account.plateNumber,
+    account.licenseNumber,
+    account.paymentPhone,
+  ];
+  if (requiredTextFields.some((value) => !String(value ?? '').trim())) return false;
+  if (!Boolean(account.paymentVerified)) return false;
+
+  const docs = Array.isArray(account.documents) ? account.documents : [];
+  const docTypes = new Set(
+    docs
+      .filter((doc) => doc?.url)
+      .map((doc) => String(doc?.type ?? '').toUpperCase())
+  );
+
+  return REQUIRED_DRIVER_DOCUMENT_GROUPS.every((group) => group.some((type) => docTypes.has(type)));
+}
+
 function cleanDecisionReason(note: string | null | undefined): string {
   const value = String(note ?? '').trim();
   if (!value) return 'Your access to the NoLSAF driver account is currently inactive.';
@@ -191,6 +246,52 @@ function RejectedScreen({ driverName, kycNote }: { driverName: string | null; ky
   );
 }
 
+function CompleteOnboardingScreen() {
+  return (
+    <div className="min-h-screen flex items-center justify-center p-4"
+      style={{ background: 'linear-gradient(135deg, #09111f 0%, #0e2a7a 48%, #02665e 100%)' }}>
+      <div className="max-w-lg w-full bg-white rounded-3xl shadow-2xl overflow-hidden border border-white/10">
+        <div className="bg-gradient-to-r from-[#0e2a7a] via-[#0a5c82] to-[#02665e] px-6 py-6">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center">
+              <Edit3 className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <p className="text-[10px] font-black tracking-[0.16em] uppercase text-white/60">Driver Onboarding</p>
+              <h1 className="text-xl font-extrabold text-white leading-tight">Finish Your Professional Profile</h1>
+            </div>
+          </div>
+        </div>
+        <div className="p-6 space-y-4">
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3.5">
+            <p className="text-sm font-semibold text-amber-900">Driver activities stay locked until onboarding is complete.</p>
+            <p className="mt-1 text-xs leading-relaxed text-amber-800">
+              Complete your operation area, verify the payout phone, and upload the full driver document pack so the admin team can review the complete application in one pass.
+            </p>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 mb-2">Required before access</p>
+            <ul className="space-y-1.5 text-sm text-slate-700">
+              <li>Personal and vehicle details completed</li>
+              <li>Region, district, and operation area selected</li>
+              <li>Payment phone verified</li>
+              <li>Driving licence, National ID, vehicle registration, and insurance uploaded</li>
+            </ul>
+          </div>
+          <Link
+            href="/account/onboard/driver"
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-sm text-white no-underline transition-all shadow-md hover:shadow-lg"
+            style={{ background: 'linear-gradient(135deg, #0e2a7a, #02665e)' }}
+          >
+            <Edit3 className="w-4 h-4" />
+            Continue Driver Onboarding
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function DriverLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -199,6 +300,7 @@ export default function DriverLayout({ children }: { children: ReactNode }) {
   const [kycNote, setKycNote] = useState<string | null>(null);
   const [driverName, setDriverName] = useState<string | null>(null);
   const [accountSuspended, setAccountSuspended] = useState(false);
+  const [onboardingComplete, setOnboardingComplete] = useState(true);
 
   useEffect(() => {
     (async () => {
@@ -211,6 +313,7 @@ export default function DriverLayout({ children }: { children: ReactNode }) {
         setKycNote(me?.kycNote ?? null);
         setDriverName(me?.name ?? null);
         setAccountSuspended(Boolean(me?.suspendedAt) || Boolean(me?.isDisabled));
+        setOnboardingComplete(isDriverOnboardingComplete(me as DriverAccountSnapshot));
       } catch {
         setKycStatus(null);
       }
@@ -253,6 +356,8 @@ export default function DriverLayout({ children }: { children: ReactNode }) {
 
   // Pending KYC — driver must wait for admin approval (or action required if note present)
   if (kycStatus === 'PENDING_KYC') return <PendingApprovalScreen kycNote={kycNote} />;
+
+  if (kycStatus === null && !onboardingComplete) return <CompleteOnboardingScreen />;
 
   if (accountSuspended) {
     return (

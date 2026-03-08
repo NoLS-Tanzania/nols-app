@@ -1287,6 +1287,57 @@ router.post('/profile', upload.none(), async (req, res) => {
 
       // Only move driver to PENDING_KYC when they explicitly submit for review.
       const submitForReview = String(body?.submitForReview ?? '') === 'true';
+      if ((dbRole === 'DRIVER') && submitForReview) {
+        const missingProfileFields: string[] = [];
+        if (!(typeof licenseNumber === 'string' && licenseNumber.trim())) missingProfileFields.push('license number');
+        if (!(typeof vehicleType === 'string' && vehicleType.trim())) missingProfileFields.push('vehicle type');
+        if (!(typeof plateNumber === 'string' && plateNumber.trim())) missingProfileFields.push('plate number');
+        if (!(typeof region === 'string' && region.trim())) missingProfileFields.push('region');
+        if (!(typeof district === 'string' && district.trim())) missingProfileFields.push('district');
+        if (!(typeof operationArea === 'string' && operationArea.trim())) missingProfileFields.push('operation area');
+        if (!(typeof paymentPhone === 'string' && paymentPhone.trim())) missingProfileFields.push('payment phone');
+
+        const paymentIsVerified =
+          String(paymentVerified) === '1' || String(paymentVerified).toLowerCase() === 'true';
+        if (!paymentIsVerified) missingProfileFields.push('verified payment phone');
+
+        if (missingProfileFields.length > 0) {
+          return res.status(400).json({
+            error: 'incomplete_driver_onboarding',
+            message: `Complete all required driver details before submission. Missing: ${missingProfileFields.join(', ')}.`,
+          });
+        }
+
+        if (!(prisma as any).userDocument) {
+          return res.status(503).json({
+            error: 'driver_documents_unavailable',
+            message: 'Driver document storage is unavailable. Please upload documents again when the service is restored.',
+          });
+        }
+
+        const requiredDocumentGroups = [
+          { label: 'driving licence', types: ['DRIVER_LICENSE', 'DRIVING_LICENSE', 'DRIVER_LICENCE', 'DRIVING_LICENCE', 'LICENSE'] },
+          { label: 'National ID', types: ['NATIONAL_ID', 'ID', 'PASSPORT'] },
+          { label: 'vehicle registration', types: ['VEHICLE_REGISTRATION', 'LATRA', 'VEHICLE_REG'] },
+          { label: 'insurance certificate', types: ['INSURANCE'] },
+        ];
+
+        const docs = await prisma.userDocument.findMany({
+          where: { userId, url: { not: null } } as any,
+          select: { type: true, url: true } as any,
+        });
+        const presentTypes = new Set((docs as any[]).map((doc) => String(doc?.type ?? '').toUpperCase()));
+        const missingDocuments = requiredDocumentGroups
+          .filter((group) => !group.types.some((type) => presentTypes.has(type)))
+          .map((group) => group.label);
+
+        if (missingDocuments.length > 0) {
+          return res.status(400).json({
+            error: 'missing_driver_documents',
+            message: `Upload all required driver documents before submission. Missing: ${missingDocuments.join(', ')}.`,
+          });
+        }
+      }
       if (
         (dbRole === 'DRIVER') && submitForReview &&
         typeof licenseNumber === 'string' && licenseNumber.trim() &&

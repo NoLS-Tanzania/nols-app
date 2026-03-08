@@ -5613,6 +5613,72 @@ router.patch('/:id(\\d+)/kyc', limitAdminTripsWrite, async (req, res) => {
     const driver = await prisma.user.findUnique({ where: { id: driverId, role: 'DRIVER' } as any });
     if (!driver) return res.status(404).json({ error: 'Driver not found' });
 
+    if (action === 'approve') {
+      const missingFields: string[] = [];
+      if (!String((driver as any).name ?? '').trim()) missingFields.push('full name');
+      if (!String((driver as any).email ?? '').trim()) missingFields.push('email');
+      if (!String((driver as any).phone ?? '').trim()) missingFields.push('phone');
+      if (!String((driver as any).gender ?? '').trim()) missingFields.push('gender');
+      if (!String((driver as any).nationality ?? '').trim()) missingFields.push('nationality');
+      if (!String((driver as any).nin ?? '').trim()) missingFields.push('NIN');
+      if (!String((driver as any).region ?? '').trim()) missingFields.push('region');
+      if (!String((driver as any).district ?? '').trim()) missingFields.push('district');
+      if (!String((driver as any).operationArea ?? '').trim()) missingFields.push('operation area');
+      if (!String((driver as any).vehicleType ?? '').trim()) missingFields.push('vehicle type');
+      if (!String((driver as any).plateNumber ?? '').trim()) missingFields.push('plate number');
+      if (!String((driver as any).licenseNumber ?? '').trim()) missingFields.push('licence number');
+      if (!String((driver as any).paymentPhone ?? '').trim()) missingFields.push('payment phone');
+      if (!Boolean((driver as any).paymentVerified)) missingFields.push('verified payment phone');
+
+      const currentApprovals = ((driver as any).kycFieldApprovals && typeof (driver as any).kycFieldApprovals === 'object')
+        ? (driver as any).kycFieldApprovals as Record<string, string>
+        : {};
+      const requiredApprovalKeys = [
+        'name', 'email', 'phone', 'gender', 'nationality', 'nin',
+        'region', 'district', 'operationArea', 'vehicleType', 'plateNumber',
+        'licenseNumber', 'paymentPhone', 'drivingLicense', 'nationalId', 'latra', 'insurance',
+      ];
+      const unapprovedKeys = requiredApprovalKeys.filter((key) => String(currentApprovals[key] ?? '').toLowerCase() !== 'approved');
+      if (unapprovedKeys.length > 0) {
+        return res.status(400).json({
+          error: 'driver_review_incomplete',
+          message: 'Approve every required KYC field and document before granting driver access.',
+          missingApprovals: unapprovedKeys,
+        });
+      }
+
+      if (!(prisma as any).userDocument) {
+        return res.status(503).json({
+          error: 'driver_documents_unavailable',
+          message: 'Driver documents are unavailable for review, so this account cannot be approved.',
+        });
+      }
+
+      const requiredDocumentGroups = [
+        { label: 'driving licence', types: ['DRIVER_LICENSE', 'DRIVING_LICENSE', 'DRIVER_LICENCE', 'DRIVING_LICENCE', 'LICENSE'] },
+        { label: 'National ID', types: ['NATIONAL_ID', 'ID', 'PASSPORT'] },
+        { label: 'vehicle registration', types: ['VEHICLE_REGISTRATION', 'LATRA', 'VEHICLE_REG'] },
+        { label: 'insurance certificate', types: ['INSURANCE'] },
+      ];
+      const docs = await prisma.userDocument.findMany({
+        where: { userId: driverId, url: { not: null } } as any,
+        select: { type: true, url: true } as any,
+      });
+      const presentTypes = new Set((docs as any[]).map((doc) => String(doc?.type ?? '').toUpperCase()));
+      const missingDocuments = requiredDocumentGroups
+        .filter((group) => !group.types.some((type) => presentTypes.has(type)))
+        .map((group) => group.label);
+
+      if (missingFields.length > 0 || missingDocuments.length > 0) {
+        return res.status(400).json({
+          error: 'driver_application_incomplete',
+          message: 'Driver approval is blocked until all required onboarding details and documents are present.',
+          missingFields,
+          missingDocuments,
+        });
+      }
+    }
+
     // Determine requesting admin id (best-effort)
     const adminId: number | null = (req as any).user?.id ?? null;
 

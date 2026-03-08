@@ -8,6 +8,39 @@ import { REGIONS_FULL_DATA } from "@/lib/tzRegionsFull";
 import * as Icons from 'lucide-react';
 import { User, Mail, UserCircle, Globe, CreditCard, FileText, Upload, CheckCircle2, Truck, MapPin, Phone, ChevronDown, AlertCircle, ChevronLeft, ChevronRight, Loader2, Car, X, Clock, Building2, UserCircle2, ArrowLeft, Star, Shield, Lock, AlertTriangle } from 'lucide-react';
 
+type CloudinarySig = {
+  timestamp: number;
+  signature: string;
+  folder: string;
+  cloudName: string;
+  apiKey: string;
+};
+
+type DriverDocumentRecord = {
+  id?: number;
+  type: string;
+  url?: string | null;
+  status?: string | null;
+  metadata?: Record<string, any> | null;
+};
+
+const DRIVER_DOCUMENT_SPECS = [
+  { type: 'DRIVER_LICENSE', label: 'Driving licence', required: true },
+  { type: 'NATIONAL_ID', label: 'National ID', required: true },
+  { type: 'VEHICLE_REGISTRATION', label: 'Vehicle registration (LATRA)', required: true },
+  { type: 'INSURANCE', label: 'Insurance certificate', required: true },
+] as const;
+
+const REQUIRED_DRIVER_DOCUMENT_TYPES = DRIVER_DOCUMENT_SPECS.filter((spec) => spec.required).map((spec) => spec.type);
+
+function getLatestDriverDoc(docs: DriverDocumentRecord[], type: string): DriverDocumentRecord | null {
+  const normalizedType = String(type).toUpperCase();
+  for (const doc of docs) {
+    if (String(doc?.type ?? '').toUpperCase() === normalizedType && doc?.url) return doc;
+  }
+  return null;
+}
+
 export default function OnboardRole() {
   const routeParams = useParams<{ role?: string | string[] }>();
   const roleParam = Array.isArray(routeParams?.role) ? routeParams?.role?.[0] : routeParams?.role;
@@ -45,6 +78,8 @@ export default function OnboardRole() {
   const [paymentMessage, setPaymentMessage] = useState<string | null>(null);
   const [accountPhone, setAccountPhone] = useState<string>(''); // set from /api/account/me, used for auto-verify
   const [kycFieldApprovals, setKycFieldApprovals] = useState<Record<string, 'approved' | 'flagged'>>({});
+  const [uploadedDriverDocs, setUploadedDriverDocs] = useState<DriverDocumentRecord[]>([]);
+  const [docUploadState, setDocUploadState] = useState<{ type: string; label: string } | null>(null);
 
   const isApproved = (key: string) => kycFieldApprovals[key] === 'approved';
   const fieldBorderClass = (key: string, hasError: boolean) => {
@@ -127,6 +162,7 @@ export default function OnboardRole() {
         if (me?.region)                 setDriverRegion(me.region);
         if (me?.district)               setDriverDistrict(me.district);
         if (me?.paymentPhone)           setPaymentPhone(me.paymentPhone);
+        if (Array.isArray(me?.documents)) setUploadedDriverDocs(me.documents as DriverDocumentRecord[]);
       } catch {
         // ignore
       }
@@ -166,6 +202,97 @@ export default function OnboardRole() {
       ? 'Add your property details, rates, and availability to start receiving bookings.'
       : 'Update your profile and start searching for stays.';
 
+  const getSavedDriverDoc = (type: string) => getLatestDriverDoc(uploadedDriverDocs, type);
+  const hasDriverDocument = (type: string, file: File | null) => Boolean(file || getSavedDriverDoc(type)?.url);
+  const getDocumentDisplayName = (type: string, file: File | null) => {
+    if (file?.name) return file.name;
+    const saved = getSavedDriverDoc(type);
+    const metadata = saved?.metadata && typeof saved.metadata === 'object' ? saved.metadata : null;
+    const fileName = typeof metadata?.fileName === 'string' ? metadata.fileName : null;
+    if (fileName) return fileName;
+    if (saved?.url) {
+      const parts = String(saved.url).split('/');
+      return decodeURIComponent(parts[parts.length - 1] || 'Uploaded document');
+    }
+    return null;
+  };
+
+  const uploadToCloudinary = async (file: File, folder: string) => {
+    const sigResp = await fetch(`/api/uploads/cloudinary/sign?folder=${encodeURIComponent(folder)}`, { credentials: 'include' });
+    if (!sigResp.ok) {
+      const data: any = await sigResp.json().catch(() => ({}));
+      throw new Error(data?.message || data?.error || 'Failed to prepare secure document upload.');
+    }
+    const sig = await sigResp.json() as CloudinarySig;
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('timestamp', String(sig.timestamp));
+    fd.append('api_key', sig.apiKey);
+    fd.append('signature', sig.signature);
+    fd.append('folder', sig.folder);
+    fd.append('overwrite', 'true');
+
+    const uploadResp = await fetch(`https://api.cloudinary.com/v1_1/${sig.cloudName}/auto/upload`, {
+      method: 'POST',
+      body: fd,
+    });
+    if (!uploadResp.ok) {
+      throw new Error('Document upload failed while sending the file to secure storage.');
+    }
+
+    const uploadData: any = await uploadResp.json().catch(() => null);
+    const secureUrl = String(uploadData?.secure_url ?? '').trim();
+    if (!secureUrl) throw new Error('Document upload finished, but no secure file URL was returned.');
+    return secureUrl;
+  };
+
+  const persistDriverDocument = async (type: string, file: File) => {
+    const spec = DRIVER_DOCUMENT_SPECS.find((item) => item.type === type);
+    const label = spec?.label ?? type;
+    setDocUploadState({ type, label });
+    const url = await uploadToCloudinary(file, 'driver-documents');
+    const resp = await fetch('/api/account/documents', {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type,
+        url,
+        metadata: {
+          fileName: file.name,
+          contentType: file.type,
+          size: file.size,
+          uploadedAt: new Date().toISOString(),
+          source: 'driver-onboarding',
+        },
+      }),
+    });
+    if (!resp.ok) {
+      const data: any = await resp.json().catch(() => ({}));
+      throw new Error(data?.message || data?.error || `Failed to save the ${label.toLowerCase()} record.`);
+    }
+    const data: any = await resp.json().catch(() => ({}));
+    const saved = data?.data?.doc ?? data?.doc ?? null;
+    if (saved) {
+      setUploadedDriverDocs((prev) => [saved, ...prev.filter((doc) => String(doc?.type ?? '').toUpperCase() !== String(type).toUpperCase())]);
+    }
+  };
+
+  const uploadSelectedDriverDocuments = async () => {
+    const uploads = [
+      { type: 'DRIVER_LICENSE', file: licenseFile, clear: () => setLicenseFile(null) },
+      { type: 'NATIONAL_ID', file: idFile, clear: () => setIdFile(null) },
+      { type: 'VEHICLE_REGISTRATION', file: latraFile, clear: () => setLatraFile(null) },
+      { type: 'INSURANCE', file: insuranceFile, clear: () => setInsuranceFile(null) },
+    ] as const;
+
+    for (const upload of uploads) {
+      if (!upload.file) continue;
+      await persistDriverDocument(upload.type, upload.file);
+      upload.clear();
+    }
+  };
+
   const submitProfile = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setError(null);
@@ -189,13 +316,26 @@ export default function OnboardRole() {
     }
     // Additional driver required fields validation
     if (role === 'driver') {
-      if (!licenseNumber.trim() || !vehicleType.trim() || !plateNumber.trim() || !paymentPhone.trim()) {
-        setError('Please complete all required driver fields before submitting');
+      if (!licenseNumber.trim() || !vehicleType.trim() || !plateNumber.trim() || !driverRegion.trim() || !driverDistrict.trim() || !operationArea.trim() || !paymentPhone.trim()) {
+        setError('Complete every required driver detail before submitting for review.');
+        return;
+      }
+      if (!paymentVerified) {
+        setError('Verify the payment phone before submitting for review.');
+        return;
+      }
+      const missingRequiredDocs = REQUIRED_DRIVER_DOCUMENT_TYPES.filter((type) => !hasDriverDocument(type, type === 'DRIVER_LICENSE' ? licenseFile : type === 'NATIONAL_ID' ? idFile : type === 'VEHICLE_REGISTRATION' ? latraFile : insuranceFile));
+      if (missingRequiredDocs.length > 0) {
+        setError('Upload every required verification document before submitting for review.');
         return;
       }
     }
     setLoading(true);
     try {
+      if (role === 'driver') {
+        await uploadSelectedDriverDocuments();
+      }
+
       // Build FormData to include files and all driver fields
       const fd = new FormData();
       fd.append('role', role);
@@ -220,10 +360,6 @@ export default function OnboardRole() {
       fd.append('isVipDriver', isVipDriver ? 'true' : 'false');
       // Explicit submit-for-review flag — only set on final step submission
       fd.append('submitForReview', 'true');
-        if (licenseFile) fd.append('licenseFile', licenseFile, licenseFile.name);
-        if (idFile) fd.append('idFile', idFile, idFile.name);
-        if (latraFile) fd.append('latraFile', latraFile, latraFile.name);
-        if (insuranceFile) fd.append('insuranceFile', insuranceFile, insuranceFile.name);
       }
 
       const resp = await fetch('/api/auth/profile', { method: 'POST', body: fd });
@@ -243,7 +379,7 @@ export default function OnboardRole() {
         }
         throw new Error(data?.message || data?.error || 'Failed to save profile');
       }
-      setSuccess('Profile saved');
+      setSuccess(role === 'driver' ? 'Application submitted for professional review.' : 'Profile saved');
       // navigate to role dashboard or public account area
       setTimeout(() => {
         if (role === 'driver') router.push('/driver');
@@ -253,6 +389,7 @@ export default function OnboardRole() {
     } catch (err: any) {
       setError(err?.message || 'Failed to save profile');
     } finally {
+      setDocUploadState(null);
       setLoading(false);
     }
   };
@@ -289,13 +426,41 @@ export default function OnboardRole() {
         }
         return name.trim().length > 0 && emailRe.test(email.trim());
       case 2:
-        return licenseNumber.trim().length > 0 && vehicleType.trim().length > 0 && plateNumber.trim().length > 0;
+        return licenseNumber.trim().length > 0 && vehicleType.trim().length > 0 && plateNumber.trim().length > 0 && driverRegion.trim().length > 0 && driverDistrict.trim().length > 0 && operationArea.trim().length > 0;
       case 3:
         // require the payment phone to have been OTP-verified
         return paymentVerified === true;
+      case 4:
+        return REQUIRED_DRIVER_DOCUMENT_TYPES.every((type) => hasDriverDocument(type, type === 'DRIVER_LICENSE' ? licenseFile : type === 'NATIONAL_ID' ? idFile : type === 'VEHICLE_REGISTRATION' ? latraFile : insuranceFile));
       default:
         return true;
     }
+  };
+
+  const isDriverStepComplete = (step: number) => {
+    if (role !== 'driver') return true;
+    if (step === 1) {
+      return needsPasswordSetup
+        ? name.trim().length > 0 && emailRe.test(email.trim()) && password.trim().length >= 1 && confirmPassword === password
+        : name.trim().length > 0 && emailRe.test(email.trim());
+    }
+    if (step === 2) {
+      return licenseNumber.trim().length > 0 && vehicleType.trim().length > 0 && plateNumber.trim().length > 0 && driverRegion.trim().length > 0 && driverDistrict.trim().length > 0 && operationArea.trim().length > 0;
+    }
+    if (step === 3) return paymentPhone.trim().length > 0 && paymentVerified === true;
+    if (step === 4) {
+      return REQUIRED_DRIVER_DOCUMENT_TYPES.every((type) => hasDriverDocument(type, type === 'DRIVER_LICENSE' ? licenseFile : type === 'NATIONAL_ID' ? idFile : type === 'VEHICLE_REGISTRATION' ? latraFile : insuranceFile));
+    }
+    if (step === 5) return agreedToTerms && agreedToPrivacy;
+    return true;
+  };
+
+  const isDriverStepUnlocked = (step: number) => {
+    if (role !== 'driver') return true;
+    for (let idx = 1; idx < step; idx += 1) {
+      if (!isDriverStepComplete(idx)) return false;
+    }
+    return true;
   };
 
   // Comprehensive validation for all required driver steps before submission
@@ -308,13 +473,16 @@ export default function OnboardRole() {
     // Step 2: Driving Details
     const step2Valid = licenseNumber.trim().length > 0 && 
                        vehicleType.trim().length > 0 && 
-                       plateNumber.trim().length > 0;
+                       plateNumber.trim().length > 0 &&
+                       driverRegion.trim().length > 0 &&
+                       driverDistrict.trim().length > 0 &&
+                       operationArea.trim().length > 0;
     
     // Step 3: Payment Details
     const step3Valid = paymentPhone.trim().length > 0 && paymentVerified === true;
     
-    // Step 4: Uploads (driving license and national ID are required)
-    const step4Valid = licenseFile !== null && idFile !== null;
+    // Step 4: Uploads (all required documents must exist before review)
+    const step4Valid = REQUIRED_DRIVER_DOCUMENT_TYPES.every((type) => hasDriverDocument(type, type === 'DRIVER_LICENSE' ? licenseFile : type === 'NATIONAL_ID' ? idFile : type === 'VEHICLE_REGISTRATION' ? latraFile : insuranceFile));
     // Step 5: Terms & privacy agreement
     const step5Valid = agreedToTerms && agreedToPrivacy;
     
@@ -330,6 +498,9 @@ export default function OnboardRole() {
     licenseNumber: false,
     vehicleType: false,
     plateNumber: false,
+    driverRegion: false,
+    driverDistrict: false,
+    operationArea: false,
     paymentPhone: false,
   });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -342,6 +513,9 @@ export default function OnboardRole() {
   const licenseRef = useRef<HTMLInputElement | null>(null);
   const vehicleTypeRef = useRef<HTMLDivElement | null>(null);
   const plateRef = useRef<HTMLInputElement | null>(null);
+  const regionRef = useRef<HTMLSelectElement | null>(null);
+  const districtRef = useRef<HTMLSelectElement | null>(null);
+  const operationAreaRef = useRef<HTMLSelectElement | null>(null);
   const paymentRef = useRef<HTMLInputElement | null>(null);
   const paymentOtpRef = useRef<HTMLInputElement | null>(null);
 
@@ -363,6 +537,12 @@ export default function OnboardRole() {
         return vehicleType.trim() ? '' : 'Select a vehicle type';
       case 'plateNumber':
         return plateNumber.trim() ? '' : 'Plate number is required';
+      case 'driverRegion':
+        return driverRegion.trim() ? '' : 'Region is required';
+      case 'driverDistrict':
+        return driverDistrict.trim() ? '' : 'District is required';
+      case 'operationArea':
+        return operationArea.trim() ? '' : 'Operation area is required';
       case 'paymentPhone':
         return paymentPhone.trim() ? '' : 'Payment phone is required';
       default:
@@ -400,11 +580,17 @@ export default function OnboardRole() {
       const licErr = validateField('licenseNumber');
       const vehErr = validateField('vehicleType');
       const plateErr = validateField('plateNumber');
-      setTouched(prev => ({ ...prev, licenseNumber: true, vehicleType: true, plateNumber: true }));
-      setFieldErrors(prev => ({ ...prev, licenseNumber: licErr, vehicleType: vehErr, plateNumber: plateErr }));
+      const regionErr = validateField('driverRegion');
+      const districtErr = validateField('driverDistrict');
+      const areaErr = validateField('operationArea');
+      setTouched(prev => ({ ...prev, licenseNumber: true, vehicleType: true, plateNumber: true, driverRegion: true, driverDistrict: true, operationArea: true }));
+      setFieldErrors(prev => ({ ...prev, licenseNumber: licErr, vehicleType: vehErr, plateNumber: plateErr, driverRegion: regionErr, driverDistrict: districtErr, operationArea: areaErr }));
       if (licErr) { licenseRef.current?.focus(); return; }
       if (vehErr) { vehicleTypeRef.current?.focus(); return; }
       if (plateErr) { plateRef.current?.focus(); return; }
+      if (regionErr) { regionRef.current?.focus(); return; }
+      if (districtErr) { districtRef.current?.focus(); return; }
+      if (areaErr) { operationAreaRef.current?.focus(); return; }
     }
 
     if (stepIndex === 3) {
@@ -418,6 +604,11 @@ export default function OnboardRole() {
         if (paymentSent) { paymentOtpRef.current?.focus(); } else { paymentRef.current?.focus(); }
         return;
       }
+    }
+
+    if (stepIndex === 4) {
+      setError('Upload every required document before moving to the final review.');
+      return;
     }
   };
 
@@ -550,14 +741,21 @@ export default function OnboardRole() {
                 const Icon = step.icon;
                 const isActive = stepIndex === step.num;
                 const isCompleted = stepIndex > step.num;
+                const isUnlocked = isDriverStepUnlocked(step.num);
                 return (
                   <button
                     key={step.num}
                     type="button"
-                    onClick={() => setStepIndex(step.num)}
+                    onClick={() => {
+                      if (!isUnlocked) return;
+                      setStepIndex(step.num);
+                    }}
+                    disabled={!isUnlocked}
                     aria-current={isActive ? 'step' : undefined}
                     className={`flex-1 flex flex-col items-center gap-1.5 py-3 transition-all duration-200 relative ${
-                      isActive
+                      !isUnlocked
+                        ? 'cursor-not-allowed text-slate-700/40'
+                        : isActive
                         ? 'text-amber-400'
                         : isCompleted
                         ? 'text-amber-400/40 hover:text-amber-400/60'
@@ -572,7 +770,9 @@ export default function OnboardRole() {
                       <span className="absolute bottom-0 left-3 right-3 h-[2px] rounded-full bg-amber-400/20" />
                     )}
                     <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
-                      isActive
+                      !isUnlocked
+                        ? 'bg-white/[0.02] opacity-60'
+                        : isActive
                         ? 'bg-amber-400/15 ring-1 ring-amber-400/40'
                         : isCompleted
                         ? 'bg-amber-400/8'
@@ -638,6 +838,22 @@ export default function OnboardRole() {
             <div className={`mb-4 ${role !== 'driver' ? 'p-2.5' : 'p-3'} bg-emerald-50 border-l-4 border-emerald-500 rounded-r-lg flex items-start gap-2`}>
               <CheckCircle2 className={`${role !== 'driver' ? 'w-3.5 h-3.5' : 'w-4 h-4'} text-emerald-500 flex-shrink-0 mt-0.5`} />
               <p className={`${role !== 'driver' ? 'text-xs' : 'text-sm'} text-emerald-700 flex-1`}>{success}</p>
+            </div>
+          )}
+
+          {role === 'driver' && (
+            <div className="mb-5 rounded-2xl border border-slate-200 bg-[linear-gradient(135deg,#fff_0%,#f8fafc_45%,#eefbf7_100%)] px-4 py-3.5 shadow-sm">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-xl bg-[#02665e]/10 text-[#02665e]">
+                  <Shield className="h-4.5 w-4.5" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-slate-900">Complete submission required</p>
+                  <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                    NoLSAF reviews the full driver application in one pass. Finish all required details, operation area, payment verification, and every mandatory document before submitting for approval.
+                  </p>
+                </div>
+              </div>
             </div>
           )}
 
@@ -1275,31 +1491,42 @@ export default function OnboardRole() {
                     <label className="text-sm font-semibold text-slate-900 flex items-center gap-2">
                       <MapPin className="w-3.5 h-3.5 text-slate-500" />
                       Operation / Parking area
-                      <span className="text-xs font-normal text-slate-400">(optional)</span>
+                      <span className="text-red-500">*</span>
                     </label>
+                    <p className="mt-1 text-xs text-slate-500">This is mandatory and is used for dispatching, compliance review, and location-based driver matching.</p>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       {/* Region */}
                       <div>
                         <label className="text-xs font-medium text-slate-600 mb-1 block">Region</label>
                         <select
+                          ref={regionRef}
                           value={driverRegion}
-                          onChange={e => { setDriverRegion(e.target.value); setDriverDistrict(''); setOperationArea(''); }}
-                          className="w-full px-3 py-2.5 border-2 border-slate-200 rounded-lg bg-white text-sm focus:outline-none focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10 transition-all duration-200 cursor-pointer"
+                          onChange={e => { setDriverRegion(e.target.value); setDriverDistrict(''); setOperationArea(''); setTouched(prev => ({ ...prev, driverRegion: true })); setFieldErrors(prev => ({ ...prev, driverRegion: '', driverDistrict: '', operationArea: '' })); }}
+                          onBlur={() => { setTouched(prev => ({ ...prev, driverRegion: true })); setFieldErrors(prev => ({ ...prev, driverRegion: validateField('driverRegion') })); }}
+                          className={`w-full px-3 py-2.5 border-2 rounded-lg bg-white text-sm focus:outline-none focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10 transition-all duration-200 cursor-pointer ${touched.driverRegion && fieldErrors.driverRegion ? 'border-red-300 focus:border-red-500 focus:ring-red-100' : 'border-slate-200'}`}
                         >
                           <option value="">— Select region —</option>
                           {REGIONS.sort((a, b) => a.name.localeCompare(b.name)).map(r => (
                             <option key={r.id} value={r.name}>{r.name.charAt(0) + r.name.slice(1).toLowerCase().replace(/-/g, '-')}</option>
                           ))}
                         </select>
+                        {touched.driverRegion && fieldErrors.driverRegion && (
+                          <div className="text-xs text-red-600 mt-2 flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3" />
+                            {fieldErrors.driverRegion}
+                          </div>
+                        )}
                       </div>
                       {/* District */}
                       <div>
                         <label className="text-xs font-medium text-slate-600 mb-1 block">District</label>
                         <select
+                          ref={districtRef}
                           value={driverDistrict}
-                          onChange={e => { setDriverDistrict(e.target.value); setOperationArea(''); }}
+                          onChange={e => { setDriverDistrict(e.target.value); setOperationArea(''); setTouched(prev => ({ ...prev, driverDistrict: true })); setFieldErrors(prev => ({ ...prev, driverDistrict: '', operationArea: '' })); }}
+                          onBlur={() => { setTouched(prev => ({ ...prev, driverDistrict: true })); setFieldErrors(prev => ({ ...prev, driverDistrict: validateField('driverDistrict') })); }}
                           disabled={!driverRegion}
-                          className="w-full px-3 py-2.5 border-2 border-slate-200 rounded-lg bg-white text-sm focus:outline-none focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10 transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                          className={`w-full px-3 py-2.5 border-2 rounded-lg bg-white text-sm focus:outline-none focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10 transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${touched.driverDistrict && fieldErrors.driverDistrict ? 'border-red-300 focus:border-red-500 focus:ring-red-100' : 'border-slate-200'}`}
                         >
                           <option value="">— Select district —</option>
                           {driverRegion && (() => {
@@ -1309,15 +1536,23 @@ export default function OnboardRole() {
                             ));
                           })()}
                         </select>
+                        {touched.driverDistrict && fieldErrors.driverDistrict && (
+                          <div className="text-xs text-red-600 mt-2 flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3" />
+                            {fieldErrors.driverDistrict}
+                          </div>
+                        )}
                       </div>
                       {/* Ward */}
                       <div>
                         <label className="text-xs font-medium text-slate-600 mb-1 block">Ward / Area</label>
                         <select
+                          ref={operationAreaRef}
                           value={operationArea}
-                          onChange={e => setOperationArea(e.target.value)}
+                          onChange={e => { setOperationArea(e.target.value); setTouched(prev => ({ ...prev, operationArea: true })); setFieldErrors(prev => ({ ...prev, operationArea: '' })); }}
+                          onBlur={() => { setTouched(prev => ({ ...prev, operationArea: true })); setFieldErrors(prev => ({ ...prev, operationArea: validateField('operationArea') })); }}
                           disabled={!driverDistrict}
-                          className="w-full px-3 py-2.5 border-2 border-slate-200 rounded-lg bg-white text-sm focus:outline-none focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10 transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                          className={`w-full px-3 py-2.5 border-2 rounded-lg bg-white text-sm focus:outline-none focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10 transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${touched.operationArea && fieldErrors.operationArea ? 'border-red-300 focus:border-red-500 focus:ring-red-100' : 'border-slate-200'}`}
                         >
                           <option value="">— Select ward —</option>
                           {driverRegion && driverDistrict && (() => {
@@ -1329,6 +1564,12 @@ export default function OnboardRole() {
                             ));
                           })()}
                         </select>
+                        {touched.operationArea && fieldErrors.operationArea && (
+                          <div className="text-xs text-red-600 mt-2 flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3" />
+                            {fieldErrors.operationArea}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1574,7 +1815,7 @@ export default function OnboardRole() {
                     </div>
                     <div>
                       <h3 className="text-lg font-bold text-slate-900">Verification Documents</h3>
-                      <p className="text-xs text-slate-500">Upload your official licence and identity documents</p>
+                      <p className="text-xs text-slate-500">Upload the complete verification pack that the admin team must review before approval.</p>
                     </div>
                   </div>
 
@@ -1592,6 +1833,19 @@ export default function OnboardRole() {
                   )}
 
                   <div className="space-y-4">
+                  <div className="rounded-xl border border-[#02665e]/15 bg-[#02665e]/[0.03] px-4 py-3">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-xl bg-[#02665e]/10 text-[#02665e]">
+                        <CheckCircle2 className="h-4.5 w-4.5" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-slate-900">Documents required before admin review</p>
+                        <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                          Driving licence, National ID, vehicle registration, and insurance must all be uploaded here. Admin approval is blocked until the full pack is available.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                   <div>
                       <label htmlFor="license-upload" className="text-sm font-semibold text-slate-900 mb-2 flex items-center gap-2">
                         <FileText className="w-3.5 h-3.5 text-slate-500" />
@@ -1628,11 +1882,11 @@ export default function OnboardRole() {
                           className="hidden"
                         />
                       </label>
-                      {licenseFile && (
+                      {(licenseFile || getSavedDriverDoc('DRIVER_LICENSE')?.url) && (
                         <div className="mt-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2 flex-1 min-w-0">
                             <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                            <span className="text-xs text-emerald-700 font-medium truncate">{licenseFile.name}</span>
+                            <span className="text-xs text-emerald-700 font-medium truncate">{getDocumentDisplayName('DRIVER_LICENSE', licenseFile) || 'Driving licence uploaded'}</span>
                           </div>
                           <button
                             type="button"
@@ -1682,11 +1936,11 @@ export default function OnboardRole() {
                           className="hidden"
                         />
                       </label>
-                      {idFile && (
+                      {(idFile || getSavedDriverDoc('NATIONAL_ID')?.url) && (
                         <div className="mt-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2 flex-1 min-w-0">
                             <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                            <span className="text-xs text-emerald-700 font-medium truncate">{idFile.name}</span>
+                            <span className="text-xs text-emerald-700 font-medium truncate">{getDocumentDisplayName('NATIONAL_ID', idFile) || 'National ID uploaded'}</span>
                           </div>
                           <button
                             type="button"
@@ -1704,7 +1958,7 @@ export default function OnboardRole() {
                       <label htmlFor="latra-upload" className="text-sm font-semibold text-slate-900 mb-2 flex items-center gap-2">
                         <Truck className="w-3.5 h-3.5 text-slate-500" />
                         Upload LATRA certificate
-                        <span className="text-xs font-normal text-slate-500">(optional)</span>
+                        <span className="text-red-500">*</span>
                         <FieldBadge fk="latra" />
                       </label>
                       {kycFieldApprovals['latra'] === 'flagged' && (
@@ -1735,11 +1989,11 @@ export default function OnboardRole() {
                           className="hidden"
                         />
                       </label>
-                      {latraFile && (
+                      {(latraFile || getSavedDriverDoc('VEHICLE_REGISTRATION')?.url) && (
                         <div className="mt-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2 flex-1 min-w-0">
                             <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                            <span className="text-xs text-emerald-700 font-medium truncate">{latraFile.name}</span>
+                            <span className="text-xs text-emerald-700 font-medium truncate">{getDocumentDisplayName('VEHICLE_REGISTRATION', latraFile) || 'Vehicle registration uploaded'}</span>
                           </div>
                           <button
                             type="button"
@@ -1757,7 +2011,7 @@ export default function OnboardRole() {
                       <label htmlFor="insurance-upload" className="text-sm font-semibold text-slate-900 mb-2 flex items-center gap-2">
                         <Shield className="w-3.5 h-3.5 text-slate-500" />
                         Upload insurance certificate
-                        <span className="text-xs font-normal text-slate-500">(optional)</span>
+                        <span className="text-red-500">*</span>
                         <FieldBadge fk="insurance" />
                       </label>
                       {kycFieldApprovals['insurance'] === 'flagged' && (
@@ -1788,11 +2042,11 @@ export default function OnboardRole() {
                           className="hidden"
                         />
                       </label>
-                      {insuranceFile && (
+                      {(insuranceFile || getSavedDriverDoc('INSURANCE')?.url) && (
                         <div className="mt-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2 flex-1 min-w-0">
                             <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                            <span className="text-xs text-emerald-700 font-medium truncate">{insuranceFile.name}</span>
+                            <span className="text-xs text-emerald-700 font-medium truncate">{getDocumentDisplayName('INSURANCE', insuranceFile) || 'Insurance certificate uploaded'}</span>
                           </div>
                           <button
                             type="button"
@@ -2056,7 +2310,7 @@ export default function OnboardRole() {
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="text-sm font-semibold text-slate-900">Driving license</div>
-                              <div className="text-xs text-slate-500 truncate">{licenseFile ? licenseFile.name : <span className="text-slate-400 italic">Not uploaded</span>}</div>
+                                <div className="text-xs text-slate-500 truncate">{getDocumentDisplayName('DRIVER_LICENSE', licenseFile) || <span className="text-slate-400 italic">Not uploaded</span>}</div>
                             </div>
                           </div>
                           <button type="button" onClick={() => setStepIndex(4)} className="text-xs text-[#02665e] hover:text-[#02665e]/80 hover:underline font-medium flex-shrink-0 ml-2">Edit</button>
@@ -2069,7 +2323,7 @@ export default function OnboardRole() {
                         </div>
                             <div className="flex-1 min-w-0">
                               <div className="text-sm font-semibold text-slate-900">National ID</div>
-                              <div className="text-xs text-slate-500 truncate">{idFile ? idFile.name : <span className="text-slate-400 italic">Not uploaded</span>}</div>
+                              <div className="text-xs text-slate-500 truncate">{getDocumentDisplayName('NATIONAL_ID', idFile) || <span className="text-slate-400 italic">Not uploaded</span>}</div>
                             </div>
                           </div>
                           <button type="button" onClick={() => setStepIndex(4)} className="text-xs text-[#02665e] hover:text-[#02665e]/80 hover:underline font-medium flex-shrink-0 ml-2">Edit</button>
@@ -2082,7 +2336,7 @@ export default function OnboardRole() {
                         </div>
                             <div className="flex-1 min-w-0">
                               <div className="text-sm font-semibold text-slate-900">LATRA certificate</div>
-                              <div className="text-xs text-slate-500 truncate">{latraFile ? latraFile.name : <span className="text-slate-400 italic">Not uploaded</span>}</div>
+                              <div className="text-xs text-slate-500 truncate">{getDocumentDisplayName('VEHICLE_REGISTRATION', latraFile) || <span className="text-slate-400 italic">Not uploaded</span>}</div>
                             </div>
                           </div>
                           <button type="button" onClick={() => setStepIndex(4)} className="text-xs text-[#02665e] hover:text-[#02665e]/80 hover:underline font-medium flex-shrink-0 ml-2">Edit</button>
@@ -2095,7 +2349,7 @@ export default function OnboardRole() {
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="text-sm font-semibold text-slate-900">Insurance certificate</div>
-                              <div className="text-xs text-slate-500 truncate">{insuranceFile ? insuranceFile.name : <span className="text-slate-400 italic">Not uploaded</span>}</div>
+                              <div className="text-xs text-slate-500 truncate">{getDocumentDisplayName('INSURANCE', insuranceFile) || <span className="text-slate-400 italic">Not uploaded</span>}</div>
                             </div>
                           </div>
                           <button type="button" onClick={() => setStepIndex(4)} className="text-xs text-[#02665e] hover:text-[#02665e]/80 hover:underline font-medium flex-shrink-0 ml-2">Edit</button>
@@ -2224,7 +2478,7 @@ export default function OnboardRole() {
                       {loading ? (
                         <span className="flex items-center gap-1.5">
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          Saving...
+                          {docUploadState ? `Uploading ${docUploadState.label.toLowerCase()}...` : 'Submitting application...'}
                         </span>
                       ) : (
                         <span className="flex items-center gap-1.5">
