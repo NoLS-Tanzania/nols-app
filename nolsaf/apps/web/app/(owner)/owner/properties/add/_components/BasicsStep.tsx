@@ -1,8 +1,8 @@
 "use client";
 
-import type { ComponentType, Dispatch, MutableRefObject, SetStateAction } from "react";
-import { AlertTriangle, Building2, CheckCircle2, ChevronDown, HelpCircle, Home, LayoutGrid, MapPin, AlertCircle, Pencil, X } from "lucide-react";
-import { forwardRef, startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { Dispatch, MutableRefObject, SetStateAction } from "react";
+import { Building2, CheckCircle2, ChevronDown, HelpCircle, Home, LayoutGrid, MapPin, AlertCircle, Pencil, X } from "lucide-react";
+import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AddPropertySection } from "./AddPropertySection";
 import { StepFooter } from "./StepFooter";
@@ -71,33 +71,20 @@ export type BasicsStepProps = {
   streets: string[];
   REGIONS: Array<{ id: string; name: string }>;
 
-  locationTrackingEnabled: boolean;
   locationLoading: boolean;
-  handleLocationToggle: (enabled: boolean) => void;
-  onLocationDetected?: (lat: number, lng: number, meta?: { source?: "gps" | "pin"; accuracy?: number | null }) => void;
+  pendingDetectedLocation: {
+    lat: number;
+    lng: number;
+    accuracy: number | null;
+  } | null;
+  handleDetectCurrentLocation: () => void;
+  handleConfirmDetectedLocation: () => void;
+  handleDiscardDetectedLocation: () => void;
 
   tourismSiteId?: number | "";
   setTourismSiteId?: Dispatch<SetStateAction<number | "">>;
   parkPlacement?: "" | "INSIDE" | "NEARBY";
   setParkPlacement?: Dispatch<SetStateAction<"" | "INSIDE" | "NEARBY">>;
-
-  PropertyLocationMap: ComponentType<{
-    latitude: number;
-    longitude: number;
-    postcode: string | null;
-    onLocationDetected: (lat: number, lng: number, meta?: { source?: "gps" | "pin"; accuracy?: number | null }) => void;
-  }>;
-  /** Warning message when the map pin region doesn't match the selected Region */
-  locationMismatchWarning?: string | null;
-  /** True while the reverse-geocoding consistency check is in-flight */
-  checkingPinLocation?: boolean;
-  locationSource?: "gps" | "pin" | null;
-  locationAccuracyMeters?: number | null;
-  detectedAddress?: string | null;
-  detectedRegion?: string | null;
-  detectedDistrict?: string | null;
-  detectedWard?: string | null;
-  detectedPostcode?: string | null;
 };
 
 type TourismSiteOption = {
@@ -164,26 +151,16 @@ export const BasicsStep = forwardRef<HTMLElement, BasicsStepProps>(function Basi
   streets,
   REGIONS,
 
-  locationTrackingEnabled,
   locationLoading,
-  handleLocationToggle,
-  onLocationDetected,
+  pendingDetectedLocation,
+  handleDetectCurrentLocation,
+  handleConfirmDetectedLocation,
+  handleDiscardDetectedLocation,
 
   tourismSiteId,
   setTourismSiteId,
   parkPlacement,
   setParkPlacement,
-
-PropertyLocationMap,
-  locationMismatchWarning,
-  checkingPinLocation,
-  locationSource,
-  locationAccuracyMeters,
-  detectedAddress,
-  detectedRegion,
-  detectedDistrict,
-  detectedWard,
-  detectedPostcode,
 } = props;
 
 const tourismSiteIdValue = tourismSiteId ?? "";
@@ -463,93 +440,57 @@ const nameOk = title.trim().length >= 3;
     >
       {isVisible && (
         <div id="propertyBasicsInner" className="w-full">
-          <div className="add-property-section-hero">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <div className="min-w-0">
-                <span className="add-property-kicker">Premium Listing Setup</span>
-                <div className="mt-4">
-                  <StepHeader
-                    step={1}
-                    title="Basic details"
-                    description="Shape the first impression with a strong property identity, precise location, and structured listing data."
-                  />
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-                <span className="add-property-metric-chip">{completionPercent}% ready</span>
-                <span className="add-property-metric-chip">Step 1 of 6</span>
-              </div>
-            </div>
-          </div>
+          <StepHeader
+            step={1}
+            title="Basic details"
+            description="Start with the essentials guests care about first: property type, official address, and exact map position."
+          />
           <div className="pt-4">
-            <div className="add-property-status-premium mb-6">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div className="flex items-center gap-3">
-                  <div className={`flex h-12 w-12 items-center justify-center rounded-2xl font-bold text-base transition-all duration-300 ${
-                  basicsCompleted
-                    ? "bg-emerald-100 text-emerald-700 shadow-sm shadow-emerald-200/50"
-                    : "bg-amber-100 text-amber-700 shadow-sm shadow-amber-200/50"
-                }`}>
-                  {completionCount}/{totalFields}
-                  </div>
-                  <div className="text-sm text-gray-700">
-                    <div className="font-semibold text-slate-900">Basic details</div>
-                    <div className="mt-1 flex flex-wrap items-center gap-2 text-gray-600">
-                      {basicsCompleted ? (
-                        <span className="flex items-center gap-1 font-bold text-emerald-600">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Complete and ready for the next step
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-1 font-bold text-amber-600">
-                          <AlertCircle className="w-3.5 h-3.5" /> {totalFields - completionCount} required items remaining
-                        </span>
-                      )}
-                    </div>
+            <div className="mb-6 rounded-2xl border border-slate-200/80 bg-white px-4 py-4 shadow-sm shadow-slate-200/25">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-slate-900">Step 1 of 6</div>
+                  <div className="mt-1 text-sm text-slate-600">
+                    {basicsCompleted
+                      ? "This section is complete."
+                      : `${totalFields - completionCount} required item${totalFields - completionCount === 1 ? "" : "s"} remaining.`}
                   </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200/60 bg-emerald-50/80 px-3 py-1.5 text-xs font-semibold text-emerald-700">
-                    All fields required <span className="text-red-500">*</span>
-                  </div>
-                  <div className="inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-white/85 px-3 py-1.5 text-xs font-semibold text-slate-600">
-                    Exact location verification enabled
-                  </div>
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 font-semibold text-slate-700">{completionCount}/{totalFields} complete</span>
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 font-semibold text-slate-700">{completionPercent}% ready</span>
                 </div>
               </div>
-              <div className="mt-4 space-y-2">
-                <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  <span>Section progress</span>
-                  <span>{completionPercent}%</span>
-                </div>
-                <div className="add-property-progress-track">
-                  <div className="add-property-progress-fill" style={{ width: `${completionPercent}%` }} />
-                </div>
+              <div className="mt-3 add-property-progress-track">
+                <div className="add-property-progress-fill" style={{ width: `${completionPercent}%` }} />
               </div>
             </div>
 
           <div className="space-y-6 w-full">
             <div className="add-property-panel-premium">
-              <div className="flex items-center justify-between gap-3 mb-4">
+              <div className="add-property-workblock-header">
                 <div>
                   <label className="block text-sm font-semibold text-gray-900" id="propertyTypeLabel">
                     Property Type <span className="text-red-500">*</span>
                   </label>
-                  <p className="mt-1 text-xs text-gray-500">Select the category that best matches the guest experience you want to present.</p>
+                  <p className="mt-1 text-sm text-gray-500">Select the category that best matches the guest experience you want to present.</p>
                 </div>
+                <div className="flex flex-wrap items-center gap-2">
                 {typeOk ? (
-                  <div className="hidden sm:inline-flex items-center rounded-full border border-slate-200/80 bg-white/90 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm shadow-slate-200/40">
-                    Chosen type: <span className="ml-1 text-emerald-700">{type}</span>
+                  <div className="hidden sm:inline-flex items-center rounded-full border border-slate-200/80 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700">
+                    Selected: <span className="ml-1 text-emerald-700">{type}</span>
                   </div>
                 ) : null}
                 {collapseTypes ? (
                   <button
                     type="button"
                     onClick={() => setTypePickerOpen(true)}
-                    className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 px-3 py-1.5 rounded-lg hover:bg-emerald-50 transition-colors"
+                    className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-50"
                   >
                     Change
                   </button>
                 ) : null}
+                </div>
               </div>
 
               <div
@@ -873,381 +814,270 @@ const nameOk = title.trim().length >= 3;
             {/* Property Location */}
             <div className="add-property-location-module">
               <div className="add-property-location-hero">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                  <div className="flex items-start gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-lg shadow-slate-300/40">
-                      <MapPin className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <span className="add-property-kicker">Address foundation</span>
-                      <h2 className="mt-3 text-xl font-semibold text-slate-900 mb-1">
-                        Property Location <span className="text-rose-600">*</span>
-                      </h2>
-                      <p className="max-w-2xl text-sm leading-relaxed text-slate-600">Build the official address in the right order so the property pin, postcode, and destination discovery stay consistent across the listing.</p>
-                    </div>
+                <div className="flex items-start gap-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-sm shadow-slate-200/30">
+                    <MapPin className="h-5 w-5" />
                   </div>
-                  <div className="add-property-location-workflow">
-                    <span className="add-property-location-step"><span className="add-property-location-step-index">1</span> Region</span>
-                    <span className="add-property-location-step"><span className="add-property-location-step-index">2</span> District</span>
-                    <span className="add-property-location-step"><span className="add-property-location-step-index">3</span> Ward and street</span>
+                  <div>
+                    <span className="add-property-kicker">Address foundation</span>
+                    <h2 className="mt-3 text-xl font-semibold text-slate-900 mb-1">
+                      Property Location <span className="text-rose-600">*</span>
+                    </h2>
+                    <p className="text-sm text-slate-600">Enter the address details for this property.</p>
                   </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="flex flex-col space-y-2">
-                  <div className={[
-                    "add-property-field-card",
-                    regionId ? "add-property-field-card-valid" : "",
-                  ].join(" ")}>
-                    <div className="add-property-field-card-head">
-                      <div>
-                        <div className="add-property-field-card-label">Region <span className="text-rose-600">*</span></div>
-                        <div className="add-property-field-card-value">{regionId ? (REGIONS.find((region) => region.id === regionId)?.name ?? regionId) : "Choose property region"}</div>
-                      </div>
-                      <span className={`add-property-field-badge ${regionId ? "add-property-field-badge-valid" : "add-property-field-badge-disabled"}`}>
-                        {regionId ? "set" : "required"}
-                      </span>
-                    </div>
-                    <select
-                      title="Region"
-                      value={regionId}
-                      onChange={(e) => {
-                        setRegionId(e.target.value);
-                        setDistrict("");
-                        setWard("");
-                      }}
-                      className={["add-property-field-control", "h-12 cursor-pointer appearance-none px-4 pr-10"].join(" ")}
-                      aria-required={true}
-                    >
-                      <option value="">Select region</option>
-                      {REGIONS.map((r: { id: string; name: string }) => (
-                        <option key={r.id} value={r.id}>
-                          {r.name}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 z-10">
-                      <ChevronDown className="h-5 w-5" />
+              <div className="space-y-5">
+                <div className="add-property-address-group">
+                  <div className="add-property-address-group-header">
+                    <div className="min-w-0">
+                      <div className="add-property-address-group-kicker">Administrative path</div>
+                      <h3 className="add-property-address-group-title">Choose region, district, and ward</h3>
                     </div>
                   </div>
-                </div>
 
-                <div className="flex flex-col space-y-2">
-                  <div
-                    className={`add-property-field-card ${
+                  <div className="add-property-address-grid add-property-address-grid-admin">
+                    <div className={["add-property-address-card", regionId ? "add-property-address-card-done" : "add-property-address-card-active"].join(" ")}>
+                      <div className="add-property-address-card-head">
+                        <div className="min-w-0">
+                          <div className="add-property-address-card-label">Region <span className="text-rose-600">*</span></div>
+                        </div>
+                      </div>
+                      <div className="add-property-address-card-control relative">
+                        <select
+                          title="Region"
+                          value={regionId}
+                          onChange={(e) => {
+                            setRegionId(e.target.value);
+                            setDistrict("");
+                            setWard("");
+                          }}
+                          className="add-property-field-control h-12 cursor-pointer appearance-none px-4 pr-10"
+                          aria-required={true}
+                        >
+                          <option value="">Select region</option>
+                          {REGIONS.map((r: { id: string; name: string }) => (
+                            <option key={r.id} value={r.id}>
+                              {r.name}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                          <ChevronDown className="h-5 w-5" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className={[
+                      "add-property-address-card",
                       touchedBasics.district && !district
-                        ? "add-property-field-card-error"
+                        ? "add-property-address-card-error"
                         : !regionId
-                          ? "add-property-field-card-disabled"
+                          ? "add-property-address-card-locked"
                           : district
-                            ? "add-property-field-card-valid"
-                            : ""
-                    }`}
-                  >
-                    <div className="add-property-field-card-head">
-                      <div>
-                        <div className="add-property-field-card-label">District <span className="text-rose-600">*</span></div>
-                        <div className="add-property-field-card-value">{district || (regionId ? "Choose district" : "Unlock after region")}</div>
+                            ? "add-property-address-card-done"
+                            : "add-property-address-card-active",
+                    ].join(" ")}>
+                      <div className="add-property-address-card-head">
+                        <div className="min-w-0">
+                          <div className="add-property-address-card-label">District <span className="text-rose-600">*</span></div>
+                        </div>
                       </div>
-                      <span className={`add-property-field-badge ${
-                        touchedBasics.district && !district
-                          ? "add-property-field-badge-error"
-                          : !regionId
-                            ? "add-property-field-badge-disabled"
-                            : district
-                              ? "add-property-field-badge-valid"
-                              : "add-property-field-badge-disabled"
-                      }`}>
-                        {touchedBasics.district && !district ? "fix" : !regionId ? "locked" : district ? "set" : "required"}
-                      </span>
+                      <div className="add-property-address-card-control relative">
+                        <select
+                          title="District"
+                          value={district}
+                          onChange={(e) => {
+                            setDistrict(e.target.value);
+                            setWard("");
+                            setStreet("");
+                            setZip("");
+                          }}
+                          onBlur={() => setTouchedBasics((t) => ({ ...t, district: true }))}
+                          disabled={!regionId}
+                          className={`add-property-field-control appearance-none h-12 cursor-pointer px-4 pr-10 ${
+                            !regionId ? "text-slate-400 cursor-not-allowed" : "text-slate-900"
+                          }`}
+                          aria-required={true}
+                          aria-describedby={touchedBasics.district && !district ? "districtError" : undefined}
+                        >
+                          <option value="">{regionId ? "Select district" : "Select region first"}</option>
+                          {districts.map((d: string) => (
+                            <option key={d} value={d}>
+                              {d}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                          <ChevronDown className="h-5 w-5" />
+                        </div>
+                      </div>
+                      {touchedBasics.district && !district ? <p id="districtError" className="add-property-address-card-note text-rose-600">Choose a district to continue.</p> : null}
                     </div>
-                    <select
-                      title="District"
-                      value={district}
-                      onChange={(e) => {
-                        setDistrict(e.target.value);
-                        setWard("");
-                        setStreet("");
-                        setZip("");
-                      }}
-                      onBlur={() => setTouchedBasics((t) => ({ ...t, district: true }))}
-                      disabled={!regionId}
-                      className={`add-property-field-control appearance-none h-12 cursor-pointer px-4 pr-10 ${
-                        touchedBasics.district && !district
-                          ? "text-slate-900 focus:ring-rose-200 focus:border-rose-500"
-                          : !regionId
-                            ? "text-slate-400 cursor-not-allowed"
-                            : "text-slate-900 focus:ring-emerald-500/20 focus:border-emerald-500"
-                      }`}
-                      aria-required={true}
-                      aria-describedby={touchedBasics.district && !district ? "districtError" : undefined}
-                    >
-                      <option value="">{regionId ? "Select district" : "Select region first"}</option>
-                      {districts.map((d: string) => (
-                        <option key={d} value={d}>
-                          {d}
-                        </option>
-                      ))}
-                    </select>
-                    <div
-                      className={`absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none z-10 ${
-                        !regionId ? "text-slate-300" : "text-slate-400"
-                      }`}
-                    >
-                      <ChevronDown className="h-5 w-5" />
-                    </div>
-                  </div>
-                  {touchedBasics.district && !district && (
-                    <p id="districtError" className="text-xs text-rose-600 mt-0.5">
-                      Please select a district
-                    </p>
-                  )}
-                </div>
 
-                <div className="flex flex-col space-y-2">
-                  <div
-                    className={`add-property-field-card ${
+                    <div className={[
+                      "add-property-address-card",
                       touchedBasics.ward && !ward
-                        ? "add-property-field-card-error"
+                        ? "add-property-address-card-error"
                         : !district
-                          ? "add-property-field-card-disabled"
+                          ? "add-property-address-card-locked"
                           : ward
-                            ? "add-property-field-card-valid"
-                            : ""
-                    }`}
-                  >
-                    <div className="add-property-field-card-head">
-                      <div>
-                        <div className="add-property-field-card-label">Ward <span className="text-rose-600">*</span></div>
-                        <div className="add-property-field-card-value">{ward || (district ? "Choose ward" : "Unlock after district")}</div>
+                            ? "add-property-address-card-done"
+                            : "add-property-address-card-active",
+                    ].join(" ")}>
+                      <div className="add-property-address-card-head">
+                        <div className="min-w-0">
+                          <div className="add-property-address-card-label">Ward <span className="text-rose-600">*</span></div>
+                        </div>
                       </div>
-                      <span className={`add-property-field-badge ${
-                        touchedBasics.ward && !ward
-                          ? "add-property-field-badge-error"
-                          : !district
-                            ? "add-property-field-badge-disabled"
-                            : ward
-                              ? "add-property-field-badge-valid"
-                              : "add-property-field-badge-disabled"
-                      }`}>
-                        {touchedBasics.ward && !ward ? "fix" : !district ? "locked" : ward ? "set" : "required"}
-                      </span>
-                    </div>
-                    <select
-                      title="Ward"
-                      value={ward}
-                      onChange={(e) => {
-                        setWard(e.target.value);
-                        setStreet("");
-                        setZip("");
-                      }}
-                      onBlur={() => setTouchedBasics((t) => ({ ...t, ward: true }))}
-                      disabled={!district}
-                      className={`add-property-field-control appearance-none h-12 cursor-pointer px-4 pr-10 ${
-                        touchedBasics.ward && !ward
-                          ? "text-slate-900 focus:ring-rose-200 focus:border-rose-500"
-                          : !district
-                            ? "text-slate-400 cursor-not-allowed"
-                            : "text-slate-900 focus:ring-emerald-500/20 focus:border-emerald-500"
-                      }`}
-                      aria-required={true}
-                      aria-describedby={touchedBasics.ward && !ward ? "wardError" : undefined}
-                    >
-                      <option value="">{district ? "Select ward" : "Select district first"}</option>
-                      {wards.map((w: string) => (
-                        <option key={w} value={w}>
-                          {w}
-                        </option>
-                      ))}
-                    </select>
-                    <div
-                      className={`absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none z-10 ${
-                        !district ? "text-slate-300" : "text-slate-400"
-                      }`}
-                    >
-                      <ChevronDown className="h-5 w-5" />
+                      <div className="add-property-address-card-control relative">
+                        <select
+                          title="Ward"
+                          value={ward}
+                          onChange={(e) => {
+                            setWard(e.target.value);
+                            setStreet("");
+                            setZip("");
+                          }}
+                          onBlur={() => setTouchedBasics((t) => ({ ...t, ward: true }))}
+                          disabled={!district}
+                          className={`add-property-field-control appearance-none h-12 cursor-pointer px-4 pr-10 ${
+                            !district ? "text-slate-400 cursor-not-allowed" : "text-slate-900"
+                          }`}
+                          aria-required={true}
+                          aria-describedby={touchedBasics.ward && !ward ? "wardError" : undefined}
+                        >
+                          <option value="">{district ? "Select ward" : "Select district first"}</option>
+                          {wards.map((w: string) => (
+                            <option key={w} value={w}>
+                              {w}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                          <ChevronDown className="h-5 w-5" />
+                        </div>
+                      </div>
+                      {touchedBasics.ward && !ward ? <p id="wardError" className="add-property-address-card-note text-rose-600">Choose a ward to continue.</p> : null}
                     </div>
                   </div>
-                  {touchedBasics.ward && !ward && (
-                    <p id="wardError" className="text-xs text-rose-600 mt-0.5">
-                      Please select a ward
-                    </p>
-                  )}
                 </div>
-              </div>
 
-              <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div className="flex min-w-0 flex-col space-y-2">
-                  <div
-                    className={`add-property-field-card ${
+                <div className="add-property-address-group">
+                  <div className="add-property-address-group-header">
+                    <div className="min-w-0">
+                      <div className="add-property-address-group-kicker">Street details</div>
+                      <h3 className="add-property-address-group-title">Add street, city, and postcode</h3>
+                    </div>
+                  </div>
+
+                  <div className="add-property-address-grid add-property-address-grid-detail">
+                    <div className={[
+                      "add-property-address-card",
                       touchedBasics.street && !street
-                        ? "add-property-field-card-error"
+                        ? "add-property-address-card-error"
                         : !ward
-                          ? "add-property-field-card-disabled"
+                          ? "add-property-address-card-locked"
                           : street
-                            ? "add-property-field-card-valid"
-                            : ""
-                    }`}
-                  >
-                    <div className="add-property-field-card-head">
-                      <div>
-                        <div className="add-property-field-card-label">Street address <span className="text-rose-600">*</span></div>
-                        <div className="add-property-field-card-value">{street || (ward ? "Choose street" : "Unlock after ward")}</div>
+                            ? "add-property-address-card-done"
+                            : "add-property-address-card-active",
+                    ].join(" ")}>
+                      <div className="add-property-address-card-head">
+                        <div className="min-w-0">
+                          <div className="add-property-address-card-label">Street address <span className="text-rose-600">*</span></div>
+                        </div>
                       </div>
-                      <span className={`add-property-field-badge ${
-                        touchedBasics.street && !street
-                          ? "add-property-field-badge-error"
-                          : !ward
-                            ? "add-property-field-badge-disabled"
-                            : street
-                              ? "add-property-field-badge-valid"
-                              : "add-property-field-badge-disabled"
-                      }`}>
-                        {touchedBasics.street && !street ? "fix" : !ward ? "locked" : street ? "set" : "required"}
-                      </span>
-                    </div>
-                    <select
-                      id="streetAddress"
-                      title="Street"
-                      value={street}
-                      onChange={(e) => setStreet(e.target.value)}
-                      onBlur={() => setTouchedBasics((t) => ({ ...t, street: true }))}
-                      disabled={!ward}
-                      className={`add-property-field-control min-w-0 appearance-none h-12 cursor-pointer px-4 pr-10 ${
-                        touchedBasics.street && !street
-                          ? "text-slate-900 focus:ring-rose-200 focus:border-rose-500"
-                          : !ward
-                            ? "text-slate-400 cursor-not-allowed"
-                            : "text-slate-900 focus:ring-emerald-500/20 focus:border-emerald-500"
-                      }`}
-                      aria-required={true}
-                      aria-describedby={touchedBasics.street && !street ? "streetError" : undefined}
-                    >
-                      <option value="">{ward ? "Select street" : "Select ward first"}</option>
-                      {streets.map((s: string) => (
-                        <option key={s} value={s}>
-                          {s}
-                        </option>
-                      ))}
-                    </select>
-                    <div
-                      className={`absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none z-10 ${
-                        !ward ? "text-slate-300" : "text-slate-400"
-                      }`}
-                    >
-                      <ChevronDown className="h-5 w-5" />
-                    </div>
-                  </div>
-                  {touchedBasics.street && !street && (
-                    <p id="streetError" className="text-xs text-rose-600 mt-0.5">
-                      Please select a street
-                    </p>
-                  )}
-                </div>
-                <div className="flex min-w-0 flex-col space-y-2">
-                  <div className={["add-property-field-card", city.trim() ? "add-property-field-card-valid" : ""].join(" ")}>
-                    <div className="add-property-field-card-head">
-                      <div>
-                        <div className="add-property-field-card-label">City <span className="text-slate-400 normal-case tracking-normal">optional</span></div>
-                        <div className="add-property-field-card-value">{city.trim() || "Add a city name"}</div>
+                      <div className="add-property-address-card-control relative">
+                        <select
+                          id="streetAddress"
+                          title="Street"
+                          value={street}
+                          onChange={(e) => setStreet(e.target.value)}
+                          onBlur={() => setTouchedBasics((t) => ({ ...t, street: true }))}
+                          disabled={!ward}
+                          className={`add-property-field-control min-w-0 appearance-none h-12 cursor-pointer px-4 pr-10 ${
+                            !ward ? "text-slate-400 cursor-not-allowed" : "text-slate-900"
+                          }`}
+                          aria-required={true}
+                          aria-describedby={touchedBasics.street && !street ? "streetError" : undefined}
+                        >
+                          <option value="">{ward ? "Select street" : "Select ward first"}</option>
+                          {streets.map((s: string) => (
+                            <option key={s} value={s}>
+                              {s}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                          <ChevronDown className="h-5 w-5" />
+                        </div>
                       </div>
-                      <span className={`add-property-field-badge ${city.trim() ? "add-property-field-badge-valid" : "add-property-field-badge-disabled"}`}>
-                        {city.trim() ? "set" : "optional"}
-                      </span>
+                      {touchedBasics.street && !street ? <p id="streetError" className="add-property-address-card-note text-rose-600">Choose a street before continuing.</p> : null}
                     </div>
-                    <input
-                      id="city"
-                      type="text"
-                      value={city}
-                      onChange={(e) => setCity(e.target.value)}
-                      className="add-property-field-control h-12 px-4 placeholder-slate-400"
-                      placeholder="City"
-                    />
-                  </div>
-                </div>
-                <div className="flex min-w-0 flex-col space-y-2">
-                  <div
-                    className={`add-property-field-card ${
+
+                    <div className={["add-property-address-card", city.trim() ? "add-property-address-card-done" : "add-property-address-card-active"].join(" ")}>
+                      <div className="add-property-address-card-head">
+                        <div className="min-w-0">
+                          <div className="add-property-address-card-label">City <span className="text-slate-400 normal-case tracking-normal">optional</span></div>
+                        </div>
+                      </div>
+                      <div className="add-property-address-card-control relative">
+                        <input
+                          id="city"
+                          type="text"
+                          value={city}
+                          onChange={(e) => setCity(e.target.value)}
+                          className="add-property-field-control h-12 px-4 placeholder-slate-400"
+                          placeholder="Enter city"
+                        />
+                      </div>
+                    </div>
+
+                    <div className={[
+                      "add-property-address-card",
                       touchedBasics.zip && selectedWardPostcode && (!zip || zip.trim().length === 0)
-                        ? "add-property-field-card-error"
-                        : selectedWardPostcode
-                          ? "add-property-field-card-valid"
-                          : zip.trim()
-                            ? "add-property-field-card-valid"
-                            : ""
-                    }`}
-                  >
-                    <div className="add-property-field-card-head">
-                      <div>
-                        <div className="add-property-field-card-label">Zip code {selectedWardPostcode ? <span className="text-rose-600">*</span> : <span className="text-slate-400 normal-case tracking-normal">optional</span>}</div>
-                        <div className="add-property-field-card-value">{zip.trim() || (selectedWardPostcode ? "Auto-filled by selected ward" : "Add postcode if available")}</div>
+                        ? "add-property-address-card-error"
+                        : (selectedWardPostcode || zip.trim())
+                          ? "add-property-address-card-done"
+                          : "add-property-address-card-active",
+                    ].join(" ")}>
+                      <div className="add-property-address-card-head">
+                        <div className="min-w-0">
+                          <div className="add-property-address-card-label">Zip code {selectedWardPostcode ? <span className="text-rose-600">*</span> : <span className="text-slate-400 normal-case tracking-normal">optional</span>}</div>
+                        </div>
                       </div>
-                      <span className={`add-property-field-badge ${
-                        touchedBasics.zip && selectedWardPostcode && (!zip || zip.trim().length === 0)
-                          ? "add-property-field-badge-error"
-                          : (selectedWardPostcode || zip.trim())
-                            ? "add-property-field-badge-valid"
-                            : "add-property-field-badge-disabled"
-                      }`}>
-                        {touchedBasics.zip && selectedWardPostcode && (!zip || zip.trim().length === 0) ? "fix" : (selectedWardPostcode || zip.trim()) ? "set" : "optional"}
-                      </span>
+                      <div className={["add-property-address-card-control", selectedWardPostcode ? "add-property-address-card-control-readonly" : ""].join(" ")}>
+                        <input
+                          id="zip"
+                          type="text"
+                          value={zip}
+                          onChange={(e) => setZip(e.target.value)}
+                          onBlur={() => setTouchedBasics((t) => ({ ...t, zip: true }))}
+                          readOnly={!!selectedWardPostcode}
+                          className={`add-property-field-control min-w-0 h-12 px-4 ${selectedWardPostcode ? "text-slate-700 cursor-not-allowed" : "text-slate-900 placeholder-slate-400"}`}
+                          placeholder={selectedWardPostcode ? "Auto-filled from ward" : "Enter postcode"}
+                          aria-required={!!selectedWardPostcode}
+                          aria-describedby={touchedBasics.zip && selectedWardPostcode && (!zip || zip.trim().length === 0) ? "zipError" : undefined}
+                        />
+                      </div>
+                      {touchedBasics.zip && selectedWardPostcode && (!zip || zip.trim().length === 0) ? <p id="zipError" className="add-property-address-card-note text-rose-600">Zip code is required here.</p> : null}
+                      {selectedWardPostcode && zip ? <p className="add-property-address-card-note text-emerald-700">Auto-filled from the selected ward.</p> : null}
+                      {!selectedWardPostcode && ward ? <p className="add-property-address-card-note text-amber-700">No postcode was supplied by the ward, so enter it manually.</p> : null}
                     </div>
-                    <input
-                      id="zip"
-                      type="text"
-                      value={zip}
-                      onChange={(e) => setZip(e.target.value)}
-                      onBlur={() => setTouchedBasics((t) => ({ ...t, zip: true }))}
-                      readOnly={!!selectedWardPostcode}
-                      className={`add-property-field-control min-w-0 h-12 px-4 ${
-                        touchedBasics.zip && selectedWardPostcode && (!zip || zip.trim().length === 0)
-                          ? "text-slate-900 focus:ring-rose-200 focus:border-rose-500"
-                          : selectedWardPostcode
-                            ? "text-slate-700 cursor-not-allowed"
-                            : "text-slate-900 placeholder-slate-400 focus:ring-emerald-500/20 focus:border-emerald-500"
-                      }`}
-                      placeholder={
-                        selectedWardPostcode ? "Auto-filled from ward" : "Zip code (enter manually if not auto-filled)"
-                      }
-                      aria-required={!!selectedWardPostcode}
-                      aria-describedby={
-                        touchedBasics.zip && selectedWardPostcode && (!zip || zip.trim().length === 0) ? "zipError" : undefined
-                      }
-                    />
                   </div>
-                  {touchedBasics.zip && selectedWardPostcode && (!zip || zip.trim().length === 0) && (
-                    <p id="zipError" className="text-xs text-rose-600 mt-0.5">
-                      Zip code is required
-                    </p>
-                  )}
-                  {selectedWardPostcode && zip && (
-                    <p className="add-property-field-note-success mt-0.5">Auto-filled from selected ward</p>
-                  )}
-                  {!selectedWardPostcode && ward && (
-                    <p className="add-property-field-note-warning mt-0.5">
-                      Postcode not available for this ward - please enter manually
-                    </p>
-                  )}
                 </div>
               </div>
 
               <div className="mt-6 add-property-location-submodule">
                 <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                   <div className="min-w-0">
-                    <span className="add-property-kicker">Destination discovery</span>
-                    <h3 className="mt-3 text-lg font-semibold text-slate-900 mb-1">Park / Tourism Site</h3>
-                    <p className="max-w-2xl text-sm leading-relaxed text-slate-600">
-                      Link the property to a known destination only if it is genuinely inside or near that park, so travelers discover it in the right context.
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="add-property-metric-chip">Optional</span>
-                    <span className="add-property-metric-chip">Improves destination visibility</span>
+                    <h3 className="text-lg font-semibold text-slate-900 mb-1">Park / Tourism Site</h3>
+                    <p className="text-sm text-slate-600">Link a destination only if it is relevant to this property.</p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-12">
+                <div className="grid grid-cols-2 gap-4 md:grid-cols-12 md:gap-6">
                   <div className="md:col-span-7 flex flex-col space-y-2">
                     <div className={[
                       "add-property-field-card",
@@ -1440,17 +1270,7 @@ const nameOk = title.trim().length >= 3;
                           ) : null}
                         </div>
                       )}
-                      {tourismSitesError ? (
-                        <p className="text-xs text-rose-600">{tourismSitesError}</p>
-                      ) : !tourismCountry ? (
-                        <p className="add-property-field-note">Finish the address above first, then destination options will load automatically.</p>
-                      ) : tourismSitesLoading ? (
-                        <p className="add-property-field-note">Loading parks…</p>
-                      ) : selectedTourismSite ? (
-                        <p className="add-property-field-note-success">Linked to a discoverable destination for park-based browsing.</p>
-                      ) : (
-                        <p className="add-property-field-note">Leave this blank if the property is not marketed relative to a park or tourism site.</p>
-                      )}
+                      {tourismSitesError ? <p className="text-xs text-rose-600">{tourismSitesError}</p> : null}
                     </div>
                   </div>
 
@@ -1520,12 +1340,6 @@ const nameOk = title.trim().length >= 3;
                         </select>
                       )}
                       </div>
-
-                      <p className="add-property-field-note mt-2">
-                        {effectiveTourismSiteIdValue === ""
-                          ? "Pick a destination on the left first."
-                          : "Choose where the property sits relative to the selected park so the listing appears in the right context."}
-                      </p>
                     </div>
                   </div>
                 </div>
@@ -1556,10 +1370,11 @@ const nameOk = title.trim().length >= 3;
                         const n = e.target.valueAsNumber;
                         setLatitude(Number.isFinite(n) ? n : "");
                       }}
-                      className="w-full h-12 px-4 text-sm text-slate-900 placeholder-slate-400 rounded-xl bg-transparent border border-transparent shadow-none transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                      placeholder="Auto-detected from location"
+                      className="w-full h-12 px-4 text-sm rounded-xl bg-transparent border border-transparent shadow-none text-slate-900 placeholder-slate-400 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      placeholder="Tap detect or enter manually"
                     />
                   </div>
+                  <p className="text-[11px] leading-relaxed text-slate-500">Latitude is only saved after you confirm the detected result or save the form.</p>
                 </div>
                 <div className="flex flex-col space-y-2">
                   <label htmlFor="longitude" className="block text-sm font-medium text-slate-700">
@@ -1584,181 +1399,92 @@ const nameOk = title.trim().length >= 3;
                         const n = e.target.valueAsNumber;
                         setLongitude(Number.isFinite(n) ? n : "");
                       }}
-                      className="w-full h-12 px-4 text-sm text-slate-900 placeholder-slate-400 rounded-xl bg-transparent border border-transparent shadow-none transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                      placeholder="Auto-detected from location"
+                      className="w-full h-12 px-4 text-sm rounded-xl bg-transparent border border-transparent shadow-none text-slate-900 placeholder-slate-400 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      placeholder="Tap detect or enter manually"
                     />
                   </div>
+                  <p className="text-[11px] leading-relaxed text-slate-500">Longitude stays on the frontend until you confirm the detected result.</p>
                 </div>
               </div>
 
-              {/* Location Tracking Toggle Switch */}
+              {/* Current Location Detection */}
               <div className="mt-4">
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <div className="relative">
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 transition-colors hover:border-gray-300">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
                       <div
-                        className={`absolute inset-0 rounded-full ${
-                          locationTrackingEnabled
-                            ? "bg-[#02665e]/10 animate-ping [animation-duration:3s] [animation-iteration-count:infinite]"
-                            : ""
-                        }`}
-                      />
-                      <div
-                        className={`relative p-1.5 rounded-full transition-colors duration-200 ${
-                          locationTrackingEnabled ? "bg-[#02665e]/5" : "bg-gray-100"
+                        className={`flex h-9 w-9 items-center justify-center rounded-full transition-colors duration-200 ${
+                          locationLoading ? "bg-emerald-50 ring-2 ring-emerald-100" : "bg-gray-100"
                         }`}
                       >
                         {locationLoading ? (
-                          <div className="w-4 h-4 border-2 border-[#02665e]/30 border-t-[#02665e] rounded-full animate-spin" />
+                          <div className="h-5 w-5 rounded-full border-2 border-emerald-200 border-t-[#02665e] animate-spin" />
                         ) : (
-                          <MapPin
-                            className={`w-4 h-4 transition-colors duration-200 ${
-                              locationTrackingEnabled ? "text-[#02665e]" : "text-gray-400"
-                            }`}
-                            strokeWidth={2}
-                          />
+                          <MapPin className="h-4 w-4 text-gray-500" strokeWidth={2} />
                         )}
                       </div>
-                    </div>
-                    <div>
-                      <label
-                        htmlFor="locationToggle"
-                        className="text-sm font-medium text-gray-900 cursor-pointer transition-colors hover:text-[#02665e]"
-                      >
-                        Enable location tracking
-                      </label>
-                      <p className="text-xs text-gray-500 mt-0.5">Automatically detect your current location using GPS</p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    id="locationToggle"
-                    role="switch"
-                    aria-checked={locationTrackingEnabled}
-                    onClick={() => handleLocationToggle(!locationTrackingEnabled)}
-                    disabled={locationLoading}
-                    className={`
-                      relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed
-                      ${locationTrackingEnabled ? "bg-[#02665e]" : "bg-gray-300 hover:bg-gray-400"}
-                    `}
-                  >
-                    <span
-                      className={`
-                        inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-200 ease-in-out
-                        ${locationTrackingEnabled ? "translate-x-6" : "translate-x-1"}
-                        ${locationLoading ? "opacity-70" : ""}
-                      `}
-                    >
-                      {locationLoading && (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <div className="w-2.5 h-2.5 border-2 border-[#02665e]/30 border-t-[#02665e] rounded-full animate-spin" />
-                        </div>
-                      )}
-                    </span>
-                  </button>
-                </div>
-                {locationTrackingEnabled && latitude && longitude && (
-                  <p className="mt-2 text-xs text-emerald-600 flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    Live detection active: {Number(latitude).toFixed(6)}, {Number(longitude).toFixed(6)}
-                  </p>
-                )}
-              </div>
-
-              <div className="mt-6 overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-lg shadow-slate-200/40 ring-1 ring-black/5">
-                  <div className="border-b border-slate-200/80 bg-[linear-gradient(180deg,_rgba(255,255,255,0.96),_rgba(248,250,252,0.92))] px-5 py-4 sm:px-6">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="add-property-kicker">Location intelligence</span>
-                          <span className="add-property-metric-chip">{locationSource === "gps" ? "GPS source" : "Pin source"}</span>
-                          {typeof locationAccuracyMeters === "number" && Number.isFinite(locationAccuracyMeters) ? (
-                            <span className="add-property-metric-chip">Accuracy {Math.round(locationAccuracyMeters)} m</span>
-                          ) : null}
-                        </div>
-                        <h3 className="mt-3 text-lg font-semibold text-gray-900">Property Location Map</h3>
-                        <p className="mt-1 text-sm leading-relaxed text-slate-600">
-                          Keep this area clean and use the map itself to place the property exactly where the building sits.
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">Use current location</p>
+                        <p className={`mt-0.5 text-xs ${locationLoading ? "font-medium text-emerald-700" : "text-gray-500"}`}>
+                          {locationLoading ? "Getting your current location..." : "Tap once, review the result, then confirm it."}
                         </p>
                       </div>
-                      <div className="text-xs text-slate-500 sm:text-right">
-                        <div className="font-mono text-slate-700">
-                          {latitude && longitude
-                            ? `${Number(latitude).toFixed(6)}, ${Number(longitude).toFixed(6)}`
-                            : "Coordinates not set yet"}
-                        </div>
-                        {(zip || selectedWardPostcode) ? (
-                          <div className="mt-1">Postcode {zip || selectedWardPostcode}</div>
-                        ) : null}
-                      </div>
                     </div>
-                  </div>
-                  <div className="bg-white p-3 sm:p-4">
-                    <PropertyLocationMap
-                      latitude={typeof latitude === "number" ? latitude : 0}
-                      longitude={typeof longitude === "number" ? longitude : 0}
-                      postcode={zip || selectedWardPostcode || null}
-                      onLocationDetected={(lat, lng, meta) => {
-                        if (onLocationDetected) {
-                          onLocationDetected(lat, lng, meta);
-                          return;
-                        }
-                        startTransition(() => {
-                          setLatitude(lat);
-                          setLongitude(lng);
-                        });
-                      }}
-                    />
-                  </div>
-
-                  <div className="px-5 pb-5 pt-1 sm:px-6 sm:pb-6">
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    <div className="add-property-location-stat">
-                      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Detected address</div>
-                      <div className="mt-1 text-sm font-medium text-slate-900">
-                        {detectedAddress || "Move the pin or enable GPS to confirm the exact address."}
-                      </div>
-                    </div>
-                    <div className="add-property-location-stat">
-                      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Detected admin area</div>
-                      <div className="mt-1 text-sm font-medium text-slate-900">
-                        {[detectedWard, detectedDistrict, detectedRegion].filter(Boolean).join(", ") || "Waiting for location confirmation"}
-                      </div>
-                      {(detectedPostcode || zip || selectedWardPostcode) ? (
-                        <div className="mt-1 text-xs text-slate-500">
-                          Postcode: {detectedPostcode || zip || selectedWardPostcode}
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  {/* Reverse-geocoding consistency check feedback */}
-                  {checkingPinLocation && (
-                    <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
-                      <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-slate-300 border-t-slate-500" />
-                      Verifying pin location against selected region, district, and ward…
-                    </div>
-                  )}
-                  {!checkingPinLocation && !locationMismatchWarning && detectedAddress && (
-                    <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-                      <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-600" aria-hidden />
-                      <div className="min-w-0">
-                        <p className="font-semibold mb-0.5">Location confirmed</p>
-                        <p className="leading-snug">The detected address and selected admin area are aligned.</p>
-                      </div>
-                    </div>
-                  )}
-                  {!checkingPinLocation && locationMismatchWarning && (
-                    <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                      <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-500" aria-hidden />
-                      <div className="min-w-0">
-                        <p className="font-semibold mb-0.5">Pin location mismatch</p>
-                        <p className="leading-snug">{locationMismatchWarning}</p>
-                      </div>
-                    </div>
-                  )}
+                    <button
+                      type="button"
+                      onClick={handleDetectCurrentLocation}
+                      disabled={locationLoading}
+                      className="inline-flex h-10 items-center justify-center rounded-full bg-[#02665e] px-4 text-sm font-medium text-white transition-colors hover:bg-[#01524c] focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {locationLoading ? "Detecting..." : "Detect"}
+                    </button>
                   </div>
                 </div>
+
+                {pendingDetectedLocation ? (
+                  <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50/60 p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="flex items-center gap-1 text-xs font-medium text-emerald-700">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          Current location found on this device
+                        </p>
+                        <p className="mt-1 text-xs text-emerald-800">
+                          {pendingDetectedLocation.lat.toFixed(6)}, {pendingDetectedLocation.lng.toFixed(6)}
+                          {typeof pendingDetectedLocation.accuracy === "number" ? ` · Accuracy ±${pendingDetectedLocation.accuracy}m` : ""}
+                        </p>
+                        <p className="mt-1 text-[11px] leading-relaxed text-emerald-700">
+                          This stays in the frontend only until you confirm it.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={handleConfirmDetectedLocation}
+                          className="inline-flex h-9 items-center justify-center rounded-full bg-[#02665e] px-3 text-xs font-medium text-white transition-colors hover:bg-[#01524c]"
+                        >
+                          Confirm
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleDiscardDetectedLocation}
+                          className="inline-flex h-9 items-center justify-center rounded-full border border-emerald-200 bg-white px-3 text-xs font-medium text-emerald-700 transition-colors hover:border-emerald-300 hover:bg-emerald-50"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {!pendingDetectedLocation && typeof latitude === "number" && Number.isFinite(latitude) && typeof longitude === "number" && Number.isFinite(longitude) ? (
+                  <p className="mt-2 flex items-center gap-1 text-xs text-emerald-600">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Confirmed coordinates: {Number(latitude).toFixed(6)}, {Number(longitude).toFixed(6)}
+                  </p>
+                ) : null}
+              </div>
+
             </div>
           </div>
 

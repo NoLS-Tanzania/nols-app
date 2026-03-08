@@ -20,6 +20,7 @@ import LoadingSpinner from "@/components/LoadingSpinner";
 import ConnectionStatusIndicator from "@/components/ConnectionStatusIndicator";
 import { Check, Route as RouteIcon, X, Info } from "lucide-react";
 import { openInMaps } from "@/lib/navigation";
+import { acceptGpsTrackPoint } from "@/lib/gpsTracking";
 
 // Trip stages
 export type TripStage = 
@@ -32,32 +33,6 @@ export type TripStage =
   | 'arrived'           // At destination - arrived at dropoff
   | 'dropoff'           // Dropoff & Review - client exits, provides review
   | 'completed';        // After review - back to waiting
-
-function gpsDistanceMeters(
-  a: { lat: number; lng: number },
-  b: { lat: number; lng: number }
-) {
-  const R = 6371000;
-  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
-  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
-  const q1 = (a.lat * Math.PI) / 180;
-  const q2 = (b.lat * Math.PI) / 180;
-  const h =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(q1) * Math.cos(q2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
-  return 2 * R * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
-}
-
-function blendGpsPoint(
-  prev: { lat: number; lng: number },
-  next: { lat: number; lng: number },
-  alpha: number
-) {
-  return {
-    lat: prev.lat + (next.lat - prev.lat) * alpha,
-    lng: prev.lng + (next.lng - prev.lng) * alpha,
-  };
-}
 
 export default function DriverLiveMapPage() {
   const search = useSearchParams();
@@ -763,31 +738,15 @@ export default function DriverLiveMapPage() {
           accuracyM: typeof position.coords.accuracy === "number" ? position.coords.accuracy : undefined,
         };
 
-        const prevAccepted = lastAcceptedGpsRef.current;
         const now = Date.now();
-        const dtSec = Math.max(0.5, (now - (lastAcceptedGpsAtRef.current ?? now)) / 1000);
+        const next = acceptGpsTrackPoint({
+          prevAccepted: lastAcceptedGpsRef.current,
+          lastAcceptedAt: lastAcceptedGpsAtRef.current,
+          raw,
+          now,
+        });
 
-        let next = raw;
-        if (prevAccepted) {
-          const distanceM = gpsDistanceMeters(prevAccepted, raw);
-          const reportedSpeed = typeof raw.speedMps === "number" && Number.isFinite(raw.speedMps) ? raw.speedMps : undefined;
-          const inferredSpeed = reportedSpeed ?? distanceM / dtSec;
-          const accuracyM = typeof raw.accuracyM === "number" && Number.isFinite(raw.accuracyM) ? raw.accuracyM : 10;
-          const stationaryDeadbandM = Math.max(5, Math.min(16, accuracyM * 0.45));
-
-          // Ignore tiny GPS wobble when the phone is stationary or resting on a table.
-          if (inferredSpeed < 1 && distanceM < stationaryDeadbandM) {
-            return;
-          }
-
-          const alpha = inferredSpeed < 1.5 ? 0.22 : inferredSpeed < 5 ? 0.42 : 0.72;
-          const blended = blendGpsPoint(prevAccepted, raw, alpha);
-          next = {
-            ...raw,
-            lat: blended.lat,
-            lng: blended.lng,
-          };
-        }
+        if (!next) return;
 
         lastAcceptedGpsRef.current = next;
         lastAcceptedGpsAtRef.current = now;

@@ -749,6 +749,8 @@ function createRegionSlug(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 }
 
+const MAX_ACCEPTABLE_DETECTION_ACCURACY_M = 1500;
+
 // Property Location Map Component - Uses exact coordinates and postcode
 function PropertyLocationMap({ 
   latitude, 
@@ -1665,26 +1667,11 @@ export default function AddProperty() {
   const [pinRegionMismatch, setPinRegionMismatch] = useState<string | null>(null);
   const [checkingPinLocation, setCheckingPinLocation] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
-  const [locationTrackingEnabled, setLocationTrackingEnabled] = useState(false);
-  const locationWatchIdRef = useRef<number | null>(null);
-  const locationWatchTimeoutRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (locationWatchTimeoutRef.current !== null) {
-        clearTimeout(locationWatchTimeoutRef.current);
-        locationWatchTimeoutRef.current = null;
-      }
-      if (locationWatchIdRef.current !== null) {
-        try {
-          navigator.geolocation?.clearWatch(locationWatchIdRef.current);
-        } catch {
-          // ignore
-        }
-        locationWatchIdRef.current = null;
-      }
-    };
-  }, []);
+  const [pendingDetectedLocation, setPendingDetectedLocation] = useState<{
+    lat: number;
+    lng: number;
+    accuracy: number | null;
+  } | null>(null);
   const [freeCancellation, setFreeCancellation] = useState<boolean>(false);
   const [paymentModes, setPaymentModes] = useState<string[]>([]);
 
@@ -1702,110 +1689,65 @@ export default function AddProperty() {
     }
   }, [selectedWardPostcode, ward]);
 
-  // Auto-detect if location is already available
-  useEffect(() => {
-    if (latitude && longitude) {
-      setLocationTrackingEnabled(true);
+  const handleDetectCurrentLocation = useCallback(() => {
+    if (locationLoading) return;
+
+    if (!navigator.geolocation) {
+      alert("Geolocation is not supported by your browser.");
+      return;
     }
-  }, [latitude, longitude]);
 
-  // Handle location tracking toggle
-  const handleLocationToggle = (enabled: boolean) => {
-    setLocationTrackingEnabled(enabled);
-    
-    if (enabled) {
-      // Request location when toggled on
-      if (!navigator.geolocation) {
-        alert("Geolocation is not supported by your browser.");
-        setLocationTrackingEnabled(false);
-        return;
-      }
-      setLocationLoading(true);
+    setLocationLoading(true);
+    setPendingDetectedLocation(null);
 
-      // Clear any previous watch
-      if (locationWatchTimeoutRef.current !== null) {
-        clearTimeout(locationWatchTimeoutRef.current);
-        locationWatchTimeoutRef.current = null;
-      }
-      if (locationWatchIdRef.current !== null) {
-        navigator.geolocation.clearWatch(locationWatchIdRef.current);
-        locationWatchIdRef.current = null;
-      }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = parseFloat(position.coords.latitude.toFixed(6));
+        const lng = parseFloat(position.coords.longitude.toFixed(6));
+        const accuracy = Number.isFinite(position.coords.accuracy) ? Math.round(position.coords.accuracy) : null;
 
-      // Require <=50m accuracy before saving coordinates
-      locationWatchTimeoutRef.current = window.setTimeout(() => {
-        if (locationWatchIdRef.current !== null) {
-          navigator.geolocation.clearWatch(locationWatchIdRef.current);
-          locationWatchIdRef.current = null;
+        if (typeof accuracy === "number" && accuracy > MAX_ACCEPTABLE_DETECTION_ACCURACY_M) {
+          setLocationLoading(false);
+          alert(
+            `Current location is still too approximate (±${accuracy}m). Please enable phone GPS, move to an open area, and tap Detect again.`
+          );
+          return;
         }
-        locationWatchTimeoutRef.current = null;
-        setLocationLoading(false);
-        setLocationTrackingEnabled(false);
-        alert("GPS accuracy did not reach ≤50m. Please try again (or drag the map pin to your exact building).");
-      }, 60000);
 
-      locationWatchIdRef.current =             locationWatchIdRef.current = navigator.geolocation.watchPosition(
-              (position) => {
-                const accuracy = position.coords.accuracy;
-                if (accuracy > 50) return;
-      
-                // Ensure correct coordinate order: latitude, longitude
-                const lat = parseFloat(position.coords.latitude.toFixed(6));
-                const lng = parseFloat(position.coords.longitude.toFixed(6));
-      
-                setLatitude(lat);
-                setLongitude(lng);
-                setLocationLoading(false);
-      
-                if (locationWatchTimeoutRef.current !== null) {
-                  clearTimeout(locationWatchTimeoutRef.current);
-                  locationWatchTimeoutRef.current = null;
-                }
-                if (locationWatchIdRef.current !== null) {
-                  navigator.geolocation.clearWatch(locationWatchIdRef.current);
-                  locationWatchIdRef.current = null;
-                }
-              },
-              (error) => {
-                if (locationWatchTimeoutRef.current !== null) {
-                  clearTimeout(locationWatchTimeoutRef.current);
-                  locationWatchTimeoutRef.current = null;
-                }
-                if (locationWatchIdRef.current !== null) {
-                  navigator.geolocation.clearWatch(locationWatchIdRef.current);
-                  locationWatchIdRef.current = null;
-                }
-                setLocationLoading(false);
-                setLocationTrackingEnabled(false);
-                if (error.code === error.PERMISSION_DENIED) {
-                  alert("Location access denied. Please enable location permissions in your browser settings.");
-                } else if (error.code === error.POSITION_UNAVAILABLE) {
-                  alert("Location information unavailable. Please try again or enter coordinates manually.");
-                } else {
-                  alert("An error occurred while getting your location. Please try again or enter coordinates manually.");
-                }
-              },
-              {
-                enableHighAccuracy: true,
-                timeout: 30000,
-                maximumAge: 5000
-              }
-            )
-    } else {
-      // Clear any running GPS watch
-      if (locationWatchTimeoutRef.current !== null) {
-        clearTimeout(locationWatchTimeoutRef.current);
-        locationWatchTimeoutRef.current = null;
+        setPendingDetectedLocation({ lat, lng, accuracy });
+        setLocationLoading(false);
+      },
+      (error) => {
+        setLocationLoading(false);
+        if (error.code === error.PERMISSION_DENIED) {
+          alert("Location access denied. Please enable location permissions in your browser settings.");
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+          alert("Location information unavailable. Please try again or enter coordinates manually.");
+        } else if (error.code === error.TIMEOUT) {
+          alert("Location request timed out. Please tap again or enter coordinates manually.");
+        } else {
+          alert("An error occurred while getting your location. Please try again or enter coordinates manually.");
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 10000,
       }
-      if (locationWatchIdRef.current !== null) {
-        navigator.geolocation.clearWatch(locationWatchIdRef.current);
-        locationWatchIdRef.current = null;
-      }
-      // Clear coordinates when toggled off
-      setLatitude("");
-      setLongitude("");
-    }
-  };
+    );
+  }, [locationLoading]);
+
+  const handleConfirmDetectedLocation = useCallback(() => {
+    if (!pendingDetectedLocation) return;
+    setLatitude(pendingDetectedLocation.lat);
+    setLongitude(pendingDetectedLocation.lng);
+    setPendingDetectedLocation(null);
+  }, [pendingDetectedLocation]);
+
+  const handleDiscardDetectedLocation = useCallback(() => {
+    setPendingDetectedLocation(null);
+    setLocationLoading(false);
+  }, []);
 
   // overall counts + description
   const [totalBedrooms, setTotalBedrooms] = useState<number | "">("");
@@ -3131,12 +3073,11 @@ export default function AddProperty() {
           wards={wards}
           streets={streets}
           REGIONS={REGIONS}
-          locationTrackingEnabled={locationTrackingEnabled}
           locationLoading={locationLoading}
-          handleLocationToggle={handleLocationToggle}
-          PropertyLocationMap={PropertyLocationMap}
-          locationMismatchWarning={pinRegionMismatch}
-          checkingPinLocation={checkingPinLocation}
+          pendingDetectedLocation={pendingDetectedLocation}
+          handleDetectCurrentLocation={handleDetectCurrentLocation}
+          handleConfirmDetectedLocation={handleConfirmDetectedLocation}
+          handleDiscardDetectedLocation={handleDiscardDetectedLocation}
         />
 
         {/* ROOM TYPES */}

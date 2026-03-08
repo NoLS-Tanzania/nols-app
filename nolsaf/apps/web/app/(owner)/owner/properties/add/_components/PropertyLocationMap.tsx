@@ -11,7 +11,6 @@ export type PropertyLocationDetectionMeta = {
 type PropertyLocationMapProps = {
   latitude: number;
   longitude: number;
-  postcode?: string | null;
   onLocationDetected?: (lat: number, lng: number, meta?: PropertyLocationDetectionMeta) => void;
 };
 
@@ -43,7 +42,6 @@ function shouldDeferInteractiveMap(): boolean {
 export const PropertyLocationMap = memo(function PropertyLocationMap({
   latitude,
   longitude,
-  postcode,
   onLocationDetected,
 }: PropertyLocationMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -485,7 +483,6 @@ export const PropertyLocationMap = memo(function PropertyLocationMap({
                 <div className="mt-1 font-mono text-[13px] text-slate-900">
                   {hasCoords ? `${Number(latitude).toFixed(6)}, ${Number(longitude).toFixed(6)}` : "Not set"}
                 </div>
-                {postcode ? <div className="mt-1 text-slate-500">Postcode {postcode}</div> : null}
               </div>
               <button
                 type="button"
@@ -572,7 +569,6 @@ export const PropertyLocationMap = memo(function PropertyLocationMap({
               ? `Selected: ${Number(latitude).toFixed(6)}, ${Number(longitude).toFixed(6)}`
               : 'No location set. Open the map and use "Locate Me" or drag to your property.'}
           </span>
-          {postcode ? <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-[#02665e]">Postcode {postcode}</span> : null}
         </div>
 
         {locationError ? (
