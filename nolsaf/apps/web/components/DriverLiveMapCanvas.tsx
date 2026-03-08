@@ -24,13 +24,17 @@ const MAPBOX_STYLE_STREETS = "mapbox://styles/mapbox/streets-v12";
 const MAPBOX_STYLE_OUTDOORS = "mapbox://styles/mapbox/outdoors-v12";
 const MAPBOX_STYLE_SATELLITE = "mapbox://styles/mapbox/satellite-streets-v12";
 
-// Route styling: default is pure blue; switches to "heavy" green when ETA <= 5 minutes.
-const ROUTE_COLOR_DEFAULT = "#0000FF";
-const ROUTE_COLOR_ARRIVING = "#008000";
+// Route styling: pickup and destination keep distinct colors; near-arrival only increases emphasis.
+const ROUTE_COLOR_PICKUP = "#2563eb";
+const ROUTE_COLOR_DESTINATION = "#16a34a";
 const ROUTE_WIDTH_DEFAULT = 6; // slightly thicker than before
 const ROUTE_WIDTH_ARRIVING = 8; // a bit thicker when close
 const ROUTE_GLOW_WIDTH_DEFAULT = 12;
 const ROUTE_GLOW_WIDTH_ARRIVING = 16;
+
+function getRouteColor(type: "pickup" | "destination") {
+  return type === "destination" ? ROUTE_COLOR_DESTINATION : ROUTE_COLOR_PICKUP;
+}
 
 function toLngLatMaybe(v: any): LngLat | null {
   const lat = Number(v?.lat);
@@ -379,7 +383,7 @@ export default function DriverLiveMapCanvas({
     const meta = routeMetas[idx] ?? routeMetas[0];
     if (!meta) return;
 
-    // Update route line style based on ETA (<= 5 minutes => green + thicker).
+    // Keep pickup and destination visually distinct; near-arrival is shown by emphasis only.
     try {
       const durationSec = typeof meta.durationSec === "number" && Number.isFinite(meta.durationSec) ? meta.durationSec : null;
       // Use the same rounding as the ETA banner to avoid edge cases (e.g. 5.1 min still showing as 5 min).
@@ -387,7 +391,7 @@ export default function DriverLiveMapCanvas({
       const arrivingSoon = minutesRounded !== null && minutesRounded <= 5;
       const map = mapRef.current;
       if (map && mapLoadedRef.current) {
-        const color = arrivingSoon ? ROUTE_COLOR_ARRIVING : ROUTE_COLOR_DEFAULT;
+        const color = getRouteColor(type);
         const width = arrivingSoon ? ROUTE_WIDTH_ARRIVING : ROUTE_WIDTH_DEFAULT;
         const glowWidth = arrivingSoon ? ROUTE_GLOW_WIDTH_ARRIVING : ROUTE_GLOW_WIDTH_DEFAULT;
         try {
@@ -400,7 +404,7 @@ export default function DriverLiveMapCanvas({
         try {
           map.setPaintProperty("active-route-glow", "line-color", color);
           map.setPaintProperty("active-route-glow", "line-width", glowWidth);
-          map.setPaintProperty("active-route-glow", "line-opacity", arrivingSoon ? 0.26 : 0.22);
+          map.setPaintProperty("active-route-glow", "line-opacity", arrivingSoon ? 0.3 : 0.22);
         } catch {
           // ignore
         }
@@ -605,7 +609,7 @@ export default function DriverLiveMapCanvas({
                 type: "line",
                 source: "active-route",
                 paint: {
-                  "line-color": ROUTE_COLOR_DEFAULT,
+                  "line-color": ROUTE_COLOR_PICKUP,
                   "line-width": ROUTE_GLOW_WIDTH_DEFAULT,
                   "line-opacity": 0.22,
                 },
@@ -615,7 +619,7 @@ export default function DriverLiveMapCanvas({
                 type: "line",
                 source: "active-route",
                 paint: {
-                  "line-color": ROUTE_COLOR_DEFAULT,
+                  "line-color": ROUTE_COLOR_PICKUP,
                   "line-width": ROUTE_WIDTH_DEFAULT,
                   "line-opacity": 0.9,
                 } as any,
@@ -666,10 +670,12 @@ export default function DriverLiveMapCanvas({
               map,
               "pickup-pin-blue",
               `
-<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
-  <path d="M32 60 C32 60 14 42 14 28 C14 18.1 22.1 10 32 10 C41.9 10 50 18.1 50 28 C50 42 32 60 32 60 Z"
-        fill="#2563eb" stroke="#ffffff" stroke-width="3"/>
-  <circle cx="32" cy="28" r="7" fill="#ffffff"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 72 72">
+  <path d="M36 65 C36 65 17 45.5 17 29.5 C17 18.73 25.73 10 36.5 10 C47.27 10 56 18.73 56 29.5 C56 45.5 36 65 36 65 Z"
+        fill="#ffffff" stroke="#2563eb" stroke-width="4.5" stroke-linejoin="round"/>
+  <circle cx="36.5" cy="29.5" r="10.5" fill="#dbeafe" stroke="#2563eb" stroke-width="3"/>
+  <circle cx="36.5" cy="29.5" r="3.5" fill="#2563eb"/>
+  <path d="M24.5 20.5 C27 16.8 31.3 14.4 36 14.1" fill="none" stroke="#93c5fd" stroke-width="3.2" stroke-linecap="round"/>
 </svg>`.trim()
             );
 
@@ -678,10 +684,16 @@ export default function DriverLiveMapCanvas({
               map,
               "destination-pin-green",
               `
-<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
-  <path d="M32 60 C32 60 14 42 14 28 C14 18.1 22.1 10 32 10 C41.9 10 50 18.1 50 28 C50 42 32 60 32 60 Z"
-        fill="#16a34a" stroke="#ffffff" stroke-width="3"/>
-  <circle cx="32" cy="28" r="7" fill="#ffffff"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 72 72">
+  <path d="M36 65 C36 65 17 45.5 17 29.5 C17 18.73 25.73 10 36.5 10 C47.27 10 56 18.73 56 29.5 C56 45.5 36 65 36 65 Z"
+        fill="#ffffff" stroke="#16a34a" stroke-width="4.5" stroke-linejoin="round"/>
+  <circle cx="36.5" cy="29.5" r="12" fill="#dcfce7" stroke="#16a34a" stroke-width="3"/>
+  <path d="M31.5 24.5 H41.5" fill="none" stroke="#16a34a" stroke-width="2.6" stroke-linecap="round"/>
+  <path d="M31.5 29.5 H41.5" fill="none" stroke="#16a34a" stroke-width="2.6" stroke-linecap="round"/>
+  <path d="M31.5 34.5 H41.5" fill="none" stroke="#16a34a" stroke-width="2.6" stroke-linecap="round"/>
+  <path d="M36.5 22.5 V36.5" fill="none" stroke="#16a34a" stroke-width="2.2" stroke-linecap="round" opacity="0.85"/>
+  <path d="M29.2 29.8 L33.3 34.1 L44.1 24.8" fill="none" stroke="#22c55e" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M24.5 20.5 C27.2 16.7 31.2 14.4 36 14.1" fill="none" stroke="#86efac" stroke-width="3.2" stroke-linecap="round"/>
 </svg>`.trim()
             );
 
@@ -743,9 +755,9 @@ export default function DriverLiveMapCanvas({
                 type: "circle",
                 source: "pickup-point",
                 paint: {
-                  "circle-radius": ["interpolate", ["linear"], ["zoom"], 12, 14, 15, 24, 18, 32],
+                  "circle-radius": ["interpolate", ["linear"], ["zoom"], 12, 16, 15, 27, 18, 35],
                   "circle-color": "#2563eb",
-                  "circle-opacity": 0.14,
+                  "circle-opacity": 0.18,
                 } as any,
               });
             }
@@ -756,7 +768,7 @@ export default function DriverLiveMapCanvas({
                 source: "pickup-point",
                 layout: {
                   "icon-image": "pickup-pin-blue",
-                  "icon-size": 1.02,
+                  "icon-size": 1.1,
                   "icon-anchor": "bottom",
                   "icon-allow-overlap": true,
                 },
@@ -770,9 +782,9 @@ export default function DriverLiveMapCanvas({
                 type: "circle",
                 source: "dropoff-point",
                 paint: {
-                  "circle-radius": ["interpolate", ["linear"], ["zoom"], 12, 14, 15, 24, 18, 32],
+                  "circle-radius": ["interpolate", ["linear"], ["zoom"], 12, 17, 15, 28, 18, 36],
                   "circle-color": "#16a34a",
-                  "circle-opacity": 0.14,
+                  "circle-opacity": 0.2,
                 } as any,
               });
             }
@@ -783,7 +795,7 @@ export default function DriverLiveMapCanvas({
                 source: "dropoff-point",
                 layout: {
                   "icon-image": "destination-pin-green",
-                  "icon-size": 1.02,
+                  "icon-size": 1.12,
                   "icon-anchor": "bottom",
                   "icon-allow-overlap": true,
                 },
