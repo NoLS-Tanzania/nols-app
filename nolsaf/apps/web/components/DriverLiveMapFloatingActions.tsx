@@ -57,11 +57,12 @@ export default function DriverLiveMapFloatingActions({
   }, [activeTripMode]);
   
   const base = [
-    "h-12 w-12 rounded-[1.15rem] flex items-center justify-center shadow-[0_16px_32px_rgba(15,23,42,0.14)] transition-all duration-200 hover:scale-[1.04] active:scale-[0.97] border ring-1",
+    "h-12 w-12 rounded-full flex items-center justify-center shadow-md hover:shadow-lg transition-all duration-200 hover:scale-105 active:scale-95 border",
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
+    // Theme-adaptive "glass" so it stays readable on both day/night map styles.
     isDark
-      ? "bg-slate-950/64 text-slate-100 border-white/12 ring-white/10 backdrop-blur-xl focus-visible:ring-offset-slate-950"
-      : "bg-white/90 text-slate-900 border-white/80 ring-slate-200/80 backdrop-blur-xl focus-visible:ring-offset-white",
+      ? "bg-slate-950/55 text-slate-100 border-white/15 backdrop-blur-md focus-visible:ring-offset-slate-950"
+      : "bg-white text-slate-900 border-slate-200 focus-visible:ring-offset-white",
   ].join(" ");
 
   const themed = (light: string, dark: string) => (isDark ? dark : light);
@@ -84,8 +85,8 @@ export default function DriverLiveMapFloatingActions({
         className={[
           base,
           themed(
-            "border-[#02665e]/18 ring-[#02665e]/10 bg-white/92 hover:border-[#02665e]/28 hover:bg-[#02665e]/[0.07] active:bg-[#02665e]/[0.12] focus-visible:ring-[#02665e]/30",
-            "border-[#02665e]/28 ring-[#35a79c]/10 bg-slate-950/70 hover:border-[#35a79c]/42 hover:bg-[#02665e]/18 active:bg-[#02665e]/24 focus-visible:ring-[#35a79c]/40"
+            "border-[#02665e]/18 bg-white hover:border-[#02665e]/28 hover:bg-[#02665e]/[0.06] active:bg-[#02665e]/[0.1] focus-visible:ring-[#02665e]/30",
+            "border-[#02665e]/30 bg-slate-950/60 hover:border-[#35a79c]/45 hover:bg-[#02665e]/18 active:bg-[#02665e]/24 focus-visible:ring-[#35a79c]/40"
           ),
         ].join(" ")}
         aria-label="Center on location"
@@ -192,12 +193,12 @@ export default function DriverLiveMapFloatingActions({
               <div className="fixed inset-0 z-[100]" onClick={() => setShowMapTools(false)} aria-hidden="true" />
               <div
                 className={[
-                  "absolute bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-0 z-[110] min-w-[226px] rounded-[1.4rem] border shadow-[0_26px_56px_rgba(15,23,42,0.24)] overflow-hidden animate-fade-in-up",
-                  themed("bg-white/94 border-white/80 ring-1 ring-slate-200/80 backdrop-blur-xl", "bg-slate-950/90 border-white/12 ring-1 ring-white/10 backdrop-blur-xl"),
+                  "absolute bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-0 z-[110] min-w-[214px] rounded-2xl border shadow-2xl overflow-hidden animate-fade-in-up",
+                  themed("bg-white border-slate-200", "bg-slate-950/90 border-white/15 backdrop-blur-md"),
                 ].join(" ")}
                 onClick={(e) => e.stopPropagation()}
               >
-                <div className="p-2.5 space-y-2">
+                <div className="p-2 space-y-1.5">
                   {onRoutesClick && (
                     <button
                       onClick={() => {
@@ -205,7 +206,7 @@ export default function DriverLiveMapFloatingActions({
                         setShowMapTools(false);
                       }}
                       className={[
-                        "w-full flex items-center gap-3 px-4 py-3.5 rounded-[1rem] transition-colors text-sm font-medium border",
+                        "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors text-sm font-medium border",
                         themed(
                           "hover:bg-violet-50 text-violet-700 border-violet-200 bg-white",
                           "hover:bg-violet-500/15 text-violet-200 border-violet-400/25 bg-white/5"
@@ -223,7 +224,7 @@ export default function DriverLiveMapFloatingActions({
                         setShowMapTools(false);
                       }}
                       className={[
-                        "w-full flex items-center gap-3 px-4 py-3.5 rounded-[1rem] transition-colors text-sm font-medium border",
+                        "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors text-sm font-medium border",
                         themed(
                           "hover:bg-amber-50 text-amber-700 border-amber-200 bg-white",
                           "hover:bg-amber-500/15 text-amber-200 border-amber-400/25 bg-white/5"
@@ -241,7 +242,7 @@ export default function DriverLiveMapFloatingActions({
                         setShowMapTools(false);
                       }}
                       className={[
-                        "w-full flex items-center gap-3 px-4 py-3.5 rounded-[1rem] transition-colors text-sm font-medium border",
+                        "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors text-sm font-medium border",
                         themed(
                           "hover:bg-slate-50 text-slate-700 border-slate-200 bg-white",
                           "hover:bg-white/10 text-slate-100 border-white/15 bg-white/5"
@@ -294,12 +295,12 @@ export default function DriverLiveMapFloatingActions({
               {/* Menu - positioned right above the phone icon button */}
               <div
                 className={[
-                  "absolute bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-0 z-[110] min-w-[212px] rounded-[1.35rem] shadow-[0_26px_56px_rgba(15,23,42,0.24)] border overflow-hidden animate-fade-in-up",
-                  themed("bg-white/94 border-white/80 ring-1 ring-slate-200/80 backdrop-blur-xl", "bg-slate-950/90 border-white/12 ring-1 ring-white/10 backdrop-blur-xl"),
+                  "absolute bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-0 z-[110] min-w-[200px] rounded-xl shadow-2xl border overflow-hidden animate-fade-in-up",
+                  themed("bg-white border-slate-200", "bg-slate-950/90 border-white/15 backdrop-blur-md"),
                 ].join(" ")}
                 onClick={(e) => e.stopPropagation()}
               >
-                <div className="p-2.5 space-y-2">
+                <div className="p-2 space-y-1">
                   {/* Call Button */}
                   {tripActions.phoneNumber && tripActions.onCall && (
                     <button
@@ -308,7 +309,7 @@ export default function DriverLiveMapFloatingActions({
                         setShowTripMenu(false);
                       }}
                       className={[
-                        "w-full flex items-center gap-3 px-4 py-3.5 rounded-[1rem] transition-colors text-sm font-medium border",
+                        "w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-sm font-medium border",
                         themed(
                           "hover:bg-emerald-50 text-emerald-700 border-emerald-200 bg-white",
                           "hover:bg-emerald-500/15 text-emerald-200 border-emerald-400/25 bg-white/5"
@@ -328,7 +329,7 @@ export default function DriverLiveMapFloatingActions({
                         setShowTripMenu(false);
                       }}
                       className={[
-                        "w-full flex items-center gap-3 px-4 py-3.5 rounded-[1rem] transition-colors text-sm font-medium border",
+                        "w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-sm font-medium border",
                         themed(
                           "hover:bg-blue-50 text-blue-700 border-blue-200 bg-white",
                           "hover:bg-blue-500/15 text-blue-200 border-blue-400/25 bg-white/5"
@@ -349,7 +350,7 @@ export default function DriverLiveMapFloatingActions({
                       }}
                       disabled={!tripActions.canConfirmPickup}
                       className={[
-                        "w-full flex items-center gap-3 px-4 py-3.5 rounded-[1rem] transition-colors text-sm font-medium border",
+                        "w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-sm font-medium border",
                         tripActions.canConfirmPickup
                           ? themed(
                               "hover:bg-green-50 text-green-700 border-green-200 bg-white",

@@ -1511,29 +1511,21 @@ export default function DriverLiveMapPage() {
               <div
                 className={[
                   "absolute pointer-events-auto",
-                  "bottom-[calc(4.4rem+env(safe-area-inset-bottom))]",
+                  "bottom-[calc(4.5rem+env(safe-area-inset-bottom))]",
                   "right-[calc(0.6rem+env(safe-area-inset-right))]",
                 ].join(" ")}
               >
                 <div
                   className={[
-                    "w-[248px] rounded-[1.5rem] border p-3 shadow-[0_28px_60px_rgba(15,23,42,0.22)] backdrop-blur-2xl",
+                    "flex items-end gap-2.5 rounded-2xl border px-3 py-2.5 shadow-xl backdrop-blur-2xl",
                     mapTheme === "dark"
-                      ? "bg-slate-950/88 border-white/10 ring-1 ring-white/10"
-                      : "bg-white/94 border-white/80 ring-1 ring-slate-200/80 shadow-slate-200/60",
+                      ? "bg-slate-900/90 border-white/8"
+                      : "bg-white/95 border-slate-200/80 shadow-slate-200/60",
                   ].join(" ")}
                 >
-                  <div className="flex items-center justify-between gap-3 mb-3">
-                    <div>
-                      <p className={["text-[11px] font-semibold uppercase tracking-[0.18em]", mapTheme === "dark" ? "text-slate-300/65" : "text-slate-500"].join(" ")}>Map style</p>
-                      <p className={["text-[13px] font-semibold mt-1", mapTheme === "dark" ? "text-slate-50" : "text-slate-900"].join(" ")}>Choose your driving view</p>
-                    </div>
-                    <div className={["rounded-full px-2.5 py-1 text-[10px] font-semibold border", mapTheme === "dark" ? "bg-white/5 border-white/10 text-slate-200/75" : "bg-slate-50 border-slate-200 text-slate-600"].join(" ")}>{mapTheme === "dark" ? "Night mode" : "Day mode"}</div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2.5">
                   {([
-                    { key: "navigation", label: "Standard", hint: "Road clarity"  },
-                    { key: "satellite",  label: "Satellite", hint: "Ground detail" },
+                    { key: "navigation", label: "Default"  },
+                    { key: "satellite",  label: "Satellite" },
                   ] as const).map((opt) => {
                     const selected = mapLayer === opt.key;
                     return (
@@ -1542,74 +1534,68 @@ export default function DriverLiveMapPage() {
                         type="button"
                         onClick={() => { setMapLayer(opt.key); setLayersOpen(false); }}
                         aria-pressed={selected}
-                        className={[
-                          "group rounded-[1.2rem] border p-2.5 text-left transition-all duration-200 focus-visible:outline-none",
-                          selected
-                            ? mapTheme === "dark"
-                              ? "bg-[#02665e]/14 border-[#35a79c]/35 ring-1 ring-[#35a79c]/30 shadow-[0_14px_28px_rgba(2,102,94,0.22)]"
-                              : "bg-[#02665e]/[0.07] border-[#02665e]/18 ring-1 ring-[#02665e]/14 shadow-[0_14px_28px_rgba(2,102,94,0.12)]"
-                            : mapTheme === "dark"
-                              ? "bg-white/[0.03] border-white/8 hover:bg-white/[0.05]"
-                              : "bg-slate-50/70 border-slate-200/80 hover:bg-white hover:border-slate-300",
-                        ].join(" ")}
+                        className="flex flex-col items-center gap-1 focus-visible:outline-none"
                       >
-                        <div className="flex items-start justify-between gap-2">
+                        {/* Thumbnail */}
                         <span
                           className={[
-                            "relative h-[3.35rem] w-full rounded-[1rem] overflow-hidden transition-transform duration-100 active:scale-95",
+                            "relative h-11 w-11 rounded-xl overflow-hidden transition-transform duration-100 active:scale-95",
                             selected
-                              ? "ring-2 ring-[#02665e]/85 ring-offset-[2px] " + (mapTheme === "dark" ? "ring-offset-slate-950" : "ring-offset-white")
+                              ? "ring-2 ring-[#02665e] ring-offset-[2px] " + (mapTheme === "dark" ? "ring-offset-slate-900" : "ring-offset-white")
                               : "ring-1 " + (mapTheme === "dark" ? "ring-white/10" : "ring-black/10"),
                           ].join(" ")}
                         >
                           {opt.key === "navigation" ? (
+                            /* Navigation — soft topo-style colours */
                             <>
-                              <span className={["absolute inset-0", mapTheme === "dark" ? "bg-[linear-gradient(135deg,#162235_0%,#22324d_55%,#152033_100%)]" : "bg-[linear-gradient(135deg,#eef4fa_0%,#ddeaf5_55%,#f7fafc_100%)]"].join(" ")} />
-                              <svg className="absolute inset-0 h-full w-full" viewBox="0 0 56 56" fill="none">
-                                <path d="M-2 37 Q16 28 31 21 L59 11" stroke={mapTheme === "dark" ? "#8ab6e1" : "#8eb8db"} strokeWidth="4" strokeLinecap="round"/>
-                                <path d="M14 59 Q24 43 32 24" stroke={mapTheme === "dark" ? "#547396" : "#b0cfe6"} strokeWidth="2" strokeLinecap="round"/>
-                                <path d="M26 -2 L33 21 L39 59" stroke={mapTheme === "dark" ? "#36506b" : "#cedfec"} strokeWidth="1.8" strokeLinecap="round"/>
-                                <rect x="34" y="20" width="10" height="8" rx="2" fill={mapTheme === "dark" ? "rgba(143,192,240,0.16)" : "rgba(161,197,225,0.42)"} />
-                                <rect x="8" y="10" width="12" height="8" rx="2" fill={mapTheme === "dark" ? "rgba(143,192,240,0.12)" : "rgba(161,197,225,0.32)"} />
-                                <path d="M6 46 H48" stroke="#2563eb" strokeWidth="2.8" strokeLinecap="round" opacity="0.92"/>
-                                <path d="M31 46 H49" stroke="#16a34a" strokeWidth="2.8" strokeLinecap="round" opacity="0.92"/>
+                              <span className={["absolute inset-0", mapTheme === "dark" ? "bg-[#1b2535]" : "bg-[#e8f0f8]"].join(" ")} />
+                              {/* A few natural-looking road strokes */}
+                              <svg className="absolute inset-0 w-full h-full" viewBox="0 0 44 44" fill="none">
+                                {/* main artery diagonal */}
+                                <path d="M0 28 Q14 22 28 16 L44 10" stroke={mapTheme === "dark" ? "#4a6fa5" : "#7baed4"} strokeWidth="2.5" strokeLinecap="round"/>
+                                {/* secondary road */}
+                                <path d="M8 44 Q18 32 26 20" stroke={mapTheme === "dark" ? "#344f70" : "#aecde4"} strokeWidth="1.5" strokeLinecap="round"/>
+                                {/* side street */}
+                                <path d="M20 0 L26 20 L30 44" stroke={mapTheme === "dark" ? "#2a3d56" : "#c4daea"} strokeWidth="1.2" strokeLinecap="round"/>
+                                {/* block fill patch */}
+                                <rect x="28" y="18" width="8" height="6" rx="1.5" fill={mapTheme === "dark" ? "rgba(60,90,130,0.3)" : "rgba(180,210,230,0.4)"} />
+                                <rect x="6" y="8" width="10" height="7" rx="1.5" fill={mapTheme === "dark" ? "rgba(60,90,130,0.25)" : "rgba(180,210,230,0.35)"} />
                               </svg>
                             </>
                           ) : (
+                            /* Satellite — aerial imagery feel */
                             <>
-                              <span className="absolute inset-0 bg-[linear-gradient(135deg,#1c2c1f_0%,#35573a_42%,#112316_100%)]" />
-                              <span className="absolute inset-0 bg-[radial-gradient(ellipse_at_28%_36%,rgba(93,146,81,0.42)_0%,transparent_52%)]" />
-                              <span className="absolute inset-0 bg-[radial-gradient(ellipse_at_73%_65%,rgba(21,55,26,0.72)_0%,transparent_45%)]" />
-                              <span className="absolute inset-0 bg-[radial-gradient(ellipse_at_55%_10%,rgba(78,112,58,0.42)_0%,transparent_36%)]" />
-                              <svg className="absolute inset-0 h-full w-full opacity-70" viewBox="0 0 56 56" fill="none">
-                                <path d="M-2 33 Q18 29 58 23" stroke="rgba(255,255,255,0.85)" strokeWidth="2" strokeLinecap="round"/>
-                                <path d="M18 57 Q26 40 37 18" stroke="rgba(255,255,255,0.35)" strokeWidth="1.3" strokeLinecap="round"/>
-                                <path d="M8 45 H50" stroke="#2563eb" strokeWidth="2.4" strokeLinecap="round" opacity="0.9"/>
-                                <circle cx="41" cy="45" r="3.3" fill="#16a34a" stroke="white" strokeWidth="1.3"/>
+                              <span className="absolute inset-0 bg-[#1a3320]" />
+                              <span className="absolute inset-0 bg-[radial-gradient(ellipse_at_30%_40%,#2d5c2e_0%,transparent_50%)]" />
+                              <span className="absolute inset-0 bg-[radial-gradient(ellipse_at_70%_65%,#163d1c_0%,transparent_45%)]" />
+                              <span className="absolute inset-0 bg-[radial-gradient(ellipse_at_55%_10%,#3a6b38_0%,transparent_35%)]" />
+                              {/* subtle road */}
+                              <svg className="absolute inset-0 w-full h-full opacity-40" viewBox="0 0 44 44" fill="none">
+                                <path d="M0 26 Q20 22 44 18" stroke="white" strokeWidth="1.2" strokeLinecap="round"/>
                               </svg>
                             </>
                           )}
 
+                          {/* Active check */}
                           {selected && (
-                            <span className="absolute inset-0 flex items-start justify-end p-1.5">
-                              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#02665e] text-white shadow-lg ring-2 ring-white/70">
-                                <Check className="h-[10px] w-[10px] text-white" strokeWidth={3} />
+                            <span className="absolute inset-0 flex items-center justify-center bg-[#02665e]/30 rounded-xl">
+                              <span className="h-[18px] w-[18px] rounded-full bg-[#02665e] flex items-center justify-center shadow-lg">
+                                <Check className="h-[9px] w-[9px] text-white" strokeWidth={3} />
                               </span>
                             </span>
                           )}
                         </span>
-                        </div>
-                        <div className="mt-2.5 flex items-start justify-between gap-2">
-                          <div>
-                            <p className={["text-[12px] font-semibold", selected ? (mapTheme === "dark" ? "text-[#8ee0d8]" : "text-[#02665e]") : (mapTheme === "dark" ? "text-slate-100" : "text-slate-800")].join(" ")}>{opt.label}</p>
-                            <p className={["text-[10px] mt-1", mapTheme === "dark" ? "text-slate-400" : "text-slate-500"].join(" ")}>{opt.hint}</p>
-                          </div>
-                          <div className={["rounded-full px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.14em] border", selected ? (mapTheme === "dark" ? "border-[#35a79c]/35 bg-[#02665e]/18 text-[#8ee0d8]" : "border-[#02665e]/14 bg-[#02665e]/[0.08] text-[#02665e]") : (mapTheme === "dark" ? "border-white/10 bg-white/[0.04] text-slate-300/70" : "border-slate-200 bg-white text-slate-500")].join(" ")}>{selected ? "Active" : "Select"}</div>
-                        </div>
+
+                        {/* Label */}
+                        <span className={[
+                          "text-[10px] font-semibold leading-none",
+                          selected ? "text-[#02665e]" : (mapTheme === "dark" ? "text-slate-400" : "text-slate-500"),
+                        ].join(" ")}>
+                          {opt.label}
+                        </span>
                       </button>
                     );
                   })}
-                  </div>
                 </div>
               </div>
             </div>

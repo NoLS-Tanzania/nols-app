@@ -17,9 +17,10 @@ type MapPayload = {
 type MapTheme = "light" | "dark";
 type MapLayer = "navigation" | "streets" | "outdoors" | "satellite";
 
-// Mapbox base styles (kept simple so we can reliably re-add our layers after setStyle()).
-const MAPBOX_STYLE_LIGHT = "mapbox://styles/mapbox/light-v11";
-const MAPBOX_STYLE_DARK = "mapbox://styles/mapbox/dark-v11";
+// Mapbox base styles.
+// Use navigation-focused defaults so the driver gets clearer road hierarchy and label readability.
+const MAPBOX_STYLE_LIGHT = "mapbox://styles/mapbox/navigation-day-v1";
+const MAPBOX_STYLE_DARK = "mapbox://styles/mapbox/navigation-night-v1";
 const MAPBOX_STYLE_STREETS = "mapbox://styles/mapbox/streets-v12";
 const MAPBOX_STYLE_OUTDOORS = "mapbox://styles/mapbox/outdoors-v12";
 const MAPBOX_STYLE_SATELLITE = "mapbox://styles/mapbox/satellite-streets-v12";
