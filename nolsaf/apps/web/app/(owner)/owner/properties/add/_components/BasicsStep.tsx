@@ -1,7 +1,7 @@
 "use client";
 
 import type { ComponentType, Dispatch, MutableRefObject, SetStateAction } from "react";
-import { AlertTriangle, Building2, CheckCircle2, ChevronDown, HelpCircle, Home, LayoutGrid, MapPin, AlertCircle, Navigation2, Pencil, X } from "lucide-react";
+import { AlertTriangle, Building2, CheckCircle2, ChevronDown, HelpCircle, Home, LayoutGrid, MapPin, AlertCircle, Pencil, X } from "lucide-react";
 import { forwardRef, startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AddPropertySection } from "./AddPropertySection";
@@ -1665,42 +1665,35 @@ const nameOk = title.trim().length >= 3;
                 )}
               </div>
 
-              <div className="add-property-panel-premium-strong mt-6">
-                  <div className="flex items-start gap-4 mb-4">
-                    <div className="flex-shrink-0 w-12 h-12 rounded-2xl bg-emerald-100/90 shadow-sm shadow-emerald-200/50 flex items-center justify-center">
-                      <Navigation2 className="w-6 h-6 text-emerald-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="add-property-kicker">Location intelligence</span>
-                      </div>
-                      <h3 className="mt-3 text-base font-semibold text-gray-900 mb-1">Property Location Map</h3>
-                      <p className="text-xs text-gray-500 leading-relaxed">
-                        Exact coordinates:{" "}
-                        {latitude && longitude ? (
-                          <span className="font-mono text-gray-700">{Number(latitude).toFixed(6)}, {Number(longitude).toFixed(6)}</span>
-                        ) : (
-                          <span className="font-medium text-gray-500">Not set yet</span>
-                        )}
-                      </p>
-                      {zip || selectedWardPostcode ? (
-                        <p className="text-xs text-gray-500 mt-1">
-                          Postcode: <span className="font-semibold text-gray-700">{zip || selectedWardPostcode}</span>
+              <div className="mt-6 overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-lg shadow-slate-200/40 ring-1 ring-black/5">
+                  <div className="border-b border-slate-200/80 bg-[linear-gradient(180deg,_rgba(255,255,255,0.96),_rgba(248,250,252,0.92))] px-5 py-4 sm:px-6">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="add-property-kicker">Location intelligence</span>
+                          <span className="add-property-metric-chip">{locationSource === "gps" ? "GPS source" : "Pin source"}</span>
+                          {typeof locationAccuracyMeters === "number" && Number.isFinite(locationAccuracyMeters) ? (
+                            <span className="add-property-metric-chip">Accuracy {Math.round(locationAccuracyMeters)} m</span>
+                          ) : null}
+                        </div>
+                        <h3 className="mt-3 text-lg font-semibold text-gray-900">Property Location Map</h3>
+                        <p className="mt-1 text-sm leading-relaxed text-slate-600">
+                          Keep this area clean and use the map itself to place the property exactly where the building sits.
                         </p>
-                      ) : null}
-                      <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-slate-600">
-                        <span className="inline-flex items-center rounded-full border border-slate-200 bg-white/90 px-2.5 py-1 font-semibold uppercase tracking-wide text-slate-700 shadow-sm shadow-slate-200/40">
-                          {locationSource === "gps" ? "GPS detected" : "Pin selected"}
-                        </span>
-                        {typeof locationAccuracyMeters === "number" && Number.isFinite(locationAccuracyMeters) ? (
-                          <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50/90 px-2.5 py-1 font-semibold text-emerald-700 shadow-sm shadow-emerald-100/50">
-                            Accuracy {Math.round(locationAccuracyMeters)} m
-                          </span>
+                      </div>
+                      <div className="text-xs text-slate-500 sm:text-right">
+                        <div className="font-mono text-slate-700">
+                          {latitude && longitude
+                            ? `${Number(latitude).toFixed(6)}, ${Number(longitude).toFixed(6)}`
+                            : "Coordinates not set yet"}
+                        </div>
+                        {(zip || selectedWardPostcode) ? (
+                          <div className="mt-1">Postcode {zip || selectedWardPostcode}</div>
                         ) : null}
                       </div>
                     </div>
                   </div>
-                  <div className="overflow-hidden rounded-[20px] border border-slate-200/80 bg-white shadow-inner shadow-slate-200/40">
+                  <div className="bg-white p-3 sm:p-4">
                     <PropertyLocationMap
                       latitude={typeof latitude === "number" ? latitude : 0}
                       longitude={typeof longitude === "number" ? longitude : 0}
@@ -1718,6 +1711,7 @@ const nameOk = title.trim().length >= 3;
                     />
                   </div>
 
+                  <div className="px-5 pb-5 pt-1 sm:px-6 sm:pb-6">
                   <div className="mt-4 grid gap-3 sm:grid-cols-2">
                     <div className="add-property-location-stat">
                       <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Detected address</div>
@@ -1763,6 +1757,7 @@ const nameOk = title.trim().length >= 3;
                       </div>
                     </div>
                   )}
+                  </div>
                 </div>
             </div>
           </div>
