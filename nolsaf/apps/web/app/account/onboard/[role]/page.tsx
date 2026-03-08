@@ -5,8 +5,9 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { REGIONS } from "@/lib/tzRegions";
 import { REGIONS_FULL_DATA } from "@/lib/tzRegionsFull";
+import DatePickerField from "@/components/DatePickerField";
 import * as Icons from 'lucide-react';
-import { User, Mail, UserCircle, Globe, CreditCard, FileText, Upload, CheckCircle2, Truck, MapPin, Phone, ChevronDown, AlertCircle, ChevronLeft, ChevronRight, Loader2, Car, X, Clock, Building2, UserCircle2, ArrowLeft, Star, Shield, Lock, AlertTriangle } from 'lucide-react';
+import { User, Mail, UserCircle, Globe, CreditCard, FileText, Upload, CheckCircle2, Truck, MapPin, Phone, ChevronDown, AlertCircle, ChevronLeft, ChevronRight, Loader2, Car, X, Clock, Building2, UserCircle2, ArrowLeft, Star, Shield, Lock, AlertTriangle, Calendar } from 'lucide-react';
 
 type CloudinarySig = {
   timestamp: number;
@@ -24,12 +25,19 @@ type DriverDocumentRecord = {
   metadata?: Record<string, any> | null;
 };
 
-const DRIVER_DOCUMENT_SPECS = [
-  { type: 'DRIVER_LICENSE', label: 'Driving licence', required: true },
+type DriverDocumentSpec = {
+  type: string;
+  label: string;
+  required: boolean;
+  requiresExpiry?: boolean;
+};
+
+const DRIVER_DOCUMENT_SPECS: readonly DriverDocumentSpec[] = [
+  { type: 'DRIVER_LICENSE', label: 'Driving licence', required: true, requiresExpiry: true },
   { type: 'NATIONAL_ID', label: 'National ID', required: true },
   { type: 'VEHICLE_REGISTRATION', label: 'Vehicle registration (LATRA)', required: true },
   { type: 'INSURANCE', label: 'Insurance certificate', required: true },
-] as const;
+];
 
 const REQUIRED_DRIVER_DOCUMENT_TYPES = DRIVER_DOCUMENT_SPECS.filter((spec) => spec.required).map((spec) => spec.type);
 
@@ -39,6 +47,10 @@ function getLatestDriverDoc(docs: DriverDocumentRecord[], type: string): DriverD
     if (String(doc?.type ?? '').toUpperCase() === normalizedType && doc?.url) return doc;
   }
   return null;
+}
+
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
 }
 
 export default function OnboardRole() {
@@ -61,6 +73,7 @@ export default function OnboardRole() {
   // new driver onboarding fields
   const [gender, setGender] = useState('');
   const [nationality, setNationality] = useState('Tanzanian');
+  const [dateOfBirth, setDateOfBirth] = useState('');
   const [nin, setNin] = useState('');
   const [licenseNumber, setLicenseNumber] = useState('');
   const [vehicleType, setVehicleType] = useState<string>(''); // single pick: Bajaji, Bodaboda, Vehicle
@@ -96,6 +109,7 @@ export default function OnboardRole() {
   const [idFile, setIdFile] = useState<File | null>(null);
   const [latraFile, setLatraFile] = useState<File | null>(null);
   const [insuranceFile, setInsuranceFile] = useState<File | null>(null);
+  const [licenseExpiresOn, setLicenseExpiresOn] = useState('');
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [agreedToPrivacy, setAgreedToPrivacy] = useState(false);
   const [stepIndex, setStepIndex] = useState<number>(1); // 1..5 for driver onboarding steps
@@ -152,6 +166,7 @@ export default function OnboardRole() {
         // Pre-fill all form fields with existing user data so locked fields show their values
         if (me?.name || me?.fullName)   setName(me.fullName ?? me.name ?? '');
         if (me?.email)                  setEmail(me.email);
+        if (me?.dateOfBirth)            setDateOfBirth(String(me.dateOfBirth).split('T')[0]);
         if (me?.nin)                    setNin(me.nin);
         if (me?.licenseNumber)          setLicenseNumber(me.licenseNumber);
         if (me?.gender)                 setGender(me.gender);
@@ -162,7 +177,13 @@ export default function OnboardRole() {
         if (me?.region)                 setDriverRegion(me.region);
         if (me?.district)               setDriverDistrict(me.district);
         if (me?.paymentPhone)           setPaymentPhone(me.paymentPhone);
-        if (Array.isArray(me?.documents)) setUploadedDriverDocs(me.documents as DriverDocumentRecord[]);
+        if (Array.isArray(me?.documents)) {
+          const docs = me.documents as DriverDocumentRecord[];
+          setUploadedDriverDocs(docs);
+          const currentLicense = getLatestDriverDoc(docs, 'DRIVER_LICENSE');
+          const licenseMeta = currentLicense?.metadata && typeof currentLicense.metadata === 'object' ? currentLicense.metadata : null;
+          if (typeof licenseMeta?.expiresOn === 'string') setLicenseExpiresOn(licenseMeta.expiresOn);
+        }
       } catch {
         // ignore
       }
@@ -249,8 +270,21 @@ export default function OnboardRole() {
   const persistDriverDocument = async (type: string, file: File) => {
     const spec = DRIVER_DOCUMENT_SPECS.find((item) => item.type === type);
     const label = spec?.label ?? type;
+    const requiresExpiry = type === 'DRIVER_LICENSE';
+    if (requiresExpiry) {
+      if (!licenseExpiresOn) {
+        throw new Error('Enter the licence expiry date before uploading the driving licence.');
+      }
+      if (!Number.isFinite(new Date(`${licenseExpiresOn}T23:59:59.999Z`).getTime())) {
+        throw new Error('Enter a valid licence expiry date.');
+      }
+      if (licenseExpiresOn < todayIso()) {
+        throw new Error('Licence expiry date must be today or later.');
+      }
+    }
     setDocUploadState({ type, label });
     const url = await uploadToCloudinary(file, 'driver-documents');
+    const expiresAtIso = requiresExpiry ? new Date(`${licenseExpiresOn}T23:59:59.999Z`).toISOString() : null;
     const resp = await fetch('/api/account/documents', {
       method: 'PUT',
       credentials: 'include',
@@ -264,6 +298,7 @@ export default function OnboardRole() {
           size: file.size,
           uploadedAt: new Date().toISOString(),
           source: 'driver-onboarding',
+          ...(expiresAtIso ? { expiresAt: expiresAtIso, expiresOn: licenseExpiresOn } : null),
         },
       }),
     });
@@ -316,7 +351,7 @@ export default function OnboardRole() {
     }
     // Additional driver required fields validation
     if (role === 'driver') {
-      if (!licenseNumber.trim() || !vehicleType.trim() || !plateNumber.trim() || !driverRegion.trim() || !driverDistrict.trim() || !operationArea.trim() || !paymentPhone.trim()) {
+      if (!dateOfBirth.trim() || !licenseNumber.trim() || !vehicleType.trim() || !plateNumber.trim() || !driverRegion.trim() || !driverDistrict.trim() || !operationArea.trim() || !paymentPhone.trim()) {
         setError('Complete every required driver detail before submitting for review.');
         return;
       }
@@ -348,6 +383,7 @@ export default function OnboardRole() {
       if (role === 'driver') {
       fd.append('gender', gender || '');
       fd.append('nationality', nationality || '');
+      fd.append('dateOfBirth', dateOfBirth || '');
       fd.append('nin', nin || '');
       fd.append('licenseNumber', licenseNumber || '');
       fd.append('plateNumber', plateNumber || '');
@@ -422,9 +458,9 @@ export default function OnboardRole() {
     switch (stepIndex) {
       case 1:
         if (needsPasswordSetup) {
-          return name.trim().length > 0 && emailRe.test(email.trim()) && password.trim().length >= 1 && confirmPassword === password;
+          return name.trim().length > 0 && emailRe.test(email.trim()) && dateOfBirth.trim().length > 0 && password.trim().length >= 1 && confirmPassword === password;
         }
-        return name.trim().length > 0 && emailRe.test(email.trim());
+        return name.trim().length > 0 && emailRe.test(email.trim()) && dateOfBirth.trim().length > 0;
       case 2:
         return licenseNumber.trim().length > 0 && vehicleType.trim().length > 0 && plateNumber.trim().length > 0 && driverRegion.trim().length > 0 && driverDistrict.trim().length > 0 && operationArea.trim().length > 0;
       case 3:
@@ -441,8 +477,8 @@ export default function OnboardRole() {
     if (role !== 'driver') return true;
     if (step === 1) {
       return needsPasswordSetup
-        ? name.trim().length > 0 && emailRe.test(email.trim()) && password.trim().length >= 1 && confirmPassword === password
-        : name.trim().length > 0 && emailRe.test(email.trim());
+        ? name.trim().length > 0 && emailRe.test(email.trim()) && dateOfBirth.trim().length > 0 && password.trim().length >= 1 && confirmPassword === password
+        : name.trim().length > 0 && emailRe.test(email.trim()) && dateOfBirth.trim().length > 0;
     }
     if (step === 2) {
       return licenseNumber.trim().length > 0 && vehicleType.trim().length > 0 && plateNumber.trim().length > 0 && driverRegion.trim().length > 0 && driverDistrict.trim().length > 0 && operationArea.trim().length > 0;
@@ -468,7 +504,7 @@ export default function OnboardRole() {
     if (role !== 'driver') return true;
     
     // Step 1: Personal Details
-    const step1Valid = name.trim().length > 0 && emailRe.test(email.trim());
+    const step1Valid = name.trim().length > 0 && emailRe.test(email.trim()) && dateOfBirth.trim().length > 0;
     
     // Step 2: Driving Details
     const step2Valid = licenseNumber.trim().length > 0 && 
@@ -493,6 +529,7 @@ export default function OnboardRole() {
   const [touched, setTouched] = useState<Record<string, boolean>>({
     name: false,
     email: false,
+    dateOfBirth: false,
     password: false,
     confirmPassword: false,
     licenseNumber: false,
@@ -525,6 +562,8 @@ export default function OnboardRole() {
         return name.trim() ? '' : 'Full name is required';
       case 'email':
         return email.trim() ? (emailRe.test(email.trim()) ? '' : 'Enter a valid email') : 'Email is required';
+      case 'dateOfBirth':
+        return dateOfBirth.trim() ? '' : 'Date of birth is required';
       case 'password':
         if (!needsPasswordSetup) return '';
         return password.trim() ? '' : 'Password is required';
@@ -564,12 +603,14 @@ export default function OnboardRole() {
     if (stepIndex === 1) {
       const nameErr = validateField('name');
       const emailErr = validateField('email');
+      const dobErr = validateField('dateOfBirth');
       const pwErr = needsPasswordSetup ? validateField('password') : '';
       const cpwErr = needsPasswordSetup ? validateField('confirmPassword') : '';
-      setTouched(prev => ({ ...prev, name: true, email: true, ...(needsPasswordSetup ? { password: true, confirmPassword: true } : {}) }));
-      setFieldErrors(prev => ({ ...prev, name: nameErr, email: emailErr, ...(needsPasswordSetup ? { password: pwErr, confirmPassword: cpwErr } : {}) }));
+      setTouched(prev => ({ ...prev, name: true, email: true, dateOfBirth: true, ...(needsPasswordSetup ? { password: true, confirmPassword: true } : {}) }));
+      setFieldErrors(prev => ({ ...prev, name: nameErr, email: emailErr, dateOfBirth: dobErr, ...(needsPasswordSetup ? { password: pwErr, confirmPassword: cpwErr } : {}) }));
       if (nameErr) { nameRef.current?.focus(); return; }
       if (emailErr) { emailRef.current?.focus(); return; }
+      if (dobErr) { return; }
       if (needsPasswordSetup) {
         if (pwErr) { passwordRef.current?.focus(); return; }
         if (cpwErr) { confirmPasswordRef.current?.focus(); return; }
@@ -1320,6 +1361,34 @@ export default function OnboardRole() {
                       )}
                   </div>
 
+                  <div>
+                    <label className="text-sm font-semibold text-slate-900 mb-1.5 flex items-center gap-2">
+                      <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                      Date of birth
+                      <span className="text-red-500">*</span>
+                    </label>
+                    <DatePickerField
+                      label="Date of birth"
+                      value={dateOfBirth}
+                      onChangeAction={(nextIso) => {
+                        setDateOfBirth(String(nextIso).split('T')[0]);
+                        setTouched((prev) => ({ ...prev, dateOfBirth: true }));
+                        setFieldErrors((prev) => ({ ...prev, dateOfBirth: '' }));
+                      }}
+                      max={todayIso()}
+                      allowPast={true}
+                      twoMonths={false}
+                      widthClassName="w-full"
+                      size="sm"
+                    />
+                    {touched.dateOfBirth && fieldErrors.dateOfBirth && (
+                      <div className="text-xs text-red-600 mt-2 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" />
+                        {fieldErrors.dateOfBirth}
+                      </div>
+                    )}
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div>
                         <label htmlFor="gender-select" className="block text-sm font-semibold text-slate-900 mb-1.5">
@@ -1862,6 +1931,26 @@ export default function OnboardRole() {
                           </p>
                         </div>
                       )}
+                      <div className="mb-3">
+                        <label className="text-sm font-semibold text-slate-900 mb-1.5 flex items-center gap-2">
+                          <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                          Licence expiry date
+                          <span className="text-red-500">*</span>
+                        </label>
+                        <DatePickerField
+                          label="Licence expiry date"
+                          value={licenseExpiresOn}
+                          onChangeAction={(nextIso) => setLicenseExpiresOn(String(nextIso).split('T')[0])}
+                          min={todayIso()}
+                          allowPast={false}
+                          twoMonths={false}
+                          widthClassName="w-full"
+                          size="sm"
+                        />
+                        <p className="mt-2 text-xs text-slate-500">
+                          This expiry date is stored with your licence for admin review.
+                        </p>
+                      </div>
                       <label htmlFor="license-upload" className={`flex flex-col items-center justify-center w-full px-4 py-6 border-2 border-dashed rounded-lg cursor-pointer transition-all duration-200 group ${
                         kycFieldApprovals['drivingLicense'] === 'flagged'
                           ? 'border-orange-400 bg-orange-50/60 hover:bg-orange-50 hover:border-orange-500'
@@ -2128,6 +2217,24 @@ export default function OnboardRole() {
                         <div className="p-3 bg-white border-2 border-slate-200 rounded-lg hover:border-slate-300 transition-colors">
                           <div className="flex items-center justify-between mb-2">
                             <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                              <Calendar className="w-3 h-3 text-slate-400" />
+                              Date of birth
+                              <span className="text-red-500">*</span>
+                            </label>
+                            <button type="button" onClick={() => setStepIndex(1)} className="text-xs text-[#02665e] hover:text-[#02665e]/80 hover:underline font-medium">Edit</button>
+                          </div>
+                          <div className="text-sm text-slate-900 font-medium">{dateOfBirth || <span className="text-slate-400 italic">Not provided</span>}</div>
+                          {touched.dateOfBirth && fieldErrors.dateOfBirth && (
+                            <div className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                              <AlertCircle className="w-3 h-3" />
+                              {fieldErrors.dateOfBirth}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="p-3 bg-white border-2 border-slate-200 rounded-lg hover:border-slate-300 transition-colors">
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
                               <UserCircle className="w-3 h-3 text-slate-400" />
                               Gender
                             </label>
@@ -2310,7 +2417,10 @@ export default function OnboardRole() {
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="text-sm font-semibold text-slate-900">Driving license</div>
-                                <div className="text-xs text-slate-500 truncate">{getDocumentDisplayName('DRIVER_LICENSE', licenseFile) || <span className="text-slate-400 italic">Not uploaded</span>}</div>
+                              <div className="text-xs text-slate-500 truncate">{getDocumentDisplayName('DRIVER_LICENSE', licenseFile) || <span className="text-slate-400 italic">Not uploaded</span>}</div>
+                              <div className="text-xs text-slate-500 mt-1">
+                                Expiry: {licenseExpiresOn || getSavedDriverDoc('DRIVER_LICENSE')?.metadata?.expiresOn || <span className="text-slate-400 italic">Not provided</span>}
+                              </div>
                             </div>
                           </div>
                           <button type="button" onClick={() => setStepIndex(4)} className="text-xs text-[#02665e] hover:text-[#02665e]/80 hover:underline font-medium flex-shrink-0 ml-2">Edit</button>

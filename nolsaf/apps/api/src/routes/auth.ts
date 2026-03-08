@@ -1148,6 +1148,7 @@ router.post('/profile', upload.none(), async (req, res) => {
       address,
       gender,
       nationality,
+      dateOfBirth,
       nin,
       licenseNumber,
       plateNumber,
@@ -1159,6 +1160,14 @@ router.post('/profile', upload.none(), async (req, res) => {
       paymentVerified,
       isVipDriver,
     } = body;
+    const parseOptionalDate = (value: unknown): Date | null | undefined => {
+      if (typeof value === 'undefined') return undefined;
+      const raw = String(value ?? '').trim();
+      if (!raw) return null;
+      const iso = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T12:00:00.000Z` : raw;
+      const parsed = new Date(iso);
+      return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+    };
     
     // Get user from token (Authorization: Bearer OR httpOnly cookie)
     const token =
@@ -1268,6 +1277,10 @@ router.post('/profile', upload.none(), async (req, res) => {
       // Driver fields
       if (hasField('gender') && typeof gender === 'string') dataToUpdate.gender = gender;
       if (hasField('nationality') && typeof nationality === 'string') dataToUpdate.nationality = nationality;
+      if (hasField('dateOfBirth') && typeof dateOfBirth !== 'undefined') {
+        const parsedDateOfBirth = parseOptionalDate(dateOfBirth);
+        if (typeof parsedDateOfBirth !== 'undefined') dataToUpdate.dateOfBirth = parsedDateOfBirth;
+      }
       if (hasField('nin') && typeof nin === 'string') dataToUpdate.nin = nin;
       if (hasField('licenseNumber') && typeof licenseNumber === 'string') dataToUpdate.licenseNumber = licenseNumber;
       if (hasField('plateNumber') && typeof plateNumber === 'string') dataToUpdate.plateNumber = plateNumber;
@@ -1289,6 +1302,7 @@ router.post('/profile', upload.none(), async (req, res) => {
       const submitForReview = String(body?.submitForReview ?? '') === 'true';
       if ((dbRole === 'DRIVER') && submitForReview) {
         const missingProfileFields: string[] = [];
+        if (!(typeof dateOfBirth === 'string' && dateOfBirth.trim())) missingProfileFields.push('date of birth');
         if (!(typeof licenseNumber === 'string' && licenseNumber.trim())) missingProfileFields.push('license number');
         if (!(typeof vehicleType === 'string' && vehicleType.trim())) missingProfileFields.push('vehicle type');
         if (!(typeof plateNumber === 'string' && plateNumber.trim())) missingProfileFields.push('plate number');
@@ -1394,11 +1408,14 @@ router.post('/profile', upload.none(), async (req, res) => {
             address: typeof address === 'string' ? address : undefined,
             gender: typeof gender === 'string' ? gender : undefined,
             nationality: typeof nationality === 'string' ? nationality : undefined,
+            dateOfBirth: typeof dateOfBirth !== 'undefined' ? parseOptionalDate(dateOfBirth) : undefined,
             nin: typeof nin === 'string' ? nin : undefined,
             licenseNumber: typeof licenseNumber === 'string' ? licenseNumber : undefined,
             plateNumber: typeof plateNumber === 'string' ? plateNumber : undefined,
             vehicleType: typeof vehicleType === 'string' ? vehicleType : undefined,
             operationArea: typeof operationArea === 'string' ? operationArea : undefined,
+            region: typeof region === 'string' ? region : undefined,
+            district: typeof district === 'string' ? district : undefined,
             paymentPhone: typeof paymentPhone === 'string' ? paymentPhone : undefined,
             paymentVerified:
               typeof paymentVerified !== 'undefined'
