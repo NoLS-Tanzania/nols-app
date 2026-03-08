@@ -638,6 +638,37 @@ export default function DriverVettingPage() {
   const selectedInsuranceDoc = getSelectedDoc(['INSURANCE']);
   const selectedLicenseExpiry = String(selectedLicenseDoc?.metadata?.expiresOn ?? selectedLicenseDoc?.metadata?.expiresAt ?? '').split('T')[0] || null;
   const selectedInsuranceExpiry = String(selectedInsuranceDoc?.metadata?.expiresOn ?? selectedInsuranceDoc?.metadata?.expiresAt ?? '').split('T')[0] || null;
+  const resolvedLicenseUrl = selectedLicenseDoc?.url || payoutObj?.drivingLicenseUrl || selected?.payout?.drivingLicenseUrl || null;
+  const resolvedNationalIdUrl = selectedNationalIdDoc?.url || payoutObj?.nationalIdUrl || selected?.payout?.nationalIdUrl || null;
+  const resolvedLatraUrl = selectedLatraDoc?.url || payoutObj?.latraUrl || payoutObj?.vehicleRegistrationUrl || selected?.payout?.latraUrl || selected?.payout?.vehicleRegistrationUrl || null;
+  const resolvedInsuranceUrl = selectedInsuranceDoc?.url || payoutObj?.insuranceUrl || selected?.payout?.insuranceUrl || null;
+  const missingRequiredFields = [
+    !String(selected?.name ?? '').trim() ? 'full name' : null,
+    !String(selected?.email ?? '').trim() ? 'email' : null,
+    !String(selected?.phone ?? '').trim() ? 'phone' : null,
+    !String(selected?.gender ?? '').trim() ? 'gender' : null,
+    !String(selected?.nationality ?? '').trim() ? 'nationality' : null,
+    !(selected as DriverDetail | null)?.dateOfBirth ? 'date of birth' : null,
+    !String((selected as DriverDetail | null)?.nin ?? '').trim() ? 'NIN' : null,
+    !String(selected?.region ?? '').trim() ? 'region' : null,
+    !String(selected?.district ?? '').trim() ? 'district' : null,
+    !String(selected?.operationArea ?? '').trim() ? 'operation area' : null,
+    !String(selected?.vehicleType ?? '').trim() ? 'vehicle type' : null,
+    !String(selected?.plateNumber ?? '').trim() ? 'plate number' : null,
+    !String(selected?.licenseNumber ?? '').trim() ? 'licence number' : null,
+    !String((selected as DriverDetail | null)?.paymentPhone ?? '').trim() ? 'payment phone' : null,
+    !Boolean(selected?.paymentVerified) ? 'verified payment phone' : null,
+  ].filter(Boolean) as string[];
+  const missingRequiredDocuments = [
+    !resolvedLicenseUrl ? 'driving licence' : null,
+    !resolvedNationalIdUrl ? 'National ID' : null,
+    !resolvedLatraUrl ? 'vehicle registration' : null,
+    !resolvedInsuranceUrl ? 'insurance certificate' : null,
+  ].filter(Boolean) as string[];
+  const approvalBlockedReasons = [
+    ...(missingRequiredFields.length > 0 ? [`Missing fields: ${missingRequiredFields.join(', ')}`] : []),
+    ...(missingRequiredDocuments.length > 0 ? [`Missing documents: ${missingRequiredDocuments.join(', ')}`] : []),
+  ];
   const REQUIRED_FIELDS = [
     'name', 'email', 'phone', 'gender', 'nationality', 'dateOfBirth', 'nin',
     'region', 'district', 'operationArea',
@@ -649,6 +680,7 @@ export default function DriverVettingPage() {
   const approvedFields = Object.entries(fieldApprovals).filter(([, v]) => v === "approved").map(([k]) => k);
   const reviewedCount = REQUIRED_FIELDS.filter(k => fieldApprovals[k] === 'approved').length;
   const allFieldsApproved = reviewedCount === REQUIRED_FIELDS.length;
+  const canGrantFinalApproval = allFieldsApproved && approvalBlockedReasons.length === 0;
   const fa = (key: string) => fieldApprovals[key] ?? null;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
 
@@ -1090,7 +1122,7 @@ export default function DriverVettingPage() {
                           <>
                             <DocLink
                               label="Driving License"
-                              url={urlFrom(selectedLicenseDoc, payoutObj?.drivingLicenseUrl || selected.payout?.drivingLicenseUrl)}
+                              url={urlFrom(selectedLicenseDoc, resolvedLicenseUrl)}
                               expiryInfo={selectedLicenseExpiry || fmtExpiry(selectedLicenseDoc)}
                               docId={selectedLicenseDoc?.id ?? null}
                               docStatus={selectedLicenseDoc?.status ?? null}
@@ -1102,7 +1134,7 @@ export default function DriverVettingPage() {
                             />
                             <DocLink
                               label="National ID"
-                              url={urlFrom(selectedNationalIdDoc, payoutObj?.nationalIdUrl || selected.payout?.nationalIdUrl)}
+                              url={urlFrom(selectedNationalIdDoc, resolvedNationalIdUrl)}
                               expiryInfo={null}
                               docId={selectedNationalIdDoc?.id ?? null}
                               docStatus={selectedNationalIdDoc?.status ?? null}
@@ -1114,7 +1146,7 @@ export default function DriverVettingPage() {
                             />
                             <DocLink
                               label="LATRA Certificate"
-                              url={urlFrom(selectedLatraDoc, payoutObj?.latraUrl || payoutObj?.vehicleRegistrationUrl || selected.payout?.latraUrl || selected.payout?.vehicleRegistrationUrl)}
+                              url={urlFrom(selectedLatraDoc, resolvedLatraUrl)}
                               expiryInfo={null}
                               docId={selectedLatraDoc?.id ?? null}
                               docStatus={selectedLatraDoc?.status ?? null}
@@ -1126,7 +1158,7 @@ export default function DriverVettingPage() {
                             />
                             <DocLink
                               label="Insurance"
-                              url={urlFrom(selectedInsuranceDoc, payoutObj?.insuranceUrl || selected.payout?.insuranceUrl)}
+                              url={urlFrom(selectedInsuranceDoc, resolvedInsuranceUrl)}
                               expiryInfo={selectedInsuranceExpiry || fmtExpiry(selectedInsuranceDoc)}
                               docId={selectedInsuranceDoc?.id ?? null}
                               docStatus={selectedInsuranceDoc?.status ?? null}
@@ -1446,19 +1478,19 @@ export default function DriverVettingPage() {
                   {selected.kycStatus !== "APPROVED_KYC" && (
                     <div
                       className="rounded-xl border px-3 py-2.5 space-y-1.5"
-                      style={allFieldsApproved
+                      style={canGrantFinalApproval
                         ? { background: '#f0fdf4', borderColor: '#bbf7d0' }
                         : { background: '#fffbeb', borderColor: '#fde68a' }}
                     >
                       <div className="flex items-center justify-between">
                         <span className="text-[11px] font-bold"
-                          style={{ color: allFieldsApproved ? '#15803d' : '#92400e' }}>
-                          {allFieldsApproved
+                          style={{ color: canGrantFinalApproval ? '#15803d' : '#92400e' }}>
+                          {canGrantFinalApproval
                             ? '✅ All fields verified — ready to approve'
                             : `⚠️ ${reviewedCount} / ${REQUIRED_FIELDS.length} fields approved — review all before approving`}
                         </span>
                         <span className="text-[10px] font-mono font-bold"
-                          style={{ color: allFieldsApproved ? '#16a34a' : '#b45309' }}>
+                          style={{ color: canGrantFinalApproval ? '#16a34a' : '#b45309' }}>
                           {reviewedCount}/{REQUIRED_FIELDS.length}
                         </span>
                       </div>
@@ -1467,15 +1499,22 @@ export default function DriverVettingPage() {
                           className="h-full rounded-full transition-all duration-300"
                           style={{
                             width: `${(reviewedCount / REQUIRED_FIELDS.length) * 100}%`,
-                            background: allFieldsApproved ? '#16a34a' : '#f59e0b',
+                            background: canGrantFinalApproval ? '#16a34a' : '#f59e0b',
                           }}
                         />
                       </div>
+                      {approvalBlockedReasons.length > 0 && (
+                        <div className="pt-1 space-y-1">
+                          {approvalBlockedReasons.map((reason) => (
+                            <p key={reason} className="text-[11px] text-amber-800 leading-relaxed">{reason}</p>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
 
                   {/* Final approval CTA — shown prominently when all fields are verified */}
-                  {selected.kycStatus !== "APPROVED_KYC" && allFieldsApproved && (
+                  {selected.kycStatus !== "APPROVED_KYC" && canGrantFinalApproval && (
                     <button
                       disabled={actionLoading}
                       onClick={() => doAction("approve")}
@@ -1491,10 +1530,12 @@ export default function DriverVettingPage() {
 
                   {/* Main action buttons */}
                   <div className="flex gap-2 flex-wrap">
-                    {selected.kycStatus !== "APPROVED_KYC" && !allFieldsApproved && (
+                    {selected.kycStatus !== "APPROVED_KYC" && !canGrantFinalApproval && (
                       <button
                         disabled={actionLoading || true}
-                        title={`Approve all ${REQUIRED_FIELDS.length} fields first (${REQUIRED_FIELDS.length - reviewedCount} remaining)`}
+                        title={approvalBlockedReasons.length > 0
+                          ? approvalBlockedReasons.join(' | ')
+                          : `Approve all ${REQUIRED_FIELDS.length} fields first (${REQUIRED_FIELDS.length - reviewedCount} remaining)`}
                         className="flex-1 min-w-[100px] flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold bg-emerald-300 text-white cursor-not-allowed opacity-60"
                       >
                         <CheckCircle2 className="w-4 h-4" />
