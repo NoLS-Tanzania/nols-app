@@ -183,8 +183,6 @@ export default function DriverDashboard({ className }: { className?: string }) {
     if (!id) return;
 
     const goalsKey = `driver_goals:${String(id)}`;
-    const availKey = `driver_available:${String(id)}`;
-
     // Goals: hydrate from per-driver key; migrate legacy key if present.
     try {
       const raw = localStorage.getItem(goalsKey);
@@ -203,21 +201,12 @@ export default function DriverDashboard({ className }: { className?: string }) {
     } catch {
       // ignore
     }
-
-    // Availability: fast hydrate from per-driver cache
-    try {
-      const raw = localStorage.getItem(availKey);
-      if (raw === '1' || raw === 'true') setAvailable(true);
-      else if (raw === '0' || raw === 'false') setAvailable(false);
-    } catch {}
-
     // Source of truth: server availability
     (async () => {
       try {
         const r = await api.get('/api/driver/availability');
         const serverAvailable = Boolean(r?.data?.available);
         setAvailable(serverAvailable);
-        try { localStorage.setItem(availKey, serverAvailable ? '1' : '0'); } catch {}
       } catch {
         // ignore
       }
@@ -427,11 +416,8 @@ export default function DriverDashboard({ className }: { className?: string }) {
     const handler = (ev: Event) => {
       try {
         const detail = (ev as CustomEvent).detail || {};
-        if (typeof detail.available === 'boolean') {
+        if (typeof detail.available === 'boolean' && detail.confirmed !== false) {
           setAvailable(detail.available);
-          try {
-            if (me?.id) localStorage.setItem(`driver_available:${String(me.id)}`, detail.available ? '1' : '0');
-          } catch {}
         }
       } catch (e) {}
     };

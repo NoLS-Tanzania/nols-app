@@ -54,22 +54,12 @@ export default function DriverWelcome({ className }: { className?: string }) {
     const id = me?.id;
     if (!id) return;
 
-    const availKey = `driver_available:${String(id)}`;
-
-    // Fast hydrate from per-driver cache
-    try {
-      const raw = localStorage.getItem(availKey);
-      if (raw === '1' || raw === 'true') setAvailable(true);
-      else if (raw === '0' || raw === 'false') setAvailable(false);
-    } catch {}
-
     // Server source of truth
     (async () => {
       try {
         const r = await api.get('/api/driver/availability');
         const serverAvailable = Boolean(r?.data?.available);
         setAvailable(serverAvailable);
-        try { localStorage.setItem(availKey, serverAvailable ? '1' : '0'); } catch {}
       } catch {
         // ignore
       }
@@ -80,12 +70,9 @@ export default function DriverWelcome({ className }: { className?: string }) {
     const handler = (ev: Event) => {
       try {
         const detail = (ev as CustomEvent).detail || {};
-        if (typeof detail.available === 'boolean') {
+        if (typeof detail.available === 'boolean' && detail.confirmed !== false) {
           setAvailable(detail.available);
           try { setMapVisible(detail.available); } catch (e) {}
-          try {
-            if (me?.id) localStorage.setItem(`driver_available:${String(me.id)}`, detail.available ? '1' : '0');
-          } catch {}
         }
       } catch (e) {
         // ignore
