@@ -2,6 +2,7 @@
 
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import { Building2, CheckCircle2, ChevronDown, HelpCircle, Home, LayoutGrid, MapPin, AlertCircle, Pencil, X } from "lucide-react";
+import { PropertyLocationMap } from "./PropertyLocationMap";
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AddPropertySection } from "./AddPropertySection";
@@ -70,16 +71,6 @@ export type BasicsStepProps = {
   wards: string[];
   streets: string[];
   REGIONS: Array<{ id: string; name: string }>;
-
-  locationLoading: boolean;
-  pendingDetectedLocation: {
-    lat: number;
-    lng: number;
-    accuracy: number | null;
-  } | null;
-  handleDetectCurrentLocation: () => void;
-  handleConfirmDetectedLocation: () => void;
-  handleDiscardDetectedLocation: () => void;
 
   tourismSiteId?: number | "";
   setTourismSiteId?: Dispatch<SetStateAction<number | "">>;
@@ -150,12 +141,6 @@ export const BasicsStep = forwardRef<HTMLElement, BasicsStepProps>(function Basi
   wards,
   streets,
   REGIONS,
-
-  locationLoading,
-  pendingDetectedLocation,
-  handleDetectCurrentLocation,
-  handleConfirmDetectedLocation,
-  handleDiscardDetectedLocation,
 
   tourismSiteId,
   setTourismSiteId,
@@ -1345,145 +1330,74 @@ const nameOk = title.trim().length >= 3;
                 </div>
               </div>
 
-              {/* Latitude and Longitude */}
-              <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="flex flex-col space-y-2">
-                  <label htmlFor="latitude" className="block text-sm font-medium text-slate-700">
-                    Latitude <span className="text-xs text-slate-400 font-normal">(optional)</span>
-                  </label>
-                  <div
-                    className={[
-                      "rounded-xl border shadow-sm transition-colors",
-                      typeof latitude === "number" && Number.isFinite(latitude)
-                        ? "border-transparent bg-slate-50"
-                        : "border-slate-200 bg-white",
-                    ].join(" ")}
-                  >
-                    <input
-                      id="latitude"
-                      type="number"
-                      step="any"
-                      value={latitude as any}
-                      onChange={(e) => {
-                        const raw = e.target.value;
-                        if (raw === "") return setLatitude("");
-                        const n = e.target.valueAsNumber;
-                        setLatitude(Number.isFinite(n) ? n : "");
-                      }}
-                      className="w-full h-12 px-4 text-sm rounded-xl bg-transparent border border-transparent shadow-none text-slate-900 placeholder-slate-400 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                      placeholder="Tap detect or enter manually"
-                    />
-                  </div>
-                  <p className="text-[11px] leading-relaxed text-slate-500">Latitude is only saved after you confirm the detected result or save the form.</p>
-                </div>
-                <div className="flex flex-col space-y-2">
-                  <label htmlFor="longitude" className="block text-sm font-medium text-slate-700">
-                    Longitude <span className="text-xs text-slate-400 font-normal">(optional)</span>
-                  </label>
-                  <div
-                    className={[
-                      "rounded-xl border shadow-sm transition-colors",
-                      typeof longitude === "number" && Number.isFinite(longitude)
-                        ? "border-transparent bg-slate-50"
-                        : "border-slate-200 bg-white",
-                    ].join(" ")}
-                  >
-                    <input
-                      id="longitude"
-                      type="number"
-                      step="any"
-                      value={longitude as any}
-                      onChange={(e) => {
-                        const raw = e.target.value;
-                        if (raw === "") return setLongitude("");
-                        const n = e.target.valueAsNumber;
-                        setLongitude(Number.isFinite(n) ? n : "");
-                      }}
-                      className="w-full h-12 px-4 text-sm rounded-xl bg-transparent border border-transparent shadow-none text-slate-900 placeholder-slate-400 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                      placeholder="Tap detect or enter manually"
-                    />
-                  </div>
-                  <p className="text-[11px] leading-relaxed text-slate-500">Longitude stays on the frontend until you confirm the detected result.</p>
-                </div>
-              </div>
-
-              {/* Current Location Detection */}
-              <div className="mt-4">
-                <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 transition-colors hover:border-gray-300">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`flex h-9 w-9 items-center justify-center rounded-full transition-colors duration-200 ${
-                          locationLoading ? "bg-emerald-50 ring-2 ring-emerald-100" : "bg-gray-100"
-                        }`}
-                      >
-                        {locationLoading ? (
-                          <div className="h-5 w-5 rounded-full border-2 border-emerald-200 border-t-[#02665e] animate-spin" />
-                        ) : (
-                          <MapPin className="h-4 w-4 text-gray-500" strokeWidth={2} />
-                        )}
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">Use current location</p>
-                        <p className={`mt-0.5 text-xs ${locationLoading ? "font-medium text-emerald-700" : "text-gray-500"}`}>
-                          {locationLoading ? "Getting your current location..." : "Tap once, review the result, then confirm it."}
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleDetectCurrentLocation}
-                      disabled={locationLoading}
-                      className="inline-flex h-10 items-center justify-center rounded-full bg-[#02665e] px-4 text-sm font-medium text-white transition-colors hover:bg-[#01524c] focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {locationLoading ? "Detecting..." : "Detect"}
-                    </button>
-                  </div>
-                </div>
-
-                {pendingDetectedLocation ? (
-                  <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50/60 p-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="flex items-center gap-1 text-xs font-medium text-emerald-700">
-                          <CheckCircle2 className="h-3.5 w-3.5" />
-                          Current location found on this device
-                        </p>
-                        <p className="mt-1 text-xs text-emerald-800">
-                          {pendingDetectedLocation.lat.toFixed(6)}, {pendingDetectedLocation.lng.toFixed(6)}
-                          {typeof pendingDetectedLocation.accuracy === "number" ? ` · Accuracy ±${pendingDetectedLocation.accuracy}m` : ""}
-                        </p>
-                        <p className="mt-1 text-[11px] leading-relaxed text-emerald-700">
-                          This stays in the frontend only until you confirm it.
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={handleConfirmDetectedLocation}
-                          className="inline-flex h-9 items-center justify-center rounded-full bg-[#02665e] px-3 text-xs font-medium text-white transition-colors hover:bg-[#01524c]"
-                        >
-                          Confirm
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleDiscardDetectedLocation}
-                          className="inline-flex h-9 items-center justify-center rounded-full border border-emerald-200 bg-white px-3 text-xs font-medium text-emerald-700 transition-colors hover:border-emerald-300 hover:bg-emerald-50"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
-
-                {!pendingDetectedLocation && typeof latitude === "number" && Number.isFinite(latitude) && typeof longitude === "number" && Number.isFinite(longitude) ? (
-                  <p className="mt-2 flex items-center gap-1 text-xs text-emerald-600">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    Confirmed coordinates: {Number(latitude).toFixed(6)}, {Number(longitude).toFixed(6)}
+              {/* Location — drag-to-pin map (Google Maps business listing style) */}
+              <div className="mt-6">
+                <div className="mb-3">
+                  <p className="text-sm font-semibold text-slate-800 flex items-center gap-2">
+                    <MapPin className="h-4 w-4 text-[#02665e]" />
+                    Pin your property on the map
                   </p>
-                ) : null}
+                  <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                    Tap{" "}
+                    <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-slate-100 text-[10px] font-bold text-slate-600">⊙</span>{" "}
+                    to fly to your area, then drag the map to place the pin on your entrance.
+                  </p>
+                </div>
+
+                <PropertyLocationMap
+                  latitude={typeof latitude === "number" && Number.isFinite(latitude) ? latitude : 0}
+                  longitude={typeof longitude === "number" && Number.isFinite(longitude) ? longitude : 0}
+                  onLocationDetected={(lat, lng) => {
+                    setLatitude(lat);
+                    setLongitude(lng);
+                  }}
+                />
+
+                {/* Advanced: manual coordinate inputs */}
+                <details className="mt-4 group">
+                  <summary className="cursor-pointer select-none list-none text-xs font-medium text-slate-500 hover:text-slate-700 flex items-center gap-1">
+                    <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
+                    Edit coordinates manually
+                  </summary>
+                  <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="flex flex-col space-y-1.5">
+                      <label htmlFor="latitude" className="block text-xs font-medium text-slate-700">Latitude</label>
+                      <input
+                        id="latitude"
+                        type="number"
+                        step="any"
+                        value={latitude as any}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          if (raw === "") return setLatitude("");
+                          const n = e.target.valueAsNumber;
+                          setLatitude(Number.isFinite(n) ? n : "");
+                        }}
+                        className="w-full h-11 px-3 text-sm rounded-xl border border-slate-200 bg-white text-slate-900 placeholder-slate-400 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                        placeholder="e.g. -6.827000"
+                      />
+                    </div>
+                    <div className="flex flex-col space-y-1.5">
+                      <label htmlFor="longitude" className="block text-xs font-medium text-slate-700">Longitude</label>
+                      <input
+                        id="longitude"
+                        type="number"
+                        step="any"
+                        value={longitude as any}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          if (raw === "") return setLongitude("");
+                          const n = e.target.valueAsNumber;
+                          setLongitude(Number.isFinite(n) ? n : "");
+                        }}
+                        className="w-full h-11 px-3 text-sm rounded-xl border border-slate-200 bg-white text-slate-900 placeholder-slate-400 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                        placeholder="e.g. 39.267500"
+                      />
+                    </div>
+                  </div>
+                </details>
               </div>
+
 
             </div>
           </div>

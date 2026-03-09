@@ -24,7 +24,7 @@
 }
 
 .add-property-shell {
-  @apply grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start;
+  @apply block min-w-0;
 }
 
 .add-property-stepper {

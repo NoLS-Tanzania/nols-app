@@ -275,6 +275,7 @@ export const PropertyLocationMap = memo(function PropertyLocationMap({
           center: [exactLng, exactLat],
           zoom: isDefaultCoords ? 12 : 17,
           interactive: true,
+          attributionControl: false,
         });
 
         try {
@@ -371,6 +372,32 @@ export const PropertyLocationMap = memo(function PropertyLocationMap({
 
           const topRight = map.getContainer().querySelector(".mapboxgl-ctrl-top-right");
           if (topRight) topRight.appendChild(locateControl);
+
+          // Custom attribution info button (bottom-right)
+          const attrBtn = document.createElement("button");
+          attrBtn.type = "button";
+          attrBtn.title = "Map attribution";
+          attrBtn.style.cssText = "width:24px;height:24px;border:none;background:rgba(255,255,255,0.85);cursor:pointer;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#555;line-height:1;padding:0;";
+          attrBtn.textContent = "ⓘ";
+
+          const attrPopup = document.createElement("div");
+          attrPopup.style.cssText = "display:none;position:absolute;bottom:30px;right:0;background:rgba(255,255,255,0.95);border:1px solid #ddd;border-radius:6px;padding:6px 10px;font-size:11px;color:#333;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.15);";
+          attrPopup.innerHTML = '© <a href="https://www.mapbox.com/about/maps/" target="_blank" rel="noreferrer" style="color:#02665e">Mapbox</a> © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" style="color:#02665e">OpenStreetMap</a>';
+
+          attrBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            attrPopup.style.display = attrPopup.style.display === "none" ? "block" : "none";
+          });
+
+          map.getContainer().addEventListener("click", () => {
+            attrPopup.style.display = "none";
+          });
+
+          const attrWrapper = document.createElement("div");
+          attrWrapper.style.cssText = "position:absolute;bottom:8px;right:8px;z-index:1000;";
+          attrWrapper.appendChild(attrPopup);
+          attrWrapper.appendChild(attrBtn);
+          map.getContainer().appendChild(attrWrapper);
 
           const centerMarkerContainer = document.createElement("div");
           centerMarkerContainer.style.cssText = `
