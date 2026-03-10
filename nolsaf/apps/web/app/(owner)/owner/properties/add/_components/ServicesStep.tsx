@@ -25,7 +25,6 @@ import {
 } from "lucide-react";
 import { AddPropertySection } from "./AddPropertySection";
 import { StepFooter } from "./StepFooter";
-import { StepHeader } from "./StepHeader";
 
 function IconOr({ Icon, className }: { Icon: any; className?: string }) {
   if (!Icon) return <span className={className} aria-hidden />;
@@ -111,55 +110,67 @@ export function ServicesStep({
       as="section"
       sectionRef={sectionRef}
       isVisible={isVisible}
-      className="bg-white rounded-xl border border-slate-200 p-4 sm:p-6 shadow-sm"
+      className="rounded-[32px] border border-slate-200/85 bg-[radial-gradient(circle_at_top_left,_rgba(2,102,94,0.08),_transparent_24%),linear-gradient(180deg,_rgba(255,255,255,0.99),_rgba(246,250,249,0.97))] p-4 shadow-[0_24px_60px_-32px_rgba(15,23,42,0.28)] backdrop-blur sm:p-6"
     >
       {isVisible && (
         <div className="w-full">
-          <StepHeader
-            step={3}
-            title="Services & facilities"
-            description="Select services and amenities available at your property and nearby facilities."
-          />
-          <div className="pt-4 space-y-6">
+          <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full border border-[#02665e]/25 bg-[#02665e]/10 text-xs font-semibold text-[#02665e]">
+                  3
+                </span>
+                <h2 className="truncate text-base font-semibold text-slate-900 sm:text-lg">Services & facilities</h2>
+              </div>
+              <p className="mt-1 text-sm text-slate-600">
+                Select services and amenities available at your property and nearby facilities.
+              </p>
+            </div>
+          </div>
+          <div className="space-y-6 pt-4">
             {/* Completion Status Indicator - Modern Card Design */}
-            <div className="rounded-xl border-2 border-gray-200 bg-gradient-to-br from-gray-50 to-white px-4 sm:px-5 py-4 shadow-sm">
+            <div className="relative overflow-hidden rounded-[26px] border border-[#02665e]/12 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(238,248,246,0.92))] px-4 py-4 shadow-[0_18px_40px_-24px_rgba(2,102,94,0.35)] ring-1 ring-white/70 sm:px-5">
+              <div
+                className="pointer-events-none absolute inset-0 opacity-40"
+                style={{ backgroundImage: "radial-gradient(circle at 1px 1px, rgba(2,102,94,0.12) 1px, transparent 0)", backgroundSize: "20px 20px" }}
+              />
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-base transition-all duration-300 ${
+                  <div className={`relative z-10 flex h-11 w-11 items-center justify-center rounded-2xl font-bold text-base transition-all duration-300 ${
                     servicesCompleted
-                      ? "bg-emerald-100 text-emerald-700"
-                      : "bg-amber-100 text-amber-700"
+                      ? "bg-[#02665e] text-white shadow-[0_12px_24px_-12px_rgba(2,102,94,0.8)]"
+                      : "bg-[#f6e7b8] text-amber-800 shadow-[0_12px_24px_-14px_rgba(180,83,9,0.45)]"
                   }`}>
                     {selectedServicesCount}
                   </div>
-                  <div className="text-sm text-gray-700">
-                    <span className="font-semibold text-gray-900">Services selected</span>
-                    <span className="text-gray-500 mx-1">·</span>
-                    <span className="text-gray-600">
+                  <div className="relative z-10 text-sm text-slate-700">
+                    <span className="font-semibold text-slate-900">Services selected</span>
+                    <span className="mx-1 text-slate-400">·</span>
+                    <span className="text-slate-600">
                       {servicesCompleted ? (
-                        <span className="font-bold text-emerald-600 flex items-center gap-1">
+                        <span className="flex items-center gap-1 font-bold text-[#02665e]">
                           <CheckCircle2 className="w-3.5 h-3.5" /> Step complete
                         </span>
                       ) : (
-                        <span className="font-bold text-amber-600 flex items-center gap-1">
+                        <span className="flex items-center gap-1 font-bold text-amber-700">
                           <AlertCircle className="w-3.5 h-3.5" /> Select at least one service
                         </span>
                       )}
                     </span>
                   </div>
                 </div>
-                <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border ${
+                <div className={`relative z-10 flex items-center gap-2 rounded-full border px-3.5 py-1.5 ${
                   servicesCompleted
-                    ? "bg-emerald-50 border-emerald-200/50"
-                    : "bg-amber-50 border-amber-200/50"
+                    ? "border-[#02665e]/18 bg-white/88"
+                    : "border-amber-200/70 bg-[#fff9eb]"
                 }`}>
                   {servicesCompleted ? (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <CheckCircle2 className="w-4 h-4 text-[#02665e]" />
                   ) : (
                     <AlertCircle className="w-4 h-4 text-amber-600" />
                   )}
                   <div className={`text-xs font-semibold ${
-                    servicesCompleted ? "text-emerald-700" : "text-amber-700"
+                    servicesCompleted ? "text-[#02665e]" : "text-amber-700"
                   }`}>
                     {servicesCompleted ? "Ready" : "Optional"}
                   </div>
@@ -167,18 +178,21 @@ export function ServicesStep({
               </div>
             </div>
 
-            <div className="mb-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-1">
+            <div className="rounded-[24px] border border-slate-200/75 bg-white/80 px-5 py-5 shadow-[0_16px_30px_-24px_rgba(15,23,42,0.24)] ring-1 ring-white/70 backdrop-blur">
+              <div className="mb-2 inline-flex items-center rounded-full border border-[#02665e]/14 bg-[#edf7f6] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#02665e]">
+                Guest Comfort Layer
+              </div>
+              <h2 className="mb-1 text-xl font-semibold text-slate-900">
                 Services & Facilities Available
               </h2>
-              <p className="text-xs text-gray-500">Select the services and amenities available at your property</p>
+              <p className="text-sm text-slate-500">Select the services and amenities available at your property.</p>
             </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+          <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
               {/* Transportation & Parking - Grouped */}
-              <div className="lg:col-span-2 rounded-xl border-2 border-blue-200 bg-gradient-to-br from-blue-50/30 to-white p-5 sm:p-6 shadow-sm">
+              <div className="lg:col-span-2 rounded-[26px] border border-sky-200/75 bg-[linear-gradient(135deg,rgba(239,246,255,0.88),rgba(255,255,255,0.98))] p-5 shadow-[0_18px_36px_-24px_rgba(37,99,235,0.28)] ring-1 ring-white/75 sm:p-6">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white shadow-[0_12px_24px_-18px_rgba(37,99,235,0.5)] ring-1 ring-sky-100">
                     <Car className="w-5 h-5 text-blue-600" />
                   </div>
                   <div className="flex-1">
@@ -241,9 +255,9 @@ export function ServicesStep({
               </div>
 
               {/* Dining & Food Services - Grouped */}
-              <div className="lg:col-span-2 rounded-xl border-2 border-orange-200 bg-gradient-to-br from-orange-50/30 to-white p-5 sm:p-6 shadow-sm">
+              <div className="lg:col-span-2 rounded-[26px] border border-orange-200/75 bg-[linear-gradient(135deg,rgba(255,247,237,0.9),rgba(255,255,255,0.98))] p-5 shadow-[0_18px_36px_-24px_rgba(234,88,12,0.24)] ring-1 ring-white/75 sm:p-6">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white shadow-[0_12px_24px_-18px_rgba(234,88,12,0.45)] ring-1 ring-orange-100">
                     <Coffee className="w-5 h-5 text-orange-600" />
                   </div>
                   <div className="flex-1">
@@ -253,7 +267,7 @@ export function ServicesStep({
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Breakfast */}
-                  <div className="rounded-lg border border-orange-100 bg-white p-4">
+                  <div className="rounded-2xl border border-orange-100/90 bg-white/95 p-4 shadow-[0_14px_28px_-24px_rgba(15,23,42,0.32)]">
                     <h4 className="text-xs font-semibold text-gray-900 mb-3 flex items-center gap-2">
                       Breakfast
                       <div className="group relative">
@@ -312,7 +326,7 @@ export function ServicesStep({
                     </div>
                   </div>
                   {/* Restaurant & Bar */}
-                  <div className="rounded-lg border border-orange-100 bg-white p-4">
+                  <div className="rounded-2xl border border-orange-100/90 bg-white/95 p-4 shadow-[0_14px_28px_-24px_rgba(15,23,42,0.32)]">
                     <h4 className="text-xs font-semibold text-gray-900 mb-3">Restaurant & Bar</h4>
                     <div className="grid grid-cols-2 gap-2.5">
                       <label
@@ -365,9 +379,9 @@ export function ServicesStep({
               </div>
 
               {/* Wellness & Leisure - Modern Card Design */}
-              <div className="rounded-xl border border-gray-200 bg-white p-5 sm:p-6 shadow-sm transition-all duration-300 hover:shadow-md">
+              <div className="rounded-[24px] border border-cyan-200/70 bg-[linear-gradient(135deg,rgba(236,254,255,0.88),rgba(255,255,255,0.98))] p-5 shadow-[0_18px_36px_-26px_rgba(8,145,178,0.3)] ring-1 ring-white/75 transition-all duration-300 hover:shadow-[0_20px_40px_-24px_rgba(8,145,178,0.26)] sm:p-6">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-lg bg-cyan-100 flex items-center justify-center">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white shadow-[0_12px_24px_-18px_rgba(8,145,178,0.45)] ring-1 ring-cyan-100">
                     <Waves className="w-5 h-5 text-cyan-600" />
                   </div>
                   <div className="flex-1">
@@ -422,9 +436,9 @@ export function ServicesStep({
               </div>
 
               {/* Housekeeping & Services - Modern Card Design */}
-              <div className="rounded-xl border border-gray-200 bg-white p-5 sm:p-6 shadow-sm transition-all duration-300 hover:shadow-md">
+              <div className="rounded-[24px] border border-purple-200/70 bg-[linear-gradient(135deg,rgba(250,245,255,0.9),rgba(255,255,255,0.98))] p-5 shadow-[0_18px_36px_-26px_rgba(147,51,234,0.24)] ring-1 ring-white/75 transition-all duration-300 hover:shadow-[0_20px_40px_-24px_rgba(147,51,234,0.22)] sm:p-6">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white shadow-[0_12px_24px_-18px_rgba(147,51,234,0.4)] ring-1 ring-purple-100">
                     <WashingMachine className="w-5 h-5 text-purple-600" />
                   </div>
                   <div className="flex-1">
@@ -471,9 +485,9 @@ export function ServicesStep({
               </div>
 
               {/* Safety & Security - Modern Card Design */}
-              <div className="rounded-xl border border-gray-200 bg-white p-5 sm:p-6 shadow-sm transition-all duration-300 hover:shadow-md">
+              <div className="rounded-[24px] border border-rose-200/70 bg-[linear-gradient(135deg,rgba(255,241,242,0.9),rgba(255,255,255,0.98))] p-5 shadow-[0_18px_36px_-26px_rgba(225,29,72,0.22)] ring-1 ring-white/75 transition-all duration-300 hover:shadow-[0_20px_40px_-24px_rgba(225,29,72,0.2)] sm:p-6">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white shadow-[0_12px_24px_-18px_rgba(225,29,72,0.38)] ring-1 ring-rose-100">
                     <Shield className="w-5 h-5 text-red-600" />
                   </div>
                   <div className="flex-1">
@@ -524,9 +538,9 @@ export function ServicesStep({
               </div>
 
               {/* Shopping & Retail - Modern Card Design */}
-              <div className="rounded-xl border border-gray-200 bg-white p-5 sm:p-6 shadow-sm transition-all duration-300 hover:shadow-md">
+              <div className="rounded-[24px] border border-pink-200/70 bg-[linear-gradient(135deg,rgba(253,242,248,0.92),rgba(255,255,255,0.98))] p-5 shadow-[0_18px_36px_-26px_rgba(219,39,119,0.22)] ring-1 ring-white/75 transition-all duration-300 hover:shadow-[0_20px_40px_-24px_rgba(219,39,119,0.2)] sm:p-6">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-lg bg-pink-100 flex items-center justify-center">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white shadow-[0_12px_24px_-18px_rgba(219,39,119,0.38)] ring-1 ring-pink-100">
                     <ShoppingBag className="w-5 h-5 text-pink-600" />
                   </div>
                   <div className="flex-1">
@@ -573,9 +587,9 @@ export function ServicesStep({
               </div>
 
               {/* Events & Recreation - Modern Card Design */}
-              <div className="rounded-xl border border-gray-200 bg-white p-5 sm:p-6 shadow-sm transition-all duration-300 hover:shadow-md">
+              <div className="rounded-[24px] border border-yellow-200/70 bg-[linear-gradient(135deg,rgba(254,252,232,0.92),rgba(255,255,255,0.98))] p-5 shadow-[0_18px_36px_-26px_rgba(202,138,4,0.22)] ring-1 ring-white/75 transition-all duration-300 hover:shadow-[0_20px_40px_-24px_rgba(202,138,4,0.2)] sm:p-6">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-lg bg-yellow-100 flex items-center justify-center">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white shadow-[0_12px_24px_-18px_rgba(202,138,4,0.38)] ring-1 ring-yellow-100">
                     <PartyPopper className="w-5 h-5 text-yellow-600" />
                   </div>
                   <div className="flex-1">
@@ -622,9 +636,9 @@ export function ServicesStep({
               </div>
 
               {/* Fitness & Wellness - Modern Card Design */}
-              <div className="rounded-xl border border-gray-200 bg-white p-5 sm:p-6 shadow-sm transition-all duration-300 hover:shadow-md">
+              <div className="rounded-[24px] border border-indigo-200/70 bg-[linear-gradient(135deg,rgba(238,242,255,0.92),rgba(255,255,255,0.98))] p-5 shadow-[0_18px_36px_-26px_rgba(79,70,229,0.22)] ring-1 ring-white/75 transition-all duration-300 hover:shadow-[0_20px_40px_-24px_rgba(79,70,229,0.2)] sm:p-6">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white shadow-[0_12px_24px_-18px_rgba(79,70,229,0.38)] ring-1 ring-indigo-100">
                     <Dumbbell className="w-5 h-5 text-indigo-600" />
                   </div>
                   <div className="flex-1">
@@ -655,13 +669,13 @@ export function ServicesStep({
 
               {/* Line Separator */}
               <div className="lg:col-span-2 my-8">
-                <div className="border-t-2 border-gray-300"></div>
+                <div className="h-px bg-gradient-to-r from-transparent via-[#02665e]/25 to-transparent"></div>
               </div>
 
               {/* Nearby Services - Modern Card Design with Distinct Styling */}
-              <div className="lg:col-span-2 rounded-xl border-2 border-teal-200 bg-gradient-to-br from-teal-50/30 to-white p-5 sm:p-6 shadow-md transition-all duration-300 hover:shadow-lg">
+              <div className="lg:col-span-2 rounded-[28px] border border-teal-200/80 bg-[linear-gradient(135deg,rgba(240,253,250,0.92),rgba(255,255,255,0.99))] p-5 shadow-[0_22px_44px_-26px_rgba(13,148,136,0.28)] ring-1 ring-white/80 transition-all duration-300 hover:shadow-[0_24px_48px_-24px_rgba(13,148,136,0.24)] sm:p-6">
                 <div className="flex items-center gap-3 mb-5">
-                  <div className="w-12 h-12 rounded-xl bg-teal-100 flex items-center justify-center shadow-sm">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-[0_14px_28px_-18px_rgba(13,148,136,0.45)] ring-1 ring-teal-100">
                     <Building2 className="w-6 h-6 text-teal-600" />
                   </div>
                   <div>

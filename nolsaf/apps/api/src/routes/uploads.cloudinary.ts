@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { v2 as cloudinary } from "cloudinary";
+import multer from "multer";
 import { z } from "zod";
 import { requireAuth } from "../middleware/auth.js";
 import { limitCloudinarySign } from "../middleware/rateLimit.js";
@@ -12,6 +13,7 @@ cloudinary.config({
 
 export const router = Router();
 router.use(requireAuth);
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
 
 const signQuerySchema = z
   .object({
@@ -34,6 +36,7 @@ const allowedFolderPatterns: Array<{ type: "exact"; value: string } | { type: "p
   { type: "exact", value: "driver-documents" },
   { type: "prefix", value: "driver-documents/" },
   { type: "exact", value: "properties" },
+  { type: "prefix", value: "properties/" },
   { type: "exact", value: "trust-partners" },
 ];
 
@@ -72,4 +75,54 @@ router.get("/sign", limitCloudinarySign as any, (req, res) => {
     folder,
     signature,
   });
+});
+
+/** POST /uploads/cloudinary/upload */
+router.post("/upload", upload.single("file"), async (req, res) => {
+  const parsed = signQuerySchema.safeParse({ folder: req.body?.folder });
+  if (!parsed.success) return res.status(400).json({ error: "invalid_folder" });
+
+  const folder = parsed.data.folder || "uploads";
+  if (!isAllowedFolder(folder)) {
+    return res.status(400).json({ error: "invalid_folder" });
+  }
+
+  if (!process.env.CLOUDINARY_API_SECRET || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_CLOUD_NAME) {
+    return res.status(500).json({ error: "cloudinary_not_configured" });
+  }
+
+  const file = req.file;
+  if (!file?.buffer?.length) {
+    return res.status(400).json({ error: "file_required" });
+  }
+
+  try {
+    const uploaded = await new Promise<{ secure_url: string }>((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        {
+          folder,
+          overwrite: true,
+          resource_type: "auto",
+        },
+        (error, result) => {
+          if (error || !result?.secure_url) {
+            reject(error || new Error("cloudinary_upload_failed"));
+            return;
+          }
+          resolve({ secure_url: result.secure_url });
+        }
+      );
+
+      stream.end(file.buffer);
+    });
+
+    res.setHeader("Cache-Control", "no-store");
+    return res.json(uploaded);
+  } catch (error: any) {
+    const cloudinaryMessage =
+      error?.message ||
+      error?.error?.message ||
+      "cloudinary_upload_failed";
+    return res.status(502).json({ error: "cloudinary_upload_failed", message: String(cloudinaryMessage) });
+  }
 });

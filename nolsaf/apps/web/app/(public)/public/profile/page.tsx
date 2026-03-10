@@ -246,15 +246,15 @@ export default function PublicProfile() {
             <div className="relative group flex-shrink-0">
               <div
                 onClick={handleAvatarClick}
-                className="h-20 w-20 sm:h-24 sm:w-24 rounded-2xl bg-gradient-to-br from-[#02665e]/10 to-[#014d47]/10 ring-2 ring-[#02665e]/15 overflow-hidden flex items-center justify-center cursor-pointer transition-all duration-200 hover:scale-105 hover:ring-[#02665e]/30"
+                className="relative h-20 w-20 sm:h-24 sm:w-24 rounded-2xl bg-gradient-to-br from-[#02665e]/10 to-[#014d47]/10 ring-2 ring-[#02665e]/15 overflow-hidden flex items-center justify-center cursor-pointer transition-all duration-200 hover:scale-105 hover:ring-[#02665e]/30"
               >
                 {form.avatarUrl ? (
                   <Image
                     src={form.avatarUrl}
                     alt={form.fullName || "Profile"}
-                    width={96}
-                    height={96}
-                    className="w-full h-full object-cover"
+                    fill
+                    sizes="(min-width: 640px) 96px, 80px"
+                    className="object-cover"
                   />
                 ) : (
                   <User className="h-10 w-10 sm:h-12 sm:w-12 text-[#02665e]" strokeWidth={2} />
