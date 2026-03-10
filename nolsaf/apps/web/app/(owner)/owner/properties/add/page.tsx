@@ -2,7 +2,7 @@
 import type { ReactNode } from "react";
 import { useMemo, useRef, useState, useEffect, useCallback } from "react";
 import { twMerge } from "tailwind-merge";
-import { Plus, Home, Building, Building2, TreePine, Hotel, HelpCircle, Car, Shield, Bus, Bed, BedDouble, BedSingle, CheckCircle2, AlertCircle, MapPin, Users, X, ArrowRight, ImageIcon, Loader2, Hospital, Pill, Plane, Fuel, Route, Building as BuildingIcon, Lock, ExternalLink, Edit2, Clock, Bell } from "lucide-react";
+import { Plus, Eye, Home, Building, Building2, TreePine, Hotel, HelpCircle, Car, Shield, Bus, Bed, BedDouble, BedSingle, CheckCircle2, AlertCircle, MapPin, Users, X, ArrowRight, ImageIcon, Loader2, Hospital, Pill, Plane, Fuel, Route, Building as BuildingIcon, Lock, ExternalLink, Edit2, Clock, Bell } from "lucide-react";
 import axios from "axios";
 import { REGIONS, REGION_BY_ID } from "@/lib/tzRegions";
 import { REGIONS_FULL_DATA } from "@/lib/tzRegionsFull";
@@ -60,18 +60,18 @@ const PROPERTY_TYPE_ICONS: Record<string, React.ComponentType<{ className?: stri
 
 // Border and color mapping for property types
 const PROPERTY_TYPE_STYLES: Record<string, { border: string; leftBorder: string; text: string; bg: string; hoverBorder: string }> = {
-  "Villa": { border: "border-blue-500", leftBorder: "border-l-blue-500", text: "text-blue-600", bg: "from-white to-blue-50", hoverBorder: "hover:border-blue-400" },
-  "Apartment": { border: "border-purple-500", leftBorder: "border-l-purple-500", text: "text-purple-600", bg: "from-white to-purple-50", hoverBorder: "hover:border-purple-400" },
-  "Hotel": { border: "border-amber-500", leftBorder: "border-l-amber-500", text: "text-amber-600", bg: "from-white to-amber-50", hoverBorder: "hover:border-amber-400" },
-  "Lodge": { border: "border-green-500", leftBorder: "border-l-green-500", text: "text-green-600", bg: "from-white to-green-50", hoverBorder: "hover:border-green-400" },
-  "Condo": { border: "border-indigo-500", leftBorder: "border-l-indigo-500", text: "text-indigo-600", bg: "from-white to-indigo-50", hoverBorder: "hover:border-indigo-400" },
-  "Guest House": { border: "border-pink-500", leftBorder: "border-l-pink-500", text: "text-pink-600", bg: "from-white to-pink-50", hoverBorder: "hover:border-pink-400" },
-  "Bungalow": { border: "border-orange-500", leftBorder: "border-l-orange-500", text: "text-orange-600", bg: "from-white to-orange-50", hoverBorder: "hover:border-orange-400" },
-  "Cabin": { border: "border-emerald-500", leftBorder: "border-l-emerald-500", text: "text-emerald-600", bg: "from-white to-emerald-50", hoverBorder: "hover:border-emerald-400" },
-  "Homestay": { border: "border-rose-500", leftBorder: "border-l-rose-500", text: "text-rose-600", bg: "from-white to-rose-50", hoverBorder: "hover:border-rose-400" },
-  "Townhouse": { border: "border-cyan-500", leftBorder: "border-l-cyan-500", text: "text-cyan-600", bg: "from-white to-cyan-50", hoverBorder: "hover:border-cyan-400" },
-  "House": { border: "border-teal-500", leftBorder: "border-l-teal-500", text: "text-teal-600", bg: "from-white to-teal-50", hoverBorder: "hover:border-teal-400" },
-  "Other": { border: "border-gray-500", leftBorder: "border-l-gray-500", text: "text-gray-600", bg: "from-white to-gray-50", hoverBorder: "hover:border-gray-400" },
+  "Villa":       { border: "border-blue-400",    leftBorder: "border-l-blue-400",    text: "text-blue-400",    bg: "from-[#1c2128] to-blue-900/30",    hoverBorder: "hover:border-blue-400" },
+  "Apartment":   { border: "border-purple-400",  leftBorder: "border-l-purple-400",  text: "text-purple-400",  bg: "from-[#1c2128] to-purple-900/30",  hoverBorder: "hover:border-purple-400" },
+  "Hotel":       { border: "border-amber-400",   leftBorder: "border-l-amber-400",   text: "text-amber-400",   bg: "from-[#1c2128] to-amber-900/30",   hoverBorder: "hover:border-amber-400" },
+  "Lodge":       { border: "border-green-400",   leftBorder: "border-l-green-400",   text: "text-green-400",   bg: "from-[#1c2128] to-green-900/30",   hoverBorder: "hover:border-green-400" },
+  "Condo":       { border: "border-indigo-400",  leftBorder: "border-l-indigo-400",  text: "text-indigo-400",  bg: "from-[#1c2128] to-indigo-900/30",  hoverBorder: "hover:border-indigo-400" },
+  "Guest House": { border: "border-pink-400",    leftBorder: "border-l-pink-400",    text: "text-pink-400",    bg: "from-[#1c2128] to-pink-900/30",    hoverBorder: "hover:border-pink-400" },
+  "Bungalow":    { border: "border-orange-400",  leftBorder: "border-l-orange-400",  text: "text-orange-400",  bg: "from-[#1c2128] to-orange-900/30",  hoverBorder: "hover:border-orange-400" },
+  "Cabin":       { border: "border-emerald-400", leftBorder: "border-l-emerald-400", text: "text-emerald-400", bg: "from-[#1c2128] to-emerald-900/30", hoverBorder: "hover:border-emerald-400" },
+  "Homestay":    { border: "border-rose-400",    leftBorder: "border-l-rose-400",    text: "text-rose-400",    bg: "from-[#1c2128] to-rose-900/30",    hoverBorder: "hover:border-rose-400" },
+  "Townhouse":   { border: "border-cyan-400",    leftBorder: "border-l-cyan-400",    text: "text-cyan-400",    bg: "from-[#1c2128] to-cyan-900/30",    hoverBorder: "hover:border-cyan-400" },
+  "House":       { border: "border-teal-400",    leftBorder: "border-l-teal-400",    text: "text-teal-400",    bg: "from-[#1c2128] to-teal-900/30",    hoverBorder: "hover:border-teal-400" },
+  "Other":       { border: "border-slate-400",   leftBorder: "border-l-slate-400",   text: "text-slate-400",   bg: "from-[#1c2128] to-slate-800/40",   hoverBorder: "hover:border-slate-400" },
 };
 const HOTEL_STAR_OPTIONS = [
   { value: "", label: "Select rating" },
@@ -2710,102 +2710,60 @@ export default function AddProperty() {
         <div className={PAGE_SHELL_CLASS}>
           <section className={STEPPER_WRAPPER_CLASS}>
             <div className="w-full relative" ref={stepperContainerRef} data-progress={progressHeight}>
-              <header className="relative overflow-hidden border-b border-slate-200/70 bg-gradient-to-br from-emerald-50 via-white to-sky-50 px-4 sm:px-6 py-6 sm:py-8">
-                <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
-                  <div className="absolute -top-12 right-0 h-40 w-40 translate-x-1/3 rounded-full bg-emerald-200/35 blur-2xl" />
-                  <div className="absolute bottom-0 left-0 h-32 w-32 -translate-x-1/4 translate-y-1/4 rounded-full bg-sky-200/30 blur-2xl" />
+              <header className="add-property-stepper-header">
+                <div style={{ pointerEvents: "none", position: "absolute", inset: 0, overflow: "hidden" }} aria-hidden>
+                  <div style={{ position: "absolute", top: "-3rem", right: 0, height: "13rem", width: "13rem", transform: "translateX(33%)", borderRadius: "9999px", background: "rgba(255,255,255,0.04)", filter: "blur(40px)" }} />
+                  <div style={{ position: "absolute", bottom: 0, left: 0, height: "10rem", width: "10rem", transform: "translate(-25%, 25%)", borderRadius: "9999px", background: "rgba(0,0,0,0.08)", filter: "blur(40px)" }} />
                 </div>
-                <div className="relative z-10 flex flex-col gap-6">
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div className="min-w-0 space-y-4">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200/70 bg-emerald-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-emerald-700">
-                          <Plus className="h-4 w-4" />
+                <div style={{ position: "relative", zIndex: 10, display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem" }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
+                        <span className="ap-badge">
+                          <Plus style={{ width: "1rem", height: "1rem" }} />
                           Listing builder
                         </span>
                         {autoSaveStatus !== "idle" ? (
-                          <span
-                            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium ${
-                              autoSaveStatus === "saving"
-                                ? "border-sky-200 bg-sky-50 text-sky-700"
-                                : autoSaveStatus === "saved"
-                                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                                  : "border-rose-200 bg-rose-50 text-rose-700"
-                            }`}
-                          >
-                            {autoSaveStatus === "saving" ? (
-                              <>
-                                <span className="h-3 w-3 border-2 border-sky-600 border-t-transparent rounded-full animate-spin" />
-                                Saving
-                              </>
-                            ) : autoSaveStatus === "saved" ? (
-                              <>
-                                <CheckCircle2 className="h-3.5 w-3.5" />
-                                Saved
-                              </>
-                            ) : (
-                              <>
-                                <AlertCircle className="h-3.5 w-3.5" />
-                                Save failed
-                              </>
-                            )}
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: "0.375rem", borderRadius: "9999px", border: "1px solid", padding: "0.25rem 0.625rem", fontSize: "0.6875rem", fontWeight: 500, borderColor: autoSaveStatus === "saving" ? "rgba(255,255,255,0.2)" : autoSaveStatus === "saved" ? "rgba(110,231,183,0.4)" : "rgba(252,165,165,0.4)", background: autoSaveStatus === "saving" ? "rgba(255,255,255,0.1)" : autoSaveStatus === "saved" ? "rgba(110,231,183,0.12)" : "rgba(252,165,165,0.12)", color: autoSaveStatus === "saving" ? "rgba(255,255,255,0.9)" : autoSaveStatus === "saved" ? "#6ee7b7" : "#fca5a5" }}>
+                            {autoSaveStatus === "saving" ? (<><span style={{ width: "0.75rem", height: "0.75rem", border: "2px solid rgba(255,255,255,0.5)", borderTopColor: "transparent", borderRadius: "9999px", display: "inline-block", animation: "spin 0.7s linear infinite" }} />Saving</>) : autoSaveStatus === "saved" ? (<><CheckCircle2 style={{ width: "0.875rem", height: "0.875rem" }} /> Saved</>) : (<><AlertCircle style={{ width: "0.875rem", height: "0.875rem" }} /> Save failed</>)}
                           </span>
                         ) : null}
                       </div>
-                      <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Add property</p>
-                        <h1 className="mt-1 text-2xl font-semibold text-slate-900 sm:text-3xl">{currentStepTitle}</h1>
-                        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-600">
-                          <span>
-                            Step <span className="font-semibold text-slate-800">{currentStep + 1}</span> of <span className="font-semibold text-slate-800">{stepTitles.length}</span>
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                            {completedStepsCount} completed
-                          </span>
-                          <span className="flex items-center gap-1">
-                            {visitedSteps.size} visited
-                          </span>
-                          {nextStepTitle ? (
-                            <span className="flex items-center gap-1 text-emerald-700">
-                              <ArrowRight className="h-3.5 w-3.5" />
-                              Next: {nextStepTitle}
-                            </span>
-                          ) : null}
-                          <span className="flex items-center gap-1 text-slate-600">
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            {stepProgressPct}% journey
-                          </span>
-                        </div>
+                      <p className="ap-label">Add property</p>
+                      <h1 className="ap-title">{currentStepTitle}</h1>
+                      <div className="ap-meta">
+                        <span>Step <span className="ap-meta-hi">{currentStep + 1}</span> of <span className="ap-meta-hi">{stepTitles.length}</span></span>
+                        <span style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}><CheckCircle2 style={{ width: "0.875rem", height: "0.875rem", color: "#6ee7b7" }} />{completedStepsCount} completed</span>
+                        <span style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}><Eye style={{ width: "0.875rem", height: "0.875rem", color: "rgba(255,255,255,0.4)" }} />{visitedSteps.size} visited</span>
+                        {nextStepTitle ? (<span className="ap-meta-accent" style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}><ArrowRight style={{ width: "0.875rem", height: "0.875rem" }} />Next: {nextStepTitle}</span>) : null}
+                        <span style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}><span className="dot-spinner dot-sm" aria-hidden><span className="dot dot-blue" /><span className="dot dot-black" /><span className="dot dot-yellow" /><span className="dot dot-green" /></span>{stepProgressPct}% journey</span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.5rem", flexShrink: 0 }}>
+                      {(() => { const r = 28; const circ = +(2 * Math.PI * r).toFixed(2); const offset = +(circ - (stepProgressPct / 100) * circ).toFixed(2); return (
+                        <svg width="76" height="76" viewBox="0 0 76 76">
+                          <circle cx="38" cy="38" r="28" fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="5" />
+                          <circle cx="38" cy="38" r="28" fill="none" stroke="#6ee7b7" strokeWidth="5" strokeDasharray={circ} strokeDashoffset={offset} strokeLinecap="round" style={{ transform: "rotate(-90deg)", transformOrigin: "38px 38px", transition: "stroke-dashoffset 0.5s ease" }} />
+                          <text x="38" y="35" textAnchor="middle" fontSize="12" fontWeight="700" fill="rgba(255,255,255,0.6)" letterSpacing="1">%</text>
+                          <text x="38" y="50" textAnchor="middle" fontSize="16" fontWeight="800" fill="white">{stepProgressPct}</text>
+                        </svg>
+                      ); })()}
+                      {title.trim().length >= 3 ? (<button type="button" onClick={() => setShowLivePreview(true)} aria-label="Live preview" title="Live preview" style={{ display: "inline-flex", height: "1.75rem", width: "1.75rem", alignItems: "center", justifyContent: "center", borderRadius: "0.5rem", border: "1px solid rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.1)", color: "#ffffff", cursor: "pointer" }}><Eye style={{ width: "0.875rem", height: "0.875rem" }} aria-hidden /></button>) : null}
                     </div>
                   </div>
                   <div>
-                    <div className="h-2 w-full overflow-hidden rounded-full bg-white/60 shadow-inner">
-                      <div
-                        ref={stepProgressBarRef}
-                        className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-emerald-400 to-sky-500"
-                      />
+                    <div className="ap-progress-track">
+                      <div className="ap-progress-fill" style={{ width: `${stepProgressPct}%` }} />
                     </div>
-                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-medium text-slate-600">
-                      <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white/70 px-3 py-1">
-                        <Home className="h-3.5 w-3.5 text-emerald-600" />
-                        {totalDefinedRooms} rooms set
-                      </span>
-                      <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white/70 px-3 py-1">
-                        <Bed className="h-3.5 w-3.5 text-sky-600" />
-                        {totalBedsAcrossRooms} beds mapped
-                      </span>
-                      <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white/70 px-3 py-1">
-                        <ImageIcon className="h-3.5 w-3.5 text-amber-600" />
-                        {photos.length} photos added
-                      </span>
+                    <div style={{ marginTop: "0.75rem", display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.5rem" }}>
+                      <span className="ap-chip"><Home style={{ width: "0.875rem", height: "0.875rem", color: "#6ee7b7" }} />{totalDefinedRooms} rooms set</span>
+                      <span className="ap-chip"><Bed style={{ width: "0.875rem", height: "0.875rem", color: "#7dd3fc" }} />{totalBedsAcrossRooms} beds mapped</span>
+                      <span className="ap-chip"><ImageIcon style={{ width: "0.875rem", height: "0.875rem", color: "#fcd34d" }} />{photos.length} photos added</span>
                     </div>
                   </div>
-                  <nav className="mt-2 overflow-x-auto pt-1" aria-label="Steps">
-                    <ol className="flex min-w-full items-stretch gap-2 pb-1">
+                  <svg aria-hidden="true" viewBox="0 0 400 28" preserveAspectRatio="none" style={{ width: "100%", height: "1.75rem", display: "block", opacity: 0.18 }}><polyline points="0,22 40,14 80,20 120,8 160,18 200,4 240,16 280,10 320,20 360,6 400,18" fill="none" stroke="white" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" /><polyline points="0,26 40,20 80,24 120,16 160,23 200,12 240,21 280,17 320,24 360,14 400,23" fill="none" stroke="white" strokeWidth="0.75" strokeLinejoin="round" strokeLinecap="round" /></svg>
+                  <nav style={{ overflowX: "auto" }} aria-label="Steps">
+                    <ol style={{ display: "flex", minWidth: "100%", alignItems: "stretch", gap: "0.5rem", paddingBottom: "0.25rem" }}>
                       {stepsMeta.map((s, idx) => {
                         const isActive = currentStep === s.index;
                         const isPast = currentStep > s.index;
@@ -2813,43 +2771,15 @@ export default function AddProperty() {
                         const isCompleted = s.completed && isPast;
                         const canJump = isVisited || s.index === currentStep;
                         return (
-                          <li key={s.index} className="flex items-center">
-                            <button
-                              type="button"
-                              disabled={!canJump}
-                              onClick={() => scrollToStep(s.index)}
-                              className={`group flex min-w-[180px] items-center gap-3 rounded-2xl border px-3 py-2 text-left transition ${
-                                isActive
-                                  ? "border-emerald-400 bg-white shadow-md shadow-emerald-100/40"
-                                  : canJump
-                                    ? "border-slate-200 bg-white/80 hover:border-emerald-300 hover:bg-white"
-                                    : "cursor-not-allowed border-slate-200 bg-white/60 opacity-50"
-                              }`}
-                              aria-current={isActive ? "step" : undefined}
-                            >
-                              <span
-                                className={`flex h-9 w-9 items-center justify-center rounded-full border text-sm font-semibold ${
-                                  isActive
-                                    ? "border-emerald-500 bg-emerald-500 text-white"
-                                    : isCompleted
-                                      ? "border-emerald-200 bg-emerald-100 text-emerald-700"
-                                      : isPast
-                                        ? "border-slate-200 bg-slate-100 text-slate-700"
-                                        : "border-slate-200 bg-white text-slate-600"
-                                }`}
-                              >
-                                {isCompleted ? "✓" : s.index + 1}
-                              </span>
-                              <span className="min-w-0 flex-1">
-                                <span className="block text-sm font-semibold text-slate-900 truncate">{s.title}</span>
-                                <span className="block text-xs text-slate-600">
-                                  {isCompleted ? "Completed" : isActive ? "In progress" : isVisited ? "Visited" : "Pending"}
-                                </span>
+                          <li key={s.index} style={{ display: "flex", alignItems: "center" }}>
+                            <button type="button" disabled={!canJump} onClick={() => scrollToStep(s.index)} className={`ap-step-pill${isActive ? " is-active" : ""}`} aria-current={isActive ? "step" : undefined}>
+                              <span className={`ap-step-circle${isActive ? " is-active" : isCompleted ? " is-completed" : ""}`}>{isCompleted ? "✓" : s.index + 1}</span>
+                              <span style={{ minWidth: 0, flex: 1 }}>
+                                <span className="ap-step-name">{s.title}</span>
+                                <span className="ap-step-status">{isCompleted ? "Completed" : isActive ? "In progress" : isVisited ? "Visited" : "Pending"}</span>
                               </span>
                             </button>
-                            {idx < stepsMeta.length - 1 ? (
-                              <span className="mx-2 hidden h-px w-8 bg-slate-200 sm:inline-block" aria-hidden />
-                            ) : null}
+                            {idx < stepsMeta.length - 1 ? <span className="ap-step-sep" aria-hidden /> : null}
                           </li>
                         );
                       })}
@@ -3643,4 +3573,5 @@ function AddFacilityInline({ onAdd, existingFacilities = [] }:{ onAdd:(f:NearbyF
     </div>
   );
 }
+
 

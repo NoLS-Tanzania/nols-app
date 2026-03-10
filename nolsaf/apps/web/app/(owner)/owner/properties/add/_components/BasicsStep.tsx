@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import { Building2, CheckCircle2, ChevronDown, HelpCircle, Home, Landmark, LayoutGrid, MapPin, AlertCircle, Pencil, X } from "lucide-react";
@@ -241,14 +241,6 @@ const selectedTourismSite = useMemo(() => {
 const parkIsLocked = !!selectedTourismSite && !isEditingPark;
 const placementIsLocked = effectiveTourismSiteIdValue !== "" && !!effectiveParkPlacementValue && !isEditingPlacement;
 
-useEffect(() => {
-  // Once a park is selected, keep placement in a valid state.
-  if (effectiveTourismSiteIdValue === "") return;
-  if (effectiveParkPlacementValue) return;
-  setLocalParkPlacement("NEARBY");
-  setParkPlacementValue("NEARBY");
-}, [effectiveTourismSiteIdValue, effectiveParkPlacementValue, setParkPlacementValue]);
-
 const orderedTourismSites = useMemo(() => {
   const sites = Array.isArray(tourismSites) ? tourismSites : [];
   return [...sites].sort((a, b) => {
@@ -390,32 +382,6 @@ const nameOk = title.trim().length >= 3;
     return [...PROPERTY_TYPES];
   }, [PROPERTY_TYPES, collapseTypes, type]);
 
-  // Calculate completion status
-  const basicsCompleted = useMemo(() => {
-    const hasName = nameOk;
-    const hasType = typeOk;
-    const hasBuildingType = !!buildingType;
-    const hasFloors = buildingType === "single_storey" || buildingType === "separate_units" || (buildingType === "multi_storey" && Number(totalFloors) >= 2);
-    const hasLocation = !!regionId && !!district && !!ward && !!street;
-    const hasExtras = !showTypeExtras || (type === "Other" ? otherType.trim().length > 0 : type === "Hotel" ? !!hotelStar : true);
-    
-    return hasName && hasType && hasBuildingType && hasFloors && hasLocation && hasExtras;
-  }, [nameOk, typeOk, buildingType, totalFloors, regionId, district, ward, street, showTypeExtras, otherType, hotelStar, type]);
-
-  const completionCount = useMemo(() => {
-    let count = 0;
-    if (nameOk) count++;
-    if (typeOk) count++;
-    if (buildingType) count++;
-    if (buildingType === "single_storey" || buildingType === "separate_units" || (buildingType === "multi_storey" && Number(totalFloors) >= 2)) count++;
-    if (regionId && district && ward && street) count++;
-    if (!showTypeExtras || (type === "Other" ? otherType.trim().length > 0 : type === "Hotel" ? !!hotelStar : true)) count++;
-    return count;
-  }, [nameOk, typeOk, buildingType, totalFloors, regionId, district, ward, street, showTypeExtras, otherType, hotelStar, type]);
-
-  const totalFields = 6;
-  const completionPercent = Math.round((completionCount / totalFields) * 100);
-
   return (
     <AddPropertySection
       as="section"
@@ -431,25 +397,6 @@ const nameOk = title.trim().length >= 3;
             description="Start with the essentials guests care about first: property type, official address, and exact map position."
           />
           <div className="pt-4">
-            <div className="mb-6 rounded-2xl border border-slate-200/80 bg-white px-4 py-4 shadow-sm shadow-slate-200/25">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold text-slate-900">Step 1 of 6</div>
-                  <div className="mt-1 text-sm text-slate-600">
-                    {basicsCompleted
-                      ? "This section is complete."
-                      : `${totalFields - completionCount} required item${totalFields - completionCount === 1 ? "" : "s"} remaining.`}
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 font-semibold text-slate-700">{completionCount}/{totalFields} complete</span>
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 font-semibold text-slate-700">{completionPercent}% ready</span>
-                </div>
-              </div>
-              <div className="mt-3 add-property-progress-track">
-                <div className="add-property-progress-fill" style={{ width: `${completionPercent}%` }} />
-              </div>
-            </div>
 
           <div className="space-y-6 w-full">
             <div className="add-property-panel-premium">
@@ -462,15 +409,15 @@ const nameOk = title.trim().length >= 3;
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                 {typeOk ? (
-                  <div className="hidden sm:inline-flex items-center rounded-full border border-slate-200/80 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700">
-                    Selected: <span className="ml-1 text-emerald-700">{type}</span>
+                  <div className="hidden sm:inline-flex items-center rounded-full border border-[#30363d] bg-[#1c2128] px-3 py-1.5 text-xs font-semibold text-[#e6edf3]">
+                    Selected: <span className="ml-1 text-emerald-400">{type}</span>
                   </div>
                 ) : null}
                 {collapseTypes ? (
                   <button
                     type="button"
                     onClick={() => setTypePickerOpen(true)}
-                    className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-50"
+                    className="rounded-xl border border-[#30363d] bg-[#1c2128] px-4 py-2 text-sm font-semibold text-emerald-400 transition hover:border-emerald-500/50 hover:bg-[rgba(2,102,94,0.12)]"
                   >
                     Change
                   </button>
@@ -498,8 +445,8 @@ const nameOk = title.trim().length >= 3;
                       key={pt}
                       className={`group relative overflow-hidden rounded-2xl border cursor-pointer transition-all duration-300 ${
                         selected
-                          ? `${tone.border} bg-gradient-to-br ${tone.bg} shadow-lg shadow-slate-200/50 ring-1 ring-black/5`
-                          : "border-slate-200/80 bg-white/88 shadow-sm shadow-slate-200/35 hover:-translate-y-1 hover:border-slate-300 hover:shadow-lg"
+                          ? `${tone.border} bg-gradient-to-br ${tone.bg} shadow-lg shadow-black/40 ring-1 ring-white/10`
+                          : "border-[#30363d] bg-[#1c2128] shadow-md shadow-black/30 hover:-translate-y-1 hover:border-[#484f58] hover:shadow-xl"
                       }`}
                     >
                       <input
@@ -517,33 +464,33 @@ const nameOk = title.trim().length >= 3;
                         }}
                         className="sr-only"
                       />
-                      <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${selected ? "from-[#02665e] via-emerald-400 to-transparent" : "from-slate-200 via-slate-100 to-transparent"}`} />
+                      <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${selected ? "from-[#02665e] via-emerald-400 to-transparent" : "from-[#30363d] via-[#262c36] to-transparent"}`} />
                       <div className="flex h-full flex-col justify-between gap-4 p-4">
                         <div className="flex items-start justify-between gap-3">
                           <div className={`flex h-12 w-12 items-center justify-center rounded-2xl transition-all duration-300 ${
                           selected
                             ? `bg-white/80 ${tone.text} shadow-sm shadow-white/60`
-                            : "bg-slate-100 text-slate-600 group-hover:bg-slate-50"
+                            : "bg-[#21262d] text-[#8b949e] group-hover:bg-[#262c36]"
                         }`}>
                           <IconComponent
                             className={`h-5 w-5 transition-colors duration-300 ${
-                              selected ? tone.text : "text-slate-600"
+                              selected ? tone.text : "text-[#8b949e]"
                             }`}
                           />
                         </div>
                           <div className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] transition-all ${
                             selected
-                              ? "border-white/60 bg-white/75 text-slate-700"
-                              : "border-slate-200 bg-slate-50 text-slate-500"
+                              ? "border-white/25 bg-white/15 text-white"
+                              : "border-[#30363d] bg-[#161b22] text-[#6e7681]"
                           }`}>
                             {selected ? "Selected" : "Type"}
                           </div>
                         </div>
                         <div>
-                          <div className={`text-[15px] font-semibold transition-colors duration-300 ${selected ? tone.text : "text-slate-900"}`}>
+                          <div className={`text-[15px] font-semibold transition-colors duration-300 ${selected ? tone.text : "text-[#e6edf3]"}`}>
                             {pt}
                           </div>
-                          <div className={`mt-1 text-xs leading-relaxed transition-colors line-clamp-2 ${selected ? "text-slate-700" : "text-slate-500"}`}>
+                          <div className={`mt-1 text-xs leading-relaxed transition-colors line-clamp-2 ${selected ? "text-[#c9d1d9]" : "text-[#8b949e]"}`}>
                             {labelText}
                           </div>
                         </div>
@@ -695,7 +642,7 @@ const nameOk = title.trim().length >= 3;
                         },
                         {
                           value: "multi_storey",
-                          title: "Multi‑storey",
+                          title: "Multi storey",
                           desc: "Rooms spread across multiple floors.",
                           Icon: Building2,
                           gradient: "from-violet-50 via-white to-purple-50",
@@ -843,7 +790,8 @@ const nameOk = title.trim().length >= 3;
                   <div className="add-property-address-group-header">
                     <div className="min-w-0">
                       <div className="add-property-address-group-kicker">Administrative path</div>
-                      <h3 className="add-property-address-group-title">Choose region, district, and ward</h3>
+                      <h3 className="add-property-address-group-title md:hidden">Choose region, district, ward, and street</h3>
+                      <h3 className="add-property-address-group-title hidden md:block">Choose region, district, and ward</h3>
                     </div>
                   </div>
 
@@ -971,28 +919,20 @@ const nameOk = title.trim().length >= 3;
                       </div>
                       {touchedBasics.ward && !ward ? <p id="wardError" className="add-property-address-card-note text-rose-600">Choose a ward to continue.</p> : null}
                     </div>
-                  </div>
-                </div>
 
-                <div className="add-property-address-group">
-                  <div className="add-property-address-group-header">
-                    <div className="min-w-0">
-                      <div className="add-property-address-group-kicker">Street details</div>
-                      <h3 className="add-property-address-group-title">Add street, city, and postcode</h3>
-                    </div>
-                  </div>
-
-                  <div className="add-property-address-grid add-property-address-grid-detail">
-                    <div className={[
-                      "add-property-address-card",
-                      touchedBasics.street && !street
-                        ? "add-property-address-card-error"
-                        : !ward
-                          ? "add-property-address-card-locked"
-                          : street
-                            ? "add-property-address-card-done"
-                            : "add-property-address-card-active",
-                    ].join(" ")}>
+                    {/* Small screens: keep Street alongside Ward */}
+                    <div
+                      className={[
+                        "add-property-address-card md:hidden",
+                        touchedBasics.street && !street
+                          ? "add-property-address-card-error"
+                          : !ward
+                            ? "add-property-address-card-locked"
+                            : street
+                              ? "add-property-address-card-done"
+                              : "add-property-address-card-active",
+                      ].join(" ")}
+                    >
                       <div className="add-property-address-card-head">
                         <div className="min-w-0">
                           <div className="add-property-address-card-label">Street address <span className="text-rose-600">*</span></div>
@@ -1000,7 +940,6 @@ const nameOk = title.trim().length >= 3;
                       </div>
                       <div className="add-property-address-card-control relative">
                         <select
-                          id="streetAddress"
                           title="Street"
                           value={street}
                           onChange={(e) => setStreet(e.target.value)}
@@ -1010,7 +949,7 @@ const nameOk = title.trim().length >= 3;
                             !ward ? "text-slate-400 cursor-not-allowed" : "text-slate-900"
                           }`}
                           aria-required={true}
-                          aria-describedby={touchedBasics.street && !street ? "streetError" : undefined}
+                          aria-describedby={touchedBasics.street && !street ? "streetErrorAdmin" : undefined}
                         >
                           <option value="">{ward ? "Select street" : "Select ward first"}</option>
                           {streets.map((s: string) => (
@@ -1023,7 +962,64 @@ const nameOk = title.trim().length >= 3;
                           <ChevronDown className="h-5 w-5" />
                         </div>
                       </div>
-                      {touchedBasics.street && !street ? <p id="streetError" className="add-property-address-card-note text-rose-600">Choose a street before continuing.</p> : null}
+                      {touchedBasics.street && !street ? <p id="streetErrorAdmin" className="add-property-address-card-note text-rose-600">Choose a street before continuing.</p> : null}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="add-property-address-group">
+                  <div className="add-property-address-group-header">
+                    <div className="min-w-0">
+                      <div className="add-property-address-group-kicker">Street details</div>
+                      <h3 className="add-property-address-group-title md:hidden">Add city and postcode</h3>
+                      <h3 className="add-property-address-group-title hidden md:block">Add street, city, and postcode</h3>
+                    </div>
+                  </div>
+
+                  <div className="add-property-address-grid add-property-address-grid-detail">
+                    {/* Desktop/tablet: original layout keeps Street in this section */}
+                    <div
+                      className={[
+                        "add-property-address-card hidden md:block",
+                        touchedBasics.street && !street
+                          ? "add-property-address-card-error"
+                          : !ward
+                            ? "add-property-address-card-locked"
+                            : street
+                              ? "add-property-address-card-done"
+                              : "add-property-address-card-active",
+                      ].join(" ")}
+                    >
+                      <div className="add-property-address-card-head">
+                        <div className="min-w-0">
+                          <div className="add-property-address-card-label">Street address <span className="text-rose-600">*</span></div>
+                        </div>
+                      </div>
+                      <div className="add-property-address-card-control relative">
+                        <select
+                          title="Street"
+                          value={street}
+                          onChange={(e) => setStreet(e.target.value)}
+                          onBlur={() => setTouchedBasics((t) => ({ ...t, street: true }))}
+                          disabled={!ward}
+                          className={`add-property-field-control min-w-0 appearance-none h-12 cursor-pointer px-4 pr-10 ${
+                            !ward ? "text-slate-400 cursor-not-allowed" : "text-slate-900"
+                          }`}
+                          aria-required={true}
+                          aria-describedby={touchedBasics.street && !street ? "streetErrorDetail" : undefined}
+                        >
+                          <option value="">{ward ? "Select street" : "Select ward first"}</option>
+                          {streets.map((s: string) => (
+                            <option key={s} value={s}>
+                              {s}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                          <ChevronDown className="h-5 w-5" />
+                        </div>
+                      </div>
+                      {touchedBasics.street && !street ? <p id="streetErrorDetail" className="add-property-address-card-note text-rose-600">Choose a street before continuing.</p> : null}
                     </div>
 
                     <div className={["add-property-address-card", city.trim() ? "add-property-address-card-done" : "add-property-address-card-active"].join(" ")}>
@@ -1086,7 +1082,7 @@ const nameOk = title.trim().length >= 3;
                   </div>
                   <div>
                     <h3 className="text-sm font-semibold leading-tight text-slate-900">Park / Tourism Site</h3>
-                    <p className="text-xs text-slate-500">Optional — link a nearby destination if relevant.</p>
+                    <p className="text-xs text-slate-500">Optional link a nearby destination if relevant.</p>
                   </div>
                 </div>
 
@@ -1100,12 +1096,12 @@ const nameOk = title.trim().length >= 3;
 
                       {parkIsLocked ? (
                         <div className="add-property-field-shell add-property-field-shell-valid w-full h-12 px-4 text-sm inline-flex items-center justify-between gap-3">
-                          <div className="min-w-0 truncate font-semibold text-slate-900 inline-flex items-center gap-2">
+                          <div className="min-w-0 truncate font-semibold text-slate-100 inline-flex items-center gap-2">
                             <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                             <span className="truncate">
                               {selectedTourismSite?.name}
                               {selectedTourismSite?.country ? (
-                                <span className="ml-2 font-medium text-slate-500">({selectedTourismSite.country})</span>
+                                <span className="ml-2 font-medium text-slate-400">({selectedTourismSite.country})</span>
                               ) : null}
                             </span>
                           </div>
@@ -1121,7 +1117,7 @@ const nameOk = title.trim().length >= 3;
                                 parkInputRef.current?.focus();
                               }, 0);
                             }}
-                            className="shrink-0 inline-flex items-center justify-center h-9 w-9 rounded-xl border border-transparent bg-transparent text-emerald-600 transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                            className="shrink-0 inline-flex items-center justify-center h-9 w-9 rounded-xl border border-transparent bg-transparent text-emerald-600 transition-colors hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                             aria-label="Edit park"
                             title="Edit"
                           >
@@ -1129,7 +1125,13 @@ const nameOk = title.trim().length >= 3;
                           </button>
                         </div>
                       ) : (
-                        <div ref={parkPickerRef} className="relative">
+                        <div
+                          ref={parkPickerRef}
+                          className={[
+                            "add-property-field-shell w-full",
+                            tourismSitesLoading || !tourismCountry ? "add-property-field-shell-disabled" : "",
+                          ].join(" ")}
+                        >
                           <input
                             ref={parkInputRef}
                             value={parkPickerOpen ? parkQuery : selectedTourismSite?.name ?? ""}
@@ -1152,10 +1154,10 @@ const nameOk = title.trim().length >= 3;
                               !tourismCountry
                                 ? "Set your location first"
                                 : tourismSitesLoading
-                                  ? "Loading…"
+                                  ? "Loadingâ€¦"
                                   : "Search or skip"
                             }
-                            className="add-property-field-control h-12 border border-slate-300 bg-white pl-4 pr-24 hover:border-slate-400 disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
+                            className="add-property-field-control h-12 pl-4 pr-24 disabled:text-slate-400 disabled:cursor-not-allowed"
                             role="combobox"
                             aria-haspopup="listbox"
                             aria-expanded={parkPickerOpen}
@@ -1191,7 +1193,7 @@ const nameOk = title.trim().length >= 3;
                         </div>
 
                           {parkPickerOpen ? (
-                            <div className="absolute z-30 mt-2 w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/50 ring-1 ring-black/5">
+                            <div className="add-property-park-dropdown absolute z-30 mt-2 w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/50 ring-1 ring-black/5">
                               <div id="parkListbox" role="listbox" className="max-h-72 overflow-auto py-1">
                                 <button
                                   type="button"
@@ -1213,7 +1215,7 @@ const nameOk = title.trim().length >= 3;
                                 </button>
 
                                 {tourismSitesLoading ? (
-                                  <div className="px-3 py-2 text-sm text-slate-500">Loading parks…</div>
+                                  <div className="px-3 py-2 text-sm text-slate-500">Loading parksâ€¦</div>
                                 ) : null}
 
                                 {!tourismSitesLoading && filteredTourismSites.length === 0 ? (
@@ -1234,10 +1236,6 @@ const nameOk = title.trim().length >= 3;
                                             const nextId = Number(s.id);
                                             setLocalTourismSiteId(nextId);
                                             setTourismSiteIdValue(nextId);
-                                            if (!effectiveParkPlacementValue) {
-                                              setLocalParkPlacement("NEARBY");
-                                              setParkPlacementValue("NEARBY");
-                                            }
                                             setParkPickerOpen(false);
                                             setParkQuery("");
                                             setIsEditingPark(false);
@@ -1285,7 +1283,7 @@ const nameOk = title.trim().length >= 3;
                       <label className="mb-2 block text-xs font-semibold text-slate-500">Placement</label>
 
                       {placementIsLocked ? (
-                        <div className="h-10 w-full rounded-xl border border-slate-200 bg-white inline-flex items-center justify-between gap-2 px-3 text-sm font-semibold text-slate-900 shadow-sm shadow-slate-200/20">
+                        <div className="add-property-field-shell add-property-field-shell-valid w-full h-10 px-3 text-sm inline-flex items-center justify-between gap-2 font-semibold">
                           <span className="inline-flex items-center justify-center gap-2">
                             <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                             {effectiveParkPlacementValue === "INSIDE" ? "Inside" : "Nearby"}
@@ -1293,7 +1291,7 @@ const nameOk = title.trim().length >= 3;
                           <button
                             type="button"
                             onClick={() => setIsEditingPlacement(true)}
-                            className="shrink-0 inline-flex items-center justify-center h-8 w-8 rounded-xl border border-transparent bg-transparent text-emerald-600 transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                            className="shrink-0 inline-flex items-center justify-center h-8 w-8 rounded-xl border border-transparent bg-transparent text-emerald-600 transition-colors hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                             aria-label="Edit placement"
                             title="Edit"
                           >
@@ -1301,36 +1299,41 @@ const nameOk = title.trim().length >= 3;
                           </button>
                         </div>
                       ) : (
-                        <select
-                          value={effectiveParkPlacementValue}
-                          onChange={(e) => {
-                            const next = String(e.target.value || "") as "" | "INSIDE" | "NEARBY";
-                            setLocalParkPlacement(next);
-                            setParkPlacementValue(next);
-                            if (effectiveTourismSiteIdValue !== "" && next) setIsEditingPlacement(false);
-                          }}
-                          disabled={effectiveTourismSiteIdValue === ""}
+                        <div
                           className={[
-                            "w-full h-10 px-3 text-sm font-semibold rounded-xl shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500",
-                            effectiveTourismSiteIdValue === ""
-                              ? "cursor-not-allowed bg-slate-50 text-slate-400 border border-slate-200"
-                              : "bg-white text-slate-900 border border-slate-200 hover:border-slate-300",
+                            "add-property-field-shell w-full",
+                            effectiveTourismSiteIdValue === "" ? "add-property-field-shell-disabled" : "",
                           ].join(" ")}
-                          aria-label="Park placement"
                         >
-                          <option value="" disabled>
-                            Select placement
-                          </option>
-                          <option value="INSIDE">Inside</option>
-                          <option value="NEARBY">Nearby</option>
-                        </select>
+                          <select
+                            value={effectiveParkPlacementValue}
+                            onChange={(e) => {
+                              const next = String(e.target.value || "") as "" | "INSIDE" | "NEARBY";
+                              setLocalParkPlacement(next);
+                              setParkPlacementValue(next);
+                              if (effectiveTourismSiteIdValue !== "" && next) setIsEditingPlacement(false);
+                            }}
+                            disabled={effectiveTourismSiteIdValue === ""}
+                            className={[
+                              "add-property-field-control h-10 px-3 text-sm font-semibold",
+                              effectiveTourismSiteIdValue === "" ? "cursor-not-allowed" : "",
+                            ].join(" ")}
+                            aria-label="Park placement"
+                          >
+                            <option value="" disabled>
+                              Select placement
+                            </option>
+                            <option value="INSIDE">Inside</option>
+                            <option value="NEARBY">Nearby</option>
+                          </select>
+                        </div>
                       )}
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Location — drag-to-pin map (Google Maps business listing style) */}
+              {/* Location â€” drag-to-pin map (Google Maps business listing style) */}
               <div className="mt-6">
                 <div className="mb-3">
                   <p className="text-sm font-semibold text-slate-800 flex items-center gap-2">
@@ -1339,7 +1342,7 @@ const nameOk = title.trim().length >= 3;
                   </p>
                   <p className="mt-1 text-xs leading-relaxed text-slate-500">
                     Tap{" "}
-                    <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-slate-100 text-[10px] font-bold text-slate-600">⊙</span>{" "}
+                    <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-slate-100 text-[10px] font-bold text-slate-600">âŠ™</span>{" "}
                     to fly to your area, then drag the map to place the pin on your entrance.
                   </p>
                 </div>

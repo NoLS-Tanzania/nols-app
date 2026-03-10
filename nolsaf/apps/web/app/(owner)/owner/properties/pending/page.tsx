@@ -17,6 +17,7 @@ import {
   CheckCircle,
   Circle,
   Clock,
+  Trash2,
 } from "lucide-react";
 
 const api = axios.create({ baseURL: "", withCredentials: true, responseType: "json" });
@@ -109,17 +110,43 @@ function SectionHeader({ title }: { title: string }) {
 }
 
 // ── DRAFT CARD ──────────────────────────────────────────────────────────────────────
-function DraftCard({ p, onPreview }: { p: any; onPreview: (id: number) => void }) {
+function DraftCard({ p, onPreview, onDeleted }: { p: any; onPreview: (id: number) => void; onDeleted: (id: number) => void }) {
   const router = useRouter();
   const { stepsCompleted, nextStep } = getDraftProgress(p);
   const primaryImage = Array.isArray(p.photos) && p.photos.length > 0 ? p.photos[0] : null;
   const stepLabels = ["Basics", "Rooms", "Amenities", "Photos"];
   const totalDone = stepsCompleted.filter(Boolean).length;
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function handleDelete() {
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await api.delete(`/api/owner/properties/${p.id}`);
+      onDeleted(p.id);
+    } catch (err: any) {
+      setDeleteError(err?.response?.data?.error || "Failed to delete. Try again.");
+      setDeleting(false);
+    }
+  }
 
   return (
     <div className="group bg-white rounded-2xl border-2 border-dashed border-slate-300 shadow-sm hover:shadow-md hover:border-slate-400 transition-all duration-200">
-      <div className="px-4 pt-4">
+      <div className="px-4 pt-4 flex items-start justify-between gap-2">
         <div className="text-base font-bold text-slate-900 truncate">{p.title || "Untitled Draft"}</div>
+        {!confirmingDelete ? (
+          <button
+            type="button"
+            onClick={() => setConfirmingDelete(true)}
+            aria-label="Delete draft"
+            title="Delete draft"
+            className="flex-shrink-0 p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        ) : null}
       </div>
 
       <div className="px-4 mt-3">
@@ -197,6 +224,43 @@ function DraftCard({ p, onPreview }: { p: any; onPreview: (id: number) => void }
             <Eye className="h-4 w-4" />
             <span>Preview draft</span>
           </button>
+        )}
+
+        {/* Delete confirmation inline */}
+        {confirmingDelete && (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-3 space-y-2">
+            <p className="text-sm font-semibold text-red-700">Delete this draft?</p>
+            <p className="text-xs text-red-600">This cannot be undone.</p>
+            {deleteError && <p className="text-xs text-red-700 font-medium">{deleteError}</p>}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deleting}
+                className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-red-600 text-white py-1.5 text-xs font-semibold hover:bg-red-700 disabled:opacity-60 transition-colors"
+              >
+                {deleting ? (
+                  <span className="dot-spinner dot-sm" aria-hidden>
+                    <span className="dot dot-blue" />
+                    <span className="dot dot-black" />
+                    <span className="dot dot-yellow" />
+                    <span className="dot dot-green" />
+                  </span>
+                ) : (
+                  <Trash2 className="h-3.5 w-3.5" />
+                )}
+                Delete
+              </button>
+              <button
+                type="button"
+                onClick={() => { setConfirmingDelete(false); setDeleteError(null); }}
+                disabled={deleting}
+                className="flex-1 rounded-lg border border-slate-200 bg-white text-slate-700 py-1.5 text-xs font-medium hover:bg-slate-50 disabled:opacity-60 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         )}
       </div>
     </div>
@@ -506,7 +570,12 @@ export default function PendingProps() {
           <SectionHeader title="Incomplete Drafts" />
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {drafts.map((p) => (
-              <DraftCard key={p.id} p={p} onPreview={setSelectedPropertyId} />
+              <DraftCard
+                key={p.id}
+                p={p}
+                onPreview={setSelectedPropertyId}
+                onDeleted={(id) => setDrafts((prev) => prev.filter((d) => d.id !== id))}
+              />
             ))}
           </div>
         </section>

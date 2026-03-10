@@ -1095,3 +1095,34 @@ router.post("/:id/submit", (async (req: AuthedRequest, res) => {
     });
   }
 }) as RequestHandler);
+
+// ---------- DELETE ----------
+router.delete("/:id", (async (req: AuthedRequest, res) => {
+  try {
+    const ownerId = req.user!.id;
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid id" });
+
+    const p = await prisma.property.findFirst({
+      where: { id, ownerId },
+      select: { id: true, status: true },
+    });
+    if (!p) return res.status(404).json({ error: "Property not found" });
+    if (p.status !== "DRAFT") {
+      return res.status(403).json({ error: "Only draft properties can be deleted." });
+    }
+
+    await prisma.property.delete({ where: { id } });
+
+    await Promise.all([
+      invalidateCache(cacheKeys.property(id)),
+      invalidateCache("properties:list:*"),
+      invalidateCache(cacheKeys.adminSummary()),
+    ]).catch(() => {});
+
+    return res.json({ success: true });
+  } catch (error: any) {
+    console.error("Error in DELETE /:id:", error);
+    res.status(500).json({ error: "Internal Server Error", message: error?.message });
+  }
+}) as RequestHandler);
