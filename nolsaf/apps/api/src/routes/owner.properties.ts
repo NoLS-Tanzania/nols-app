@@ -961,6 +961,7 @@ router.post("/:id/submit", (async (req: AuthedRequest, res) => {
         longitude: true,
         photos: true,
         roomsSpec: true,
+        _count: { select: { images: true } },
       },
     });
     if (!p) {
@@ -968,20 +969,28 @@ router.post("/:id/submit", (async (req: AuthedRequest, res) => {
       return res.status(404).json({ error: "Property not found" });
     }
 
+    // Prisma returns Decimal objects (not plain JS numbers) for @db.Decimal fields.
+    // Use Number() coercion which works for both plain numbers and Prisma.Decimal.
+    const latNum = p.latitude != null ? Number(p.latitude) : null;
+    const lngNum = p.longitude != null ? Number(p.longitude) : null;
+    const hasPin = latNum !== null && lngNum !== null && Number.isFinite(latNum) && Number.isFinite(lngNum);
+
+    // Accept photos from either the legacy JSON field OR the PropertyImage relation.
+    const jsonPhotoCount = Array.isArray(p.photos) ? (p.photos as unknown[]).length : 0;
+    const imageRecordCount = (p as any)._count?.images ?? 0;
+    const photoCount = Math.max(jsonPhotoCount, imageRecordCount);
+
     const complete =
       (p.title?.trim()?.length ?? 0) >= 3 &&
       !!p.regionId &&
       !!p.district &&
-      typeof p.latitude === "number" &&
-      typeof p.longitude === "number" &&
-      Number.isFinite(p.latitude) &&
-      Number.isFinite(p.longitude) &&
-      (Array.isArray(p.photos) ? p.photos.length : 0) >= 3 &&
+      hasPin &&
+      photoCount >= 3 &&
       Array.isArray(p.roomsSpec) && p.roomsSpec.length >= 1 &&
       submitGuard(p);
 
     if (!complete) {
-      console.error(`Property ${id} incomplete. Title: ${p.title?.length}, regionId: ${!!p.regionId}, district: ${!!p.district}, photos: ${Array.isArray(p.photos) ? p.photos.length : 0}, rooms: ${Array.isArray(p.roomsSpec) ? p.roomsSpec.length : 0}`);
+      console.error(`Property ${id} incomplete. Title: ${p.title?.length}, regionId: ${!!p.regionId}, district: ${!!p.district}, lat: ${p.latitude} (${latNum}), lng: ${p.longitude} (${lngNum}), hasPin: ${hasPin}, photos: ${photoCount} (json:${jsonPhotoCount} images:${imageRecordCount}), rooms: ${Array.isArray(p.roomsSpec) ? p.roomsSpec.length : 0}`);
       return res.status(400).json({ error: "Incomplete property. Please complete required fields (name, exact location pin, ≥3 photos, ≥1 room type)." });
     }
 

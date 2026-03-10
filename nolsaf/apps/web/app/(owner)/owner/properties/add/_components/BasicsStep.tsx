@@ -409,15 +409,15 @@ const nameOk = title.trim().length >= 3;
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                 {typeOk ? (
-                  <div className="hidden sm:inline-flex items-center rounded-full border border-[#30363d] bg-[#1c2128] px-3 py-1.5 text-xs font-semibold text-[#e6edf3]">
-                    Selected: <span className="ml-1 text-emerald-400">{type}</span>
+                  <div className="hidden sm:inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700">
+                    Selected: <span className="ml-1 text-[#02665e]">{type}</span>
                   </div>
                 ) : null}
                 {collapseTypes ? (
                   <button
                     type="button"
                     onClick={() => setTypePickerOpen(true)}
-                    className="rounded-xl border border-[#30363d] bg-[#1c2128] px-4 py-2 text-sm font-semibold text-emerald-400 transition hover:border-emerald-500/50 hover:bg-[rgba(2,102,94,0.12)]"
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-[#02665e] transition hover:border-[#02665e]/40 hover:bg-[#02665e]/5"
                   >
                     Change
                   </button>
@@ -446,7 +446,7 @@ const nameOk = title.trim().length >= 3;
                       className={`group relative overflow-hidden rounded-2xl border cursor-pointer transition-all duration-300 ${
                         selected
                           ? `${tone.border} bg-gradient-to-br ${tone.bg} shadow-lg shadow-black/40 ring-1 ring-white/10`
-                          : "border-[#30363d] bg-[#1c2128] shadow-md shadow-black/30 hover:-translate-y-1 hover:border-[#484f58] hover:shadow-xl"
+                          : "border-slate-200 bg-white shadow-sm hover:-translate-y-1 hover:border-slate-300 hover:shadow-md"
                       }`}
                     >
                       <input
@@ -464,33 +464,33 @@ const nameOk = title.trim().length >= 3;
                         }}
                         className="sr-only"
                       />
-                      <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${selected ? "from-[#02665e] via-emerald-400 to-transparent" : "from-[#30363d] via-[#262c36] to-transparent"}`} />
+                      <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${selected ? "from-[#02665e] via-emerald-400 to-transparent" : "from-slate-200 via-slate-100 to-transparent"}`} />
                       <div className="flex h-full flex-col justify-between gap-4 p-4">
                         <div className="flex items-start justify-between gap-3">
                           <div className={`flex h-12 w-12 items-center justify-center rounded-2xl transition-all duration-300 ${
                           selected
                             ? `bg-white/80 ${tone.text} shadow-sm shadow-white/60`
-                            : "bg-[#21262d] text-[#8b949e] group-hover:bg-[#262c36]"
+                            : "bg-slate-100 text-slate-500 group-hover:bg-slate-200"
                         }`}>
                           <IconComponent
                             className={`h-5 w-5 transition-colors duration-300 ${
-                              selected ? tone.text : "text-[#8b949e]"
+                              selected ? tone.text : "text-slate-500"
                             }`}
                           />
                         </div>
                           <div className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] transition-all ${
                             selected
                               ? "border-white/25 bg-white/15 text-white"
-                              : "border-[#30363d] bg-[#161b22] text-[#6e7681]"
+                              : "border-slate-200 bg-slate-50 text-slate-500"
                           }`}>
                             {selected ? "Selected" : "Type"}
                           </div>
                         </div>
                         <div>
-                          <div className={`text-[15px] font-semibold transition-colors duration-300 ${selected ? tone.text : "text-[#e6edf3]"}`}>
+                          <div className={`text-[15px] font-semibold transition-colors duration-300 ${selected ? tone.text : "text-slate-900"}`}>
                             {pt}
                           </div>
-                          <div className={`mt-1 text-xs leading-relaxed transition-colors line-clamp-2 ${selected ? "text-[#c9d1d9]" : "text-[#8b949e]"}`}>
+                          <div className={`mt-1 text-xs leading-relaxed transition-colors line-clamp-2 ${selected ? "text-slate-700" : "text-slate-500"}`}>
                             {labelText}
                           </div>
                         </div>
@@ -1342,7 +1342,7 @@ const nameOk = title.trim().length >= 3;
                   </p>
                   <p className="mt-1 text-xs leading-relaxed text-slate-500">
                     Tap{" "}
-                    <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-slate-100 text-[10px] font-bold text-slate-600">âŠ™</span>{" "}
+                    <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-slate-100 text-[10px] font-bold text-slate-600">™</span>{" "}
                     to fly to your area, then drag the map to place the pin on your entrance.
                   </p>
                 </div>
