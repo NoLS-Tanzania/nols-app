@@ -679,7 +679,7 @@ export async function markBookingCodeAsUsed(
         data: {
           status: "USED",
           usedAt: new Date(),
-          usedByOwner: ownerId,
+          usedByOwner: true,
         },
       }),
       prisma.booking.update({
