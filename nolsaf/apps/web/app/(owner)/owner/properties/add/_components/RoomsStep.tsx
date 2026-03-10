@@ -286,77 +286,50 @@ export function RoomsStep({
                   aria-labelledby="roomTypeLabel"
                   className="grid grid-cols-2 sm:grid-cols-3 gap-3"
                 >
-                  {["Single", "Double", "Studio", "Suite", "Family", "Other"].map((rt) => {
+                  {[
+                    { rt: "Single",  emoji: "🛏️", desc: "One guest",        idleGrad: "from-sky-50 to-blue-50/60",      selGrad: "from-sky-100 to-blue-100/70",      idleBorder: "border-sky-200",     selBorder: "border-sky-500",     iconBg: "bg-sky-100",    iconColor: "text-sky-700",    nameSel: "text-sky-800",   dot: "bg-sky-500",    shadow: "shadow-sky-300/40"   },
+                    { rt: "Double",  emoji: "🛌", desc: "Two guests",        idleGrad: "from-rose-50 to-pink-50/60",     selGrad: "from-rose-100 to-pink-100/70",     idleBorder: "border-rose-200",    selBorder: "border-rose-500",    iconBg: "bg-rose-100",   iconColor: "text-rose-700",   nameSel: "text-rose-800",  dot: "bg-rose-500",   shadow: "shadow-rose-300/40"  },
+                    { rt: "Studio",  emoji: "🏠", desc: "Open-plan space",   idleGrad: "from-violet-50 to-purple-50/60", selGrad: "from-violet-100 to-purple-100/70", idleBorder: "border-violet-200",  selBorder: "border-violet-500",  iconBg: "bg-violet-100", iconColor: "text-violet-700", nameSel: "text-violet-800",dot: "bg-violet-500", shadow: "shadow-violet-300/40"},
+                    { rt: "Suite",   emoji: "✨", desc: "Premium room",      idleGrad: "from-amber-50 to-yellow-50/60",  selGrad: "from-amber-100 to-yellow-100/70",  idleBorder: "border-amber-200",   selBorder: "border-amber-500",   iconBg: "bg-amber-100",  iconColor: "text-amber-700",  nameSel: "text-amber-800", dot: "bg-amber-500",  shadow: "shadow-amber-300/40" },
+                    { rt: "Family",  emoji: "👨‍👩‍👧", desc: "Multiple guests",  idleGrad: "from-emerald-50 to-teal-50/60",  selGrad: "from-emerald-100 to-teal-100/70",  idleBorder: "border-emerald-200", selBorder: "border-emerald-500", iconBg: "bg-emerald-100",iconColor: "text-emerald-700",nameSel: "text-emerald-800",dot: "bg-emerald-500",shadow: "shadow-emerald-300/40"},
+                    { rt: "Other",   emoji: "🏷️", desc: "Custom type",       idleGrad: "from-slate-50 to-gray-50/60",    selGrad: "from-slate-100 to-gray-100/70",    idleBorder: "border-slate-200",   selBorder: "border-slate-500",   iconBg: "bg-slate-100",  iconColor: "text-slate-700",  nameSel: "text-slate-800", dot: "bg-slate-500",  shadow: "shadow-slate-300/40" },
+                  ].map(({ rt, emoji, desc, idleGrad, selGrad, idleBorder, selBorder, iconBg, iconColor, nameSel, dot, shadow }) => {
                     const selected = roomType === rt;
-                    // Check if this room type is already saved in definedRooms
                     const isCompleted = definedRooms.some((r) => r.roomType === rt);
-                    
                     return (
                       <label
                         key={rt}
-                        className={`group relative bg-gradient-to-br from-gray-50 to-white p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 ${
-                          isCompleted && !selected
-                            ? "border-amber-300 hover:border-amber-400"
-                            : selected
-                            ? "border-emerald-500 shadow-md shadow-emerald-500/20"
-                            : "border-gray-200 hover:border-emerald-300"
-                        }`}
-                        onClick={() => {
-                          // Always allow clicking to select (for new or editing)
-                          setRoomType(rt);
-                        }}
+                        className={[
+                          "group relative flex flex-col gap-2 p-4 rounded-2xl border-2 cursor-pointer transition-all duration-200 hover:-translate-y-0.5",
+                          "bg-gradient-to-br",
+                          selected ? selGrad : idleGrad,
+                          selected ? `${selBorder} shadow-md ${shadow}` : isCompleted ? "border-amber-300 hover:border-amber-400 shadow-sm" : `${idleBorder} hover:shadow-md`,
+                        ].join(" ")}
+                        onClick={() => setRoomType(rt)}
                       >
-                        <input
-                          type="radio"
-                          name="roomType"
-                          value={rt}
-                          checked={selected}
-                          onChange={(e) => setRoomType(e.target.value)}
-                          className="sr-only"
-                        />
-                        <div className="flex items-center justify-center">
-                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all duration-300 mr-3 ${
-                            selected
-                              ? "bg-emerald-100 group-hover:bg-emerald-200 group-hover:scale-110"
-                              : isCompleted
-                              ? "bg-amber-100 group-hover:bg-amber-200"
-                              : "bg-gray-100 group-hover:bg-emerald-100"
-                          }`}>
-                            <span className={`text-lg font-bold transition-colors duration-300 ${
-                              selected
-                                ? "text-emerald-600"
-                                : isCompleted
-                                ? "text-amber-600"
-                                : "text-gray-600"
-                            }`}>
-                              {rt.charAt(0)}
-                            </span>
+                        <input type="radio" name="roomType" value={rt} checked={selected} onChange={(e) => setRoomType(e.target.value)} className="sr-only" />
+
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-110 ${selected ? iconBg : "bg-white/70"}`}>
+                            <span className="text-xl leading-none">{emoji}</span>
                           </div>
-                          <div className="flex-1">
-                            <div className={`text-sm font-semibold transition-colors duration-300 ${
-                              selected
-                                ? "text-emerald-700"
-                                : isCompleted
-                                ? "text-amber-700"
-                                : "text-gray-900"
-                            }`}>
-                              {rt}
-                            </div>
+                          <div className="min-w-0">
+                            <div className={`text-sm font-bold leading-tight ${selected ? nameSel : "text-gray-900"}`}>{rt}</div>
+                            <div className="text-[11px] text-gray-400 mt-0.5 truncate">{desc}</div>
                           </div>
                         </div>
+
                         {selected && !isCompleted && (
-                          <div className="absolute top-2 right-2 w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse border-2 border-white" />
+                          <div className={`absolute top-2.5 right-2.5 w-2 h-2 rounded-full border-2 border-white shadow ${dot}`} />
                         )}
                         {isCompleted && !selected && (
-                          <div className="absolute top-2 right-2 flex items-center gap-1">
-                            <CheckCircle2 className="w-4 h-4 text-amber-600" />
-                            <Lock className="w-3 h-3 text-amber-500" />
+                          <div className="absolute top-2.5 right-2.5">
+                            <CheckCircle2 className="w-4 h-4 text-amber-500" />
                           </div>
                         )}
                         {isCompleted && selected && (
-                          <div className="absolute top-2 right-2 flex items-center gap-1">
-                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                            <span className="text-xs text-emerald-600 font-medium">Editing</span>
+                          <div className="absolute top-2 right-2 rounded-full bg-white/80 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-200">
+                            Editing
                           </div>
                         )}
                       </label>

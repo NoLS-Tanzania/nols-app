@@ -502,171 +502,66 @@ router.get("/mine", (async (req: AuthedRequest, res) => {
       items = [];
     }
 
-    // For suspended properties, fetch the suspension reason from audit logs
-    // Process items sequentially to avoid overwhelming the database and handle errors gracefully
-    const processedItems: any[] = [];
-    
-    // Helper function to safely serialize a Prisma object
-    const serializePrismaObject = (obj: any): any => {
-      if (obj === null || obj === undefined) return obj;
-      if (!obj || typeof obj !== 'object') return obj;
-      
-      const result: any = {};
-      const keys = Object.keys(obj);
-      
-      for (const key of keys) {
-        try {
-          const value = obj[key];
-          
-          // Skip functions and symbols
-          if (typeof value === 'function' || typeof value === 'symbol') {
-            continue;
-          }
-          
-          // Handle Dates
-          if (value instanceof Date) {
-            result[key] = value.toISOString();
-          }
-          // Handle BigInt
-          else if (typeof value === 'bigint') {
-            result[key] = value.toString();
-          }
-          // Handle null/undefined
-          else if (value === null || value === undefined) {
-            result[key] = value;
-          }
-          // Handle arrays
-          else if (Array.isArray(value)) {
-            result[key] = value.map(v => serializePrismaObject(v));
-          }
-          // Handle nested objects (but skip Prisma internal properties)
-          else if (typeof value === 'object') {
-            // Skip Prisma internal properties
-            if (key.startsWith('_') || key === 'toJSON' || key === 'toString') {
-              continue;
-            }
-            try {
-              result[key] = serializePrismaObject(value);
-            } catch {
-              // If nested object can't be serialized, skip it
-              continue;
-            }
-          }
-          // Handle primitives
-          else {
-            result[key] = value;
-          }
-        } catch (fieldError) {
-          // Skip fields that can't be serialized
-          continue;
-        }
-      }
-      
-      return result;
-    };
-    
+    // Sanitize JSON fields in-place (no-op on already-parsed objects)
     for (const item of items) {
+      sanitizePropertyJsonFields(item, `GET /mine property ${item?.id ?? "unknown"}`);
+    }
+
+    // Batch-fetch suspension reasons for all SUSPENDED properties in one query
+    // (avoids N+1 sequential awaits that were stalling the response)
+    const suspendedIds = items
+      .filter((item) => item.status === "SUSPENDED" && item.id)
+      .map((item) => item.id as number);
+
+    const suspensionReasonMap = new Map<number, string | null>();
+    if (suspendedIds.length > 0) {
       try {
-        sanitizePropertyJsonFields(item, `GET /mine property ${item?.id ?? "unknown"}`);
-
-        // Serialize the Prisma object to a plain JavaScript object
-        let processedItem: any;
-        try {
-          processedItem = serializePrismaObject(item);
-          
-          // Ensure essential fields are present
-          if (!processedItem.id) processedItem.id = item?.id;
-          if (!processedItem.status) processedItem.status = item?.status;
-          if (!processedItem.title) processedItem.title = item?.title;
-        } catch (serializeError: any) {
-          console.error("Error serializing property item", item?.id, serializeError);
-          // Fallback to minimal object
-          processedItem = {
-            id: item?.id || null,
-            title: item?.title || null,
-            status: item?.status || null,
-            createdAt: item?.createdAt instanceof Date ? item.createdAt.toISOString() : null,
-            updatedAt: item?.updatedAt instanceof Date ? item.updatedAt.toISOString() : null,
-          };
-        }
-
-        // Only check for suspension reason if status is SUSPENDED
-        if (item.status === "SUSPENDED" && item.id) {
-          try {
-            const lastSuspendAudit = await prisma.auditLog.findFirst({
-              where: {
-                entity: "PROPERTY",
-                entityId: item.id,
-                action: "PROPERTY_SUSPEND",
-              },
-              // Use PK ordering to avoid sort-buffer issues; id is monotonic.
-              orderBy: { id: "desc" },
-              select: { afterJson: true },
-            });
-
-            if (lastSuspendAudit) {
-              // Parse the afterJson to get the reason
-              let suspensionReason = null;
-              try {
-                const afterJson = typeof lastSuspendAudit.afterJson === 'string' 
-                  ? JSON.parse(lastSuspendAudit.afterJson) 
-                  : lastSuspendAudit.afterJson;
-                suspensionReason = afterJson?.reason || null;
-              } catch {
-                // If parsing fails, try to get reason from afterJson directly
-                suspensionReason = (lastSuspendAudit.afterJson as any)?.reason || null;
-              }
-              processedItem.suspensionReason = suspensionReason;
+        const auditLogs = await prisma.auditLog.findMany({
+          where: {
+            entity: "PROPERTY",
+            entityId: { in: suspendedIds },
+            action: "PROPERTY_SUSPEND",
+          },
+          orderBy: { id: "desc" },
+          select: { entityId: true, afterJson: true },
+        });
+        // Keep only the most-recent log per property (list is already desc by id)
+        for (const log of auditLogs) {
+          if (!suspensionReasonMap.has(log.entityId)) {
+            let reason: string | null = null;
+            try {
+              const afterJson =
+                typeof log.afterJson === "string"
+                  ? JSON.parse(log.afterJson)
+                  : log.afterJson;
+              reason = (afterJson as any)?.reason ?? null;
+            } catch {
+              reason = (log.afterJson as any)?.reason ?? null;
             }
-          } catch (err) {
-            // If there's an error fetching suspension reason, just continue without it
-            console.error("Error fetching suspension reason for property", item.id, err);
+            suspensionReasonMap.set(log.entityId, reason);
           }
         }
-
-        processedItems.push(processedItem);
-      } catch (itemError: any) {
-        // If processing an individual item fails, log it but continue with other items
-        console.error("Error processing property", item?.id, itemError);
-        // Still add the item but with minimal data
-        try {
-          processedItems.push({
-            id: item?.id || null,
-            title: item?.title || null,
-            status: item?.status || null,
-            createdAt: item?.createdAt instanceof Date ? item.createdAt.toISOString() : null,
-            updatedAt: item?.updatedAt instanceof Date ? item.updatedAt.toISOString() : null,
-          });
-        } catch (minimalError) {
-          // If even minimal serialization fails, skip this item
-          console.error("Failed to create minimal item object", item?.id, minimalError);
-        }
+      } catch (err) {
+        console.error("Error batch-fetching suspension reasons:", err);
       }
     }
 
-    // Final safety check - ensure response is serializable
-    try {
-      const response = {
-        page: Number(page),
-        pageSize: take,
-        total,
-        items: processedItems,
-      };
-      
-      // Test serialization before sending
-      JSON.stringify(response);
-      
-      res.json(response);
-    } catch (jsonError: any) {
-      console.error("JSON serialization error in GET /mine response:", jsonError);
-      // Return minimal safe response
-      res.json({
-        page: Number(page),
-        pageSize: take,
-        total: 0,
-        items: [],
-      });
-    }
+    // Prisma select returns plain objects - no custom serializer needed.
+    // Attach suspension reason where applicable.
+    const processedItems = items.map((item) => {
+      const out = { ...item };
+      if (item.status === "SUSPENDED" && item.id) {
+        out.suspensionReason = suspensionReasonMap.get(item.id) ?? null;
+      }
+      return out;
+    });
+
+    res.json({
+      page: Number(page),
+      pageSize: take,
+      total,
+      items: processedItems,
+    });
   } catch (error: any) {
     console.error("Error in GET /mine:", error);
     console.error("Error stack:", error?.stack);

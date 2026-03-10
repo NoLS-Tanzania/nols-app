@@ -1,7 +1,7 @@
 "use client";
 
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
-import { Building2, CheckCircle2, ChevronDown, HelpCircle, Home, LayoutGrid, MapPin, AlertCircle, Pencil, X } from "lucide-react";
+import { Building2, CheckCircle2, ChevronDown, HelpCircle, Home, Landmark, LayoutGrid, MapPin, AlertCircle, Pencil, X } from "lucide-react";
 import { PropertyLocationMap } from "./PropertyLocationMap";
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -680,30 +680,60 @@ const nameOk = title.trim().length >= 3;
                         {
                           value: "single_storey",
                           title: "Single storey",
-                          desc: "All rooms are on the ground floor.",
+                          desc: "All rooms on the ground floor.",
                           Icon: Home,
+                          gradient: "from-sky-50 via-white to-blue-50",
+                          selectedGradient: "from-sky-100 via-white to-blue-100",
+                          border: "border-sky-200",
+                          selectedBorder: "border-sky-400",
+                          iconBg: "bg-sky-100",
+                          iconBgHover: "group-hover:bg-sky-200",
+                          iconColor: "text-sky-600",
+                          titleColor: "text-sky-700",
+                          dot: "bg-sky-500",
+                          shadow: "shadow-sky-200/60",
                         },
                         {
                           value: "multi_storey",
                           title: "Multi‑storey",
-                          desc: "Rooms can be on different floors.",
+                          desc: "Rooms spread across multiple floors.",
                           Icon: Building2,
+                          gradient: "from-violet-50 via-white to-purple-50",
+                          selectedGradient: "from-violet-100 via-white to-purple-100",
+                          border: "border-violet-200",
+                          selectedBorder: "border-violet-400",
+                          iconBg: "bg-violet-100",
+                          iconBgHover: "group-hover:bg-violet-200",
+                          iconColor: "text-violet-600",
+                          titleColor: "text-violet-700",
+                          dot: "bg-violet-500",
+                          shadow: "shadow-violet-200/60",
                         },
                         {
                           value: "separate_units",
                           title: "Separate units",
-                          desc: "Rooms are in scattered blocks/bungalows.",
+                          desc: "Scattered blocks or bungalows.",
                           Icon: LayoutGrid,
+                          gradient: "from-amber-50 via-white to-orange-50",
+                          selectedGradient: "from-amber-100 via-white to-orange-100",
+                          border: "border-amber-200",
+                          selectedBorder: "border-amber-400",
+                          iconBg: "bg-amber-100",
+                          iconBgHover: "group-hover:bg-amber-200",
+                          iconColor: "text-amber-600",
+                          titleColor: "text-amber-700",
+                          dot: "bg-amber-500",
+                          shadow: "shadow-amber-200/60",
                         },
-                      ].map(({ value, title: t, desc: d, Icon }) => {
+                      ].map(({ value, title: t, desc: d, Icon, gradient, selectedGradient, border, selectedBorder, iconBg, iconBgHover, iconColor, titleColor, dot, shadow }) => {
                         const selected = buildingType === value;
                         return (
                           <label
                             key={value}
-                            className={`group relative bg-gradient-to-br from-gray-50 to-white p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 ${
+                            className={`group relative bg-gradient-to-br ${selected ? selectedGradient : gradient} p-4 rounded-2xl border-2 cursor-pointer transition-all duration-300 hover:-translate-y-0.5 ${
                               selected
-                                ? "border-emerald-500 shadow-md shadow-emerald-500/20"
-                                : "border-gray-200 hover:border-emerald-300"
+                                ? `${selectedBorder} shadow-md ${shadow}`
+                                : `${border} hover:shadow-md hover:${shadow}`
                             }`}
                           >
                             <input
@@ -712,7 +742,6 @@ const nameOk = title.trim().length >= 3;
                               value={value}
                               checked={selected}
                               onChange={() => {
-                                // Security: Validate value is from allowed options
                                 const allowedValues = ["single_storey", "multi_storey", "separate_units"];
                                 if (allowedValues.includes(value)) {
                                   setBuildingType(value);
@@ -725,20 +754,16 @@ const nameOk = title.trim().length >= 3;
                               className="sr-only"
                             />
                             <div className="flex items-start gap-3">
-                              <div
-                                className={`mt-0.5 w-10 h-10 rounded-lg flex items-center justify-center transition-all duration-300 ${
-                                  selected ? "bg-emerald-100 group-hover:bg-emerald-200 group-hover:scale-110" : "bg-gray-100 group-hover:bg-emerald-100"
-                                }`}
-                              >
-                                <Icon className={`w-5 h-5 transition-colors duration-300 ${selected ? "text-emerald-600" : "text-gray-600"}`} />
+                              <div className={`mt-0.5 w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 ${iconBg} ${iconBgHover} group-hover:scale-110`}>
+                                <Icon className={`w-5 h-5 ${iconColor}`} />
                               </div>
                               <div className="min-w-0 flex-1">
-                                <div className={`font-semibold text-sm transition-colors duration-300 ${selected ? "text-emerald-700" : "text-gray-900"}`}>{t}</div>
-                                <div className="text-xs text-gray-500 mt-0.5">{d}</div>
+                                <div className={`font-semibold text-sm ${selected ? titleColor : "text-gray-900"} transition-colors duration-200`}>{t}</div>
+                                <div className="text-xs text-gray-500 mt-0.5 leading-relaxed">{d}</div>
                               </div>
                             </div>
                             {selected && (
-                              <div className="absolute top-2 right-2 w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse border-2 border-white" />
+                              <div className={`absolute top-2.5 right-2.5 w-2 h-2 ${dot} rounded-full border-2 border-white shadow-sm`} />
                             )}
                           </label>
                         );
@@ -1055,30 +1080,23 @@ const nameOk = title.trim().length >= 3;
               </div>
 
               <div className="mt-6 add-property-location-submodule">
-                <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                  <div className="min-w-0">
-                    <h3 className="text-lg font-semibold text-slate-900 mb-1">Park / Tourism Site</h3>
-                    <p className="text-sm text-slate-600">Link a destination only if it is relevant to this property.</p>
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#02665e]/10">
+                    <Landmark className="h-4 w-4 text-[#02665e]" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold leading-tight text-slate-900">Park / Tourism Site</h3>
+                    <p className="text-xs text-slate-500">Optional — link a nearby destination if relevant.</p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 md:grid-cols-12 md:gap-6">
-                  <div className="md:col-span-7 flex flex-col space-y-2">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="flex flex-col space-y-2">
                     <div className={[
                       "add-property-field-card",
                       selectedTourismSite ? "add-property-field-card-valid" : !tourismCountry ? "add-property-field-card-disabled" : "",
                     ].join(" ")}>
-                      <div className="add-property-field-card-head">
-                        <div>
-                          <div className="add-property-field-card-label">Tourism site / Park</div>
-                          <div className="add-property-field-card-value">
-                            {selectedTourismSite?.name || (!tourismCountry ? "Unlock after location setup" : "Not linked to a park")}
-                          </div>
-                        </div>
-                        <span className={`add-property-field-badge ${selectedTourismSite ? "add-property-field-badge-valid" : !tourismCountry ? "add-property-field-badge-disabled" : "add-property-field-badge-disabled"}`}>
-                          {selectedTourismSite ? "linked" : !tourismCountry ? "locked" : "optional"}
-                        </span>
-                      </div>
+                      <label className="mb-2 block text-xs font-semibold text-slate-500">Tourism site / Park</label>
 
                       {parkIsLocked ? (
                         <div className="add-property-field-shell add-property-field-shell-valid w-full h-12 px-4 text-sm inline-flex items-center justify-between gap-3">
@@ -1132,10 +1150,10 @@ const nameOk = title.trim().length >= 3;
                             }}
                             placeholder={
                               !tourismCountry
-                                ? "Select location first (region/district/ward)"
+                                ? "Set your location first"
                                 : tourismSitesLoading
-                                  ? "Loading parks…"
-                                  : "Search or keep this unlinked"
+                                  ? "Loading…"
+                                  : "Search or skip"
                             }
                             className="add-property-field-control h-12 border border-slate-300 bg-white pl-4 pr-24 hover:border-slate-400 disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
                             role="combobox"
@@ -1259,30 +1277,13 @@ const nameOk = title.trim().length >= 3;
                     </div>
                   </div>
 
-                  <div className="md:col-span-5 flex flex-col space-y-2">
+                  <div className="flex flex-col space-y-2">
                     <div className={[
                       "add-property-field-card",
                       effectiveTourismSiteIdValue === "" ? "add-property-field-card-disabled" : effectiveParkPlacementValue ? "add-property-field-card-valid" : "",
                     ].join(" ")}>
-                      <div className="add-property-field-card-head">
-                        <div>
-                          <div className="add-property-field-card-label">Placement</div>
-                          <div className="add-property-field-card-value">
-                            {effectiveTourismSiteIdValue === ""
-                              ? "Select a park to unlock placement"
-                              : effectiveParkPlacementValue === "INSIDE"
-                                ? "Inside the selected destination"
-                                : effectiveParkPlacementValue === "NEARBY"
-                                  ? "Near the selected destination"
-                                  : "Choose how the property relates to the park"}
-                          </div>
-                        </div>
-                        <span className={`add-property-field-badge ${effectiveTourismSiteIdValue === "" ? "add-property-field-badge-disabled" : effectiveParkPlacementValue ? "add-property-field-badge-valid" : "add-property-field-badge-disabled"}`}>
-                          {effectiveTourismSiteIdValue === "" ? "locked" : effectiveParkPlacementValue ? "set" : "required"}
-                        </span>
-                      </div>
+                      <label className="mb-2 block text-xs font-semibold text-slate-500">Placement</label>
 
-                      <div className="rounded-2xl border border-slate-200 bg-white/80 p-2 shadow-sm shadow-slate-200/30">
                       {placementIsLocked ? (
                         <div className="h-10 w-full rounded-xl border border-slate-200 bg-white inline-flex items-center justify-between gap-2 px-3 text-sm font-semibold text-slate-900 shadow-sm shadow-slate-200/20">
                           <span className="inline-flex items-center justify-center gap-2">
@@ -1324,7 +1325,6 @@ const nameOk = title.trim().length >= 3;
                           <option value="NEARBY">Nearby</option>
                         </select>
                       )}
-                      </div>
                     </div>
                   </div>
                 </div>

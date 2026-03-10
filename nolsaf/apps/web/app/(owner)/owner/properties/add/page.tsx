@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import type { ReactNode } from "react";
 import { useMemo, useRef, useState, useEffect, useCallback } from "react";
 import { twMerge } from "tailwind-merge";
@@ -1349,6 +1349,8 @@ export default function AddProperty() {
   const [showResumeDraft, setShowResumeDraft] = useState(false);
   const [localDraft, setLocalDraft] = useState<any | null>(null);
   const [serverDrafts, setServerDrafts] = useState<Array<{ id: number; title?: string; updatedAt?: string }>>([]);
+  
+  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [showSubmissionSuccess, setShowSubmissionSuccess] = useState(false);
 
   // Load existing property if ID is provided in query params
@@ -1410,7 +1412,7 @@ export default function AddProperty() {
                       };
                       return {
                         ...prevObj,
-                      // If backend stores a single string like "14:00 â€“ 22:00", keep it in the "from" field.
+                      // If backend stores a single string like "14:00 – 22:00", keep it in the "from" field.
                         checkInFrom: String((hrObj as any).checkIn || prevObj.checkInFrom || ""),
                         checkOutFrom: String((hrObj as any).checkOut || prevObj.checkOutFrom || ""),
                       petsAllowed:
@@ -1511,7 +1513,7 @@ export default function AddProperty() {
     loadProperty();
   }, [propertyId]);
 
-  // collapses â€” only the active step is expanded to keep focus.
+  // collapses — only the active step is expanded to keep focus.
   // By default show only the first step; others are hidden until navigated.
   const [showBasics, setShowBasics] = useState(true);
   const [showRooms, setShowRooms] = useState(false);
@@ -1528,7 +1530,7 @@ export default function AddProperty() {
   // default empty so placeholder "Select rating" is shown until user selects
   const [hotelStar, setHotelStar] = useState("");
 
-  // âœ… Region/district now sourced from helper
+  // ✅ Region/district now sourced from helper
   const [regionId, setRegionId] = useState<string>("");
   const [district, setDistrict] = useState<string>("");
   const [ward, setWard] = useState<string>("");
@@ -1965,6 +1967,9 @@ export default function AddProperty() {
     if (selectedWardPostcode && (!zip || zip.trim().length === 0)) {
       missing.push('Zip code');
     }
+    if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+      missing.push('Exact location pin (drag the map)');
+    }
 
     if (missing.length) {
       // mark fields as touched so inline errors appear
@@ -2080,10 +2085,26 @@ export default function AddProperty() {
         const ok = validateBasics();
         if (!ok) return;
       }
+      if (currentStep === 1 && definedRooms.length < 1) {
+        alert('Please add at least one room type before continuing.');
+        return;
+      }
+      if (currentStep === 2 && !servicesCompleted) {
+        alert('Please complete the Services section before continuing.');
+        return;
+      }
+      if (currentStep === 3 && !totalsCompleted) {
+        alert('Please complete the Totals & Description section before continuing.');
+        return;
+      }
+      if (currentStep === 4 && photos.length < 3) {
+        alert(`Please add at least 3 photos (${photos.length}/3 added).`);
+        return;
+      }
       const nextStep = currentStep + 1;
       setVisitedSteps(prev => new Set([...prev, nextStep]));
       setCurrentStep(nextStep);
-      scrollToStep(nextStep);
+      scrollToStep(nextStep, true);
     }
   };
 
@@ -2097,17 +2118,28 @@ export default function AddProperty() {
   };
 
   const scrollToStep = (i: number, skipValidation = false) => {
-    setCurrentStep(i);
-    // Mark step as visited
-    setVisitedSteps(prev => new Set([...prev, i]));
-    // Prevent navigating away from Basics if required fields are missing unless skipped
-    if (i > 0 && !skipValidation) {
-      const ok = validateBasics();
-      if (!ok) {
-        setCurrentStep(0);
+    // Validate the current step before any forward jump
+    if (!skipValidation && i > currentStep) {
+      if (currentStep === 0) {
+        const ok = validateBasics();
+        if (!ok) return;
+      } else if (currentStep === 1 && definedRooms.length < 1) {
+        alert('Please add at least one room type before continuing.');
+        return;
+      } else if (currentStep === 2 && !servicesCompleted) {
+        alert('Please complete the Services section before continuing.');
+        return;
+      } else if (currentStep === 3 && !totalsCompleted) {
+        alert('Please complete the Totals & Description section before continuing.');
+        return;
+      } else if (currentStep === 4 && photos.length < 3) {
+        alert(`Please add at least 3 photos (${photos.length}/3 added).`);
         return;
       }
     }
+    // Mark step as visited
+    setVisitedSteps(prev => new Set([...prev, i]));
+    setCurrentStep(i);
     // Open only the target step
     setShowBasics(i === 0);
     setShowRooms(i === 1);
@@ -2249,7 +2281,7 @@ export default function AddProperty() {
     const fmtWindow = (from: string, to: string) => {
       const f = String(from || "").trim();
       const t = String(to || "").trim();
-      if (f && t) return `${f} â€“ ${t}`;
+      if (f && t) return `${f} – ${t}`;
       if (f) return `From ${f}`;
       if (t) return `Until ${t}`;
       return "";
@@ -2416,19 +2448,22 @@ export default function AddProperty() {
     title.trim().length >= 3 &&
     !!regionId &&
     !!district &&
+    typeof latitude === 'number' &&
+    typeof longitude === 'number' &&
     photos.length >= 3 &&
     definedRooms.length >= 1 &&
     // if this is a Hotel, ensure a star rating was chosen
     (!isHotel || (typeof hotelStar === "string" && hotelStar !== ""));
 
 
-  async function submitForReview() {
+  function submitForReview() {
     if (!completeEnough) {
       const missing = [
         !(title.trim().length >= 3) ? "name" : null,
         !regionId ? "location" : null,
-        !(photos.length >= 3) ? "â‰¥3 photos" : null,
-        !(definedRooms.length >= 1) ? "â‰¥1 room type" : null,
+        (typeof latitude !== 'number' || typeof longitude !== 'number') ? "exact location pin" : null,
+        !(photos.length >= 3) ? "≥3 photos" : null,
+        !(definedRooms.length >= 1) ? "≥1 room type" : null,
         (isHotel && (!hotelStar || hotelStar === "")) ? "hotel star rating" : null,
       ].filter(Boolean);
       alert("Please complete: " + missing.join(", ") + ".");
@@ -2443,53 +2478,36 @@ export default function AddProperty() {
       scrollToStep(0);
       return;
     }
+    setShowSubmitConfirm(true);
+  }
+
+  async function executeSubmit() {
+    setShowSubmitConfirm(false);
     try {
-      const confirmed = window.confirm("Are you sure you're submitting this for review? You won't be able to edit while it's pending.");
-      if (!confirmed) return;
-      // Determine the property ID - use existing or create new
       let id: number | null = null;
       let createResponse: any = null;
-      
       if (propertyId) {
-        // Update existing property
-        console.log(`Updating existing property ${propertyId}...`);
         await api.put(`/api/owner/properties/${propertyId}`, payload());
         id = propertyId;
       } else {
-        // Create new property - use ID directly from response (don't rely on state update)
-        console.log("Creating new property...");
         createResponse = await api.post("/api/owner/properties", payload());
         id = (createResponse.data as { id: number })?.id;
         if (id) {
           setPropertyId(id);
-          console.log(`Property created with ID: ${id}`);
         } else {
-          // Fallback: try to fetch the latest draft
-          console.log("No ID in create response, trying to fetch latest draft...");
           const fetchedId = await refetchLatestId();
-          if (fetchedId) {
-            id = fetchedId;
-            setPropertyId(fetchedId);
-            console.log(`Fetched property ID: ${id}`);
-          }
+          if (fetchedId) { id = fetchedId; setPropertyId(fetchedId); }
         }
       }
-      
       if (!id || !Number.isFinite(id)) {
-        console.error("Could not determine property ID. Create response:", createResponse?.data);
         alert("Error: Could not determine property ID. Please try again.");
         return;
       }
-
-      console.log(`Submitting property ${id} for review...`);
       const resp = await api.post(`/api/owner/properties/${id}/submit`);
-      // Accept 200 OK with body or 204 No Content
       if (resp.status === 200 || resp.status === 204) {
-        console.log(`Property ${id} submitted successfully. Response:`, resp.data);
-        clearDraft(); // Clear draft on successful submission
+        clearDraft();
         setShowSubmissionSuccess(true);
       } else {
-        console.error("Unexpected response status:", resp.status, resp.data);
         alert("Unexpected response: " + resp.status);
       }
     } catch (e:any) {
@@ -2499,7 +2517,6 @@ export default function AddProperty() {
       const status = e?.response?.status;
       const err = data?.error ?? data ?? e?.message ?? "Submit failed";
       const errorMsg = typeof err === "string" ? err : JSON.stringify(err, null, 2);
-      console.error(`Submit failed: ${method} ${url}`, { status, error: err, fullError: e });
       alert(`Submit failed (${status || "network error"}): ${errorMsg}\n\nURL: ${method} ${url}`);
     }
   }
@@ -2661,7 +2678,7 @@ export default function AddProperty() {
   const stepProgressPct = Math.round(((currentStep + 1) / stepTitles.length) * 100);
 
   const stepsMeta = [
-    { index: 0, title: "Basic details", completed: title.trim().length >= 3 && !!regionId && !!district },
+    { index: 0, title: "Basic details", completed: title.trim().length >= 3 && !!regionId && !!district && typeof latitude === 'number' && typeof longitude === 'number' },
     { index: 1, title: "Rooms", completed: definedRooms.length >= 1 },
     { index: 2, title: "Services", completed: servicesCompleted },
     { index: 3, title: "Totals", completed: totalsCompleted },
@@ -2821,7 +2838,7 @@ export default function AddProperty() {
                                         : "border-slate-200 bg-white text-slate-600"
                                 }`}
                               >
-                                {isCompleted ? "âœ“" : s.index + 1}
+                                {isCompleted ? "✓" : s.index + 1}
                               </span>
                               <span className="min-w-0 flex-1">
                                 <span className="block text-sm font-semibold text-slate-900 truncate">{s.title}</span>
@@ -3127,6 +3144,53 @@ export default function AddProperty() {
             >
               View Pending Properties
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Custom submission confirmation modal */}
+      {showSubmitConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowSubmitConfirm(false)} />
+          <div className="relative w-full max-w-sm rounded-2xl bg-white shadow-2xl ring-1 ring-black/10 overflow-hidden">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-[#02665e] to-emerald-600 px-6 pt-6 pb-5 text-white">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 mb-3">
+                <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
+                </svg>
+              </div>
+              <h2 className="text-base font-bold leading-tight">Submit for review?</h2>
+              <p className="mt-1 text-sm text-emerald-100">You won&apos;t be able to edit while it&apos;s pending approval.</p>
+            </div>
+            {/* Body */}
+            <div className="px-6 py-4 text-sm text-slate-600 space-y-2">
+              <div className="flex items-start gap-2">
+                <svg className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                <span>Our team will verify your property details</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <svg className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                <span>You&apos;ll be notified by email once approved</span>
+              </div>
+            </div>
+            {/* Actions */}
+            <div className="flex gap-3 px-6 pb-6">
+              <button
+                type="button"
+                onClick={() => setShowSubmitConfirm(false)}
+                className="flex-1 rounded-xl border border-slate-200 bg-white py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={executeSubmit}
+                className="flex-1 rounded-xl bg-[#02665e] py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#014e47]"
+              >
+                Yes, submit
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -317,7 +317,7 @@
 }
 
 .add-property-field-card {
-  @apply rounded-[22px] border border-slate-200/80 bg-white/90 p-3 shadow-sm shadow-slate-200/30 transition-all duration-200;
+  @apply rounded-[22px] border border-slate-300 bg-white/90 p-3 shadow-sm shadow-slate-200/30 transition-all duration-200;
 }
 
 .add-property-field-card:hover {
@@ -329,7 +329,7 @@
 }
 
 .add-property-field-card-disabled {
-  @apply border-slate-200/80 bg-slate-50/95 shadow-none;
+  @apply border-slate-300 bg-slate-50/95 shadow-none;
 }
 
 .add-property-field-card-error {
