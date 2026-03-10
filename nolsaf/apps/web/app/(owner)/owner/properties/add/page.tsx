@@ -2748,7 +2748,6 @@ export default function AddProperty() {
                           <text x="38" y="50" textAnchor="middle" fontSize="16" fontWeight="800" fill="white">{stepProgressPct}</text>
                         </svg>
                       ); })()}
-                      {title.trim().length >= 3 ? (<button type="button" onClick={() => setShowLivePreview(true)} aria-label="Live preview" title="Live preview" style={{ display: "inline-flex", height: "1.75rem", width: "1.75rem", alignItems: "center", justifyContent: "center", borderRadius: "0.5rem", border: "1px solid rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.1)", color: "#ffffff", cursor: "pointer" }}><Eye style={{ width: "0.875rem", height: "0.875rem" }} aria-hidden /></button>) : null}
                     </div>
                   </div>
                   <div>
