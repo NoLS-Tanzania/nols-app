@@ -16,6 +16,7 @@ type Props = {
   size?: "sm" | "md";
   allowPast?: boolean;
   twoMonths?: boolean;
+  variant?: "light" | "dark";
 };
 
 function formatDisplay(iso?: string) {
@@ -75,7 +76,9 @@ export default function DatePickerField({
   size = "md",
   allowPast,
   twoMonths: twoMonthsProp,
+  variant = "light",
 }: Props) {
+  const isDark = variant === "dark";
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const [mounted, setMounted] = useState(false);
   const [panelPos, setPanelPos] = useState<{ top: number; left: number; width: number } | null>(null);
@@ -130,9 +133,12 @@ export default function DatePickerField({
                 (isSm ? "h-10" : "h-12") +
                 " w-full " +
                 widthClassName +
-                " relative rounded-xl border border-gray-200 bg-white text-sm text-gray-900 shadow-sm " +
+                " relative rounded-xl border text-sm shadow-sm " +
                 (isSm ? "px-3 pl-10" : "px-4 pl-11") +
-                " text-left focus:outline-none focus:ring-2 focus:ring-brand/25 focus:border-brand hover:bg-brand/5 transition"
+                " text-left focus:outline-none transition " +
+                (isDark
+                  ? "border-white/[0.12] bg-white/[0.07] text-white hover:bg-white/[0.12] focus:ring-2 focus:ring-white/20"
+                  : "border-gray-200 bg-white text-gray-900 hover:bg-brand/5 focus:ring-2 focus:ring-brand/25 focus:border-brand")
               }
               aria-label={label}
               title={label}
@@ -152,11 +158,11 @@ export default function DatePickerField({
                 className={
                   "absolute left-" +
                   (isSm ? "3" : "4") +
-                  " top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500"
+                  (isDark ? " top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" : " top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500")
                 }
                 aria-hidden
               />
-              <span className={pretty ? "italic" : "text-gray-400"}>{pretty || "DD Mon YYYY"}</span>
+              <span className={pretty ? "" : (isDark ? "text-slate-500" : "text-gray-400")}>{pretty || "DD Mon YYYY"}</span>
             </Popover.Button>
 
             {mounted

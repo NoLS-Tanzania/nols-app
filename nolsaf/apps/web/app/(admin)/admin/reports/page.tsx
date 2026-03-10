@@ -500,7 +500,10 @@ export default function AdminReportsPage() {
   }, [revenueByType]);
 
   async function printReport(mode: "full" | "revenueOnly" = "full") {
-    const reportId = new Date().toISOString();
+    const now = new Date();
+    const reportId = now.toISOString();
+    const pad2 = (n: number) => String(n).padStart(2, "0");
+    const reportFilename = `NOLSAF-RPT-${now.getFullYear()}${pad2(now.getMonth() + 1)}${pad2(now.getDate())}-${pad2(now.getHours())}${pad2(now.getMinutes())}${pad2(now.getSeconds())}_${from}_${to}`;
 
     let qrDataUrl: string | null = null;
     try {
@@ -592,7 +595,7 @@ export default function AdminReportsPage() {
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Admin Report</title>
+  <title>${escapeHtml(reportFilename)}</title>
   <style>
     :root { --ink:#0b1220; --muted:#5b6472; --line:#e5e7eb; --brand:#02665e; }
     * { box-sizing: border-box; }
@@ -782,7 +785,7 @@ export default function AdminReportsPage() {
 
     <div class="footer">
       <div style="font-size:11px;color:var(--muted)">
-        <div><strong style="color:var(--ink)">Audit</strong> • Printed by / on / at</div>
+        <div><strong style="color:var(--ink)">Audit</strong> • NoLSAF Inc</div>
         <div>Prepared for internal finance operations and compliance.</div>
         ${qrDataUrl ? `
         <div class="qr" style="margin-top:10px;">
@@ -820,27 +823,30 @@ export default function AdminReportsPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 space-y-6 min-w-0">
-      <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 sm:p-6">
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+    <div className="bg-[#f4f5f6] min-h-screen">
+    <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-4 min-w-0">
+      {/* Main dark card */}
+      <div className="overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(170deg,#0c1a2e_0%,#0a2236_52%,#0b1d2d_100%)] shadow-[0_32px_80px_-24px_rgba(5,12,26,0.55)]">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 px-6 pt-6 sm:px-8 sm:pt-7">
           <div className="min-w-0">
-            <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-xs font-semibold text-emerald-700">
-              <ShieldCheck className="h-4 w-4" aria-hidden />
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#02665e]/30 bg-[#02665e]/15 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.22em] text-emerald-300">
+              <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
               Operational Export
             </div>
-            <h2 className="mt-2 text-xl sm:text-2xl font-bold text-gray-900 tracking-tight">
-              NoLSAF Finance & Operations Report
+            <h2 className="mt-3 text-xl font-black tracking-tight text-white sm:text-2xl">
+              NoLSAF Finance &amp; Operations Report
             </h2>
-            <p className="text-sm text-gray-600 mt-1">
+            <p className="mt-1 text-sm leading-6 text-slate-400">
               Select a date range, review the summary and details, then print a signed report with QR verification.
             </p>
           </div>
 
-          <div className="flex items-center gap-2 sm:justify-end">
+          <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
               onClick={() => printReport("full")}
-              className="inline-flex items-center justify-center h-10 px-3 rounded-xl border border-brand/25 bg-brand text-white shadow-sm hover:brightness-95 transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
+              className="inline-flex items-center justify-center h-10 px-4 rounded-[14px] bg-[#02665e] text-white text-sm font-bold shadow-[0_4px_20px_-6px_rgba(2,102,94,0.50)] hover:brightness-110 transition active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/50"
             >
               <Printer className="h-4 w-4 mr-2" aria-hidden />
               Print
@@ -849,7 +855,7 @@ export default function AdminReportsPage() {
             <button
               type="button"
               onClick={() => printReport("revenueOnly")}
-              className="inline-flex items-center justify-center h-10 px-3 rounded-xl border border-brand/25 bg-white text-brand shadow-sm hover:bg-brand/5 transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
+              className="inline-flex items-center justify-center h-10 px-4 rounded-[14px] border border-[#02665e]/30 bg-[#02665e]/10 text-emerald-300 text-sm font-bold hover:bg-[#02665e]/20 transition active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/40"
               title="Print only NoLSAF revenue sources"
             >
               <Printer className="h-4 w-4 mr-2" aria-hidden />
@@ -859,29 +865,30 @@ export default function AdminReportsPage() {
         </div>
 
         {clampInfo.clamped ? (
-          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 flex items-start gap-2">
-            <AlertTriangle className="h-4 w-4 mt-0.5" aria-hidden />
+          <div className="mx-6 mt-4 sm:mx-8 rounded-[14px] border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-sm text-amber-200 flex items-start gap-2">
+            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" aria-hidden />
             <div className="min-w-0">
-              <div className="font-semibold">Range limited</div>
-              <div className="text-amber-800/90 break-words">Max range is {MAX_REPORT_DAYS_INCLUSIVE} days.</div>
+              <div className="font-bold">Range limited</div>
+              <div className="text-amber-300/80 break-words">Max range is {MAX_REPORT_DAYS_INCLUSIVE} days.</div>
             </div>
           </div>
         ) : null}
 
-        <div className="mt-4 flex items-end gap-3 overflow-x-auto flex-nowrap pb-1 -mb-1">
+        <div className="mt-5 flex items-end gap-3 overflow-x-auto flex-nowrap pb-1 px-6 sm:px-8">
           <div className="shrink-0 w-[190px]">
-            <div className="text-[11px] font-semibold text-gray-500 mb-1">From</div>
+            <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500 mb-1.5">From</div>
             <DatePickerField
               label="From date"
               value={from}
               max={to}
               onChangeAction={(nextIso) => applyRange(nextIso, to)}
               widthClassName="w-full"
+              variant="dark"
             />
           </div>
 
           <div className="shrink-0 w-[190px]">
-            <div className="text-[11px] font-semibold text-gray-500 mb-1">To</div>
+            <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500 mb-1.5">To</div>
             <DatePickerField
               label="To date"
               value={to}
@@ -889,11 +896,12 @@ export default function AdminReportsPage() {
               max={clampInfo.maxTo ?? undefined}
               onChangeAction={(nextIso) => applyRange(from, nextIso)}
               widthClassName="w-full"
+              variant="dark"
             />
           </div>
 
           <div className="shrink-0">
-            <div className="text-[11px] font-semibold text-gray-500 mb-1">Range</div>
+            <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500 mb-1.5">Range</div>
             <div className="flex items-center gap-2 flex-nowrap">
               {(
                 [
@@ -934,68 +942,68 @@ export default function AdminReportsPage() {
           </div>
         </div>
 
-        <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-            <div className="text-xs font-semibold text-gray-500">Revenue (TZS)</div>
-            <div className="mt-1 text-2xl font-extrabold text-gray-900">{fmtMoneyTZS(totalRevenue)}</div>
+        <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3 px-6 sm:px-8">
+          <div className="rounded-[20px] border border-white/[0.08] bg-white/[0.05] px-5 py-4">
+            <div className="text-[10px] font-bold uppercase tracking-[0.24em] text-slate-500">Revenue (TZS)</div>
+            <div className="mt-2 text-2xl font-black text-white">{fmtMoneyTZS(totalRevenue)}</div>
           </div>
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-            <div className="text-xs font-semibold text-gray-500">Active properties (latest)</div>
-            <div className="mt-1 text-2xl font-extrabold text-gray-900">{String(totalActive)}</div>
+          <div className="rounded-[20px] border border-white/[0.08] bg-white/[0.05] px-5 py-4">
+            <div className="text-[10px] font-bold uppercase tracking-[0.24em] text-slate-500">Active properties (latest)</div>
+            <div className="mt-2 text-2xl font-black text-white">{String(totalActive)}</div>
           </div>
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-            <div className="text-xs font-semibold text-gray-500">Invoices (all statuses)</div>
-            <div className="mt-1 text-2xl font-extrabold text-gray-900">{String(invoicesTotal)}</div>
+          <div className="rounded-[20px] border border-white/[0.08] bg-white/[0.05] px-5 py-4">
+            <div className="text-[10px] font-bold uppercase tracking-[0.24em] text-slate-500">Invoices (all statuses)</div>
+            <div className="mt-2 text-2xl font-black text-white">{String(invoicesTotal)}</div>
           </div>
         </div>
 
-        <div className="mt-4 bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+        <div className="mx-6 mt-4 sm:mx-8 rounded-[20px] border border-[#02665e]/20 bg-[#02665e]/[0.08] p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <div className="text-sm font-semibold text-gray-900">NoLSAF revenue sources</div>
-              <div className="text-xs text-gray-500">Owner commission, driver commission, and subscriptions (planned).</div>
+              <div className="text-sm font-bold text-emerald-200">NoLSAF revenue sources</div>
+              <div className="text-xs text-slate-400">Owner commission, driver commission, and subscriptions (planned).</div>
             </div>
-            {totalsLoading ? <div className="text-xs text-gray-500">Calculating…</div> : null}
+            {totalsLoading ? <div className="text-xs text-slate-500">Calculating…</div> : null}
           </div>
 
-          <div className="mt-3 grid grid-cols-1 sm:grid-cols-4 gap-3">
-            <div className="rounded-lg border border-gray-200 p-3">
-              <div className="text-[11px] font-semibold text-gray-500">Owner commission</div>
-              <div className="mt-1 text-lg font-extrabold text-brand">
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-4 gap-3">
+            <div className="rounded-[16px] border border-[#02665e]/20 bg-[#02665e]/10 p-4">
+              <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Owner commission</div>
+              <div className="mt-2 text-base font-black text-emerald-300">
                 {ownerCommissionTotal === null ? "—" : `TZS ${fmtMoneyTZS(Math.round(ownerCommissionTotal))}`}
               </div>
             </div>
-            <div className="rounded-lg border border-gray-200 p-3">
-              <div className="text-[11px] font-semibold text-gray-500">Driver commission</div>
-              <div className="mt-1 text-lg font-extrabold text-brand">
+            <div className="rounded-[16px] border border-[#02665e]/20 bg-[#02665e]/10 p-4">
+              <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Driver commission</div>
+              <div className="mt-2 text-base font-black text-emerald-300">
                 {driverCommissionTotal === null ? "—" : `TZS ${fmtMoneyTZS(Math.round(driverCommissionTotal))}`}
               </div>
             </div>
-            <div className="rounded-lg border border-gray-200 p-3">
-              <div className="text-[11px] font-semibold text-gray-500">Subscriptions</div>
-              <div className="mt-1 text-lg font-extrabold text-gray-900">Planned</div>
+            <div className="rounded-[16px] border border-white/[0.06] bg-white/[0.04] p-4">
+              <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Subscriptions</div>
+              <div className="mt-2 text-base font-black text-slate-400">Planned</div>
             </div>
-            <div className="rounded-lg border border-gray-200 p-3">
-              <div className="text-[11px] font-semibold text-gray-500">Total NoLSAF revenue</div>
-              <div className="mt-1 text-lg font-extrabold text-gray-900">
+            <div className="rounded-[16px] border border-white/[0.08] bg-white/[0.06] p-4">
+              <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Total NoLSAF revenue</div>
+              <div className="mt-2 text-base font-black text-white">
                 {totalNolsafRevenue === null ? "—" : `TZS ${fmtMoneyTZS(Math.round(totalNolsafRevenue))}`}
               </div>
             </div>
           </div>
         </div>
 
-        <div className="mt-5 bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+        <div className="mx-6 mt-4 sm:mx-8 rounded-[20px] border border-white/[0.08] bg-white/[0.03] p-5">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div>
-              <div className="text-sm font-semibold text-gray-900">Visual summary</div>
-              <div className="text-xs text-gray-500">Line + cycle + bar (organized in one row).</div>
+              <div className="text-sm font-bold text-white">Visual summary</div>
+              <div className="text-xs text-slate-400">Revenue trend · Invoice status · Breakdown by property type.</div>
             </div>
-            {loading ? <div className="text-xs text-gray-500">Loading…</div> : null}
+            {loading ? <div className="text-xs text-slate-500">Loading…</div> : null}
           </div>
 
-          <div className="mt-3 grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-              <div className="text-sm font-semibold text-gray-900 mb-2">Revenue trend</div>
+          <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="rounded-[16px] border border-white/[0.07] bg-white/[0.04] p-4">
+              <div className="text-sm font-bold text-slate-200 mb-3">Revenue trend</div>
               <Chart
                 type="line"
                 data={revenueChartData as any}
@@ -1018,8 +1026,8 @@ export default function AdminReportsPage() {
               />
             </div>
 
-            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-              <div className="text-sm font-semibold text-gray-900 mb-2">Invoices by status</div>
+            <div className="rounded-[16px] border border-white/[0.07] bg-white/[0.04] p-4">
+              <div className="text-sm font-bold text-slate-200 mb-3">Invoices by status</div>
               <Chart
                 type="doughnut"
                 data={invoiceStatusChartData as any}
@@ -1039,14 +1047,14 @@ export default function AdminReportsPage() {
               />
             </div>
 
-            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-              <div className="text-sm font-semibold text-gray-900">Revenue by property type</div>
-              <div className="mt-1 text-xs text-gray-500">Single line breakdown with color classification.</div>
+            <div className="rounded-[16px] border border-white/[0.07] bg-white/[0.04] p-4">
+              <div className="text-sm font-bold text-slate-200">Revenue by property type</div>
+              <div className="mt-1 text-xs text-slate-500">Breakdown with color classification.</div>
 
               {revenueByTypeBreakdown.items.length ? (
                 <>
                   <div
-                    className="mt-3 h-3 rounded-full overflow-hidden border border-gray-200 bg-gray-50 flex"
+                    className="mt-3 h-3 rounded-full overflow-hidden border border-white/10 bg-white/[0.06] flex"
                     aria-label="Revenue by property type breakdown"
                   >
                     {revenueByTypeBreakdown.items.map((it) => (
@@ -1062,28 +1070,28 @@ export default function AdminReportsPage() {
                     {revenueByTypeBreakdown.items.slice(0, 10).map((it) => (
                       <div key={it.label} className="flex items-center gap-2 text-xs">
                         <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: it.color }} aria-hidden />
-                        <div className="min-w-0 flex-1 font-semibold text-gray-800 truncate">{it.label}</div>
-                        <div className="text-gray-500 font-semibold whitespace-nowrap">{Math.round(it.pct)}%</div>
-                        <div className="text-gray-900 font-extrabold whitespace-nowrap">TZS {fmtMoneyTZS(Number(it.value) || 0)}</div>
+                        <div className="min-w-0 flex-1 font-semibold text-slate-300 truncate">{it.label}</div>
+                        <div className="text-slate-500 font-semibold whitespace-nowrap">{Math.round(it.pct)}%</div>
+                        <div className="text-white font-extrabold whitespace-nowrap">TZS {fmtMoneyTZS(Number(it.value) || 0)}</div>
                       </div>
                     ))}
                   </div>
                 </>
               ) : (
-                <div className="mt-3 text-sm text-gray-500">No revenue-by-type data for this range.</div>
+                <div className="mt-3 text-sm text-slate-500">No revenue-by-type data for this range.</div>
               )}
             </div>
           </div>
         </div>
 
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4">
-            <div className="text-sm font-semibold text-gray-900">Invoice Status Summary</div>
+        <div className="mx-6 mt-4 sm:mx-8 rounded-[20px] border border-white/[0.08] bg-white/[0.03] p-5">
+            <div className="text-sm font-bold text-white">Invoice Status Summary</div>
             <div className="mt-3 overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-xs text-gray-500 border-b border-gray-200">
-                    <th className="text-left font-semibold py-2 pr-2">Status</th>
-                    <th className="text-right font-semibold py-2 pl-2">Count</th>
+                  <tr className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500 border-b border-white/[0.08]">
+                    <th className="text-left py-2.5 pr-2">Status</th>
+                    <th className="text-right py-2.5 pl-2">Count</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1091,14 +1099,14 @@ export default function AdminReportsPage() {
                     Object.entries(invoiceStatusCounts)
                       .sort((a, b) => a[0].localeCompare(b[0]))
                       .map(([k, v]) => (
-                        <tr key={k} className="border-b border-gray-100 last:border-b-0">
-                          <td className="py-2 pr-2 text-gray-800">{k}</td>
-                          <td className="py-2 pl-2 text-right font-semibold text-gray-900">{String(v ?? 0)}</td>
+                        <tr key={k} className="border-b border-white/[0.06] last:border-b-0">
+                          <td className="py-2.5 pr-2 text-slate-300">{k}</td>
+                          <td className="py-2.5 pl-2 text-right font-bold text-white">{String(v ?? 0)}</td>
                         </tr>
                       ))
                   ) : (
                     <tr>
-                      <td colSpan={2} className="py-4 text-sm text-gray-500">
+                      <td colSpan={2} className="py-4 text-sm text-slate-500">
                         No invoice data for this range.
                       </td>
                     </tr>
@@ -1106,61 +1114,61 @@ export default function AdminReportsPage() {
                 </tbody>
               </table>
             </div>
-          </div>
+        </div>
 
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4">
+        <div className="mx-6 mt-4 mb-6 sm:mx-8 rounded-[20px] border border-white/[0.08] bg-white/[0.03] p-5">
             <div className="flex items-center justify-between gap-2">
-              <div className="text-sm font-semibold text-gray-900">Invoices (details)</div>
-              <div className="text-xs text-gray-500">Up to 200 loaded • prints up to 60</div>
+              <div className="text-sm font-bold text-white">Invoices (details)</div>
+              <div className="text-xs text-slate-500">Up to 200 loaded · prints up to 60</div>
             </div>
             <div className="mt-3 overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-xs text-gray-500 border-b border-gray-200">
-                    <th className="text-left font-semibold py-2 pr-2">Invoice</th>
-                    <th className="text-left font-semibold py-2 px-2">Status</th>
-                    <th className="text-left font-semibold py-2 px-2">Issued</th>
-                    <th className="text-left font-semibold py-2 px-2">Property</th>
-                    <th className="text-right font-semibold py-2 px-2">Total</th>
-                    <th className="text-right font-semibold py-2 pl-2">Net</th>
-                    <th className="text-right font-normal py-2 pl-2 text-brand">NoLSAF (TZS)</th>
-                    <th className="text-right font-semibold py-2 pl-2">NoLSAF %</th>
+                  <tr className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 border-b border-white/[0.08]">
+                    <th className="text-left py-2.5 pr-2">Invoice</th>
+                    <th className="text-left py-2.5 px-2">Status</th>
+                    <th className="text-left py-2.5 px-2">Issued</th>
+                    <th className="text-left py-2.5 px-2">Property</th>
+                    <th className="text-right py-2.5 px-2">Total</th>
+                    <th className="text-right py-2.5 pl-2">Net</th>
+                    <th className="text-right font-bold py-2.5 pl-2 text-emerald-400">NoLSAF (TZS)</th>
+                    <th className="text-right py-2.5 pl-2">NoLSAF %</th>
                   </tr>
                 </thead>
                 <tbody>
                   {invoiceItems.length ? (
                     invoiceItems.slice(0, 60).map((inv) => (
-                      <tr key={inv.id} className="border-b border-gray-100 last:border-b-0">
-                        <td className="py-2 pr-2 font-semibold text-gray-900 whitespace-nowrap">
+                      <tr key={inv.id} className="border-b border-white/[0.06] last:border-b-0">
+                        <td className="py-2.5 pr-2 font-bold text-white whitespace-nowrap">
                           {inv.invoiceNumber || `#${inv.id}`}
                         </td>
-                        <td className="py-2 px-2 text-gray-800 whitespace-nowrap">{inv.status || "—"}</td>
-                        <td className="py-2 px-2 text-gray-700 whitespace-nowrap">
+                        <td className="py-2.5 px-2 text-slate-300 whitespace-nowrap">{inv.status || "—"}</td>
+                        <td className="py-2.5 px-2 text-slate-400 whitespace-nowrap">
                           {inv.issuedAt ? fmtDateTime(inv.issuedAt) : "—"}
                         </td>
-                        <td className="py-2 px-2 text-gray-800 max-w-[320px] truncate">
+                        <td className="py-2.5 px-2 text-slate-300 max-w-[320px] truncate">
                           {inv.booking?.property?.title || "—"}
                         </td>
-                        <td className="py-2 px-2 text-right text-gray-900 whitespace-nowrap">
+                        <td className="py-2.5 px-2 text-right text-slate-200 whitespace-nowrap">
                           TZS {fmtMoneyTZS(Number(inv.total || 0))}
                         </td>
-                        <td className="py-2 pl-2 text-right font-semibold text-gray-900 whitespace-nowrap">
+                        <td className="py-2.5 pl-2 text-right font-semibold text-white whitespace-nowrap">
                           TZS {fmtMoneyTZS(Number(inv.netPayable || 0))}
                         </td>
-                        <td className="py-2 pl-2 text-right font-normal text-brand whitespace-nowrap">
+                        <td className="py-2.5 pl-2 text-right font-semibold text-emerald-300 whitespace-nowrap">
                           {(() => {
                             const amt = calcCommissionAmount(inv.total, inv.netPayable);
                             return amt === null ? "—" : `TZS ${fmtMoneyTZS(amt)}`;
                           })()}
                         </td>
-                        <td className="py-2 pl-2 text-right font-normal text-gray-900 whitespace-nowrap">
+                        <td className="py-2.5 pl-2 text-right text-slate-300 whitespace-nowrap">
                           {fmtPct(calcCommissionPct(inv.total, inv.netPayable), 1)}
                         </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={8} className="py-4 text-sm text-gray-500">
+                      <td colSpan={8} className="py-4 text-sm text-slate-500">
                         No invoice rows for this range.
                       </td>
                     </tr>
@@ -1169,6 +1177,7 @@ export default function AdminReportsPage() {
               </table>
             </div>
           </div>
+      </div>
       </div>
     </div>
   );
@@ -1227,8 +1236,8 @@ function MoreRangesPopover({
             ref={buttonRef}
             type="button"
             className={
-              "h-12 w-12 inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white text-slate-700 shadow-sm transition hover:bg-brand/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 " +
-              (open ? "ring-1 ring-gray-200" : "")
+              "h-12 w-12 inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] text-slate-300 shadow-sm transition hover:bg-white/[0.10] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30 " +
+              (open ? "ring-1 ring-white/20" : "")
             }
             title="More ranges"
             aria-label="More ranges"
@@ -1261,11 +1270,11 @@ function MoreRangesPopover({
                 >
                   <Popover.Panel
                     static
-                    className="fixed z-[10000] w-64 rounded-xl border border-gray-200 bg-white shadow-xl overflow-hidden"
+                    className="fixed z-[10000] w-64 rounded-[18px] border border-white/10 bg-[#0d1f34] shadow-xl overflow-hidden"
                     style={pos ? { top: pos.top, left: pos.left, width: pos.width } : undefined}
                   >
                     <div className="p-1">
-                      <div className="px-3 py-2 text-[11px] font-semibold text-gray-500">More ranges</div>
+                      <div className="px-3 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">More ranges</div>
                       {moreRanges.map((p) => (
                         <button
                           key={p.key}
@@ -1274,19 +1283,19 @@ function MoreRangesPopover({
                             onSelectRange(p.key);
                             close();
                           }}
-                          className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
+                          className="w-full flex items-center gap-2 rounded-[12px] px-3 py-2 text-sm text-slate-300 hover:bg-white/[0.07] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30"
                           title={p.hint}
                         >
                           <span className={"h-2.5 w-2.5 rounded-sm " + p.accent} aria-hidden />
                           <div className="min-w-0 text-left">
-                            <div className="font-semibold leading-5">{p.label}</div>
-                            <div className="text-[11px] text-gray-500 leading-4 truncate">{p.hint}</div>
+                            <div className="font-bold leading-5 text-slate-200">{p.label}</div>
+                            <div className="text-[11px] text-slate-500 leading-4 truncate">{p.hint}</div>
                           </div>
                         </button>
                       ))}
                     </div>
 
-                    <div className="px-3 py-2 border-t border-gray-100 text-[11px] text-gray-500">
+                    <div className="px-3 py-2 border-t border-white/[0.07] text-[11px] text-slate-500">
                       Max range: <span className="font-semibold">12 months</span>
                       {clampInfo.maxTo ? (
                         <span className="block">
@@ -1322,11 +1331,10 @@ function RangePill({
     <button
       type="button"
       onClick={onClick}
-      title={hint}
       aria-label={hint}
       className={
-        "group relative h-12 px-4 rounded-xl border bg-white text-sm font-semibold shadow-sm transition hover:bg-brand/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 " +
-        (active ? "border-brand/30 text-brand ring-1 ring-brand/15 bg-brand/5" : "border-gray-200 text-slate-700")
+        "relative h-12 px-4 rounded-xl border text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/40 " +
+        (active ? "border-[#02665e]/40 text-emerald-300 bg-[#02665e]/[0.18]" : "border-white/[0.12] bg-white/[0.07] text-slate-300 hover:bg-white/[0.12]")
       }
     >
       <span className="inline-flex items-center gap-2">
@@ -1334,12 +1342,6 @@ function RangePill({
         <span>{label}</span>
       </span>
 
-      <span
-        role="tooltip"
-        className="pointer-events-none absolute -top-2 left-1/2 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-lg border border-gray-200 bg-white px-2 py-1 text-[11px] font-semibold text-gray-700 shadow-lg opacity-0 scale-95 transition-all duration-150 ease-out group-hover:opacity-100 group-hover:scale-100 group-focus-visible:opacity-100 group-focus-visible:scale-100"
-      >
-        {hint}
-      </span>
     </button>
   );
 }

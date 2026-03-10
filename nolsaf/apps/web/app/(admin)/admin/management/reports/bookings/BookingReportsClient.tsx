@@ -166,8 +166,8 @@ function RangePill({
       title={hint}
       aria-label={hint}
       className={
-        "group relative h-12 px-4 rounded-xl border bg-white text-sm font-semibold shadow-sm transition hover:bg-brand/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 " +
-        (active ? "border-brand/30 text-brand ring-1 ring-brand/15 bg-brand/5" : "border-gray-200 text-slate-700")
+        "relative h-12 px-4 rounded-xl border text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30 " +
+        (active ? "border-[#02665e]/30 text-[#02665e] bg-[#02665e]/[0.07]" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 shadow-sm")
       }
     >
       <span className="inline-flex items-center gap-2">
@@ -238,8 +238,8 @@ function MoreRangesPopover({
             ref={buttonRef}
             type="button"
             className={
-              "h-12 w-12 inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white text-slate-700 shadow-sm transition hover:bg-brand/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 " +
-              (open ? "ring-1 ring-gray-200" : "")
+              "h-12 w-12 inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:bg-slate-50 hover:text-[#02665e] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30 " +
+              (open ? "ring-1 ring-[#02665e]/20 border-[#02665e]/30 text-[#02665e]" : "")
             }
             title="More ranges"
             aria-label="More ranges"
@@ -272,11 +272,11 @@ function MoreRangesPopover({
                 >
                   <Popover.Panel
                     static
-                    className="fixed z-[10000] w-64 rounded-xl border border-gray-200 bg-white shadow-xl overflow-hidden"
+                    className="fixed z-[10000] w-64 rounded-[18px] border border-slate-200 bg-white shadow-[0_16px_48px_-12px_rgba(0,0,0,0.18)] overflow-hidden"
                     style={pos ? { top: pos.top, left: pos.left, width: pos.width } : undefined}
                   >
-                    <div className="p-1">
-                      <div className="px-3 py-2 text-[11px] font-semibold text-gray-500">More ranges</div>
+                    <div className="p-1.5">
+                      <div className="px-3 py-2 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">More ranges</div>
                       {moreRanges.map((p) => (
                         <button
                           key={p.key}
@@ -285,19 +285,19 @@ function MoreRangesPopover({
                             onSelectRange(p.key);
                             close();
                           }}
-                          className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
+                          className="w-full flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/20"
                           title={p.hint}
                         >
                           <span className={"h-2.5 w-2.5 rounded-sm " + p.accent} aria-hidden />
                           <div className="min-w-0 text-left">
-                            <div className="font-semibold leading-5">{p.label}</div>
-                            <div className="text-[11px] text-gray-500 leading-4 truncate">{p.hint}</div>
+                            <div className="font-bold leading-5 text-slate-800">{p.label}</div>
+                            <div className="text-[11px] text-slate-400 leading-4 truncate">{p.hint}</div>
                           </div>
                         </button>
                       ))}
                     </div>
 
-                    <div className="px-3 py-2 border-t border-gray-100 text-[11px] text-gray-500">
+                    <div className="px-3 py-2 border-t border-slate-100 text-[11px] text-slate-400">
                       Max range: <span className="font-semibold">12 months</span>
                     </div>
                   </Popover.Panel>
@@ -1011,23 +1011,23 @@ export default function BookingReportsClient() {
   }
 
   return (
-    <div className="page-content">
+    <div className="bg-slate-50 min-h-screen">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
-        <div className="py-6 space-y-5">
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 sm:p-6">
+        <div className="py-6 sm:py-8 space-y-5">
+          <div className="bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] px-6 py-5 sm:px-8 sm:py-6">
             <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] items-start gap-3">
               <div className="hidden sm:block" aria-hidden />
 
               <div className="min-w-0 text-center">
-                <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-xs font-semibold text-emerald-700">
-                  <FileText className="h-4 w-4" aria-hidden />
+                <div className="inline-flex items-center gap-2 rounded-full bg-[#02665e]/10 border border-[#02665e]/20 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-[#02665e]">
+                  <FileText className="h-3.5 w-3.5" aria-hidden />
                   Operational Export
                 </div>
-                <h2 className="mt-2 text-xl sm:text-2xl font-bold text-gray-900 tracking-tight">Booking Reports</h2>
-                <p className="text-sm text-gray-600 mt-1">
+                <h2 className="mt-3 text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">Booking Reports</h2>
+                <p className="text-sm text-slate-500 mt-1.5 max-w-xl mx-auto">
                   Printable statistics for owner bookings (standard property bookings), group stays, and Plan With Us requests.
                 </p>
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-slate-400 mt-1">
                   Owner bookings = all property bookings that are not under Group stays and not under Plan With Us.
                 </p>
               </div>
@@ -1036,14 +1036,14 @@ export default function BookingReportsClient() {
                 <button
                   type="button"
                   onClick={printReport}
-                  className="inline-flex items-center justify-center h-10 px-3 rounded-xl border border-brand/25 bg-brand text-white shadow-sm hover:brightness-95 transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
+                  className="inline-flex items-center justify-center h-10 px-4 rounded-xl bg-[#02665e] text-white text-sm font-semibold shadow-[0_4px_16px_-4px_rgba(2,102,94,0.45)] hover:brightness-95 transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/40"
                 >
                   <Printer className="h-4 w-4 mr-2" aria-hidden />
                   Print
                 </button>
                 <Link
                   href="/admin/management/reports"
-                  className="inline-flex items-center justify-center h-10 px-3 rounded-xl border border-brand/25 bg-white text-brand shadow-sm hover:bg-brand/5 transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 no-underline"
+                  className="inline-flex items-center justify-center h-10 px-4 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-semibold hover:bg-slate-50 transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300/50 no-underline"
                 >
                   Back
                 </Link>
@@ -1060,19 +1060,19 @@ export default function BookingReportsClient() {
               </div>
             ) : null}
 
-            <div className="mt-4 flex items-end gap-3 overflow-x-auto flex-nowrap pb-1 -mb-1">
+            <div className="mt-5 flex items-end gap-3 overflow-x-auto flex-nowrap pb-1">
               <div className="shrink-0 w-[190px]">
-                <div className="text-[11px] font-semibold text-gray-500 mb-1">From</div>
+                <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500 mb-1.5">From</div>
                 <DatePickerField label="From date" value={from} max={to} onChangeAction={(nextIso) => setFrom(nextIso)} widthClassName="w-full" />
               </div>
 
               <div className="shrink-0 w-[190px]">
-                <div className="text-[11px] font-semibold text-gray-500 mb-1">To</div>
+                <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500 mb-1.5">To</div>
                 <DatePickerField label="To date" value={to} min={from} onChangeAction={(nextIso) => setTo(nextIso)} widthClassName="w-full" />
               </div>
 
               <div className="shrink-0">
-                <div className="text-[11px] font-semibold text-gray-500 mb-1">Range</div>
+                <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500 mb-1.5">Range</div>
                 <div className="flex items-center gap-2 flex-nowrap">
                   {(
                     [
@@ -1113,7 +1113,7 @@ export default function BookingReportsClient() {
                   <button
                     type="button"
                     onClick={() => void load()}
-                    className="h-12 w-12 inline-flex items-center justify-center rounded-xl border border-brand/25 bg-white text-brand shadow-sm transition hover:bg-brand/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
+                    className="h-12 w-12 inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:bg-slate-50 hover:text-[#02665e] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30"
                     title="Refresh"
                     aria-label="Refresh"
                   >
@@ -1125,32 +1125,41 @@ export default function BookingReportsClient() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-              <div className="text-xs font-semibold text-gray-500">Owner bookings</div>
-              <div className="mt-1 text-2xl font-extrabold text-gray-900">{fmtInt(kpiSingle)}</div>
+            <div className="bg-white rounded-[18px] border border-slate-200 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.07)] px-5 py-4">
+              <div className="flex items-center gap-2">
+                <span className="h-7 w-7 rounded-xl bg-[#02665e]/10 flex items-center justify-center"><FileText className="h-3.5 w-3.5 text-[#02665e]" aria-hidden /></span>
+                <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Owner bookings</div>
+              </div>
+              <div className="mt-2.5 text-3xl font-black text-slate-900 tracking-tight">{fmtInt(kpiSingle)}</div>
             </div>
-            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-              <div className="text-xs font-semibold text-gray-500">Group stays</div>
-              <div className="mt-1 text-2xl font-extrabold text-gray-900">{fmtInt(kpiGroup)}</div>
+            <div className="bg-white rounded-[18px] border border-slate-200 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.07)] px-5 py-4">
+              <div className="flex items-center gap-2">
+                <span className="h-7 w-7 rounded-xl bg-sky-50 flex items-center justify-center"><Users className="h-3.5 w-3.5 text-sky-500" aria-hidden /></span>
+                <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Group stays</div>
+              </div>
+              <div className="mt-2.5 text-3xl font-black text-slate-900 tracking-tight">{fmtInt(kpiGroup)}</div>
             </div>
-            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-              <div className="text-xs font-semibold text-gray-500">Plan With Us</div>
-              <div className="mt-1 text-2xl font-extrabold text-gray-900">{fmtInt(kpiPlan)}</div>
+            <div className="bg-white rounded-[18px] border border-slate-200 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.07)] px-5 py-4">
+              <div className="flex items-center gap-2">
+                <span className="h-7 w-7 rounded-xl bg-amber-50 flex items-center justify-center"><ClipboardList className="h-3.5 w-3.5 text-amber-500" aria-hidden /></span>
+                <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Plan With Us</div>
+              </div>
+              <div className="mt-2.5 text-3xl font-black text-slate-900 tracking-tight">{fmtInt(kpiPlan)}</div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+          <div className="bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] px-6 py-5">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <div>
-                <div className="text-sm font-semibold text-gray-900">Visual summary</div>
-                <div className="text-xs text-gray-500">Status breakdown charts for the selected range.</div>
+                <div className="text-base font-black text-slate-900 tracking-tight">Visual Summary</div>
+                <div className="text-xs text-slate-500 mt-0.5">Status breakdown charts for the selected range.</div>
               </div>
-              {loading ? <div className="text-xs text-gray-500">Loading…</div> : null}
+              {loading ? <div className="text-xs text-slate-400 font-medium">Loading…</div> : null}
             </div>
 
-            <div className="mt-3 grid grid-cols-1 lg:grid-cols-3 gap-4">
-              <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-                <div className="text-sm font-semibold text-gray-900 mb-2">Owner bookings by status</div>
+            <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="rounded-[16px] border border-slate-100 bg-slate-50/60 p-4">
+                <div className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500 mb-3">Owner bookings by status</div>
                 <Chart
                   type="pie"
                   data={ownerStatusChartData as any}
@@ -1171,8 +1180,8 @@ export default function BookingReportsClient() {
                 />
               </div>
 
-              <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-                <div className="text-sm font-semibold text-gray-900 mb-2">Group stays KPIs</div>
+              <div className="rounded-[16px] border border-slate-100 bg-slate-50/60 p-4">
+                <div className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500 mb-3">Group stays status</div>
                 <div className="grid grid-cols-1 gap-2">
                   {groupStayBars.map((row) => (
                     <PercentBarRow key={row.key} label={row.label} pct={row.pct} colorClassName={row.color} />
@@ -1180,8 +1189,8 @@ export default function BookingReportsClient() {
                 </div>
               </div>
 
-              <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-                <div className="text-sm font-semibold text-gray-900 mb-2">Plan With Us by status</div>
+              <div className="rounded-[16px] border border-slate-100 bg-slate-50/60 p-4">
+                <div className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500 mb-3">Plan With Us by status</div>
                 <Chart
                   type="doughnut"
                   data={planStatusChartData as any}
@@ -1206,130 +1215,91 @@ export default function BookingReportsClient() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-              <div className="flex items-center gap-2">
-                <FileText className="h-4 w-4 text-brand" aria-hidden />
-                <div className="text-sm font-semibold text-gray-900">Owner bookings</div>
+            <div className="bg-white rounded-[18px] border border-slate-200 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.07)] px-5 py-4">
+              <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
+                <span className="h-7 w-7 rounded-xl bg-[#02665e]/10 flex items-center justify-center"><FileText className="h-3.5 w-3.5 text-[#02665e]" aria-hidden /></span>
+                <div className="text-sm font-black text-slate-900">Owner bookings</div>
               </div>
-              <div className="mt-3 overflow-x-auto">
-                <table className="min-w-full text-sm">
-                  <tbody className="divide-y divide-gray-200">
-                    <tr>
-                      <td className="py-2 text-gray-600">Total</td>
-                      <td className="py-2 text-right font-extrabold text-gray-900">{fmtInt(kpiSingle)}</td>
-                    </tr>
-                    <tr>
-                      <td className="py-2 text-gray-600">New</td>
-                      <td className="py-2 text-right font-semibold text-gray-900">{totals.single.byStatus["NEW"] ?? "—"}</td>
-                    </tr>
-                    <tr>
-                      <td className="py-2 text-gray-600">Validated</td>
-                      <td className="py-2 text-right font-semibold text-gray-900">{totals.single.byStatus["CONFIRMED"] ?? "—"}</td>
-                    </tr>
-                    <tr>
-                      <td className="py-2 text-gray-600">Check-in</td>
-                      <td className="py-2 text-right font-semibold text-gray-900">{String(Math.round(singleCheckedIn || 0))}</td>
-                    </tr>
-                    <tr>
-                      <td className="py-2 text-gray-600">Check-out</td>
-                      <td className="py-2 text-right font-semibold text-gray-900">{totals.single.byStatus["CHECKED_OUT"] ?? "—"}</td>
-                    </tr>
-                    <tr>
-                      <td className="py-2 text-gray-600">Canceled</td>
-                      <td className="py-2 text-right font-semibold text-gray-900">{totals.single.byStatus["CANCELED"] ?? "—"}</td>
-                    </tr>
-                  </tbody>
-                </table>
+              <div className="mt-3 space-y-1.5">
+                {[
+                  { label: "Total", value: fmtInt(kpiSingle), bold: true },
+                  { label: "New", value: totals.single.byStatus["NEW"] ?? "—" },
+                  { label: "Validated", value: totals.single.byStatus["CONFIRMED"] ?? "—" },
+                  { label: "Check-in", value: String(Math.round(singleCheckedIn || 0)) },
+                  { label: "Check-out", value: totals.single.byStatus["CHECKED_OUT"] ?? "—" },
+                  { label: "Canceled", value: totals.single.byStatus["CANCELED"] ?? "—" },
+                ].map((row) => (
+                  <div key={row.label} className="flex items-center justify-between py-1">
+                    <span className="text-xs text-slate-500">{row.label}</span>
+                    <span className={"text-sm " + (row.bold ? "font-black text-[#02665e]" : "font-semibold text-slate-800")}>{String(row.value)}</span>
+                  </div>
+                ))}
               </div>
             </div>
 
-            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-              <div className="flex items-center gap-2">
-                <Users className="h-4 w-4 text-brand" aria-hidden />
-                <div className="text-sm font-semibold text-gray-900">Group stays</div>
+            <div className="bg-white rounded-[18px] border border-slate-200 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.07)] px-5 py-4">
+              <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
+                <span className="h-7 w-7 rounded-xl bg-sky-50 flex items-center justify-center"><Users className="h-3.5 w-3.5 text-sky-500" aria-hidden /></span>
+                <div className="text-sm font-black text-slate-900">Group stays</div>
               </div>
-              <div className="mt-3 overflow-x-auto">
-                <table className="min-w-full text-sm">
-                  <tbody className="divide-y divide-gray-200">
-                    <tr>
-                      <td className="py-2 text-gray-600">Total</td>
-                      <td className="py-2 text-right font-extrabold text-gray-900">{fmtInt(kpiGroup)}</td>
-                    </tr>
-                    <tr>
-                      <td className="py-2 text-gray-600">Pending</td>
-                      <td className="py-2 text-right font-semibold text-gray-900">{totals.groupStays.byStatus["PENDING"] ?? "—"}</td>
-                    </tr>
-                    <tr>
-                      <td className="py-2 text-gray-600">Processing</td>
-                      <td className="py-2 text-right font-semibold text-gray-900">{totals.groupStays.byStatus["PROCESSING"] ?? "—"}</td>
-                    </tr>
-                    <tr>
-                      <td className="py-2 text-gray-600">Confirmed</td>
-                      <td className="py-2 text-right font-semibold text-gray-900">{totals.groupStays.byStatus["CONFIRMED"] ?? "—"}</td>
-                    </tr>
-                    <tr>
-                      <td className="py-2 text-gray-600">Completed</td>
-                      <td className="py-2 text-right font-semibold text-gray-900">{totals.groupStays.byStatus["COMPLETED"] ?? "—"}</td>
-                    </tr>
-                    <tr>
-                      <td className="py-2 text-gray-600">Canceled</td>
-                      <td className="py-2 text-right font-semibold text-gray-900">{totals.groupStays.byStatus["CANCELED"] ?? "—"}</td>
-                    </tr>
-                  </tbody>
-                </table>
+              <div className="mt-3 space-y-1.5">
+                {[
+                  { label: "Total", value: fmtInt(kpiGroup), bold: true },
+                  { label: "Pending", value: totals.groupStays.byStatus["PENDING"] ?? "—" },
+                  { label: "Processing", value: totals.groupStays.byStatus["PROCESSING"] ?? "—" },
+                  { label: "Confirmed", value: totals.groupStays.byStatus["CONFIRMED"] ?? "—" },
+                  { label: "Completed", value: totals.groupStays.byStatus["COMPLETED"] ?? "—" },
+                  { label: "Canceled", value: totals.groupStays.byStatus["CANCELED"] ?? "—" },
+                ].map((row) => (
+                  <div key={row.label} className="flex items-center justify-between py-1">
+                    <span className="text-xs text-slate-500">{row.label}</span>
+                    <span className={"text-sm " + (row.bold ? "font-black text-sky-600" : "font-semibold text-slate-800")}>{String(row.value)}</span>
+                  </div>
+                ))}
               </div>
             </div>
 
-            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-              <div className="flex items-center gap-2">
-                <ClipboardList className="h-4 w-4 text-brand" aria-hidden />
-                <div className="text-sm font-semibold text-gray-900">Plan With Us</div>
+            <div className="bg-white rounded-[18px] border border-slate-200 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.07)] px-5 py-4">
+              <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
+                <span className="h-7 w-7 rounded-xl bg-amber-50 flex items-center justify-center"><ClipboardList className="h-3.5 w-3.5 text-amber-500" aria-hidden /></span>
+                <div className="text-sm font-black text-slate-900">Plan With Us</div>
               </div>
-              <div className="mt-3 overflow-x-auto">
-                <table className="min-w-full text-sm">
-                  <tbody className="divide-y divide-gray-200">
-                    <tr>
-                      <td className="py-2 text-gray-600">Total</td>
-                      <td className="py-2 text-right font-extrabold text-gray-900">{fmtInt(kpiPlan)}</td>
-                    </tr>
-                    <tr>
-                      <td className="py-2 text-gray-600">New</td>
-                      <td className="py-2 text-right font-semibold text-gray-900">{totals.planWithUs.byStatus["NEW"] ?? "—"}</td>
-                    </tr>
-                    <tr>
-                      <td className="py-2 text-gray-600">In progress</td>
-                      <td className="py-2 text-right font-semibold text-gray-900">{totals.planWithUs.byStatus["IN_PROGRESS"] ?? "—"}</td>
-                    </tr>
-                    <tr>
-                      <td className="py-2 text-gray-600">Completed</td>
-                      <td className="py-2 text-right font-semibold text-gray-900">{totals.planWithUs.byStatus["COMPLETED"] ?? "—"}</td>
-                    </tr>
-                  </tbody>
-                </table>
+              <div className="mt-3 space-y-1.5">
+                {[
+                  { label: "Total", value: fmtInt(kpiPlan), bold: true },
+                  { label: "New", value: totals.planWithUs.byStatus["NEW"] ?? "—" },
+                  { label: "In progress", value: totals.planWithUs.byStatus["IN_PROGRESS"] ?? "—" },
+                  { label: "Completed", value: totals.planWithUs.byStatus["COMPLETED"] ?? "—" },
+                ].map((row) => (
+                  <div key={row.label} className="flex items-center justify-between py-1">
+                    <span className="text-xs text-slate-500">{row.label}</span>
+                    <span className={"text-sm " + (row.bold ? "font-black text-amber-600" : "font-semibold text-slate-800")}>{String(row.value)}</span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-            <div className="text-sm font-semibold text-gray-900 pb-2 border-b border-gray-200">Owner bookings (details)</div>
+          <div className="bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] px-6 py-5">
+            <div className="text-base font-black text-slate-900 tracking-tight pb-3 border-b border-slate-100">Owner bookings (details)</div>
             <div className="mt-3 overflow-x-auto">
               <table className="min-w-full text-sm">
-                <thead className="text-xs text-gray-500">
-                  <tr className="border-b border-gray-200">
-                    <th className="py-2 pr-4 text-left font-semibold">Name</th>
-                    <th className="py-2 pr-4 text-left font-semibold">Gender</th>
-                    <th className="py-2 pr-4 text-left font-semibold">Nationality</th>
-                    <th className="py-2 pr-4 text-left font-semibold">Amount</th>
-                    <th className="py-2 pr-4 text-left font-semibold">Paid at</th>
-                    <th className="py-2 pr-4 text-left font-semibold">Property Name</th>
-                    <th className="py-2 pr-4 text-left font-semibold">Check-in & out</th>
-                    <th className="py-2 pr-0 text-left font-semibold">Rating</th>
+                <thead>
+                  <tr className="border-b border-slate-100 bg-slate-50/70">
+                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Name</th>
+                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Gender</th>
+                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Nationality</th>
+                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Amount</th>
+                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Paid at</th>
+                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Property Name</th>
+                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Check-in &amp; out</th>
+                    <th className="py-2.5 pr-0 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Rating</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-slate-100">
                   {ownerItems.length === 0 ? (
                     <tr>
-                      <td className="py-3 text-gray-500" colSpan={8}>
+                      <td className="py-4 text-slate-400 text-sm" colSpan={8}>
                         No records in this range.
                       </td>
                     </tr>
@@ -1347,14 +1317,14 @@ export default function BookingReportsClient() {
                       const rating = b.review?.rating;
                       return (
                         <tr key={`ob-${b.id}`}>
-                          <td className="py-2 pr-4 text-gray-900 whitespace-nowrap">{name}</td>
-                          <td className="py-2 pr-4 text-gray-700 whitespace-nowrap">{gender}</td>
-                          <td className="py-2 pr-4 text-gray-700 whitespace-nowrap">{nationality}</td>
-                          <td className="py-2 pr-4 text-gray-900 whitespace-nowrap">{amount}</td>
-                          <td className="py-2 pr-4 text-gray-700 whitespace-nowrap">{paidAt}</td>
-                          <td className="py-2 pr-4 text-gray-900">{property}</td>
-                          <td className="py-2 pr-4 text-gray-700 whitespace-nowrap">{stay}</td>
-                          <td className="py-2 pr-0 text-gray-700 whitespace-nowrap">{rating ?? "—"}</td>
+                          <td className="py-2 pr-4 text-slate-900 font-semibold whitespace-nowrap">{name}</td>
+                          <td className="py-2 pr-4 text-slate-500 whitespace-nowrap">{gender}</td>
+                          <td className="py-2 pr-4 text-slate-500 whitespace-nowrap">{nationality}</td>
+                          <td className="py-2 pr-4 text-slate-900 font-semibold whitespace-nowrap">{amount}</td>
+                          <td className="py-2 pr-4 text-slate-500 whitespace-nowrap">{paidAt}</td>
+                          <td className="py-2 pr-4 text-slate-700">{property}</td>
+                          <td className="py-2 pr-4 text-slate-500 whitespace-nowrap">{stay}</td>
+                          <td className="py-2 pr-0 text-slate-500 whitespace-nowrap">{rating ?? "—"}</td>
                         </tr>
                       );
                     })
@@ -1364,32 +1334,32 @@ export default function BookingReportsClient() {
             </div>
           </div>
 
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-            <div className="text-sm font-semibold text-gray-900 pb-2 border-b border-gray-200">Group stays (details)</div>
+          <div className="bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] px-6 py-5">
+            <div className="text-base font-black text-slate-900 tracking-tight pb-3 border-b border-slate-100">Group stays (details)</div>
             <div className="mt-3 overflow-x-auto">
               <table className="min-w-full text-sm">
-                <thead className="text-xs text-gray-500">
-                  <tr className="border-b border-gray-200">
-                    <th className="py-2 pr-4 text-left font-semibold">Name</th>
-                    <th className="py-2 pr-4 text-left font-semibold">Phone</th>
-                    <th className="py-2 pr-4 text-left font-semibold">Gender</th>
-                    <th className="py-2 pr-4 text-left font-semibold">Nationality</th>
-                    <th className="py-2 pr-4 text-left font-semibold">Status</th>
-                    <th className="py-2 pr-4 text-left font-semibold">Accepted Amount</th>
-                    <th className="py-2 pr-4 text-left font-semibold">Confirmed Amount</th>
-                    <th className="py-2 pr-4 text-left font-semibold">Currency</th>
-                    <th className="py-2 pr-4 text-left font-semibold">Accepted Property</th>
-                    <th className="py-2 pr-4 text-left font-semibold">Confirmed Property</th>
-                    <th className="py-2 pr-4 text-left font-semibold">Check-in & out</th>
-                    <th className="py-2 pr-4 text-left font-semibold">Created</th>
-                    <th className="py-2 pr-4 text-left font-semibold">Accepted</th>
-                    <th className="py-2 pr-0 text-left font-semibold">Confirmed</th>
+                <thead>
+                  <tr className="border-b border-slate-100 bg-slate-50/70">
+                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Name</th>
+                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Phone</th>
+                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Gender</th>
+                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Nationality</th>
+                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Status</th>
+                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Accepted Amount</th>
+                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Confirmed Amount</th>
+                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Currency</th>
+                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Accepted Property</th>
+                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Confirmed Property</th>
+                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Check-in &amp; out</th>
+                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Created</th>
+                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Accepted</th>
+                    <th className="py-2.5 pr-0 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Confirmed</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-slate-100">
                   {groupItems.length === 0 ? (
                     <tr>
-                      <td className="py-3 text-gray-500" colSpan={14}>
+                      <td className="py-4 text-slate-400 text-sm" colSpan={14}>
                         No records in this range.
                       </td>
                     </tr>
@@ -1411,20 +1381,20 @@ export default function BookingReportsClient() {
                       const confirmed = b.confirmedAt ? fmtDateTime(b.confirmedAt) : "—";
                       return (
                         <tr key={`gb-${b.id}`}>
-                          <td className="py-2 pr-4 text-gray-900 whitespace-nowrap">{name}</td>
-                          <td className="py-2 pr-4 text-gray-900 whitespace-nowrap">{phone}</td>
-                          <td className="py-2 pr-4 text-gray-700 whitespace-nowrap">{gender}</td>
-                          <td className="py-2 pr-4 text-gray-700 whitespace-nowrap">{nationality}</td>
-                          <td className="py-2 pr-4 text-gray-700 whitespace-nowrap">{status}</td>
-                          <td className="py-2 pr-4 text-gray-900 whitespace-nowrap">{acceptedAmount}</td>
-                          <td className="py-2 pr-4 text-gray-900 whitespace-nowrap">{confirmedAmount}</td>
-                          <td className="py-2 pr-4 text-gray-700 whitespace-nowrap">{currency}</td>
-                          <td className="py-2 pr-4 text-gray-900">{acceptedProperty}</td>
-                          <td className="py-2 pr-4 text-gray-900">{confirmedProperty}</td>
-                          <td className="py-2 pr-4 text-gray-700 whitespace-nowrap">{stay}</td>
-                          <td className="py-2 pr-4 text-gray-700 whitespace-nowrap">{created}</td>
-                          <td className="py-2 pr-4 text-gray-700 whitespace-nowrap">{accepted}</td>
-                          <td className="py-2 pr-0 text-gray-700 whitespace-nowrap">{confirmed}</td>
+                          <td className="py-2 pr-4 text-slate-900 font-semibold whitespace-nowrap">{name}</td>
+                          <td className="py-2 pr-4 text-slate-700 whitespace-nowrap">{phone}</td>
+                          <td className="py-2 pr-4 text-slate-500 whitespace-nowrap">{gender}</td>
+                          <td className="py-2 pr-4 text-slate-500 whitespace-nowrap">{nationality}</td>
+                          <td className="py-2 pr-4 text-slate-500 whitespace-nowrap">{status}</td>
+                          <td className="py-2 pr-4 text-slate-900 font-semibold whitespace-nowrap">{acceptedAmount}</td>
+                          <td className="py-2 pr-4 text-slate-900 font-semibold whitespace-nowrap">{confirmedAmount}</td>
+                          <td className="py-2 pr-4 text-slate-500 whitespace-nowrap">{currency}</td>
+                          <td className="py-2 pr-4 text-slate-700">{acceptedProperty}</td>
+                          <td className="py-2 pr-4 text-slate-700">{confirmedProperty}</td>
+                          <td className="py-2 pr-4 text-slate-500 whitespace-nowrap">{stay}</td>
+                          <td className="py-2 pr-4 text-slate-500 whitespace-nowrap">{created}</td>
+                          <td className="py-2 pr-4 text-slate-500 whitespace-nowrap">{accepted}</td>
+                          <td className="py-2 pr-0 text-slate-500 whitespace-nowrap">{confirmed}</td>
                         </tr>
                       );
                     })
@@ -1434,31 +1404,31 @@ export default function BookingReportsClient() {
             </div>
           </div>
 
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-            <div className="text-sm font-semibold text-gray-900 pb-2 border-b border-gray-200">Plan With Us (details)</div>
+          <div className="bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] px-6 py-5">
+            <div className="text-base font-black text-slate-900 tracking-tight pb-3 border-b border-slate-100">Plan With Us (details)</div>
             <div className="mt-3 overflow-x-auto">
               <table className="min-w-full text-sm">
-                <thead className="text-xs text-gray-500">
-                  <tr className="border-b border-gray-200">
-                    <th className="py-2 pr-4 text-left font-semibold">Name</th>
-                    <th className="py-2 pr-4 text-left font-semibold">Phone</th>
-                    <th className="py-2 pr-4 text-left font-semibold">Role</th>
-                    <th className="py-2 pr-4 text-left font-semibold">Trip Type</th>
-                    <th className="py-2 pr-4 text-left font-semibold">Destinations</th>
-                    <th className="py-2 pr-4 text-left font-semibold">Travel dates</th>
-                    <th className="py-2 pr-4 text-left font-semibold">Group size</th>
-                    <th className="py-2 pr-4 text-left font-semibold">Budget</th>
-                    <th className="py-2 pr-4 text-left font-semibold">Transport</th>
-                    <th className="py-2 pr-4 text-left font-semibold">Status</th>
-                    <th className="py-2 pr-4 text-left font-semibold">Created</th>
-                    <th className="py-2 pr-4 text-left font-semibold">Responded</th>
-                    <th className="py-2 pr-0 text-left font-semibold">Assigned agent</th>
+                <thead>
+                  <tr className="border-b border-slate-100 bg-slate-50/70">
+                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Name</th>
+                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Phone</th>
+                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Role</th>
+                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Trip Type</th>
+                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Destinations</th>
+                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Travel dates</th>
+                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Group size</th>
+                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Budget</th>
+                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Transport</th>
+                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Status</th>
+                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Created</th>
+                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Responded</th>
+                    <th className="py-2.5 pr-0 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Assigned agent</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-slate-100">
                   {planItems.length === 0 ? (
                     <tr>
-                      <td className="py-3 text-gray-500" colSpan={13}>
+                      <td className="py-4 text-slate-400 text-sm" colSpan={13}>
                         No records in this range.
                       </td>
                     </tr>
@@ -1479,19 +1449,19 @@ export default function BookingReportsClient() {
                       const assigned = b.assignedAgent || (b.assignedAgentId ? `#${b.assignedAgentId}` : "—");
                       return (
                         <tr key={`pw-${b.id}`}>
-                          <td className="py-2 pr-4 text-gray-900 whitespace-nowrap">{name}</td>
-                          <td className="py-2 pr-4 text-gray-900 whitespace-nowrap">{phone}</td>
-                          <td className="py-2 pr-4 text-gray-700 whitespace-nowrap">{role}</td>
-                          <td className="py-2 pr-4 text-gray-700 whitespace-nowrap">{tripType}</td>
-                          <td className="py-2 pr-4 text-gray-900">{destinations}</td>
-                          <td className="py-2 pr-4 text-gray-700 whitespace-nowrap">{travelDates}</td>
-                          <td className="py-2 pr-4 text-gray-700 whitespace-nowrap">{groupSize}</td>
-                          <td className="py-2 pr-4 text-gray-900 whitespace-nowrap">{budget}</td>
-                          <td className="py-2 pr-4 text-gray-700 whitespace-nowrap">{transport}</td>
-                          <td className="py-2 pr-4 text-gray-700 whitespace-nowrap">{status}</td>
-                          <td className="py-2 pr-4 text-gray-700 whitespace-nowrap">{created}</td>
-                          <td className="py-2 pr-4 text-gray-700 whitespace-nowrap">{responded}</td>
-                          <td className="py-2 pr-0 text-gray-700 whitespace-nowrap">{assigned}</td>
+                          <td className="py-2 pr-4 text-slate-900 font-semibold whitespace-nowrap">{name}</td>
+                          <td className="py-2 pr-4 text-slate-700 whitespace-nowrap">{phone}</td>
+                          <td className="py-2 pr-4 text-slate-500 whitespace-nowrap">{role}</td>
+                          <td className="py-2 pr-4 text-slate-500 whitespace-nowrap">{tripType}</td>
+                          <td className="py-2 pr-4 text-slate-700">{destinations}</td>
+                          <td className="py-2 pr-4 text-slate-500 whitespace-nowrap">{travelDates}</td>
+                          <td className="py-2 pr-4 text-slate-500 whitespace-nowrap">{groupSize}</td>
+                          <td className="py-2 pr-4 text-slate-900 font-semibold whitespace-nowrap">{budget}</td>
+                          <td className="py-2 pr-4 text-slate-500 whitespace-nowrap">{transport}</td>
+                          <td className="py-2 pr-4 text-slate-500 whitespace-nowrap">{status}</td>
+                          <td className="py-2 pr-4 text-slate-500 whitespace-nowrap">{created}</td>
+                          <td className="py-2 pr-4 text-slate-500 whitespace-nowrap">{responded}</td>
+                          <td className="py-2 pr-0 text-slate-700 whitespace-nowrap">{assigned}</td>
                         </tr>
                       );
                     })
@@ -1501,7 +1471,7 @@ export default function BookingReportsClient() {
             </div>
           </div>
 
-          {loading ? <div className="text-xs text-gray-500">Loading…</div> : null}
+          {loading ? <div className="text-xs text-slate-400 font-medium text-center py-2">Loading…</div> : null}
         </div>
       </div>
     </div>

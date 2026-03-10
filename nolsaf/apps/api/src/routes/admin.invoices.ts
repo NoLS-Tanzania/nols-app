@@ -4,6 +4,13 @@ import { Prisma } from "@prisma/client";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { invalidateOwnerReports } from "../lib/cache.js";
 import { makeQR } from "../lib/qr.js";
+import {
+  getEffectiveCommissionPercent,
+  isOwnerSubmittedInvoice,
+  normalizeCommissionPercent,
+  resolveCommissionAmount,
+  resolveOwnerPayoutAmount,
+} from "../lib/accommodationPayout.js";
 import type { AuthedRequest } from "../middleware/auth.js";
 
 export const router = Router();
@@ -256,20 +263,51 @@ router.post("/:id/pay", async (req, res) => {
   const me = (req as AuthedRequest).user?.id;
   const before = await prisma.invoice.findUnique({ where: { id }, select: { status: true, ownerId: true, invoiceNumber: true, total: true } });
 
-  const updated = await prisma.$transaction(async (tx: { invoice: { findUnique: (arg0: { where: { id: number; }; }) => any; update: (arg0: { where: { id: number; }; data: { status: string; paidAt: Date; commissionPercent: any; commissionAmount: any; netPayable: any; receiptNumber: any; paymentRef: any; }; }) => any; }; }) => {
-  const inv = await tx.invoice.findUnique({ where: { id } });
+  const updated = await prisma.$transaction(async (tx: { invoice: { findUnique: (arg0: { where: { id: number; }; include?: any; }) => any; update: (arg0: { where: { id: number; }; data: { status: string; paidAt: Date; commissionPercent: any; commissionAmount: any; netPayable: any; receiptNumber: any; paymentRef: any; }; }) => any; }; }) => {
+  const inv = await tx.invoice.findUnique({
+    where: { id },
+    include: {
+      booking: {
+        select: {
+          totalAmount: true,
+          transportFare: true,
+          property: { select: { services: true } },
+        },
+      },
+    },
+  });
   if (!inv) return null;
-    const percent = commissionPercent != null ? Number(commissionPercent) : Number(inv.commissionPercent ?? 0);
-    const commissionAmount = ((Number(inv.total) * percent) / 100);
-    const netPayable = Number(inv.total) - commissionAmount;
+    const effectivePercent = commissionPercent != null
+      ? normalizeCommissionPercent(commissionPercent)
+      : (inv.commissionPercent != null
+        ? normalizeCommissionPercent(inv.commissionPercent)
+        : await getEffectiveCommissionPercent((inv as any)?.booking?.property?.services));
+    const ownerInvoice = isOwnerSubmittedInvoice(inv.invoiceNumber);
+    const netPayable = resolveOwnerPayoutAmount({
+      invoiceNumber: inv.invoiceNumber,
+      invoiceTotal: inv.total,
+      netPayable: inv.netPayable,
+      bookingTotalAmount: (inv as any)?.booking?.totalAmount,
+      transportFare: (inv as any)?.booking?.transportFare,
+      commissionPercent: effectivePercent,
+    });
+    const nextCommissionAmount = resolveCommissionAmount({
+      invoiceNumber: inv.invoiceNumber,
+      invoiceTotal: inv.total,
+      commissionAmount: inv.commissionAmount,
+      netPayable,
+      bookingTotalAmount: (inv as any)?.booking?.totalAmount,
+      transportFare: (inv as any)?.booking?.transportFare,
+      commissionPercent: effectivePercent,
+    });
 
     const paid = await tx.invoice.update({
       where: { id },
       data: {
         status: "PAID",
         paidAt: new Date(),
-        commissionPercent: percent as any,
-        commissionAmount: commissionAmount as any,
+        commissionPercent: ownerInvoice ? null : (effectivePercent > 0 ? effectivePercent as any : null),
+        commissionAmount: ownerInvoice ? null : (nextCommissionAmount != null ? nextCommissionAmount as any : null),
         netPayable: netPayable as any,
         receiptNumber: inv.receiptNumber ?? receiptNumberFor(id),
         paymentRef: paymentRef ?? inv.paymentRef ?? undefined,
@@ -297,7 +335,7 @@ router.post("/:id/pay", async (req, res) => {
             paymentMethod: paid.paymentMethod ?? null,
             paymentRef: paid.paymentRef ?? null,
             gross: inv.total as any,
-            commissionAmount: commissionAmount as any,
+            commissionAmount: (ownerInvoice ? null : nextCommissionAmount) as any,
             netPaid: netPayable as any,
             ownerId: inv.ownerId ?? null,
             driverId: booking?.driverId ?? null,

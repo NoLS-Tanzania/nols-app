@@ -4,8 +4,14 @@ import { prisma } from "@nolsaf/prisma";
 import { AuthedRequest, requireAuth, requireRole } from "../middleware/auth.js";
 import QRCode from "qrcode";
 import { Prisma } from "@prisma/client";
+import { getEffectiveCommissionPercent, resolveOwnerPayoutAmount } from "../lib/accommodationPayout.js";
 export const router = Router();
 router.use(requireAuth as RequestHandler, requireRole("OWNER") as RequestHandler);
+
+function extractPropertyCommissionPercent(propertyServices: unknown, fallbackPercent: number): number {
+  const value = Number((propertyServices as any)?.commissionPercent);
+  return Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : fallbackPercent;
+}
 
 router.get("/invoices", (async (req: AuthedRequest, res) => {
   try {
@@ -35,6 +41,7 @@ router.get("/invoices", (async (req: AuthedRequest, res) => {
     if (beforeId) where.id = { lt: beforeId };
 
     // Keep payload lean: do not fetch blobs/notes/QR data for list views.
+    const defaultCommissionPercent = await getEffectiveCommissionPercent(null);
     const rows = await prisma.invoice.findMany({
       where,
       orderBy: { id: "desc" },
@@ -52,10 +59,13 @@ router.get("/invoices", (async (req: AuthedRequest, res) => {
         booking: {
           select: {
             id: true,
+            totalAmount: true,
+            transportFare: true,
             property: {
               select: {
                 id: true,
                 title: true,
+                services: true,
               },
             },
           },
@@ -70,7 +80,15 @@ router.get("/invoices", (async (req: AuthedRequest, res) => {
     // Owners should not see platform commission/service fee amounts.
     // Always expose only the owner payout amount.
     const masked = items.map((inv: any) => {
-      const payout = Number(inv.netPayable ?? inv.total ?? 0);
+      const commissionPercent = extractPropertyCommissionPercent(inv?.booking?.property?.services, defaultCommissionPercent);
+      const payout = resolveOwnerPayoutAmount({
+        invoiceNumber: inv.invoiceNumber,
+        invoiceTotal: inv.total,
+        netPayable: inv.netPayable,
+        bookingTotalAmount: inv?.booking?.totalAmount,
+        transportFare: inv?.booking?.transportFare,
+        commissionPercent,
+      });
       return {
         ...inv,
         total: payout,
@@ -96,52 +114,60 @@ router.get("/stats", (async (req: AuthedRequest, res) => {
     const date_from = req.query.date_from ? new Date(String(req.query.date_from)) : undefined;
     const date_to = req.query.date_to ? new Date(String(req.query.date_to)) : undefined;
 
-    const statusParts = status
-      ? String(status)
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean)
-      : [];
+    const defaultCommissionPercent = await getEffectiveCommissionPercent(null);
+    const where: any = { ownerId };
+    if (status) {
+      const parts = String(status)
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      where.status = parts.length > 1 ? { in: parts } : (parts[0] as any);
+    }
+    if (date_from || date_to) {
+      where.issuedAt = {};
+      if (date_from) where.issuedAt.gte = date_from;
+      if (date_to) where.issuedAt.lte = date_to;
+    }
+    if (propertyId) where.booking = { propertyId };
 
-    const joinBooking = propertyId
-      ? Prisma.sql` JOIN \`booking\` b ON b.id = i.bookingId `
-      : Prisma.empty;
+    const items = await prisma.invoice.findMany({
+      where,
+      select: {
+        id: true,
+        status: true,
+        invoiceNumber: true,
+        total: true,
+        netPayable: true,
+        booking: {
+          select: {
+            totalAmount: true,
+            transportFare: true,
+            property: { select: { services: true } },
+          },
+        },
+      },
+    });
 
-    const clauses: Prisma.Sql[] = [Prisma.sql`i.ownerId = ${ownerId}`];
+    const payouts = items.map((inv: any) => {
+      const commissionPercent = extractPropertyCommissionPercent(inv?.booking?.property?.services, defaultCommissionPercent);
+      return resolveOwnerPayoutAmount({
+        invoiceNumber: inv.invoiceNumber,
+        invoiceTotal: inv.total,
+        netPayable: inv.netPayable,
+        bookingTotalAmount: inv?.booking?.totalAmount,
+        transportFare: inv?.booking?.transportFare,
+        commissionPercent,
+      });
+    });
 
-    if (propertyId) clauses.push(Prisma.sql`b.propertyId = ${propertyId}`);
-    if (date_from) clauses.push(Prisma.sql`i.issuedAt >= ${date_from.toISOString()}`);
-    if (date_to) clauses.push(Prisma.sql`i.issuedAt <= ${date_to.toISOString()}`);
-
-    if (statusParts.length === 1) clauses.push(Prisma.sql`i.status = ${statusParts[0]!}`);
-    if (statusParts.length > 1) clauses.push(Prisma.sql`i.status IN (${Prisma.join(statusParts)})`);
-
-    const whereSql = Prisma.join(clauses, " AND ");
-
-    const totalRows: any[] = await prisma.$queryRaw`
-      SELECT
-        COUNT(*) AS cnt,
-        COALESCE(SUM(CASE WHEN i.netPayable IS NULL THEN i.total ELSE i.netPayable END), 0) AS payout
-      FROM invoice i
-      ${joinBooking}
-      WHERE ${whereSql}
-    `;
-
-    const paidRows: any[] = await prisma.$queryRaw`
-      SELECT
-        COUNT(*) AS cnt,
-        COALESCE(SUM(CASE WHEN i.netPayable IS NULL THEN i.total ELSE i.netPayable END), 0) AS payout
-      FROM invoice i
-      ${joinBooking}
-      WHERE ${whereSql} AND i.status = 'PAID'
-    `;
-
-    const totalInvoices = Number(totalRows?.[0]?.cnt ?? 0);
-    const paidInvoices = Number(paidRows?.[0]?.cnt ?? 0);
+    const totalInvoices = items.length;
+    const paidInvoices = items.filter((inv) => String(inv.status).toUpperCase() === "PAID").length;
     const pendingInvoices = Math.max(0, totalInvoices - paidInvoices);
 
-    const totalRevenue = Number(totalRows?.[0]?.payout ?? 0);
-    const paidRevenue = Number(paidRows?.[0]?.payout ?? 0);
+    const totalRevenue = payouts.reduce((sum, payout) => sum + payout, 0);
+    const paidRevenue = items.reduce((sum, inv: any, index) => {
+      return String(inv.status).toUpperCase() === "PAID" ? sum + payouts[index]! : sum;
+    }, 0);
     const pendingRevenue = Math.max(0, totalRevenue - paidRevenue);
 
     res.json({
@@ -186,7 +212,7 @@ router.get("/invoices.csv", (async (req: AuthedRequest, res) => {
     include: {
       booking: {
         include: {
-          property: { select: { id: true, title: true } },
+          property: { select: { id: true, title: true, services: true } },
           code: true,
         },
       },
@@ -195,6 +221,8 @@ router.get("/invoices.csv", (async (req: AuthedRequest, res) => {
     take: 1000,
   });
 
+  const defaultCommissionPercent = await getEffectiveCommissionPercent(null);
+
   const header = [
     "invoiceNumber","status","issuedAt","property","bookingId","code",
     "ownerPayout",
@@ -202,7 +230,15 @@ router.get("/invoices.csv", (async (req: AuthedRequest, res) => {
   ];
   const lines = [header.join(",")];
   for (const inv of items) {
-    const payout = Number((inv as any).netPayable ?? (inv as any).total ?? 0);
+    const commissionPercent = extractPropertyCommissionPercent((inv as any)?.booking?.property?.services, defaultCommissionPercent);
+    const payout = resolveOwnerPayoutAmount({
+      invoiceNumber: (inv as any).invoiceNumber,
+      invoiceTotal: (inv as any).total,
+      netPayable: (inv as any).netPayable,
+      bookingTotalAmount: (inv as any)?.booking?.totalAmount,
+      transportFare: (inv as any)?.booking?.transportFare,
+      commissionPercent,
+    });
     const row = [
       inv.invoiceNumber,
       inv.status,
@@ -230,7 +266,7 @@ router.get("/invoices/:id", (async (req: AuthedRequest, res) => {
     include: {
       booking: {
         include: {
-          property: { select: { id: true, title: true } },
+          property: { select: { id: true, title: true, services: true } },
           user: true,
           code: true,
         },
@@ -238,7 +274,15 @@ router.get("/invoices/:id", (async (req: AuthedRequest, res) => {
     } as any,
   });
   if (!inv) return res.status(404).json({ error: "Not found" });
-  const payout = Number((inv as any).netPayable ?? (inv as any).total ?? 0);
+  const commissionPercent = await getEffectiveCommissionPercent((inv as any)?.booking?.property?.services);
+  const payout = resolveOwnerPayoutAmount({
+    invoiceNumber: (inv as any).invoiceNumber,
+    invoiceTotal: (inv as any).total,
+    netPayable: (inv as any).netPayable,
+    bookingTotalAmount: (inv as any)?.booking?.totalAmount,
+    transportFare: (inv as any)?.booking?.transportFare,
+    commissionPercent,
+  });
   res.json({
     ...(inv as any),
     total: payout,
@@ -266,6 +310,7 @@ router.get("/invoices/:id/receipt", (async (req: AuthedRequest, res) => {
               district: true,
               city: true,
               country: true,
+              services: true,
               photos: true,
               images: {
                 where: { status: "READY" },
@@ -282,7 +327,15 @@ router.get("/invoices/:id/receipt", (async (req: AuthedRequest, res) => {
   });
   if (!inv) return res.status(404).json({ error: "Receipt not available" });
 
-  const payout = Number((inv as any).netPayable ?? (inv as any).total ?? 0);
+  const commissionPercent = await getEffectiveCommissionPercent((inv as any)?.booking?.property?.services);
+  const payout = resolveOwnerPayoutAmount({
+    invoiceNumber: (inv as any).invoiceNumber,
+    invoiceTotal: (inv as any).total,
+    netPayable: (inv as any).netPayable,
+    bookingTotalAmount: (inv as any)?.booking?.totalAmount,
+    transportFare: (inv as any)?.booking?.transportFare,
+    commissionPercent,
+  });
 
   const safeInvoice = {
     ...(inv as any),
@@ -309,11 +362,19 @@ router.get("/invoices/:id/receipt/qr.png", (async (req: AuthedRequest, res) => {
   const id = Number(req.params.id);
   const inv = await prisma.invoice.findFirst({
     where: { id, ownerId: req.user!.id, status: "PAID" },
-    include: { booking: { include: { code: true } } } as any,
+    include: { booking: { include: { code: true, property: { select: { services: true } } } } } as any,
   });
   if (!inv) return res.status(404).json({ error: "Receipt not available" });
 
-  const payout = Number((inv as any).netPayable ?? (inv as any).total ?? 0);
+  const commissionPercent = await getEffectiveCommissionPercent((inv as any)?.booking?.property?.services);
+  const payout = resolveOwnerPayoutAmount({
+    invoiceNumber: (inv as any).invoiceNumber,
+    invoiceTotal: (inv as any).total,
+    netPayable: (inv as any).netPayable,
+    bookingTotalAmount: (inv as any)?.booking?.totalAmount,
+    transportFare: (inv as any)?.booking?.transportFare,
+    commissionPercent,
+  });
 
   const payload = JSON.stringify({
     invoiceId: inv.id,

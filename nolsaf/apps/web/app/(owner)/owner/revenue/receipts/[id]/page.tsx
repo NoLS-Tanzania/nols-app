@@ -163,10 +163,10 @@ export default function Receipt() {
     </div>
     <div class="title-block">
       <div class="label-xs">Owner Payout Confirmation</div>
-      <div class="receipt-title">Payment Receipt</div>
+      <div class="receipt-title">Payout Receipt</div>
     </div>
     <div class="amount-block">
-      <div class="label-xs">Amount Paid</div>
+      <div class="label-xs">Owner Payout</div>
       <span class="amount-num">${esc(Number((inv.netPayable ?? inv.total) || 0).toLocaleString())}</span><span class="amount-cur">TZS</span>
       ${inv.paidAt ? `<div class="paid-date">${esc(new Date(inv.paidAt).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" }))}</div>` : ""}
     </div>
@@ -372,12 +372,12 @@ export default function Receipt() {
             {/* Title */}
             <div className="text-center mb-3">
               <p className="text-[8px] font-bold uppercase tracking-[0.22em] mb-1" style={{ color: "#8aaca9" }}>Owner Payout Confirmation</p>
-              <h1 className="text-[19px] font-black tracking-tight" style={{ color: "#0f2e2b" }}>Payment Receipt</h1>
+              <h1 className="text-[19px] font-black tracking-tight" style={{ color: "#0f2e2b" }}>Payout Receipt</h1>
             </div>
 
             {/* Amount */}
             <div className="text-center">
-              <p className="text-[8px] font-bold uppercase tracking-[0.18em] mb-1" style={{ color: "#8aaca9" }}>Amount Paid</p>
+              <p className="text-[8px] font-bold uppercase tracking-[0.18em] mb-1" style={{ color: "#8aaca9" }}>Owner Payout</p>
               <div className="flex items-baseline justify-center gap-2 leading-none">
                 <span className="text-[36px] font-black tabular-nums tracking-tight" style={{ color: "#02665e" }}>
                   {Number((inv?.netPayable ?? inv?.total) || 0).toLocaleString()}

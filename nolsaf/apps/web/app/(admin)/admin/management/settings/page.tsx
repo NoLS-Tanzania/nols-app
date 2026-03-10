@@ -12,14 +12,6 @@ const api = axios.create({ baseURL: "", withCredentials: true });
 export default function SystemSettingsPage(){
   const inputClass =
     "w-full rounded-lg border border-slate-200/70 bg-white/80 px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition-all duration-200 placeholder:text-slate-400 focus:border-[#02665e] focus:ring-2 focus:ring-inset focus:ring-[#02665e]/18";
-  const cardClass =
-    "group relative min-w-0 overflow-visible rounded-2xl border border-slate-200/60 bg-white/70 p-6 shadow-sm ring-1 ring-black/[0.03] backdrop-blur-xl transition-all duration-200 hover:z-10 focus-within:z-10 motion-safe:hover:-translate-y-0.5 hover:shadow-md";
-  const cardTitleClass = "text-base font-semibold tracking-tight text-slate-900";
-  const cardHintClass = "mt-1 text-sm text-slate-600";
-  const labelClass = "block text-xs font-medium text-slate-600";
-  const helpClass = "mt-1 text-xs text-slate-500";
-  const rowClass =
-    "flex min-w-0 items-start justify-between gap-4 rounded-xl border border-slate-200/70 bg-white/60 p-4 shadow-sm transition-colors duration-200 hover:bg-slate-50/70";
   const toggleTrackClass =
     "relative h-6 w-11 shrink-0 rounded-full bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[#02665e]/15 peer-checked:bg-[#02665e] after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-slate-200 after:bg-white after:transition-all peer-checked:after:translate-x-full";
   const btnPrimary =
@@ -149,6 +141,8 @@ export default function SystemSettingsPage(){
   const [toast, setToast] = useState<string | null>(null);
   const [sessionPolicyAudit, setSessionPolicyAudit] = useState<SessionPolicyAuditEntry[]>([]);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState<boolean>(false);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
 
   useEffect(() => {
     if (!toast) return;
@@ -348,25 +342,19 @@ export default function SystemSettingsPage(){
   supportEmail: supportEmail || s.supportEmail,
   supportPhone: supportPhone || s.supportPhone,
     };
+    setSaving(true);
     try {
       await api.put('/admin/settings', payload);
       setToast('System settings saved (audit recorded)');
+      setLastSavedAt(new Date());
       await load();
       await loadSessionPolicyAudit();
     } catch (err) {
       console.error(err);
       setToast('Failed to save system settings');
+    } finally {
+      setSaving(false);
     }
-  };
-
-  const renderAuditChanges = (changes: Record<string, { from: any; to: any }> | null) => {
-    if (!changes || !Object.keys(changes).length) return 'No field-level diff available.';
-    const parts = Object.entries(changes).map(([k, v]) => {
-      const from = v?.from;
-      const to = v?.to;
-      return `${k}: ${from ?? 'null'} → ${to ?? 'null'}`;
-    });
-    return parts.join('\n');
   };
 
   const saveFlagsAndTemplates = async () => {
@@ -498,995 +486,795 @@ export default function SystemSettingsPage(){
   const updatePayoutCron = async () => {
     setToast('Saving cron expressions requires backend support; not implemented yet.');
   };
-
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, ease: "easeOut" }}
-      className="min-h-screen w-full bg-[radial-gradient(1200px_circle_at_30%_-10%,rgba(2,102,94,0.12),transparent_55%),radial-gradient(900px_circle_at_90%_0%,rgba(15,23,42,0.06),transparent_55%)] bg-slate-50"
-    >
-      <div className="mx-auto w-full min-w-0 max-w-3xl px-4 py-6 pb-24 sm:px-6 lg:px-8">
-        <div className="flex flex-col gap-4">
-          <div className="rounded-3xl border border-slate-200/60 bg-white/70 p-6 shadow-sm ring-1 ring-black/[0.03] backdrop-blur-xl">
-            <div className="flex flex-col items-center gap-4">
-              <div className="flex flex-col items-center gap-3 text-center">
-                <div className="rounded-2xl bg-[#02665e]/10 p-3 ring-1 ring-[#02665e]/15">
-                  <Settings className="h-6 w-6 text-[#02665e]" />
+    <div className="bg-slate-50 min-h-screen">
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+            className="fixed top-4 z-50 left-4 right-4 sm:left-auto sm:right-4 sm:w-[28rem]"
+          >
+            <div className="w-full max-w-full break-words rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white shadow-xl ring-1 ring-white/10">
+              {toast}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="mx-auto w-full max-w-4xl px-4 py-6 pb-28 sm:px-6 lg:px-8">
+        <div className="space-y-5">
+
+          {/* Header */}
+          <div className="bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] overflow-hidden">
+            <div className="h-1 w-full bg-gradient-to-r from-[#02665e] via-emerald-400 to-[#02665e]" />
+            <div className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
+              <div className="flex items-center gap-4">
+                <div className="h-14 w-14 rounded-2xl bg-[#02665e]/10 flex items-center justify-center shrink-0">
+                  <Settings className="h-7 w-7 text-[#02665e]" />
                 </div>
-                <div className="text-center">
-                  <h1 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">System Settings</h1>
-                  <p className="mt-1 text-sm text-slate-600">Premium controls for platform configuration and security.</p>
-                  {loading && <div className="mt-2 text-xs text-slate-500">Syncing latest settings…</div>}
+                <div>
+                  <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">System Settings</h1>
+                  <p className="mt-0.5 text-sm text-slate-500">Premium controls for platform configuration and security.</p>
+                  {loading && <p className="mt-1 text-xs text-[#02665e] animate-pulse">Syncing latest settings...</p>}
                 </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                {lastSavedAt && (
+                  <span className="inline-flex items-center gap-1.5 rounded-xl border border-[#02665e]/20 bg-[#02665e]/[0.07] px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-[#02665e]">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#02665e]" />
+                    Saved {lastSavedAt.toLocaleTimeString()}
+                  </span>
+                )}
+                <button
+                  onClick={saveSystemSettings}
+                  disabled={loading || saving}
+                  className="inline-flex items-center gap-2 rounded-xl bg-[#02665e] px-5 py-2.5 text-sm font-bold text-white shadow-[0_4px_16px_-4px_rgba(2,102,94,0.45)] transition hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-[#02665e]/30 disabled:opacity-60 disabled:cursor-not-allowed"
+                  type="button"
+                >
+                  <Settings className="h-4 w-4" />
+                  {saving ? "Saving..." : "Save Settings"}
+                </button>
               </div>
             </div>
           </div>
 
-          <AnimatePresence>
-            {toast && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2 }}
-                className="fixed top-4 z-50 left-4 right-4 sm:left-auto sm:right-4 sm:w-[28rem]"
-              >
-                <div className="w-full max-w-full break-words rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white shadow-xl ring-1 ring-white/10">
-                  {toast}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        <div className="mt-8 flex w-full min-w-0 flex-col gap-6">
-          {/* Payment */}
-          <section className={cardClass}>
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h3 className={cardTitleClass}>Payments</h3>
-                <p className={cardHintClass}>Platform fee and currency formatting.</p>
-              </div>
-              <span className="inline-flex items-center rounded-full border border-slate-200/70 bg-white/60 px-2.5 py-1 text-xs font-medium text-slate-600">Finance</span>
-            </div>
-
-            <div className="mt-5 grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2">
-              <div className="flex h-full min-w-0 flex-col overflow-visible rounded-xl border border-emerald-200/70 bg-emerald-50/30 p-4 shadow-sm">
-                <label htmlFor="commissionPercent" className={labelClass}>Commission Rate</label>
-                <div className="mt-2 flex w-full min-w-0 overflow-hidden rounded-lg border border-emerald-200/70 bg-white/70 shadow-sm transition-all duration-200 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-inset focus-within:ring-emerald-500/20">
-                  <input
-                    id="commissionPercent"
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    inputMode="decimal"
-                    placeholder="10"
-                    value={s?.commissionPercent ?? 0}
-                    className="min-w-0 flex-1 border-0 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400"
-                    onChange={e=>setS((prev: any)=>({...(prev||{}), commissionPercent: Number(e.target.value)}))}
-                  />
-                  <div className="flex shrink-0 items-center border-l border-emerald-200/70 bg-emerald-50/70 px-3 text-xs font-semibold text-emerald-700">
-                    %
+          {/* Settings Audit Trail */}
+          <div className="bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] overflow-hidden">
+            <div className="h-1 w-full bg-gradient-to-r from-violet-500 via-purple-400 to-violet-500" />
+            <div className="p-6 sm:p-8">
+              <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
+                    <AlertTriangle className="h-5 w-5 text-violet-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-base font-bold text-slate-900">Settings Audit Trail</h3>
+                    <p className="text-sm text-slate-500">Every settings save is recorded here with who changed what.</p>
                   </div>
                 </div>
+                <button
+                  onClick={loadSessionPolicyAudit}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold uppercase tracking-[0.10em] text-slate-600 shadow-sm transition hover:bg-slate-50"
+                  type="button"
+                >
+                  Refresh
+                </button>
               </div>
+              {sessionPolicyAudit.length === 0 ? (
+                <div className="rounded-[14px] border border-dashed border-slate-200 bg-slate-50 p-6 text-center">
+                  <p className="text-sm font-medium text-slate-400">No audit entries yet.</p>
+                  <p className="mt-1 text-xs text-slate-300">Save settings to start recording changes.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {/* Latest applied banner */}
+                  <div className="rounded-[14px] border border-[#02665e]/20 bg-[#02665e]/[0.06] p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#02665e] mb-0.5">Last Applied</p>
+                        <p className="text-sm font-semibold text-slate-900">
+                          {new Date(sessionPolicyAudit[0].createdAt).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[11px] font-medium text-slate-400">applied by</p>
+                        <p className="text-sm font-semibold text-slate-800">
+                          {sessionPolicyAudit[0].actor?.name || sessionPolicyAudit[0].actor?.email || sessionPolicyAudit[0].actorRole || "Admin"}
+                          {sessionPolicyAudit[0].actorId ? ` (#${sessionPolicyAudit[0].actorId})` : ""}
+                        </p>
+                        {sessionPolicyAudit[0].ip && <p className="text-[11px] text-slate-400">from IP {sessionPolicyAudit[0].ip}</p>}
+                      </div>
+                    </div>
+                    {sessionPolicyAudit[0].changes && Object.keys(sessionPolicyAudit[0].changes).length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-[#02665e]/15">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#02665e] mb-2">Fields changed</p>
+                        <div className="flex flex-wrap gap-2">
+                          {Object.entries(sessionPolicyAudit[0].changes).slice(0, 8).map(([k, v]) => (
+                            <span key={k} className="inline-flex items-center gap-1 rounded-lg border border-[#02665e]/15 bg-white px-2.5 py-1 text-[11px] font-mono text-slate-700">
+                              <span className="font-bold text-[#02665e]">{k}</span>
+                              <span className="text-slate-400">{String(v?.from ?? "null")}</span>
+                              <span className="text-slate-300">&#8594;</span>
+                              <span className="font-semibold">{String(v?.to ?? "null")}</span>
+                            </span>
+                          ))}
+                          {Object.keys(sessionPolicyAudit[0].changes).length > 8 && (
+                            <span className="text-[11px] text-slate-400">+{Object.keys(sessionPolicyAudit[0].changes).length - 8} more</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  {/* History rows */}
+                  {sessionPolicyAudit.slice(1).map((row) => (
+                    <div key={row.id} className="rounded-[14px] border border-slate-100 bg-slate-50/60 p-4">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                        <span className="font-semibold text-slate-700">{new Date(row.createdAt).toLocaleString()}</span>
+                        <span className="text-slate-300">&bull;</span>
+                        <span className="text-slate-500">{row.actor?.name || row.actor?.email || row.actorRole || "Admin"}{row.actorId ? ` (#${row.actorId})` : ""}</span>
+                        {row.ip && <><span className="text-slate-300">&bull;</span><span className="text-slate-400">IP {row.ip}</span></>}
+                        {row.changes && Object.keys(row.changes).length > 0 && (
+                          <><span className="text-slate-300">&bull;</span><span className="font-medium text-[#02665e]">{Object.keys(row.changes).length} fields changed</span></>
+                        )}
+                      </div>
+                      {row.changes && Object.keys(row.changes).length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {Object.entries(row.changes).slice(0, 5).map(([k, v]) => (
+                            <span key={k} className="rounded-md border border-slate-200 bg-white px-2 py-0.5 font-mono text-[10px] text-slate-600">
+                              {k}: {String(v?.from ?? "null")} &#8594; {String(v?.to ?? "null")}
+                            </span>
+                          ))}
+                          {Object.keys(row.changes).length > 5 && (
+                            <span className="text-[10px] text-slate-400">+{Object.keys(row.changes).length - 5} more</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
 
-              <div className="flex h-full min-w-0 flex-col overflow-visible rounded-xl border border-indigo-200/70 bg-indigo-50/30 p-4 shadow-sm">
-                <label htmlFor="currency" className={labelClass}>Currency</label>
-                <div className="mt-2 flex w-full min-w-0 overflow-hidden rounded-lg border border-indigo-200/70 bg-white/70 shadow-sm transition-all duration-200 focus-within:border-indigo-600 focus-within:ring-2 focus-within:ring-inset focus-within:ring-indigo-500/20">
-                  <select
-                    id="currency"
-                    className="min-w-0 flex-1 appearance-none bg-none border-0 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none"
-                    value={s?.currency||'TZS'}
-                    onChange={e=>setS((prev: any)=>({...(prev||{}), currency: e.target.value}))}
-                  >
-                    <option value="TZS">TZS</option>
-                    <option value="USD">USD</option>
-                    <option value="EUR">EUR</option>
-                    <option value="KSH">KSH</option>
-                    <option value="AED">AED</option>
-                  </select>
-                  <div className="flex shrink-0 items-center border-l border-indigo-200/70 bg-indigo-50/70 px-3 text-indigo-600">
-                    <ChevronDown className="h-4 w-4" />
+          {/* Payments */}
+          <section id="payments" className="bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] overflow-hidden">
+            <div className="h-1 w-full bg-gradient-to-r from-[#02665e] via-emerald-400 to-[#02665e]" />
+            <div className="p-6 sm:p-8">
+              <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 mb-6">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="h-10 w-10 rounded-xl bg-[#02665e]/10 flex items-center justify-center shrink-0">
+                    <Settings className="h-5 w-5 text-[#02665e]" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-base font-bold text-slate-900">Payments</h3>
+                    <p className="text-sm text-slate-500">Platform fee and currency formatting.</p>
+                  </div>
+                </div>
+                <span className="inline-flex shrink-0 items-center rounded-xl border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.10em] text-emerald-700">Finance</span>
+              </div>
+              <div className="grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="commissionPercent" className="block text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 mb-1.5">Commission Rate</label>
+                  <div className="flex overflow-hidden rounded-[12px] border border-slate-200 bg-slate-50/50 shadow-sm transition-all focus-within:border-[#02665e]/40 focus-within:ring-2 focus-within:ring-[#02665e]/15">
+                    <input
+                      id="commissionPercent"
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      inputMode="decimal"
+                      placeholder="10"
+                      value={s?.commissionPercent ?? 0}
+                      className="min-w-0 flex-1 border-0 bg-transparent px-4 py-2.5 text-sm text-slate-900 outline-none placeholder:text-slate-300"
+                      onChange={e=>setS((prev: any)=>({...(prev||{}), commissionPercent: Number(e.target.value)}))}
+                    />
+                    <div className="flex shrink-0 items-center border-l border-slate-200 bg-[#02665e]/10 px-3 text-sm font-bold text-[#02665e]">%</div>
+                  </div>
+                </div>
+                <div>
+                  <label htmlFor="currency" className="block text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 mb-1.5">Currency</label>
+                  <div className="flex overflow-hidden rounded-[12px] border border-slate-200 bg-slate-50/50 shadow-sm transition-all focus-within:border-[#02665e]/40 focus-within:ring-2 focus-within:ring-[#02665e]/15">
+                    <select
+                      id="currency"
+                      className="min-w-0 flex-1 appearance-none border-0 bg-transparent px-4 py-2.5 text-sm text-slate-900 outline-none"
+                      value={s?.currency||"TZS"}
+                      onChange={e=>setS((prev: any)=>({...(prev||{}), currency: e.target.value}))}
+                    >
+                      <option value="TZS">TZS</option>
+                      <option value="USD">USD</option>
+                      <option value="EUR">EUR</option>
+                      <option value="KSH">KSH</option>
+                      <option value="AED">AED</option>
+                    </select>
+                    <div className="flex shrink-0 items-center border-l border-slate-200 bg-slate-100 px-3 text-slate-500">
+                      <ChevronDown className="h-4 w-4" />
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </section>
 
-          {/* Notifications + Support */}
-          <section className={cardClass}>
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h3 className={cardTitleClass}>Notifications</h3>
-                <p className={cardHintClass}>Channels and customer support contact.</p>
+          {/* Notifications */}
+          <section id="notifications" className="bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] overflow-hidden">
+            <div className="h-1 w-full bg-gradient-to-r from-indigo-500 via-blue-400 to-indigo-500" />
+            <div className="p-6 sm:p-8">
+              <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 mb-6">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="h-10 w-10 rounded-xl bg-indigo-50 flex items-center justify-center shrink-0">
+                    <Shield className="h-5 w-5 text-indigo-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-base font-bold text-slate-900">Notifications</h3>
+                    <p className="text-sm text-slate-500">Channels and customer support contact.</p>
+                  </div>
+                </div>
+                <span className="inline-flex shrink-0 items-center rounded-xl border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.10em] text-indigo-700">Live</span>
               </div>
-              <span className="inline-flex items-center rounded-full border border-slate-200/70 bg-white/60 px-2.5 py-1 text-xs font-medium text-slate-600">Live</span>
+              <div className="space-y-3">
+                <div className="flex min-w-0 items-center justify-between gap-4 rounded-[14px] border border-slate-100 bg-slate-50/50 px-4 py-3.5">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-slate-900">Email notifications</div>
+                    <div className="mt-0.5 text-xs text-slate-500">Send emails for invoices and key actions.</div>
+                  </div>
+                  <label className="group relative inline-flex cursor-pointer items-center">
+                    <input type="checkbox" aria-label="Email notifications" checked={Boolean(s.emailEnabled)} className="peer sr-only" onChange={e=>setS({...s, emailEnabled: e.target.checked})} />
+                    <div className={toggleTrackClass}><Lock className="absolute left-[6px] top-1/2 h-3 w-3 -translate-y-1/2 text-white opacity-0 transition-opacity duration-200 group-has-[:checked]:opacity-100 pointer-events-none" /></div>
+                  </label>
+                </div>
+                <div className="flex min-w-0 items-center justify-between gap-4 rounded-[14px] border border-slate-100 bg-slate-50/50 px-4 py-3.5">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-slate-900">SMS alerts</div>
+                    <div className="mt-0.5 text-xs text-slate-500">Urgent events and operational alerts.</div>
+                  </div>
+                  <label className="group relative inline-flex cursor-pointer items-center">
+                    <input type="checkbox" aria-label="SMS alerts" checked={Boolean(s.smsEnabled)} className="peer sr-only" onChange={e=>setS({...s, smsEnabled: e.target.checked})} />
+                    <div className={toggleTrackClass}><Lock className="absolute left-[6px] top-1/2 h-3 w-3 -translate-y-1/2 text-white opacity-0 transition-opacity duration-200 group-has-[:checked]:opacity-100 pointer-events-none" /></div>
+                  </label>
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 pt-2">
+                  <div className="rounded-[14px] border border-slate-100 bg-slate-50/50 p-4">
+                    <label className="block text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 mb-1.5">Support Email</label>
+                    <input className={inputClass} value={supportEmail} onChange={e=>setSupportEmail(e.target.value)} placeholder="support@nolsaf.com" type="email" />
+                  </div>
+                  <div className="rounded-[14px] border border-slate-100 bg-slate-50/50 p-4">
+                    <label className="block text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 mb-1.5">Support Phone</label>
+                    <input className={inputClass} value={supportPhone} onChange={e=>setSupportPhone(e.target.value)} placeholder="+255 736 766 726" type="tel" />
+                  </div>
+                </div>
+              </div>
             </div>
+          </section>
 
-            <div className="mt-5 space-y-3">
-              <div className={rowClass}>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium text-slate-900">Email notifications</div>
-                  <div className={helpClass}>Send emails for invoices and key actions.</div>
-                </div>
-                <label className="group relative inline-flex cursor-pointer items-center">
-                  <input
-                    type="checkbox"
-                    aria-label="Email notifications"
-                    checked={Boolean(s.emailEnabled)}
-                    className="peer sr-only"
-                    onChange={e=>setS({...s, emailEnabled: e.target.checked})}
-                  />
-                  <div className={toggleTrackClass}>
-                    <Lock className="absolute left-[6px] top-1/2 h-3 w-3 -translate-y-1/2 text-white opacity-0 transition-opacity duration-200 group-has-[:checked]:opacity-100 pointer-events-none" />
+          {/* Feature Flags & Templates */}
+          <section id="featureflags" className="bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] overflow-hidden">
+            <div className="h-1 w-full bg-gradient-to-r from-amber-400 via-orange-300 to-amber-400" />
+            <div className="p-6 sm:p-8">
+              <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 mb-6">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="h-10 w-10 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
+                    <Settings className="h-5 w-5 text-amber-600" />
                   </div>
-                </label>
-              </div>
-
-              <div className={rowClass}>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium text-slate-900">SMS alerts</div>
-                  <div className={helpClass}>Urgent events and operational alerts.</div>
-                </div>
-                <label className="group relative inline-flex cursor-pointer items-center">
-                  <input
-                    type="checkbox"
-                    aria-label="SMS alerts"
-                    checked={Boolean(s.smsEnabled)}
-                    className="peer sr-only"
-                    onChange={e=>setS({...s, smsEnabled: e.target.checked})}
-                  />
-                  <div className={toggleTrackClass}>
-                    <Lock className="absolute left-[6px] top-1/2 h-3 w-3 -translate-y-1/2 text-white opacity-0 transition-opacity duration-200 group-has-[:checked]:opacity-100 pointer-events-none" />
+                  <div className="min-w-0">
+                    <h3 className="text-base font-bold text-slate-900">Feature Flags &amp; Templates</h3>
+                    <p className="text-sm text-slate-500">Client-side preview only — backend persistence is pending.</p>
                   </div>
-                </label>
-              </div>
-
-              <div className="grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2">
-                <div className="flex h-full min-w-0 flex-col overflow-visible rounded-xl border border-slate-200/70 bg-white/60 p-4 shadow-sm">
-                  <label className={labelClass}>Support email</label>
-                  <input
-                    className={`${inputClass} mt-2`}
-                    value={supportEmail}
-                    onChange={e=>setSupportEmail(e.target.value)}
-                    placeholder="support@nolsaf.com"
-                  />
                 </div>
-                <div className="flex h-full min-w-0 flex-col overflow-visible rounded-xl border border-slate-200/70 bg-white/60 p-4 shadow-sm">
-                  <label className={labelClass}>Support phone</label>
-                  <input
-                    className={`${inputClass} mt-2`}
-                    value={supportPhone}
-                    onChange={e=>setSupportPhone(e.target.value)}
-                    placeholder="+255 736 766 726"
-                  />
+                <span className="inline-flex shrink-0 items-center rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.10em] text-amber-700">Preview</span>
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="rounded-[14px] border border-slate-100 bg-slate-50/50 p-4">
+                  <label htmlFor="featureFlags" className="block text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 mb-1.5">Feature Flags (JSON)</label>
+                  <textarea id="featureFlags" className={`${inputClass} h-28 font-mono text-[12px]`} value={featureFlags} onChange={e=>setFeatureFlags(e.target.value)} placeholder='{"new_ui": true}' />
+                </div>
+                <div className="rounded-[14px] border border-slate-100 bg-slate-50/50 p-4">
+                  <label htmlFor="notificationTemplates" className="block text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 mb-1.5">Notification Templates (JSON)</label>
+                  <textarea id="notificationTemplates" className={`${inputClass} h-28 font-mono text-[12px]`} value={notificationTemplates} onChange={e=>setNotificationTemplates(e.target.value)} placeholder='{"owner_payout": "Payout of {{amount}} processed"}' />
                 </div>
               </div>
-
-              <div className="mt-2 rounded-2xl border border-slate-200/70 bg-slate-50/60 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-medium text-slate-900">Feature flags & templates</div>
-                    <div className={helpClass}>Client preview only (backend persistence pending).</div>
-                  </div>
-                  <span className="inline-flex items-center rounded-full border border-amber-200/70 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">Preview</span>
-                </div>
-                <div className="mt-3 grid grid-cols-1 items-stretch gap-4 lg:grid-cols-2">
-                  <div className="flex h-full min-w-0 flex-col overflow-visible rounded-xl border border-slate-200/70 bg-white/60 p-4 shadow-sm">
-                    <label htmlFor="featureFlags" className={labelClass}>Feature Flags (JSON)</label>
-                    <textarea
-                      id="featureFlags"
-                      className={`${inputClass} mt-2 h-28 font-mono text-[12px]`}
-                      value={featureFlags}
-                      onChange={e=>setFeatureFlags(e.target.value)}
-                      placeholder='{"new_ui": true}'
-                    />
-                  </div>
-                  <div className="flex h-full min-w-0 flex-col overflow-visible rounded-xl border border-slate-200/70 bg-white/60 p-4 shadow-sm">
-                    <label htmlFor="notificationTemplates" className={labelClass}>Notification Templates (JSON)</label>
-                    <textarea
-                      id="notificationTemplates"
-                      className={`${inputClass} mt-2 h-28 font-mono text-[12px]`}
-                      value={notificationTemplates}
-                      onChange={e=>setNotificationTemplates(e.target.value)}
-                      placeholder='{"owner_payout": "Your payout of {{amount}} was processed"}'
-                    />
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <button onClick={saveFlagsAndTemplates} className={btnSecondary} type="button">Save (preview)</button>
-                </div>
+              <div className="mt-4">
+                <button onClick={saveFlagsAndTemplates} className={btnSecondary} type="button">Save (preview)</button>
               </div>
             </div>
           </section>
 
           {/* Security & Sessions */}
-          <section className={cardClass}>
-            <div>
-              <h3 className={cardTitleClass}>Security & Sessions</h3>
-              <p className={cardHintClass}>Role-based session TTL is enforced server-side and audited.</p>
-            </div>
-
-            <div className="mt-5 space-y-3">
-              <div className={rowClass}>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium text-slate-900">Require 2FA for admins</div>
-                  <div className={helpClass}>Enforce two-factor authentication for all admin accounts.</div>
-                </div>
-                <label className="group relative inline-flex cursor-pointer items-center">
-                  <input
-                    id="admin2fa"
-                    type="checkbox"
-                    aria-label="Require 2FA for admins"
-                    checked={Boolean(s?.requireAdmin2FA)}
-                    className="peer sr-only"
-                    onChange={e=>setS(prev=>({...(prev||{}), requireAdmin2FA: e.target.checked}))}
-                  />
-                  <div className={toggleTrackClass}>
-                    <Lock className="absolute left-[6px] top-1/2 h-3 w-3 -translate-y-1/2 text-white opacity-0 transition-opacity duration-200 group-has-[:checked]:opacity-100 pointer-events-none" />
+          <section id="security" className="bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] overflow-hidden">
+            <div className="h-1 w-full bg-gradient-to-r from-rose-500 via-red-400 to-rose-500" />
+            <div className="p-6 sm:p-8">
+              <div className="flex items-start justify-between gap-4 mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-rose-50 flex items-center justify-center shrink-0">
+                    <Shield className="h-5 w-5 text-rose-600" />
                   </div>
-                </label>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200/70 bg-white/60 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <div className="text-sm font-medium text-slate-900">Session TTL by role (minutes)</div>
-                    <div className={helpClass}>Blank role values fall back to Default.</div>
+                    <h3 className="text-base font-bold text-slate-900">Security & Sessions</h3>
+                    <p className="text-sm text-slate-500">Role-based session TTL is enforced server-side and audited.</p>
                   </div>
-                  <span className="inline-flex items-center rounded-full border border-slate-200/70 bg-white/60 px-2.5 py-1 text-xs font-medium text-slate-600">Audited</span>
+                </div>
+                <span className="inline-flex items-center rounded-xl border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.10em] text-rose-700">Audited</span>
+              </div>
+              <div className="space-y-3">
+                <div className="flex min-w-0 items-center justify-between gap-4 rounded-[14px] border border-slate-100 bg-slate-50/50 px-4 py-3.5">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-slate-900">Require 2FA for admins</div>
+                    <div className="mt-0.5 text-xs text-slate-500">Enforce two-factor authentication for all admin accounts.</div>
+                  </div>
+                  <label className="group relative inline-flex cursor-pointer items-center">
+                    <input id="admin2fa" type="checkbox" aria-label="Require 2FA for admins" checked={Boolean(s?.requireAdmin2FA)} className="peer sr-only" onChange={e=>setS(prev=>({...(prev||{}), requireAdmin2FA: e.target.checked}))} />
+                    <div className={toggleTrackClass}><Lock className="absolute left-[6px] top-1/2 h-3 w-3 -translate-y-1/2 text-white opacity-0 transition-opacity duration-200 group-has-[:checked]:opacity-100 pointer-events-none" /></div>
+                  </label>
                 </div>
 
-                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
-                  <div className="min-w-0 rounded-xl border border-slate-200/70 bg-gradient-to-b from-slate-50/70 to-white/70 p-4 shadow-sm ring-1 ring-slate-900/[0.03]">
-                    <div className="flex items-baseline justify-between gap-3">
-                      <div className="flex items-center gap-2">
+                <div className="rounded-[14px] border border-slate-100 bg-slate-50/50 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+                    <div>
+                      <div className="text-sm font-semibold text-slate-900">Session TTL by role (minutes)</div>
+                      <div className="mt-0.5 text-xs text-slate-500">Blank role values fall back to Default.</div>
+                    </div>
+                    <span className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.10em] text-slate-600">Audited</span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
+                    <div className="rounded-[12px] border border-slate-200 bg-white p-3.5 shadow-sm">
+                      <div className="flex items-center gap-2 mb-2">
                         <span className="h-2 w-2 rounded-full bg-slate-400" />
-                        <label htmlFor="sessionTtlDefault" className="text-sm font-semibold text-slate-900">Default</label>
+                        <label htmlFor="sessionTtlDefault" className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Default</label>
                       </div>
+                      <input id="sessionTtlDefault" type="number" min={5} className={inputClass} value={(s?.sessionIdleMinutes ?? 60) as any} onChange={e=>setS(prev=>({...(prev||{}), sessionIdleMinutes: Number(e.target.value)}))} />
                     </div>
-                    <input
-                      id="sessionTtlDefault"
-                      type="number"
-                      min={5}
-                      className={`${inputClass} mt-3 bg-white/70 shadow-none`}
-                      value={(s?.sessionIdleMinutes ?? 60) as any}
-                      onChange={e=>setS(prev=>({...(prev||{}), sessionIdleMinutes: Number(e.target.value)}))}
-                    />
-                  </div>
-
-                  <div className="min-w-0 rounded-xl border border-emerald-200/70 bg-gradient-to-b from-emerald-50/70 to-white/70 p-4 shadow-sm ring-1 ring-emerald-500/10">
-                    <div className="flex items-baseline justify-between gap-3">
-                      <div className="flex items-center gap-2">
-                        <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                        <label htmlFor="sessionTtlAdmin" className="text-sm font-semibold text-slate-900">Admin</label>
+                    <div className="rounded-[12px] border border-[#02665e]/20 bg-[#02665e]/[0.04] p-3.5 shadow-sm">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="h-2 w-2 rounded-full bg-[#02665e]" />
+                        <label htmlFor="sessionTtlAdmin" className="text-xs font-bold uppercase tracking-[0.12em] text-[#02665e]">Admin</label>
                       </div>
+                      <input id="sessionTtlAdmin" type="number" min={5} placeholder="(default)" className={inputClass} value={(s?.sessionMaxMinutesAdmin ?? "") as any} onChange={e=>setS(prev=>({...(prev||{}), sessionMaxMinutesAdmin: e.target.value === "" ? null : Number(e.target.value)}))} />
                     </div>
-                    <input
-                      id="sessionTtlAdmin"
-                      type="number"
-                      min={5}
-                      placeholder="(default)"
-                      className={`${inputClass} mt-3 bg-white/70 shadow-none`}
-                      value={(s?.sessionMaxMinutesAdmin ?? '') as any}
-                      onChange={e=>setS(prev=>({...(prev||{}), sessionMaxMinutesAdmin: e.target.value === '' ? null : Number(e.target.value)}))}
-                    />
-                  </div>
-
-                  <div className="min-w-0 rounded-xl border border-indigo-200/70 bg-gradient-to-b from-indigo-50/70 to-white/70 p-4 shadow-sm ring-1 ring-indigo-500/10">
-                    <div className="flex items-baseline justify-between gap-3">
-                      <div className="flex items-center gap-2">
+                    <div className="rounded-[12px] border border-indigo-200 bg-indigo-50/40 p-3.5 shadow-sm">
+                      <div className="flex items-center gap-2 mb-2">
                         <span className="h-2 w-2 rounded-full bg-indigo-500" />
-                        <label htmlFor="sessionTtlOwner" className="text-sm font-semibold text-slate-900">Owner</label>
+                        <label htmlFor="sessionTtlOwner" className="text-xs font-bold uppercase tracking-[0.12em] text-indigo-700">Owner</label>
                       </div>
+                      <input id="sessionTtlOwner" type="number" min={5} placeholder="(default)" className={inputClass} value={(s?.sessionMaxMinutesOwner ?? "") as any} onChange={e=>setS(prev=>({...(prev||{}), sessionMaxMinutesOwner: e.target.value === "" ? null : Number(e.target.value)}))} />
                     </div>
-                    <input
-                      id="sessionTtlOwner"
-                      type="number"
-                      min={5}
-                      placeholder="(default)"
-                      className={`${inputClass} mt-3 bg-white/70 shadow-none`}
-                      value={(s?.sessionMaxMinutesOwner ?? '') as any}
-                      onChange={e=>setS(prev=>({...(prev||{}), sessionMaxMinutesOwner: e.target.value === '' ? null : Number(e.target.value)}))}
-                    />
-                  </div>
-
-                  <div className="min-w-0 rounded-xl border border-amber-200/70 bg-gradient-to-b from-amber-50/70 to-white/70 p-4 shadow-sm ring-1 ring-amber-500/10">
-                    <div className="flex items-baseline justify-between gap-3">
-                      <div className="flex items-center gap-2">
+                    <div className="rounded-[12px] border border-amber-200 bg-amber-50/40 p-3.5 shadow-sm">
+                      <div className="flex items-center gap-2 mb-2">
                         <span className="h-2 w-2 rounded-full bg-amber-500" />
-                        <label htmlFor="sessionTtlDriver" className="text-sm font-semibold text-slate-900">Driver</label>
+                        <label htmlFor="sessionTtlDriver" className="text-xs font-bold uppercase tracking-[0.12em] text-amber-700">Driver</label>
                       </div>
+                      <input id="sessionTtlDriver" type="number" min={5} placeholder="(default)" className={inputClass} value={(s?.sessionMaxMinutesDriver ?? "") as any} onChange={e=>setS(prev=>({...(prev||{}), sessionMaxMinutesDriver: e.target.value === "" ? null : Number(e.target.value)}))} />
                     </div>
-                    <input
-                      id="sessionTtlDriver"
-                      type="number"
-                      min={5}
-                      placeholder="(default)"
-                      className={`${inputClass} mt-3 bg-white/70 shadow-none`}
-                      value={(s?.sessionMaxMinutesDriver ?? '') as any}
-                      onChange={e=>setS(prev=>({...(prev||{}), sessionMaxMinutesDriver: e.target.value === '' ? null : Number(e.target.value)}))}
-                    />
-                  </div>
-
-                  <div className="min-w-0 rounded-xl border border-sky-200/70 bg-gradient-to-b from-sky-50/70 to-white/70 p-4 shadow-sm ring-1 ring-sky-500/10">
-                    <div className="flex items-baseline justify-between gap-3">
-                      <div className="flex items-center gap-2">
+                    <div className="rounded-[12px] border border-sky-200 bg-sky-50/40 p-3.5 shadow-sm">
+                      <div className="flex items-center gap-2 mb-2">
                         <span className="h-2 w-2 rounded-full bg-sky-500" />
-                        <label htmlFor="sessionTtlCustomer" className="text-sm font-semibold text-slate-900">Customer</label>
+                        <label htmlFor="sessionTtlCustomer" className="text-xs font-bold uppercase tracking-[0.12em] text-sky-700">Customer</label>
                       </div>
+                      <input id="sessionTtlCustomer" type="number" min={5} placeholder="(default)" className={inputClass} value={(s?.sessionMaxMinutesCustomer ?? "") as any} onChange={e=>setS(prev=>({...(prev||{}), sessionMaxMinutesCustomer: e.target.value === "" ? null : Number(e.target.value)}))} />
                     </div>
-                    <input
-                      id="sessionTtlCustomer"
-                      type="number"
-                      min={5}
-                      placeholder="(default)"
-                      className={`${inputClass} mt-3 bg-white/70 shadow-none`}
-                      value={(s?.sessionMaxMinutesCustomer ?? '') as any}
-                      onChange={e=>setS(prev=>({...(prev||{}), sessionMaxMinutesCustomer: e.target.value === '' ? null : Number(e.target.value)}))}
-                    />
+                  </div>
+                  <div className="mt-3 rounded-[12px] border border-slate-200 bg-white p-3 text-xs text-slate-500">
+                    Reducing a role TTL forces re-login on the next request.
                   </div>
                 </div>
 
-                <div className="mt-4 rounded-2xl border border-slate-200/70 bg-slate-50/60 p-4 text-xs text-slate-600">
-                  Reducing a role TTL forces re-login on the next request.
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200/70 bg-white/60 p-4">
-                <div className="flex items-center gap-2 mb-4">
-                  <Clock className="h-5 w-5 text-blue-600" />
-                  <div>
-                    <div className="text-sm font-medium text-slate-900">Max session duration (hours)</div>
-                    <div className={helpClass}>Maximum session lifetime before requiring re-authentication</div>
+                <div className="rounded-[14px] border border-slate-100 bg-slate-50/50 p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Clock className="h-4 w-4 text-slate-500" />
+                    <div className="text-sm font-semibold text-slate-900">Max session duration (hours)</div>
                   </div>
-                </div>
-                <input
-                  id="maxSessionDurationHours"
-                  type="number"
-                  min={1}
-                  max={720}
-                  className={`${inputClass} ${validationErrors.maxSessionDurationHours ? 'border-red-300 focus:border-red-500' : ''}`}
-                  value={(s?.maxSessionDurationHours ?? 24) as any}
-                  onChange={e=>setS(prev=>({...(prev||{}), maxSessionDurationHours: Number(e.target.value)}))}
-                  aria-label="Max session duration hours"
-                />
-                {validationErrors.maxSessionDurationHours && (
-                  <p className="mt-1 text-xs text-red-600">{validationErrors.maxSessionDurationHours}</p>
-                )}
-              </div>
-
-              <div className={rowClass}>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium text-slate-900">Force logout on password change</div>
-                  <div className={helpClass}>Automatically logout all sessions when password is changed</div>
-                </div>
-                <label className="group relative inline-flex cursor-pointer items-center">
                   <input
-                    type="checkbox"
-                    aria-label="Force logout on password change"
-                    checked={Boolean(s?.forceLogoutOnPasswordChange ?? true)}
-                    className="peer sr-only"
-                    onChange={e=>setS(prev=>({...(prev||{}), forceLogoutOnPasswordChange: e.target.checked}))}
+                    id="maxSessionDurationHours"
+                    type="number"
+                    min={1}
+                    max={720}
+                    className={`${inputClass} ${validationErrors.maxSessionDurationHours ? "border-red-300" : ""}`}
+                    value={(s?.maxSessionDurationHours ?? 24) as any}
+                    onChange={e=>setS(prev=>({...(prev||{}), maxSessionDurationHours: Number(e.target.value)}))}
                   />
-                  <div className={toggleTrackClass}>
-                    <Lock className="absolute left-[6px] top-1/2 h-3 w-3 -translate-y-1/2 text-white opacity-0 transition-opacity duration-200 group-has-[:checked]:opacity-100 pointer-events-none" />
+                  {validationErrors.maxSessionDurationHours && <p className="mt-1 text-xs text-red-600">{validationErrors.maxSessionDurationHours}</p>}
+                  <p className="mt-1.5 text-xs text-slate-400">Maximum session lifetime before requiring re-authentication.</p>
+                </div>
+
+                <div className="flex min-w-0 items-center justify-between gap-4 rounded-[14px] border border-slate-100 bg-slate-50/50 px-4 py-3.5">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-slate-900">Force logout on password change</div>
+                    <div className="mt-0.5 text-xs text-slate-500">Automatically logout all sessions when password is changed.</div>
                   </div>
-                </label>
+                  <label className="group relative inline-flex cursor-pointer items-center">
+                    <input type="checkbox" aria-label="Force logout on password change" checked={Boolean(s?.forceLogoutOnPasswordChange ?? true)} className="peer sr-only" onChange={e=>setS(prev=>({...(prev||{}), forceLogoutOnPasswordChange: e.target.checked}))} />
+                    <div className={toggleTrackClass}><Lock className="absolute left-[6px] top-1/2 h-3 w-3 -translate-y-1/2 text-white opacity-0 transition-opacity duration-200 group-has-[:checked]:opacity-100 pointer-events-none" /></div>
+                  </label>
+                </div>
               </div>
             </div>
           </section>
 
           {/* Password Requirements */}
-          <section className={cardClass}>
-            <div className="flex items-center gap-3 mb-5">
-              <div className="h-10 w-10 rounded-lg bg-[#02665e]/10 flex items-center justify-center">
-                <Lock className="h-5 w-5 text-[#02665e]" />
-              </div>
-              <div>
-                <h3 className={cardTitleClass}>Password Requirements</h3>
-                <p className={cardHintClass}>Configure password complexity and security policies</p>
-              </div>
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="rounded-xl border border-slate-200/70 bg-white/60 p-4">
-                <label htmlFor="minPasswordLength" className={labelClass}>Minimum password length</label>
-                <input
-                  id="minPasswordLength"
-                  type="number"
-                  min={6}
-                  max={128}
-                  className={`${inputClass} mt-2 ${validationErrors.minPasswordLength ? 'border-red-300 focus:border-red-500' : ''}`}
-                  value={(s?.minPasswordLength ?? 10) as any}
-                  onChange={e=>setS(prev=>({...(prev||{}), minPasswordLength: Number(e.target.value)}))}
-                />
-                {validationErrors.minPasswordLength && (
-                  <p className="mt-1 text-xs text-red-600">{validationErrors.minPasswordLength}</p>
-                )}
-                <p className={helpClass}>Minimum number of characters required for passwords</p>
-              </div>
-            </div>
-
-            <div className="mt-4 grid md:grid-cols-2 gap-4">
-              <div className={rowClass}>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium text-slate-900">Require uppercase letters</div>
-                  <div className={helpClass}>Passwords must contain at least one uppercase letter</div>
+          <section id="passwords" className="bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] overflow-hidden">
+            <div className="h-1 w-full bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500" />
+            <div className="p-6 sm:p-8">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="h-10 w-10 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
+                  <Lock className="h-5 w-5 text-amber-600" />
                 </div>
-                <label className="group relative inline-flex cursor-pointer items-center">
-                  <input
-                    type="checkbox"
-                    aria-label="Require uppercase letters in password"
-                    checked={Boolean(s?.requirePasswordUppercase ?? false)}
-                    className="peer sr-only"
-                    onChange={e=>setS(prev=>({...(prev||{}), requirePasswordUppercase: e.target.checked}))}
-                  />
-                  <div className={toggleTrackClass}>
-                    <Lock className="absolute left-[6px] top-1/2 h-3 w-3 -translate-y-1/2 text-white opacity-0 transition-opacity duration-200 group-has-[:checked]:opacity-100 pointer-events-none" />
-                  </div>
-                </label>
-              </div>
-
-              <div className={rowClass}>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium text-slate-900">Require lowercase letters</div>
-                  <div className={helpClass}>Passwords must contain at least one lowercase letter</div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Password Requirements</h3>
+                  <p className="text-sm text-slate-500">Configure password complexity and security policies.</p>
                 </div>
-                <label className="group relative inline-flex cursor-pointer items-center">
-                  <input
-                    type="checkbox"
-                    aria-label="Require lowercase letters in password"
-                    checked={Boolean(s?.requirePasswordLowercase ?? false)}
-                    className="peer sr-only"
-                    onChange={e=>setS(prev=>({...(prev||{}), requirePasswordLowercase: e.target.checked}))}
-                  />
-                  <div className={toggleTrackClass}>
-                    <Lock className="absolute left-[6px] top-1/2 h-3 w-3 -translate-y-1/2 text-white opacity-0 transition-opacity duration-200 group-has-[:checked]:opacity-100 pointer-events-none" />
-                  </div>
-                </label>
               </div>
-
-              <div className={rowClass}>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium text-slate-900">Require numbers</div>
-                  <div className={helpClass}>Passwords must contain at least one number</div>
-                </div>
-                <label className="group relative inline-flex cursor-pointer items-center">
+              <div className="grid sm:grid-cols-2 gap-4 mb-4">
+                <div className="rounded-[14px] border border-slate-100 bg-slate-50/50 p-4">
+                  <label htmlFor="minPasswordLength" className="block text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 mb-1.5">Min password length</label>
                   <input
-                    type="checkbox"
-                    aria-label="Require numbers in password"
-                    checked={Boolean(s?.requirePasswordNumber ?? false)}
-                    className="peer sr-only"
-                    onChange={e=>setS(prev=>({...(prev||{}), requirePasswordNumber: e.target.checked}))}
+                    id="minPasswordLength"
+                    type="number"
+                    min={6}
+                    max={128}
+                    className={`${inputClass} ${validationErrors.minPasswordLength ? "border-red-300" : ""}`}
+                    value={(s?.minPasswordLength ?? 10) as any}
+                    onChange={e=>setS(prev=>({...(prev||{}), minPasswordLength: Number(e.target.value)}))}
                   />
-                  <div className={toggleTrackClass}>
-                    <Lock className="absolute left-[6px] top-1/2 h-3 w-3 -translate-y-1/2 text-white opacity-0 transition-opacity duration-200 group-has-[:checked]:opacity-100 pointer-events-none" />
-                  </div>
-                </label>
+                  {validationErrors.minPasswordLength && <p className="mt-1 text-xs text-red-600">{validationErrors.minPasswordLength}</p>}
+                  <p className="mt-1.5 text-xs text-slate-400">Minimum number of characters required.</p>
+                </div>
               </div>
-
-              <div className={rowClass}>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium text-slate-900">Require special characters</div>
-                  <div className={helpClass}>Passwords must contain at least one special character (!@#$%^&*)</div>
-                </div>
-                <label className="group relative inline-flex cursor-pointer items-center">
-                  <input
-                    type="checkbox"
-                    aria-label="Require special characters in password"
-                    checked={Boolean(s?.requirePasswordSpecial ?? false)}
-                    className="peer sr-only"
-                    onChange={e=>setS(prev=>({...(prev||{}), requirePasswordSpecial: e.target.checked}))}
-                  />
-                  <div className={toggleTrackClass}>
-                    <Lock className="absolute left-[6px] top-1/2 h-3 w-3 -translate-y-1/2 text-white opacity-0 transition-opacity duration-200 group-has-[:checked]:opacity-100 pointer-events-none" />
+              <div className="grid sm:grid-cols-2 gap-3">
+                {[
+                  { label: "Require uppercase letters", key: "requirePasswordUppercase", val: s?.requirePasswordUppercase, hint: "Must contain at least one uppercase letter." },
+                  { label: "Require lowercase letters", key: "requirePasswordLowercase", val: s?.requirePasswordLowercase, hint: "Must contain at least one lowercase letter." },
+                  { label: "Require numbers", key: "requirePasswordNumber", val: s?.requirePasswordNumber, hint: "Must contain at least one number." },
+                  { label: "Require special characters", key: "requirePasswordSpecial", val: s?.requirePasswordSpecial, hint: "Must contain at least one special character (!@#$%^&*)." },
+                ].map(({ label, key, val, hint }) => (
+                  <div key={key} className="flex items-center justify-between gap-4 rounded-[14px] border border-slate-100 bg-slate-50/50 px-4 py-3.5">
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-slate-900">{label}</div>
+                      <div className="mt-0.5 text-xs text-slate-500">{hint}</div>
+                    </div>
+                    <label className="group relative inline-flex cursor-pointer items-center">
+                      <input type="checkbox" aria-label={label} checked={Boolean(val ?? false)} className="peer sr-only" onChange={e=>setS(prev=>({...(prev||{}), [key]: e.target.checked}))} />
+                      <div className={toggleTrackClass}><Lock className="absolute left-[6px] top-1/2 h-3 w-3 -translate-y-1/2 text-white opacity-0 transition-opacity duration-200 group-has-[:checked]:opacity-100 pointer-events-none" /></div>
+                    </label>
                   </div>
-                </label>
+                ))}
               </div>
             </div>
           </section>
 
           {/* Network Security */}
-          <section className={cardClass}>
-            <div className="flex items-center gap-3 mb-5">
-              <div className="h-10 w-10 rounded-lg bg-orange-50 flex items-center justify-center">
-                <Network className="h-5 w-5 text-orange-600" />
-              </div>
-              <div>
-                <h3 className={cardTitleClass}>Network Security</h3>
-                <p className={cardHintClass}>Restrict admin access by IP address and configure network policies</p>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="ipAllowlist" className={labelClass}>Admin IP Allowlist (CIDR format)</label>
-                <textarea
-                  id="ipAllowlist"
-                  className={`${inputClass} mt-2 font-mono text-xs ${validationErrors.ipAllowlist ? 'border-red-300 focus:border-red-500' : ''}`}
-                  value={s?.ipAllowlist || ''}
-                  onChange={e=>setS(prev=>({...(prev||{}), ipAllowlist: e.target.value}))}
-                  onBlur={(e) => {
-                    const error = validateIPAllowlist(e.target.value);
-                    if (!error.valid && error.error) {
-                      setValidationErrors(prev => ({ ...prev, ipAllowlist: error.error || 'Invalid IP allowlist format' }));
-                    } else {
-                      setValidationErrors(prev => {
-                        const newErrors = { ...prev };
-                        delete newErrors.ipAllowlist;
-                        return newErrors;
-                      });
-                    }
-                  }}
-                  placeholder="192.168.1.0/24, 10.0.0.0/8, 172.16.0.0/12"
-                  rows={4}
-                />
-                {validationErrors.ipAllowlist && (
-                  <p className="mt-1 text-xs text-red-600">{validationErrors.ipAllowlist}</p>
-                )}
-                <p className={helpClass}>
-                  Enter IP addresses or CIDR ranges separated by commas. Leave empty to allow all IPs.
-                  <br />
-                  <span className="font-semibold">Example:</span> 192.168.1.0/24, 10.0.0.0/8
-                </p>
-              </div>
-
-              <div className={rowClass}>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium text-slate-900">Enable IP allowlist enforcement</div>
-                  <div className={helpClass}>Enable IP allowlist to restrict admin access (requires IP allowlist to be configured)</div>
+          <section id="network" className="bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] overflow-hidden">
+            <div className="h-1 w-full bg-gradient-to-r from-orange-500 via-orange-400 to-orange-500" />
+            <div className="p-6 sm:p-8">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="h-10 w-10 rounded-xl bg-orange-50 flex items-center justify-center shrink-0">
+                  <Network className="h-5 w-5 text-orange-600" />
                 </div>
-                <label className="group relative inline-flex cursor-pointer items-center">
-                  <input
-                    type="checkbox"
-                    aria-label="Enable IP allowlist enforcement"
-                    checked={Boolean(s?.enableIpAllowlist ?? false)}
-                    className="peer sr-only"
-                    onChange={e=>setS(prev=>({...(prev||{}), enableIpAllowlist: e.target.checked}))}
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Network Security</h3>
+                  <p className="text-sm text-slate-500">Restrict admin access by IP address and configure network policies.</p>
+                </div>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="ipAllowlist" className="block text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 mb-1.5">Admin IP Allowlist (CIDR format)</label>
+                  <textarea
+                    id="ipAllowlist"
+                    className={`${inputClass} font-mono text-xs ${validationErrors.ipAllowlist ? "border-red-300" : ""}`}
+                    value={s?.ipAllowlist || ""}
+                    onChange={e=>setS(prev=>({...(prev||{}), ipAllowlist: e.target.value}))}
+                    onBlur={(e) => {
+                      const error = validateIPAllowlist(e.target.value);
+                      if (!error.valid && error.error) {
+                        setValidationErrors(prev => ({ ...prev, ipAllowlist: error.error || "Invalid IP allowlist format" }));
+                      } else {
+                        setValidationErrors(prev => { const n = { ...prev }; delete n.ipAllowlist; return n; });
+                      }
+                    }}
+                    placeholder="192.168.1.0/24, 10.0.0.0/8, 172.16.0.0/12"
+                    rows={4}
                   />
-                  <div className={toggleTrackClass}>
-                    <Lock className="absolute left-[6px] top-1/2 h-3 w-3 -translate-y-1/2 text-white opacity-0 transition-opacity duration-200 group-has-[:checked]:opacity-100 pointer-events-none" />
+                  {validationErrors.ipAllowlist && <p className="mt-1 text-xs text-red-600">{validationErrors.ipAllowlist}</p>}
+                  <p className="mt-1.5 text-xs text-slate-400">Enter IP addresses or CIDR ranges separated by commas. Leave empty to allow all IPs.</p>
+                </div>
+                <div className="flex min-w-0 items-center justify-between gap-4 rounded-[14px] border border-slate-100 bg-slate-50/50 px-4 py-3.5">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-slate-900">Enable IP allowlist enforcement</div>
+                    <div className="mt-0.5 text-xs text-slate-500">Restrict admin access to trusted networks only.</div>
                   </div>
-                </label>
+                  <label className="group relative inline-flex cursor-pointer items-center">
+                    <input type="checkbox" aria-label="Enable IP allowlist enforcement" checked={Boolean(s?.enableIpAllowlist ?? false)} className="peer sr-only" onChange={e=>setS(prev=>({...(prev||{}), enableIpAllowlist: e.target.checked}))} />
+                    <div className={toggleTrackClass}><Lock className="absolute left-[6px] top-1/2 h-3 w-3 -translate-y-1/2 text-white opacity-0 transition-opacity duration-200 group-has-[:checked]:opacity-100 pointer-events-none" /></div>
+                  </label>
+                </div>
               </div>
             </div>
           </section>
 
-          {/* Rate Limiting & DDoS Protection */}
-          <section className={cardClass}>
-            <div className="flex items-center gap-3 mb-5">
-              <div className="h-10 w-10 rounded-lg bg-red-50 flex items-center justify-center">
-                <Shield className="h-5 w-5 text-red-600" />
+          {/* Rate Limiting */}
+          <section id="ratelimit" className="bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] overflow-hidden">
+            <div className="h-1 w-full bg-gradient-to-r from-red-600 via-rose-400 to-red-600" />
+            <div className="p-6 sm:p-8">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="h-10 w-10 rounded-xl bg-red-50 flex items-center justify-center shrink-0">
+                  <Shield className="h-5 w-5 text-red-600" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Rate Limiting & DDoS Protection</h3>
+                  <p className="text-sm text-slate-500">Configure API rate limits and protect against abuse.</p>
+                </div>
               </div>
-              <div>
-                <h3 className={cardTitleClass}>Rate Limiting & DDoS Protection</h3>
-                <p className={cardHintClass}>Configure API rate limits and protection against abuse</p>
-              </div>
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="rounded-xl border border-slate-200/70 bg-white/60 p-4">
-                <label htmlFor="apiRateLimitPerMinute" className={labelClass}>API requests per minute</label>
-                <input
-                  id="apiRateLimitPerMinute"
-                  type="number"
-                  min={10}
-                  max={10000}
-                  className={`${inputClass} mt-2 ${validationErrors.apiRateLimitPerMinute ? 'border-red-300 focus:border-red-500' : ''}`}
-                  value={(s?.apiRateLimitPerMinute ?? 100) as any}
-                  onChange={e=>setS(prev=>({...(prev||{}), apiRateLimitPerMinute: Number(e.target.value)}))}
-                />
-                {validationErrors.apiRateLimitPerMinute && (
-                  <p className="mt-1 text-xs text-red-600">{validationErrors.apiRateLimitPerMinute}</p>
-                )}
-                <p className={helpClass}>Maximum API requests allowed per minute per IP</p>
-              </div>
-
-              <div className="rounded-xl border border-slate-200/70 bg-white/60 p-4">
-                <label htmlFor="maxLoginAttempts" className={labelClass}>Login attempts before lockout</label>
-                <input
-                  id="maxLoginAttempts"
-                  type="number"
-                  min={3}
-                  max={20}
-                  className={`${inputClass} mt-2 ${validationErrors.maxLoginAttempts ? 'border-red-300 focus:border-red-500' : ''}`}
-                  value={(s?.maxLoginAttempts ?? 5) as any}
-                  onChange={e=>setS(prev=>({...(prev||{}), maxLoginAttempts: Number(e.target.value)}))}
-                />
-                {validationErrors.maxLoginAttempts && (
-                  <p className="mt-1 text-xs text-red-600">{validationErrors.maxLoginAttempts}</p>
-                )}
-                <p className={helpClass}>Number of failed login attempts before account lockout</p>
-              </div>
-
-              <div className="rounded-xl border border-slate-200/70 bg-white/60 p-4">
-                <label htmlFor="accountLockoutDurationMinutes" className={labelClass}>Account lockout duration (minutes)</label>
-                <input
-                  id="accountLockoutDurationMinutes"
-                  type="number"
-                  min={5}
-                  max={1440}
-                  className={`${inputClass} mt-2 ${validationErrors.accountLockoutDurationMinutes ? 'border-red-300 focus:border-red-500' : ''}`}
-                  value={(s?.accountLockoutDurationMinutes ?? 30) as any}
-                  onChange={e=>setS(prev=>({...(prev||{}), accountLockoutDurationMinutes: Number(e.target.value)}))}
-                />
-                {validationErrors.accountLockoutDurationMinutes && (
-                  <p className="mt-1 text-xs text-red-600">{validationErrors.accountLockoutDurationMinutes}</p>
-                )}
-                <p className={helpClass}>Duration of account lockout after max login attempts</p>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="rounded-[14px] border border-slate-100 bg-slate-50/50 p-4">
+                  <label htmlFor="apiRateLimitPerMinute" className="block text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 mb-1.5">API requests / minute</label>
+                  <input id="apiRateLimitPerMinute" type="number" min={10} max={10000} className={`${inputClass} ${validationErrors.apiRateLimitPerMinute ? "border-red-300" : ""}`} value={(s?.apiRateLimitPerMinute ?? 100) as any} onChange={e=>setS(prev=>({...(prev||{}), apiRateLimitPerMinute: Number(e.target.value)}))} />
+                  {validationErrors.apiRateLimitPerMinute && <p className="mt-1 text-xs text-red-600">{validationErrors.apiRateLimitPerMinute}</p>}
+                  <p className="mt-1.5 text-xs text-slate-400">Max API requests allowed per minute per IP.</p>
+                </div>
+                <div className="rounded-[14px] border border-slate-100 bg-slate-50/50 p-4">
+                  <label htmlFor="maxLoginAttempts" className="block text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 mb-1.5">Login attempts before lockout</label>
+                  <input id="maxLoginAttempts" type="number" min={3} max={20} className={`${inputClass} ${validationErrors.maxLoginAttempts ? "border-red-300" : ""}`} value={(s?.maxLoginAttempts ?? 5) as any} onChange={e=>setS(prev=>({...(prev||{}), maxLoginAttempts: Number(e.target.value)}))} />
+                  {validationErrors.maxLoginAttempts && <p className="mt-1 text-xs text-red-600">{validationErrors.maxLoginAttempts}</p>}
+                  <p className="mt-1.5 text-xs text-slate-400">Failed attempts before account lockout.</p>
+                </div>
+                <div className="rounded-[14px] border border-slate-100 bg-slate-50/50 p-4">
+                  <label htmlFor="accountLockoutDurationMinutes" className="block text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 mb-1.5">Lockout duration (minutes)</label>
+                  <input id="accountLockoutDurationMinutes" type="number" min={5} max={1440} className={`${inputClass} ${validationErrors.accountLockoutDurationMinutes ? "border-red-300" : ""}`} value={(s?.accountLockoutDurationMinutes ?? 30) as any} onChange={e=>setS(prev=>({...(prev||{}), accountLockoutDurationMinutes: Number(e.target.value)}))} />
+                  {validationErrors.accountLockoutDurationMinutes && <p className="mt-1 text-xs text-red-600">{validationErrors.accountLockoutDurationMinutes}</p>}
+                  <p className="mt-1.5 text-xs text-slate-400">Duration of account lockout after max login attempts.</p>
+                </div>
               </div>
             </div>
           </section>
 
           {/* Security Audit & Monitoring */}
-          <section className={cardClass}>
-            <div className="flex items-center gap-3 mb-5">
-              <div className="h-10 w-10 rounded-lg bg-purple-50 flex items-center justify-center">
-                <AlertTriangle className="h-5 w-5 text-purple-600" />
-              </div>
-              <div>
-                <h3 className={cardTitleClass}>Security Audit & Monitoring</h3>
-                <p className={cardHintClass}>Configure security auditing and monitoring policies</p>
-              </div>
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className={rowClass}>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium text-slate-900">Enable security audit logging</div>
-                  <div className={helpClass}>Log all security-related events and admin actions</div>
+          <section id="auditmon" className="bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] overflow-hidden">
+            <div className="h-1 w-full bg-gradient-to-r from-purple-600 via-purple-400 to-purple-600" />
+            <div className="p-6 sm:p-8">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="h-10 w-10 rounded-xl bg-purple-50 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="h-5 w-5 text-purple-600" />
                 </div>
-                <label className="group relative inline-flex cursor-pointer items-center">
-                  <input
-                    type="checkbox"
-                    aria-label="Enable security audit logging"
-                    checked={Boolean(s?.enableSecurityAuditLogging ?? true)}
-                    className="peer sr-only"
-                    onChange={e=>setS(prev=>({...(prev||{}), enableSecurityAuditLogging: e.target.checked}))}
-                  />
-                  <div className={toggleTrackClass}>
-                    <Lock className="absolute left-[6px] top-1/2 h-3 w-3 -translate-y-1/2 text-white opacity-0 transition-opacity duration-200 group-has-[:checked]:opacity-100 pointer-events-none" />
-                  </div>
-                </label>
-              </div>
-
-              <div className={rowClass}>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium text-slate-900">Log failed login attempts</div>
-                  <div className={helpClass}>Record all failed login attempts for security analysis</div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Security Audit & Monitoring</h3>
+                  <p className="text-sm text-slate-500">Configure security auditing and monitoring policies.</p>
                 </div>
-                <label className="group relative inline-flex cursor-pointer items-center">
-                  <input
-                    type="checkbox"
-                    aria-label="Log failed login attempts"
-                    checked={Boolean(s?.logFailedLoginAttempts ?? true)}
-                    className="peer sr-only"
-                    onChange={e=>setS(prev=>({...(prev||{}), logFailedLoginAttempts: e.target.checked}))}
-                  />
-                  <div className={toggleTrackClass}>
-                    <Lock className="absolute left-[6px] top-1/2 h-3 w-3 -translate-y-1/2 text-white opacity-0 transition-opacity duration-200 group-has-[:checked]:opacity-100 pointer-events-none" />
-                  </div>
-                </label>
               </div>
-
-              <div className={rowClass}>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium text-slate-900">Alert on suspicious activity</div>
-                  <div className={helpClass}>Send alerts when suspicious security events are detected</div>
-                </div>
-                <label className="group relative inline-flex cursor-pointer items-center">
-                  <input
-                    type="checkbox"
-                    aria-label="Alert on suspicious activity"
-                    checked={Boolean(s?.alertOnSuspiciousActivity ?? false)}
-                    className="peer sr-only"
-                    onChange={e=>setS(prev=>({...(prev||{}), alertOnSuspiciousActivity: e.target.checked}))}
-                  />
-                  <div className={toggleTrackClass}>
-                    <Lock className="absolute left-[6px] top-1/2 h-3 w-3 -translate-y-1/2 text-white opacity-0 transition-opacity duration-200 group-has-[:checked]:opacity-100 pointer-events-none" />
+              <div className="grid sm:grid-cols-2 gap-3">
+                {[
+                  { label: "Enable security audit logging", key: "enableSecurityAuditLogging", val: s?.enableSecurityAuditLogging ?? true, hint: "Log all security-related events and admin actions." },
+                  { label: "Log failed login attempts", key: "logFailedLoginAttempts", val: s?.logFailedLoginAttempts ?? true, hint: "Record all failed login attempts for security analysis." },
+                  { label: "Alert on suspicious activity", key: "alertOnSuspiciousActivity", val: s?.alertOnSuspiciousActivity ?? false, hint: "Send alerts when suspicious security events are detected." },
+                ].map(({ label, key, val, hint }) => (
+                  <div key={key} className="flex items-center justify-between gap-4 rounded-[14px] border border-slate-100 bg-slate-50/50 px-4 py-3.5">
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-slate-900">{label}</div>
+                      <div className="mt-0.5 text-xs text-slate-500">{hint}</div>
+                    </div>
+                    <label className="group relative inline-flex cursor-pointer items-center">
+                      <input type="checkbox" aria-label={label} checked={Boolean(val)} className="peer sr-only" onChange={e=>setS(prev=>({...(prev||{}), [key]: e.target.checked}))} />
+                      <div className={toggleTrackClass}><Lock className="absolute left-[6px] top-1/2 h-3 w-3 -translate-y-1/2 text-white opacity-0 transition-opacity duration-200 group-has-[:checked]:opacity-100 pointer-events-none" /></div>
+                    </label>
                   </div>
-                </label>
+                ))}
               </div>
             </div>
           </section>
 
           {/* Security Best Practices */}
-          <section className={cardClass}>
-            <div className="bg-amber-50/60 border-2 border-amber-200/70 rounded-2xl p-6">
-              <div className="flex items-start gap-4">
-                <AlertTriangle className="h-6 w-6 text-amber-600 flex-shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <h4 className="font-bold text-amber-900 mb-2 text-lg">Security Best Practices</h4>
-                  <ul className="text-sm text-amber-800 space-y-2 list-disc list-inside">
-                    <li><strong>2FA:</strong> Always require 2FA for admin accounts in production environments</li>
-                    <li><strong>Password Policy:</strong> Use strong password policies (minimum 12 characters with mixed case, numbers, and special characters recommended)</li>
-                    <li><strong>IP Allowlist:</strong> Configure IP allowlist to restrict admin access to trusted networks only</li>
-                    <li><strong>Session Management:</strong> Set appropriate session timeout based on your security requirements (shorter for high-security environments)</li>
-                    <li><strong>Rate Limiting:</strong> Enable rate limiting to protect against brute force attacks and DDoS</li>
-                    <li><strong>Audit Logging:</strong> Keep security audit logging enabled to track all security events</li>
-                  </ul>
-                </div>
+          <div className="rounded-[20px] border-2 border-amber-200/80 bg-amber-50/60 p-6 sm:p-8">
+            <div className="flex items-start gap-4">
+              <div className="h-10 w-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0 mt-0.5">
+                <AlertTriangle className="h-5 w-5 text-amber-600" />
               </div>
-            </div>
-          </section>
-
-          {/* Audit */}
-          <section className={cardClass}>
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h3 className={cardTitleClass}>Session Policy Audit</h3>
-                <p className={cardHintClass}>Last 10 updates (ADMIN_SESSION_POLICY_UPDATE).</p>
-              </div>
-            </div>
-
-            <div className="mt-4 space-y-2">
-              {sessionPolicyAudit.length === 0 ? (
-                <div className="rounded-2xl border border-slate-200/70 bg-white/60 p-4 text-sm text-slate-600">No recent entries.</div>
-              ) : (
-                sessionPolicyAudit.map((row) => (
-                  <div key={row.id} className="rounded-2xl border border-slate-200/70 bg-white/60 p-4 shadow-sm transition-shadow duration-200 hover:shadow-md">
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-600">
-                      <span className="font-medium text-slate-900">{new Date(row.createdAt).toLocaleString()}</span>
-                      <span>•</span>
-                      <span className="min-w-0 truncate">
-                        {(row.actor?.name || row.actor?.email || row.actorRole || 'Admin')}
-                        {row.actorId ? ` (#${row.actorId})` : ''}
+              <div className="flex-1 min-w-0">
+                <h4 className="text-base font-bold text-amber-900 mb-3">Security Best Practices</h4>
+                <ul className="space-y-2">
+                  {[
+                    ["2FA", "Always require 2FA for admin accounts in production environments."],
+                    ["Password Policy", "Minimum 12 characters with mixed case, numbers, and special characters recommended."],
+                    ["IP Allowlist", "Configure IP allowlist to restrict admin access to trusted networks only."],
+                    ["Session Mgmt", "Set appropriate session timeout based on your security requirements."],
+                    ["Rate Limiting", "Enable rate limiting to protect against brute force and DDoS attacks."],
+                    ["Audit Logging", "Keep security audit logging enabled to track all security events."],
+                  ].map(([k, v]) => (
+                    <li key={k} className="flex items-start gap-2.5 text-sm text-amber-800">
+                      <span className="mt-1 h-4 w-4 rounded-full bg-amber-200 flex items-center justify-center shrink-0">
+                        <span className="h-1.5 w-1.5 rounded-full bg-amber-700" />
                       </span>
-                      {row.ip ? (
-                        <>
-                          <span>•</span>
-                          <span className="text-slate-500">IP {row.ip}</span>
-                        </>
-                      ) : null}
-                    </div>
-                    <pre className="mt-2 max-w-full overflow-x-hidden whitespace-pre-wrap break-words rounded-xl bg-slate-50/70 p-3 text-[11px] text-slate-700 ring-1 ring-slate-200/60">{renderAuditChanges(row.changes)}</pre>
-                  </div>
-                ))
-              )}
+                      <span><strong>{k}:</strong> {v}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
-          </section>
+          </div>
 
           {/* Tax & Invoicing */}
-          <section className={cardClass}>
-            <div>
-              <h3 className={cardTitleClass}>Tax & Invoicing</h3>
-              <p className={cardHintClass}>Numbering, tax rate, and invoice template preview.</p>
-            </div>
-            <div className="mt-5 grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2">
-              <div className="flex h-full min-w-0 flex-col overflow-visible rounded-xl border border-slate-200/70 bg-white/60 p-4 shadow-sm">
-                <label htmlFor="taxRate" className={labelClass}>Tax Rate (%)</label>
-                <input
-                  id="taxRate"
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  className={`${inputClass} mt-2`}
-                  value={s?.taxPercent ?? 0}
-                  onChange={e=>setS(prev=>({...(prev||{}), taxPercent: Number(e.target.value)}))}
-                />
+          <section id="invoicing" className="bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] overflow-hidden">
+            <div className="h-1 w-full bg-gradient-to-r from-[#02665e] via-teal-400 to-[#02665e]" />
+            <div className="p-6 sm:p-8">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="h-10 w-10 rounded-xl bg-[#02665e]/10 flex items-center justify-center shrink-0">
+                  <Settings className="h-5 w-5 text-[#02665e]" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Tax & Invoicing</h3>
+                  <p className="text-sm text-slate-500">Numbering, tax rate, and invoice template preview.</p>
+                </div>
               </div>
-              <div className="flex h-full min-w-0 flex-col overflow-visible rounded-xl border border-slate-200/70 bg-white/60 p-4 shadow-sm">
-                <label htmlFor="invoicePrefix" className={labelClass}>Invoice Prefix</label>
-                <input
-                  id="invoicePrefix"
-                  className={`${inputClass} mt-2`}
-                  value={s?.invoicePrefix || 'INV-'}
-                  onChange={e=>setS(prev=>({...(prev||{}), invoicePrefix: e.target.value}))}
-                />
+              <div className="grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 mb-4">
+                <div className="rounded-[14px] border border-slate-100 bg-slate-50/50 p-4">
+                  <label htmlFor="taxRate" className="block text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 mb-1.5">Tax Rate (%)</label>
+                  <input id="taxRate" type="number" min={0} step="0.01" className={inputClass} value={s?.taxPercent ?? 0} onChange={e=>setS(prev=>({...(prev||{}), taxPercent: Number(e.target.value)}))} />
+                </div>
+                <div className="rounded-[14px] border border-slate-100 bg-slate-50/50 p-4">
+                  <label htmlFor="invoicePrefix" className="block text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 mb-1.5">Invoice Prefix</label>
+                  <input id="invoicePrefix" className={inputClass} value={s?.invoicePrefix || "INV-"} onChange={e=>setS(prev=>({...(prev||{}), invoicePrefix: e.target.value}))} />
+                </div>
               </div>
-            </div>
-
-            <div className="mt-4 flex min-w-0 flex-col overflow-visible rounded-xl border border-slate-200/70 bg-white/60 p-4 shadow-sm">
-              <label htmlFor="invoiceTemplate" className={labelClass}>Invoice Template (HTML)</label>
-              <textarea
-                id="invoiceTemplate"
-                className={`${inputClass} mt-2 h-28 font-mono text-[12px]`}
-                value={invoiceTemplate}
-                onChange={e=>setInvoiceTemplate(e.target.value)}
-                placeholder="<h1>Invoice {{invoiceNumber}}</h1>"
+              <div className="rounded-[14px] border border-slate-100 bg-slate-50/50 p-4 mb-4">
+                <label htmlFor="invoiceTemplate" className="block text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 mb-1.5">Invoice Template (HTML)</label>
+                <textarea id="invoiceTemplate" className={`${inputClass} h-28 font-mono text-[12px]`} value={invoiceTemplate} onChange={e=>setInvoiceTemplate(e.target.value)} placeholder="<h1>Invoice {{invoiceNumber}}</h1>" />
+              </div>
+              <div className="flex flex-wrap gap-2 mb-4">
+                <button onClick={saveInvoicingSettings} className={btnPrimary} type="button">Save</button>
+                <button onClick={previewInvoice} className={btnSecondary} type="button">Preview</button>
+              </div>
+              <div
+                id="invoicePreviewArea"
+                className="max-h-64 max-w-full overflow-x-hidden overflow-y-auto rounded-[14px] border border-slate-200 bg-white p-4 text-sm text-slate-700 [&_*]:max-w-full [&_img]:h-auto [&_img]:max-w-full [&_pre]:whitespace-pre-wrap [&_code]:break-words [&_p]:break-words [&_span]:break-words [&_a]:break-words [&_table]:block [&_table]:w-full [&_table]:max-w-full [&_table]:table-fixed [&_th]:break-words [&_td]:break-words"
+                dangerouslySetInnerHTML={{__html: invoicePreviewHtml || ""}}
               />
             </div>
-
-            <div className="mt-4 flex flex-wrap gap-2">
-              <button onClick={saveInvoicingSettings} className={btnPrimary} type="button">Save</button>
-              <button onClick={previewInvoice} className={btnSecondary} type="button">Preview</button>
-            </div>
-            <div
-              id="invoicePreviewArea"
-              className="mt-4 max-h-64 max-w-full overflow-x-hidden overflow-y-auto rounded-2xl border border-slate-200/70 bg-white/60 p-4 text-sm text-slate-700 shadow-sm [&_*]:max-w-full [&_img]:h-auto [&_img]:max-w-full [&_pre]:whitespace-pre-wrap [&_code]:break-words [&_p]:break-words [&_span]:break-words [&_a]:break-words [&_table]:block [&_table]:w-full [&_table]:max-w-full [&_table]:table-fixed [&_th]:break-words [&_td]:break-words"
-              dangerouslySetInnerHTML={{__html: invoicePreviewHtml || ''}}
-            />
           </section>
 
           {/* Scheduling */}
-          <section className={cardClass}>
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h3 className={cardTitleClass}>Scheduling</h3>
-                <p className={cardHintClass}>Operational automation (cron policy backend pending).</p>
+          <section id="scheduling" className="bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] overflow-hidden">
+            <div className="h-1 w-full bg-gradient-to-r from-sky-500 via-cyan-400 to-sky-500" />
+            <div className="p-6 sm:p-8">
+              <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 mb-6">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="h-10 w-10 rounded-xl bg-sky-50 flex items-center justify-center shrink-0">
+                    <Clock className="h-5 w-5 text-sky-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-base font-bold text-slate-900">Scheduling</h3>
+                    <p className="text-sm text-slate-500">Operational automation (cron policy backend pending).</p>
+                  </div>
+                </div>
+                <span className="inline-flex shrink-0 items-center rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.10em] text-amber-700">Coming soon</span>
               </div>
-              <span className="inline-flex items-center rounded-full border border-amber-200/70 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">Coming soon</span>
-            </div>
-
-            <div className="mt-5 flex min-w-0 flex-col overflow-visible rounded-xl border border-slate-200/70 bg-white/60 p-4 shadow-sm">
-              <label htmlFor="payoutCron" className={labelClass}>Cron Expression</label>
-              <input
-                id="payoutCron"
-                className={`${inputClass} mt-2 min-w-0`}
-                placeholder="e.g. 0 2 1 * *"
-                value={payoutCron}
-                onChange={e=>setPayoutCron(e.target.value)}
-              />
-              <p className={helpClass}>Default: 02:00 on the 1st of each month.</p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <button onClick={updatePayoutCron} className={btnSecondary} type="button">Save (pending)</button>
-                <button onClick={()=>alert('Preview not implemented')} className={btnSecondary} type="button">Run Preview</button>
-                <button onClick={()=>alert('Execute not implemented')} className={btnSecondary} type="button">Execute Now</button>
+              <div className="rounded-[14px] border border-slate-100 bg-slate-50/50 p-4">
+                <label htmlFor="payoutCron" className="block text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 mb-1.5">Cron Expression</label>
+                <input id="payoutCron" className={`${inputClass} font-mono`} placeholder="e.g. 0 2 1 * *" value={payoutCron} onChange={e=>setPayoutCron(e.target.value)} />
+                <p className="mt-1.5 text-xs text-slate-400">Default: 02:00 on the 1st of each month.</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button onClick={updatePayoutCron} className={btnSecondary} type="button">Save (pending)</button>
+                  <button onClick={()=>alert("Preview not implemented")} className={btnSecondary} type="button">Run Preview</button>
+                  <button onClick={()=>alert("Execute not implemented")} className={btnSecondary} type="button">Execute Now</button>
+                </div>
+                <pre id="payoutCronResult" className="mt-4 max-h-48 max-w-full overflow-x-hidden overflow-y-auto whitespace-pre-wrap break-words rounded-[12px] border border-slate-200 bg-white p-4 text-[12px] text-slate-700" />
               </div>
-              <pre
-                id="payoutCronResult"
-                className="mt-4 max-h-48 max-w-full overflow-x-hidden overflow-y-auto whitespace-pre-wrap break-words rounded-xl border border-slate-200/70 bg-white/60 p-4 text-[12px] text-slate-700"
-              />
             </div>
           </section>
 
           {/* Bonuses */}
-          <section className={cardClass}>
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h3 className={cardTitleClass}>Bonuses</h3>
-                <p className={cardHintClass}>Manual owner bonus preview/grant (recorded via admin audit).</p>
-              </div>
-            </div>
-
-            <div className="mt-5 rounded-2xl border border-slate-200/70 bg-white/60 p-4 shadow-sm">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold text-slate-900">Grant owner bonus</div>
-                  <p className="mt-1 text-xs text-slate-600">Preview uses owner paid invoices (last 30 days). Grant writes an audit entry.</p>
+          <section id="bonuses" className="bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] overflow-hidden">
+            <div className="h-1 w-full bg-gradient-to-r from-violet-600 via-purple-400 to-violet-600" />
+            <div className="p-6 sm:p-8">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="h-10 w-10 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
+                  <Shield className="h-5 w-5 text-violet-600" />
                 </div>
-                <div className="flex shrink-0 gap-2">
-                  <button
-                    onClick={previewBonus}
-                    className={btnSecondary}
-                    type="button"
-                    disabled={!bonusOwnerId || !Number.isFinite(Number(bonusOwnerId)) || Number(bonusOwnerId) <= 0}
-                  >
-                    Preview
-                  </button>
-                  <button
-                    onClick={grantBonus}
-                    className={btnPrimary}
-                    type="button"
-                    disabled={!bonusOwnerId || !Number.isFinite(Number(bonusOwnerId)) || Number(bonusOwnerId) <= 0}
-                  >
-                    Grant
-                  </button>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Bonuses</h3>
+                  <p className="text-sm text-slate-500">Manual owner bonus preview/grant (recorded via admin audit).</p>
                 </div>
               </div>
-
-              <div className="mt-4 grid grid-cols-1 items-stretch gap-4 border-t border-slate-200/70 pt-4 md:grid-cols-2">
-                <div className="flex h-full min-w-0 flex-col rounded-xl border border-slate-200/70 bg-white/70 p-4 shadow-sm">
-                  <label htmlFor="bonusOwnerId" className={labelClass}>Owner ID</label>
-                  <div className="mt-2 flex w-full min-w-0 overflow-hidden rounded-lg border border-slate-200/70 bg-white/70 shadow-sm transition-all duration-200 focus-within:border-[#02665e] focus-within:ring-2 focus-within:ring-inset focus-within:ring-[#02665e]/18">
-                    <input
-                      id="bonusOwnerId"
-                      className="min-w-0 flex-1 border-0 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400"
-                      value={bonusOwnerId}
-                      onChange={e=>setBonusOwnerId(String(e.target.value || '').replace(/\D+/g, ''))}
-                      placeholder="e.g. 13"
-                      inputMode="numeric"
-                    />
-                    <div className="flex shrink-0 items-center border-l border-slate-200/70 bg-white/50 px-3 text-xs font-semibold text-slate-600">#</div>
+              <div className="rounded-[14px] border border-slate-100 bg-slate-50/50 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-4">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-slate-900">Grant owner bonus</div>
+                    <p className="mt-0.5 text-xs text-slate-500">Preview uses owner paid invoices (last 30 days). Grant writes an audit entry.</p>
                   </div>
-                  {!bonusOwnerId ? (
-                    <p className={`${helpClass} min-h-4`}>Paste an Owner ID to auto-load the owner.</p>
-                  ) : !Number.isFinite(Number(bonusOwnerId)) || Number(bonusOwnerId) <= 0 ? (
-                    <p className="mt-1 min-h-4 text-xs font-medium text-rose-600">Enter a valid numeric owner ID.</p>
-                  ) : bonusOwnerLookupLoading ? (
-                    <p className={`${helpClass} min-h-4`}>Looking up owner…</p>
-                  ) : bonusOwnerLookupError ? (
-                    <p className="mt-1 min-h-4 text-xs font-medium text-rose-600">{bonusOwnerLookupError}</p>
-                  ) : bonusOwnerLookup ? (
-                    <p className={`${helpClass} min-h-4`}>Owner: <span className="font-semibold text-slate-700">{bonusOwnerLookup.name || `#${bonusOwnerLookup.id}`}</span>{bonusOwnerLookup.email ? <span className="text-slate-400"> · {bonusOwnerLookup.email}</span> : null}</p>
-                  ) : (
-                    <p className={`${helpClass} min-h-4`}>Owner receiving the bonus.</p>
-                  )}
-                </div>
-
-                <div className="flex h-full min-w-0 flex-col rounded-xl border border-slate-200/70 bg-white/70 p-4 shadow-sm">
-                  <label htmlFor="bonusPercentInput" className={labelClass}>Bonus (%)</label>
-                  <div className="mt-2 flex w-full min-w-0 overflow-hidden rounded-lg border border-slate-200/70 bg-white/70 shadow-sm transition-all duration-200 focus-within:border-[#02665e] focus-within:ring-2 focus-within:ring-inset focus-within:ring-[#02665e]/18">
-                    <input
-                      id="bonusPercentInput"
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      inputMode="decimal"
-                      className="min-w-0 flex-1 border-0 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400"
-                      value={bonusPercentInput}
-                      onChange={e=>setBonusPercentInput(Number(e.target.value))}
-                      placeholder="e.g. 5"
-                    />
-                    <div className="flex shrink-0 items-center border-l border-slate-200/70 bg-white/50 px-3 text-xs font-semibold text-slate-600">%</div>
+                  <div className="flex shrink-0 gap-2">
+                    <button onClick={previewBonus} className={btnSecondary} type="button" disabled={!bonusOwnerId || !Number.isFinite(Number(bonusOwnerId)) || Number(bonusOwnerId) <= 0}>Preview</button>
+                    <button onClick={grantBonus} className={btnPrimary} type="button" disabled={!bonusOwnerId || !Number.isFinite(Number(bonusOwnerId)) || Number(bonusOwnerId) <= 0}>Grant</button>
                   </div>
-                  <p className={`${helpClass} min-h-4`}>Percent applied to eligible revenue for the preview window.</p>
                 </div>
-              </div>
-
-              {bonusPreview && (
-                <div className="mt-4 rounded-2xl border border-slate-200/70 bg-white/70 p-4">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold text-slate-900">Preview result</div>
-                      <p className="mt-1 text-xs text-slate-600">Review computed values before granting.</p>
+                <div className="grid grid-cols-1 items-stretch gap-4 border-t border-slate-200/70 pt-4 sm:grid-cols-2">
+                  <div className="flex h-full min-w-0 flex-col rounded-[12px] border border-slate-200 bg-white p-4">
+                    <label htmlFor="bonusOwnerId" className="block text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 mb-1.5">Owner ID</label>
+                    <div className="flex overflow-hidden rounded-[10px] border border-slate-200 bg-slate-50/50 shadow-sm transition-all focus-within:border-[#02665e]/40 focus-within:ring-2 focus-within:ring-[#02665e]/15">
+                      <input id="bonusOwnerId" className="min-w-0 flex-1 border-0 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-300" value={bonusOwnerId} onChange={e=>setBonusOwnerId(String(e.target.value || "").replace(/\D+/g, ""))} placeholder="e.g. 13" inputMode="numeric" />
+                      <div className="flex shrink-0 items-center border-l border-slate-200 bg-slate-100 px-3 text-xs font-bold text-slate-500">#</div>
                     </div>
-                    <span className="inline-flex w-fit items-center rounded-full border border-slate-200/70 bg-white/70 px-2.5 py-1 text-xs font-semibold text-slate-700">
-                      {(bonusPreview as any)?.ok === true ? 'OK' : 'Result'}
-                    </span>
+                    {!bonusOwnerId ? (
+                      <p className="mt-1.5 text-xs text-slate-400">Paste an Owner ID to auto-load the owner.</p>
+                    ) : !Number.isFinite(Number(bonusOwnerId)) || Number(bonusOwnerId) <= 0 ? (
+                      <p className="mt-1.5 text-xs font-medium text-rose-600">Enter a valid numeric owner ID.</p>
+                    ) : bonusOwnerLookupLoading ? (
+                      <p className="mt-1.5 text-xs text-slate-400">Looking up owner...</p>
+                    ) : bonusOwnerLookupError ? (
+                      <p className="mt-1.5 text-xs font-medium text-rose-600">{bonusOwnerLookupError}</p>
+                    ) : bonusOwnerLookup ? (
+                      <p className="mt-1.5 text-xs text-slate-500">Owner: <span className="font-semibold text-slate-700">{bonusOwnerLookup.name || `#${bonusOwnerLookup.id}`}</span>{bonusOwnerLookup.email ? <span className="text-slate-400"> &middot; {bonusOwnerLookup.email}</span> : null}</p>
+                    ) : (
+                      <p className="mt-1.5 text-xs text-slate-400">Owner receiving the bonus.</p>
+                    )}
                   </div>
-
-                  {(bonusPreview as any)?.data && (
-                    <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      <div className="rounded-xl border border-slate-200/70 bg-white/60 p-3">
-                        <div className="text-xs font-medium text-slate-500">Owner</div>
-                        <div className="mt-1 text-sm font-semibold text-slate-900">#{String((bonusPreview as any).data.ownerId ?? bonusOwnerId)}</div>
-                      </div>
-                      <div className="rounded-xl border border-slate-200/70 bg-white/60 p-3">
-                        <div className="text-xs font-medium text-slate-500">Bonus</div>
-                        <div className="mt-1 text-sm font-semibold text-slate-900">{formatPercent((bonusPreview as any).data.bonusPercent ?? bonusPercentInput)}</div>
-                      </div>
-                      <div className="rounded-xl border border-slate-200/70 bg-white/60 p-3">
-                        <div className="text-xs font-medium text-slate-500">Eligible revenue</div>
-                        <div className="mt-1 text-sm font-semibold text-slate-900">{formatMoney((bonusPreview as any).data.totalRevenue)}</div>
-                      </div>
-                      <div className="rounded-xl border border-slate-200/70 bg-white/60 p-3">
-                        <div className="text-xs font-medium text-slate-500">Bonus amount</div>
-                        <div className="mt-1 text-sm font-semibold text-slate-900">{formatMoney((bonusPreview as any).data.bonusAmount)}</div>
-                      </div>
-
-                      <div className="rounded-xl border border-slate-200/70 bg-white/60 p-3">
-                        <div className="text-xs font-medium text-slate-500">Commission</div>
-                        <div className="mt-1 flex items-baseline justify-between gap-3">
-                          <div className="text-sm font-semibold text-slate-900">{formatPercent((bonusPreview as any).data.commissionPercent)}</div>
-                          <div className="text-xs font-semibold text-slate-700">{formatMoney((bonusPreview as any).data.commissionAmount)}</div>
-                        </div>
-                      </div>
-
-                      <div className="rounded-xl border border-slate-200/70 bg-white/60 p-3">
-                        <div className="text-xs font-medium text-slate-500">Reference</div>
-                        <div className="mt-1 truncate font-mono text-xs font-semibold text-slate-800">{String((bonusPreview as any).data.bonusPaymentRef ?? '—')}</div>
-                      </div>
+                  <div className="flex h-full min-w-0 flex-col rounded-[12px] border border-slate-200 bg-white p-4">
+                    <label htmlFor="bonusPercentInput" className="block text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 mb-1.5">Bonus (%)</label>
+                    <div className="flex overflow-hidden rounded-[10px] border border-slate-200 bg-slate-50/50 shadow-sm transition-all focus-within:border-[#02665e]/40 focus-within:ring-2 focus-within:ring-[#02665e]/15">
+                      <input id="bonusPercentInput" type="number" min={0} step="0.01" inputMode="decimal" className="min-w-0 flex-1 border-0 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-300" value={bonusPercentInput} onChange={e=>setBonusPercentInput(Number(e.target.value))} placeholder="e.g. 5" />
+                      <div className="flex shrink-0 items-center border-l border-slate-200 bg-slate-100 px-3 text-xs font-bold text-slate-500">%</div>
                     </div>
-                  )}
-
-                  <details className="mt-4 rounded-xl border border-slate-200/70 bg-white/60 p-3">
-                    <summary className="cursor-pointer select-none text-xs font-semibold text-slate-700">Raw response</summary>
-                    <pre className="mt-3 max-h-64 max-w-full overflow-x-hidden overflow-y-auto whitespace-pre-wrap break-words rounded-xl border border-slate-200/70 bg-white/70 p-4 text-[12px] text-slate-700">{JSON.stringify(bonusPreview, null, 2)}</pre>
-                  </details>
+                    <p className="mt-1.5 text-xs text-slate-400">Percent applied to eligible revenue for the preview window.</p>
+                  </div>
                 </div>
-              )}
+                {bonusPreview && (
+                  <div className="mt-4 rounded-[14px] border border-slate-200 bg-white p-4">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between mb-4">
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-slate-900">Preview result</div>
+                        <p className="mt-0.5 text-xs text-slate-500">Review computed values before granting.</p>
+                      </div>
+                      <span className="inline-flex w-fit items-center rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.10em] text-slate-600">
+                        {(bonusPreview as any)?.ok === true ? "OK" : "Result"}
+                      </span>
+                    </div>
+                    {(bonusPreview as any)?.data && (
+                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 mb-4">
+                        {[
+                          { label: "Owner", value: `#${String((bonusPreview as any).data.ownerId ?? bonusOwnerId)}` },
+                          { label: "Bonus", value: formatPercent((bonusPreview as any).data.bonusPercent ?? bonusPercentInput) },
+                          { label: "Eligible revenue", value: formatMoney((bonusPreview as any).data.totalRevenue) },
+                          { label: "Bonus amount", value: formatMoney((bonusPreview as any).data.bonusAmount) },
+                          { label: "Commission %", value: formatPercent((bonusPreview as any).data.commissionPercent) },
+                          { label: "Reference", value: String((bonusPreview as any).data.bonusPaymentRef ?? "\u2014") },
+                        ].map(({ label, value }) => (
+                          <div key={label} className="rounded-[10px] border border-slate-100 bg-slate-50 p-3">
+                            <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">{label}</div>
+                            <div className="mt-1 text-sm font-semibold text-slate-900 truncate font-mono">{value}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <details className="rounded-[12px] border border-slate-200 bg-slate-50 p-3">
+                      <summary className="cursor-pointer select-none text-xs font-semibold text-slate-600">Raw response</summary>
+                      <pre className="mt-3 max-h-64 max-w-full overflow-x-hidden overflow-y-auto whitespace-pre-wrap break-words rounded-[10px] border border-slate-200 bg-white p-4 text-[12px] text-slate-700">{JSON.stringify(bonusPreview, null, 2)}</pre>
+                    </details>
+                  </div>
+                )}
+              </div>
             </div>
           </section>
-        </div>
 
-          <div className="sticky bottom-4 mt-8 flex items-center justify-end">
-            <div className="rounded-2xl border border-slate-200/70 bg-white/80 p-2 shadow-lg ring-1 ring-black/[0.03] backdrop-blur">
-              <button
-                onClick={saveSystemSettings}
-                disabled={loading}
-                className={btnPrimary}
-                type="button"
-              >
-                <Settings className="h-4 w-4" />
-                Save Settings
-              </button>
-            </div>
-          </div>
+        </div>
       </div>
-    </motion.div>
+
+      {/* Sticky save bar */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200 bg-white/90 px-4 py-3 backdrop-blur-sm sm:px-6">
+        <div className="mx-auto flex max-w-4xl items-center justify-between gap-4">
+          <div>
+            {lastSavedAt ? (
+              <span className="text-xs text-slate-500">
+                Last saved: <span className="font-semibold text-slate-700">{lastSavedAt.toLocaleTimeString()}</span>
+              </span>
+            ) : (
+              <span className="text-xs text-slate-400">Unsaved changes will be lost on reload.</span>
+            )}
+          </div>
+          <button
+            onClick={saveSystemSettings}
+            disabled={loading || saving}
+            className="inline-flex items-center gap-2 rounded-xl bg-[#02665e] px-5 py-2.5 text-sm font-bold text-white shadow-[0_4px_16px_-4px_rgba(2,102,94,0.45)] transition hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-[#02665e]/30 disabled:opacity-60 disabled:cursor-not-allowed"
+            type="button"
+          >
+            <Settings className="h-4 w-4" />
+            {saving ? "Saving..." : "Save Settings"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

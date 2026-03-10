@@ -49,9 +49,9 @@ export default function BookingsManagementPage(){
     propertyIdFilter !== "all" || statusFilter !== "all" || sortKey !== "newest";
 
   const controlBase =
-    "h-11 rounded-2xl border bg-white/80 px-4 text-sm text-gray-900 shadow-sm ring-1 ring-black/[0.03] " +
-    "transition-[background-color,border-color,box-shadow,transform] duration-300 ease-out " +
-    "hover:-translate-y-[1px] hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[#02665e]/20";
+    "h-11 rounded-xl border bg-white px-4 text-sm text-slate-800 shadow-sm " +
+    "transition-[border-color,box-shadow] duration-200 " +
+    "focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e]/40 ";
 
   useEffect(() => {
     let mounted = true;
@@ -198,64 +198,59 @@ export default function BookingsManagementPage(){
 
 
   function getStatusBadgeClass(status: string) {
-    const statusLower = status.toLowerCase();
-    if (statusLower.includes('confirmed') || statusLower.includes('active')) {
-      return "inline-flex items-center px-2 py-1 rounded-md bg-green-50 text-green-700 text-xs font-medium";
-    }
-    if (statusLower.includes('pending') || statusLower.includes('new')) {
-      return "inline-flex items-center px-2 py-1 rounded-md bg-yellow-50 text-yellow-700 text-xs font-medium";
-    }
-    if (statusLower.includes('cancel') || statusLower.includes('reject')) {
-      return "inline-flex items-center px-2 py-1 rounded-md bg-red-50 text-red-700 text-xs font-medium";
-    }
-    if (statusLower.includes('check') || statusLower.includes('complete')) {
-      return "inline-flex items-center px-2 py-1 rounded-md bg-blue-50 text-blue-700 text-xs font-medium";
-    }
-    return "inline-flex items-center px-2 py-1 rounded-md bg-gray-50 text-gray-700 text-xs font-medium";
+    const s = status.toLowerCase();
+    const base = "inline-flex items-center px-2.5 py-1 rounded-lg border text-[11px] font-bold uppercase tracking-[0.08em] ";
+    if (s.includes('confirmed') || s.includes('active')) return base + "bg-[#02665e]/[0.08] border-[#02665e]/20 text-[#02665e]";
+    if (s.includes('pending') || s.includes('new')) return base + "bg-amber-50 border-amber-200/80 text-amber-700";
+    if (s.includes('cancel') || s.includes('reject')) return base + "bg-red-50 border-red-200/70 text-red-600";
+    if (s.includes('checked_in') || s.includes('checkin')) return base + "bg-sky-50 border-sky-200/70 text-sky-700";
+    if (s.includes('checked_out') || s.includes('checkout') || s.includes('complete')) return base + "bg-violet-50 border-violet-200/70 text-violet-700";
+    return base + "bg-slate-50 border-slate-200 text-slate-600";
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start justify-between gap-3">
-          <div className="text-sm text-red-700 break-words">{error}</div>
+        <div className="bg-red-50 border border-red-200/70 rounded-[16px] p-4 flex items-start justify-between gap-3 shadow-sm">
+          <div className="text-sm text-red-700 break-words font-medium">{error}</div>
           <button
             type="button"
             onClick={() => setError(null)}
-            className="text-red-400 hover:text-red-600 no-underline"
+            className="shrink-0 text-red-400 hover:text-red-600 transition text-lg leading-none"
             aria-label="Dismiss error"
-            title="Dismiss"
           >
             ×
           </button>
         </div>
       )}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-        <div className="flex flex-col items-center text-center mb-4">
-          <Calendar className="h-8 w-8 text-gray-400 mb-3" />
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900">
+      <div className="bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] px-8 py-7">
+        <div className="flex flex-col items-center text-center">
+          <div className="h-14 w-14 rounded-2xl bg-[#02665e]/10 flex items-center justify-center mb-4">
+            <Calendar className="h-7 w-7 text-[#02665e]" />
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">
             Bookings
           </h1>
-          <p className="mt-1 text-sm text-gray-600">
+          <p className="mt-1.5 text-sm text-slate-500">
             Showing admin booking records
           </p>
         </div>
       </div>
 
-      <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-        <div className="border-b border-gray-200/70 bg-white/70 backdrop-blur-xl transition-[background-color,border-color] duration-300 ease-out">
-          <div className="p-4">
+      <div className="bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] overflow-hidden">
+        <div className="border-b border-slate-100 bg-white/80 backdrop-blur-xl">
+          <div className="p-4 sm:p-5">
             <div className="mx-auto w-full max-w-6xl">
               <div
                 className={
-                  "rounded-3xl border p-2.5 shadow-sm ring-1 ring-black/[0.03] " +
+                  "rounded-2xl border p-3 " +
                   "transition-[background-color,border-color,box-shadow] duration-300 ease-out " +
                   (isAnyFilterActive
-                    ? "border-[#02665e]/30 bg-gradient-to-r from-[#02665e]/[0.07] via-white/70 to-white/70 shadow-md"
-                    : "border-gray-200/80 bg-white/70")
+                    ? "border-[#02665e]/25 bg-[#02665e]/[0.04] shadow-sm"
+                    : "border-slate-200/80 bg-slate-50/60")
                 }
               >
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-center">
+                <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-center">
                 <label className="sr-only" htmlFor="bookings-property">Property</label>
                 <select
                   id="bookings-property"
@@ -265,8 +260,8 @@ export default function BookingsManagementPage(){
                     controlBase +
                     " w-full sm:w-96 " +
                     (propertyIdFilter !== "all"
-                      ? "border-[#02665e]/40 bg-white shadow-md"
-                      : "border-gray-200/80 hover:border-[#02665e]/25 focus:border-[#02665e]/40")
+                      ? "border-[#02665e]/40"
+                      : "border-slate-200 hover:border-slate-300")
                   }
                 >
                   <option value="all">All approved booked properties</option>
@@ -289,12 +284,12 @@ export default function BookingsManagementPage(){
                   id="bookings-status"
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                    className={
+                  className={
                     controlBase +
-                      (statusFilter !== "all"
-                      ? "border-[#02665e]/40 bg-white shadow-md"
-                      : "border-gray-200/80 hover:border-[#02665e]/25 focus:border-[#02665e]/40")
-                    }
+                    (statusFilter !== "all"
+                      ? "border-[#02665e]/40"
+                      : "border-slate-200 hover:border-slate-300")
+                  }
                 >
                   {statusOptions.map((s) => (
                     <option key={s} value={s}>
@@ -305,18 +300,18 @@ export default function BookingsManagementPage(){
               </div>
 
               <div className="flex items-center gap-2">
-                  <ArrowUpDown className={"h-4 w-4 transition-colors duration-200 " + (sortKey !== "newest" ? "text-[#02665e]" : "text-gray-400")} />
+                <ArrowUpDown className={"h-4 w-4 flex-shrink-0 transition-colors duration-200 " + (sortKey !== "newest" ? "text-[#02665e]" : "text-slate-400")} />
                 <label className="sr-only" htmlFor="bookings-sort">Sort</label>
                 <select
                   id="bookings-sort"
                   value={sortKey}
                   onChange={(e) => setSortKey(e.target.value as SortKey)}
-                    className={
-                      controlBase +
-                      (sortKey !== "newest"
-                        ? "border-[#02665e]/40 bg-white shadow-md"
-                        : "border-gray-200/80 hover:border-[#02665e]/25 focus:border-[#02665e]/40")
-                    }
+                  className={
+                    controlBase +
+                    (sortKey !== "newest"
+                      ? "border-[#02665e]/40"
+                      : "border-slate-200 hover:border-slate-300")
+                  }
                 >
                   <option value="newest">Newest first</option>
                   <option value="oldest">Oldest first</option>
@@ -328,26 +323,25 @@ export default function BookingsManagementPage(){
                 </select>
               </div>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStatusFilter("all");
-                    setSortKey("newest");
-                    setPropertyIdFilter("all");
-                  }}
-                  aria-label="Reset filters"
-                  title="Reset"
-                  className={
-                    "h-11 w-11 inline-flex items-center justify-center rounded-2xl border bg-white/80 shadow-sm ring-1 ring-black/[0.03] " +
-                    "transition-[background-color,border-color,box-shadow,transform,color] duration-300 ease-out " +
-                    "hover:-translate-y-[1px] hover:shadow-md active:translate-y-0 " +
-                    (isAnyFilterActive
-                      ? "border-[#02665e]/30 text-[#02665e] hover:border-[#02665e]/40"
-                      : "border-gray-200/80 text-gray-600 hover:border-[#02665e]/25 hover:text-[#02665e]")
-                  }
-                >
-                  <RotateCcw className="h-4 w-4" />
-                </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setStatusFilter("all");
+                  setSortKey("newest");
+                  setPropertyIdFilter("all");
+                }}
+                aria-label="Reset filters"
+                title="Reset filters"
+                className={
+                  "h-11 w-11 inline-flex items-center justify-center rounded-xl border bg-white shadow-sm " +
+                  "transition-[border-color,color,background-color] duration-200 " +
+                  (isAnyFilterActive
+                    ? "border-[#02665e]/35 text-[#02665e] hover:bg-[#02665e]/[0.06]"
+                    : "border-slate-200 text-slate-400 hover:border-slate-300 hover:text-[#02665e]")
+                }
+              >
+                <RotateCcw className="h-4 w-4" />
+              </button>
                 </div>
               </div>
             </div>
@@ -355,70 +349,70 @@ export default function BookingsManagementPage(){
         </div>
 
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Property</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Guest</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check-in</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check-out</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+          <table className="min-w-full">
+            <thead>
+              <tr className="border-b border-slate-100 bg-slate-50/70">
+                <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">ID</th>
+                <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Property</th>
+                <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Guest</th>
+                <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Check-in</th>
+                <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Check-out</th>
+                <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Status</th>
+                <th className="px-5 py-3 text-center text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Actions</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <TableRow hover={false}>
-                  <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">
+                  <td colSpan={7} className="px-5 py-10 text-center text-sm text-slate-400 font-medium">
                     Loading…
                   </td>
                 </TableRow>
-              ) : items.length === 0 ? (
+              ) : filteredAndSorted.length === 0 ? (
                 <TableRow hover={false}>
-                  <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">
-                    No bookings
+                  <td colSpan={7} className="px-5 py-10 text-center text-sm text-slate-400 font-medium">
+                    No bookings found
                   </td>
                 </TableRow>
               ) : (
                 filteredAndSorted.map(b => (
                   <TableRow key={b.id}>
-                    <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
-                      {b.id}
+                    <td className="px-5 py-3.5 text-sm font-bold text-slate-900 whitespace-nowrap tabular-nums">
+                      #{b.id}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-700">
+                    <td className="px-5 py-3.5 text-sm font-semibold text-slate-800 max-w-[220px] truncate">
                       {b.property?.title ?? '—'}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-700">
+                    <td className="px-5 py-3.5 text-sm text-slate-600">
                       {b.guestName ?? '—'}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
-                      {new Date(b.checkIn).toLocaleDateString()}
+                    <td className="px-5 py-3.5 text-sm whitespace-nowrap">
+                      <span className="font-semibold text-slate-800">{new Date(b.checkIn).toLocaleDateString()}</span>
                       <br />
-                      <span className="text-xs text-gray-500">
-                        {new Date(b.checkIn).toLocaleTimeString()}
+                      <span className="text-xs text-slate-400">
+                        {new Date(b.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
-                      {new Date(b.checkOut).toLocaleDateString()}
+                    <td className="px-5 py-3.5 text-sm whitespace-nowrap">
+                      <span className="font-semibold text-slate-800">{new Date(b.checkOut).toLocaleDateString()}</span>
                       <br />
-                      <span className="text-xs text-gray-500">
-                        {new Date(b.checkOut).toLocaleTimeString()}
+                      <span className="text-xs text-slate-400">
+                        {new Date(b.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-sm">
+                    <td className="px-5 py-3.5">
                       <span className={getStatusBadgeClass(b.status)}>
                         {b.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-sm">
+                    <td className="px-5 py-3.5">
                       <div className="flex justify-center">
                         <Link
                           href={`/admin/management/bookings/${b.id}`}
-                          className="p-2 rounded-lg text-[#02665e] hover:bg-[#02665e]/10 transition-all duration-200"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-[#02665e] border border-[#02665e]/25 hover:bg-[#02665e] hover:text-white hover:border-[#02665e] transition-all duration-200"
                           title="View booking details"
                         >
-                          <Eye className="h-5 w-5" />
+                          <Eye className="h-3.5 w-3.5" /> View
                         </Link>
                       </div>
                     </td>
@@ -430,30 +424,30 @@ export default function BookingsManagementPage(){
         </div>
       </div>
 
-      <div className="flex items-center justify-between bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
+      <div className="flex items-center justify-between bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] px-5 py-4">
         <div className="flex gap-2">
-          <button 
-            className="p-2 border border-gray-300 rounded-lg hover:border-[#02665e] hover:text-[#02665e] transition-all duration-200 active:border-[#02665e] active:text-[#02665e] touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+          <button
+            className="h-9 w-9 inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-[#02665e]/40 hover:text-[#02665e] hover:bg-[#02665e]/[0.04] disabled:opacity-40 disabled:cursor-not-allowed"
             onClick={() => setPage(p => Math.max(1, p - 1))}
             disabled={page === 1 || loading}
             aria-label="Previous page"
           >
-            <ChevronLeft className="h-5 w-5" />
+            <ChevronLeft className="h-4 w-4" />
           </button>
-          <button 
-            className="p-2 border border-gray-300 rounded-lg hover:border-[#02665e] hover:text-[#02665e] transition-all duration-200 active:border-[#02665e] active:text-[#02665e] touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+          <button
+            className="h-9 w-9 inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-[#02665e]/40 hover:text-[#02665e] hover:bg-[#02665e]/[0.04] disabled:opacity-40 disabled:cursor-not-allowed"
             onClick={() => setPage(p => p + 1)}
             disabled={items.length < 25 || loading || (page * 25 >= total)}
             aria-label="Next page"
           >
-            <ChevronRight className="h-5 w-5" />
+            <ChevronRight className="h-4 w-4" />
           </button>
         </div>
-        <div className="text-sm text-gray-600">
-          Page <span className="font-semibold text-gray-900">{page}</span>
+        <div className="text-sm text-slate-500">
+          Page <span className="font-bold text-slate-900">{page}</span>
           {total > 0 && (
-            <span className="ml-2 text-gray-500">
-              (Total: {total})
+            <span className="ml-2">
+              · <span className="text-slate-700 font-semibold">{total}</span> total
             </span>
           )}
         </div>

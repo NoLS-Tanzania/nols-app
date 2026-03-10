@@ -382,7 +382,7 @@ export default function PropertyEditModal({ property, isOpen, onClose, onSave }:
                         {/* Final Price Section */}
                         <div className="flex flex-col">
                           <label className="block text-xs font-semibold text-slate-700 mb-2">
-                            Final Price (with {safeCommission}% commission)
+                            Final Price (with {safeCommission}% NoLSAF commission)
                           </label>
                           <div className="px-4 py-3 bg-white border-2 border-[#02665e]/20 rounded-lg">
                             <div className="text-base font-bold text-[#02665e] mb-1.5">

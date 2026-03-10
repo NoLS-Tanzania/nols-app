@@ -4,6 +4,7 @@ import { prisma } from "@nolsaf/prisma";
 import { Prisma } from "@prisma/client";
 import { AuthedRequest, requireAuth, requireRole } from "../middleware/auth.js";
 import { invalidateOwnerReports } from "../lib/cache.js";
+import { getEffectiveCommissionPercent, resolveOwnerPayoutAmount } from "../lib/accommodationPayout.js";
 export const router = Router();
 router.use(requireAuth as unknown as RequestHandler, requireRole("OWNER") as unknown as RequestHandler);
 
@@ -55,7 +56,7 @@ router.post("/from-booking", async (req, res) => {
     const booking = await prisma.booking.findFirst({
       where: { id: bookingId, property: { ownerId } },
       include: {
-        property: { select: { id: true, title: true, type: true, basePrice: true, currency: true } },
+        property: { select: { id: true, title: true, type: true, basePrice: true, currency: true, services: true } },
         code: true,
       },
     });
@@ -71,7 +72,7 @@ router.post("/from-booking", async (req, res) => {
   // Prefer totalAmount if you already computed; otherwise fallback to nights * pricePerNight
   const pricePerNight = (booking as any).pricePerNight ?? booking.property?.basePrice ?? null;
   const transportFare = (booking as any).includeTransport ? Number((booking as any).transportFare || 0) : 0;
-  const amount = booking.totalAmount
+  const accommodationGross = booking.totalAmount
     ? Math.max(0, Number(booking.totalAmount) - transportFare)
     : (pricePerNight ? (pricePerNight as any) * nights : 0);
 
@@ -89,6 +90,14 @@ router.post("/from-booking", async (req, res) => {
   type InvoiceCreationResult = InvoiceCreationDuplicate | InvoiceCreationSuccess;
 
     const invoiceNumber = makeInvoiceNumber(booking.id, booking.code!.id);
+    const commissionPercent = await getEffectiveCommissionPercent((booking.property as any)?.services);
+    const ownerPayout = resolveOwnerPayoutAmount({
+      invoiceNumber,
+      invoiceTotal: accommodationGross,
+      bookingTotalAmount: booking.totalAmount,
+      transportFare,
+      commissionPercent,
+    });
 
     const created: InvoiceCreationResult = await prisma.$transaction(
       async (tx: Prisma.TransactionClient): Promise<InvoiceCreationResult> => {
@@ -112,11 +121,11 @@ router.post("/from-booking", async (req, res) => {
             // - Create once as DRAFT
             // - Explicit submit later moves it to REQUESTED
             status: "DRAFT",
-            total: amount as any,
+            total: ownerPayout as any,
             taxPercent: 0 as any,
             commissionPercent: null,
             commissionAmount: null,
-            netPayable: null,
+            netPayable: ownerPayout as any,
           } as any,
           select: { id: true },
         });

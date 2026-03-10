@@ -438,11 +438,11 @@ export default function AdminHomePage() {
       const obj: any = d;
 
       const status = obj.toStatus ?? obj.status ?? obj.to ?? obj.result ?? "";
-      if (obj.propertyId) return truncateText(`Property ${obj.propertyId}${status ? ` â€” ${status}` : ""}`);
-      if (obj.invoiceId) return truncateText(`Invoice ${obj.invoiceId}${status ? ` â€” ${status}` : ""}`);
-      if (obj.bookingId) return truncateText(`Booking ${obj.bookingId}${status ? ` â€” ${status}` : ""}`);
+      if (obj.propertyId) return truncateText(`Property ${obj.propertyId}${status ? ` - ${status}` : ""}`);
+      if (obj.invoiceId) return truncateText(`Invoice ${obj.invoiceId}${status ? ` - ${status}` : ""}`);
+      if (obj.bookingId) return truncateText(`Booking ${obj.bookingId}${status ? ` - ${status}` : ""}`);
 
-      if (a.includes("GRANT_BONUS") && obj.ownerId) return truncateText(`Owner ${obj.ownerId} â€” bonus granted`);
+      if (a.includes("GRANT_BONUS") && obj.ownerId) return truncateText(`Owner ${obj.ownerId} - bonus granted`);
       if (a.includes("DISABLE_USER") && typeof obj.disable !== "undefined") return truncateText(`disable: ${String(obj.disable)}`);
       if (a.includes("ENABLE_USER")) return "disable: false";
 
@@ -1105,7 +1105,7 @@ export default function AdminHomePage() {
                       <div className="min-w-0">
                         <div className="text-xs text-slate-400">Best property type</div>
                         <div className="mt-1 text-lg font-extrabold text-white tracking-tight truncate">
-                          {highlights?.bestPropertyType?.type ?? "â€”"}
+                          {highlights?.bestPropertyType?.type ?? "--"}
                         </div>
                       </div>
                       <div className="h-9 w-9 rounded-2xl border border-white/10 bg-white/10 flex items-center justify-center">
@@ -1146,7 +1146,7 @@ export default function AdminHomePage() {
                       <div className="min-w-0">
                         <div className="text-xs text-slate-400">Best driver (NoLSAF revenue)</div>
                         <div className="mt-1 text-lg font-extrabold text-white tracking-tight truncate">
-                          {highlights?.bestDriver?.name ?? "â€”"}
+                          {highlights?.bestDriver?.name ?? "--"}
                         </div>
                       </div>
                       <div className="h-9 w-9 rounded-2xl border border-white/10 bg-white/10 flex items-center justify-center">
@@ -1190,7 +1190,7 @@ export default function AdminHomePage() {
                       <div className="min-w-0">
                         <div className="text-xs text-slate-400">Best owner (revenue + bookings)</div>
                         <div className="mt-1 text-lg font-extrabold text-white tracking-tight truncate">
-                          {highlights?.bestOwner?.name ?? "â€”"}
+                          {highlights?.bestOwner?.name ?? "--"}
                         </div>
                       </div>
                       <div className="h-9 w-9 rounded-2xl border border-white/10 bg-white/10 flex items-center justify-center">
@@ -1233,7 +1233,7 @@ export default function AdminHomePage() {
                       <div className="min-w-0">
                         <div className="text-xs text-slate-400">Most booked region</div>
                         <div className="mt-1 text-lg font-extrabold text-white tracking-tight truncate">
-                          {highlights?.mostBookedRegion?.regionName ?? "â€”"}
+                          {highlights?.mostBookedRegion?.regionName ?? "--"}
                         </div>
                       </div>
                       <div className="h-9 w-9 rounded-2xl border border-white/10 bg-white/10 flex items-center justify-center">
@@ -1277,7 +1277,7 @@ export default function AdminHomePage() {
                       <div className="min-w-0">
                         <div className="text-xs text-slate-400">Top property (bookings + interactions)</div>
                         <div className="mt-1 text-lg font-extrabold text-white tracking-tight truncate">
-                          {highlights?.topProperty?.title ?? "â€”"}
+                          {highlights?.topProperty?.title ?? "--"}
                         </div>
                       </div>
                       <div className="h-9 w-9 rounded-2xl border border-white/10 bg-white/10 flex items-center justify-center">
@@ -1285,7 +1285,7 @@ export default function AdminHomePage() {
                       </div>
                     </div>
                     <div className="relative mt-2 text-xs text-slate-400 truncate">
-                      {highlights?.topProperty ? `${highlights.topProperty.type} â€¢ ${highlights.topProperty.regionName}` : ""}
+                      {highlights?.topProperty ? `${highlights.topProperty.type} - ${highlights.topProperty.regionName}` : ""}
                     </div>
                     <div className="relative mt-3 flex items-end justify-between gap-3">
                       <div className="text-sm text-slate-300">
@@ -1543,7 +1543,7 @@ export default function AdminHomePage() {
                                       </span>
                                       <span className="text-sm font-semibold text-white truncate">{formatAuditAction(a.action)}</span>
                                     </div>
-                                    <div className="text-xs text-slate-400 truncate mt-1">{detailsText || "â€”"}</div>
+                                    <div className="text-xs text-slate-400 truncate mt-1">{detailsText || "--"}</div>
                                   </div>
                                 </div>
                                 <ClientTime iso={a.createdAt} />
@@ -1612,7 +1612,7 @@ export default function AdminHomePage() {
 
                       {/* Card content */}
                       <div className="relative flex flex-col justify-between p-5 pb-5" style={{ minHeight: "230px" }}>
-                        {/* Row 1 â€” brand + chip */}
+                        {/* Row 1 - brand + chip */}
                         <div className="flex items-start justify-between">
                           <div>
                             <p className="text-[10px] font-black uppercase tracking-[0.28em] text-white/50">NoLSAF</p>
@@ -1631,7 +1631,7 @@ export default function AdminHomePage() {
                           </svg>
                         </div>
 
-                        {/* Row 2 â€” total revenue hero */}
+                        {/* Row 2 - total revenue hero */}
                         <div className="mt-3">
                           <p className="text-[9px] font-bold uppercase tracking-[0.22em] text-white/45 mb-1.5">Total Platform Revenue</p>
                           <p
@@ -1642,7 +1642,7 @@ export default function AdminHomePage() {
                           </p>
                         </div>
 
-                        {/* Row 3 â€” breakdown + circles */}
+                        {/* Row 3 - breakdown + circles */}
                         <div className="mt-4 pt-3 border-t border-white/12 flex items-center justify-between gap-2">
                           <div className="flex items-center gap-3 flex-wrap">
                             <div>
@@ -1664,7 +1664,7 @@ export default function AdminHomePage() {
                             </div>
                           </div>
 
-                          {/* Dual circles â€” Mastercard-style */}
+                          {/* Dual circles - Mastercard-style */}
                           <div className="flex -space-x-3 flex-shrink-0 ml-1">
                             <div className="w-8 h-8 rounded-full flex-shrink-0" style={{ background: "radial-gradient(circle at 38% 38%, #2563eb, #0e2a7a)", opacity: 0.92 }} />
                             <div className="w-8 h-8 rounded-full flex-shrink-0" style={{ background: "radial-gradient(circle at 62% 38%, #02665e, #013f3a)", opacity: 0.80 }} />

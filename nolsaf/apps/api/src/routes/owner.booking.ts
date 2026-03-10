@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@nolsaf/prisma";
 import { AuthedRequest, requireAuth, requireRole } from "../middleware/auth.js";
 import { invalidateOwnerReports } from "../lib/cache.js";
+import { getEffectiveCommissionPercent, resolveOwnerPayoutAmount } from "../lib/accommodationPayout.js";
 import { validateBookingCode, markBookingCodeAsUsed } from "../lib/bookingCodeService.js";
 import { getBookingValidationWindowStatus } from "../lib/bookingValidationWindow.js";
 import {
@@ -715,7 +716,7 @@ const sendInvoiceFromBooking: RequestHandler = async (req, res) => {
   const booking = await prisma.booking.findFirst({
     where: { id, property: { ownerId: r.user!.id } },
     include: {
-      property: { select: { id: true, title: true, type: true, basePrice: true, currency: true } },
+      property: { select: { id: true, title: true, type: true, basePrice: true, currency: true, services: true } },
       code: true,
     },
   });
@@ -730,7 +731,7 @@ const sendInvoiceFromBooking: RequestHandler = async (req, res) => {
   const nights = Math.max(1, Math.ceil((+booking.checkOut - +booking.checkIn) / (1000*60*60*24)));
   const pricePerNight = (booking as any).pricePerNight ?? booking.property?.basePrice ?? null;
   const transportFare = (booking as any).includeTransport ? Number((booking as any).transportFare || 0) : 0;
-  const amount = booking.totalAmount
+  const accommodationGross = booking.totalAmount
     ? Math.max(0, Number(booking.totalAmount) - transportFare)
     : (pricePerNight ? (pricePerNight as any) * nights : 0);
 
@@ -744,6 +745,14 @@ const sendInvoiceFromBooking: RequestHandler = async (req, res) => {
   };
 
   const invoiceNumber = makeOwnerInvoiceNumber(booking.id, booking.code!.id);
+  const commissionPercent = await getEffectiveCommissionPercent((booking.property as any)?.services);
+  const ownerPayout = resolveOwnerPayoutAmount({
+    invoiceNumber,
+    invoiceTotal: accommodationGross,
+    bookingTotalAmount: booking.totalAmount,
+    transportFare,
+    commissionPercent,
+  });
 
   const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const existing = await tx.invoice.findFirst({ where: { ownerId: r.user!.id, invoiceNumber } });
@@ -756,11 +765,11 @@ const sendInvoiceFromBooking: RequestHandler = async (req, res) => {
           ownerId: r.user!.id,
           bookingId: booking.id,
           status: "DRAFT",
-          total: amount as any,
+          total: ownerPayout as any,
           taxPercent: 0 as any,
           commissionPercent: null,
           commissionAmount: null,
-          netPayable: null,
+          netPayable: ownerPayout as any,
         } as any,
       });
       created = true;
