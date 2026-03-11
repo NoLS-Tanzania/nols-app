@@ -748,7 +748,7 @@ function PropertyAvailabilityChecker({
     debounceTimerRef.current = setTimeout(() => {
       debounceTimerRef.current = null;
       void runCheckNow();
-    }, 450);
+    }, 1500);
   }, [runCheckNow]);
 
   const incomingCheckIn = dates?.checkIn || "";
@@ -904,12 +904,10 @@ function PropertyAvailabilityChecker({
           </div>
         </div>
 
-        {loading ? (
-          <div className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 font-semibold flex items-center justify-center gap-2">
-            <LogoSpinner size="xs" ariaLabel="Updating availability" />
-            <span>Updating availability…</span>
-          </div>
-        ) : null}
+        {/* Subtle loading bar — does not shift layout */}
+        <div className={`h-0.5 rounded-full overflow-hidden transition-opacity duration-300 ${loading ? 'opacity-100' : 'opacity-0'}`}>
+          <div className="h-full w-full bg-gradient-to-r from-[#02665e]/20 via-[#02665e] to-[#02665e]/20 animate-[shimmer_1.5s_ease-in-out_infinite] bg-[length:200%_100%]" />
+        </div>
 
         {/* Error Message */}
         {error && (
