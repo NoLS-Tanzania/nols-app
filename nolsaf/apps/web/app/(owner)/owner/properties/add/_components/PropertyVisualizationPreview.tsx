@@ -325,92 +325,79 @@ export function PropertyVisualizationPreview({
         </div>
       )}
 
-      {/* Building Structure View - Compact Design */}
+      {/* Building Structure View */}
       {viewMode === "structure" && (
-        <div className="p-4 sm:p-6 bg-gradient-to-b from-gray-50 via-white to-gray-50">
-          <div className="text-center mb-4">
-            {showHeader ? (
-              <h4 className="text-lg font-bold text-gray-900 mb-1 flex items-center justify-center gap-2">
-                <Building2 className="w-4 h-4 text-[#02665e]" aria-hidden />
-                Building Structure
-              </h4>
-            ) : null}
-            <p className="text-xs text-gray-500">
-              Select a floor below to see room types and room counts for that floor.
-            </p>
-          </div>
+        <div className="p-4 sm:p-6">
+          {/* Instruction */}
+          <p className="text-xs text-slate-400 text-center mb-4">
+            Select a floor below to see room types and room counts for that floor.
+          </p>
 
-          {/* Compact Floor Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6 max-w-4xl mx-auto">
+          {/* Floor Cards — full-width flex row, wraps on small screens */}
+          <div className="flex flex-wrap gap-3 mb-5">
             {availableFloors.map((floor, floorIdx) => {
-                const isActive = currentFloor === floor;
-                const floorRooms = roomsByFloor[floor] || [];
-                const roomCount = floorRooms.reduce((sum, room) => sum + (room.roomsCount || 0), 0);
-                const roomTypesCount = floorRooms.length;
-                
-                const themeClass = `property-viz-theme-${floorIdx % 8}`;
-                
-                return (
-                  <button
-                    key={floor}
-                    onClick={() => handleFloorChange(floor)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        handleFloorChange(floor);
-                      }
-                    }}
-                    className={`relative w-full rounded-xl border-2 transition-all duration-300 transform property-viz-floor-button-compact ${themeClass} focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-                      isActive
-                        ? "shadow-lg scale-[1.02] ring-2 ring-offset-2"
-                        : "border-gray-200 hover:shadow-md hover:scale-[1.01]"
-                    }`}
-                    aria-label={`${getFloorName(floor)} floor, ${roomCount} rooms, ${roomTypesCount} room types`}
-                    aria-pressed={isActive}
-                    aria-current={isActive ? "true" : "false"}
-                    role="button"
-                    tabIndex={0}
-                  >
-                    {/* Compact Layout */}
-                    <div className="p-4 flex items-center justify-between gap-3">
-                      {/* Left: Floor Info */}
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        {/* Accent Line Indicator */}
-                        <div className="w-1.5 h-12 rounded-full property-viz-floor-accent flex-shrink-0" />
-                        
-                        {/* Floor Details */}
-                        <div className="flex-1 min-w-0">
-                          <div className={`font-bold text-base property-viz-floor-label ${
-                            isActive ? "property-viz-floor-label-active" : ""
-                          }`}>
-                            {getFloorName(floor)} Floor
-                          </div>
-                          <div className={`text-xs mt-0.5 property-viz-floor-types ${
-                            isActive ? "property-viz-floor-types-active" : "text-gray-500"
-                          }`}>
-                            {roomTypesCount} {roomTypesCount === 1 ? "type" : "types"}
-                          </div>
+              const isActive = currentFloor === floor;
+              const floorRooms = roomsByFloor[floor] || [];
+              const roomCount = floorRooms.reduce((sum, room) => sum + (room.roomsCount || 0), 0);
+              const roomTypesCount = floorRooms.length;
+              const themeClass = `property-viz-theme-${floorIdx % 8}`;
+
+              return (
+                <button
+                  key={floor}
+                  onClick={() => handleFloorChange(floor)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      handleFloorChange(floor);
+                    }
+                  }}
+                  className={`relative flex-1 min-w-[160px] rounded-2xl border-2 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#02665e]/40 ${
+                    isActive
+                      ? "bg-[#02665e] border-[#02665e] shadow-lg shadow-[#02665e]/20 scale-[1.02]"
+                      : `property-viz-floor-button-compact ${themeClass} border-slate-200 hover:border-[#02665e]/40 hover:shadow-md hover:scale-[1.01]`
+                  }`}
+                  aria-label={`${getFloorName(floor)} floor, ${roomCount} rooms, ${roomTypesCount} room types`}
+                  aria-pressed={isActive}
+                  tabIndex={0}
+                >
+                  <div className="p-4 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      {/* Accent bar */}
+                      <div className={`w-1 h-10 rounded-full flex-shrink-0 ${isActive ? "bg-white/40" : "property-viz-floor-accent"}`} />
+                      <div className="flex-1 min-w-0 text-left">
+                        <div className={`font-bold text-sm leading-tight ${isActive ? "text-white" : "property-viz-floor-label"}`}>
+                          {getFloorName(floor)} Floor
+                        </div>
+                        <div className={`text-xs mt-1 ${isActive ? "text-white/70" : "text-slate-400"}`}>
+                          {roomTypesCount} {roomTypesCount === 1 ? "type" : "types"}
                         </div>
                       </div>
-                      
-                      {/* Right: Room Count Badge */}
-                      <div className={`px-3 py-1.5 rounded-lg text-xs font-bold property-viz-floor-badge-compact flex-shrink-0 ${
-                        isActive ? "property-viz-floor-badge-active" : ""
-                      }`}>
-                        {roomCount} {roomCount === 1 ? "room" : "rooms"}
-                      </div>
                     </div>
-                  </button>
-                );
-              })}
+                    <div className={`px-2.5 py-1 rounded-lg text-xs font-bold flex-shrink-0 ${
+                      isActive ? "bg-white/20 text-white" : "property-viz-floor-badge-compact"
+                    }`}>
+                      {roomCount} {roomCount === 1 ? "room" : "rooms"}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
           </div>
 
-          {/* Selected Floor Details - Compact */}
-          <div className="mt-4 p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
-            <div className="flex items-center justify-between mb-3">
-              <h5 className="text-sm font-bold text-gray-900">
-                {getFloorName(currentFloor)} Floor Details
-              </h5>
+          {/* Selected Floor Details */}
+          <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-sm">
+            {/* Panel header with teal top stripe */}
+            <div className="h-1 w-full bg-gradient-to-r from-[#02665e] via-[#02b4a0] to-[#02665e]" />
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50/60">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-md bg-[#02665e]/10 flex items-center justify-center">
+                  <Building2 className="w-3.5 h-3.5 text-[#02665e]" aria-hidden />
+                </div>
+                <h5 className="text-sm font-bold text-slate-800">
+                  {getFloorName(currentFloor)} Floor Details
+                </h5>
+              </div>
               <button
                 onClick={() => setViewMode("plan")}
                 onKeyDown={(e) => {
@@ -421,51 +408,53 @@ export function PropertyVisualizationPreview({
                 }}
                 className="px-3 py-1.5 bg-[#02665e] text-white rounded-lg text-xs font-semibold hover:bg-[#014e47] transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-[#02665e] focus:ring-offset-2"
                 aria-label="View detailed floor plan"
-                title="View detailed floor plan (Press Enter or Space)"
               >
                 <Grid3x3 className="w-3.5 h-3.5" />
                 View Plan
               </button>
             </div>
-            
+
+            {/* Room type cards */}
             {currentRooms.length > 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <div className="p-3 grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                 {currentRooms.map((room, idx) => {
                   const themeClass = getRoomThemeClass(room.roomType);
                   return (
-                  <button
-                    key={`${room.roomType}-${idx}`}
-                    type="button"
-                    onClick={() => onRoomTypeClick?.({ roomType: room.roomType, floor: currentFloor, view: "structure" })}
-                    className={[
-                      "p-3 rounded-lg border transition-all",
-                      "property-viz-roomtype-card",
-                      themeClass,
-                      "hover:shadow-sm",
-                      onRoomTypeClick ? "cursor-pointer" : "cursor-default",
-                    ].join(" ")}
-                    aria-label={
-                      onRoomTypeClick
-                        ? `Open details for ${room.roomType} on ${getFloorName(currentFloor)} floor`
-                        : undefined
-                    }
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className="w-1 h-8 rounded-full property-viz-roomtype-accent flex-shrink-0" aria-hidden />
-                      <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 property-viz-roomtype-icon">
-                        <BedDouble className="w-4 h-4" aria-hidden />
+                    <button
+                      key={`${room.roomType}-${idx}`}
+                      type="button"
+                      onClick={() => onRoomTypeClick?.({ roomType: room.roomType, floor: currentFloor, view: "structure" })}
+                      className={[
+                        "group relative p-3.5 rounded-xl border transition-all duration-200",
+                        "property-viz-roomtype-card",
+                        themeClass,
+                        "hover:shadow-md hover:-translate-y-0.5",
+                        onRoomTypeClick ? "cursor-pointer" : "cursor-default",
+                        "focus:outline-none focus:ring-2 focus:ring-[#02665e]/30 focus:ring-offset-1",
+                      ].join(" ")}
+                      aria-label={onRoomTypeClick ? `Open details for ${room.roomType}` : undefined}
+                    >
+                      {/* Top accent */}
+                      <div className="absolute top-0 left-3 right-3 h-0.5 rounded-b-full property-viz-roomtype-accent" aria-hidden />
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-1 h-9 rounded-full property-viz-roomtype-accent flex-shrink-0" aria-hidden />
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 property-viz-roomtype-icon">
+                          <BedDouble className="w-4 h-4" aria-hidden />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-bold text-sm text-slate-900 truncate leading-tight">{room.roomType}</div>
+                          <div className="text-xs text-slate-500 mt-0.5">
+                            <span className="font-semibold text-slate-700">{room.roomsCount}</span> {room.roomsCount === 1 ? "room" : "rooms"}
+                          </div>
+                        </div>
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="font-semibold text-sm text-gray-900 truncate">{room.roomType}</div>
-                        <div className="text-xs text-gray-600">{room.roomsCount} {room.roomsCount === 1 ? "room" : "rooms"}</div>
-                      </div>
-                    </div>
-                  </button>
-                )})}
+                    </button>
+                  );
+                })}
               </div>
             ) : (
-              <div className="text-center py-6 text-gray-500">
-                <BedDouble className="w-10 h-10 mx-auto mb-2 text-gray-300" />
+              <div className="text-center py-8 text-slate-400">
+                <BedDouble className="w-9 h-9 mx-auto mb-2 opacity-30" />
                 <p className="text-sm">No rooms on this floor</p>
               </div>
             )}

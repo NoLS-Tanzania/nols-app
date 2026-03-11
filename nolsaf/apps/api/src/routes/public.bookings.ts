@@ -19,6 +19,9 @@ async function getEffectiveCommissionPercent(params: { propertyServices: unknown
   const fromProperty = (() => {
     const services = params.propertyServices as any;
     const v = services?.commissionPercent;
+    // null means "use system default" (admin chose Use System Default → stored as null).
+    // Treat null/undefined the same: fall through to system default.
+    if (v === null || v === undefined) return null;
     const n = Number(v);
     if (!Number.isFinite(n)) return null;
     if (n < 0) return 0;

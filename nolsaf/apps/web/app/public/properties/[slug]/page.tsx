@@ -2382,36 +2382,24 @@ export default function PublicPropertyDetailPage() {
 
         {/* Building visualization (owner-declared) */}
         {property.roomsSpec && property.roomsSpec.length > 0 && (
-          <div className="mt-6 relative overflow-hidden rounded-[28px] sm:rounded-[36px] p-[1px] shadow-[0_20px_60px_rgba(2,102,94,0.18)]"
-            style={{ background: 'linear-gradient(135deg,rgba(2,102,94,0.70) 0%,rgba(2,180,245,0.35) 50%,rgba(2,102,94,0.60) 100%)' }}>
-            <div className="relative overflow-hidden rounded-[27px] sm:rounded-[35px]"
-              style={{ background: 'linear-gradient(140deg,#012e29 0%,#013530 55%,#01241f 100%)' }}>
-
-              {/* Ambient glows */}
-              <div className="pointer-events-none absolute -top-20 -right-20 w-72 h-72 rounded-full" style={{ background: 'radial-gradient(circle,rgba(2,180,245,0.16) 0%,transparent 65%)' }} aria-hidden />
-              <div className="pointer-events-none absolute -bottom-16 -left-16 w-60 h-60 rounded-full" style={{ background: 'radial-gradient(circle,rgba(2,102,94,0.14) 0%,transparent 65%)' }} aria-hidden />
-
-              {/* Header */}
-              <div className="relative z-10 flex items-center justify-between gap-3 px-6 sm:px-8 pt-6 pb-5 border-b" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
-                <div className="flex items-center gap-3">
-                  <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl flex-shrink-0"
-                    style={{ background: 'rgba(2,180,245,0.12)', border: '1px solid rgba(2,180,245,0.22)' }}>
-                    <Building2 className="w-5 h-5" style={{ color: '#02b4f5' }} aria-hidden />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold tracking-[0.18em] uppercase" style={{ color: '#02b4f5' }}>Property Structure</p>
-                    <h2 className="text-base sm:text-lg font-bold text-white leading-tight">Building Layout</h2>
-                  </div>
+          <div className="mt-6 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="inline-flex h-9 w-9 items-center justify-center rounded-xl flex-shrink-0 bg-[#02665e]/10 border border-[#02665e]/15">
+                  <Building2 className="w-[18px] h-[18px] text-[#02665e]" aria-hidden />
                 </div>
-                <div className="hidden sm:flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold"
-                  style={{ color: 'rgba(255,255,255,0.55)', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}>
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
-                  Owner-declared
+                <div>
+                  <p className="text-[10px] font-bold tracking-[0.15em] uppercase text-[#02665e]">Property Structure</p>
+                  <h2 className="text-sm font-bold text-slate-800 leading-tight">Building Layout</h2>
                 </div>
               </div>
-
-              {/* Visualization body — white surface for the interactive floor plan */}
-              <div className="relative z-10 mx-5 sm:mx-7 my-5 rounded-2xl overflow-hidden bg-white shadow-[0_8px_32px_rgba(0,0,0,0.22)]">
+              <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                Owner-declared
+              </span>
+            </div>
+            {/* Content */}
             <div className="p-4 sm:p-5">
               {(() => {
                 const roomsSpec = Array.isArray(property.roomsSpec) ? property.roomsSpec : [];
@@ -2471,8 +2459,6 @@ export default function PublicPropertyDetailPage() {
                   />
                 );
               })()}
-            </div>
-              </div>
             </div>
           </div>
         )}
