@@ -1,5 +1,3 @@
-"use client";
-
 import Image from "next/image";
 import PicturesUploader from "@/components/PicturesUploader";
 import type { Dispatch, SetStateAction } from "react";

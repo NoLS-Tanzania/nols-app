@@ -83,11 +83,13 @@ export default function AccountIndex() {
   const loadProfile = async () => {
     try {
       const response = await api.get("/api/account/me");
-      setUser(response.data);
-      setForm(response.data);
+      // API returns { ok: true, data: user } via sendSuccess — unwrap it
+      const apiUser = response.data?.data ?? response.data;
+      setUser(apiUser);
+      setForm(apiUser);
 
       // If a traveller hasn't completed their profile (no name set), send them to onboard
-      const data = response.data;
+      const data = apiUser;
       const role = String(data?.role || '').toUpperCase();
       const isCustomer = role === 'CUSTOMER' || role === 'USER' || role === 'TRAVELLER' || role === '';
       const hasName = !!(data?.name || data?.fullName);

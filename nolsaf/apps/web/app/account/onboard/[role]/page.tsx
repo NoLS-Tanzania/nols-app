@@ -118,7 +118,23 @@ export default function OnboardRole() {
   const [error, setError] = useState<string | null>(null);
   const [errorReasons, setErrorReasons] = useState<string[] | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [checkingAuth, setCheckingAuth] = useState(true);
   const router = useRouter();
+  const requestedRole = role === 'driver' ? 'DRIVER' : role === 'owner' ? 'OWNER' : 'TRAVELLER';
+
+  const normalizeAccountRole = (value: unknown) => {
+    const normalized = String(value || '').trim().toUpperCase();
+    if (normalized === 'CUSTOMER' || normalized === 'USER' || normalized === 'TRAVELLER' || normalized === 'TRAVELER') return 'TRAVELLER';
+    if (normalized === 'OWNER') return 'OWNER';
+    if (normalized === 'DRIVER') return 'DRIVER';
+    return normalized;
+  };
+
+  const getDefaultRouteForRole = (normalizedRole: string) => {
+    if (normalizedRole === 'OWNER') return '/owner';
+    if (normalizedRole === 'DRIVER') return '/driver';
+    return '/account';
+  };
 
   const computePasswordStrength = (pwd: string) => {
     const reasons: string[] = [];
@@ -158,6 +174,21 @@ export default function OnboardRole() {
         const json: any = await r.json().catch(() => null);
         const me = json?.data ?? json;
         if (!alive) return;
+
+        const actualRole = normalizeAccountRole(me?.role);
+        if (actualRole && requestedRole !== actualRole) {
+          router.replace(getDefaultRouteForRole(actualRole));
+          return;
+        }
+
+        const hasDisplayName = Boolean(String(me?.fullName ?? me?.name ?? '').trim());
+        const hasEmail = Boolean(String(me?.email ?? '').trim());
+        if (requestedRole !== 'DRIVER' && hasDisplayName && hasEmail) {
+          router.replace(getDefaultRouteForRole(requestedRole));
+          return;
+        }
+
+        setCheckingAuth(false);
         setNeedsPasswordSetup(me?.hasPassword === false);
         if (me?.phone) setAccountPhone(me.phone);
         if (me?.kycFieldApprovals && typeof me.kycFieldApprovals === 'object') {
@@ -186,12 +217,14 @@ export default function OnboardRole() {
         }
       } catch {
         // ignore
+      } finally {
+        if (alive) setCheckingAuth(false);
       }
     })();
     return () => {
       alive = false;
     };
-  }, []);
+  }, [requestedRole, router]);
 
   const IdIcon: any = (props: any) => (
     <svg suppressHydrationWarning viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" {...props}>
@@ -222,6 +255,14 @@ export default function OnboardRole() {
     : role === 'owner'
       ? 'Add your property details, rates, and availability to start receiving bookings.'
       : 'Update your profile and start searching for stays.';
+  const nonDriverSteps = [
+    { num: 1, label: 'Profile', detail: 'Personal details' },
+    { num: 2, label: 'Review', detail: 'Confirm and finish' },
+  ] as const;
+  const nonDriverHighlights = role === 'owner'
+    ? ['Professional property identity', 'Faster approval workflow', 'Secure account controls']
+    : ['Trusted guest identity', 'Faster booking checkout', 'Secure account controls'];
+  const nonDriverCompletion = Math.round((stepIndex / nonDriverSteps.length) * 100);
 
   const getSavedDriverDoc = (type: string) => getLatestDriverDoc(uploadedDriverDocs, type);
   const hasDriverDocument = (type: string, file: File | null) => Boolean(file || getSavedDriverDoc(type)?.url);
@@ -735,9 +776,17 @@ export default function OnboardRole() {
 
   
 
+  if (checkingAuth) {
+    return (
+      <main className="min-h-screen flex items-center justify-center bg-[radial-gradient(ellipse_at_60%_0%,_rgba(2,102,94,0.08),_transparent_55%),linear-gradient(180deg,_#f0faf9_0%,_#f8fafc_40%,_#ffffff_100%)]">
+        <Loader2 className="w-9 h-9 text-[#02665e] animate-spin" />
+      </main>
+    );
+  }
+
   return (
-    <main className={`min-h-screen flex items-center justify-center py-6 px-4 ${role === 'driver' ? 'bg-[#04080f]' : 'bg-gradient-to-br from-slate-50 via-white to-slate-50'}`}>
-      <div className={`${role !== 'driver' ? 'max-w-md' : 'max-w-4xl'} w-full ${role === 'driver' ? 'bg-white rounded-2xl overflow-hidden ring-1 ring-amber-400/15 shadow-[0_32px_80px_rgba(0,0,0,0.65)]' : 'bg-white rounded-xl shadow-lg overflow-hidden border border-slate-100'}`}>
+    <main className={`min-h-screen flex items-center justify-center py-6 px-4 ${role === 'driver' ? 'bg-[#04080f]' : 'bg-[radial-gradient(ellipse_at_60%_0%,_rgba(2,102,94,0.08),_transparent_55%),linear-gradient(180deg,_#f0faf9_0%,_#f8fafc_40%,_#ffffff_100%)]'}`}>
+      <div className={`${role !== 'driver' ? 'max-w-6xl' : 'max-w-4xl'} w-full ${role === 'driver' ? 'bg-white rounded-2xl overflow-hidden ring-1 ring-amber-400/15 shadow-[0_32px_80px_rgba(0,0,0,0.65)]' : 'overflow-hidden rounded-[32px] border border-white/70 bg-white/95 shadow-[0_32px_120px_-24px_rgba(2,102,94,0.24),0_16px_40px_-20px_rgba(15,23,42,0.16)] backdrop-blur'}`}>
         {/* Header */}
         {role === 'driver' ? (
           <div className="relative bg-gradient-to-br from-[#0a1628] via-[#0d1f3c] to-[#071424] border-b border-white/[0.07] overflow-hidden">
@@ -830,36 +879,100 @@ export default function OnboardRole() {
             </div>
           </div>
         ) : (
-          <div className="relative bg-gradient-to-r from-[#02665e] to-[#014e47] px-4 py-3">
-            <div className="flex flex-col items-center text-center gap-1.5">
-              <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center">
-                {role === 'owner' ? <Building2 className="w-5 h-5 text-white" /> : <UserCircle2 className="w-5 h-5 text-white" />}
-              </div>
-              <h1 className="text-xl sm:text-2xl font-bold text-white">{title}</h1>
-              <p className="text-xs text-white/90 max-w-xs mx-auto">{help}</p>
-              <div className="mt-3 flex items-center justify-center gap-4">
-                {([{ num: 1, label: 'Personal', icon: User }, { num: 2, label: 'Review', icon: CheckCircle2 }] as { num: number; label: string; icon: any }[]).map((step, i) => {
-                  const Icon = step.icon;
-                  const isActive = stepIndex === step.num;
-                  const isCompleted = stepIndex > step.num;
-                  return (
-                    <div key={step.num} className="flex items-center gap-4">
-                      <button type="button" onClick={() => setStepIndex(step.num)} className={`flex flex-col items-center gap-2 transition-all ${isActive ? 'scale-110' : 'hover:scale-105'}`}>
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${isActive ? 'bg-white text-[#02665e] shadow-lg' : isCompleted ? 'bg-white text-[#02665e]' : 'bg-white/10 text-white/70'}`}>
-                          {isCompleted ? <CheckCircle2 className="w-5 h-5 text-[#02665e]" /> : <Icon className={`w-5 h-5 ${isActive ? 'text-[#02665e]' : 'text-white/70'}`} />}
-                        </div>
-                        <span className={`text-[10px] font-semibold ${isActive ? 'text-white' : 'text-white/50'}`}>{step.label}</span>
-                      </button>
-                      {i < 1 && <div className={`w-12 h-[2px] rounded-full ${isCompleted ? 'bg-white/50' : 'bg-white/15'}`} />}
+          <div className="relative overflow-hidden bg-[linear-gradient(145deg,#025c55_0%,#02665e_42%,#014d46_100%)] px-5 py-6 text-white sm:px-8 sm:py-8 lg:px-10 lg:py-9">
+            <div className="pointer-events-none absolute inset-0 opacity-[0.06]" style={{ backgroundImage: "radial-gradient(circle, white 1px, transparent 1px)", backgroundSize: "22px 22px" }} />
+            <div className="pointer-events-none absolute -top-20 right-[-36px] h-56 w-56 rounded-full bg-white/10 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-16 left-[-18px] h-44 w-44 rounded-full bg-[#6ee7b7]/12 blur-3xl" />
+
+            <div className="relative grid gap-6 lg:grid-cols-[minmax(0,1.35fr)_320px] lg:items-end">
+              <div className="min-w-0">
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 backdrop-blur-sm">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#6ee7b7]" />
+                  <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/82">
+                    {role === 'owner' ? 'Property owner onboarding' : 'Traveller onboarding'}
+                  </span>
+                </div>
+
+                <div className="mt-5 flex items-start gap-4">
+                  <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[22px] border border-white/15 bg-white/12 shadow-[0_14px_36px_rgba(0,0,0,0.18)] backdrop-blur-sm">
+                    {role === 'owner' ? <Building2 className="h-7 w-7 text-white" /> : <UserCircle2 className="h-7 w-7 text-white" />}
+                  </div>
+                  <div className="min-w-0">
+                    <h1 className="text-[1.9rem] font-black tracking-tight text-white sm:text-[2.4rem] lg:text-[2.7rem]">{title}</h1>
+                    <p className="mt-2 max-w-2xl text-sm leading-6 text-white/76 sm:text-[15px] sm:leading-7">{help}</p>
+                  </div>
+                </div>
+
+                <div className="mt-6 flex flex-wrap gap-2.5">
+                  {nonDriverHighlights.map((item) => (
+                    <div key={item} className="inline-flex items-center gap-2 rounded-full border border-white/14 bg-white/[0.08] px-3 py-2 text-xs font-medium text-white/88 backdrop-blur-sm">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-[#6ee7b7]" />
+                      <span>{item}</span>
                     </div>
-                  );
-                })}
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-[26px] border border-white/12 bg-white/[0.10] p-4 shadow-[0_20px_50px_rgba(0,0,0,0.18)] backdrop-blur-md sm:p-5">
+                <div className="flex items-end justify-between gap-4">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/58">Profile setup</p>
+                    <p className="mt-2 text-3xl font-black text-white">{String(nonDriverCompletion).padStart(2, '0')}%</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-black/10 px-3 py-2 text-right">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/50">Current</p>
+                    <p className="mt-1 text-sm font-semibold text-white">{nonDriverSteps[Math.max(0, stepIndex - 1)]?.detail}</p>
+                  </div>
+                </div>
+
+                <div className="mt-5 h-2 overflow-hidden rounded-full bg-white/10">
+                  <div className="h-full rounded-full bg-[linear-gradient(90deg,#6ee7b7_0%,#ffffff_100%)] transition-all duration-500" style={{ width: `${nonDriverCompletion}%` }} />
+                </div>
+
+                <div className="mt-5 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-1">
+                  {nonDriverSteps.map((step) => {
+                    const isActive = stepIndex === step.num;
+                    const isCompleted = stepIndex > step.num;
+                    return (
+                      <button
+                        key={step.num}
+                        type="button"
+                        onClick={() => setStepIndex(step.num)}
+                        aria-current={isActive ? 'step' : undefined}
+                        className={`flex w-full items-center gap-3 rounded-2xl border px-3.5 py-3 text-left transition-all duration-200 ${
+                          isActive
+                            ? 'border-white/70 bg-white text-[#02665e] shadow-[0_12px_30px_rgba(0,0,0,0.14)]'
+                            : isCompleted
+                            ? 'border-[#6ee7b7]/40 bg-[#6ee7b7]/12 text-white hover:border-[#6ee7b7]/60'
+                            : 'border-white/12 bg-black/10 text-white/78 hover:border-white/20 hover:bg-white/[0.08]'
+                        }`}
+                      >
+                        <span className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl border text-sm font-black ${
+                          isActive
+                            ? 'border-[#02665e]/12 bg-[#02665e]/8 text-[#02665e]'
+                            : isCompleted
+                            ? 'border-[#6ee7b7]/30 bg-[#6ee7b7]/14 text-[#6ee7b7]'
+                            : 'border-white/12 bg-white/5 text-white/60'
+                        }`}>
+                          {isCompleted ? <CheckCircle2 className="h-4 w-4" /> : step.num}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className={`block text-[10px] font-semibold uppercase tracking-[0.22em] ${isActive ? 'text-[#02665e]/65' : isCompleted ? 'text-[#6ee7b7]' : 'text-white/45'}`}>
+                            Step {step.num}
+                          </span>
+                          <span className={`mt-1 block text-sm font-semibold ${isActive ? 'text-slate-900' : 'text-white'}`}>{step.label}</span>
+                          <span className={`mt-0.5 block text-xs ${isActive ? 'text-slate-500' : 'text-white/60'}`}>{step.detail}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>
         )}
 
-        <div className={role !== 'driver' ? 'p-4' : 'p-6 bg-gradient-to-b from-slate-50/80 to-white'}>
+        <div className={role !== 'driver' ? 'bg-[linear-gradient(180deg,#ffffff_0%,#fbfefd_100%)] px-4 py-5 sm:px-6 sm:py-6 lg:px-10 lg:py-8' : 'p-6 bg-gradient-to-b from-slate-50/80 to-white'}>
           {error && !(error === 'Please provide both name and email' && role === 'driver' && stepIndex !== 5) && (
             <div className={`mb-4 ${role !== 'driver' ? 'p-2.5' : 'p-3'} bg-red-50 border-l-4 border-red-500 rounded-r-lg flex items-start gap-2`}>
               <AlertCircle className={`${role !== 'driver' ? 'w-3.5 h-3.5' : 'w-4 h-4'} text-red-500 flex-shrink-0 mt-0.5`} />
@@ -900,78 +1013,82 @@ export default function OnboardRole() {
 
           {/* Content area */}
           {role !== 'driver' ? (
-            <form onSubmit={submitProfile} className={role !== 'driver' ? 'space-y-4' : 'space-y-6'}>
+            <form onSubmit={submitProfile} className="mx-auto grid w-full max-w-5xl grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_290px] lg:items-start">
+              <div className="min-w-0 rounded-[26px] border border-slate-200/75 bg-white p-4 shadow-[0_14px_40px_-24px_rgba(15,23,42,0.28)] ring-1 ring-slate-900/5 sm:p-6 lg:p-7">
               {/* Step contents for traveller/owner */}
               {stepIndex === 1 && (
-                <div className={`space-y-5 rounded-2xl p-6 border border-slate-200/70 bg-gradient-to-br from-white via-white to-slate-50/60 shadow-sm ring-1 ring-slate-900/5 transition-all duration-300 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
-                  <div className="flex items-center gap-2 pb-4 border-b border-slate-200/80">
-                    <div className="w-9 h-9 rounded-xl bg-[#02665e]/10 flex items-center justify-center">
-                      <User className="w-4 h-4 text-[#02665e]" />
+                <div className={`transition-all duration-300 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
+                  {/* Section header */}
+                  <div className="mb-6 rounded-[24px] border border-slate-200/70 bg-[linear-gradient(180deg,#ffffff_0%,#f7faf9_100%)] px-4 py-4 shadow-[0_10px_30px_-24px_rgba(15,23,42,0.22)] sm:px-5">
+                    <div className="flex items-start gap-3.5">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#02665e]/15 to-[#6ee7b7]/10 ring-1 ring-[#02665e]/10">
+                      <User className="h-4.5 w-4.5 text-[#02665e]" />
                     </div>
-                    <h3 className="text-lg font-bold text-slate-900">Personal Details</h3>
+                    <div className="min-w-0 pt-0.5">
+                      <h3 className="text-lg font-bold text-slate-900">Personal details</h3>
+                      <p className="mt-1 text-sm leading-6 text-slate-500">Set up the identity details people will see when they interact with your profile.</p>
+                    </div>
+                    </div>
                   </div>
 
-                  <div className="space-y-4">
-              <div>
-                      <label className={`block ${role !== 'driver' ? 'text-xs' : 'text-sm'} font-semibold text-slate-900 ${role !== 'driver' ? 'mb-1' : 'mb-1.5'} flex items-center gap-2`}>
-                        <User className={`${role !== 'driver' ? 'w-3 h-3' : 'w-3.5 h-3.5'} text-slate-500`} />
-                        Full name
-                        <span className="text-red-500">*</span>
+                  <div className="mx-auto grid max-w-4xl gap-4 lg:grid-cols-2 lg:gap-5">
+                    {/* Full name */}
+                    <div className="group rounded-[12px] border border-slate-200/80 bg-[linear-gradient(180deg,#fcfdfd_0%,#f7faf9_100%)] p-3 shadow-[0_10px_30px_-26px_rgba(15,23,42,0.26)] sm:p-3.5">
+                      <label className="mb-3 flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+                        <User className="h-3.5 w-3.5 text-slate-400" />
+                        Full name <span className="text-red-500">*</span>
                       </label>
-                      <input 
-                        ref={nameRef} 
-                        value={name} 
-                        onChange={e => setName(e.target.value)} 
-                        onBlur={() => { setTouched(prev => ({ ...prev, name: true })); setFieldErrors(prev => ({ ...prev, name: validateField('name') })); }} 
-                        className={`w-full ${role !== 'driver' ? 'px-3 py-2 text-xs' : 'px-3 py-2.5 text-sm'} border-2 rounded-lg transition-all duration-200 ${
+                      <input
+                        ref={nameRef}
+                        value={name}
+                        onChange={e => setName(e.target.value)}
+                        onBlur={() => { setTouched(prev => ({ ...prev, name: true })); setFieldErrors(prev => ({ ...prev, name: validateField('name') })); }}
+                        className={`h-11 w-full rounded-[10px] border bg-white px-3.5 text-[14px] text-slate-900 placeholder:text-[#8b9ab4] shadow-[0_1px_0_rgba(255,255,255,0.8),0_8px_20px_-18px_rgba(15,23,42,0.18)] transition-all duration-200 focus:bg-white focus:outline-none focus:ring-2 ${
                           touched.name && fieldErrors.name
-                            ? 'border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-100'
-                            : 'border-slate-200 focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10'
-                        } bg-white shadow-sm hover:shadow-md focus:outline-none`}
-                        placeholder="Your full name"
+                            ? 'border-red-300 focus:border-red-400 focus:ring-red-100'
+                            : 'border-slate-200 hover:border-slate-300 focus:border-[#02665e] focus:ring-[#02665e]/10'
+                        }`}
+                        placeholder="e.g. Amina Hassan"
                       />
                       {touched.name && fieldErrors.name && (
-                        <div className={`${role !== 'driver' ? 'text-[10px] mt-1' : 'text-xs mt-1.5'} text-red-600 flex items-center gap-1`}>
-                          <AlertCircle className={`${role !== 'driver' ? 'w-2.5 h-2.5' : 'w-3 h-3'}`} />
-                          {fieldErrors.name}
-                        </div>
+                        <p className="mt-1.5 flex items-center gap-1 text-[11px] text-red-600">
+                          <AlertCircle className="h-3 w-3" />{fieldErrors.name}
+                        </p>
                       )}
-              </div>
+                    </div>
 
-              <div>
-                      <label className={`block ${role !== 'driver' ? 'text-xs' : 'text-sm'} font-semibold text-slate-900 ${role !== 'driver' ? 'mb-1' : 'mb-1.5'} flex items-center gap-2`}>
-                        <Mail className={`${role !== 'driver' ? 'w-3 h-3' : 'w-3.5 h-3.5'} text-slate-500`} />
-                        Email
-                        <span className="text-red-500">*</span>
+                    {/* Email */}
+                    <div className="group rounded-[12px] border border-slate-200/80 bg-[linear-gradient(180deg,#fcfdfd_0%,#f7faf9_100%)] p-3 shadow-[0_10px_30px_-26px_rgba(15,23,42,0.26)] sm:p-3.5">
+                      <label className="mb-3 flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+                        <Mail className="h-3.5 w-3.5 text-slate-400" />
+                        Email address <span className="text-red-500">*</span>
                       </label>
-                      <input 
-                        ref={emailRef} 
-                        type="email" 
-                        value={email} 
-                        onChange={e => setEmail(e.target.value)} 
-                        onBlur={() => { setTouched(prev => ({ ...prev, email: true })); setFieldErrors(prev => ({ ...prev, email: validateField('email') })); }} 
-                        className={`w-full ${role !== 'driver' ? 'px-3 py-2 text-xs' : 'px-3 py-2.5 text-sm'} border-2 rounded-lg transition-all duration-200 ${
+                      <input
+                        ref={emailRef}
+                        type="email"
+                        value={email}
+                        onChange={e => setEmail(e.target.value)}
+                        onBlur={() => { setTouched(prev => ({ ...prev, email: true })); setFieldErrors(prev => ({ ...prev, email: validateField('email') })); }}
+                        className={`h-11 w-full rounded-[10px] border bg-white px-3.5 text-[14px] text-slate-900 placeholder:text-[#8b9ab4] shadow-[0_1px_0_rgba(255,255,255,0.8),0_8px_20px_-18px_rgba(15,23,42,0.18)] transition-all duration-200 focus:bg-white focus:outline-none focus:ring-2 ${
                           touched.email && fieldErrors.email
-                            ? 'border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-100'
-                            : 'border-slate-200 focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10'
-                        } bg-white shadow-sm hover:shadow-md focus:outline-none`}
+                            ? 'border-red-300 focus:border-red-400 focus:ring-red-100'
+                            : 'border-slate-200 hover:border-slate-300 focus:border-[#02665e] focus:ring-[#02665e]/10'
+                        }`}
                         placeholder="you@example.com"
                       />
                       {touched.email && fieldErrors.email && (
-                        <div className={`${role !== 'driver' ? 'text-[10px] mt-1' : 'text-xs mt-1.5'} text-red-600 flex items-center gap-1`}>
-                          <AlertCircle className={`${role !== 'driver' ? 'w-2.5 h-2.5' : 'w-3 h-3'}`} />
-                          {fieldErrors.email}
-              </div>
+                        <p className="mt-1.5 flex items-center gap-1 text-[11px] text-red-600">
+                          <AlertCircle className="h-3 w-3" />{fieldErrors.email}
+                        </p>
                       )}
                     </div>
 
                     {needsPasswordSetup && (
                       <>
-                        <div>
-                          <label className={`block ${role !== 'driver' ? 'text-xs' : 'text-sm'} font-semibold text-slate-900 ${role !== 'driver' ? 'mb-1' : 'mb-1.5'} flex items-center gap-2`}>
-                            <CreditCard className={`${role !== 'driver' ? 'w-3 h-3' : 'w-3.5 h-3.5'} text-slate-500`} />
-                            Password
-                            <span className="text-red-500">*</span>
+                        <div className="group rounded-[12px] border border-slate-200/80 bg-[linear-gradient(180deg,#fcfdfd_0%,#f7faf9_100%)] p-3 shadow-[0_10px_30px_-26px_rgba(15,23,42,0.26)] sm:p-3.5">
+                          <label className="mb-3 flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+                            <Lock className="h-3.5 w-3.5 text-slate-400" />
+                            Password <span className="text-red-500">*</span>
                           </label>
                           <input
                             ref={passwordRef}
@@ -979,56 +1096,52 @@ export default function OnboardRole() {
                             value={password}
                             onChange={e => setPassword(e.target.value)}
                             onBlur={() => { setTouched(prev => ({ ...prev, password: true })); setFieldErrors(prev => ({ ...prev, password: validateField('password') })); }}
-                            className={`w-full ${role !== 'driver' ? 'px-3 py-2 text-xs' : 'px-3 py-2.5 text-sm'} border-2 rounded-lg transition-all duration-200 ${
+                            className={`h-11 w-full rounded-[10px] border bg-white px-3.5 text-[14px] text-slate-900 placeholder:text-[#8b9ab4] shadow-[0_1px_0_rgba(255,255,255,0.8),0_8px_20px_-18px_rgba(15,23,42,0.18)] transition-all duration-200 focus:bg-white focus:outline-none focus:ring-2 ${
                               touched.password && fieldErrors.password
-                                ? 'border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-100'
-                                : 'border-slate-200 focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10'
-                            } bg-white shadow-sm hover:shadow-md focus:outline-none`}
-                            placeholder="Create a password"
+                                ? 'border-red-300 focus:border-red-400 focus:ring-red-100'
+                                : 'border-slate-200 hover:border-slate-300 focus:border-[#02665e] focus:ring-[#02665e]/10'
+                            }`}
+                            placeholder="Create a strong password"
                           />
                           {touched.password && fieldErrors.password && (
-                            <div className={`${role !== 'driver' ? 'text-[10px] mt-1' : 'text-xs mt-1.5'} text-red-600 flex items-center gap-1`}>
-                              <AlertCircle className={`${role !== 'driver' ? 'w-2.5 h-2.5' : 'w-3 h-3'}`} />
-                              {fieldErrors.password}
-                            </div>
+                            <p className="mt-1.5 flex items-center gap-1 text-[11px] text-red-600">
+                              <AlertCircle className="h-3 w-3" />{fieldErrors.password}
+                            </p>
                           )}
-
                           {password.trim().length > 0 && (() => {
                             const s = computePasswordStrength(password);
                             const label = s.strength === 'strong' ? 'Strong' : s.strength === 'medium' ? 'Medium' : 'Weak';
                             const barWidth = s.strength === 'strong' ? 'w-full' : s.strength === 'medium' ? 'w-2/3' : 'w-1/3';
                             const barColor = s.strength === 'strong' ? 'bg-emerald-500' : s.strength === 'medium' ? 'bg-amber-500' : 'bg-red-500';
-                            const labelColor = s.strength === 'strong' ? 'text-emerald-700' : s.strength === 'medium' ? 'text-amber-700' : 'text-red-700';
+                            const labelColor = s.strength === 'strong' ? 'text-emerald-600' : s.strength === 'medium' ? 'text-amber-600' : 'text-red-600';
                             const tips = s.strength === 'strong' ? [] : s.reasons.slice(0, 3);
                             return (
-                              <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+                              <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
                                 <div className="flex items-center justify-between">
-                                  <span className={`${role !== 'driver' ? 'text-[10px]' : 'text-xs'} font-semibold text-slate-700`}>Password strength</span>
-                                  <span className={`${role !== 'driver' ? 'text-[10px]' : 'text-xs'} font-semibold ${labelColor}`}>{label}</span>
+                                  <span className="text-[11px] font-semibold text-slate-600">Password strength</span>
+                                  <span className={`text-[11px] font-bold ${labelColor}`}>{label}</span>
                                 </div>
-                                <div className="mt-2 h-1.5 w-full rounded-full bg-slate-200 overflow-hidden">
+                                <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
                                   <div className={`h-full ${barWidth} ${barColor} rounded-full transition-all duration-300`} />
                                 </div>
                                 {tips.length > 0 && (
-                                  <div className="mt-2 space-y-1">
+                                  <ul className="mt-2 space-y-0.5">
                                     {tips.map((t) => (
-                                      <div key={t} className={`${role !== 'driver' ? 'text-[10px]' : 'text-xs'} text-slate-700 flex items-start gap-1.5`}>
-                                        <AlertCircle className={`${role !== 'driver' ? 'w-2.5 h-2.5' : 'w-3 h-3'} text-slate-400 flex-shrink-0 mt-0.5`} />
-                                        <span>{t}</span>
-                                      </div>
+                                      <li key={t} className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                                        <AlertCircle className="h-2.5 w-2.5 flex-shrink-0 text-slate-400" />{t}
+                                      </li>
                                     ))}
-                                  </div>
+                                  </ul>
                                 )}
                               </div>
                             );
                           })()}
                         </div>
 
-                        <div>
-                          <label className={`block ${role !== 'driver' ? 'text-xs' : 'text-sm'} font-semibold text-slate-900 ${role !== 'driver' ? 'mb-1' : 'mb-1.5'} flex items-center gap-2`}>
-                            <CreditCard className={`${role !== 'driver' ? 'w-3 h-3' : 'w-3.5 h-3.5'} text-slate-500`} />
-                            Confirm password
-                            <span className="text-red-500">*</span>
+                        <div className="group rounded-[12px] border border-slate-200/80 bg-[linear-gradient(180deg,#fcfdfd_0%,#f7faf9_100%)] p-3 shadow-[0_10px_30px_-26px_rgba(15,23,42,0.26)] sm:p-3.5">
+                          <label className="mb-3 flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+                            <Lock className="h-3.5 w-3.5 text-slate-400" />
+                            Confirm password <span className="text-red-500">*</span>
                           </label>
                           <input
                             ref={confirmPasswordRef}
@@ -1036,177 +1149,218 @@ export default function OnboardRole() {
                             value={confirmPassword}
                             onChange={e => setConfirmPassword(e.target.value)}
                             onBlur={() => { setTouched(prev => ({ ...prev, confirmPassword: true })); setFieldErrors(prev => ({ ...prev, confirmPassword: validateField('confirmPassword') })); }}
-                            className={`w-full ${role !== 'driver' ? 'px-3 py-2 text-xs' : 'px-3 py-2.5 text-sm'} border-2 rounded-lg transition-all duration-200 ${
+                            className={`h-11 w-full rounded-[10px] border bg-white px-3.5 text-[14px] text-slate-900 placeholder:text-[#8b9ab4] shadow-[0_1px_0_rgba(255,255,255,0.8),0_8px_20px_-18px_rgba(15,23,42,0.18)] transition-all duration-200 focus:bg-white focus:outline-none focus:ring-2 ${
                               touched.confirmPassword && fieldErrors.confirmPassword
-                                ? 'border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-100'
-                                : 'border-slate-200 focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10'
-                            } bg-white shadow-sm hover:shadow-md focus:outline-none`}
+                                ? 'border-red-300 focus:border-red-400 focus:ring-red-100'
+                                : confirmPassword && confirmPassword === password
+                                ? 'border-emerald-300 focus:border-emerald-400 focus:ring-emerald-100'
+                                : 'border-slate-200 hover:border-slate-300 focus:border-[#02665e] focus:ring-[#02665e]/10'
+                            }`}
                             placeholder="Re-enter your password"
                           />
                           {touched.confirmPassword && fieldErrors.confirmPassword && (
-                            <div className={`${role !== 'driver' ? 'text-[10px] mt-1' : 'text-xs mt-1.5'} text-red-600 flex items-center gap-1`}>
-                              <AlertCircle className={`${role !== 'driver' ? 'w-2.5 h-2.5' : 'w-3 h-3'}`} />
-                              {fieldErrors.confirmPassword}
-                            </div>
+                            <p className="mt-1.5 flex items-center gap-1 text-[11px] text-red-600">
+                              <AlertCircle className="h-3 w-3" />{fieldErrors.confirmPassword}
+                            </p>
                           )}
                         </div>
                       </>
                     )}
                   </div>
+
+                  {/* Trust strip */}
+                  <div className="mt-5 flex flex-col items-start gap-3 rounded-[22px] border border-[#02665e]/10 bg-[linear-gradient(180deg,#f7fcfb_0%,#f9fbfb_100%)] px-4 py-3.5 sm:flex-row sm:items-center sm:justify-center sm:gap-4">
+                    <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                      <Shield className="h-3.5 w-3.5 text-[#02665e]" />
+                      Secure &amp; encrypted
+                    </div>
+                    <div className="hidden h-3 w-px bg-slate-200 sm:block" />
+                    <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                      <Lock className="h-3.5 w-3.5 text-[#02665e]" />
+                      Private by default
+                    </div>
+                  </div>
                 </div>
               )}
 
               {stepIndex === 2 && (
-                <div className={`${role !== 'driver' ? 'space-y-3 rounded-lg p-4' : 'space-y-4 rounded-xl p-5'} border-2 border-slate-100 bg-gradient-to-br from-white to-slate-50/50 shadow-sm transition-all duration-300 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
-                  <div className={`flex items-center gap-2 ${role !== 'driver' ? 'pb-2' : 'pb-3'} border-b border-slate-200`}>
-                    <div className={`${role !== 'driver' ? 'w-7 h-7' : 'w-8 h-8'} rounded-lg bg-[#02665e]/10 flex items-center justify-center`}>
-                      <CheckCircle2 className={`${role !== 'driver' ? 'w-3.5 h-3.5' : 'w-4 h-4'} text-[#02665e]`} />
+                <div className={`transition-all duration-300 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
+                  {/* Section header */}
+                  <div className="mb-6 rounded-[24px] border border-slate-200/70 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbfa_100%)] px-4 py-4 shadow-[0_10px_30px_-24px_rgba(15,23,42,0.22)] sm:px-5">
+                    <div className="flex items-start gap-3.5">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 ring-1 ring-emerald-200/60">
+                      <CheckCircle2 className="h-4.5 w-4.5 text-[#02665e]" />
                     </div>
-                    <div className="flex-1">
-                      <h3 className={`${role !== 'driver' ? 'text-base' : 'text-lg'} font-bold text-slate-900`}>Review your details</h3>
-                      <p className={`${role !== 'driver' ? 'text-[10px]' : 'text-xs'} text-slate-600 mt-0.5`}>Please confirm the information below before submitting your profile.</p>
+                    <div className="min-w-0 pt-0.5">
+                      <h3 className="text-lg font-bold text-slate-900">Review your details</h3>
+                      <p className="mt-1 text-sm leading-6 text-slate-500">Check the essentials before your profile goes live and becomes ready to use.</p>
+                    </div>
                     </div>
                   </div>
 
-                  <div className={role !== 'driver' ? 'space-y-3' : 'space-y-4'}>
-                    <div className={role !== 'driver' ? 'space-y-2' : 'space-y-3'}>
-                      <div className={`flex items-center gap-2 ${role !== 'driver' ? 'pb-1.5' : 'pb-2'} border-b border-slate-400`}>
-                        <h4 className={`${role !== 'driver' ? 'text-xs' : 'text-sm'} font-semibold text-slate-700`}>Personal Details</h4>
-                      </div>
-                      <div className={`grid grid-cols-1 ${role !== 'driver' ? '' : 'md:grid-cols-2'} ${role !== 'driver' ? 'gap-2' : 'gap-3'}`}>
-                        <div className={`${role !== 'driver' ? 'p-2.5' : 'p-3'} bg-white border-2 border-slate-200 rounded-lg hover:border-slate-300 transition-colors`}>
-                          <div className={`flex items-center justify-between ${role !== 'driver' ? 'mb-1.5' : 'mb-2'}`}>
-                            <label className={`${role !== 'driver' ? 'text-[10px]' : 'text-xs'} font-semibold text-slate-700 flex items-center gap-1.5`}>
-                              <User className={`${role !== 'driver' ? 'w-2.5 h-2.5' : 'w-3 h-3'} text-slate-400`} />
-                              Full name
-                              <span className="text-red-500">*</span>
-                            </label>
-                            <button type="button" onClick={() => setStepIndex(1)} className={`${role !== 'driver' ? 'text-[10px]' : 'text-xs'} text-[#02665e] hover:text-[#02665e]/80 hover:underline font-medium`}>Edit</button>
-                          </div>
-                          <div className={`${role !== 'driver' ? 'text-xs' : 'text-sm'} text-slate-900 font-medium`}>{name || <span className="text-slate-400 italic">Not provided</span>}</div>
-                          {touched.name && fieldErrors.name && (
-                            <div className={`${role !== 'driver' ? 'text-[10px] mt-0.5' : 'text-xs mt-1'} text-red-600 flex items-center gap-1`}>
-                              <AlertCircle className={`${role !== 'driver' ? 'w-2.5 h-2.5' : 'w-3 h-3'}`} />
-                              {fieldErrors.name}
-                            </div>
-                          )}
+                  <div className="mx-auto max-w-2xl space-y-3">
+                    {/* Name card */}
+                    <div className="flex flex-col gap-3 rounded-2xl border border-slate-100 bg-slate-50/60 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#02665e]/8 ring-1 ring-[#02665e]/10">
+                          <User className="h-3.5 w-3.5 text-[#02665e]" />
                         </div>
-
-                        <div className={`${role !== 'driver' ? 'p-2.5' : 'p-3'} bg-white border-2 border-slate-200 rounded-lg hover:border-slate-300 transition-colors`}>
-                          <div className={`flex items-center justify-between ${role !== 'driver' ? 'mb-1.5' : 'mb-2'}`}>
-                            <label className={`${role !== 'driver' ? 'text-[10px]' : 'text-xs'} font-semibold text-slate-700 flex items-center gap-1.5`}>
-                              <Mail className={`${role !== 'driver' ? 'w-2.5 h-2.5' : 'w-3 h-3'} text-slate-400`} />
-                              Email
-                              <span className="text-red-500">*</span>
-                            </label>
-                            <button type="button" onClick={() => setStepIndex(1)} className={`${role !== 'driver' ? 'text-[10px]' : 'text-xs'} text-[#02665e] hover:text-[#02665e]/80 hover:underline font-medium`}>Edit</button>
-                          </div>
-                          <div className={`${role !== 'driver' ? 'text-xs' : 'text-sm'} text-slate-900 font-medium`}>{email || <span className="text-slate-400 italic">Not provided</span>}</div>
-                          {touched.email && fieldErrors.email && (
-                            <div className={`${role !== 'driver' ? 'text-[10px] mt-0.5' : 'text-xs mt-1'} text-red-600 flex items-center gap-1`}>
-                              <AlertCircle className={`${role !== 'driver' ? 'w-2.5 h-2.5' : 'w-3 h-3'}`} />
-                              {fieldErrors.email}
-                            </div>
-                          )}
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Full name</p>
+                          <p className="mt-0.5 truncate text-sm font-semibold text-slate-900">{name || <span className="italic text-slate-400">Not provided</span>}</p>
                         </div>
-
-                        {needsPasswordSetup && (
-                          <div className={`${role !== 'driver' ? 'p-2.5' : 'p-3'} bg-white border-2 border-slate-200 rounded-lg hover:border-slate-300 transition-colors`}>
-                            <div className={`flex items-center justify-between ${role !== 'driver' ? 'mb-1.5' : 'mb-2'}`}>
-                              <label className={`${role !== 'driver' ? 'text-[10px]' : 'text-xs'} font-semibold text-slate-700 flex items-center gap-1.5`}>
-                                <CreditCard className={`${role !== 'driver' ? 'w-2.5 h-2.5' : 'w-3 h-3'} text-slate-400`} />
-                                Password
-                                <span className="text-red-500">*</span>
-                              </label>
-                              <button type="button" onClick={() => setStepIndex(1)} className={`${role !== 'driver' ? 'text-[10px]' : 'text-xs'} text-[#02665e] hover:text-[#02665e]/80 hover:underline font-medium`}>Edit</button>
-                            </div>
-                            <div className={`${role !== 'driver' ? 'text-xs' : 'text-sm'} text-slate-900 font-medium`}>
-                              {password ? '••••••••' : <span className="text-slate-400 italic">Not provided</span>}
-                            </div>
-                            {(touched.password && fieldErrors.password) && (
-                              <div className={`${role !== 'driver' ? 'text-[10px] mt-0.5' : 'text-xs mt-1'} text-red-600 flex items-center gap-1`}>
-                                <AlertCircle className={`${role !== 'driver' ? 'w-2.5 h-2.5' : 'w-3 h-3'}`} />
-                                {fieldErrors.password}
-                              </div>
-                            )}
-                            {(touched.confirmPassword && fieldErrors.confirmPassword) && (
-                              <div className={`${role !== 'driver' ? 'text-[10px] mt-0.5' : 'text-xs mt-1'} text-red-600 flex items-center gap-1`}>
-                                <AlertCircle className={`${role !== 'driver' ? 'w-2.5 h-2.5' : 'w-3 h-3'}`} />
-                                {fieldErrors.confirmPassword}
-                              </div>
-                            )}
-                          </div>
-                        )}
                       </div>
+                      <button type="button" onClick={() => setStepIndex(1)} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-[#02665e] transition-all hover:border-[#02665e]/30 hover:bg-[#02665e]/5 sm:w-auto">
+                        Edit
+                      </button>
+                    </div>
+
+                    {/* Email card */}
+                    <div className="flex flex-col gap-3 rounded-2xl border border-slate-100 bg-slate-50/60 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#02665e]/8 ring-1 ring-[#02665e]/10">
+                          <Mail className="h-3.5 w-3.5 text-[#02665e]" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Email address</p>
+                          <p className="mt-0.5 truncate text-sm font-semibold text-slate-900">{email || <span className="italic text-slate-400">Not provided</span>}</p>
+                        </div>
+                      </div>
+                      <button type="button" onClick={() => setStepIndex(1)} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-[#02665e] transition-all hover:border-[#02665e]/30 hover:bg-[#02665e]/5 sm:w-auto">
+                        Edit
+                      </button>
+                    </div>
+
+                    {needsPasswordSetup && (
+                      <div className="flex flex-col gap-3 rounded-2xl border border-slate-100 bg-slate-50/60 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#02665e]/8 ring-1 ring-[#02665e]/10">
+                            <Lock className="h-3.5 w-3.5 text-[#02665e]" />
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Password</p>
+                            <p className="mt-0.5 text-sm font-semibold text-slate-900">{password ? '••••••••' : <span className="italic text-slate-400">Not set</span>}</p>
+                          </div>
+                        </div>
+                        <button type="button" onClick={() => setStepIndex(1)} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-[#02665e] transition-all hover:border-[#02665e]/30 hover:bg-[#02665e]/5 sm:w-auto">
+                          Edit
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Ready banner */}
+                    <div className="mt-2 flex items-start gap-3 rounded-2xl border border-[#02665e]/15 bg-gradient-to-r from-[#02665e]/5 to-transparent px-4 py-3.5">
+                      <CheckCircle2 className="h-5 w-5 flex-shrink-0 text-[#02665e]" />
+                      <p className="text-xs font-medium text-slate-700">Everything looks good. Hit <span className="font-bold text-[#02665e]">Save &amp; continue</span> to finish setting up your profile.</p>
                     </div>
                   </div>
                 </div>
               )}
 
-              <div className={`flex items-center justify-between ${role !== 'driver' ? 'pt-3' : 'pt-4'} border-t border-slate-200`}>
-                <div className="flex items-center gap-2">
+              <div className="mt-6 flex flex-col gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                   {stepIndex > 1 && (
-                    <button 
-                      type="button" 
-                      onClick={() => setStepIndex(i => Math.max(1, i-1))} 
-                      className={`${role !== 'driver' ? 'px-3 py-1.5 text-xs' : 'px-4 py-2 text-sm'} border-2 border-slate-300 rounded-lg bg-white text-slate-700 font-medium hover:bg-slate-50 hover:border-slate-400 transition-all duration-200 shadow-sm hover:shadow-md`}
+                    <button
+                      type="button"
+                      onClick={() => setStepIndex(i => Math.max(1, i-1))}
+                      className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50 active:scale-[0.97] sm:w-auto"
                     >
-                      <span className="flex items-center gap-1.5">
-                        <ChevronLeft className={`${role !== 'driver' ? 'w-3 h-3' : 'w-3.5 h-3.5'}`} />
-                        Back
-                      </span>
+                      <ChevronLeft className="h-3.5 w-3.5" />
+                      Back
                     </button>
                   )}
-                  <Link 
-                    href="/public" 
-                    className={`flex items-center gap-2 ${role !== 'driver' ? 'px-2.5 py-1.5 text-xs' : 'px-3 py-2 text-sm'} text-slate-600 hover:text-[#02665e] hover:bg-slate-50 rounded-lg transition-all duration-200 font-medium group no-underline`}
+                  <Link
+                    href="/public"
+                    className="flex w-full items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-xs font-medium text-slate-500 transition-all hover:text-[#02665e] hover:bg-[#02665e]/5 no-underline sm:w-auto"
                   >
-                    <ArrowLeft className={`${role !== 'driver' ? 'w-3.5 h-3.5' : 'w-4 h-4'} group-hover:-translate-x-0.5 transition-transform`} />
-                    <span>Return to public site</span>
+                    <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" />
+                    Return to public site
                   </Link>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="w-full sm:w-auto">
                   {stepIndex < 2 ? (
                     <button
                       type="button"
                       onClick={handleNext}
                       disabled={!isStepValid()}
-                      className={`${role !== 'driver' ? 'px-4 py-2 text-xs' : 'px-6 py-2.5 text-sm'} rounded-lg font-semibold transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 ${
-                        isStepValid() 
-                          ? 'bg-[#02665e] hover:bg-[#014e47] text-white' 
-                          : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                      className={`flex w-full items-center justify-center gap-2 rounded-xl px-6 py-2.5 text-sm font-bold transition-all active:scale-[0.97] sm:w-auto ${
+                        isStepValid()
+                          ? 'bg-[#02665e] text-white shadow-[0_4px_20px_rgba(2,102,94,0.35)] hover:bg-[#014e47] hover:shadow-[0_6px_24px_rgba(2,102,94,0.45)]'
+                          : 'cursor-not-allowed bg-slate-100 text-slate-400'
                       }`}
                     >
-                      <span className="flex items-center gap-1.5">
-                        Next
-                        <ChevronRight className={`${role !== 'driver' ? 'w-3 h-3' : 'w-3.5 h-3.5'}`} />
-                      </span>
+                      Next
+                      <ChevronRight className="h-4 w-4" />
                     </button>
                   ) : (
-                    <button 
-                      type="submit" 
-                      disabled={loading || !isStepValid()} 
-                      className={`${role !== 'driver' ? 'px-4 py-2 text-xs' : 'px-6 py-2.5 text-sm'} rounded-lg font-semibold transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 disabled:transform-none disabled:hover:shadow-md ${
+                    <button
+                      type="submit"
+                      disabled={loading || !isStepValid()}
+                      className={`flex w-full items-center justify-center gap-2 rounded-xl px-6 py-2.5 text-sm font-bold transition-all active:scale-[0.97] sm:w-auto ${
                         loading || !isStepValid()
-                          ? 'bg-slate-200 text-slate-400 cursor-not-allowed opacity-60'
-                          : 'bg-[#02665e] hover:bg-[#014e47] text-white'
+                          ? 'cursor-not-allowed bg-slate-100 text-slate-400'
+                          : 'bg-[#02665e] text-white shadow-[0_4px_20px_rgba(2,102,94,0.35)] hover:bg-[#014e47] hover:shadow-[0_6px_24px_rgba(2,102,94,0.45)]'
                       }`}
                     >
                       {loading ? (
-                        <span className="flex items-center gap-1.5">
-                          <Loader2 className={`${role !== 'driver' ? 'w-3 h-3' : 'w-3.5 h-3.5'} animate-spin`} />
-                          Saving...
-                        </span>
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Saving…
+                        </>
                       ) : (
-                        <span className="flex items-center gap-1.5">
-                          <CheckCircle2 className={`${role !== 'driver' ? 'w-3 h-3' : 'w-3.5 h-3.5'}`} />
-                          Save and continue
-                        </span>
+                        <>
+                          <CheckCircle2 className="h-4 w-4" />
+                          Save &amp; continue
+                        </>
                       )}
                     </button>
                   )}
                 </div>
               </div>
+              </div>
+
+              <aside className="hidden space-y-4 lg:block">
+                <div className="rounded-[26px] border border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f7faf9_100%)] p-5 shadow-[0_12px_36px_-26px_rgba(15,23,42,0.3)] ring-1 ring-slate-900/5">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#02665e]/8 text-[#02665e]">
+                      <Shield className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-slate-900">Why this matters</p>
+                      <p className="text-xs text-slate-500">A polished profile improves trust and access.</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 space-y-3">
+                    {nonDriverHighlights.map((item) => (
+                      <div key={item} className="flex items-start gap-2.5 rounded-2xl border border-slate-100 bg-white px-3.5 py-3">
+                        <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#02665e]" />
+                        <p className="text-sm text-slate-600">{item}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-[24px] border border-slate-200/80 bg-[#0f172a] p-5 text-white shadow-[0_18px_46px_-28px_rgba(15,23,42,0.5)]">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/50">Step {stepIndex} of {nonDriverSteps.length}</p>
+                  <p className="mt-3 text-xl font-bold">{nonDriverSteps[Math.max(0, stepIndex - 1)]?.detail}</p>
+                  <p className="mt-2 text-sm leading-6 text-white/70">
+                    {stepIndex === 1
+                      ? 'Use accurate account details so future bookings, messages, and approvals match your identity.'
+                      : 'Review carefully before finishing. You can still go back and adjust anything that looks wrong.'}
+                  </p>
+
+                  <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div className="flex items-center justify-between text-xs text-white/60">
+                      <span>Progress</span>
+                      <span>{nonDriverCompletion}%</span>
+                    </div>
+                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10">
+                      <div className="h-full rounded-full bg-[linear-gradient(90deg,#6ee7b7_0%,#34d399_100%)] transition-all duration-500" style={{ width: `${nonDriverCompletion}%` }} />
+                    </div>
+                  </div>
+                </div>
+              </aside>
             </form>
           ) : (
             <form onSubmit={submitProfile} className="space-y-6">
