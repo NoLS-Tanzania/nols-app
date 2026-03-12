@@ -233,6 +233,8 @@ export default function PublicHeader({
     ? "bg-[rgba(8,22,50,0.80)] ring-1 ring-[#02665e]/50 shadow-[0_4px_20px_rgba(0,0,0,0.32)]"
     : "bg-[rgba(11,31,92,0.88)] ring-1 ring-white/[0.14] shadow-[0_4px_16px_rgba(0,0,0,0.30)]";
 
+  const useOwnerLikeMobileHeader = isMobile && isPublicPath;
+
   // Logo handling:
   // - Always use the icon-only logo (no names), same as the footer.
   // - On dark/green header, adjust the icon so it's visible.
@@ -307,21 +309,27 @@ export default function PublicHeader({
       >
         <div className="public-container">
           <div
-            className={`relative ${compact ? 'h-14' : scrolled ? 'h-16' : 'h-14'}`}
+            className={`relative overflow-hidden ${compact ? 'h-14' : scrolled ? 'h-16' : 'h-14'}`}
             style={{
               // On /public, the header overlays the hero. Keep a small inset from the top
               // so the header + hero read as a single, intentional composition.
-              marginTop: isMobile ? '0' : (isPublicHome ? 'clamp(10px, 1.5vw, 14px)' : (scrolled ? '10px' : '0')),
-              borderRadius: isMobile ? '0 0 10px 10px' : (compact ? '20px' : (isPublicHome && !scrolled ? '28px' : '24px')),
-              width: '100%',
+              marginTop: isMobile
+                ? (useOwnerLikeMobileHeader ? '8px' : '0')
+                : (isPublicHome ? 'clamp(10px, 1.5vw, 14px)' : (scrolled ? '10px' : '0')),
+              borderRadius: isMobile
+                ? (useOwnerLikeMobileHeader ? '30px' : '0 0 10px 10px')
+                : (compact ? '20px' : (isPublicHome && !scrolled ? '28px' : '24px')),
+              width: isMobile && useOwnerLikeMobileHeader ? 'calc(100% - 12px)' : '100%',
               // Always constrain width so logo and icons never get clipped to screen edges.
               maxWidth: isMobile ? '100%' : ((overHero || scrolled) ? '1200px' : '100%'),
-              marginLeft: isMobile ? 0 : ((overHero || scrolled) ? 'auto' : undefined),
-              marginRight: isMobile ? 0 : ((overHero || scrolled) ? 'auto' : undefined),
+              marginLeft: isMobile ? (useOwnerLikeMobileHeader ? 'auto' : 0) : ((overHero || scrolled) ? 'auto' : undefined),
+              marginRight: isMobile ? (useOwnerLikeMobileHeader ? 'auto' : 0) : ((overHero || scrolled) ? 'auto' : undefined),
               // Naspers-style coupling: transparent over hero, then smoothly fills into our brand glass header.
               // Non-public pages get full opacity for maximum visibility
               // Dark premium glass — matches the hero card background (#05080f) with a subtle emerald tint.
-              background: overHero
+              background: useOwnerLikeMobileHeader
+                ? 'linear-gradient(135deg, rgba(2,91,83,0.96) 0%, rgba(2,102,94,0.98) 55%, rgba(3,120,103,0.96) 100%)'
+                : overHero
                 ? `linear-gradient(135deg, rgba(8,18,50,${0.62 + heroBlend * 0.14}) 0%, rgba(10,50,100,${0.44 + heroBlend * 0.12}) 55%, rgba(2,102,94,${0.12 + heroBlend * 0.10}) 100%)`
                 : scrolled
                 ? `linear-gradient(135deg, rgba(8,18,50,${0.90 + scrollProgress * 0.06}) 0%, rgba(10,92,130,${0.60 + scrollProgress * 0.14}) 55%, rgba(2,102,94,${0.50 + scrollProgress * 0.18}) 100%)`
@@ -329,21 +337,27 @@ export default function PublicHeader({
                 ? `linear-gradient(135deg, #0b1f5c 0%, #0a5c82 52%, #02665e 100%)`
                 : `linear-gradient(135deg, rgba(11,31,92,${pathname === "/public" ? (0.18 + heroBlend * 0.60) : 0.92}) 0%, rgba(10,92,130,${pathname === "/public" ? (0.10 + heroBlend * 0.48) : 0.80}) 55%, rgba(2,102,94,${pathname === "/public" ? (0.08 + heroBlend * 0.38) : 0.72}) 100%)`,
 
-              backdropFilter: overHero
+              backdropFilter: useOwnerLikeMobileHeader
+                ? 'blur(20px) saturate(180%)'
+                : overHero
                 ? `blur(${18 + heroBlend * 8}px) saturate(180%)`
                 : isNonPublicPage
                 ? `blur(16px) saturate(180%)`
                 : scrolled
                 ? `blur(${16 + scrollProgress * 6}px) saturate(${160 + scrollProgress * 20}%)`
                 : `blur(${6 + heroBlend * 10}px) saturate(${120 + heroBlend * 40}%)`,
-              WebkitBackdropFilter: overHero
+              WebkitBackdropFilter: useOwnerLikeMobileHeader
+                ? 'blur(20px) saturate(180%)'
+                : overHero
                 ? `blur(${18 + heroBlend * 8}px) saturate(180%)`
                 : isNonPublicPage
                 ? `blur(16px) saturate(180%)`
                 : scrolled
                 ? `blur(${16 + scrollProgress * 6}px) saturate(${160 + scrollProgress * 20}%)`
                 : `blur(${6 + heroBlend * 10}px) saturate(${120 + heroBlend * 40}%)`,
-              boxShadow: overHero
+              boxShadow: useOwnerLikeMobileHeader
+                ? '0 18px 52px rgba(0,0,0,0.30), 0 0 0 1px rgba(255,255,255,0.10), inset 0 1px 0 rgba(255,255,255,0.10), 0 0 40px rgba(2,102,94,0.16)'
+                : overHero
                 ? `0 8px 32px rgba(2,102,94,0.18), inset 0 1px 0 rgba(255,255,255,0.10), inset 0 0 0 1px rgba(255,255,255,0.06)`
                 : scrolled
                 ? `0 12px 36px rgba(8,18,50,0.48), 0 0 0 1px rgba(2,102,94,0.30), inset 0 1px 0 rgba(255,255,255,0.10)`
@@ -352,7 +366,9 @@ export default function PublicHeader({
                 : pathname === "/public" && heroBlend > 0.2
                 ? `0 10px 32px rgba(8,18,50,0.32), 0 0 0 1px rgba(2,102,94,0.18)`
                 : 'none',
-              border: overHero
+              border: useOwnerLikeMobileHeader
+                ? '1px solid rgba(255,255,255,0.12)'
+                : overHero
                 ? "none"
                 : scrolled
                 ? '1px solid rgba(255,255,255,0.11)'
@@ -365,6 +381,51 @@ export default function PublicHeader({
               willChange: 'border-radius, background, backdrop-filter, box-shadow',
             }}
           >
+            {useOwnerLikeMobileHeader && (
+              <>
+                <div
+                  className="pointer-events-none absolute inset-0"
+                  aria-hidden
+                  style={{
+                    backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.07) 1px, transparent 1px)',
+                    backgroundSize: '20px 20px',
+                    opacity: 0.26,
+                  }}
+                />
+                <div
+                  className="pointer-events-none absolute inset-y-0 left-[22%] w-28"
+                  aria-hidden
+                  style={{
+                    background: 'radial-gradient(circle at 50% 50%, rgba(56,189,248,0.15) 0%, transparent 72%)',
+                    filter: 'blur(18px)',
+                  }}
+                />
+                <div
+                  className="pointer-events-none absolute inset-y-0 right-0 w-36"
+                  aria-hidden
+                  style={{
+                    background: 'radial-gradient(circle at 40% 50%, rgba(45,212,191,0.18) 0%, transparent 74%)',
+                    filter: 'blur(18px)',
+                  }}
+                />
+                <div
+                  className="pointer-events-none absolute inset-x-6 top-0 h-px"
+                  aria-hidden
+                  style={{
+                    background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.14) 24%, rgba(255,255,255,0.38) 50%, rgba(255,255,255,0.14) 76%, transparent 100%)',
+                  }}
+                />
+                <div
+                  className="pointer-events-none absolute left-12 top-0 bottom-0 w-px"
+                  aria-hidden
+                  style={{
+                    background: 'linear-gradient(180deg, rgba(255,255,255,0.16) 0%, rgba(45,212,191,0.18) 36%, rgba(255,255,255,0.04) 100%)',
+                    opacity: 0.55,
+                  }}
+                />
+              </>
+            )}
+
             {/* Scroll Progress Indicator */}
             {scrolled && scrollProgress > 0 && (
               <div
@@ -378,7 +439,7 @@ export default function PublicHeader({
             )}
 
             <div 
-              className={`flex items-center justify-between px-3 sm:px-5 ${
+              className={`flex items-center justify-between px-4 sm:px-5 ${
                 compact ? 'h-14' : scrolled ? 'h-16' : 'h-14'
               }`}
               style={{
@@ -392,7 +453,7 @@ export default function PublicHeader({
           <div 
             className="flex items-center z-30 flex-shrink-0"
             style={{
-              gap: scrolled ? '10px' : '14px',
+              gap: useOwnerLikeMobileHeader ? '12px' : (scrolled ? '10px' : '14px'),
               transition: 'gap 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
             }}
           >
@@ -449,7 +510,7 @@ export default function PublicHeader({
           <div 
             className="flex items-center z-30 flex-shrink-0"
             style={{
-              gap: scrolled ? '8px' : '12px',
+              gap: useOwnerLikeMobileHeader ? '10px' : (scrolled ? '8px' : '12px'),
               transition: 'gap 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
             }}
           >
@@ -591,8 +652,10 @@ export default function PublicHeader({
       <div 
         style={{
           // On /public we want the hero image to be treated as the header background,
-          // so we don't push the page content down with a spacer.
-          height: isPublicHome ? 0 : (scrolled ? 'calc(64px + 24px)' : (compact ? '56px' : '80px')),
+          // but on mobile keep a small owner-like gap so the fixed header feels separate.
+          height: isPublicHome
+            ? (useOwnerLikeMobileHeader ? '76px' : 0)
+            : (scrolled ? 'calc(64px + 24px)' : (compact ? '56px' : '80px')),
           transition: 'height 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
         }}
       />

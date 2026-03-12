@@ -225,15 +225,13 @@ function _SectionHeading({
 
 import { useRouter } from 'next/navigation';
 
-import HeroRingsBackground from "../../components/HeroRingsBackground";
-
 export default function Page() {
   const router = useRouter();
   const prefersReducedMotion = useReducedMotion();
   // Group Stays is now a standalone page; removed inline event integration.
 
   type HeroMode = "stays" | "transport" | "host";
-  const [heroMode, setHeroMode] = useState<HeroMode>("stays");
+  const [, setHeroMode] = useState<HeroMode>("stays");
 
   // Cursor/touch-adaptive hero glow (premium interactive background)
   const heroRef = useRef<HTMLElement | null>(null);
@@ -824,24 +822,24 @@ export default function Page() {
       <LayoutFrame heightVariant="sm" topVariant="sm" colorVariant="muted" variant="solid" />
       {/* Hero surround frame (tinted border on ALL sides) */}
       <div className="public-container">
-        <div className="relative overflow-hidden rounded-none sm:rounded-[60px] -mx-2 sm:mx-0 p-0 sm:p-4 lg:p-5"
+        <div className="relative overflow-hidden rounded-[34px] sm:rounded-[60px] mx-0 p-[1px] sm:p-4 lg:p-5"
           style={{
             background: "linear-gradient(145deg,#080e28 0%,#0a2235 45%,#012018 100%)",
             boxShadow: "0 40px 100px rgba(2,102,94,0.38),0 12px 32px rgba(8,30,80,0.55)",
           }}>
           {/* Outer ambient — dual teal+navy glow on the surround */}
-          <div className="pointer-events-none absolute inset-0 rounded-none sm:rounded-[60px]" style={{ background: "radial-gradient(ellipse 80% 55% at 60% 45%,rgba(2,102,94,0.30),transparent 70%)" }} aria-hidden />
-          <div className="pointer-events-none absolute inset-0 rounded-none sm:rounded-[60px]" style={{ background: "radial-gradient(ellipse 60% 40% at 25% 60%,rgba(8,50,120,0.22),transparent 65%)" }} aria-hidden />
+          <div className="pointer-events-none absolute inset-0 rounded-[34px] sm:rounded-[60px]" style={{ background: "radial-gradient(ellipse 80% 55% at 60% 45%,rgba(2,102,94,0.30),transparent 70%)" }} aria-hidden />
+          <div className="pointer-events-none absolute inset-0 rounded-[34px] sm:rounded-[60px]" style={{ background: "radial-gradient(ellipse 60% 40% at 25% 60%,rgba(8,50,120,0.22),transparent 65%)" }} aria-hidden />
 
           {/* Inner 1px border — teal-to-blue premium line */}
-          <div className="relative rounded-none sm:rounded-[52px] p-0 sm:p-[1.5px]"
+          <div className="relative rounded-[30px] sm:rounded-[52px] p-[1px] sm:p-[1.5px]"
             style={{ background: "linear-gradient(135deg,rgba(255,255,255,0.28) 0%,rgba(2,180,245,0.40) 40%,rgba(2,102,94,0.60) 75%,rgba(255,196,0,0.18) 100%)", boxShadow: "0 28px 72px rgba(0,0,0,0.55)" }}>
-            <div className="pointer-events-none absolute inset-0 rounded-none sm:rounded-[52px] bg-gradient-to-b from-white/10 via-white/4 to-transparent" aria-hidden />
+            <div className="pointer-events-none absolute inset-0 rounded-[30px] sm:rounded-[52px] bg-gradient-to-b from-white/10 via-white/4 to-transparent" aria-hidden />
 
             <section
               id="public-hero"
-              className="relative overflow-hidden text-white rounded-none sm:rounded-[calc(52px-1.5px)]"
-              style={{ background: "#050d20" }}
+              className="relative overflow-hidden text-white rounded-[calc(30px-1px)] sm:rounded-[calc(52px-1.5px)]"
+              style={{ background: "#020f0d" }}
               ref={heroRef as any}
               onPointerEnter={() => setHeroPointerActive(true)}
               onPointerLeave={() => { setHeroPointerActive(false); setHeroPressed(false); }}
@@ -854,39 +852,51 @@ export default function Page() {
               onPointerUp={() => setHeroPressed(false)}
             >
           {/* Inner ring highlight */}
-          <div className="pointer-events-none absolute inset-0 rounded-[calc(36px-1.5px)] sm:rounded-[calc(52px-1.5px)] ring-1 ring-white/12" aria-hidden />
+          <div className="pointer-events-none absolute inset-0 rounded-[calc(30px-1px)] sm:rounded-[calc(52px-1.5px)] ring-1 ring-white/12" aria-hidden />
         {/* ══════════════════════════════════════════════
              FULL-BLEED HERO BACKGROUND
         ══════════════════════════════════════════════ */}
         <div className="absolute inset-0" aria-hidden>
 
-          {/* Layer 0 — base deep-space floor */}
-          <div className="absolute inset-0" style={{ background: "linear-gradient(155deg,#040c24 0%,#071828 40%,#041c14 72%,#020e0a 100%)" }} />
+          {/* Background — owner portal teal gradient */}
+          <div className="absolute inset-0" style={{ background: "linear-gradient(135deg,#020f0d 0%,#011c18 22%,#023a32 48%,#025549 72%,#02705f 90%,#048070 100%)" }} />
 
-          {/* Layer 1 — HeroRings (keeps brand rings) */}
-          <HeroRingsBackground mode={heroMode} variant="full" className="absolute inset-0" />
+          {/* Dot grid */}
+          <div className="pointer-events-none absolute inset-0" style={{ backgroundImage: "radial-gradient(circle,rgba(255,255,255,0.06) 1px,transparent 1px)", backgroundSize: "24px 24px" }} />
 
-          {/* Layer 2 — rich teal+navy dual wash */}
-          <div className="absolute inset-0" style={{ background: "linear-gradient(130deg,rgba(2,102,94,0.65) 0%,rgba(5,40,90,0.52) 48%,rgba(8,20,60,0.40) 100%)" }} />
+          {/* Horizontal depth lines */}
+          <div className="pointer-events-none absolute inset-0 opacity-[0.04]" style={{ backgroundImage: "repeating-linear-gradient(0deg,transparent,transparent 39px,rgba(255,255,255,1) 39px,rgba(255,255,255,1) 40px)" }} />
 
-          {/* Layer 3 — left dark vignette so text pops */}
-          <div className="absolute inset-0" style={{ background: "linear-gradient(to right,rgba(2,6,18,0.82) 0%,rgba(2,6,18,0.42) 48%,transparent 100%)" }} />
-          <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom,rgba(2,6,18,0.44) 0%,transparent 38%,rgba(2,6,18,0.72) 100%)" }} />
+          {/* Vignette */}
+          <div className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(ellipse 80% 60% at 50% 0%,rgba(0,0,0,0) 0%,rgba(0,0,0,0.45) 100%)" }} />
 
-          {/* Layer 4 — luxury warm-gold glow (top-right) — signals "quality" */}
-          <div className="pointer-events-none absolute" style={{ top: "-10%", right: "-8%", width: 680, height: 620, borderRadius: "50%", background: "radial-gradient(ellipse at center,rgba(251,191,36,0.22) 0%,rgba(245,158,11,0.12) 35%,transparent 65%)", filter: "blur(44px)" }} />
+          {/* Ambient glows */}
+          <div className="pointer-events-none absolute -top-20 left-1/3 h-72 w-72 rounded-full" style={{ background: "radial-gradient(circle,rgba(4,180,150,0.22) 0%,transparent 70%)" }} />
+          <div className="pointer-events-none absolute -bottom-16 -left-10 h-56 w-56 rounded-full" style={{ background: "radial-gradient(circle,rgba(0,240,190,0.10) 0%,transparent 70%)" }} />
 
-          {/* Layer 5 — teal depth glow (bottom-left) — signals "accessible" */}
-          <div className="pointer-events-none absolute" style={{ bottom: "-8%", left: "-4%", width: 640, height: 560, borderRadius: "50%", background: "radial-gradient(ellipse at center,rgba(2,102,94,0.55) 0%,rgba(4,60,80,0.22) 45%,transparent 68%)", filter: "blur(50px)" }} />
+          {/* Decorative background bar chart (right-aligned) */}
+          <div className="pointer-events-none absolute inset-0 flex items-end justify-end pr-6 pb-0" aria-hidden>
+            <div className="flex items-end gap-[5px] h-full" style={{ paddingBottom: 0, paddingTop: 24, opacity: 0.13 }}>
+              {Array.from({ length: 14 }, (_: any, i: number) => ({ v: Math.floor(Math.sin(i * 0.7 + 1) * 3 + 4) })).map((s, i) => {
+                const pct = Math.max(0.08, s.v / 7);
+                return (
+                  <div key={i} className="rounded-t-sm flex-shrink-0" style={{ width: 14, height: (pct * 100) + '%', background: "linear-gradient(to top,rgba(0,255,200,0.9),rgba(0,255,200,0.3))" }} />
+                );
+              })}
+            </div>
+          </div>
 
-          {/* Layer 6 — vivid cyan centre bloom */}
-          <div className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(ellipse 70% 50% at 50% 38%,rgba(45,212,191,0.18),rgba(56,189,248,0.10) 50%,transparent 70%)" }} />
-
-          {/* Layer 7 — emerald-to-violet diagonal shimmer for depth */}
-          <div className="pointer-events-none absolute inset-0" style={{ background: "linear-gradient(218deg,rgba(167,139,250,0.08) 0%,transparent 42%,rgba(16,185,129,0.12) 100%)" }} />
-
-          {/* Layer 8 — bottom-left emerald spotlight (fills the dark corner) */}
-          <div className="pointer-events-none absolute" style={{ bottom: "-6%", left: "-5%", width: 560, height: 480, borderRadius: "50%", background: "radial-gradient(ellipse at 30% 70%,rgba(45,212,191,0.32) 0%,rgba(16,185,129,0.20) 38%,rgba(2,102,94,0.10) 60%,transparent 75%)", filter: "blur(36px)" }} />
+          {/* SVG area wave */}
+          <svg className="pointer-events-none absolute inset-0 w-full h-full" preserveAspectRatio="none" viewBox="0 0 400 180" style={{ opacity: 0.07 }}>
+            <defs>
+              <linearGradient id="heroWave" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#00ffcc" stopOpacity="0.9" />
+                <stop offset="100%" stopColor="#00ffcc" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            <path d="M0,140 C60,100 100,160 160,90 C220,30 260,120 320,70 C360,30 380,60 400,50 L400,180 L0,180 Z" fill="url(#heroWave)" />
+            <path d="M0,140 C60,100 100,160 160,90 C220,30 260,120 320,70 C360,30 380,60 400,50" fill="none" stroke="#00ffcc" strokeWidth="2" />
+          </svg>
 
           {/* ════════════════════════════════════════════
                ARCHITECTURAL LUXURY VISUALIZATION
@@ -894,7 +904,7 @@ export default function Page() {
                premium property blueprints, and skyline
                silhouettes — all teal+gold palette
           ════════════════════════════════════════════ */}
-          <div className="pointer-events-none absolute inset-0" aria-hidden>
+          <div className="pointer-events-none absolute inset-0" aria-hidden style={{ display: "none" }}>
             <svg className="absolute inset-0 h-full w-full" viewBox="0 0 1200 680" preserveAspectRatio="xMidYMid slice">
               <defs>
                 {/* Fade mask — strong centre, dissolves at edges */}
@@ -1114,8 +1124,8 @@ export default function Page() {
         </div>
 
         <div className="relative z-10">
-          <div className="public-container grid grid-cols-1 lg:grid-cols-12 items-center gap-6 sm:gap-10 lg:gap-12 pt-10 pb-8 sm:pt-14 sm:pb-10 lg:min-h-[calc(100vh-72px)] lg:pt-24 lg:pb-16">
-              <div className="lg:col-span-12 flex flex-col items-center">
+          <div className="relative flex flex-col lg:flex-row lg:items-stretch gap-0">
+              <div className="flex-1 px-5 sm:px-8 lg:px-10 pt-7 pb-6 lg:pb-7 flex flex-col items-center">
                 <motion.div
                   initial={{ opacity: 0, y: 14 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -1150,7 +1160,7 @@ export default function Page() {
                   initial={{ opacity: 0, y: 18 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6, delay: 0.08, ease: [0.2, 0.8, 0.2, 1] }}
-                  className="mt-5 sm:mt-8 w-full max-w-3xl mx-auto"
+                  className="mt-5 sm:mt-8 w-full max-w-3xl lg:max-w-xl mx-auto"
                 >
                 <form onSubmit={submitSearch} className="w-full pointer-events-auto flex justify-center sm:block">
                   <div className="flex items-center gap-1.5 bg-gradient-to-b from-white/[0.18] to-white/[0.08] backdrop-blur-2xl rounded-full p-2 shadow-[0_22px_80px_rgba(0,0,0,0.50)] ring-1 ring-white/30 w-[270px] sm:w-full mx-auto">
@@ -1410,29 +1420,61 @@ export default function Page() {
                     </div>
                   </div>
 
-                  {/* Trust stats row */}
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.55, delay: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
-                    className="hidden sm:flex mt-5 sm:mt-10 items-center justify-center gap-4 sm:gap-6 flex-wrap"
-                  >
-                    {[
-                      { value: "12K+", label: "Happy guests" },
-                      { value: "340+", label: "Properties" },
-                      { value: "4.9★", label: "Avg. rating" },
-                      { value: "24/7", label: "Support" },
-                    ].map(({ value, label }) => (
-                      <div key={label} className="flex flex-col items-center gap-0.5">
-                        <span className="text-lg font-extrabold text-white tracking-tight leading-none">{value}</span>
-                        <span className="text-[11px] font-medium text-white/40 tracking-wide uppercase">{label}</span>
-                      </div>
-                    ))}
-                  </motion.div>
-
                 </motion.div>
+
               </div>
+
+                        {/* RIGHT: digital connection â€” one platform */}
+
+            <div className="pointer-events-none absolute right-[-18px] bottom-[-8px] flex items-center justify-center w-[148px] opacity-[0.18] z-0 sm:right-0 sm:bottom-0 sm:w-[170px] sm:opacity-[0.24] lg:left-4 lg:right-auto lg:bottom-8 lg:w-[220px] lg:opacity-[0.38] xl:left-8 xl:w-[260px]">
+
+              <div className="absolute top-3 right-3 hidden lg:flex items-center gap-1.5">
+                <span className="text-[9px] font-black uppercase tracking-[0.18em]" style={{ color: "rgba(255,255,255,0.18)" }}>One Platform</span>
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
+              </div>
+
+              <svg viewBox="0 0 240 230" className="w-full max-w-[148px] sm:max-w-[170px] lg:max-w-[220px] xl:max-w-[240px]" aria-hidden fill="none" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <pattern id="hgrid" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
+                    <circle cx="10" cy="10" r="0.8" fill="rgba(255,255,255,0.07)" />
+                  </pattern>
+                </defs>
+                <rect x="0" y="0" width="240" height="230" fill="url(#hgrid)" />
+                <path d="M120,94 C120,70 120,55 120,28" stroke="rgba(45,212,191,0.30)" strokeWidth="1.2" strokeDasharray="5 4" />
+                <path d="M120,94 C100,110 72,136 48,178" stroke="rgba(45,212,191,0.28)" strokeWidth="1.2" strokeDasharray="5 4" />
+                <path d="M120,94 C140,110 168,136 192,178" stroke="rgba(45,212,191,0.28)" strokeWidth="1.2" strokeDasharray="5 4" />
+                <circle cx="120" cy="61" r="2.5" fill="rgba(45,212,191,0.75)" />
+                <circle cx="84" cy="136" r="2.5" fill="rgba(45,212,191,0.55)" />
+                <circle cx="156" cy="136" r="2.5" fill="rgba(45,212,191,0.55)" />
+                <circle cx="120" cy="94" r="36" fill="none" stroke="rgba(45,212,191,0.08)" strokeWidth="1.2" />
+                <circle cx="120" cy="94" r="26" fill="rgba(2,102,94,0.28)" stroke="rgba(45,212,191,0.55)" strokeWidth="1.5" />
+                <circle cx="120" cy="94" r="18" fill="rgba(4,128,112,0.45)" stroke="rgba(45,212,191,0.18)" strokeWidth="1" />
+                <text x="120" y="94" textAnchor="middle" dominantBaseline="middle" fontSize="12" fontWeight="900" fill="rgba(255,255,255,0.85)" fontFamily="ui-sans-serif,system-ui,sans-serif">N</text>
+                <circle cx="120" cy="20" r="18" fill="rgba(56,189,248,0.12)" stroke="rgba(56,189,248,0.45)" strokeWidth="1.3" />
+                <rect x="112" y="14" width="16" height="10" rx="2" fill="none" stroke="rgba(56,189,248,0.85)" strokeWidth="1.2" />
+                <rect x="114" y="11" width="5" height="4" rx="1" fill="rgba(56,189,248,0.55)" />
+                <line x1="112" y1="20" x2="128" y2="20" stroke="rgba(56,189,248,0.40)" strokeWidth="1" />
+                <text x="120" y="46" textAnchor="middle" fontSize="7.5" fontWeight="800" letterSpacing="1.5" fill="rgba(56,189,248,0.62)" fontFamily="ui-sans-serif,system-ui,sans-serif">STAYS</text>
+                <circle cx="46" cy="186" r="18" fill="rgba(52,211,153,0.10)" stroke="rgba(52,211,153,0.45)" strokeWidth="1.3" />
+                <rect x="38" y="181" width="16" height="8" rx="2" fill="none" stroke="rgba(52,211,153,0.85)" strokeWidth="1.2" />
+                <path d="M40 181 L42 178 L48 178 L50 181" stroke="rgba(52,211,153,0.70)" strokeWidth="1.2" />
+                <circle cx="41.5" cy="189" r="2" fill="rgba(52,211,153,0.60)" />
+                <circle cx="50.5" cy="189" r="2" fill="rgba(52,211,153,0.60)" />
+                <text x="46" y="213" textAnchor="middle" fontSize="6.5" fontWeight="800" letterSpacing="1" fill="rgba(52,211,153,0.62)" fontFamily="ui-sans-serif,system-ui,sans-serif">TRANSPORT</text>
+                <circle cx="194" cy="186" r="18" fill="rgba(167,139,250,0.10)" stroke="rgba(167,139,250,0.45)" strokeWidth="1.3" />
+                <circle cx="194" cy="184" r="7" fill="none" stroke="rgba(167,139,250,0.82)" strokeWidth="1.2" />
+                <circle cx="194" cy="184" r="2" fill="rgba(167,139,250,0.55)" />
+                <line x1="194" y1="177" x2="194" y2="179" stroke="rgba(167,139,250,0.55)" strokeWidth="1.2" />
+                <line x1="194" y1="189" x2="194" y2="191" stroke="rgba(167,139,250,0.55)" strokeWidth="1.2" />
+                <line x1="187" y1="184" x2="189" y2="184" stroke="rgba(167,139,250,0.55)" strokeWidth="1.2" />
+                <line x1="199" y1="184" x2="201" y2="184" stroke="rgba(167,139,250,0.55)" strokeWidth="1.2" />
+                <text x="194" y="213" textAnchor="middle" fontSize="7.5" fontWeight="800" letterSpacing="1.2" fill="rgba(167,139,250,0.62)" fontFamily="ui-sans-serif,system-ui,sans-serif">EXPLORE</text>
+              </svg>
+
             </div>
+
+          </div>
+
         </div>
 
         {/* Decorative separator marking end of hero */}
@@ -1464,37 +1506,31 @@ export default function Page() {
         <div aria-hidden className="pointer-events-none absolute bottom-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
 
         <div className="public-container relative z-10">
-          {/* ── Premium centered heading ── */}
+
           <div className="mb-12 flex flex-col items-center text-center">
-            {/* Eyebrow pill */}
-            <div className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-[11px] font-semibold tracking-[0.12em] uppercase shadow-sm ring-1
-              bg-gradient-to-r from-emerald-50 via-white to-sky-50 ring-slate-200/80 text-slate-500">
+            <div className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-[11px] font-semibold tracking-[0.12em] uppercase shadow-sm ring-1 bg-gradient-to-r from-emerald-50 via-white to-sky-50 ring-slate-200/80 text-slate-500">
               <span className="w-1.5 h-1.5 rounded-full bg-gradient-to-br from-emerald-400 to-sky-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]" aria-hidden />
               Who It&apos;s For
             </div>
 
-            {/* Main title — gradient two-tone */}
             <h2 className="mt-5 text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-none">
               <span className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700 bg-clip-text text-transparent">Built&nbsp;</span>
               <span style={{ color: '#02665e' }}>for&nbsp;you</span>
             </h2>
 
-            {/* Decorative rule */}
             <div className="mt-5 flex items-center gap-3 w-full max-w-xs" aria-hidden>
               <div className="flex-1 h-px bg-gradient-to-r from-transparent to-slate-200" />
               <span className="w-2 h-2 rounded-full bg-gradient-to-br from-emerald-400 to-sky-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]" />
               <div className="flex-1 h-px bg-gradient-to-l from-transparent to-slate-200" />
             </div>
 
-            {/* Subtitle */}
             <p className="mt-4 text-sm sm:text-base leading-relaxed max-w-[62ch] text-slate-500">
               Travelers, drivers, and property owners {" "}
               <span className="text-slate-700 font-medium">connected by verified listings, clear policies, and dependable support.</span>
             </p>
           </div>
-          <div className="grid grid-cols-1 min-[420px]:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-6 min-[420px]:gap-y-6 sm:gap-x-5 sm:gap-y-6 md:gap-y-0 mb-6 sm:mb-8">
 
-            {/* ── Travelers ── */}
+          <div className="grid grid-cols-1 min-[420px]:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-6 min-[420px]:gap-y-6 sm:gap-x-5 sm:gap-y-6 md:gap-y-0 mb-6 sm:mb-8">
             <div
               onClick={() => router.push('/public/properties')}
               onKeyDown={(e) => { if (e.key === 'Enter') router.push('/public/properties'); }}
@@ -1504,23 +1540,14 @@ export default function Page() {
               className="group relative min-w-0 h-full cursor-pointer rounded-3xl overflow-hidden transition-all duration-500 hover:-translate-y-2 hover:shadow-[0_28px_70px_rgba(4,120,87,0.40)]"
               style={{ boxShadow: '0 8px 32px rgba(4,120,87,0.22)' }}
             >
-              {/* Rich emerald gradient fill */}
               <div className="absolute inset-0" style={{ background: 'linear-gradient(145deg, #022c22 0%, #064e3b 35%, #065f46 65%, #047857 100%)' }} />
-              {/* Mesh shimmer overlay */}
               <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.8) 1px, transparent 1px)', backgroundSize: '22px 22px' }} />
-              {/* Large decorative ring top-right */}
-              <div aria-hidden className="pointer-events-none absolute -top-14 -right-14 w-56 h-56 rounded-full opacity-[0.15] group-hover:opacity-[0.25] transition-opacity duration-500"
-                style={{ border: '2px solid #34d399', boxShadow: 'inset 0 0 60px rgba(52,211,153,0.3)' }} />
-              <div aria-hidden className="pointer-events-none absolute -top-4 -right-4 w-32 h-32 rounded-full opacity-[0.10] group-hover:opacity-[0.18] transition-opacity duration-500"
-                style={{ border: '1px solid #6ee7b7' }} />
-              {/* Bottom glow */}
-              <div aria-hidden className="pointer-events-none absolute bottom-0 left-0 right-0 h-32 opacity-40"
-                style={{ background: 'linear-gradient(to top, rgba(16,185,129,0.25), transparent)' }} />
+              <div aria-hidden className="pointer-events-none absolute -top-14 -right-14 w-56 h-56 rounded-full opacity-[0.15] group-hover:opacity-[0.25] transition-opacity duration-500" style={{ border: '2px solid #34d399', boxShadow: 'inset 0 0 60px rgba(52,211,153,0.3)' }} />
+              <div aria-hidden className="pointer-events-none absolute -top-4 -right-4 w-32 h-32 rounded-full opacity-[0.10] group-hover:opacity-[0.18] transition-opacity duration-500" style={{ border: '1px solid #6ee7b7' }} />
+              <div aria-hidden className="pointer-events-none absolute bottom-0 left-0 right-0 h-32 opacity-40" style={{ background: 'linear-gradient(to top, rgba(16,185,129,0.25), transparent)' }} />
 
               <div className="relative flex h-full flex-col p-5 sm:p-6 md:p-7 min-h-[260px]">
-                {/* Tag */}
-                <div className="inline-flex self-start items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold tracking-widest uppercase"
-                  style={{ background: 'rgba(52,211,153,0.18)', color: '#6ee7b7', border: '1px solid rgba(52,211,153,0.35)' }}>
+                <div className="inline-flex self-start items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold tracking-widest uppercase" style={{ background: 'rgba(52,211,153,0.18)', color: '#6ee7b7', border: '1px solid rgba(52,211,153,0.35)' }}>
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399]" />
                   Travelers
                 </div>
@@ -1539,7 +1566,6 @@ export default function Page() {
               </div>
             </div>
 
-            {/* ── Drivers ── */}
             <div
               onClick={() => router.push('/account/register?role=driver')}
               onKeyDown={(e) => { if (e.key === 'Enter') router.push('/account/register?role=driver'); }}
@@ -1551,16 +1577,12 @@ export default function Page() {
             >
               <div className="absolute inset-0" style={{ background: 'linear-gradient(145deg, #0c1a2e 0%, #0c4a6e 35%, #075985 65%, #0369a1 100%)' }} />
               <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.8) 1px, transparent 1px)', backgroundSize: '22px 22px' }} />
-              <div aria-hidden className="pointer-events-none absolute -top-14 -right-14 w-56 h-56 rounded-full opacity-[0.15] group-hover:opacity-[0.25] transition-opacity duration-500"
-                style={{ border: '2px solid #38bdf8', boxShadow: 'inset 0 0 60px rgba(56,189,248,0.3)' }} />
-              <div aria-hidden className="pointer-events-none absolute -top-4 -right-4 w-32 h-32 rounded-full opacity-[0.10] group-hover:opacity-[0.18] transition-opacity duration-500"
-                style={{ border: '1px solid #7dd3fc' }} />
-              <div aria-hidden className="pointer-events-none absolute bottom-0 left-0 right-0 h-32 opacity-40"
-                style={{ background: 'linear-gradient(to top, rgba(56,189,248,0.22), transparent)' }} />
+              <div aria-hidden className="pointer-events-none absolute -top-14 -right-14 w-56 h-56 rounded-full opacity-[0.15] group-hover:opacity-[0.25] transition-opacity duration-500" style={{ border: '2px solid #38bdf8', boxShadow: 'inset 0 0 60px rgba(56,189,248,0.3)' }} />
+              <div aria-hidden className="pointer-events-none absolute -top-4 -right-4 w-32 h-32 rounded-full opacity-[0.10] group-hover:opacity-[0.18] transition-opacity duration-500" style={{ border: '1px solid #7dd3fc' }} />
+              <div aria-hidden className="pointer-events-none absolute bottom-0 left-0 right-0 h-32 opacity-40" style={{ background: 'linear-gradient(to top, rgba(56,189,248,0.22), transparent)' }} />
 
               <div className="relative flex h-full flex-col p-5 sm:p-6 md:p-7 min-h-[260px]">
-                <div className="inline-flex self-start items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold tracking-widest uppercase"
-                  style={{ background: 'rgba(56,189,248,0.18)', color: '#7dd3fc', border: '1px solid rgba(56,189,248,0.35)' }}>
+                <div className="inline-flex self-start items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold tracking-widest uppercase" style={{ background: 'rgba(56,189,248,0.18)', color: '#7dd3fc', border: '1px solid rgba(56,189,248,0.35)' }}>
                   <span className="w-1.5 h-1.5 rounded-full bg-sky-400 shadow-[0_0_6px_#38bdf8]" />
                   Drivers
                 </div>
@@ -1574,12 +1596,11 @@ export default function Page() {
 
                 <div className="mt-auto pt-5 flex flex-wrap gap-x-5 gap-y-2 text-xs" style={{ color: 'rgba(125,211,252,0.70)', borderTop: '1px solid rgba(56,189,248,0.15)' }}>
                   <span className="flex items-center gap-1.5 pt-4"><Calendar className="w-3.5 h-3.5" style={{ color: '#38bdf8' }} aria-hidden />Quick onboarding</span>
-                  <span className="flex items-center gap-1.5 pt-4"><Eye className="w-3.5 h-3.5" style={{ color: '#38bdf8' }} aria-hidden />Driver Dashboard</span>
+                  <span className="flex items-center gap-1.5 pt-4"><Eye className="w-3.5 h-3.5" style={{ color: '#38bdf8' }} aria-hidden />Driver dashboard</span>
                 </div>
               </div>
             </div>
 
-            {/* ── Property Owners ── */}
             <div
               onClick={() => router.push('/account/register?role=owner')}
               onKeyDown={(e) => { if (e.key === 'Enter') router.push('/account/register?role=owner'); }}
@@ -1591,16 +1612,12 @@ export default function Page() {
             >
               <div className="absolute inset-0" style={{ background: 'linear-gradient(145deg, #130828 0%, #2e1065 35%, #3b0764 65%, #4c1d95 100%)' }} />
               <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.8) 1px, transparent 1px)', backgroundSize: '22px 22px' }} />
-              <div aria-hidden className="pointer-events-none absolute -top-14 -right-14 w-56 h-56 rounded-full opacity-[0.15] group-hover:opacity-[0.25] transition-opacity duration-500"
-                style={{ border: '2px solid #a78bfa', boxShadow: 'inset 0 0 60px rgba(167,139,250,0.3)' }} />
-              <div aria-hidden className="pointer-events-none absolute -top-4 -right-4 w-32 h-32 rounded-full opacity-[0.10] group-hover:opacity-[0.18] transition-opacity duration-500"
-                style={{ border: '1px solid #c4b5fd' }} />
-              <div aria-hidden className="pointer-events-none absolute bottom-0 left-0 right-0 h-32 opacity-40"
-                style={{ background: 'linear-gradient(to top, rgba(139,92,246,0.25), transparent)' }} />
+              <div aria-hidden className="pointer-events-none absolute -top-14 -right-14 w-56 h-56 rounded-full opacity-[0.15] group-hover:opacity-[0.25] transition-opacity duration-500" style={{ border: '2px solid #a78bfa', boxShadow: 'inset 0 0 60px rgba(167,139,250,0.3)' }} />
+              <div aria-hidden className="pointer-events-none absolute -top-4 -right-4 w-32 h-32 rounded-full opacity-[0.10] group-hover:opacity-[0.18] transition-opacity duration-500" style={{ border: '1px solid #c4b5fd' }} />
+              <div aria-hidden className="pointer-events-none absolute bottom-0 left-0 right-0 h-32 opacity-40" style={{ background: 'linear-gradient(to top, rgba(139,92,246,0.25), transparent)' }} />
 
               <div className="relative flex h-full flex-col p-5 sm:p-6 md:p-7 min-h-[260px]">
-                <div className="inline-flex self-start items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold tracking-widest uppercase"
-                  style={{ background: 'rgba(167,139,250,0.18)', color: '#c4b5fd', border: '1px solid rgba(167,139,250,0.35)' }}>
+                <div className="inline-flex self-start items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold tracking-widest uppercase" style={{ background: 'rgba(167,139,250,0.18)', color: '#c4b5fd', border: '1px solid rgba(167,139,250,0.35)' }}>
                   <span className="w-1.5 h-1.5 rounded-full bg-violet-400 shadow-[0_0_6px_#a78bfa]" />
                   Property Owners
                 </div>
@@ -1618,7 +1635,6 @@ export default function Page() {
                 </div>
               </div>
             </div>
-
           </div>
 
           {/* ── Explore heading — split editorial layout ── */}
