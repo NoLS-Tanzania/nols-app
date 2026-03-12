@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import Link from "next/link";
-import { Calendar, Loader2, PhoneCall, Mail, CheckCircle2, Clock, X, History, Star, Search, RotateCw } from "lucide-react";
+import { Calendar, Loader2, PhoneCall, Mail, Check, CheckCircle2, Clock, X, History, Star, Search, RotateCw } from "lucide-react";
 import TableRow from "@/components/TableRow";
 
 // Use same-origin calls + secure httpOnly cookie session.
@@ -216,9 +216,13 @@ export default function OwnerCheckoutPage() {
             </div>
 
             <div className="p-4 sm:p-5 space-y-3">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Rate this guest (required)</div>
-                <div className="mt-2 flex items-center gap-1.5">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-4">
+                <div className="space-y-1">
+                  <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Rate this guest (required)</div>
+                  <div className="text-sm text-slate-600">Choose a rating first, then add an optional note if needed.</div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
                   {[1,2,3,4,5].map((v) => (
                     <button
                       key={v}
@@ -233,27 +237,33 @@ export default function OwnerCheckoutPage() {
                       <Star className={`h-4 w-4 ${rating >= v ? "text-amber-500" : "text-slate-300"}`} aria-hidden />
                     </button>
                   ))}
-                  <span className="ml-2 text-sm font-semibold text-slate-700">{rating ? `${rating}/5` : "Select"}</span>
+                  <span className="ml-1 inline-flex items-center rounded-full bg-white px-3 py-1 text-sm font-semibold text-slate-700 border border-slate-200 shadow-sm">
+                    {rating ? `${rating}/5 selected` : "Select rating"}
+                  </span>
                 </div>
-                <div className="mt-3">
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-3">
                   <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Optional feedback</div>
                   <textarea
                     value={feedback}
                     onChange={(e) => setFeedback(e.target.value)}
-                    rows={2}
-                    className="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 transition-all duration-200"
+                    rows={3}
+                    className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 transition-all duration-200 resize-none"
                     placeholder="Short note about the guest (optional)…"
                     aria-label="Guest rating feedback"
                   />
                 </div>
 
-                <label className="mt-3 flex items-start gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-700">
+                <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-700 transition-colors hover:border-slate-300">
                   <input
                     type="checkbox"
                     checked={agreeToTerms}
                     onChange={(e) => setAgreeToTerms(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-700 focus:ring-emerald-500/30"
+                    className="sr-only"
                   />
+                  <span className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 shadow-sm transition-all duration-200 ${agreeToTerms ? "border-emerald-700 bg-emerald-700" : "border-slate-300 bg-slate-100"}`}>
+                    {agreeToTerms ? <Check className="h-3.5 w-3.5 text-white" aria-hidden /> : null}
+                  </span>
                   <span className="leading-relaxed">
                     I agree to the{" "}
                     <Link href="/terms" target="_blank" className="font-semibold text-slate-900 underline hover:text-slate-700">
@@ -264,7 +274,7 @@ export default function OwnerCheckoutPage() {
                 </label>
               </div>
 
-              <div className="flex flex-col-reverse sm:flex-row gap-2 sm:items-center sm:justify-end">
+              <div className="flex flex-col-reverse sm:flex-row gap-2 sm:items-center sm:justify-between">
                 <button
                   type="button"
                   onClick={() => openAudit(confirmTarget)}

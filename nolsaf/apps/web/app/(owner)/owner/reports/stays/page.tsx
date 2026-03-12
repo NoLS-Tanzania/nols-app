@@ -59,6 +59,7 @@ type StaysReport = {
     checkOut: string;
     status: string;
     totalAmount: string;
+    ownerBaseAmount?: string;
     roomsQty: number;
     roomCode: string | null;
     guestName: string | null;
@@ -288,7 +289,7 @@ export default function StaysReportPage() {
         b.guestPhone ?? "",
         b.nationality ?? "",
         b.sex ?? "",
-        String(b.totalAmount ?? ""),
+        String(b.ownerBaseAmount ?? b.totalAmount ?? ""),
         "",
         "",
         fmtDateTime(b.createdAt),
@@ -461,7 +462,7 @@ export default function StaysReportPage() {
   <td>${escapeHtml(fmtDate(b.checkOut))}</td>
   <td>${escapeHtml(b.nationality || "—")}</td>
   <td>${escapeHtml(b.sex || "—")}</td>
-  <td style="text-align:right;">TZS ${escapeHtml(fmtMoneyTZS(Number(b.totalAmount || 0)))}</td>
+  <td style="text-align:right;">TZS ${escapeHtml(fmtMoneyTZS(Number(b.ownerBaseAmount || b.totalAmount || 0)))}</td>
   <td>${escapeHtml(b.status || "—")}</td>
 </tr>`;
       })
@@ -1176,7 +1177,7 @@ export default function StaysReportPage() {
                       <td className="py-2.5 px-3 text-gray-600">{fmtDate(b.checkOut)}</td>
                       <td className="py-2.5 px-3 text-gray-600">{b.nationality || "—"}</td>
                       <td className="py-2.5 px-3 text-gray-600">{b.sex || "—"}</td>
-                      <td className="py-2.5 px-3 text-right font-semibold text-emerald-700">TZS {fmtMoneyTZS(Number(b.totalAmount || 0))}</td>
+                      <td className="py-2.5 px-3 text-right font-semibold text-emerald-700">TZS {fmtMoneyTZS(Number(b.ownerBaseAmount || b.totalAmount || 0))}</td>
                       <td className="py-2.5 px-3 text-gray-600">{b.status || "—"}</td>
                     </tr>
                   ))

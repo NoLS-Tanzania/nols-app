@@ -433,6 +433,7 @@ export async function validateBookingCode(
     if (hasModelField('Property', 'type')) propertySelectBase.type = true;
     if (hasModelField('Property', 'basePrice')) propertySelectBase.basePrice = true;
     if (hasModelField('Property', 'currency')) propertySelectBase.currency = true;
+    if (hasModelField('Property', 'services')) propertySelectBase.services = true;
 
     // IMPORTANT:
     // Never `include: { property: true }` here — it selects all Property columns.

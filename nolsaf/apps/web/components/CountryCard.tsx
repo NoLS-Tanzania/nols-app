@@ -220,7 +220,6 @@ export default function CountryCard({ id, name, flag = '', imageSrc, subtitle, b
                 isCompact ? "px-4 py-2.5 sm:px-4" : "px-4 py-3 sm:px-4",
               ].join(" ")}
               aria-label={`View ${name}`}
-              style={{ backfaceVisibility: 'hidden', WebkitFontSmoothing: 'antialiased' }}
             >
               <span className={['relative z-10', isCompact ? 'text-sm' : 'text-sm'].join(' ')}>Explore</span>
             </Link>

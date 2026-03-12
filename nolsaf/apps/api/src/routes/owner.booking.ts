@@ -5,7 +5,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@nolsaf/prisma";
 import { AuthedRequest, requireAuth, requireRole } from "../middleware/auth.js";
 import { invalidateOwnerReports } from "../lib/cache.js";
-import { getEffectiveCommissionPercent, resolveOwnerPayoutAmount } from "../lib/accommodationPayout.js";
+import { getEffectiveCommissionPercent, resolveOwnerPayoutAmount, extractOwnerPayoutFromAccommodationGross } from "../lib/accommodationPayout.js";
 import { validateBookingCode, markBookingCodeAsUsed } from "../lib/bookingCodeService.js";
 import { getBookingValidationWindowStatus } from "../lib/bookingValidationWindow.js";
 import {
@@ -68,7 +68,7 @@ const validateBooking: RequestHandler = async (req, res) => {
         booking = await prisma.booking.findFirst({
           where: { id: bookingId, property: { ownerId } },
           include: {
-            property: { select: { id: true, title: true, type: true, basePrice: true, currency: true } },
+            property: { select: { id: true, title: true, type: true, basePrice: true, currency: true, services: true } },
             code: true,
             user: true,
           },
@@ -119,7 +119,9 @@ const validateBooking: RequestHandler = async (req, res) => {
 
   const totalAmount = Number(booking.totalAmount || 0);
   const transportFare = Number((booking as any).transportFare || 0);
-  const ownerBaseAmount = Math.max(0, totalAmount - transportFare);
+  const accommodationGross = Math.max(0, totalAmount - transportFare);
+  const commissionPercent = await getEffectiveCommissionPercent((booking as any).property?.services);
+  const { ownerPayout: ownerBaseAmount } = extractOwnerPayoutFromAccommodationGross(accommodationGross, commissionPercent);
 
   // Map details with all booking information
   const details = {
@@ -260,6 +262,7 @@ const getCheckedInBookings: RequestHandler = async (req, res) => {
 
     // Get bookings with status CHECKED_IN that belong to owner's properties
     const t0 = Date.now();
+    const defaultCommissionPercent = await getEffectiveCommissionPercent(null);
     const bookings = await prisma.booking.findMany({
       where: {
         property: { ownerId },
@@ -270,6 +273,7 @@ const getCheckedInBookings: RequestHandler = async (req, res) => {
           select: {
             id: true,
             title: true,
+            services: true,
           },
         },
         code: {
@@ -296,7 +300,11 @@ const getCheckedInBookings: RequestHandler = async (req, res) => {
     });
 
     // Map to include relevant fields for the UI
-    const mapped = bookings.map((b: any) => ({
+    const mapped = bookings.map((b: any) => {
+      const gross = Math.max(0, Number(b.totalAmount || 0) - Number((b as any).transportFare || 0));
+      const cp = (() => { const v = Number((b as any).property?.services?.commissionPercent); return Number.isFinite(v) && v >= 0 ? Math.min(100, v) : defaultCommissionPercent; })();
+      const { ownerPayout } = extractOwnerPayoutFromAccommodationGross(gross, cp);
+      return {
       id: b.id,
       property: b.property,
       code: b.code,
@@ -313,10 +321,11 @@ const getCheckedInBookings: RequestHandler = async (req, res) => {
       status: b.status,
       totalAmount: b.totalAmount,
       transportFare: (b as any).transportFare ?? null,
-      ownerBaseAmount: Math.max(0, Number(b.totalAmount || 0) - Number((b as any).transportFare || 0)),
+      ownerBaseAmount: ownerPayout,
       createdAt: b.createdAt,
       user: b.user,
-    }));
+      };
+    });
 
     return (res as Response).json(mapped);
   } catch (err: any) {
@@ -338,6 +347,7 @@ const getForCheckoutBookings: RequestHandler = async (req, res) => {
     const cutoff = new Date(nowMs + windowMs);
 
     const t0 = Date.now();
+    const defaultCommissionPercent = await getEffectiveCommissionPercent(null);
     const bookings = await prisma.booking.findMany({
       where: {
         property: { ownerId },
@@ -345,14 +355,18 @@ const getForCheckoutBookings: RequestHandler = async (req, res) => {
         checkOut: { lte: cutoff },
       },
       include: {
-        property: { select: { id: true, title: true } },
+        property: { select: { id: true, title: true, services: true } },
         code: { select: { id: true, codeVisible: true, status: true, usedAt: true, usedByOwner: true } },
         user: { select: { id: true, name: true, email: true, phone: true } },
       },
       orderBy: { checkOut: "asc" },
     });
 
-    const mapped = bookings.map((b: any) => ({
+    const mapped = bookings.map((b: any) => {
+      const gross = Math.max(0, Number(b.totalAmount || 0) - Number((b as any).transportFare || 0));
+      const cp = (() => { const v = Number((b as any).property?.services?.commissionPercent); return Number.isFinite(v) && v >= 0 ? Math.min(100, v) : defaultCommissionPercent; })();
+      const { ownerPayout } = extractOwnerPayoutFromAccommodationGross(gross, cp);
+      return {
       id: b.id,
       property: b.property,
       code: b.code,
@@ -366,9 +380,10 @@ const getForCheckoutBookings: RequestHandler = async (req, res) => {
       status: b.status,
       totalAmount: b.totalAmount,
       transportFare: (b as any).transportFare ?? null,
-      ownerBaseAmount: Math.max(0, Number(b.totalAmount || 0) - Number((b as any).transportFare || 0)),
+      ownerBaseAmount: ownerPayout,
       createdAt: b.createdAt,
-    }));
+      };
+    });
     return (res as Response).json(mapped);
   } catch (err: any) {
     console.error("GET /owner/bookings/for-checkout error:", err);
@@ -386,6 +401,7 @@ const getCheckedOutBookings: RequestHandler = async (req, res) => {
     if (!ownerId) return res.status(401).json({ error: "Unauthorized" });
 
     const t0 = Date.now();
+    const defaultCommissionPercent = await getEffectiveCommissionPercent(null);
     const bookings = await prisma.booking.findMany({
       where: {
         property: { ownerId },
@@ -396,6 +412,7 @@ const getCheckedOutBookings: RequestHandler = async (req, res) => {
           select: {
             id: true,
             title: true,
+            services: true,
           },
         },
         code: {
@@ -466,7 +483,7 @@ const getCheckedOutBookings: RequestHandler = async (req, res) => {
       status: b.status,
       totalAmount: b.totalAmount,
       transportFare: (b as any).transportFare ?? null,
-      ownerBaseAmount: Math.max(0, Number(b.totalAmount || 0) - Number((b as any).transportFare || 0)),
+      ownerBaseAmount: (() => { const g = Math.max(0, Number(b.totalAmount || 0) - Number((b as any).transportFare || 0)); const cp = (() => { const v = Number((b as any).property?.services?.commissionPercent); return Number.isFinite(v) && v >= 0 ? Math.min(100, v) : defaultCommissionPercent; })(); return extractOwnerPayoutFromAccommodationGross(g, cp).ownerPayout; })(),
       createdAt: b.createdAt,
       user: b.user,
       checkoutConfirmedAt: confirmedAt,
@@ -491,7 +508,7 @@ const getBooking: RequestHandler = async (req, res) => {
   const b = await prisma.booking.findFirst({
     where: { id, property: { ownerId: r.user!.id } },
     include: {
-      property: { select: { id: true, title: true, type: true, basePrice: true, currency: true } },
+      property: { select: { id: true, title: true, type: true, basePrice: true, currency: true, services: true } },
       code: true,
     },
   });
@@ -499,7 +516,9 @@ const getBooking: RequestHandler = async (req, res) => {
 
   const totalAmount = Number((b as any).totalAmount ?? 0);
   const transportFare = Number((b as any).transportFare ?? 0);
-  const ownerBaseAmount = Math.max(0, totalAmount - transportFare);
+  const accommodationGross = Math.max(0, totalAmount - transportFare);
+  const commissionPercent = await getEffectiveCommissionPercent((b as any).property?.services);
+  const { ownerPayout: ownerBaseAmount } = extractOwnerPayoutFromAccommodationGross(accommodationGross, commissionPercent);
 
   (res as Response).json({
     ...(b as any),

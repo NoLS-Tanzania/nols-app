@@ -1683,9 +1683,8 @@ select[title="Room type"] {
   .btn-explore {
     transition: transform 200ms cubic-bezier(0.4, 0, 0.2, 1), box-shadow 200ms cubic-bezier(0.4, 0, 0.2, 1);
     transform-origin: center;
-    backface-visibility: hidden;
-    -webkit-font-smoothing: antialiased;
-    transform: translateZ(0);
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
 
   .btn-explore:hover,
@@ -1716,9 +1715,8 @@ select[title="Room type"] {
   .card-raise {
     transition: transform 250ms cubic-bezier(0.4, 0, 0.2, 1), box-shadow 250ms cubic-bezier(0.4, 0, 0.2, 1);
     transform-origin: center;
-    backface-visibility: hidden;
-    -webkit-font-smoothing: antialiased;
-    transform: translateZ(0);
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
     isolation: isolate;
   }
 
@@ -1738,6 +1736,31 @@ select[title="Room type"] {
       transition: none !important;
       transform: none !important;
       box-shadow: none !important;
+    }
+  }
+
+  @media (hover: none), (pointer: coarse) {
+    .btn-explore,
+    .btn-explore:hover,
+    .btn-explore:focus,
+    .btn-explore:active,
+    .card-raise,
+    .card-raise:hover,
+    .card-raise:focus-within,
+    .card-raise:active {
+      transform: none !important;
+    }
+
+    .btn-explore:active,
+    .card-raise:active {
+      box-shadow: inherit;
+    }
+
+    .country-card-article,
+    .country-card-article .btn-explore,
+    .country-card-article .btn-explore::after {
+      backface-visibility: visible !important;
+      -webkit-backface-visibility: visible !important;
     }
   }
 

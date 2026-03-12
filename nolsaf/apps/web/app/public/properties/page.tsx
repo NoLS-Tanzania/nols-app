@@ -554,8 +554,7 @@ export default function PropertiesPage() {
           <div className="flex flex-col gap-3">
             <div className="w-full min-w-0">
               {/* Premium header card */}
-              <div className="relative overflow-hidden rounded-[28px] sm:rounded-[36px] p-[1px] shadow-[0_20px_60px_rgba(2,102,94,0.22)]" style={{ background: 'linear-gradient(135deg,rgba(2,102,94,0.75) 0%,rgba(2,180,245,0.40) 50%,rgba(2,102,94,0.65) 100%)' }}>
-                <div className="relative overflow-hidden rounded-[27px] sm:rounded-[35px] px-6 sm:px-10 py-7 sm:py-8" style={{ background: 'linear-gradient(140deg,#012e29 0%,#013530 55%,#01241f 100%)' }}>
+              <div className="relative overflow-hidden rounded-[27px] sm:rounded-[35px] px-6 sm:px-10 py-7 sm:py-8 shadow-[0_20px_60px_rgba(2,102,94,0.22)]" style={{ background: 'linear-gradient(140deg,#012e29 0%,#013530 55%,#01241f 100%)' }}>
 
                   {/* Ambient glows */}
                   <div className="pointer-events-none absolute -top-24 -right-24 w-80 h-80 rounded-full" style={{ background: 'radial-gradient(circle,rgba(2,180,245,0.22) 0%,transparent 65%)' }} aria-hidden />
@@ -600,7 +599,6 @@ export default function PropertiesPage() {
                       </Link>
                     </div>
                   </div>
-                </div>
               </div>
 
             </div>

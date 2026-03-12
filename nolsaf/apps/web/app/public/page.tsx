@@ -2452,21 +2452,22 @@ export default function Page() {
 
           {/* ── Explore Tourism by Country — atlas / geography heading ── */}
           <div className="mt-12 relative overflow-hidden rounded-3xl">
-            {/* Background: warm off-white with a faint world-grid pattern */}
-            <div aria-hidden className="absolute inset-0 bg-gradient-to-br from-amber-50/80 via-white to-orange-50/50" />
-            <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.04]"
-              style={{ backgroundImage: 'linear-gradient(rgba(0,0,0,1) 1px,transparent 1px),linear-gradient(90deg,rgba(0,0,0,1) 1px,transparent 1px)', backgroundSize: '48px 48px' }} />
+            {/* Background: brand green with a faint atlas grid */}
+            <div aria-hidden className="absolute inset-0" style={{ background: '#02665e' }} />
+            <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.10]"
+              style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,1) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,1) 1px,transparent 1px)', backgroundSize: '48px 48px' }} />
+            <div aria-hidden className="pointer-events-none absolute inset-0" style={{ background: 'radial-gradient(circle at 18% 28%, rgba(56,189,248,0.14) 0%, transparent 34%), radial-gradient(circle at 78% 30%, rgba(45,212,191,0.16) 0%, transparent 36%)' }} />
 
             {/* Ghost coordinate numbers — atlas feel */}
-            <div aria-hidden className="pointer-events-none select-none absolute top-2 left-4 text-[10px] font-mono text-slate-300 leading-4">
+            <div aria-hidden className="pointer-events-none select-none absolute top-2 left-4 text-[10px] font-mono text-white/30 leading-4">
               {['3°S', '6°S', '9°S'].map(l => <div key={l}>{l}</div>)}
             </div>
-            <div aria-hidden className="pointer-events-none select-none absolute top-2 right-4 text-[10px] font-mono text-slate-300 leading-4 text-right">
+            <div aria-hidden className="pointer-events-none select-none absolute top-2 right-4 text-[10px] font-mono text-white/30 leading-4 text-right">
               {['33°E', '36°E', '39°E'].map(l => <div key={l}>{l}</div>)}
             </div>
 
-            {/* Top amber accent line */}
-            <div aria-hidden className="absolute top-0 inset-x-0 h-[3px] bg-gradient-to-r from-transparent via-amber-400/60 to-transparent" />
+            {/* Top light accent line */}
+            <div aria-hidden className="absolute top-0 inset-x-0 h-[3px] bg-gradient-to-r from-transparent via-white/55 to-transparent" />
 
             <div className="relative z-10 px-6 py-6 sm:px-8 sm:py-7 flex flex-col sm:flex-row sm:items-center gap-6">
 
@@ -2474,24 +2475,24 @@ export default function Page() {
               <div className="min-w-0 flex-1">
                 {/* Step tag — roman numeral style */}
                 <div className="inline-flex items-center gap-2 mb-3">
-                  <span className="text-[10px] font-black tracking-[0.22em] uppercase text-amber-500/80">III</span>
-                  <span className="h-px w-8 bg-amber-300/60" aria-hidden />
-                  <span className="text-[10px] font-bold tracking-[0.18em] uppercase text-slate-400">Regional Focus</span>
+                  <span className="text-[10px] font-black tracking-[0.22em] uppercase text-emerald-100/90">III</span>
+                  <span className="h-px w-8 bg-white/35" aria-hidden />
+                  <span className="text-[10px] font-bold tracking-[0.18em] uppercase text-white/55">Regional Focus</span>
                 </div>
 
                 {/* Two-weight title */}
                 <h2 className="text-[clamp(22px,4vw,42px)] leading-tight tracking-tight">
-                  <span className="font-black text-slate-900">Explore </span>
-                  <span className="font-light text-slate-500">Tourism </span>
-                  <span className="font-black" style={{ background: 'linear-gradient(100deg,#b45309,#d97706,#f59e0b)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>by Country</span>
+                  <span className="font-black text-white">Explore </span>
+                  <span className="font-light text-white/72">Tourism </span>
+                  <span className="font-black" style={{ background: 'linear-gradient(100deg,#d1fae5,#ffffff,#99f6e4)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>by Country</span>
                 </h2>
 
                 {/* Subtitle with inline path arrow */}
-                <p className="mt-3 text-[13px] sm:text-sm leading-relaxed text-slate-500 max-w-[60ch]">
+                <p className="mt-3 text-[13px] sm:text-sm leading-relaxed text-white/78 max-w-[60ch]">
                   Choose a country to see major and minor tourist sites —
-                  {" "}<span className="inline-flex items-center gap-1 font-semibold text-slate-700">
+                  {" "}<span className="inline-flex items-center gap-1 font-semibold text-white">
                     then book verified stays
-                    <svg className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" viewBox="0 0 14 14" fill="none" aria-hidden>
+                    <svg className="w-3.5 h-3.5 text-emerald-100 flex-shrink-0" viewBox="0 0 14 14" fill="none" aria-hidden>
                       <path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
                   </span>
@@ -2507,7 +2508,7 @@ export default function Page() {
                   { name: 'Uganda',   colors: ['#000000','#fcdc04','#da121a'] },
                 ].map(c => (
                   <div key={c.name} className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold tracking-wide text-slate-400 hidden sm:block w-12 text-right">{c.name}</span>
+                    <span className="text-[10px] font-bold tracking-wide text-white/55 hidden sm:block w-12 text-right">{c.name}</span>
                     <div className="flex rounded-full overflow-hidden h-2 w-16 sm:w-20">
                       {c.colors.map((col, i) => (
                         <div key={i} className="flex-1 h-full" style={{ background: col }} />
@@ -2518,8 +2519,8 @@ export default function Page() {
               </div>
             </div>
 
-            {/* Bottom amber rule */}
-            <div aria-hidden className="absolute bottom-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-amber-200 to-transparent" />
+            {/* Bottom light rule */}
+            <div aria-hidden className="absolute bottom-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
           </div>
           <div className="mt-6">
             <div

@@ -364,12 +364,36 @@ export default function InvoiceView() {
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{err}</div>
       ) : null}
       {successMsg ? (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4">
-          <div className="flex items-start gap-3">
-            <CheckCircle2 className="h-5 w-5 text-emerald-700 flex-shrink-0 mt-0.5" aria-hidden />
-            <div>
-              <div className="text-sm font-black text-emerald-900">Submission received</div>
-              <div className="text-sm text-emerald-800/90 mt-1">{successMsg}</div>
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 p-px shadow-lg shadow-emerald-200">
+          <div className="rounded-[15px] bg-white px-6 py-5 space-y-4">
+            {/* Top row */}
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-md shadow-emerald-200 flex-shrink-0">
+                <CheckCircle2 className="h-5 w-5 text-white" aria-hidden />
+              </div>
+              <div>
+                <div className="text-base font-bold text-gray-900">Payout request submitted</div>
+                <div className="text-xs text-gray-400 mt-0.5">NoLSAF has been notified and will process your payout</div>
+              </div>
+            </div>
+            {/* Divider */}
+            <div className="h-px bg-gradient-to-r from-emerald-100 via-teal-100 to-transparent" />
+            {/* Timeline steps */}
+            <div className="flex items-center gap-0 overflow-x-auto pb-1">
+              {["Requested", "Verified", "Approved", "Processing", "Paid"].map((step, i, arr) => (
+                <div key={step} className="flex items-center gap-0 flex-shrink-0">
+                  <div className="flex flex-col items-center gap-1">
+                    <div className={`h-2 w-2 rounded-full ${i === 0 ? "bg-emerald-500 ring-4 ring-emerald-100" : "bg-gray-200"}`} />
+                    <span className={`text-[10px] font-semibold whitespace-nowrap ${i === 0 ? "text-emerald-700" : "text-gray-400"}`}>{step}</span>
+                  </div>
+                  {i < arr.length - 1 && <div className="w-8 sm:w-12 h-px bg-gray-200 mb-3 flex-shrink-0 mx-1" />}
+                </div>
+              ))}
+            </div>
+            {/* Footer */}
+            <div className="flex items-center gap-2 rounded-xl bg-gray-50 border border-gray-100 px-4 py-2.5">
+              <Clock className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" aria-hidden />
+              <span className="text-xs text-gray-500">Expected in <span className="font-semibold text-gray-700">30 minutes – 3 business days</span>. NoLSAF will notify you if anything is needed.</span>
             </div>
           </div>
         </div>

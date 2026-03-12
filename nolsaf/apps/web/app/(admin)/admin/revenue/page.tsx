@@ -1315,7 +1315,7 @@ export default function AdminRevenue() {
                         {getStatusBadge(inv.status)}
                       </td>
                       <td className="px-3 sm:px-4 py-3 whitespace-nowrap">
-                        <div className="text-sm font-bold text-[#02665e]">{fmt(inv.financialPreview?.baseAmount ?? inv.netPayable)}</div>
+                        <div className="text-sm font-bold text-[#02665e]">{fmt(inv.financialPreview?.netPayable ?? inv.netPayable)}</div>
                       </td>
                       <td className="px-3 sm:px-4 py-3 whitespace-nowrap text-center">
                         <Link

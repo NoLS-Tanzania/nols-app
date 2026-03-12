@@ -6,6 +6,7 @@ import { AuthedRequest, requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../middleware/errorHandler.js";
 import { addDays, eachDay, fmtKey, GroupBy, startOfDayTZ } from "../lib/reporting";
 import { withCache, makeKey } from "../lib/cache";
+import { getEffectiveCommissionPercent, extractOwnerPayoutFromAccommodationGross } from "../lib/accommodationPayout.js";
 
 // If you have generated Prisma types, replace these any aliases.
 type Invoice = any;
@@ -288,7 +289,7 @@ const bookingsHandler: RequestHandler = async (req, res, next) => {
           },
           select: {
             ...bookingSelect,
-            property: { select: { id: true, title: true } },
+            property: { select: { id: true, title: true, services: true } },
             code: {
               select: {
                 usedAt: true,
@@ -308,7 +309,7 @@ const bookingsHandler: RequestHandler = async (req, res, next) => {
           },
           select: {
             ...bookingSelect,
-            property: { select: { id: true, title: true } },
+            property: { select: { id: true, title: true, services: true } },
           } as any,
         });
       }
@@ -329,22 +330,32 @@ const bookingsHandler: RequestHandler = async (req, res, next) => {
       }
       const stacked = Object.entries(stack).map(([key, obj]) => ({ key, ...obj }));
 
+      const defaultCommissionPercent = await getEffectiveCommissionPercent(null);
+
       return {
         series: Object.entries(series).map(([key, v]) => ({ key, ...v })),
         stacked,
-        table: bs.map((b: any) => ({
-          id: b.id,
-          property: b.property?.title ?? `#${b.propertyId}`,
-          propertyId: b.propertyId,
-          checkIn: b.checkIn,
-          checkOut: b.checkOut,
-          status: b.status,
-          totalAmount: b.totalAmount,
-          transportFare: (b as any).transportFare ?? null,
-          ownerBaseAmount: Math.max(0, Number(b.totalAmount || 0) - Number((b as any).transportFare || 0)),
-          guestName: (b as any).guestName ?? null,
-          checkedInAt: (b.code?.usedAt ?? null),
-        })),
+        table: bs.map((b: any) => {
+          const accommodationGross = Math.max(0, Number(b.totalAmount || 0) - Number((b as any).transportFare || 0));
+          const commissionPercent = (() => {
+            const v = Number((b as any).property?.services?.commissionPercent);
+            return Number.isFinite(v) && v >= 0 ? Math.min(100, v) : defaultCommissionPercent;
+          })();
+          const { ownerPayout } = extractOwnerPayoutFromAccommodationGross(accommodationGross, commissionPercent);
+          return {
+            id: b.id,
+            property: b.property?.title ?? `#${b.propertyId}`,
+            propertyId: b.propertyId,
+            checkIn: b.checkIn,
+            checkOut: b.checkOut,
+            status: b.status,
+            totalAmount: b.totalAmount,
+            transportFare: (b as any).transportFare ?? null,
+            ownerBaseAmount: ownerPayout,
+            guestName: (b as any).guestName ?? null,
+            checkedInAt: (b.code?.usedAt ?? null),
+          };
+        }),
       };
     });
 
@@ -572,6 +583,7 @@ const staysHandler: RequestHandler = async (req, res) => {
           checkOut: true,
           status: true,
           totalAmount: true,
+          transportFare: true,
           roomsQty: true,
           roomCode: true,
           guestName: true,
@@ -591,6 +603,7 @@ const staysHandler: RequestHandler = async (req, res) => {
               city: true,
               zip: true,
               country: true,
+              services: true,
             },
           },
         },
@@ -757,9 +770,20 @@ const staysHandler: RequestHandler = async (req, res) => {
         return Math.max(0, Math.ceil(diff / 864e5));
       }
 
-      const revenueTzs = bookings.reduce((sum: number, b: any) => {
+      const defaultCommissionPercent = await getEffectiveCommissionPercent(null);
+      const bookingsWithPayout = bookings.map((b: any) => {
+        const accommodationGross = Math.max(0, Number(b.totalAmount ?? 0) - Number(b.transportFare ?? 0));
+        const cp = (() => {
+          const v = Number(b.property?.services?.commissionPercent);
+          return Number.isFinite(v) && v >= 0 ? Math.min(100, v) : defaultCommissionPercent;
+        })();
+        const { ownerPayout } = extractOwnerPayoutFromAccommodationGross(accommodationGross, cp);
+        return { ...b, ownerBaseAmount: String(ownerPayout) };
+      });
+
+      const revenueTzs = bookingsWithPayout.reduce((sum: number, b: any) => {
         if (String(b.status || '').toUpperCase() === 'CANCELED') return sum;
-        return sum + Number(b.totalAmount ?? 0);
+        return sum + Number(b.ownerBaseAmount ?? b.totalAmount ?? 0);
       }, 0);
       const nightsBooked = bookings.reduce((sum: number, b: any) => sum + nightsOverlap(b.checkIn, b.checkOut), 0);
       const nightsBlocked = external.reduce((sum: number, blk: any) => sum + nightsOverlap(blk.startDate, blk.endDate), 0);
@@ -778,11 +802,11 @@ const staysHandler: RequestHandler = async (req, res) => {
         const k = fmtKey(d, groupBy);
         buckets[k] = buckets[k] ?? { nolsaf: 0, external: 0, groupStays: 0, revenueTzs: 0 };
       }
-      for (const b of bookings) {
+      for (const b of bookingsWithPayout) {
         const k = fmtKey(startOfDayTZ(b.checkIn), groupBy);
         buckets[k] = buckets[k] ?? { nolsaf: 0, external: 0, groupStays: 0, revenueTzs: 0 };
         buckets[k].nolsaf += 1;
-        if (String(b.status || '').toUpperCase() !== 'CANCELED') buckets[k].revenueTzs += Number(b.totalAmount ?? 0);
+        if (String(b.status || '').toUpperCase() !== 'CANCELED') buckets[k].revenueTzs += Number(b.ownerBaseAmount ?? b.totalAmount ?? 0);
       }
       for (const blk of external) {
         const k = fmtKey(startOfDayTZ(blk.startDate), groupBy);
@@ -818,7 +842,7 @@ const staysHandler: RequestHandler = async (req, res) => {
           groupStayNights,
         },
         series: Object.entries(buckets).map(([key, v]) => ({ key, ...v })),
-        bookings,
+        bookings: bookingsWithPayout,
         external,
         groupStays,
         auctionClaims,
