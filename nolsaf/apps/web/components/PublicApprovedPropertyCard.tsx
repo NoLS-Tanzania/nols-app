@@ -63,12 +63,12 @@ export default function PublicApprovedPropertyCard({
     <Link href={href} className="group no-underline text-slate-900" aria-label={`View ${p.title}`}>
       <div className="rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition-shadow">
         {/* Title (above image) */}
-        <div className="px-4 pt-4">
-          <div className="text-base font-bold text-slate-900 truncate">{p.title}</div>
+        <div className="px-3 pt-3 sm:px-4 sm:pt-4">
+          <div className="text-sm sm:text-base font-bold text-slate-900 truncate">{p.title}</div>
         </div>
 
         {/* Image */}
-        <div className="px-4 mt-3">
+        <div className="px-3 mt-2 sm:px-4 sm:mt-3">
           <div className="relative aspect-square bg-slate-100 rounded-2xl overflow-hidden">
             {p.primaryImage ? (
               <Image
@@ -88,7 +88,7 @@ export default function PublicApprovedPropertyCard({
         </div>
 
         {/* Below image: location then price (stack on mobile) */}
-        <div className="p-4">
+        <div className="p-3 sm:p-4">
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 text-xs text-slate-600">
@@ -102,8 +102,8 @@ export default function PublicApprovedPropertyCard({
             </div>
           </div>
 
-          <div className="mt-4">
-            <span className="inline-flex items-center justify-center w-full rounded-xl bg-[#02665e] text-white py-2.5 text-sm font-semibold transition-colors group-hover:bg-[#014e47]">
+          <div className="mt-3">
+            <span className="inline-flex items-center justify-center w-full rounded-xl bg-[#02665e] text-white py-2 sm:py-2.5 text-xs sm:text-sm font-semibold transition-colors group-hover:bg-[#014e47]">
               View details
             </span>
           </div>

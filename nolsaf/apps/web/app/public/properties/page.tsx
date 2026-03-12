@@ -774,7 +774,7 @@ export default function PropertiesPage() {
           )}
 
           {loading && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-5">
               {Array.from({ length: 8 }).map((_, i) => (
                 <div key={i} className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-sm">
                   <div className="aspect-square bg-slate-100 animate-pulse" />
@@ -799,7 +799,7 @@ export default function PropertiesPage() {
 
           {!loading && !error && (data?.items?.length ?? 0) > 0 && (
             <>
-              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-5">
+              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 sm:gap-5">
                 {(data?.items ?? []).map((p) => (
                   <PublicApprovedPropertyCard key={p.id} p={p} systemCommission={systemCommission} />
                 ))}
