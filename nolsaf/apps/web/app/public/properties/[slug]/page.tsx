@@ -904,9 +904,11 @@ function PropertyAvailabilityChecker({
           </div>
         </div>
 
-        {/* Subtle loading bar — does not shift layout */}
-        <div className={`h-0.5 rounded-full overflow-hidden transition-opacity duration-300 ${loading ? 'opacity-100' : 'opacity-0'}`}>
-          <div className="h-full w-full bg-gradient-to-r from-[#02665e]/20 via-[#02665e] to-[#02665e]/20 animate-[shimmer_1.5s_ease-in-out_infinite] bg-[length:200%_100%]" />
+        {/* Three-dot loading indicator — alternating green/blue like a car indicator */}
+        <div className={`flex items-center justify-center gap-1.5 h-5 transition-opacity duration-300 ${loading ? 'opacity-100' : 'opacity-0'}`}>
+          <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-bounce [animation-delay:-0.3s]" />
+          <div className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-bounce [animation-delay:-0.15s]" />
+          <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-bounce" />
         </div>
 
         {/* Error Message */}
@@ -1040,19 +1042,22 @@ function PropertyAvailabilityChecker({
                                   <div className="col-span-12 md:col-span-2 md:flex md:justify-end">
                                     <div className="flex flex-wrap gap-2 md:justify-end">
                                       {bookedRooms > 0 ? (
-                                        <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-900 ring-1 ring-amber-200">
+                                        <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-900 ring-1 ring-amber-200">
+                                          <span className="h-1.5 w-1.5 rounded-full bg-blue-500 flex-shrink-0" />
                                           {bookedRooms} booked
                                         </span>
                                       ) : (
-                                        <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-800 ring-1 ring-emerald-200">
+                                        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-800 ring-1 ring-emerald-200">
+                                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
                                           Available
                                         </span>
                                       )}
                                       {blockedRooms > 0 ? (
                                         <span
-                                          className="inline-flex items-center rounded-full bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-slate-700 ring-1 ring-slate-200"
+                                          className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-slate-700 ring-1 ring-slate-200"
                                           title="These rooms are already booked or reserved for the selected dates."
                                         >
+                                          <span className="h-1.5 w-1.5 rounded-full bg-blue-400 flex-shrink-0" />
                                           {blockedRooms} booked
                                         </span>
                                       ) : null}
