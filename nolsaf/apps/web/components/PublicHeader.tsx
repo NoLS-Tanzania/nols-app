@@ -309,7 +309,7 @@ export default function PublicHeader({
       >
         <div className="public-container">
           <div
-            className={`relative overflow-hidden ${compact ? 'h-14' : scrolled ? 'h-16' : 'h-14'}`}
+            className={`relative ${compact ? 'h-14' : scrolled ? 'h-16' : 'h-14'}`}
             style={{
               // On /public, the header overlays the hero. Keep a small inset from the top
               // so the header + hero read as a single, intentional composition.
