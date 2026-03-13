@@ -910,15 +910,18 @@ export default function BookingConfirmPage() {
     
     let selectedRoom: any = null;
     
-    // Try to find room by code first
+    // Try to find room by code first, then fall back to name/type match.
+    // buildBookingUrl() passes the bucket key (e.g. "Studio") which may match
+    // rt.name or rt.roomType when the property has no explicit numeric room codes.
     if (selectedRoomCode) {
       for (let idx = 0; idx < roomTypes.length; idx++) {
         const rt = roomTypes[idx];
         const rtCode = rt?.code || rt?.roomCode;
-        if (rtCode === selectedRoomCode) {
+        const rtType = String(rt?.roomType ?? rt?.type ?? rt?.name ?? rt?.label ?? "").trim();
+        if (rtCode === selectedRoomCode || rtType === selectedRoomCode) {
           selectedRoom = rt;
           if (process.env.NODE_ENV === 'development') {
-            console.log('Room found by code:', { code: selectedRoomCode, room: rt });
+            console.log('Room found by code/type:', { code: selectedRoomCode, room: rt });
           }
           break;
         }

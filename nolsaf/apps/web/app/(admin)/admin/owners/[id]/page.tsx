@@ -90,6 +90,7 @@ export default function OwnerDetailPage() {
 
   const [toast, setToast] = useState<{ tone: "success" | "error"; message: string } | null>(null);
   const toastTimerRef = useRef<number | null>(null);
+  const [kycModal, setKycModal] = useState<{ mode: "approve" | "reject"; note: string; stage: "input" | "confirm" } | null>(null);
 
   const showToast = useCallback((tone: "success" | "error", message: string) => {
     setToast({ tone, message });
@@ -318,7 +319,7 @@ export default function OwnerDetailPage() {
 
   async function handleSuspendSubmit(){
     if (!suspendReason.trim()) {
-      alert("Please provide a reason for suspension. This notification will be sent to the owner.");
+      showToast("error", "Please provide a reason for suspension. This notification will be sent to the owner.");
       return;
     }
     
@@ -330,10 +331,10 @@ export default function OwnerDetailPage() {
       });
       setSuspendReason("");
       setShowSuspendForm(false);
-    await load();
-      alert("Owner has been suspended successfully.");
+      await load();
+      showToast("success", "Owner has been suspended successfully.");
     } catch (err: any) {
-      alert(err?.response?.data?.error || "Failed to suspend owner");
+      showToast("error", err?.response?.data?.error || "Failed to suspend owner");
     } finally {
       setActionLoading(false);
     }
@@ -352,39 +353,47 @@ export default function OwnerDetailPage() {
     setActionLoading(true);
     try {
       await api.post(`/api/admin/owners/${ownerId}/unsuspend`);
-    await load();
+      await load();
+      showToast("success", "Owner has been unsuspended.");
     } catch (err: any) {
-      alert(err?.response?.data?.error || "Failed to unsuspend owner");
+      showToast("error", err?.response?.data?.error || "Failed to unsuspend owner");
     } finally {
       setActionLoading(false);
     }
   }
-  async function kycApprove(){
-    const note = prompt("Enter a note for approval (optional):") || "";
-    setActionLoading(true);
-    try {
-      await api.post(`/api/admin/owners/${ownerId}/kyc/approve`, { note: note.trim() || "KYC approved by admin" });
-    await load();
-      alert("KYC approved successfully.");
-    } catch (err: any) {
-      alert(err?.response?.data?.error || "Failed to approve KYC");
-    } finally {
-      setActionLoading(false);
-    }
+  function kycApprove() {
+    setKycModal({ mode: "approve", note: "", stage: "input" });
   }
-  async function kycReject(){
-    const reason = prompt("Reason for rejection (required):") || "";
-    if (!reason.trim()) {
-      alert("Please provide a reason for rejection.");
+  function kycReject() {
+    setKycModal({ mode: "reject", note: "", stage: "input" });
+  }
+  function advanceKycToConfirm() {
+    if (!kycModal) return;
+    if (kycModal.mode === "reject" && !kycModal.note.trim()) {
+      showToast("error", "Please provide a reason for rejection.");
+      return;
+    }
+    setKycModal(m => m ? { ...m, stage: "confirm" } : m);
+  }
+  async function submitKycModal() {
+    if (!kycModal) return;
+    if (kycModal.mode === "reject" && !kycModal.note.trim()) {
+      showToast("error", "Please provide a reason for rejection.");
       return;
     }
     setActionLoading(true);
     try {
-      await api.post(`/api/admin/owners/${ownerId}/kyc/reject`, { reason: reason.trim() });
-    await load();
-      alert("KYC rejected successfully.");
+      if (kycModal.mode === "approve") {
+        await api.post(`/api/admin/owners/${ownerId}/kyc/approve`, { note: kycModal.note.trim() || "KYC approved by admin" });
+        showToast("success", "KYC approved successfully.");
+      } else {
+        await api.post(`/api/admin/owners/${ownerId}/kyc/reject`, { reason: kycModal.note.trim() });
+        showToast("success", "KYC rejected.");
+      }
+      setKycModal(null);
+      await load();
     } catch (err: any) {
-      alert(err?.response?.data?.error || "Failed to reject KYC");
+      showToast("error", err?.response?.data?.error || `Failed to ${kycModal.mode === "approve" ? "approve" : "reject"} KYC`);
     } finally {
       setActionLoading(false);
     }
@@ -401,17 +410,7 @@ export default function OwnerDetailPage() {
   
   async function confirmImpersonate(){
     if (!impersonateReason.trim()) {
-      alert("Please provide a reason for impersonation. This action will be logged.");
-      return;
-    }
-    
-    const confirmed = window.confirm(
-      `Are you sure you want to impersonate this owner?\n\n` +
-      `Reason: ${impersonateReason.trim()}\n\n` +
-      `This will generate a temporary token that expires in 10 minutes.`
-    );
-    
-    if (!confirmed) {
+      showToast("error", "Please provide a reason for impersonation. This action will be logged.");
       return;
     }
     
@@ -420,12 +419,12 @@ export default function OwnerDetailPage() {
       const r = await api.post<{token:string; expiresIn:number}>(`/api/admin/owners/${ownerId}/impersonate`, {
         reason: impersonateReason.trim()
       });
-    navigator.clipboard.writeText(r.data.token);
+      navigator.clipboard.writeText(r.data.token);
       setImpersonateReason("");
       setShowImpersonateForm(false);
-    alert("Temporary OWNER token copied to clipboard (10 min). Use in a private tab for support.");
+      showToast("success", "Temporary OWNER token copied to clipboard (10 min). Use in a private tab for support.");
     } catch (err: any) {
-      alert(err?.response?.data?.error || "Failed to impersonate owner");
+      showToast("error", err?.response?.data?.error || "Failed to impersonate owner");
     } finally {
       setActionLoading(false);
     }
@@ -435,10 +434,10 @@ export default function OwnerDetailPage() {
     setActionLoading(true);
     try {
       await api.post(`/api/admin/owners/${ownerId}/notes`, { text: note.trim() });
-    setNote("");
-    alert("Note added.");
+      setNote("");
+      showToast("success", "Note added.");
     } catch (err: any) {
-      alert(err?.response?.data?.error || "Failed to add note");
+      showToast("error", err?.response?.data?.error || "Failed to add note");
     } finally {
       setActionLoading(false);
     }
@@ -446,7 +445,7 @@ export default function OwnerDetailPage() {
   
   async function sendNotification(){
     if (!notificationSubject.trim() || !notificationMessage.trim()) {
-      alert("Please provide both subject and message for the notification.");
+      showToast("error", "Please provide both subject and message for the notification.");
       return;
     }
     
@@ -459,9 +458,9 @@ export default function OwnerDetailPage() {
       setNotificationSubject("");
       setNotificationMessage("");
       setShowNotificationForm(false);
-      alert("Notification sent successfully to the owner.");
+      showToast("success", "Notification sent successfully to the owner.");
     } catch (err: any) {
-      alert(err?.response?.data?.error || "Failed to send notification");
+      showToast("error", err?.response?.data?.error || "Failed to send notification");
     } finally {
       setActionLoading(false);
     }
@@ -528,6 +527,117 @@ export default function OwnerDetailPage() {
           </div>
         </div>
       ) : null}
+
+      {/* KYC approve / reject modal */}
+      {kycModal ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(6px)" }}
+          onClick={(e) => { if (e.target === e.currentTarget) setKycModal(null); }}
+        >
+          <div className="w-full max-w-[400px] rounded-2xl bg-white shadow-2xl border border-gray-200 overflow-hidden flex flex-col" style={{ maxHeight: "min(92vh, 640px)" }}>
+            {/* Header */}
+            <div className={"px-5 py-4 flex items-center justify-between gap-3 border-b border-gray-100 " + (kycModal.mode === "approve" ? "bg-emerald-50" : "bg-red-50")}>
+              <div className="flex items-center gap-3">
+                <div className={"h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0 " + (kycModal.mode === "approve" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700")}>
+                  {kycModal.mode === "approve" ? <CheckCircle2 className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
+                </div>
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">
+                    KYC Review · {kycModal.stage === "input" ? "Step 1 of 2" : "Step 2 of 2"}
+                  </div>
+                  <div className="text-sm font-bold text-gray-900">
+                    {kycModal.stage === "input"
+                      ? (kycModal.mode === "approve" ? "Approve KYC" : "Reject KYC")
+                      : "Confirm your decision"}
+                  </div>
+                </div>
+              </div>
+              <button type="button" onClick={() => setKycModal(null)}
+                className="h-8 w-8 rounded-lg border border-gray-200 bg-white flex items-center justify-center hover:bg-gray-50 transition"
+                aria-label="Close">
+                <X className="h-4 w-4 text-gray-500" />
+              </button>
+            </div>
+
+            {kycModal.stage === "input" ? (
+              <>
+                {/* Body — input stage */}
+                <div className="px-5 py-4 space-y-3 flex-1 overflow-y-auto">
+                  <div className="text-sm text-gray-600 leading-relaxed">
+                    {kycModal.mode === "approve"
+                      ? <>You are approving KYC for <span className="font-semibold text-gray-900">{owner.name ?? `Owner #${owner.id}`}</span>. Add an optional note below.</>
+                      : <>You are rejecting KYC for <span className="font-semibold text-gray-900">{owner.name ?? `Owner #${owner.id}`}</span>. A reason is required and will be shared with the owner.</>}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                      {kycModal.mode === "approve" ? "Note (optional)" : "Rejection reason (required)"}
+                    </label>
+                    <textarea
+                      autoFocus
+                      rows={2}
+                      value={kycModal.note}
+                      onChange={e => setKycModal(m => m ? { ...m, note: e.target.value } : m)}
+                      placeholder={kycModal.mode === "approve" ? "e.g. All documents verified successfully." : "e.g. ID document is expired or unclear."}
+                      className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-[#02665e] focus:ring-1 focus:ring-inset focus:ring-[#02665e]/20 resize-none transition"
+                    />
+                  </div>
+                </div>
+                {/* Footer — input stage */}
+                <div className="px-5 py-3.5 flex items-center justify-end gap-2 border-t border-gray-100 bg-gray-50">
+                  <button type="button" onClick={() => setKycModal(null)}
+                    className="px-4 py-2 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 transition">
+                    Cancel
+                  </button>
+                  <button type="button" onClick={advanceKycToConfirm}
+                    className={"px-5 py-2 rounded-xl text-sm font-semibold text-white transition flex items-center gap-2 " +
+                      (kycModal.mode === "approve" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-red-600 hover:bg-red-700")}>
+                    Continue →
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Body — confirm stage */}
+                <div className="px-5 py-4 space-y-3 flex-1 overflow-y-auto">
+                  <div className={"rounded-xl border px-4 py-3 " + (kycModal.mode === "approve" ? "border-emerald-200 bg-emerald-50" : "border-red-200 bg-red-50")}>
+                    <div className={"text-xs font-bold uppercase tracking-wider mb-1 " + (kycModal.mode === "approve" ? "text-emerald-700" : "text-red-700")}>
+                      {kycModal.mode === "approve" ? "⚠ You are about to approve KYC" : "⚠ You are about to reject KYC"}
+                    </div>
+                    <div className="text-sm text-gray-800 leading-relaxed">
+                      Are you sure you want to <span className="font-bold">{kycModal.mode === "approve" ? "approve" : "reject"}</span> KYC for{" "}
+                      <span className="font-bold">{owner.name ?? `Owner #${owner.id}`}</span>? This action will be logged and the owner will be notified.
+                    </div>
+                  </div>
+                  {kycModal.note.trim() ? (
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-3">
+                      <div className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">
+                        {kycModal.mode === "approve" ? "Note" : "Rejection reason"}
+                      </div>
+                      <div className="text-sm text-gray-800 leading-relaxed">{kycModal.note.trim()}</div>
+                    </div>
+                  ) : null}
+                </div>
+                {/* Footer — confirm stage */}
+                <div className="px-5 py-3.5 flex items-center justify-between gap-2 border-t border-gray-100 bg-gray-50">
+                  <button type="button" onClick={() => setKycModal(m => m ? { ...m, stage: "input" } : m)}
+                    className="px-4 py-2 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 transition flex items-center gap-1.5">
+                    ← Back
+                  </button>
+                  <button type="button" onClick={submitKycModal} disabled={actionLoading}
+                    className={"px-5 py-2 rounded-xl text-sm font-semibold text-white transition disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 " +
+                      (kycModal.mode === "approve" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-red-600 hover:bg-red-700")}>
+                    {actionLoading
+                      ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Processing…</>
+                      : kycModal.mode === "approve" ? "Yes, approve KYC" : "Yes, reject KYC"}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      ) : null}
+
       {/* Header */}
       <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 shadow-sm overflow-hidden">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">

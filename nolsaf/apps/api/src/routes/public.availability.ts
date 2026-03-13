@@ -257,7 +257,14 @@ router.post("/check", availabilityLimiter, (async (req: Request, res: Response) 
     conflictingBookings.forEach((booking) => {
       if (requestedRoomCode && requestedIsSpecificRoom && booking.roomCode !== requestedRoomCode) return;
 
-      const bucket = findBucketKey(booking.roomCode, keys) || (keys.length ? keys[0] : null);
+      const mappedBucket = findBucketKey(booking.roomCode, keys);
+      // When a type filter is active, a booking with an explicit roomCode that doesn't match
+      // the requested type should be skipped — don't fall back to keys[0] and inflate counts.
+      // Bookings with null/empty roomCode still fall back (legacy: no per-room tracking).
+      const hasExplicitMismatch = !!(booking.roomCode && !mappedBucket);
+      const bucket = hasExplicitMismatch
+        ? null
+        : (mappedBucket || (keys.length ? keys[0] : null));
       if (!bucket || !availabilityByRoomType[bucket]) return;
 
       const bedsPerRoom = bedsPerRoomFor(bucket);
@@ -269,7 +276,11 @@ router.post("/check", availabilityLimiter, (async (req: Request, res: Response) 
     availabilityBlocks.forEach((block) => {
       if (requestedRoomCode && requestedIsSpecificRoom && block.roomCode !== requestedRoomCode) return;
 
-      const bucket = findBucketKey(block.roomCode, keys) || (keys.length ? keys[0] : null);
+      const mappedBucket = findBucketKey(block.roomCode, keys);
+      const hasExplicitMismatch = !!(block.roomCode && !mappedBucket);
+      const bucket = hasExplicitMismatch
+        ? null
+        : (mappedBucket || (keys.length ? keys[0] : null));
       if (!bucket || !availabilityByRoomType[bucket]) return;
 
       const roomsBlocked = Number(block.bedsBlocked ?? 1) || 1;

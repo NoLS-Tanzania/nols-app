@@ -211,3 +211,64 @@ export function getBookingCancelledEmail(data: BookingCancelledEmailData): { sub
     html: baseEmail(RED, "#991b1b", "Booking Cancelled ❌", "❌", body),
   };
 }
+
+// ─── 4. Owner Disbursement Notice ─────────────────────────────────────────────
+
+/**
+ * Sent to the property owner when admin marks their payout invoice as PAID.
+ * Shows financial breakdown (gross, commission, net) and disbursement details.
+ */
+export interface OwnerDisbursementEmailData {
+  ownerName: string;
+  propertyName: string;
+  bookingId: number;
+  invoiceNumber: string;
+  receiptNumber: string;
+  checkIn: Date | string;
+  checkOut: Date | string;
+  netPayable: number | string;
+  paymentMethod?: string | null;
+  paidAt: Date | string | null;
+}
+
+export function getOwnerDisbursementEmail(data: OwnerDisbursementEmailData): { subject: string; html: string } {
+  const nights = nightCount(data.checkIn, data.checkOut);
+
+  const detailRows: Array<[string, string]> = [
+    ["Booking #",          `#${data.bookingId}`],
+    ["Property",           data.propertyName],
+    ["Check-in",           fmtDate(data.checkIn)],
+    ["Check-out",          fmtDate(data.checkOut)],
+    ["Duration",           `${nights} night${nights !== 1 ? "s" : ""}`],
+    ["Invoice",            data.invoiceNumber],
+    ["Receipt",            data.receiptNumber],
+    ["Payment Method",     (data.paymentMethod || "—").replace(/_/g, " ")],
+    ["Date Disbursed",     fmtDate(data.paidAt ?? new Date())],
+  ];
+
+  const body = `
+    <p style="margin:0 0 16px;font-size:16px;font-weight:600;color:${BRAND_TEAL};">Hello ${data.ownerName},</p>
+    <p style="margin:0 0 16px;">Great news — your payout for Booking <strong>#${data.bookingId}</strong> at <strong>${data.propertyName}</strong> has been <strong>disbursed</strong> to your registered payment method.</p>
+
+    <!-- Net payout highlight box -->
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:20px 0;">
+      <tr>
+        <td align="center" style="padding:24px 20px;background:#f0fdf4;border:2px solid #059669;border-radius:12px;">
+          <p style="margin:0 0 4px;font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#166534;">Net Amount Disbursed</p>
+          <p style="margin:0;font-size:30px;font-weight:800;color:#14532d;">${fmtMoney(data.netPayable)}</p>
+        </td>
+      </tr>
+    </table>
+
+    ${infoCard(BRAND_TEAL, detailRows)}
+
+    ${calloutBox(BRAND_TEAL, "📎", "Disbursement receipt attached", "A detailed PDF disbursement receipt is attached to this email. Please keep it for your records. For any questions, contact us at <a href=\"mailto:support@nolsaf.com\" style=\"color:${BRAND_TEAL};\">support@nolsaf.com</a>.")}
+
+    <p style="margin:24px 0 0;">Thank you for being a NoLSAF partner.<br><strong style="color:${BRAND_DARK};">The NoLSAF Team</strong></p>
+  `;
+
+  return {
+    subject: `Disbursement Processed ✓ — Booking #${data.bookingId} (${data.propertyName})`,
+    html: baseEmail(BRAND_TEAL, BRAND_DARK, "Disbursement Processed 💸", "💸", body),
+  };
+}

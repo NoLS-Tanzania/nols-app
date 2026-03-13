@@ -460,7 +460,7 @@ model Invoice {
   id        Int    @id @default(autoincrement())
   ownerId   Int // Owner to be paid
   bookingId Int // Source booking
-  status    String @default("REQUESTED") // REQUESTED, VERIFIED, APPROVED, PAID, REJECTED, PROCESSING
+  status    String @default("DRAFT") // DRAFT, REQUESTED, VERIFIED, APPROVED, PAID, REJECTED, PROCESSING
 
   total             Decimal  @default(0.00) @db.Decimal(12, 2)
   commissionPercent Decimal? @db.Decimal(5, 2)

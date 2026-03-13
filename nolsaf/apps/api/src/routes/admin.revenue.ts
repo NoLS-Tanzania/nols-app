@@ -10,7 +10,8 @@ import { invalidateOwnerReports } from "../lib/cache.js";
 import { generateBookingPDF } from "../lib/pdfGenerator.js";
 import { decrypt } from "../lib/crypto.js";
 import { sendMail } from "../lib/mailer.js";
-import { generatePaymentReceiptPdf, generateOwnerDisbursementPdf } from "../lib/pdfDocuments.js";
+import { generateOwnerDisbursementPdf } from "../lib/pdfDocuments.js";
+import { getOwnerDisbursementEmail } from "../lib/bookingEmailTemplates.js";
 
 export const router = Router();
 router.use(requireAuth as express.RequestHandler, requireRole("ADMIN") as express.RequestHandler);
@@ -1016,45 +1017,7 @@ router.post("/invoices/:id/mark-paid", async (req, res) => {
       const propertyTitle = (inv as any).booking?.property?.title ?? "your property";
       const bk = (updated as any).booking;
 
-      // 1. Customer payment receipt
-      if (bk?.userId) {
-        try {
-          const guest = await prisma.user.findUnique({
-            where: { id: bk.userId },
-            select: { email: true, name: true },
-          });
-          if (guest?.email) {
-            const receiptPdf = await generatePaymentReceiptPdf({
-              receiptNumber: updated.receiptNumber ?? `RCPT-${updated.id}`,
-              invoiceNumber: updated.invoiceNumber ?? `INV-${updated.id}`,
-              bookingId: updated.bookingId,
-              bookingCode: bk.codeVisible ?? null,
-              guestName: bk.guestName || guest.name || "Guest",
-              guestEmail: guest.email,
-              propertyName: propertyTitle,
-              checkIn: bk.checkIn,
-              checkOut: bk.checkOut,
-              total: Number(inv.total ?? updated.total ?? 0),
-              commissionAmount: Number(inv.commissionAmount ?? 0),
-              netPayable: Number(inv.netPayable ?? 0),
-              paymentMethod: updated.paymentMethod,
-              paymentRef: updated.paymentRef,
-              paidAt: updated.paidAt,
-              qrPng: updated.receiptQrPng ? Buffer.from(updated.receiptQrPng as any) : null,
-            });
-            await sendMail(
-              guest.email,
-              `Payment Receipt — Booking #${updated.bookingId}`,
-              `<p>Dear ${bk.guestName || guest.name || "Guest"},</p><p>Your payment has been received. Please find your receipt attached.</p><p>Receipt: <strong>${updated.receiptNumber}</strong></p><p>Thank you for choosing NoLSAF.</p>`,
-              [{ filename: `Receipt-${updated.receiptNumber ?? updated.id}.pdf`, content: receiptPdf }],
-            );
-          }
-        } catch (e) {
-          console.warn("[INVOICE_PAID] Customer receipt email failed:", e);
-        }
-      }
-
-      // 2. Owner disbursement notice
+      // Owner disbursement notice (guest payment receipt is sent at booking payment time, not here)
       try {
         const owner = await prisma.user.findUnique({
           where: { id: updated.ownerId },
@@ -1080,10 +1043,22 @@ router.post("/invoices/:id/mark-paid", async (req, res) => {
             paidAt: updated.paidAt,
             qrPng: updated.receiptQrPng ? Buffer.from(updated.receiptQrPng as any) : null,
           });
+          const { subject: disbSubject, html: disbHtml } = getOwnerDisbursementEmail({
+            ownerName:     owner.name || "Property Owner",
+            propertyName:  propertyTitle,
+            bookingId:     updated.bookingId,
+            invoiceNumber: updated.invoiceNumber ?? `INV-${updated.id}`,
+            receiptNumber: updated.receiptNumber ?? `RCPT-${updated.id}`,
+            checkIn:       bk?.checkIn ?? new Date(),
+            checkOut:      bk?.checkOut ?? new Date(),
+            netPayable:    Number(inv.netPayable ?? updated.netPayable ?? 0),
+            paymentMethod: updated.paymentMethod,
+            paidAt:        updated.paidAt,
+          });
           await sendMail(
             owner.email,
-            `Disbursement Receipt — Booking #${updated.bookingId}`,
-            `<p>Dear ${owner.name || "Property Owner"},</p><p>Your disbursement for Booking #${updated.bookingId} at <strong>${propertyTitle}</strong> has been processed. Please find your disbursement receipt attached.</p><p>Net Amount: <strong>TZS ${Number(inv.netPayable ?? 0).toLocaleString()}</strong></p><p>Thank you for being a NoLSAF partner.</p>`,
+            disbSubject,
+            disbHtml,
             [{ filename: `Disbursement-${updated.receiptNumber ?? updated.id}.pdf`, content: disburseePdf }],
           );
         }

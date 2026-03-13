@@ -2500,7 +2500,7 @@ export default function PublicPropertyDetailPage() {
                   </div>
                 </div>
 
-                <div className="p-3 sm:p-4 flex-1 overflow-y-auto">
+                <div className="p-3 sm:p-4 flex-1 overflow-hidden">
                   {(() => {
                     const roomsSpec = Array.isArray(property.roomsSpec) ? property.roomsSpec : [];
                     const normalizedRows = normalizeRoomsSpec(roomsSpec, property.currency, property.basePrice, property, systemCommission);
@@ -2586,10 +2586,10 @@ export default function PublicPropertyDetailPage() {
 
                     return (
                       true ? (
-                      <div className="relative [perspective:1200px] [isolation:isolate]">
+                      <div className="relative h-full [perspective:1200px] [isolation:isolate]">
                           <div
                             className={[
-                              "relative min-h-[420px]",
+                              "relative h-full",
                               "motion-safe:transition-transform motion-safe:duration-500 motion-safe:ease-in-out",
                             "[transform-style:preserve-3d]",
                             "[will-change:transform]",
@@ -2598,7 +2598,7 @@ export default function PublicPropertyDetailPage() {
                           >
                             {/* Front: Details */}
                           <div
-                            className="absolute inset-0 [backface-visibility:hidden] [-webkit-backface-visibility:hidden]"
+                            className="absolute inset-0 overflow-y-auto [backface-visibility:hidden] [-webkit-backface-visibility:hidden]"
                             data-qb-face="front"
                           >
                               {(() => {
@@ -2827,7 +2827,7 @@ export default function PublicPropertyDetailPage() {
 
                             {/* Back: Availability */}
                           <div
-                            className="absolute inset-0 [backface-visibility:hidden] [-webkit-backface-visibility:hidden] [transform:rotateY(180deg)]"
+                            className="absolute inset-0 overflow-y-auto [backface-visibility:hidden] [-webkit-backface-visibility:hidden] [transform:rotateY(180deg)]"
                             data-qb-face="back"
                           >
                               <div className="rounded-2xl border border-slate-200 bg-white p-4">

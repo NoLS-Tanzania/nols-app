@@ -504,8 +504,9 @@ router.post("/from-booking", publicInvoiceLimiter, async (req: Request, res: Res
           commissionAmount: commissionAmount > 0 ? (commissionAmount as any) : null,
           taxPercent: 0,
           // Payment lifecycle (production-safe):
-          // - Create invoice as REQUESTED (default)
+          // - Create invoice as REQUESTED (explicit, not relying on schema default)
           // - Mark as PAID only from the AzamPay webhook
+          status: "REQUESTED",
           paymentRef: `INVREF-${booking.id}-${Date.now()}`,
           notes: notes,
         },

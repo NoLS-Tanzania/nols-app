@@ -212,49 +212,54 @@ export default function AdminHome() {
   }
 
   // Reusable booking details grid (shared across all modal states)
-  function VBookingDetails({ d }: { d: any }) {
-    const fmt = (iso: string | null | undefined, opts?: Intl.DateTimeFormatOptions) =>
-      iso ? new Date(iso).toLocaleDateString(undefined, opts ?? { day: "numeric", month: "short", year: "numeric" }) : "—";
+  function VBookingDetails({ d, accent = "#34d399" }: { d: any; accent?: string }) {
+    const fmt = (iso: string | null | undefined) =>
+      iso ? new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "—";
     const fmtTs = (iso: string | null | undefined) =>
       iso ? new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
+    const div1 = { borderRight: "1px solid rgba(255,255,255,0.07)" } as const;
+    const divH = { borderTop: "1px solid rgba(255,255,255,0.07)" } as const;
     return (
       <div className="space-y-2">
-        {/* Property block */}
-        <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3.5">
-          <div className="text-[9px] text-sky-400 font-bold uppercase tracking-widest mb-1.5">Property</div>
-          <div className="text-[15px] font-extrabold text-white leading-tight">{d.property?.title ?? "—"}</div>
-          {d.property?.type && <div className="mt-0.5 text-[11px] text-slate-500 font-medium uppercase tracking-wide">{d.property.type}</div>}
-        </div>
-        {/* Dates: 2+2 grid */}
-        <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-2.5">
-            <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Check-in</div>
-            <div className="font-bold text-white text-sm">{fmt(d.booking?.checkIn)}</div>
+        {/* Unified detail card */}
+        <div className="overflow-hidden rounded-2xl" style={{ border: "1px solid rgba(255,255,255,0.09)", background: "rgba(255,255,255,0.035)" }}>
+          {/* Property row — accent left bar */}
+          <div className="px-4 py-3" style={{ borderLeft: `3px solid ${accent}`, borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+            <div className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: accent }}>Property</div>
+            <div className="text-[15px] font-extrabold text-white leading-tight truncate">{d.property?.title ?? "—"}</div>
+            {d.property?.type && <div className="mt-0.5 text-[10px] text-slate-500 font-semibold uppercase tracking-wide">{d.property.type}</div>}
           </div>
-          <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-2.5">
-            <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Check-out</div>
-            <div className="font-bold text-white text-sm">{fmt(d.booking?.checkOut)}</div>
+          {/* Date / stats 2×2 */}
+          <div className="grid grid-cols-2" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+            <div className="px-3.5 py-2.5" style={div1}>
+              <div className="text-[9px] text-slate-500 uppercase tracking-wider">Check-in</div>
+              <div className="font-bold text-white text-[13px] mt-0.5">{fmt(d.booking?.checkIn)}</div>
+            </div>
+            <div className="px-3.5 py-2.5">
+              <div className="text-[9px] text-slate-500 uppercase tracking-wider">Check-out</div>
+              <div className="font-bold text-white text-[13px] mt-0.5">{fmt(d.booking?.checkOut)}</div>
+            </div>
+            <div className="px-3.5 py-2.5" style={{ ...div1, ...divH }}>
+              <div className="text-[9px] text-slate-500 uppercase tracking-wider">Nights</div>
+              <div className="font-bold text-white text-[13px] mt-0.5">{d.booking?.nights ?? "—"}</div>
+            </div>
+            <div className="px-3.5 py-2.5" style={divH}>
+              <div className="text-[9px] text-slate-500 uppercase tracking-wider">Amount</div>
+              <div className="font-bold text-white text-[13px] mt-0.5 leading-tight">{d.booking?.currency ?? "TZS"} {Number(d.booking?.totalAmount ?? 0).toLocaleString()}</div>
+            </div>
           </div>
-          <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-2.5">
-            <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Nights</div>
-            <div className="font-bold text-white text-sm">{d.booking?.nights ?? "—"}</div>
-          </div>
-          <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-2.5">
-            <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Amount</div>
-            <div className="font-bold text-white text-sm leading-tight">{d.booking?.currency ?? "TZS"} {Number(d.booking?.totalAmount ?? 0).toLocaleString()}</div>
-          </div>
-        </div>
-        {/* Owner + Guest */}
-        <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-3">
-            <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1.5">Owner</div>
-            <div className="font-bold text-white text-xs leading-snug">{d.property?.owner?.name ?? "—"}</div>
-            <div className="text-slate-500 text-[10px] mt-0.5 truncate">{d.property?.owner?.phone ?? d.property?.owner?.email ?? ""}</div>
-          </div>
-          <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-3">
-            <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1.5">Guest</div>
-            <div className="font-bold text-white text-xs leading-snug">{d.guest?.fullName ?? d.customer?.name ?? "—"}</div>
-            <div className="text-slate-500 text-[10px] mt-0.5 truncate">{d.guest?.phone ?? d.customer?.phone ?? ""}</div>
+          {/* Owner / Guest */}
+          <div className="grid grid-cols-2">
+            <div className="px-3.5 py-2.5" style={div1}>
+              <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Owner</div>
+              <div className="text-xs font-bold text-white leading-snug truncate">{d.property?.owner?.name ?? "—"}</div>
+              <div className="text-[10px] text-slate-500 mt-0.5 truncate">{d.property?.owner?.phone ?? d.property?.owner?.email ?? ""}</div>
+            </div>
+            <div className="px-3.5 py-2.5">
+              <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Guest</div>
+              <div className="text-xs font-bold text-white leading-snug truncate">{d.guest?.fullName ?? d.customer?.name ?? "—"}</div>
+              <div className="text-[10px] text-slate-500 mt-0.5 truncate">{d.guest?.phone ?? d.customer?.phone ?? ""}</div>
+            </div>
           </div>
         </div>
         {/* Timestamp */}
@@ -774,17 +779,17 @@ export default function AdminHome() {
 
                 return (
                   <div
-                    className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5"
-                    style={{ background: "rgba(0,0,0,0.78)", backdropFilter: "blur(10px)" }}
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
+                    style={{ background: "rgba(0,0,0,0.82)", backdropFilter: "blur(16px)" }}
                     role="dialog" aria-modal="true" aria-label="Booking Validation"
                     onClick={(e) => { if (e.target === e.currentTarget) vCloseModal(); }}
                   >
                     <div
-                      className="relative w-full max-w-lg rounded-[28px] flex flex-col overflow-hidden"
+                      className="relative w-full max-w-[420px] rounded-[28px] flex flex-col overflow-hidden"
                       style={{
                         background: modalBg,
-                        boxShadow: `0 50px 120px -30px rgba(0,0,0,0.9), 0 0 0 1px rgba(255,255,255,0.07), inset 0 1px 0 rgba(255,255,255,0.08)`,
-                        maxHeight: "92vh",
+                        boxShadow: `0 40px 100px -24px rgba(0,0,0,0.95), 0 0 0 1px rgba(255,255,255,0.08), 0 0 60px -20px ${accentColor}28, inset 0 1px 0 rgba(255,255,255,0.09)`,
+                        maxHeight: "min(640px, 82vh)",
                       }}
                     >
                       {/* Top accent bar */}
@@ -812,7 +817,10 @@ export default function AdminHome() {
                             </div>
                           </div>
                           <button type="button" onClick={vCloseModal}
-                            className="flex-shrink-0 h-8 w-8 rounded-full bg-white/8 hover:bg-white/18 border border-white/10 flex items-center justify-center transition"
+                            className="flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center transition"
+                            style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)" }}
+                            onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.18)")}
+                            onMouseLeave={e => (e.currentTarget.style.background = "rgba(255,255,255,0.08)")}
                             aria-label="Close"><X className="h-3.5 w-3.5 text-white" /></button>
                         </div>
                         {/* Row 2: status badge + session timer */}
@@ -889,7 +897,7 @@ export default function AdminHome() {
 
                         ) : d ? (
                           <div className="space-y-4">
-                            <VBookingDetails d={d} />
+                            <VBookingDetails d={d} accent={accentColor} />
 
                             {/* ─ USED ─ */}
                             {isUsed && (
