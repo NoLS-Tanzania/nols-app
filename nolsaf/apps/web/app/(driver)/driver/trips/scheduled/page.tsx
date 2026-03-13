@@ -274,7 +274,7 @@ function TripPreviewModal({
     <div className="fixed inset-0 z-50 overflow-hidden" role="presentation">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-[3px]" onClick={closePreview} />
 
-      <div className="relative z-10 flex min-h-full items-end justify-center px-3 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] sm:items-center sm:px-4 sm:py-6">
+      <div className="relative z-10 flex min-h-full items-end justify-center px-3 pb-[calc(env(safe-area-inset-bottom)+5rem)] sm:pb-6 sm:items-center sm:px-4 sm:py-6">
         <div
           role="dialog"
           aria-modal="true"

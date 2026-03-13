@@ -417,7 +417,7 @@ export default function DriverLayout({ children }: { children: ReactNode }) {
       {/* Full-width header in driver mode */}
       <DriverSiteHeader />
 
-      <div className="flex-1 w-full overflow-x-hidden">
+      <div className="flex-1 w-full overflow-x-hidden relative z-10">
         <div className="public-container w-full relative">
           {/* Frame spanning sidebar + content (match admin layout) */}
           <LayoutFrame heightVariant="sm" topVariant="sm" colorVariant="muted" variant="solid" box boxRadiusClass="rounded-2xl" className="mb-2" />
@@ -459,7 +459,7 @@ export default function DriverLayout({ children }: { children: ReactNode }) {
         </div>
       </div>
 
-      <div className="relative z-20 hidden md:block">
+      <div className="hidden md:block">
         <DriverFooter />
       </div>
 
