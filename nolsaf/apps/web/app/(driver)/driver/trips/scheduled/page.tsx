@@ -272,275 +272,283 @@ function TripPreviewModal({
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden" role="presentation">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={closePreview} />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-[3px]" onClick={closePreview} />
 
-      <div className="relative z-10 flex min-h-full items-end justify-center px-3 pb-[calc(env(safe-area-inset-bottom)+0.6rem)] sm:items-center sm:px-3 sm:py-6">
+      <div className="relative z-10 flex min-h-full items-end justify-center px-3 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] sm:items-center sm:px-4 sm:py-6">
         <div
           role="dialog"
           aria-modal="true"
           aria-label="Trip details"
-          className="bg-white w-full sm:max-w-md shadow-2xl border border-slate-200 max-h-[calc(100svh-(env(safe-area-inset-top)+1.25rem))] sm:max-h-[calc(100svh-3rem)] overflow-hidden flex flex-col rounded-t-3xl rounded-b-none sm:rounded-3xl"
+          className="w-full sm:max-w-md max-h-[calc(100svh-(env(safe-area-inset-top)+1rem))] sm:max-h-[calc(100svh-3rem)] overflow-hidden flex flex-col rounded-t-[2rem] rounded-b-none sm:rounded-[2rem] shadow-[0_32px_80px_rgba(0,0,0,0.5)] border border-white/10"
         >
           {/* Mobile grab handle */}
-          <div className="sm:hidden px-3 pt-3">
-            <div className="mx-auto h-1 w-10 rounded-full bg-slate-200" />
+          <div className="sm:hidden bg-slate-900 px-3 pt-3 flex-shrink-0">
+            <div className="mx-auto h-1 w-10 rounded-full bg-white/20" />
           </div>
 
-          {/* Header */}
-          <div className="p-3 sm:p-4 border-b border-slate-200 bg-white">
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <div className="inline-flex items-center gap-2">
-                  <div className="text-2xl leading-none">{getVehicleIcon(trip.vehicleType)}</div>
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className="font-extrabold text-slate-900 text-sm sm:text-base truncate">
-                        {getVehicleLabel(trip.vehicleType)}
-                      </div>
-                      <div className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
-                        Booking #{trip.id}
-                      </div>
-                    </div>
-                    <div className="mt-0.5 flex items-center gap-2 text-xs text-slate-600 overflow-x-auto">
-                      <span className="shrink-0">{scheduledDateLabel}</span>
-                      {statusPill ? (
-                        <span
-                          className={
-                            "inline-flex items-center gap-1 text-[11px] font-extrabold px-2 py-0.5 rounded-full border shrink-0 " +
-                            statusPill.classes
-                          }
-                        >
-                          {statusPill.icon}
-                          {statusPill.label}
-                        </span>
-                      ) : null}
-                      {pickupCountdown ? (
-                        <span
-                          className={
-                            "inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border shrink-0 " +
-                            pickupCountdown.classes
-                          }
-                        >
-                          <Hourglass className="w-3.5 h-3.5" />
-                          {pickupCountdown.text}
-                        </span>
-                      ) : null}
-                    </div>
+          {/* ── Premium dark header ── */}
+          <div className="relative bg-slate-900 overflow-hidden px-5 pt-4 pb-5 flex-shrink-0">
+            {/* ambient glow */}
+            <div className="pointer-events-none absolute -top-12 -right-12 h-44 w-44 rounded-full bg-[#02665e]/25 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-8 -left-8 h-28 w-28 rounded-full bg-[#02c9bb]/10 blur-2xl" />
+            {/* bottom accent line */}
+            <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#02665e]/70 to-transparent" />
+
+            {/* Top row: vehicle chip + booking badge + status pill */}
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex-shrink-0">{getVehicleIcon(trip.vehicleType)}</div>
+                <div>
+                  <div className="text-base font-black text-white tracking-tight leading-none">
+                    {getVehicleLabel(trip.vehicleType)}
+                  </div>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                    <span className="text-[11px] font-bold text-white/50 bg-white/8 border border-white/10 px-2 py-0.5 rounded-full">
+                      #{trip.id}
+                    </span>
+                    <span className="text-[11px] text-white/40">{scheduledDateLabel}</span>
                   </div>
                 </div>
               </div>
-
-              <div className="text-right shrink-0">
-                <div className="text-[10px] font-semibold text-slate-500">Fare</div>
-                <div className="text-sm font-extrabold text-[#02665e]">
-                  {trip.amount ? `${Number(trip.amount).toLocaleString()} ${trip.currency || "TZS"}` : "n/a"}
-                </div>
-              </div>
+              {statusPill ? (
+                <span className={`inline-flex items-center gap-1 text-[11px] font-black px-2.5 py-1 rounded-full border flex-shrink-0 ${statusPill.classes}`}>
+                  {statusPill.icon}
+                  {statusPill.label}
+                </span>
+              ) : null}
             </div>
-          </div>
 
-          {/* Body (scrolls) */}
-          <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4">
-            <div className="space-y-3">
-              {/* Route (compact) */}
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                <div className="text-[11px] font-bold tracking-wide text-slate-500 uppercase">Route</div>
-                <div className="mt-3 space-y-2">
-                  <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="text-[11px] font-semibold text-slate-500">Pickup</div>
-                        <div className="mt-0.5 text-sm font-semibold text-slate-900 line-clamp-1">
-                          {trip.fromAddress || trip.pickupLocation || "Not specified"}
-                        </div>
-                      </div>
-                      {pickupMaps ? (
-                        <a
-                          href={pickupMaps}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="shrink-0 inline-flex items-center gap-1 text-xs font-semibold text-[#02665e] hover:text-[#014e47]"
-                        >
-                          <MapPin className="w-3.5 h-3.5" />
-                          Maps
-                        </a>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="text-[11px] font-semibold text-slate-500">Drop-off</div>
-                        <div className="mt-0.5 text-sm font-semibold text-slate-900 line-clamp-1">
-                          {trip.property?.title || trip.toAddress || "Not specified"}
-                        </div>
-                        {trip.property?.regionName || trip.property?.district || trip.property?.ward ? (
-                          <div className="mt-0.5 text-xs text-slate-600 line-clamp-1">
-                            {[trip.property?.ward, trip.property?.district, trip.property?.regionName]
-                              .filter(Boolean)
-                              .join(", ")}
-                          </div>
-                        ) : null}
-                      </div>
-                      {dropoffMaps ? (
-                        <a
-                          href={dropoffMaps}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="shrink-0 inline-flex items-center gap-1 text-xs font-semibold text-[#02665e] hover:text-[#014e47]"
-                        >
-                          <MapPin className="w-3.5 h-3.5" />
-                          Maps
-                        </a>
-                      ) : null}
-                    </div>
-                  </div>
+            {/* ── Fare hero + slots + countdown ── */}
+            <div className="mt-4 flex items-end justify-between gap-3">
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-widest text-white/35 mb-1">Fare</div>
+                <div className="text-3xl sm:text-4xl font-black text-white leading-none tracking-tight">
+                  {trip.amount ? Number(trip.amount).toLocaleString() : "—"}
                 </div>
+                <div className="text-sm font-bold text-[#02c9bb] mt-1">{trip.currency || "TZS"}</div>
               </div>
 
-              {/* Key facts */}
-              <div className="rounded-2xl border border-slate-200 bg-white p-3">
-                <div className="text-[11px] font-bold tracking-wide text-slate-500 uppercase">Trip info</div>
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                    <div className="inline-flex items-center gap-2">
-                      <Users className="w-4 h-4 text-slate-400" />
-                      <div>
-                        <div className="text-[11px] font-semibold text-slate-500">Passengers</div>
-                        <div className="text-sm font-semibold text-slate-900">
-                          {trip.numberOfPassengers
-                            ? `${trip.numberOfPassengers} passenger${trip.numberOfPassengers !== 1 ? "s" : ""}`
-                            : "Not specified"}
-                        </div>
-                      </div>
+              <div className="flex items-end gap-2">
+                {typeof trip.claimsRemaining === "number" ? (
+                  <div className={`text-center rounded-2xl px-3 py-2 border ${trip.claimsRemaining <= 1 ? "bg-rose-950/70 border-rose-700/60" : "bg-white/6 border-white/12"}`}>
+                    <div className={`text-xl font-black leading-none ${trip.claimsRemaining <= 1 ? "text-rose-400" : "text-white"}`}>
+                      {trip.claimsRemaining}
+                    </div>
+                    <div className={`text-[9px] font-bold uppercase tracking-wide mt-0.5 ${trip.claimsRemaining <= 1 ? "text-rose-400/80" : "text-white/35"}`}>
+                      {trip.claimsRemaining === 1 ? "slot left" : "slots left"}
                     </div>
                   </div>
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                    <div className="inline-flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-slate-400" />
-                      <div>
-                        <div className="text-[11px] font-semibold text-slate-500">Pickup time</div>
-                        <div className="text-sm font-semibold text-slate-900">
-                          {formatTime(trip.pickupTime || trip.scheduledDate) || "Not specified"}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                ) : null}
 
-                {hasArrivalInfo ? (
-                  <details className="mt-3 rounded-2xl border border-slate-200 bg-white">
-                    <summary className="cursor-pointer select-none px-3 py-2 text-sm font-semibold text-slate-900 list-none">
-                      Arrival & pickup info
-                      <span className="ml-2 text-xs font-semibold text-slate-500">(tap)</span>
-                    </summary>
-                    <div className="px-3 pb-3">
-                      <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-                        {trip.pickupLocation ? (
-                          <div className="col-span-2">
-                            <dt className="text-[11px] font-semibold text-slate-500">Specific pickup area</dt>
-                            <dd className="font-semibold text-slate-900">{trip.pickupLocation}</dd>
-                          </div>
-                        ) : null}
-                        {trip.arrivalType ? (
-                          <div>
-                            <dt className="text-[11px] font-semibold text-slate-500">Type</dt>
-                            <dd className="font-semibold text-slate-900">{trip.arrivalType}</dd>
-                          </div>
-                        ) : null}
-                        {trip.transportCompany ? (
-                          <div>
-                            <dt className="text-[11px] font-semibold text-slate-500">Company</dt>
-                            <dd className="font-semibold text-slate-900">{trip.transportCompany}</dd>
-                          </div>
-                        ) : null}
-                        {trip.arrivalNumber ? (
-                          <div>
-                            <dt className="text-[11px] font-semibold text-slate-500">Number</dt>
-                            <dd className="font-semibold text-slate-900">{trip.arrivalNumber}</dd>
-                          </div>
-                        ) : null}
-                        {trip.arrivalTime ? (
-                          <div>
-                            <dt className="text-[11px] font-semibold text-slate-500">Arrival time</dt>
-                            <dd className="font-semibold text-slate-900">{formatTime(trip.arrivalTime) || ""}</dd>
-                          </div>
-                        ) : null}
-                      </dl>
-                    </div>
-                  </details>
+                {pickupCountdown ? (
+                  <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-2xl border ${pickupCountdown.classes}`}>
+                    <Hourglass className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span className="leading-tight">{pickupCountdown.text}</span>
+                  </span>
                 ) : null}
               </div>
+            </div>
+          </div>
 
-              {hasRatings ? (
-                <details className="rounded-2xl border border-slate-200 bg-white">
-                  <summary className="cursor-pointer select-none px-3 py-2 text-sm font-semibold text-slate-900 list-none">
-                    Ratings & reviews
-                    <span className="ml-2 text-xs font-semibold text-slate-500">(tap)</span>
+          {/* ── Scrollable body ── */}
+          <div className="flex-1 min-h-0 overflow-y-auto bg-slate-50">
+            <div className="p-4 space-y-3">
+
+              {/* ── Route with visual connector ── */}
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="px-4 pt-3 pb-0">
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Route</div>
+                </div>
+                <div className="px-4 pb-4 pt-3">
+                  {/* Pickup */}
+                  <div className="flex items-start gap-3">
+                    <div className="flex flex-col items-center flex-shrink-0 pt-0.5">
+                      <div className="h-3 w-3 rounded-full bg-[#02665e] ring-[3px] ring-[#02665e]/20" />
+                      <div className="w-px bg-gradient-to-b from-[#02665e]/50 to-slate-200 mt-1.5" style={{ minHeight: 30 }} />
+                    </div>
+                    <div className="flex-1 min-w-0 pb-3">
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Pickup</div>
+                      <div className="mt-0.5 text-sm font-bold text-slate-900 leading-snug">
+                        {trip.fromAddress || trip.pickupLocation || "Not specified"}
+                      </div>
+                    </div>
+                    {pickupMaps ? (
+                      <a href={pickupMaps} target="_blank" rel="noreferrer"
+                        className="flex-shrink-0 flex items-center gap-1 text-xs font-bold text-[#02665e] hover:text-[#014e47] mt-0.5 bg-[#02665e]/8 hover:bg-[#02665e]/15 px-2.5 py-1.5 rounded-xl border border-[#02665e]/20 transition-colors">
+                        <MapPin className="w-3.5 h-3.5" />Maps
+                      </a>
+                    ) : null}
+                  </div>
+
+                  {/* Drop-off */}
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 pt-0.5">
+                      <div className="h-3 w-3 rounded-full bg-rose-500 ring-[3px] ring-rose-500/20" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Drop-off</div>
+                      <div className="mt-0.5 text-sm font-bold text-slate-900 leading-snug">
+                        {trip.property?.title || trip.toAddress || "Not specified"}
+                      </div>
+                      {trip.property?.regionName || trip.property?.district || trip.property?.ward ? (
+                        <div className="mt-0.5 text-xs text-slate-500 leading-snug">
+                          {[trip.property?.ward, trip.property?.district, trip.property?.regionName].filter(Boolean).join(", ")}
+                        </div>
+                      ) : null}
+                    </div>
+                    {dropoffMaps ? (
+                      <a href={dropoffMaps} target="_blank" rel="noreferrer"
+                        className="flex-shrink-0 flex items-center gap-1 text-xs font-bold text-[#02665e] hover:text-[#014e47] mt-0.5 bg-[#02665e]/8 hover:bg-[#02665e]/15 px-2.5 py-1.5 rounded-xl border border-[#02665e]/20 transition-colors">
+                        <MapPin className="w-3.5 h-3.5" />Maps
+                      </a>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Trip info pills ── */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-3.5">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex-shrink-0 h-9 w-9 rounded-xl bg-[#02665e]/10 flex items-center justify-center">
+                      <Users className="w-4 h-4 text-[#02665e]" />
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Passengers</div>
+                      <div className="text-base font-black text-slate-900 leading-none mt-0.5">
+                        {trip.numberOfPassengers ?? "—"}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-3.5">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex-shrink-0 h-9 w-9 rounded-xl bg-amber-50 flex items-center justify-center">
+                      <Clock className="w-4 h-4 text-amber-600" />
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Pickup time</div>
+                      <div className="text-base font-black text-slate-900 leading-none mt-0.5">
+                        {formatTime(trip.pickupTime || trip.scheduledDate) || "—"}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Special instructions (always visible if present) ── */}
+              {trip.notes ? (
+                <div className="rounded-2xl border border-amber-300 bg-amber-50 overflow-hidden">
+                  <div className="px-4 py-2.5 border-b border-amber-200 flex items-center gap-2">
+                    <div className="h-2 w-2 rounded-full bg-amber-500 flex-shrink-0" />
+                    <span className="text-[10px] font-black uppercase tracking-widest text-amber-800">Special instructions</span>
+                  </div>
+                  <div className="px-4 py-3 text-sm font-semibold text-amber-900 whitespace-pre-wrap leading-relaxed">{trip.notes}</div>
+                </div>
+              ) : null}
+
+              {/* ── Arrival & pickup info (collapsible) ── */}
+              {hasArrivalInfo ? (
+                <details className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  <summary className="flex items-center justify-between px-4 py-3 cursor-pointer select-none list-none">
+                    <span className="text-sm font-bold text-slate-900">Arrival &amp; pickup info</span>
+                    <span className="text-[11px] font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">tap</span>
                   </summary>
-                  <div className="px-3 pb-3 text-sm text-slate-700 space-y-2">
-                    {typeof trip.userRating === "number" ? (
-                      <div className="inline-flex items-center gap-2">
-                        <Star className="w-4 h-4 text-amber-500" />
-                        <span>
-                          <span className="text-slate-500">Passenger rated driver:</span>{" "}
-                          <span className="font-semibold text-slate-900">{trip.userRating}/5</span>
-                        </span>
-                      </div>
-                    ) : null}
-                    {trip.userReview ? <div className="whitespace-pre-wrap">{trip.userReview}</div> : null}
-                    {typeof trip.driverRating === "number" ? (
-                      <div>
-                        <span className="text-slate-500">Driver rated passenger:</span>{" "}
-                        <span className="font-semibold text-slate-900">{trip.driverRating}/5</span>
-                      </div>
-                    ) : null}
-                    {trip.driverReview ? <div className="whitespace-pre-wrap">{trip.driverReview}</div> : null}
+                  <div className="border-t border-slate-100 px-4 pb-4 pt-3">
+                    <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+                      {trip.pickupLocation ? (
+                        <div className="col-span-2">
+                          <dt className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Specific pickup area</dt>
+                          <dd className="font-bold text-slate-900 mt-0.5 text-sm">{trip.pickupLocation}</dd>
+                        </div>
+                      ) : null}
+                      {trip.arrivalType ? (
+                        <div>
+                          <dt className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Type</dt>
+                          <dd className="font-bold text-slate-900 mt-0.5 text-sm">{trip.arrivalType}</dd>
+                        </div>
+                      ) : null}
+                      {trip.transportCompany ? (
+                        <div>
+                          <dt className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Company</dt>
+                          <dd className="font-bold text-slate-900 mt-0.5 text-sm">{trip.transportCompany}</dd>
+                        </div>
+                      ) : null}
+                      {trip.arrivalNumber ? (
+                        <div>
+                          <dt className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Number</dt>
+                          <dd className="font-bold text-slate-900 mt-0.5 text-sm">{trip.arrivalNumber}</dd>
+                        </div>
+                      ) : null}
+                      {trip.arrivalTime ? (
+                        <div>
+                          <dt className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Arrival time</dt>
+                          <dd className="font-bold text-slate-900 mt-0.5 text-sm">{formatTime(trip.arrivalTime) || ""}</dd>
+                        </div>
+                      ) : null}
+                    </dl>
                   </div>
                 </details>
               ) : null}
 
-              {trip.notes ? (
-                <details className="rounded-2xl border border-amber-200 bg-amber-50">
-                  <summary className="cursor-pointer select-none px-3 py-2 text-sm font-semibold text-amber-900 list-none">
-                    Special instructions
-                    <span className="ml-2 text-xs font-semibold text-amber-900/70">(tap)</span>
+              {/* ── Ratings (collapsible) ── */}
+              {hasRatings ? (
+                <details className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  <summary className="flex items-center justify-between px-4 py-3 cursor-pointer select-none list-none">
+                    <span className="text-sm font-bold text-slate-900">Ratings &amp; reviews</span>
+                    <span className="text-[11px] font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">tap</span>
                   </summary>
-                  <div className="px-3 pb-3 text-sm text-amber-900 whitespace-pre-wrap">{trip.notes}</div>
+                  <div className="border-t border-slate-100 px-4 pb-4 pt-3 space-y-2">
+                    {typeof trip.userRating === "number" ? (
+                      <div className="flex items-center gap-2 text-sm">
+                        <Star className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                        <span className="text-slate-500">Passenger rated driver:</span>
+                        <span className="font-black text-slate-900">{trip.userRating}/5</span>
+                      </div>
+                    ) : null}
+                    {trip.userReview ? <div className="text-sm text-slate-600 whitespace-pre-wrap">{trip.userReview}</div> : null}
+                    {typeof trip.driverRating === "number" ? (
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="text-slate-500">You rated passenger:</span>
+                        <span className="font-black text-slate-900">{trip.driverRating}/5</span>
+                      </div>
+                    ) : null}
+                    {trip.driverReview ? <div className="text-sm text-slate-600 whitespace-pre-wrap">{trip.driverReview}</div> : null}
+                  </div>
                 </details>
               ) : null}
+
             </div>
           </div>
 
-          {/* Footer */}
-          <div className="border-t border-slate-200 bg-white p-2.5 sm:p-3">
-            <div className="flex flex-row flex-wrap items-center justify-end gap-2">
+          {/* ── Footer / CTA ── */}
+          <div className="bg-white border-t border-slate-200 p-3 sm:p-4 flex-shrink-0">
+            {view === "available" && trip.canClaim === false && trip.claimIneligibilityReason ? (
+              <div className="mb-3 flex items-center gap-2 rounded-xl bg-rose-50 border border-rose-200 px-3 py-2">
+                <div className="h-1.5 w-1.5 rounded-full bg-rose-500 flex-shrink-0" />
+                <span className="text-xs font-bold text-rose-700">{trip.claimIneligibilityReason}</span>
+              </div>
+            ) : null}
+            <div className="flex gap-2.5">
               <button
                 onClick={closePreview}
-                className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold transition-colors"
+                className="px-4 py-3.5 rounded-2xl bg-slate-100 hover:bg-slate-200 active:scale-[0.97] text-slate-700 font-bold transition-all text-sm flex-shrink-0"
               >
                 Close
               </button>
               {view === "available" ? (
                 <button
-                  onClick={() => {
-                    closePreview();
-                    openClaimConfirm(trip.id);
-                  }}
+                  onClick={() => { closePreview(); openClaimConfirm(trip.id); }}
                   disabled={claiming !== null || trip.canClaim === false}
                   title={trip.canClaim === false ? trip.claimIneligibilityReason || "You can't claim this trip" : undefined}
-                  className="px-3 py-2 rounded-xl bg-gradient-to-r from-[#02665e] to-[#014e47] text-white font-semibold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 py-3.5 rounded-2xl bg-gradient-to-r from-[#02665e] to-[#014e47] hover:from-[#027a70] hover:to-[#015f58] active:scale-[0.98] text-white font-black text-sm shadow-lg shadow-[#02665e]/30 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
                 >
-                  Claim this trip
+                  {claiming !== null ? "Claiming…" : "Claim this trip"}
                 </button>
               ) : null}
             </div>
-
-            {view === "available" && trip.canClaim === false && trip.claimIneligibilityReason ? (
-              <div className="mt-2 text-xs font-semibold text-rose-700">{trip.claimIneligibilityReason}</div>
-            ) : null}
           </div>
+
         </div>
       </div>
     </div>

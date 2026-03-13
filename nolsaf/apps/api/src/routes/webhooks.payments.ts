@@ -568,7 +568,7 @@ router.post("/azampay", webhookLimiter, async (req: any, res) => {
             totalAmount: totalPaid,
             roomsQty,
             currency,
-            paidAt:      updated.paidAt ?? new Date(),
+            paidAt:      updatedInvoice.paidAt ?? new Date(),
           };
 
           const [{ subject, html }, reservationPdf] = await Promise.all([
