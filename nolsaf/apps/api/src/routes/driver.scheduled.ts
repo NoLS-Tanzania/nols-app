@@ -177,18 +177,8 @@ router.get("/scheduled", limitDriverTripsList, (async (req: AuthedRequest, res: 
 
     // Area-of-operation restriction: drivers only see trips in their region/operationArea.
     if (allowedAreas.length) {
-      // mode:'insensitive' fixes case-mismatch (e.g. "Dar Es Salaam" vs "dar es salaam").
-      // The NULL-region OR arm makes trips without a region visible to all area-configured
-      // drivers — prevents trips disappearing when fromRegion/toRegion were never set on booking.
-      const inAreas = { in: allowedAreas, mode: "insensitive" as const };
-      where.AND.push({
-        OR: [
-          { fromRegion: inAreas },
-          { toRegion: inAreas },
-          { property: { regionName: inAreas } },
-          { fromRegion: null, toRegion: null }, // no region set → show to all area-configured drivers
-        ],
-      });
+      const inAreas = { in: allowedAreas };
+      where.AND.push({ OR: [{ fromRegion: inAreas }, { toRegion: inAreas }, { property: { regionName: inAreas } }] });
     } else {
       // No operation area configured -> show nothing (and canClaim will be false with reason).
       where.id = -1;
