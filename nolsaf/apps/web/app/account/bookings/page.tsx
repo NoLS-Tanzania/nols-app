@@ -1,12 +1,13 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import {
   Calendar, Download, CheckCircle, XCircle, Eye,
   ArrowRight, BookOpen, MapPin, Clock, CreditCard,
-  Hash, BedDouble, DoorOpen,
+  Hash, BedDouble, DoorOpen, Printer, X, FileText,
 } from "lucide-react";
 import Link from "next/link";
+import { sanitizeTrustedHtml } from "@/utils/html";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
 
@@ -115,50 +116,6 @@ export default function MyBookingsPage() {
     }
   };
 
-  const downloadPDF = async (bookingId: number) => {
-    const toast = (type: "error" | "success", message: string) => {
-      try {
-        window.dispatchEvent(new CustomEvent("nols:toast", {
-          detail: { type, title: "Booking PDF", message, duration: 5000 },
-        }));
-      } catch {}
-    };
-
-    try {
-      const response = await fetch(`/api/customer/bookings/${bookingId}/pdf`, {
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        let errMsg = "Failed to generate PDF";
-        try { errMsg = (await response.json()).error || errMsg; } catch {}
-        toast("error", errMsg);
-        return;
-      }
-
-      // True binary PDF download — no print dialog needed
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      // Try to get filename from Content-Disposition header
-      const disposition = response.headers.get("content-disposition") || "";
-      const match = disposition.match(/filename="?([^";\n]+)"?/i);
-      anchor.download = match?.[1] ?? `Booking-${bookingId}.pdf`;
-      anchor.href = url;
-      anchor.style.display = "none";
-      document.body.appendChild(anchor);
-      anchor.click();
-      document.body.removeChild(anchor);
-      setTimeout(() => URL.revokeObjectURL(url), 10_000);
-    } catch (err: any) {
-      try {
-        window.dispatchEvent(new CustomEvent("nols:toast", {
-          detail: { type: "error", title: "Booking PDF", message: "Failed to download PDF: " + (err?.message || "Unknown error"), duration: 5000 },
-        }));
-      } catch {}
-    }
-  };
-
   // Expired means: checkout date has passed (after a completed stay).
   const isExpired = (b: Booking) => {
     try {
@@ -198,6 +155,97 @@ export default function MyBookingsPage() {
     const diff = new Date(checkOut).getTime() - new Date(checkIn).getTime();
     return Math.round(diff / 86400000);
   };
+
+  // ── Receipt modal ──────────────────────────────────────────────────────────
+  const [receiptBookingId, setReceiptBookingId] = useState<number | null>(null);
+  const [receiptHtml, setReceiptHtml] = useState<string>("");
+  const [receiptLoading, setReceiptLoading] = useState(false);
+  const [receiptFilename, setReceiptFilename] = useState<string>("");
+  const [receiptPdfUrl, setReceiptPdfUrl] = useState<string | null>(null);
+  const [receiptPdfBusy, setReceiptPdfBusy] = useState(false);
+  const [receiptIframeH, setReceiptIframeH] = useState<number>(600);
+  const receiptContainerRef = useRef<HTMLDivElement | null>(null);
+
+  const sanitizedReceiptHtml = useMemo(
+    () => (receiptHtml ? sanitizeTrustedHtml(receiptHtml) : ""),
+    [receiptHtml]
+  );
+
+  const openReceipt = useCallback(async (bookingId: number) => {
+    setReceiptBookingId(bookingId);
+    setReceiptHtml("");
+    setReceiptPdfUrl(null);
+    setReceiptIframeH(600);
+    setReceiptLoading(true);
+    setReceiptFilename(`Booking-Receipt-${bookingId}.pdf`);
+    try {
+      const r = await fetch(`/api/customer/bookings/${bookingId}/receipt.html`, {
+        credentials: "include",
+        cache: "no-store",
+      });
+      const html = await r.text();
+      if (!r.ok) throw new Error(`Failed to load receipt (${r.status})`);
+      const fn = r.headers.get("x-nolsaf-filename") || `Booking-Receipt-${bookingId}.pdf`;
+      setReceiptFilename(fn);
+      setReceiptHtml(html);
+    } catch {
+      setReceiptHtml("");
+    } finally {
+      setReceiptLoading(false);
+    }
+  }, []);
+
+  const closeReceipt = useCallback(() => {
+    setReceiptBookingId(null);
+    setReceiptHtml("");
+    setReceiptPdfUrl(null);
+  }, []);
+
+  const printReceipt = useCallback(() => {
+    const root = receiptContainerRef.current;
+    if (!root) return;
+    const el = (root.querySelector(".sheet") as HTMLElement | null) || root;
+    const w = window.open("", "", "width=760,height=980");
+    if (!w) return;
+    w.document.write(
+      `<!DOCTYPE html><html><head><title>Booking Receipt</title><style>*{box-sizing:border-box}body{margin:0;padding:0;background:#fff}</style></head><body>${el.outerHTML}</body></html>`
+    );
+    w.document.close();
+    w.focus();
+    setTimeout(() => { w.print(); }, 400);
+  }, []);
+
+  useEffect(() => {
+    let revoked: string | null = null;
+    async function gen() {
+      if (!sanitizedReceiptHtml || receiptBookingId === null) return;
+      const root = receiptContainerRef.current;
+      if (!root) return;
+      const el = (root.querySelector(".sheet") as HTMLElement | null) || root;
+      setReceiptPdfBusy(true);
+      try {
+        const mod: any = await import("html2pdf.js");
+        const h2p = mod.default || mod;
+        if (!h2p) throw new Error("html2pdf failed");
+        const pdf = await h2p().from(el).set({
+          filename: receiptFilename,
+          margin: 0,
+          jsPDF: { unit: "mm", format: "a5", orientation: "portrait" },
+          html2canvas: { scale: 2, useCORS: true, logging: false, windowWidth: 558 },
+          pagebreak: { mode: [] },
+        }).toPdf().get("pdf");
+        const url = pdf.output("bloburl");
+        revoked = url;
+        setReceiptPdfUrl(url);
+      } catch {
+        setReceiptPdfUrl(null);
+      } finally {
+        setReceiptPdfBusy(false);
+      }
+    }
+    gen();
+    return () => { if (revoked) { try { URL.revokeObjectURL(revoked); } catch {} } };
+  }, [sanitizedReceiptHtml, receiptBookingId, receiptFilename]);
 
   if (loading) {
     return (
@@ -396,7 +444,7 @@ export default function MyBookingsPage() {
                     {booking.bookingCode && (
                       <button
                         type="button"
-                        onClick={() => downloadPDF(booking.id)}
+                        onClick={() => openReceipt(booking.id)}
                         className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 px-3 py-1.5 text-[11px] font-bold text-slate-600 transition-colors"
                       >
                         <Download className="h-3.5 w-3.5" />
@@ -416,6 +464,111 @@ export default function MyBookingsPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* ── Receipt modal ── */}
+      {receiptBookingId !== null && (
+        <div
+          className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6"
+          onClick={closeReceipt}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="flex items-center justify-between px-5 py-3.5 bg-white border-b border-gray-200 shrink-0"
+              style={{ borderTop: "3px solid #02665e" }}
+            >
+              <div className="flex items-center gap-3">
+                <div
+                  className="flex items-center justify-center w-9 h-9 rounded-xl shrink-0"
+                  style={{ background: "rgba(2,102,94,0.08)" }}
+                >
+                  <FileText className="h-4 w-4" style={{ color: "#02665e" }} />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900 leading-tight">Booking Receipt</p>
+                  <p className="text-xs text-gray-400 leading-tight">NoLSAF</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={printReceipt}
+                  disabled={receiptLoading || !receiptHtml}
+                  title="Print receipt"
+                  className="h-9 w-9 flex items-center justify-center rounded-lg text-white shadow-sm transition hover:opacity-85 disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={{ background: "#02665e" }}
+                >
+                  <Printer className="h-4 w-4" />
+                </button>
+                <a
+                  href={receiptPdfUrl || "#"}
+                  download={receiptFilename}
+                  onClick={(e) => { if (!receiptPdfUrl) e.preventDefault(); }}
+                  title={receiptPdfBusy ? "Generating PDF…" : "Download PDF"}
+                  className={`no-underline h-9 w-9 flex items-center justify-center rounded-lg border transition ${
+                    receiptPdfUrl
+                      ? "border-gray-300 text-gray-600 hover:bg-gray-50"
+                      : "border-gray-200 text-gray-300 cursor-not-allowed"
+                  }`}
+                >
+                  {receiptPdfBusy
+                    ? <span className="h-4 w-4 border-2 border-gray-300 rounded-full animate-spin" style={{ borderTopColor: "#02665e" }} />
+                    : <Download className="h-4 w-4" />}
+                </a>
+                <div className="w-px h-5 bg-gray-200 mx-0.5" />
+                <button
+                  type="button"
+                  onClick={closeReceipt}
+                  title="Close"
+                  className="h-9 w-9 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition shrink-0"
+                  aria-label="Close receipt"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto bg-gray-100 p-4 sm:p-6">
+              {receiptLoading ? (
+                <div className="flex flex-col items-center justify-center h-48 gap-3">
+                  <div className="w-8 h-8 border-2 border-gray-200 rounded-full animate-spin" style={{ borderTopColor: "#02665e" }} />
+                  <p className="text-sm text-gray-500">Loading receipt…</p>
+                </div>
+              ) : receiptHtml ? (
+                <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                  {receiptPdfUrl ? (
+                    <iframe title="Receipt PDF" src={receiptPdfUrl} className="w-full" style={{ height: "75vh" }} />
+                  ) : (
+                    <iframe
+                      title="Receipt"
+                      srcDoc={sanitizedReceiptHtml}
+                      className="w-full block border-0"
+                      style={{ height: receiptIframeH }}
+                      onLoad={(e) => {
+                        const doc = e.currentTarget.contentDocument;
+                        const h = doc?.documentElement?.scrollHeight || doc?.body?.scrollHeight || 600;
+                        setReceiptIframeH(h);
+                      }}
+                    />
+                  )}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-48 gap-2">
+                  <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center">
+                    <X className="h-5 w-5 text-red-400" />
+                  </div>
+                  <p className="text-sm font-medium text-red-500">Receipt unavailable</p>
+                  <p className="text-xs text-gray-400">Please try again or contact support</p>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="fixed left-[-10000px] top-0 pointer-events-none">
+            <div ref={receiptContainerRef} dangerouslySetInnerHTML={{ __html: sanitizedReceiptHtml }} />
+          </div>
         </div>
       )}
     </div>

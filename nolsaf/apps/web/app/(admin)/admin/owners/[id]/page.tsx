@@ -563,7 +563,7 @@ export default function OwnerDetailPage() {
             {kycModal.stage === "input" ? (
               <>
                 {/* Body — input stage */}
-                <div className="px-5 py-4 space-y-3 flex-1 overflow-y-auto">
+                <div className="px-5 py-4 space-y-3">
                   <div className="text-sm text-gray-600 leading-relaxed">
                     {kycModal.mode === "approve"
                       ? <>You are approving KYC for <span className="font-semibold text-gray-900">{owner.name ?? `Owner #${owner.id}`}</span>. Add an optional note below.</>
@@ -579,7 +579,7 @@ export default function OwnerDetailPage() {
                       value={kycModal.note}
                       onChange={e => setKycModal(m => m ? { ...m, note: e.target.value } : m)}
                       placeholder={kycModal.mode === "approve" ? "e.g. All documents verified successfully." : "e.g. ID document is expired or unclear."}
-                      className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-[#02665e] focus:ring-1 focus:ring-inset focus:ring-[#02665e]/20 resize-none transition"
+                      className="w-full box-border rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-[#02665e] resize-none transition"
                     />
                   </div>
                 </div>
@@ -592,14 +592,14 @@ export default function OwnerDetailPage() {
                   <button type="button" onClick={advanceKycToConfirm}
                     className={"px-5 py-2 rounded-xl text-sm font-semibold text-white transition flex items-center gap-2 " +
                       (kycModal.mode === "approve" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-red-600 hover:bg-red-700")}>
-                    Continue →
+                    Continue
                   </button>
                 </div>
               </>
             ) : (
               <>
                 {/* Body — confirm stage */}
-                <div className="px-5 py-4 space-y-3 flex-1 overflow-y-auto">
+                <div className="px-5 py-4 space-y-3">
                   <div className={"rounded-xl border px-4 py-3 " + (kycModal.mode === "approve" ? "border-emerald-200 bg-emerald-50" : "border-red-200 bg-red-50")}>
                     <div className={"text-xs font-bold uppercase tracking-wider mb-1 " + (kycModal.mode === "approve" ? "text-emerald-700" : "text-red-700")}>
                       {kycModal.mode === "approve" ? "⚠ You are about to approve KYC" : "⚠ You are about to reject KYC"}
@@ -1691,12 +1691,7 @@ export default function OwnerDetailPage() {
                                 <div className="text-xs text-gray-500">{new Date(b.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                               </td>
                               <td className="px-3 sm:px-4 py-3 text-sm font-semibold text-gray-900">
-                                {b.totalAmount ? (
-                                  <div className="flex items-center gap-1">
-                                    <DollarSign className="h-4 w-4 text-gray-400" />
-                                    {Number(b.totalAmount).toLocaleString()}
-                                  </div>
-                                ) : '—'}
+                                {b.totalAmount ? Number(b.totalAmount).toLocaleString() : '—'}
                               </td>
                               <td className="px-3 sm:px-4 py-3 text-sm">{getStatusBadge()}</td>
                               <td className="px-3 sm:px-4 py-3 text-sm">
@@ -1808,8 +1803,7 @@ export default function OwnerDetailPage() {
                               </div>
                             </div>
                             {b.totalAmount && (
-                              <div className="flex items-center gap-1 text-sm font-semibold text-gray-900 pt-2 border-t border-gray-100">
-                                <DollarSign className="h-4 w-4 text-gray-400" />
+                              <div className="text-sm font-semibold text-gray-900 pt-2 border-t border-gray-100">
                                 {Number(b.totalAmount).toLocaleString()}
                               </div>
                             )}

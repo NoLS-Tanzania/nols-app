@@ -380,13 +380,13 @@ export default function InvoiceView() {
             <div className="h-px bg-gradient-to-r from-emerald-100 via-teal-100 to-transparent" />
             {/* Timeline steps */}
             <div className="flex items-center gap-0 overflow-x-auto pb-1">
-              {["Requested", "Verified", "Approved", "Processing", "Paid"].map((step, i, arr) => (
+              {["Draft", "Requested", "Verified", "Approved", "Processing", "Paid"].map((step, i, arr) => (
                 <div key={step} className="flex items-center gap-0 flex-shrink-0">
                   <div className="flex flex-col items-center gap-1">
-                    <div className={`h-2 w-2 rounded-full ${i === 0 ? "bg-emerald-500 ring-4 ring-emerald-100" : "bg-gray-200"}`} />
-                    <span className={`text-[10px] font-semibold whitespace-nowrap ${i === 0 ? "text-emerald-700" : "text-gray-400"}`}>{step}</span>
+                    <div className={`h-2 w-2 rounded-full ${i === 0 ? "bg-gray-400" : i === 1 ? "bg-emerald-500 ring-4 ring-emerald-100" : "bg-gray-200"}`} />
+                    <span className={`text-[10px] font-semibold whitespace-nowrap ${i === 0 ? "text-gray-400 line-through" : i === 1 ? "text-emerald-700" : "text-gray-400"}`}>{step}</span>
                   </div>
-                  {i < arr.length - 1 && <div className="w-8 sm:w-12 h-px bg-gray-200 mb-3 flex-shrink-0 mx-1" />}
+                  {i < arr.length - 1 && <div className={`w-8 sm:w-12 h-px mb-3 flex-shrink-0 mx-1 ${i === 0 ? "bg-gray-300" : "bg-gray-200"}`} />}
                 </div>
               ))}
             </div>

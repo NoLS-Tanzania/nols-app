@@ -403,7 +403,7 @@ export default function Page() {
               <div class="footer">
                 <div class="footer-grid">
                   <div class="footer-left">
-                    <p class="footer-title">NoLSAF — Your Stay, Our Promise</p>
+                    <p class="footer-title">NoLSAF — Quality Stay For Every Wallet</p>
                     <div class="footer-meta">
                       Official payment receipt • Generated on ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </div>

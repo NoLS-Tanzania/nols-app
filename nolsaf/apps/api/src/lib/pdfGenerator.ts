@@ -105,6 +105,18 @@ export async function generateBookingReservationHTML(details: BookingDetails): P
     });
   };
 
+  const formatDateTime = (value: Date | string | undefined | null): string => {
+    const d = parseValidDate(value);
+    if (!d) return "—";
+    return d.toLocaleString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
   // Logo: use a configured image URL if provided; otherwise embed a print-safe SVG logo.
   const inlineLogoSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96" role="img" aria-label="NoLSAF logo"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#02665e"/><stop offset="1" stop-color="#014d47"/></linearGradient></defs><rect x="6" y="6" width="84" height="84" rx="22" fill="url(#g)"/><path d="M28 63V33h7l19 20V33h7v30h-7L35 43v20h-7z" fill="#fff" opacity="0.98"/></svg>`;
   const inlineLogoDataUri = `data:image/svg+xml;base64,${Buffer.from(inlineLogoSvg, "utf8").toString("base64")}`;
@@ -134,360 +146,490 @@ export async function generateBookingReservationHTML(details: BookingDetails): P
   })();
   const nights = Math.max(1, Math.floor(providedNights ?? computedNights ?? 1));
   const amount = Number(details.totalAmount || 0).toLocaleString("en-US");
-  const paidAt = details.invoice?.paidAt ? formatDate(details.invoice.paidAt) : null;
+  const paidAt = details.invoice?.paidAt ? formatDateTime(details.invoice.paidAt) : null;
 
   return `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Booking Reservation - ${details.bookingCode}</title>
+  <title>Booking Receipt — ${details.bookingCode}</title>
   <style>
     @media print {
-      @page {
-        size: A5;
-        margin: 20mm;
-      }
-      body { margin: 0; }
+      @page { size: A5; margin: 0; }
+      body { margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .sheet { box-shadow: none; border-radius: 0; }
     }
+    *, *::before, *::after { box-sizing: border-box; }
     body {
-      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, "Noto Sans", "Helvetica Neue", sans-serif;
-      line-height: 1.45;
-      color: #0f172a;
-      background: #f8fafc;
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      font-size: 12px;
+      line-height: 1.5;
+      color: #1e293b;
+      background: #f1f5f9;
       margin: 0;
-      padding: 0;
+      padding: 16px 0 24px;
     }
     .sheet {
-      position: relative;
       background: #ffffff;
-      border: 1px solid #e2e8f0;
-      border-radius: 16px;
-      padding: 18px 18px 16px;
-      max-width: 560px;
+      border-radius: 12px;
+      max-width: 558px;
       margin: 0 auto;
       overflow: hidden;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.06);
+      position: relative;
     }
+    /* diagonal watermark */
     .sheet::before {
-      content: "NoLSAF";
+      content: 'NoLSAF';
       position: absolute;
       inset: 0;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-weight: 800;
-      font-size: 84px;
-      letter-spacing: 6px;
-      color: rgba(2, 102, 94, 0.06);
-      transform: rotate(-18deg);
+      font-size: 80px;
+      font-weight: 900;
+      letter-spacing: 10px;
+      color: rgba(2,102,94,0.045);
+      transform: rotate(-25deg);
       pointer-events: none;
       z-index: 0;
+      white-space: nowrap;
     }
-    .content { position: relative; z-index: 1; }
-    .header {
-      text-align: center;
-      border-bottom: 2px solid rgba(2, 102, 94, 0.25);
-      padding-bottom: 14px;
-      margin-bottom: 16px;
-    }
-    .logo {
-      width: 54px;
-      height: 54px;
-      display: block;
-      margin: 0 auto 10px;
-      object-fit: contain;
-    }
-    .header h1 {
-      color: #02665e;
-      margin: 0;
-      font-size: 22px;
-      letter-spacing: 0.2px;
-    }
-    .header .subtitle {
-      color: #475569;
-      font-size: 12px;
-      margin-top: 3px;
-    }
-    .code-box {
-      position: relative;
-      background: linear-gradient(135deg, rgba(2, 102, 94, 0.10), rgba(2, 102, 94, 0.04));
-      border: 2px solid rgba(2, 102, 94, 0.55);
-      padding: 16px 16px 14px;
-      text-align: center;
-      margin: 14px 0 16px;
-      border-radius: 16px;
-    }
-    .verified-stamp {
-      position: absolute;
-      top: 12px;
-      right: 12px;
-      border: 2px solid rgba(2, 102, 94, 0.7);
-      color: #02665e;
-      border-radius: 9999px;
-      padding: 6px 10px;
-      font-size: 10px;
-      font-weight: 800;
-      letter-spacing: 1.2px;
-      text-transform: uppercase;
-      transform: rotate(-10deg);
-      background: rgba(255, 255, 255, 0.75);
-    }
-    .code {
-      font-size: 38px;
-      font-weight: 800;
-      color: #02665e;
-      letter-spacing: 4px;
-      margin: 8px 0 6px;
-    }
-    .section {
-      margin: 12px 0;
-      page-break-inside: avoid;
-    }
-    .section-title {
-      background: rgba(2, 102, 94, 0.08);
-      color: #02665e;
-      padding: 10px 12px;
-      font-weight: 800;
-      margin-bottom: 0;
-      border-radius: 12px 12px 0 0;
-      border: 1px solid rgba(2, 102, 94, 0.18);
-      border-bottom: none;
-    }
-    .section-content {
-      border: 1px solid rgba(148, 163, 184, 0.55);
-      border-top: none;
-      padding: 12px;
-      border-radius: 0 0 12px 12px;
-      background: rgba(248, 250, 252, 0.6);
-    }
-    .detail-row {
+    .sheet > * { position: relative; z-index: 1; }
+
+    /* ── Brand header ── */
+    .brand-header {
+      background: #ffffff;
+      border-top: 3px solid #02665e;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 14px 20px;
       display: flex;
+      align-items: center;
       justify-content: space-between;
-      padding: 8px 0;
-      border-bottom: 1px solid rgba(148, 163, 184, 0.35);
       gap: 12px;
     }
-    .detail-row:last-child {
-      border-bottom: none;
+    .brand-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
-    .detail-label {
-      font-weight: 700;
-      color: #64748b;
-      width: 40%;
+    .brand-logo {
+      width: 38px;
+      height: 38px;
+      border-radius: 8px;
+      display: block;
+      flex-shrink: 0;
+      object-fit: contain;
     }
-    .detail-value {
-      color: #0f172a;
-      width: 60%;
-      text-align: right;
+    .brand-name {
+      font-size: 17px;
+      font-weight: 800;
+      color: #02665e;
+      letter-spacing: 0.4px;
+      line-height: 1.1;
     }
-    .footer {
-      margin-top: 14px;
-      padding-top: 14px;
-      border-top: 1px solid rgba(148, 163, 184, 0.45);
-      color: #475569;
+    .brand-tagline {
+      font-size: 9.5px;
+      color: #94a3b8;
+      letter-spacing: 0.2px;
+      margin-top: 2px;
+    }
+    .brand-right {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 5px;
+    }
+    .verified-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      border: 1.5px solid #02665e;
+      color: #02665e;
+      border-radius: 9999px;
+      padding: 4px 11px;
+      font-size: 10.5px;
+      font-weight: 800;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      background: rgba(2,102,94,0.05);
+    }
+    .verified-check {
       font-size: 11px;
+      font-weight: 900;
     }
-    .footer-grid {
+    .receipt-label {
+      font-size: 9px;
+      font-weight: 700;
+      color: #94a3b8;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+    }
+
+    /* ── Body padding ── */
+    .body-pad { padding: 16px 20px; }
+
+    /* ── Booking code ── */
+    .code-block {
+      border: 1.5px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 14px 16px 12px;
+      margin-bottom: 16px;
+      text-align: center;
+      background: linear-gradient(180deg, #f8fffe 0%, #ffffff 100%);
+      position: relative;
+      overflow: hidden;
+    }
+    .code-block::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, #02665e, #4ade80, #02665e);
+    }
+    .code-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: #64748b;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .code-value {
+      font-size: 32px;
+      font-weight: 900;
+      color: #02665e;
+      letter-spacing: 5px;
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+    .code-hint {
+      font-size: 10px;
+      color: #94a3b8;
+    }
+    .paid-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: #dcfce7;
+      color: #166534;
+      border-radius: 9999px;
+      padding: 3px 10px;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    /* ── Two-column guest / property summary ── */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .summary-card {
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 10px 12px;
+      background: #fafafa;
+    }
+    .summary-card-label {
+      font-size: 9px;
+      font-weight: 700;
+      color: #94a3b8;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+      padding-bottom: 5px;
+      border-bottom: 1px solid #e8ecf0;
+    }
+    .summary-card-value {
+      font-size: 12px;
+      font-weight: 700;
+      color: #1e293b;
+      line-height: 1.35;
+    }
+    .summary-card-sub {
+      font-size: 10px;
+      color: #64748b;
+      margin-top: 2px;
+      line-height: 1.3;
+    }
+
+    /* ── Detail table ── */
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+      margin-top: 14px;
+    }
+    .section-bar {
+      width: 3px;
+      height: 14px;
+      background: #02665e;
+      border-radius: 9999px;
+      flex-shrink: 0;
+    }
+    .section-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: #02665e;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+    }
+    table.detail-table {
+      width: 100%;
+      border-collapse: collapse;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      overflow: hidden;
+      font-size: 11.5px;
+    }
+    table.detail-table tr:nth-child(odd) td { background: #f8fafc; }
+    table.detail-table tr:nth-child(even) td { background: #ffffff; }
+    table.detail-table td {
+      padding: 7px 12px;
+      border-bottom: 1px solid #e9edf2;
+      vertical-align: top;
+    }
+    table.detail-table tr:last-child td { border-bottom: none; }
+    table.detail-table td:first-child {
+      color: #64748b;
+      font-weight: 600;
+      width: 38%;
+      white-space: nowrap;
+    }
+    table.detail-table td:last-child {
+      color: #1e293b;
+      font-weight: 500;
+    }
+    .amount-row td { background: #f0fdf4 !important; }
+    .amount-row td:last-child {
+      color: #166534 !important;
+      font-weight: 800 !important;
+      font-size: 13px !important;
+    }
+
+    /* ── Check-in/out highlight ── */
+    .dates-row {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 8px;
+      align-items: center;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 14px;
+      background: #fafafa;
+      text-align: center;
+    }
+    .date-card-label {
+      font-size: 9px;
+      font-weight: 700;
+      color: #94a3b8;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .date-card-value {
+      font-size: 11px;
+      font-weight: 700;
+      color: #1e293b;
+      line-height: 1.3;
+    }
+    .date-nights {
+      font-size: 11px;
+      font-weight: 800;
+      color: #02665e;
+      border: 1.5px solid #02665e;
+      border-radius: 9999px;
+      padding: 4px 10px;
+      white-space: nowrap;
+      background: rgba(2,102,94,0.05);
+    }
+
+    /* ── Note block ── */
+    .note-block {
+      display: flex;
+      gap: 10px;
+      border: 1px solid #e2e8f0;
+      border-left: 3px solid #02665e;
+      border-radius: 0 8px 8px 0;
+      padding: 10px 12px;
+      background: #f8fffe;
+      margin-top: 14px;
+      font-size: 10.5px;
+      color: #475569;
+      line-height: 1.5;
+    }
+
+    /* ── Footer ── */
+    .doc-footer {
+      border-top: 1px solid #e2e8f0;
+      padding: 12px 20px;
       display: flex;
       align-items: flex-start;
       justify-content: space-between;
       gap: 14px;
+      background: #f8fafc;
     }
-    .footer-left { flex: 1; min-width: 0; }
-    .footer-title {
-      font-size: 12px;
+    .footer-brand {
+      font-size: 11px;
       font-weight: 800;
-      color: #0f172a;
-      margin: 0;
+      color: #02665e;
+      margin-bottom: 3px;
     }
-    .footer-meta {
-      margin-top: 6px;
-      font-size: 11px;
+    .footer-info {
+      font-size: 10px;
       color: #64748b;
-      line-height: 1.35;
+      line-height: 1.5;
     }
-    .contact {
-      margin-top: 8px;
-      display: grid;
-      gap: 4px;
-      font-size: 11px;
-      color: #475569;
+    .footer-info b { color: #1e293b; }
+    .footer-generated {
+      font-size: 9.5px;
+      color: #94a3b8;
+      margin-top: 4px;
     }
-    .contact span { color: #0f172a; font-weight: 700; }
-    .important {
-      background: rgba(2, 102, 94, 0.06);
-      border: 1px solid rgba(2, 102, 94, 0.22);
-      padding: 12px 12px 10px;
-      margin: 12px 0;
-      border-radius: 12px;
+    .qr-wrap { text-align: center; flex-shrink: 0; }
+    .qr-wrap img { width: 80px; height: 80px; display: block; }
+    .qr-wrap .qr-label {
+      font-size: 9px;
+      color: #94a3b8;
+      font-weight: 600;
+      margin-top: 4px;
+      letter-spacing: 0.5px;
     }
-    .qr-code {
-      width: 120px;
-      height: 120px;
-      margin: 0 auto;
-      display: block;
-    }
-    .qr-placeholder {
-      width: 120px;
-      height: 120px;
-      border: 2px dashed rgba(148, 163, 184, 0.7);
-      margin: 0 auto;
+    .qr-empty {
+      width: 80px;
+      height: 80px;
+      border: 1.5px dashed #cbd5e1;
+      border-radius: 6px;
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #64748b;
-      font-size: 12px;
+      font-size: 9px;
+      color: #94a3b8;
+      text-align: center;
+      line-height: 1.3;
     }
   </style>
 </head>
 <body>
-  <div class="sheet">
-    <div class="content">
-      <div class="header">
-        <img class="logo" src="${logoSrc}" alt="NoLSAF logo" />
-        <h1>NoLSAF</h1>
-        <div class="subtitle">Booking Reservation Confirmation</div>
-      </div>
+<div class="sheet">
 
-      <div class="code-box">
-        <div class="verified-stamp">Verified</div>
-        <div style="font-size: 12px; color: #475569; margin-bottom: 6px; font-weight: 700;">Booking code</div>
-        <div class="code">${details.bookingCode}</div>
-        <div style="font-size: 11px; color: #64748b; margin-top: 2px;">
-          Present this code or scan the QR at check‑in
-        </div>
+  <!-- Brand header -->
+  <div class="brand-header">
+    <div class="brand-left">
+      <img class="brand-logo" src="${logoSrc}" alt="NoLSAF" />
+      <div>
+        <div class="brand-name">NoLSAF</div>
+        <div class="brand-tagline">Your Stay, Our Promise</div>
       </div>
-
-  <div class="section">
-    <div class="section-title">Personal Information</div>
-    <div class="section-content">
-      <div class="detail-row">
-        <span class="detail-label">Full Name:</span>
-        <span class="detail-value">${details.guestName}</span>
-      </div>
-      ${details.guestPhone ? `
-      <div class="detail-row">
-        <span class="detail-label">Phone:</span>
-        <span class="detail-value">${details.guestPhone}</span>
-      </div>
-      ` : ""}
-      ${details.nationality ? `
-      <div class="detail-row">
-        <span class="detail-label">Nationality:</span>
-        <span class="detail-value">${details.nationality}</span>
-      </div>
-      ` : ""}
+    </div>
+    <div class="brand-right">
+      <div class="verified-badge"><span class="verified-check">&#10003;</span> Verified</div>
+      <div class="receipt-label">Receipt&nbsp;#${details.bookingId}</div>
     </div>
   </div>
 
-  <div class="section">
-    <div class="section-title">Booking Details</div>
-    <div class="section-content">
-      <div class="detail-row">
-        <span class="detail-label">Booking ID:</span>
-        <span class="detail-value">#${details.bookingId}</span>
+  <div class="body-pad">
+
+    <!-- Booking code -->
+    <div class="code-block">
+      <div class="paid-pill">&#10003;&nbsp;Paid &amp; Confirmed</div>
+      <div class="code-label">Booking Code</div>
+      <div class="code-value">${details.bookingCode}</div>
+      <div class="code-hint">Present this code at check&#8209;in or scan the QR below</div>
+    </div>
+
+    <!-- Guest + Property summary cards -->
+    <div class="summary-grid">
+      <div class="summary-card">
+        <div class="summary-card-label">Guest</div>
+        <div class="summary-card-value">${details.guestName}</div>
+        ${details.guestPhone ? `<div class="summary-card-sub">${details.guestPhone}</div>` : ""}
+        ${details.nationality ? `<div class="summary-card-sub">${details.nationality}</div>` : ""}
       </div>
-      <div class="detail-row">
-        <span class="detail-label">Property:</span>
-        <span class="detail-value">${details.property.title}</span>
+      <div class="summary-card">
+        <div class="summary-card-label">Property</div>
+        <div class="summary-card-value">${details.property.title}</div>
+        <div class="summary-card-sub">${details.property.type}${details.property.regionName ? " &bull; " + [details.property.regionName, details.property.city].filter(Boolean).join(", ") : ""}</div>
+        ${details.roomType ? `<div class="summary-card-sub">${details.roomType}${details.rooms ? " &times; " + details.rooms : ""}</div>` : ""}
       </div>
-      <div class="detail-row">
-        <span class="detail-label">Property Type:</span>
-        <span class="detail-value">${details.property.type}</span>
+    </div>
+
+    <!-- Check-in / Check-out / Nights -->
+    <div class="dates-row">
+      <div>
+        <div class="date-card-label">Check&#8209;in</div>
+        <div class="date-card-value">${checkIn}</div>
       </div>
-      ${details.property.regionName ? `
-      <div class="detail-row">
-        <span class="detail-label">Location:</span>
-        <span class="detail-value">${[details.property.regionName, details.property.district, details.property.city].filter(Boolean).join(", ")}</span>
+      <div class="date-nights">${nights}&nbsp;night${nights !== 1 ? "s" : ""}</div>
+      <div>
+        <div class="date-card-label">Check&#8209;out</div>
+        <div class="date-card-value">${checkOut}</div>
       </div>
-      ` : ""}
-      ${details.roomType ? `
-      <div class="detail-row">
-        <span class="detail-label">Room Type:</span>
-        <span class="detail-value">${details.roomType}</span>
+    </div>
+
+    <!-- Payment details -->
+    <div class="section-header">
+      <div class="section-bar"></div>
+      <div class="section-label">Payment</div>
+    </div>
+    <table class="detail-table">
+      <tr class="amount-row">
+        <td>Total Amount</td>
+        <td>${amount} TZS</td>
+      </tr>
+      ${details.invoice?.receiptNumber ? `<tr><td>Receipt No.</td><td>${details.invoice.receiptNumber}</td></tr>` : ""}
+      ${paidAt ? `<tr><td>Paid On</td><td>${paidAt}</td></tr>` : ""}
+      <tr><td>Status</td><td style="color:#166534;font-weight:700;">&#10003; Payment Received</td></tr>
+    </table>
+
+    ${details.services ? `
+    <div class="section-header" style="margin-top:14px;">
+      <div class="section-bar"></div>
+      <div class="section-label">Inclusive Services</div>
+    </div>
+    <table class="detail-table">
+      <tr><td colspan="2">${typeof details.services === "string" ? details.services : JSON.stringify(details.services)}</td></tr>
+    </table>
+    ` : ""}
+
+    <!-- Note -->
+    <div class="note-block">
+      <div>
+        <strong style="color:#02665e;">Important:</strong>&nbsp;
+        Present your booking code at the property on arrival. This document is proof of your confirmed reservation.
+        For assistance contact&nbsp;<strong>${supportEmail}</strong>${supportPhone ? `&nbsp;&bull;&nbsp;<strong>${supportPhone}</strong>` : ""}.
       </div>
-      ` : ""}
-      ${details.rooms ? `
-      <div class="detail-row">
-        <span class="detail-label">Number of Rooms:</span>
-        <span class="detail-value">${details.rooms}</span>
+    </div>
+
+  </div><!-- /body-pad -->
+
+  <!-- Footer -->
+  <div class="doc-footer">
+    <div>
+      <div class="footer-brand">NoLSAF</div>
+      <div class="footer-info">
+        <b>Email:</b> ${supportEmail}<br>
+        ${supportPhone ? `<b>Phone:</b> ${supportPhone}<br>` : ""}
+        <b>Web:</b> ${supportWebsite}
       </div>
-      ` : ""}
-      <div class="detail-row">
-        <span class="detail-label">Check-in Date:</span>
-        <span class="detail-value">${checkIn}</span>
-      </div>
-      <div class="detail-row">
-        <span class="detail-label">Check-out Date:</span>
-        <span class="detail-value">${checkOut}</span>
-      </div>
-      <div class="detail-row">
-        <span class="detail-label">Number of Nights:</span>
-        <span class="detail-value">${nights}</span>
-      </div>
-      <div class="detail-row">
-        <span class="detail-label">Total Amount:</span>
-        <span class="detail-value"><strong>${amount} TZS</strong></span>
-      </div>
-      ${details.invoice?.receiptNumber ? `
-      <div class="detail-row">
-        <span class="detail-label">Receipt Number:</span>
-        <span class="detail-value">${details.invoice.receiptNumber}</span>
-      </div>
-      ` : ""}
-      ${paidAt ? `
-      <div class="detail-row">
-        <span class="detail-label">Payment Date:</span>
-        <span class="detail-value">${paidAt}</span>
-      </div>
-      ` : ""}
+      <div class="footer-generated">Printed: ${generatedAt}</div>
+    </div>
+    <div class="qr-wrap">
+      ${qrCodeDataUrl
+        ? `<img src="${qrCodeDataUrl}" alt="QR Code" /><div class="qr-label">Scan to verify</div>`
+        : `<div class="qr-empty">QR<br/>unavailable</div>`}
     </div>
   </div>
 
-  ${details.services ? `
-  <div class="section">
-    <div class="section-title">Inclusive Services</div>
-    <div class="section-content">
-      <div style="color: #333;">${typeof details.services === 'string' ? details.services : JSON.stringify(details.services, null, 2)}</div>
-    </div>
-  </div>
-  ` : ""}
-
-  <div class="important">
-    <strong>Important Instructions:</strong>
-    <ul style="margin: 10px 0; padding-left: 20px;">
-      <li>Please present this booking code at the property during check-in</li>
-      <li>This code is unique to your booking and will be used to verify your reservation</li>
-      <li>Keep this document safe and bring it with you on your travel date</li>
-      <li>For any inquiries, contact: ${supportEmail}${supportPhone ? ` • ${supportPhone}` : ""}</li>
-    </ul>
-  </div>
-
-  <div class="footer">
-    <div class="footer-grid">
-      <div class="footer-left">
-        <p class="footer-title">NoLSAF — Your Stay, Our Promise</p>
-        <div class="footer-meta">
-          Official booking confirmation • Generated on ${generatedAt}
-        </div>
-        <div class="contact">
-          <div><span>Support:</span> ${supportEmail}</div>
-          ${supportPhone ? `<div><span>Phone:</span> ${supportPhone}</div>` : ""}
-          <div><span>Website:</span> ${supportWebsite}</div>
-        </div>
-      </div>
-      <div style="text-align: center;">
-        ${qrCodeDataUrl ? `
-        <img src="${qrCodeDataUrl}" alt="Booking QR Code" class="qr-code" />
-        <div style="font-size: 10px; margin-top: 6px; color: #64748b; font-weight: 700;">Scan to verify</div>
-        ` : `
-        <div class="qr-placeholder">QR Code<br/>Unavailable</div>
-        `}
-      </div>
-    </div>
-  </div>
-    </div>
-  </div>
+</div><!-- /sheet -->
 </body>
 </html>
   `;

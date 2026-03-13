@@ -1,10 +1,11 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import Link from "next/link";
 import Image from "next/image";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Mail, Phone, Calendar, User, Home, DollarSign, FileText, Star } from "lucide-react";
+import { ArrowLeft, Download, Mail, Phone, Calendar, Printer, User, Home, DollarSign, FileText, Star, X } from "lucide-react";
+import { sanitizeTrustedHtml } from "@/utils/html";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
 
@@ -80,6 +81,97 @@ export default function ManagementBookingDetail() {
   const id = Number(idParam);
   const [booking, setBooking] = useState<BookingDetail | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // ── Receipt modal ─────────────────────────────────────────────────────────
+  const [receiptInvoiceId, setReceiptInvoiceId] = useState<number | null>(null);
+  const [receiptHtml, setReceiptHtml] = useState<string>("");
+  const [receiptLoading, setReceiptLoading] = useState(false);
+  const [receiptFilename, setReceiptFilename] = useState<string>("");
+  const [receiptPdfUrl, setReceiptPdfUrl] = useState<string | null>(null);
+  const [receiptPdfBusy, setReceiptPdfBusy] = useState(false);
+  const [receiptIframeH, setReceiptIframeH] = useState<number>(600);
+  const receiptContainerRef = useRef<HTMLDivElement | null>(null);
+
+  const sanitizedReceiptHtml = useMemo(
+    () => (receiptHtml ? sanitizeTrustedHtml(receiptHtml) : ""),
+    [receiptHtml]
+  );
+
+  const openReceipt = useCallback(async (invoiceId: number) => {
+    setReceiptInvoiceId(invoiceId);
+    setReceiptHtml("");
+    setReceiptPdfUrl(null);
+    setReceiptIframeH(600);
+    setReceiptLoading(true);
+    setReceiptFilename(`Booking-Receipt-invoice-${invoiceId}.pdf`);
+    try {
+      const r = await fetch(`/api/admin/revenue/invoices/${invoiceId}/receipt.html`, {
+        credentials: "include",
+        cache: "no-store",
+      });
+      const html = await r.text();
+      if (!r.ok) throw new Error(`Failed to load receipt (${r.status})`);
+      const fn = r.headers.get("x-nolsaf-filename") || `Booking-Receipt-invoice-${invoiceId}.pdf`;
+      setReceiptFilename(fn);
+      setReceiptHtml(html);
+    } catch {
+      setReceiptHtml("");
+    } finally {
+      setReceiptLoading(false);
+    }
+  }, []);
+
+  const closeReceipt = useCallback(() => {
+    setReceiptInvoiceId(null);
+    setReceiptHtml("");
+    setReceiptPdfUrl(null);
+  }, []);
+
+  const printReceipt = useCallback(() => {
+    const root = receiptContainerRef.current;
+    if (!root) return;
+    const el = (root.querySelector(".sheet") as HTMLElement | null) || root;
+    const w = window.open("", "", "width=760,height=980");
+    if (!w) return;
+    w.document.write(
+      `<!DOCTYPE html><html><head><title>Booking Receipt</title><style>*{box-sizing:border-box}body{margin:0;padding:0;background:#fff}</style></head><body>${el.outerHTML}</body></html>`
+    );
+    w.document.close();
+    w.focus();
+    setTimeout(() => { w.print(); }, 400);
+  }, []);
+
+  useEffect(() => {
+    let revoked: string | null = null;
+    async function gen() {
+      if (!sanitizedReceiptHtml || receiptInvoiceId === null) return;
+      const root = receiptContainerRef.current;
+      if (!root) return;
+      const el = (root.querySelector(".sheet") as HTMLElement | null) || root;
+      setReceiptPdfBusy(true);
+      try {
+        const mod: any = await import("html2pdf.js");
+        const h2p = mod.default || mod;
+        if (!h2p) throw new Error("html2pdf failed");
+        const pdf = await h2p().from(el).set({
+          filename: receiptFilename,
+          margin: 0,
+          jsPDF: { unit: "mm", format: "a5", orientation: "portrait" },
+          html2canvas: { scale: 2, useCORS: true, logging: false, windowWidth: 558 },
+          pagebreak: { mode: [] },
+        }).toPdf().get("pdf");
+        const url = pdf.output("bloburl");
+        revoked = url;
+        setReceiptPdfUrl(url);
+      } catch {
+        setReceiptPdfUrl(null);
+      } finally {
+        setReceiptPdfBusy(false);
+      }
+    }
+    gen();
+    return () => { if (revoked) { try { URL.revokeObjectURL(revoked); } catch {} } };
+  }, [sanitizedReceiptHtml, receiptInvoiceId, receiptFilename]);
 
   const load = React.useCallback(async () => {
     try {
@@ -468,14 +560,11 @@ export default function ManagementBookingDetail() {
                         </Link>
                         <button
                           type="button"
-                          onClick={() => {
-                            const url = `/admin/management/invoices/${invoice.id}/receipt`;
-                            window.open(url, "_blank", "noopener,noreferrer");
-                          }}
+                          onClick={() => openReceipt(invoice.id)}
                           className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#02665e] text-white shadow-sm hover:shadow-md hover:bg-[#014e47] active:scale-[0.99] transition-all"
-                          title="Open the same receipt the customer sees"
+                          title="View receipt"
                         >
-                          <DollarSign className="h-4 w-4" />
+                          <FileText className="h-4 w-4" />
                           Receipt
                         </button>
                         {invoice.receiptNumber && (
@@ -513,10 +602,114 @@ export default function ManagementBookingDetail() {
               </div>
             ) : (
               <div className="text-sm text-gray-500">No invoices available</div>
-            )}
-          </div>
+            )}          </div>
         </div>
       </div>
+
+      {/* ── Receipt modal ── */}
+      {receiptInvoiceId !== null && (
+        <div
+          className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6"
+          onClick={closeReceipt}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="flex items-center justify-between px-5 py-3.5 bg-white border-b border-gray-200 shrink-0"
+              style={{ borderTop: "3px solid #02665e" }}
+            >
+              <div className="flex items-center gap-3">
+                <div
+                  className="flex items-center justify-center w-9 h-9 rounded-xl shrink-0"
+                  style={{ background: "rgba(2,102,94,0.08)" }}
+                >
+                  <FileText className="h-4 w-4" style={{ color: "#02665e" }} />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900 leading-tight">Booking Receipt</p>
+                  <p className="text-xs text-gray-400 leading-tight">NoLSAF</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={printReceipt}
+                  disabled={receiptLoading || !receiptHtml}
+                  title="Print receipt"
+                  className="h-9 w-9 flex items-center justify-center rounded-lg text-white shadow-sm transition hover:opacity-85 disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={{ background: "#02665e" }}
+                >
+                  <Printer className="h-4 w-4" />
+                </button>
+                <a
+                  href={receiptPdfUrl || "#"}
+                  download={receiptFilename}
+                  onClick={(e) => { if (!receiptPdfUrl) e.preventDefault(); }}
+                  title={receiptPdfBusy ? "Generating PDF…" : "Download PDF"}
+                  className={`no-underline h-9 w-9 flex items-center justify-center rounded-lg border transition ${
+                    receiptPdfUrl
+                      ? "border-gray-300 text-gray-600 hover:bg-gray-50"
+                      : "border-gray-200 text-gray-300 cursor-not-allowed"
+                  }`}
+                >
+                  {receiptPdfBusy
+                    ? <span className="h-4 w-4 border-2 border-gray-300 rounded-full animate-spin" style={{ borderTopColor: "#02665e" }} />
+                    : <Download className="h-4 w-4" />}
+                </a>
+                <div className="w-px h-5 bg-gray-200 mx-0.5" />
+                <button
+                  type="button"
+                  onClick={closeReceipt}
+                  title="Close"
+                  className="h-9 w-9 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition shrink-0"
+                  aria-label="Close receipt"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto bg-gray-100 p-4 sm:p-6">
+              {receiptLoading ? (
+                <div className="flex flex-col items-center justify-center h-48 gap-3">
+                  <div className="w-8 h-8 border-2 border-gray-200 rounded-full animate-spin" style={{ borderTopColor: "#02665e" }} />
+                  <p className="text-sm text-gray-500">Loading receipt…</p>
+                </div>
+              ) : receiptHtml ? (
+                <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                  {receiptPdfUrl ? (
+                    <iframe title="Receipt PDF" src={receiptPdfUrl} className="w-full" style={{ height: "75vh" }} />
+                  ) : (
+                    <iframe
+                      title="Receipt"
+                      srcDoc={sanitizedReceiptHtml}
+                      className="w-full block border-0"
+                      style={{ height: receiptIframeH }}
+                      onLoad={(e) => {
+                        const doc = e.currentTarget.contentDocument;
+                        const h = doc?.documentElement?.scrollHeight || doc?.body?.scrollHeight || 600;
+                        setReceiptIframeH(h);
+                      }}
+                    />
+                  )}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-48 gap-2">
+                  <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center">
+                    <X className="h-5 w-5 text-red-400" />
+                  </div>
+                  <p className="text-sm font-medium text-red-500">Receipt unavailable</p>
+                  <p className="text-xs text-gray-400">Please try again or contact support</p>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="fixed left-[-10000px] top-0 pointer-events-none">
+            <div ref={receiptContainerRef} dangerouslySetInnerHTML={{ __html: sanitizedReceiptHtml }} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

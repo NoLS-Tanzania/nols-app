@@ -7,124 +7,58 @@ import { ArrowLeft, Download } from "lucide-react";
 import { sanitizeTrustedHtml } from "@/utils/html";
 import LogoSpinner from "@/components/LogoSpinner";
 
-export default function AdminReceiptPdfPage() {
+export default function BookingReceiptPage() {
   const routeParams = useParams<{ id?: string | string[] }>();
   const idParam = Array.isArray(routeParams?.id) ? routeParams?.id?.[0] : routeParams?.id;
-  const invoiceId = Number(idParam);
+  const bookingId = Number(idParam);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [receiptHtml, setReceiptHtml] = useState<string>("");
-  const [filename, setFilename] = useState<string>(`Booking Reservation - invoice-${invoiceId}.pdf`);
-  const [printedAt, setPrintedAt] = useState<string>("");
-  const [printedBy, setPrintedBy] = useState<string>("");
+  const [filename, setFilename] = useState<string>(`Booking-Receipt-${bookingId}.pdf`);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pdfGenerating, setPdfGenerating] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  const backHref = useMemo(() => "/admin/management/bookings", []);
+  const backHref = useMemo(() => `/account/bookings/${bookingId}`, [bookingId]);
 
-  const receiptHtmlWithMeta = useMemo(() => {
-    if (!receiptHtml) return "";
-    if (!printedAt && !printedBy) return receiptHtml;
-    if (receiptHtml.includes("Printed on:")) return receiptHtml; // avoid double injection
-
-    const safeText = (s: string) =>
-      String(s || "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;");
-
-    const metaLine = `Printed on: <span style="font-weight:700;color:#0f172a;">${safeText(printedAt)}</span> • Printed by: <span style="font-weight:700;color:#0f172a;">${safeText(printedBy || "Admin")}</span>`;
-
-    // Add minimal CSS (safe even if inline styles exist in template already)
-    let html = receiptHtml.replace(
-      /<\/style>/i,
-      `\n.print-meta{margin-top:8px;font-size:10px;color:#64748b;line-height:1.35;}\n</style>`
-    );
-
-    // Prefer inserting inside footer meta (near "Generated on ...")
-    if (html.includes("Official booking confirmation")) {
-      html = html.replace(
-        /(Official booking confirmation • Generated on [^<\n]+)(\s*)/,
-        `$1<br/><span class="print-meta">${metaLine}</span>$2`
-      );
-      return html;
-    }
-
-    // Fallback: insert into footer-left block before the QR column
-    if (html.includes('class="footer-left"')) {
-      html = html.replace(
-        /(<div class="footer-left"[^>]*>)/,
-        `$1<div class="print-meta">${metaLine}</div>`
-      );
-    }
-    return html;
-  }, [receiptHtml, printedAt, printedBy]);
-
-  const sanitizedReceiptHtmlWithMeta = useMemo(() => {
-    return sanitizeTrustedHtml(receiptHtmlWithMeta);
-  }, [receiptHtmlWithMeta]);
-
-  // Load current admin (for "Printed by")
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const r = await fetch("/api/account/me", { credentials: "include", cache: "no-store" });
-        const j = r.ok ? await r.json() : null;
-        const safe = j?.data ?? j ?? null;
-        const name = safe?.name || safe?.fullName || null;
-        const role = safe?.role || null;
-        const id = safe?.id || null;
-        if (!mounted) return;
-        const label = name ? String(name) : (role && id ? `${String(role)} #${String(id)}` : "Admin");
-        setPrintedBy(label);
-      } catch {
-        if (mounted) setPrintedBy("Admin");
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, []);
+  const sanitizedReceiptHtml = useMemo(() => {
+    return sanitizeTrustedHtml(receiptHtml);
+  }, [receiptHtml]);
 
   const load = useCallback(async () => {
     setLoading(true);
     setErr(null);
     try {
-      const url = `/api/admin/revenue/invoices/${invoiceId}/receipt.html`;
+      const url = `/api/customer/bookings/${bookingId}/receipt.html`;
       const r = await fetch(url, { credentials: "include", cache: "no-store" });
       const html = await r.text();
       if (!r.ok) {
-        throw new Error(`Failed to load receipt template (${r.status})`);
+        throw new Error(`Failed to load receipt (${r.status})`);
       }
-      const fn = r.headers.get("x-nolsaf-filename") || `Booking Reservation - invoice-${invoiceId}.pdf`;
+      const fn = r.headers.get("x-nolsaf-filename") || `Booking-Receipt-${bookingId}.pdf`;
       setFilename(fn);
       setReceiptHtml(html);
-      setPrintedAt((prev) => prev || new Date().toLocaleString());
     } catch (e: any) {
       setErr(e?.message || "Failed to load receipt");
       setReceiptHtml("");
     } finally {
       setLoading(false);
     }
-  }, [invoiceId]);
+  }, [bookingId]);
 
   useEffect(() => {
-    if (!Number.isFinite(invoiceId) || invoiceId <= 0) {
-      setErr("Invalid invoice ID");
+    if (!Number.isFinite(bookingId) || bookingId <= 0) {
+      setErr("Invalid booking ID");
       setLoading(false);
       return;
     }
     load();
-  }, [invoiceId, load]);
+  }, [bookingId, load]);
 
   useEffect(() => {
     let revokedUrl: string | null = null;
     async function gen() {
-      if (!sanitizedReceiptHtmlWithMeta) return;
+      if (!sanitizedReceiptHtml) return;
       const root = containerRef.current;
       if (!root) return;
 
@@ -136,7 +70,6 @@ export default function AdminReceiptPdfPage() {
         const h2p = html2pdfModule && (html2pdfModule.default || html2pdfModule);
         if (!h2p) throw new Error("html2pdf load failed");
 
-        // Match the legacy template (A5 portrait).
         const worker = h2p().from(el).set({
           filename,
           margin: 0,
@@ -162,7 +95,7 @@ export default function AdminReceiptPdfPage() {
         try { URL.revokeObjectURL(revokedUrl); } catch {}
       }
     };
-  }, [sanitizedReceiptHtmlWithMeta, filename, invoiceId, printedAt, printedBy]);
+  }, [sanitizedReceiptHtml, filename, bookingId]);
 
   if (loading) {
     return (
@@ -229,16 +162,14 @@ export default function AdminReceiptPdfPage() {
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
-          <iframe title="Receipt Template" srcDoc={sanitizedReceiptHtmlWithMeta} className="w-full h-[75vh]" />
+          <iframe title="Receipt Template" srcDoc={sanitizedReceiptHtml} className="w-full h-[75vh]" />
         </div>
       )}
 
       {/* Hidden source HTML for PDF generation */}
       <div className="fixed left-[-10000px] top-0">
-        <div ref={containerRef} dangerouslySetInnerHTML={{ __html: sanitizedReceiptHtmlWithMeta }} />
+        <div ref={containerRef} dangerouslySetInnerHTML={{ __html: sanitizedReceiptHtml }} />
       </div>
     </div>
   );
 }
-
-

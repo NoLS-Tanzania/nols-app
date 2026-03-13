@@ -3,6 +3,7 @@ import type { RequestHandler } from "express";
 import { prisma } from "@nolsaf/prisma";
 import { AuthedRequest, requireAuth } from "../middleware/auth.js";
 import { generateBookingTicketPdf } from "../lib/pdfDocuments.js";
+import { generateBookingPDF } from "../lib/pdfGenerator.js";
 
 export const router = Router();
 router.use(requireAuth as RequestHandler);
@@ -362,6 +363,84 @@ router.get("/:id/pdf", (async (req: AuthedRequest, res) => {
   } catch (error: any) {
     console.error("GET /customer/bookings/:id/pdf error:", error);
     return res.status(500).json({ error: "Failed to generate PDF" });
+  }
+}) as RequestHandler);
+
+/**
+ * GET /api/customer/bookings/:id/receipt.html
+ * Returns the same HTML receipt the admin sees — rendered client-side to PDF via html2pdf.js.
+ */
+router.get("/:id/receipt.html", (async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const bookingId = Number(req.params.id);
+    if (!Number.isFinite(bookingId) || bookingId <= 0) {
+      return res.status(400).json({ error: "Invalid booking ID" });
+    }
+
+    const userContact = await getUserContact(userId);
+    const tail9 = getTail9Digits(userContact.phone);
+    const legacyBookingIds = tail9 ? await findLegacyBookingIdsByPhoneTail(tail9) : [];
+
+    const booking = await prisma.booking.findFirst({
+      where: {
+        id: bookingId,
+        ...buildCustomerBookingWhere({ id: userId }, legacyBookingIds),
+      },
+      include: {
+        property: true,
+        code: true,
+        user: { select: { name: true, phone: true } },
+        invoice: { select: { invoiceNumber: true, receiptNumber: true, paidAt: true } },
+      },
+    });
+
+    if (!booking) return res.status(404).json({ error: "Booking not found" });
+    if (!booking.code?.codeVisible) return res.status(400).json({ error: "Booking code not available" });
+
+    const inv: any = (booking as any).invoice;
+    const nights = Math.max(1, Math.ceil(
+      (new Date(booking.checkOut).getTime() - new Date(booking.checkIn).getTime()) / 86400000
+    ));
+
+    const bookingDetails: any = {
+      bookingId: booking.id,
+      bookingCode: booking.code.codeVisible,
+      guestName: booking.guestName || booking.user?.name || "Guest",
+      guestPhone: booking.guestPhone || booking.user?.phone || undefined,
+      property: {
+        title: booking.property?.title || "Property",
+        type: (booking.property as any)?.type || "Property",
+        regionName: booking.property?.regionName || undefined,
+        district: booking.property?.district || undefined,
+        city: booking.property?.city || undefined,
+        country: booking.property?.country || "Tanzania",
+      },
+      checkIn: booking.checkIn,
+      checkOut: booking.checkOut,
+      roomType: (booking as any).roomType || (booking as any).roomCode || undefined,
+      rooms: (booking as any).roomsQty || undefined,
+      nights,
+      totalAmount: Number(booking.totalAmount || 0),
+      invoice: inv ? {
+        invoiceNumber: inv.invoiceNumber || undefined,
+        receiptNumber: inv.receiptNumber || undefined,
+        paidAt: inv.paidAt || undefined,
+      } : undefined,
+    };
+
+    const { html } = await generateBookingPDF(bookingDetails);
+    if (!html) return res.status(500).json({ error: "Failed to generate receipt" });
+
+    const codeVisible = booking.code.codeVisible;
+    const safeFilename = `Booking Reservation - ${codeVisible}.pdf`.replace(/"/g, '\\"');
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader("Content-Disposition", `inline; filename="${safeFilename}"`);
+    res.setHeader("X-NoLSAF-Filename", safeFilename);
+    return res.send(html);
+  } catch (error: any) {
+    console.error("GET /customer/bookings/:id/receipt.html error:", error);
+    return res.status(500).json({ error: "Failed to generate receipt" });
   }
 }) as RequestHandler);
 

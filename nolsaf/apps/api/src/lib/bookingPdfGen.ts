@@ -37,6 +37,7 @@ export interface BookingPdfData {
   totalAmount:  number | string;
   roomsQty?:    number;
   currency?:    string;
+  paidAt?:      Date | string | null;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -328,10 +329,13 @@ export async function generateBookingReservationPdf(data: BookingPdfData): Promi
     ["Duration",  `${nights} night${nights !== 1 ? "s" : ""}`],
   ]);
 
+  const paidAtStr = data.paidAt
+    ? new Date(data.paidAt).toLocaleString("en-US", { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" })
+    : "CONFIRMED";
   miniCard(PAD + colW + colGap, curY, colW, row1H, "Payment", [
     ["Amount",   `${currency} ${Number(data.totalAmount).toLocaleString("en-US")}`],
     ["Rooms",    String(data.roomsQty ?? 1)],
-    ["Status",   "CONFIRMED"],
+    ["Paid",     paidAtStr],
   ]);
   curY += row1H + 4;
 

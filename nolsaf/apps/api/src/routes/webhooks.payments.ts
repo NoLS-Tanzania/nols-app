@@ -7,7 +7,7 @@ import { invalidateOwnerReports } from "../lib/cache.js";
 import { sendSms } from "../lib/sms.js";
 import { sendMail } from "../lib/mailer.js";
 import { getBookingReceivedEmail } from "../lib/bookingEmailTemplates.js";
-import { generateBookingReservationPdf, generatePaymentReceiptPdf } from "../lib/bookingPdfGen.js";
+import { generateBookingReservationPdf } from "../lib/bookingPdfGen.js";
 import crypto from "crypto";
 import { generateBookingCodeForBooking } from "../lib/bookingCodeService.js";
 import rateLimit from "express-rate-limit";
@@ -568,9 +568,10 @@ router.post("/azampay", webhookLimiter, async (req: any, res) => {
             totalAmount: totalPaid,
             roomsQty,
             currency,
+            paidAt:      updated.paidAt ?? new Date(),
           };
 
-          const [{ subject, html }, reservationPdf, paymentPdf] = await Promise.all([
+          const [{ subject, html }, reservationPdf] = await Promise.all([
             Promise.resolve(getBookingReceivedEmail({
               guestName:    pdfData.guestName,
               propertyName: pdfData.propertyName,
@@ -582,13 +583,11 @@ router.post("/azampay", webhookLimiter, async (req: any, res) => {
               roomsQty:     pdfData.roomsQty,
             })),
             generateBookingReservationPdf(pdfData),
-            generatePaymentReceiptPdf(pdfData),
           ]);
 
           if (guestEmail) {
             await sendMail(guestEmail, subject, html, [
               { filename: `NolSAF-Booking-${refCode}.pdf`, content: reservationPdf },
-              { filename: `NolSAF-Payment-${refCode}.pdf`, content: paymentPdf },
             ]);
           }
 
