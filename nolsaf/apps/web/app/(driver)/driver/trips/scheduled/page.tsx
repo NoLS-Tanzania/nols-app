@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import axios from "axios";
 import {
   Car,
@@ -124,8 +125,8 @@ function ClaimConfirmModal({
   if (!open) return null;
   const canConfirm = termsAccepted && auctionAccepted && !confirming;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="presentation">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" role="presentation">
       <div className="absolute inset-0 bg-black/40" onClick={onCancel} />
       <div
         role="dialog"
@@ -182,7 +183,8 @@ function ClaimConfirmModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -270,19 +272,19 @@ function TripPreviewModal({
   );
   const hasRatings = Boolean(trip.userRating || trip.userReview || trip.driverRating || trip.driverReview);
 
-  return (
-    <div className="fixed inset-0 z-50 overflow-hidden" role="presentation">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] overflow-hidden" role="presentation">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-[3px]" onClick={closePreview} />
 
-      <div className="relative z-10 flex min-h-full items-end justify-center px-3 pb-[calc(env(safe-area-inset-bottom)+5rem)] sm:pb-6 sm:items-center sm:px-4 sm:py-6">
+      <div className="absolute inset-0 z-10 grid place-items-center px-3 py-4 sm:px-4 sm:py-6">
         <div
           role="dialog"
           aria-modal="true"
           aria-label="Trip details"
-          className="w-full sm:max-w-md max-h-[calc(100svh-(env(safe-area-inset-top)+1rem))] sm:max-h-[calc(100svh-3rem)] overflow-hidden flex flex-col rounded-t-[2rem] rounded-b-none sm:rounded-[2rem] shadow-[0_32px_80px_rgba(0,0,0,0.5)] border border-white/10"
+          className="relative h-[min(88svh,46rem)] w-full max-w-md overflow-hidden flex flex-col rounded-[2rem] shadow-[0_32px_80px_rgba(0,0,0,0.5)] border border-white/10"
         >
           {/* Mobile grab handle */}
-          <div className="sm:hidden bg-slate-900 px-3 pt-3 flex-shrink-0">
+          <div className="hidden bg-slate-900 px-3 pt-3 flex-shrink-0">
             <div className="mx-auto h-1 w-10 rounded-full bg-white/20" />
           </div>
 
@@ -329,16 +331,38 @@ function TripPreviewModal({
               </div>
 
               <div className="flex items-end gap-2">
-                {typeof trip.claimsRemaining === "number" ? (
-                  <div className={`text-center rounded-2xl px-3 py-2 border ${trip.claimsRemaining <= 1 ? "bg-rose-950/70 border-rose-700/60" : "bg-white/6 border-white/12"}`}>
-                    <div className={`text-xl font-black leading-none ${trip.claimsRemaining <= 1 ? "text-rose-400" : "text-white"}`}>
-                      {trip.claimsRemaining}
+                {typeof trip.claimsRemaining === "number" ? (() => {
+                  const limit = trip.claimLimit ?? 5;
+                  const remaining = trip.claimsRemaining;
+                  const pct = limit > 0 ? Math.max(0, Math.min(1, remaining / limit)) : 0;
+                  const urgent = remaining <= 1;
+                  const low = remaining <= 2 && !urgent;
+                  const fillColor = urgent ? "#f87171" : low ? "#fbbf24" : "#34d399";
+                  const ringColor = urgent ? "border-rose-500/70" : low ? "border-amber-400/60" : "border-emerald-400/40";
+                  const bgColor = urgent ? "bg-rose-950/80" : low ? "bg-amber-950/60" : "bg-white/5";
+                  const numColor = urgent ? "text-rose-400" : low ? "text-amber-300" : "text-white";
+                  const labelColor = urgent ? "text-rose-400/80" : low ? "text-amber-300/70" : "text-white/40";
+                  return (
+                    <div className={`relative flex flex-col items-center rounded-2xl px-3 pt-2 pb-2.5 border ${bgColor} ${ringColor} min-w-[3.5rem] overflow-hidden`}>
+                      {/* subtle glow behind number */}
+                      {urgent && <div className="pointer-events-none absolute inset-0 rounded-2xl bg-rose-500/10 blur-sm" />}
+                      {low && <div className="pointer-events-none absolute inset-0 rounded-2xl bg-amber-400/8 blur-sm" />}
+                      <div className={`text-2xl font-black leading-none tabular-nums ${numColor} ${urgent ? "animate-pulse" : ""}`}>
+                        {remaining}
+                      </div>
+                      <div className={`text-[9px] font-bold uppercase tracking-widest mt-0.5 ${labelColor}`}>
+                        {remaining === 1 ? "slot left" : "slots left"}
+                      </div>
+                      {/* fill bar */}
+                      <div className="mt-1.5 w-full h-1 rounded-full bg-white/10 overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-500"
+                          style={{ width: `${pct * 100}%`, backgroundColor: fillColor }}
+                        />
+                      </div>
                     </div>
-                    <div className={`text-[9px] font-bold uppercase tracking-wide mt-0.5 ${trip.claimsRemaining <= 1 ? "text-rose-400/80" : "text-white/35"}`}>
-                      {trip.claimsRemaining === 1 ? "slot left" : "slots left"}
-                    </div>
-                  </div>
-                ) : null}
+                  );
+                })() : null}
 
                 {pickupCountdown ? (
                   <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-2xl border ${pickupCountdown.classes}`}>
@@ -548,10 +572,10 @@ function TripPreviewModal({
               ) : null}
             </div>
           </div>
-
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -1084,11 +1108,8 @@ export default function DriverScheduledTripsPage() {
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-4 items-start">
-                {/* List */}
-                <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-                  <div className="divide-y divide-slate-100">
-                    {trips.map((trip) => {
+              <div className="grid grid-cols-1 gap-3 items-start">
+                {trips.map((trip) => {
                       const active = selectedTripId === trip.id;
                       const dateLabel = `${formatDate(trip.scheduledDate)}${
                         formatTime(trip.scheduledDate) ? ` • ${formatTime(trip.scheduledDate)}` : ""
@@ -1102,17 +1123,14 @@ export default function DriverScheduledTripsPage() {
                           tabIndex={0}
                           onClick={() => setSelectedTripId(trip.id)}
                           className={
-                            "px-4 sm:px-5 py-4 transition-colors cursor-pointer [-webkit-tap-highlight-color:transparent] border-l-4 " +
-                            (statusPill ? statusPill.rowBorder + " " : "border-l-transparent ") +
+                            "rounded-2xl border bg-white shadow-sm cursor-pointer transition-all duration-150 [-webkit-tap-highlight-color:transparent] overflow-hidden border-l-4 " +
+                            (statusPill ? statusPill.rowBorder + " " : "border-l-[#02665e]/60 ") +
                             (active
-                              ? statusPill
-                                ? statusPill.rowActive
-                                : "bg-slate-50"
-                              : statusPill
-                                ? statusPill.rowHover
-                                : "hover:bg-slate-50")
+                              ? "border-slate-200 ring-2 ring-[#02665e]/20 bg-emerald-50/30 "
+                              : "border-slate-200 hover:shadow-md hover:border-slate-300 ")
                           }
                         >
+                        <div className="px-4 sm:px-5 py-4">
                           <div className="flex items-start gap-4">
                             <div className="text-2xl mt-0.5">{getVehicleIcon(trip.vehicleType)}</div>
 
@@ -1284,10 +1302,9 @@ export default function DriverScheduledTripsPage() {
                             </div>
                           </div>
                         </div>
+                        </div>
                       );
                     })}
-                  </div>
-                </section>
               </div>
             )}
           </main>

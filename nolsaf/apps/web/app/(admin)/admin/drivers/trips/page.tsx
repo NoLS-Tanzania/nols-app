@@ -685,6 +685,13 @@ export default function AdminDriversTripsPage() {
     }, 220);
   };
 
+  const handoffDetailsToAssign = (trip: TripRow) => {
+    closeDetails();
+    window.setTimeout(() => {
+      openAssign(trip);
+    }, 220);
+  };
+
   const openCommissionModal = (action: "approve" | "pay", payload: CommissionAckPayload) => {
     setCommissionAction(action);
     setCommissionPayload(payload);
@@ -1087,7 +1094,6 @@ export default function AdminDriversTripsPage() {
 
             {/* Assignment pills + status select */}
             <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center w-full">
-              {/* Assignment pills — All / Assigned / Unassigned only (no duplicate Needs-takeover pill) */}
               <div className="flex gap-2 items-center flex-wrap">
                 {([
                   { label: "All",        value: "all"        as const, bg: "rgba(255,255,255,0.18)", border: "rgba(255,255,255,0.38)", color: "#ffffff",  inBg: "rgba(255,255,255,0.06)", inBorder: "rgba(255,255,255,0.13)" },
@@ -1109,7 +1115,6 @@ export default function AdminDriversTripsPage() {
                 })}
               </div>
 
-              {/* Status dropdown — dark glass */}
               <div className="w-full sm:w-auto sm:ml-auto sm:min-w-[220px]">
                 <label className="sr-only" htmlFor="tripStatus">Trip status</label>
                 <select
@@ -1149,7 +1154,7 @@ export default function AdminDriversTripsPage() {
               <p className="text-sm text-gray-500">No trips found.</p>
               <p className="text-xs text-gray-400 mt-1">Try adjusting your filters or search query.</p>
             </div>
-            
+
             {/* Trip Statistics Histogram */}
             <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm transition-all duration-300 hover:shadow-lg hover:border-blue-300 hover:-translate-y-1 group">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
@@ -1173,11 +1178,11 @@ export default function AdminDriversTripsPage() {
                       key={p.value}
                       type="button"
                       onClick={() => setHistogramPeriod(p.value)}
-                  className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-all duration-300 whitespace-nowrap ${
-                    histogramPeriod === p.value
-                      ? "bg-blue-50 border-blue-300 text-blue-700 scale-105 shadow-md"
-                      : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50 hover:scale-105 hover:shadow-sm"
-                  }`}
+                      className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-all duration-300 whitespace-nowrap ${
+                        histogramPeriod === p.value
+                          ? "bg-blue-50 border-blue-300 text-blue-700 scale-105 shadow-md"
+                          : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50 hover:scale-105 hover:shadow-sm"
+                      }`}
                     >
                       {p.label}
                     </button>
@@ -1656,191 +1661,170 @@ export default function AdminDriversTripsPage() {
 
       {/* Assign Driver Modal */}
       {assignMounted && (
-        <div className={`fixed inset-0 z-50 ${assignOpen ? "" : "pointer-events-none"}`}>
+        <div className={`fixed inset-0 z-[90] ${assignOpen ? "" : "pointer-events-none"}`}>
           <div
-            className={`absolute inset-0 bg-black/50 transition-opacity duration-200 ${assignOpen ? "opacity-100" : "opacity-0"}`}
+            className={`absolute inset-0 bg-black/60 backdrop-blur-[3px] transition-opacity duration-200 ${assignOpen ? "opacity-100" : "opacity-0"}`}
             onClick={closeAssign}
           />
-          <div className="relative h-full w-full flex items-start sm:items-center justify-center p-3 sm:p-6 overflow-y-auto">
+          <div className="absolute inset-0 overflow-y-auto px-3 py-4 sm:p-6">
             <div
-              className={`relative w-full max-w-lg my-3 sm:my-0 max-h-[92vh] overflow-hidden rounded-2xl sm:rounded-3xl border border-white/30 shadow-2xl flex flex-col bg-gradient-to-b from-surface via-white to-brand-50 transition-all duration-200 ease-out ${
-                assignOpen ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-[0.98] translate-y-2"
+              className={`relative mx-auto my-0 w-full max-w-[44rem] flex flex-col rounded-[2rem] overflow-hidden shadow-[0_28px_90px_rgba(0,0,0,0.55)] border border-white/10 transition-all duration-200 ease-out ${
+                assignOpen ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-[0.97] translate-y-3"
               }`}
+              style={{ minHeight: "min(40rem, calc(100svh - 2rem))", maxHeight: "calc(100svh - 2rem)" }}
               role="dialog"
               aria-modal="true"
               aria-label="Assign driver"
             >
-              <div className="relative overflow-hidden border-b border-white/40">
-                <div className="absolute inset-0 bg-gradient-to-r from-brand-700 via-brand-600 to-brand-500" />
-                <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_20%_20%,white,transparent_40%),radial-gradient(circle_at_80%_10%,white,transparent_35%),radial-gradient(circle_at_40%_90%,white,transparent_35%)]" />
-                <div className="relative px-4 pt-5 pb-6 sm:px-6 sm:pt-6 sm:pb-6 flex items-start justify-between gap-3 text-white">
+              <div className="relative bg-slate-950 flex-shrink-0 overflow-hidden">
+                <div className="absolute inset-0 bg-[linear-gradient(135deg,#091a34_0%,#0b3157_38%,#02665e_100%)]" />
+                <div className="pointer-events-none absolute -top-24 left-[-4rem] h-56 w-56 rounded-full bg-sky-300/20 blur-3xl" />
+                <div className="pointer-events-none absolute -bottom-20 right-[-2rem] h-56 w-56 rounded-full bg-emerald-300/20 blur-3xl" />
+                <div className="pointer-events-none absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_14%_22%,white,transparent_30%),radial-gradient(circle_at_82%_18%,white,transparent_24%),radial-gradient(circle_at_55%_100%,white,transparent_34%)]" />
+                <div className="relative px-5 py-4 sm:px-6 sm:py-5 flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
-                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-                      <div className="min-w-0 text-base sm:text-lg font-semibold leading-snug truncate">Assign Driver</div>
-                      <div className="inline-flex max-w-[60vw] sm:max-w-none items-center gap-2 px-2 py-1 rounded-full bg-white/15 border border-white/25 backdrop-blur text-xs text-white">
-                        <span className="text-white/90">Trip</span>
-                        <span className="select-text break-all" title={assignTrip?.tripCode || ""}>{assignTrip?.tripCode || ""}</span>
-                      </div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.24em] text-white/45 mb-1.5">Assign Driver</div>
+                    <div className="text-lg sm:text-[1.45rem] font-black tracking-tight text-white break-all leading-tight" title={assignTrip?.tripCode || ""}>{assignTrip?.tripCode || "—"}</div>
+                    <div className="mt-2 inline-flex items-center rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-wide text-white/80 backdrop-blur-sm">
+                      Choose the best driver and leave a clear assignment reason
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={closeAssign}
-                    className="h-9 w-9 sm:h-10 sm:w-10 shrink-0 rounded-xl bg-white/15 border border-white/25 text-white hover:bg-white/20 transition"
-                    aria-label="Close"
-                    title="Close"
-                  >
-                    <X className="h-4 w-4 mx-auto" />
+                  <button type="button" onClick={closeAssign}
+                    className="flex-shrink-0 h-10 w-10 flex items-center justify-center rounded-2xl bg-white/10 border border-white/15 text-white/70 hover:bg-white/20 hover:text-white transition"
+                    aria-label="Close">
+                    <X className="h-4 w-4" />
                   </button>
                 </div>
               </div>
 
-              <div className="p-4 sm:p-6 flex-1 overflow-y-auto">
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-2">Search driver</label>
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      <input
-                        value={driverQuery}
-                        onChange={(e) => {
-                          setDriverQuery(e.target.value);
-                          if (assignError) setAssignError(null);
-                        }}
-                        placeholder="Name or email"
-                        className="w-full box-border pl-10 pr-10 py-2 rounded-xl border border-gray-300 bg-white/80 outline-none text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-                      />
-                      {driverLoading && (
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
-                          <Loader2 className="h-4 w-4 animate-spin" />
+              <div className="flex-1 min-h-0 overflow-y-auto bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)]">
+                <div className="p-4 sm:p-5 space-y-3.5 pb-[calc(env(safe-area-inset-bottom)+7rem)] sm:pb-5">
+                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+                    <div className="bg-white rounded-[1.7rem] border border-slate-200/80 shadow-[0_1px_0_rgba(15,23,42,0.04),0_16px_40px_rgba(15,23,42,0.08)] overflow-hidden">
+                      <div className="px-4 pt-4 pb-3 border-b border-slate-100/80 bg-slate-50/70">
+                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400 mb-2.5">Search Driver</div>
+                        <div className="relative">
+                          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                          <input
+                            value={driverQuery}
+                            onChange={(e) => { setDriverQuery(e.target.value); if (assignError) setAssignError(null); }}
+                            placeholder="Name or email"
+                            className="w-full box-border pl-11 pr-10 py-2.5 rounded-2xl border border-slate-200 bg-white outline-none text-sm font-semibold text-slate-900 placeholder:font-normal placeholder:text-slate-400 focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] transition-colors"
+                          />
+                          {driverLoading && (
+                            <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                              <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="rounded-2xl border border-gray-200/70 bg-white/70 backdrop-blur overflow-hidden">
-                    <div className="max-h-56 overflow-y-auto">
-                      {driverResults.length === 0 && !driverLoading ? (
-                        <div className="px-4 py-6 text-center text-sm text-gray-500">No drivers found</div>
-                      ) : (
-                        driverResults.map((d) => {
-                          const active = selectedDriver?.id === d.id;
-                          return (
-                            <button
-                              key={d.id}
-                              type="button"
-                              onClick={() => {
-                                setSelectedDriver(d);
-                                if (assignError) setAssignError(null);
-                              }}
-                              className={`w-full text-left px-4 py-3 border-b border-gray-100/70 transition ${
-                                active
-                                  ? "bg-brand-50"
-                                  : "bg-white/70 hover:bg-white"
-                              }`}
-                            >
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0">
-                                  <div className="text-sm font-semibold text-gray-900 truncate">{d.name || `Driver #${d.id}`}</div>
-                                  <div className="text-xs text-gray-500 break-words">{d.email}</div>
-                                  {d.phone ? <div className="text-xs text-gray-500">{d.phone}</div> : null}
+                      </div>
+                      <div className="max-h-[18rem] overflow-y-auto bg-white">
+                        {driverResults.length === 0 && !driverLoading ? (
+                          <div className="px-6 py-10 text-center">
+                            <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+                              <Search className="h-4 w-4" />
+                            </div>
+                            <div className="text-sm font-semibold text-slate-400">No drivers found</div>
+                          </div>
+                        ) : (
+                          driverResults.map((d) => {
+                            const active = selectedDriver?.id === d.id;
+                            return (
+                              <button key={d.id} type="button"
+                                onClick={() => { setSelectedDriver(d); if (assignError) setAssignError(null); }}
+                                className={`w-full text-left px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-3 transition-colors ${active ? "bg-[#02665e]/8" : "hover:bg-slate-50"}`}
+                              >
+                                <div className="min-w-0 flex items-center gap-3">
+                                  <div className={`h-10 w-10 rounded-2xl flex items-center justify-center text-xs font-black ${active ? "bg-[#02665e] text-white" : "bg-slate-100 text-slate-500"}`}>
+                                    {(d.name || `D${d.id}`).slice(0, 2).toUpperCase()}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <div className="text-[13px] font-black text-slate-900 truncate">{d.name || `Driver #${d.id}`}</div>
+                                    <div className="text-[11px] font-medium text-slate-500 break-words">{d.email}</div>
+                                    {d.phone ? <div className="text-[11px] text-slate-400">{d.phone}</div> : null}
+                                  </div>
                                 </div>
-                                <div
-                                  className={`h-6 w-6 rounded-full border flex items-center justify-center mt-0.5 ${
-                                    active ? "border-brand-600 bg-brand-600" : "border-gray-300 bg-white"
-                                  }`}
-                                  aria-hidden="true"
-                                >
-                                  {active ? <CheckCircle2 className="h-4 w-4 text-white" /> : null}
+                                <div className={`flex-shrink-0 h-5 w-5 rounded-full border-2 flex items-center justify-center transition-colors ${active ? "border-[#02665e] bg-[#02665e]" : "border-slate-300 bg-white"}`} aria-hidden="true">
+                                  {active ? <CheckCircle2 className="h-3.5 w-3.5 text-white" /> : null}
                                 </div>
-                              </div>
-                            </button>
-                          );
-                        })
-                      )}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between gap-3 mb-2">
-                      <label className="block text-xs font-medium text-gray-600">Reason (required)</label>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAssignReason("");
-                          setAssignSelectedPick(null);
-                          if (assignError) setAssignError(null);
-                          window.setTimeout(() => assignReasonRef.current?.focus(), 0);
-                        }}
-                        className="text-xs font-medium text-gray-600 hover:text-gray-900"
-                        disabled={actionBusy}
-                      >
-                        Clear
-                      </button>
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
                     </div>
 
-                    <div className="mb-3">
-                      <div className="text-[11px] font-medium tracking-wide uppercase text-gray-500 mb-2">Quick pick</div>
-                      <div className="flex flex-wrap gap-2">
+                    <div className="bg-white rounded-[1.7rem] border border-slate-200/80 shadow-sm overflow-hidden">
+                      <div className="px-4 pt-4 flex items-center justify-between">
+                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Reason</div>
+                        <button type="button" disabled={actionBusy}
+                          onClick={() => { setAssignReason(""); setAssignSelectedPick(null); if (assignError) setAssignError(null); window.setTimeout(() => assignReasonRef.current?.focus(), 0); }}
+                          className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500 hover:border-slate-300 hover:bg-white hover:text-slate-700 transition disabled:opacity-40">
+                          Clear
+                        </button>
+                      </div>
+                      <div className="px-4 pt-3 pb-2 grid grid-cols-2 gap-2">
                         {assignQuickPicks.map((pick) => (
-                          <button
-                            key={pick}
-                            type="button"
-                            onClick={() => applyAssignPick(pick)}
-                            disabled={actionBusy}
-                            title={pick}
-                            className={`px-3 py-1.5 rounded-full text-xs font-medium border transition disabled:opacity-50 ${
+                          <button key={pick} type="button" onClick={() => applyAssignPick(pick)} disabled={actionBusy} title={pick}
+                            className={`min-h-[2.75rem] px-3 py-2 rounded-[1.25rem] text-[11px] leading-4 font-black border transition disabled:opacity-50 ${
                               assignSelectedPick === pick
-                                ? "border-brand-600 bg-brand-600 text-white"
-                                : "border-gray-200 bg-white/80 text-gray-700 hover:bg-white hover:border-gray-300"
-                            }`}
-                          >
+                                ? "border-[#02665e] bg-[#02665e] text-white shadow-sm shadow-[#02665e]/20"
+                                : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-white"
+                            }`}>
                             {pick}
                           </button>
                         ))}
                       </div>
+                      <div className="px-4 pt-2 pb-4">
+                        <textarea
+                          ref={assignReasonRef}
+                          value={assignReason}
+                          onChange={(e) => { setAssignReason(e.target.value); if (assignSelectedPick) setAssignSelectedPick(null); if (assignError) setAssignError(null); }}
+                          placeholder="Why assign this driver?"
+                          rows={5}
+                          className={`block w-full box-border px-4 py-3 rounded-[1.25rem] border bg-slate-50 outline-none text-sm font-semibold text-slate-900 placeholder:font-normal placeholder:text-slate-400 resize-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] transition-colors ${assignError ? "border-red-300" : "border-slate-200"}`}
+                        />
+                        {assignError ? <div className="mt-2 text-xs font-semibold text-red-600">{assignError}</div> : null}
+                      </div>
                     </div>
-
-                    <textarea
-                      ref={assignReasonRef}
-                      value={assignReason}
-                      onChange={(e) => {
-                        setAssignReason(e.target.value);
-                        if (assignSelectedPick) setAssignSelectedPick(null);
-                        if (assignError) setAssignError(null);
-                      }}
-                      placeholder="Why assign this driver?"
-                      rows={3}
-                      className={`block w-full max-w-full box-border px-3 py-2 rounded-xl border bg-white/80 outline-none text-sm leading-relaxed text-gray-900 shadow-inner resize-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 ${
-                        assignError ? "border-red-300" : "border-gray-300"
-                      }`}
-                    />
-                    {assignError ? <div className="mt-2 text-xs text-red-600">{assignError}</div> : null}
                   </div>
                 </div>
               </div>
 
-              <div className="px-4 py-4 sm:px-6 sm:py-5 border-t border-gray-200/60 bg-white/60 backdrop-blur flex items-center justify-end">
+              <div className="flex-shrink-0 border-t border-slate-200/80 bg-white/95 px-4 py-4 backdrop-blur-sm sm:px-6">
                 {(() => {
                   const ready = Boolean(selectedDriver) && Boolean(assignReason.trim()) && !actionBusy;
-                  const tooltip = !selectedDriver
-                    ? "Select a driver to assign"
-                    : !assignReason.trim()
-                      ? "Enter a reason to assign"
-                      : actionBusy
-                        ? "Processing..."
-                        : "Assign";
+                  const tooltip = !selectedDriver ? "Select a driver first" : !assignReason.trim() ? "Enter a reason" : actionBusy ? "Processing…" : "Assign driver";
                   return (
-                <button
-                  type="button"
-                  onClick={submitAssign}
-                  disabled={!ready}
-                  aria-label="Assign driver"
-                  title={tooltip}
-                  className="inline-flex items-center justify-center h-11 w-11 rounded-2xl text-white transition shadow-sm bg-brand-600 hover:bg-brand-700 border border-brand-600 disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  {actionBusy ? <Loader2 className="h-5 w-5 animate-spin" /> : <UserPlus className="h-5 w-5" />}
-                </button>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="text-xs font-medium text-slate-500">
+                        {selectedDriver ? (
+                          <span>Assigning <span className="font-black text-slate-900">{selectedDriver.name || `Driver #${selectedDriver.id}`}</span></span>
+                        ) : (
+                          <span>Select a driver and add a reason to continue</span>
+                        )}
+                      </div>
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <button
+                          type="button"
+                          onClick={closeAssign}
+                          className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs font-black text-slate-700 transition hover:bg-slate-100"
+                        >
+                          Cancel
+                        </button>
+                      <button
+                        type="button"
+                        onClick={submitAssign}
+                        disabled={!ready}
+                        aria-label="Assign driver"
+                        title={tooltip}
+                        className="min-w-[13rem] px-5 py-3 rounded-2xl bg-[#02665e] hover:bg-[#027a70] active:scale-[0.985] text-white font-black text-xs tracking-[0.08em] shadow-md shadow-[#02665e]/30 transition-all duration-150 disabled:opacity-35 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-2"
+                      >
+                        {actionBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-3.5 w-3.5" />}
+                        {actionBusy ? "Assigning…" : "Assign Driver"}
+                      </button>
+                      </div>
+                    </div>
                   );
                 })()}
               </div>
@@ -1851,124 +1835,143 @@ export default function AdminDriversTripsPage() {
 
       {/* Trip Details Drawer */}
       {detailsMounted && (
-        <div className={`fixed inset-0 z-50 ${detailsOpen ? "" : "pointer-events-none"}`}>
+        <div className={`fixed inset-0 z-[90] ${detailsOpen ? "" : "pointer-events-none"}`}>
           <div
-            className={`absolute inset-0 bg-black/50 transition-opacity duration-200 ${detailsOpen ? "opacity-100" : "opacity-0"}`}
+            className={`absolute inset-0 bg-slate-950/70 backdrop-blur-[4px] transition-opacity duration-200 ${detailsOpen ? "opacity-100" : "opacity-0"}`}
             onClick={closeDetails}
           />
-          <div className="relative h-full w-full flex items-center justify-center p-3 sm:p-6">
+          <div className="absolute inset-0 overflow-y-auto px-3 py-4 sm:p-6">
             <div
-              className={`relative w-full max-w-xl max-h-[calc(100vh-1.5rem)] sm:max-h-[calc(100vh-3rem)] overflow-hidden rounded-2xl sm:rounded-3xl border border-gray-200 shadow-2xl flex flex-col bg-white transition-all duration-200 ease-out ${
-                detailsOpen ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-[0.98] translate-y-2"
+              className={`relative mx-auto my-0 w-full max-w-3xl overflow-hidden rounded-[2rem] border border-white/10 bg-white shadow-[0_28px_90px_rgba(2,6,23,0.55)] flex flex-col transition-all duration-200 ease-out ${
+                detailsOpen ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-[0.98] translate-y-3"
               }`}
+              style={{ minHeight: "min(44rem, calc(100svh - 2rem))", maxHeight: "calc(100svh - 2rem)" }}
             >
-            <div className="relative overflow-hidden shrink-0" style={{ background: "linear-gradient(135deg, #0e2a7a 0%, #02665e 100%)" }}>
-              <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_10%_20%,white,transparent_50%),radial-gradient(circle_at_90%_80%,white,transparent_50%)]" />
-              <div className="relative px-4 py-3 sm:px-5 flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-white/60 mb-0.5">Trip Details</p>
-                  <p className="text-base font-bold text-white leading-tight break-all">
-                    {detailsData?.trip?.tripCode || "—"}
-                  </p>
-                  <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                    {detailsData?.trip?.status && (
-                      <span className="px-2 py-0.5 text-[10px] font-bold tracking-wide rounded-full bg-white/15 border border-white/30 text-white">
-                        {detailsData.trip.status}
-                      </span>
-                    )}
-                    <span className="text-[10px] text-white/60">
-                      {detailsData?.trip?.createdAt
-                        ? new Date(detailsData.trip.createdAt).toLocaleString()
-                        : detailsData?.trip?.scheduledAt
-                          ? new Date(detailsData.trip.scheduledAt).toLocaleString()
-                          : ""}
-                    </span>
+              <div className="relative shrink-0 overflow-hidden bg-slate-950">
+                <div className="absolute inset-0 bg-[linear-gradient(135deg,#163b8c_0%,#0a5670_45%,#02665e_100%)]" />
+                <div className="absolute -top-24 left-[-5rem] h-56 w-56 rounded-full bg-cyan-300/20 blur-3xl" />
+                <div className="absolute -bottom-24 right-[-3rem] h-56 w-56 rounded-full bg-emerald-300/20 blur-3xl" />
+                <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_15%_20%,white,transparent_32%),radial-gradient(circle_at_80%_18%,white,transparent_24%),radial-gradient(circle_at_50%_100%,white,transparent_35%)]" />
+                <div className="relative px-5 py-4 sm:px-6 sm:py-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/50">Trip Details</p>
+                      <h2 className="mt-1.5 text-base sm:text-[1.35rem] lg:text-[1.5rem] font-black tracking-[-0.02em] text-white break-all leading-[1.08]">
+                        {detailsData?.trip?.tripCode || "—"}
+                      </h2>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        {detailsData?.trip?.status && (
+                          <span className="inline-flex items-center rounded-full border border-white/20 bg-white/12 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-white backdrop-blur-sm">
+                            {detailsData.trip.status.replaceAll("_", " ")}
+                          </span>
+                        )}
+                        <span className="text-[11px] font-medium text-white/70">
+                          {detailsData?.trip?.createdAt
+                            ? new Date(detailsData.trip.createdAt).toLocaleString()
+                            : detailsData?.trip?.scheduledAt
+                              ? new Date(detailsData.trip.scheduledAt).toLocaleString()
+                              : ""}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={closeDetails}
+                      className="h-10 w-10 shrink-0 rounded-2xl border border-white/15 bg-white/10 text-white/80 backdrop-blur-sm transition hover:bg-white/20 hover:text-white"
+                      aria-label="Close"
+                    >
+                      <X className="h-4 w-4 mx-auto" />
+                    </button>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={closeDetails}
-                  className="h-8 w-8 shrink-0 flex items-center justify-center rounded-xl bg-white/15 border border-white/25 text-white hover:bg-white/25 transition"
-                  aria-label="Close"
-                >
-                  <X className="h-4 w-4" />
-                </button>
               </div>
-            </div>
 
-            <div className="p-3 sm:p-4 overflow-y-auto flex-1 min-h-0 bg-gray-50">
+              <div className="flex-1 min-h-0 overflow-y-auto bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)]">
               {detailsLoading ? (
-                <div className="py-10 text-center text-sm text-gray-500">
-                  <Loader2 className="h-5 w-5 animate-spin mx-auto mb-3 text-gray-400" />
+                <div className="py-16 text-center text-sm text-slate-500">
+                  <Loader2 className="h-5 w-5 animate-spin mx-auto mb-3 text-slate-400" />
                   Loading details...
                 </div>
               ) : !detailsData ? (
-                <div className="py-10 text-center text-sm text-gray-500">Failed to load trip details.</div>
+                <div className="py-16 text-center text-sm text-slate-500">Failed to load trip details.</div>
               ) : (
-                <div className="space-y-2.5">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="rounded-xl bg-white border border-gray-100 shadow-sm p-3">
-                      <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Passenger</div>
-                      <div className="text-sm font-semibold text-gray-900">
+                <div className="p-4 sm:p-6 space-y-4 pb-[calc(env(safe-area-inset-bottom)+7rem)] sm:pb-6">
+                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1.1fr_0.9fr]">
+                    <div className="rounded-[1.6rem] border border-slate-200/80 bg-white p-4 shadow-[0_1px_0_rgba(15,23,42,0.04),0_16px_40px_rgba(15,23,42,0.08)]">
+                      <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Route</div>
+                      <div className="mt-3 space-y-3">
+                        <div className="grid grid-cols-[auto_1fr] gap-3 items-start">
+                          <div className="mt-1.5 flex flex-col items-center">
+                            <span className="h-3.5 w-3.5 rounded-full border-[3px] border-emerald-200 bg-[#02665e]" />
+                            <span className="mt-1 h-12 w-px bg-gradient-to-b from-[#02665e] via-slate-300 to-rose-300" />
+                            <span className="mt-1 h-3.5 w-3.5 rounded-full border-[3px] border-rose-200 bg-rose-500" />
+                          </div>
+                          <div className="space-y-4">
+                            <div>
+                              <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Pickup</div>
+                              <div className="mt-1 text-[13px] font-semibold leading-5 text-slate-900 break-words">{detailsData.trip.pickup}</div>
+                            </div>
+                            <div>
+                              <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Dropoff</div>
+                              <div className="mt-1 text-[13px] font-semibold leading-5 text-slate-900 break-words">{detailsData.trip.dropoff}</div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-[1.4rem] border border-slate-200/80 bg-white p-4 shadow-sm">
+                        <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Vehicle</div>
+                        <div className="mt-2.5 text-xl font-black tracking-tight text-slate-950">{detailsData.trip.vehicleType || "—"}</div>
+                      </div>
+                      <div className="rounded-[1.4rem] border border-slate-200/80 bg-white p-4 shadow-sm">
+                        <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Amount</div>
+                        <div className="mt-2.5 text-xl font-black tracking-tight text-slate-950">
+                          {detailsData.trip.currency} {Number(detailsData.trip.amount || 0).toLocaleString()}
+                        </div>
+                      </div>
+                      <div className="rounded-[1.4rem] border border-slate-200/80 bg-white p-4 shadow-sm">
+                        <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Payment</div>
+                        <div className="mt-2.5 text-base font-black text-slate-950">{detailsData.trip.paymentStatus || "—"}</div>
+                        {detailsData.trip.paymentRef && (
+                          <div className="mt-1 text-[11px] font-medium text-slate-500 break-all">Ref: {detailsData.trip.paymentRef}</div>
+                        )}
+                      </div>
+                      <div className="rounded-[1.4rem] border border-slate-200/80 bg-white p-4 shadow-sm">
+                        <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Times</div>
+                        <div className="mt-2.5 space-y-1 text-[13px] font-semibold text-slate-900">
+                          <div><span className="text-slate-400">In: </span>{detailsData.trip.pickupTime ? new Date(detailsData.trip.pickupTime).toLocaleTimeString() : "—"}</div>
+                          <div><span className="text-slate-400">Out: </span>{detailsData.trip.dropoffTime ? new Date(detailsData.trip.dropoffTime).toLocaleTimeString() : "—"}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <div className="rounded-[1.5rem] border border-slate-200/80 bg-white p-4 shadow-sm">
+                      <div className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">Passenger</div>
+                      <div className="mt-3 text-lg font-black text-slate-950">
                         {detailsData.trip.user?.name || "—"}
                       </div>
-                      <div className="text-xs text-gray-500 truncate mt-0.5">{detailsData.trip.user?.email || ""}</div>
+                      <div className="mt-1 text-sm font-medium text-slate-500 break-words">{detailsData.trip.user?.email || ""}</div>
                       {detailsData.trip.user?.phone && (
-                        <div className="text-xs text-gray-500">{detailsData.trip.user.phone}</div>
+                        <div className="mt-1 text-sm font-medium text-slate-500">{detailsData.trip.user.phone}</div>
                       )}
                     </div>
-                    <div className="rounded-xl bg-white border border-gray-100 shadow-sm p-3">
-                      <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Driver</div>
-                      <div className="text-sm font-semibold text-gray-900">
+                    <div className="rounded-[1.5rem] border border-slate-200/80 bg-white p-4 shadow-sm">
+                      <div className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">Driver</div>
+                      <div className="mt-3 text-lg font-black text-slate-950">
                         {detailsData.trip.driver?.name || "Unassigned"}
                       </div>
-                      <div className="text-xs text-gray-500 truncate mt-0.5">{detailsData.trip.driver?.email || ""}</div>
+                      <div className="mt-1 text-sm font-medium text-slate-500 break-words">{detailsData.trip.driver?.email || ""}</div>
                       {detailsData.trip.driver?.phone && (
-                        <div className="text-xs text-gray-500">{detailsData.trip.driver.phone}</div>
+                        <div className="mt-1 text-sm font-medium text-slate-500">{detailsData.trip.driver.phone}</div>
                       )}
                     </div>
                   </div>
 
-                  <div className="rounded-xl bg-white border border-gray-100 shadow-sm p-3 space-y-1.5">
-                    <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Route</div>
-                    <div className="text-xs text-gray-800">
-                      <span className="font-semibold text-gray-500">Pickup: </span>{detailsData.trip.pickup}
-                    </div>
-                    <div className="text-xs text-gray-800">
-                      <span className="font-semibold text-gray-500">Dropoff: </span>{detailsData.trip.dropoff}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="rounded-xl bg-white border border-gray-100 shadow-sm p-3">
-                      <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Vehicle</div>
-                      <div className="text-sm font-semibold text-gray-900">{detailsData.trip.vehicleType || "—"}</div>
-                    </div>
-                    <div className="rounded-xl bg-white border border-gray-100 shadow-sm p-3">
-                      <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Amount</div>
-                      <div className="text-sm font-semibold text-gray-900">
-                        {detailsData.trip.currency} {Number(detailsData.trip.amount || 0).toLocaleString()}
-                      </div>
-                    </div>
-                    <div className="rounded-xl bg-white border border-gray-100 shadow-sm p-3">
-                      <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Payment</div>
-                      <div className="text-sm font-semibold text-gray-900">{detailsData.trip.paymentStatus || "—"}</div>
-                      {detailsData.trip.paymentRef && (
-                        <div className="text-[10px] text-gray-500 break-all mt-0.5">Ref: {detailsData.trip.paymentRef}</div>
-                      )}
-                    </div>
-                    <div className="rounded-xl bg-white border border-gray-100 shadow-sm p-3">
-                      <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Times</div>
-                      <div className="text-xs text-gray-800">
-                        <span className="text-gray-500">In: </span>{detailsData.trip.pickupTime ? new Date(detailsData.trip.pickupTime).toLocaleTimeString() : "—"}
-                      </div>
-                      <div className="text-xs text-gray-800">
-                        <span className="text-gray-500">Out: </span>{detailsData.trip.dropoffTime ? new Date(detailsData.trip.dropoffTime).toLocaleTimeString() : "—"}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="rounded-xl bg-white border border-gray-100 shadow-sm p-3">
+                  <div className="rounded-[1.6rem] border border-slate-200/80 bg-white p-4 shadow-sm">
                     {(() => {
                       const trip = detailsData.trip;
                       const tripStatus = String(trip.status ?? "").toUpperCase();
@@ -2002,43 +2005,43 @@ export default function AdminDriversTripsPage() {
 
                       return (
                         <>
-                          <div className="flex items-center justify-between gap-2 mb-2">
-                            <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Driver Payout</div>
-                            <span className={`px-2 py-0.5 text-[10px] font-semibold rounded-full border ${pillClasses(pillKind)}`}>
+                          <div className="flex items-center justify-between gap-3 mb-4">
+                            <div className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">Driver Payout</div>
+                            <span className={`px-3 py-1 text-[11px] font-black rounded-full border ${pillClasses(pillKind)}`}>
                               {payoutStatus}
                             </span>
                           </div>
 
-                          <div className="grid grid-cols-3 gap-2">
-                            <div>
-                              <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Gross</div>
-                              <div className="text-sm font-semibold text-gray-900 mt-0.5">
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                            <div className="rounded-2xl bg-slate-50 p-3">
+                              <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Gross</div>
+                              <div className="mt-2 text-lg font-black text-slate-950">
                                 {trip.currency} {Number.isFinite(gross) ? gross.toLocaleString() : "0"}
                               </div>
                             </div>
-                            <div>
-                              <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Commission</div>
-                              <div className="text-sm font-semibold text-gray-900 mt-0.5">
+                            <div className="rounded-2xl bg-slate-50 p-3">
+                              <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Commission</div>
+                              <div className="mt-2 text-lg font-black text-slate-950">
                                 {commissionPercent}% ({Number.isFinite(commissionAmount) ? commissionAmount.toLocaleString() : "0"})
                               </div>
                             </div>
-                            <div>
-                              <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Net To Driver</div>
-                              <div className="text-sm font-bold text-emerald-600 mt-0.5">
+                            <div className="rounded-2xl bg-emerald-50 p-3 ring-1 ring-emerald-100">
+                              <div className="text-[11px] font-black uppercase tracking-[0.18em] text-emerald-700/70">Net To Driver</div>
+                              <div className="mt-2 text-lg font-black text-emerald-700">
                                 {trip.currency} {Number.isFinite(netPaid) ? netPaid.toLocaleString() : "0"}
                               </div>
                             </div>
                           </div>
 
-                          {payoutError ? <div className="mt-3 text-xs text-red-600">{payoutError}</div> : null}
+                          {payoutError ? <div className="mt-3 text-sm font-semibold text-red-600">{payoutError}</div> : null}
 
                           {eligible ? (
-                            <div className="mt-2 flex flex-row gap-2">
+                            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                               <button
                                 type="button"
                                 disabled={!canApprove || busy}
                                 onClick={() => void submitPayoutAction("approve", false)}
-                                className="inline-flex items-center justify-center px-3 py-1.5 text-xs rounded-lg border border-brand-200 bg-brand-50 text-brand-700 hover:bg-brand-100 hover:border-brand-300 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="inline-flex items-center justify-center rounded-2xl border border-[#02665e]/20 bg-[#02665e]/8 px-4 py-3 text-sm font-black text-[#02665e] transition hover:bg-[#02665e]/12 disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 Approve
                               </button>
@@ -2046,13 +2049,13 @@ export default function AdminDriversTripsPage() {
                                 type="button"
                                 disabled={!canPay || busy}
                                 onClick={() => void submitPayoutAction("pay", false)}
-                                className="inline-flex items-center justify-center px-3 py-1.5 text-xs rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 hover:border-emerald-300 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="inline-flex items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 Mark Paid
                               </button>
                             </div>
                           ) : (
-                            <div className="mt-2 text-[10px] text-gray-400">
+                            <div className="mt-4 text-xs font-medium text-slate-400">
                               Payout actions available once trip is completed.
                             </div>
                           )}
@@ -2061,24 +2064,24 @@ export default function AdminDriversTripsPage() {
                     })()}
                   </div>
 
-                  <div className="rounded-xl bg-white border border-gray-100 shadow-sm overflow-hidden">
-                    <div className="px-3 py-2 bg-gray-50 border-b border-gray-100 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                  <div className="rounded-[1.6rem] border border-slate-200/80 bg-white shadow-sm overflow-hidden">
+                    <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">
                       Assignment History
                     </div>
                     {detailsData.assignmentAudits.length === 0 ? (
-                      <div className="px-3 py-3 text-xs text-gray-400">No assignment history.</div>
+                      <div className="px-4 py-6 text-sm text-slate-400">No assignment history.</div>
                     ) : (
-                      <div className="divide-y divide-gray-100">
+                      <div className="divide-y divide-slate-100">
                         {detailsData.assignmentAudits.map((a) => (
-                          <div key={a.id} className="px-3 py-2">
+                          <div key={a.id} className="px-4 py-3">
                             <div className="flex items-center justify-between gap-2">
-                              <div className="text-xs font-semibold text-gray-800">{a.action}</div>
-                              <div className="text-[10px] text-gray-400">
+                              <div className="text-sm font-black text-slate-900">{a.action}</div>
+                              <div className="text-[11px] font-medium text-slate-400">
                                 {a.createdAt ? new Date(a.createdAt).toLocaleString() : ""}
                               </div>
                             </div>
                             {(a.reason || a.actorId) && (
-                              <div className="mt-0.5 text-[10px] text-gray-500">
+                              <div className="mt-1 text-xs font-medium text-slate-500">
                                 {a.reason ? `Reason: ${a.reason}` : ""}
                                 {a.actorId ? `  •  By: ${a.actorId}` : ""}
                               </div>
@@ -2092,17 +2095,19 @@ export default function AdminDriversTripsPage() {
               )}
             </div>
 
-            <div className="px-4 py-3 border-t border-gray-100 bg-white flex items-center justify-between gap-2">
-              <button
-                type="button"
-                onClick={refreshDetails}
-                className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-gray-300/80 text-gray-700 bg-white/80 hover:bg-white transition"
-                aria-label="Refresh"
-                title="Refresh"
-              >
-                <RotateCw className="h-3.5 w-3.5" />
-              </button>
-              <div className="flex items-center gap-2">
+              <div className="shrink-0 border-t border-slate-200/80 bg-white/95 px-4 py-4 backdrop-blur-sm">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <button
+                    type="button"
+                    onClick={refreshDetails}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-100"
+                    aria-label="Refresh"
+                    title="Refresh"
+                  >
+                    <RotateCw className="h-4 w-4" />
+                    Refresh
+                  </button>
+                  <div className="flex flex-wrap items-center justify-end gap-2">
                 {detailsData?.trip && !detailsData.trip.driver && detailsData.trip.status !== "CANCELED" && detailsData.trip.status !== "COMPLETED" && (
                   <button
                     type="button"
@@ -2118,13 +2123,14 @@ export default function AdminDriversTripsPage() {
                         status: detailsData.trip.status,
                         createdAt: detailsData.trip.createdAt || "",
                       };
-                      openAssign(row);
+                      handoffDetailsToAssign(row);
                     }}
-                    className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-brand-200 bg-brand-50 text-brand-700 hover:bg-brand-100 hover:border-brand-300 transition"
-                    aria-label="Assign"
-                    title="Assign"
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#02665e] px-4 py-3 text-sm font-black text-white shadow-md shadow-[#02665e]/25 transition hover:bg-[#027a70]"
+                    aria-label="Assign driver"
+                    title="Assign driver"
                   >
-                    <UserPlus className="h-3.5 w-3.5" />
+                    <UserPlus className="h-4 w-4" />
+                    Assign Driver
                   </button>
                 )}
                 {detailsData?.trip && detailsData.trip.driver && detailsData.trip.status !== "IN_PROGRESS" && detailsData.trip.status !== "CANCELED" && detailsData.trip.status !== "COMPLETED" && (
@@ -2144,11 +2150,12 @@ export default function AdminDriversTripsPage() {
                       };
                       openReasonModal("unassign", row);
                     }}
-                    className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 hover:border-amber-300 transition"
-                    aria-label="Unassign"
-                    title="Unassign"
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-black text-amber-800 transition hover:bg-amber-100"
+                    aria-label="Unassign driver"
+                    title="Unassign driver"
                   >
-                    <UserMinus className="h-3.5 w-3.5" />
+                    <UserMinus className="h-4 w-4" />
+                    Unassign
                   </button>
                 )}
                 {detailsData?.trip && detailsData.trip.status !== "CANCELED" && detailsData.trip.status !== "COMPLETED" && (
@@ -2168,15 +2175,17 @@ export default function AdminDriversTripsPage() {
                       };
                       openReasonModal("cancel", row);
                     }}
-                    className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-red-600 text-white bg-red-600 hover:bg-red-700 transition"
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-red-600 bg-red-600 px-4 py-3 text-sm font-black text-white transition hover:bg-red-700"
                     aria-label="Cancel trip"
                     title="Cancel trip"
                   >
-                    <Ban className="h-3.5 w-3.5" />
+                    <Ban className="h-4 w-4" />
+                    Cancel Trip
                   </button>
                 )}
+                  </div>
+                </div>
               </div>
-            </div>
             </div>
           </div>
         </div>
@@ -2184,116 +2193,122 @@ export default function AdminDriversTripsPage() {
 
       {/* Reason Modal */}
       {reasonMounted && (
-        <div className={`fixed inset-0 z-50 ${reasonOpen ? "" : "pointer-events-none"}`}>
+        <div className={`fixed inset-0 z-[90] ${reasonOpen ? "" : "pointer-events-none"}`}>
           <div
-            className={`absolute inset-0 bg-black/50 transition-opacity duration-200 ${reasonOpen ? "opacity-100" : "opacity-0"}`}
+            className={`absolute inset-0 bg-slate-950/70 backdrop-blur-[4px] transition-opacity duration-200 ${reasonOpen ? "opacity-100" : "opacity-0"}`}
             onClick={closeReasonModal}
           />
-          <div className="relative h-full w-full flex items-center justify-center p-3 sm:p-6">
+          <div className="absolute inset-0 overflow-y-auto px-3 py-4 sm:p-6">
             <div
-              className={`relative w-full max-w-lg overflow-hidden rounded-2xl sm:rounded-3xl border border-white/30 shadow-2xl bg-gradient-to-b from-surface via-white to-brand-50 transition-all duration-200 ease-out ${
-                reasonOpen ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-[0.98] translate-y-2"
+              className={`relative mx-auto my-0 w-full max-w-2xl flex flex-col overflow-hidden rounded-[2rem] border border-white/10 shadow-[0_28px_90px_rgba(0,0,0,0.55)] bg-white transition-all duration-200 ease-out ${
+                reasonOpen ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-[0.98] translate-y-3"
               }`}
+              style={{ minHeight: "min(34rem, calc(100svh - 2rem))", maxHeight: "calc(100svh - 2rem)" }}
               role="dialog"
               aria-modal="true"
               aria-label={reasonKind === "cancel" ? "Cancel trip" : "Unassign trip"}
             >
-              <div className="relative overflow-hidden border-b border-white/40">
-                <div className="absolute inset-0 bg-gradient-to-r from-brand-700 via-brand-600 to-brand-500" />
-                <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_20%_20%,white,transparent_40%),radial-gradient(circle_at_80%_10%,white,transparent_35%),radial-gradient(circle_at_40%_90%,white,transparent_35%)]" />
-                <div className="relative px-4 py-4 sm:px-6 sm:pt-6 sm:pb-5 flex items-start justify-between gap-3 text-white">
-                  <div className="min-w-0 pr-2">
-                    <div className="text-sm sm:text-lg font-semibold leading-snug break-words">
-                      {reasonKind === "cancel" ? "Cancel Trip" : "Unassign Trip"}
+              <div className="relative shrink-0 overflow-hidden bg-slate-950">
+                <div className={`absolute inset-0 ${reasonKind === "cancel" ? "bg-[linear-gradient(135deg,#4c0519_0%,#991b1b_38%,#dc2626_100%)]" : "bg-[linear-gradient(135deg,#091a34_0%,#0b3157_38%,#02665e_100%)]"}`} />
+                <div className="pointer-events-none absolute -top-24 left-[-4rem] h-56 w-56 rounded-full bg-white/10 blur-3xl" />
+                <div className="pointer-events-none absolute -bottom-20 right-[-2rem] h-56 w-56 rounded-full bg-white/10 blur-3xl" />
+                <div className="pointer-events-none absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_14%_22%,white,transparent_30%),radial-gradient(circle_at_82%_18%,white,transparent_24%),radial-gradient(circle_at_55%_100%,white,transparent_34%)]" />
+                <div className="relative px-5 py-4 sm:px-6 sm:py-5 flex items-start justify-between gap-4 text-white">
+                  <div className="min-w-0 flex-1 pr-2">
+                    <div className="text-[10px] font-black uppercase tracking-[0.24em] text-white/45 mb-1.5">
+                      {reasonKind === "cancel" ? "Cancel Trip" : "Unassign Driver"}
                     </div>
-                    <div className="mt-1 text-xs text-white/85 break-words">
-                      <span className="select-text break-all" title={reasonTrip?.tripCode || ""}>
-                        {reasonTrip?.tripCode || ""}
-                      </span>
+                    <div className="text-lg sm:text-[1.45rem] font-black tracking-tight text-white break-all leading-tight">
+                      {reasonTrip?.tripCode || "—"}
+                    </div>
+                    <div className="mt-2 inline-flex items-center rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-wide text-white/80 backdrop-blur-sm">
+                      {reasonKind === "cancel" ? "Document the cancellation clearly" : "Explain why this assignment is changing"}
                     </div>
                   </div>
                   <button
                     type="button"
                     onClick={closeReasonModal}
-                    className="h-9 w-9 sm:h-10 sm:w-10 shrink-0 rounded-xl bg-white/15 border border-white/25 text-white hover:bg-white/20 transition"
+                    className="h-10 w-10 shrink-0 rounded-2xl bg-white/10 border border-white/15 text-white/80 hover:bg-white/20 transition"
                     aria-label="Close"
-                    title="Close"
                   >
                     <X className="h-4 w-4 mx-auto" />
                   </button>
                 </div>
               </div>
 
-              <div className="p-4 sm:p-6">
-                <div className="flex items-center justify-between gap-3 mb-2">
-                  <label className="block text-xs font-medium text-gray-600">
-                    {reasonKind === "cancel" ? "Reason (required, detailed)" : "Reason (required)"}
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setReasonText("");
-                      if (reasonError) setReasonError(null);
-                      setReasonSelectedPick(null);
-                      window.setTimeout(() => reasonTextareaRef.current?.focus(), 0);
-                    }}
-                    className="text-xs font-medium text-gray-600 hover:text-gray-900"
-                    disabled={actionBusy}
-                  >
-                    Clear
-                  </button>
-                </div>
-
-                <div className="mb-3">
-                  <div className="text-[11px] font-medium tracking-wide uppercase text-gray-500 mb-2">Quick pick</div>
-                  <div className="flex flex-wrap gap-2">
-                    {reasonQuickPicks.map((pick) => (
+              <div className="flex-1 min-h-0 overflow-y-auto bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)]">
+                <div className="p-4 sm:p-5 space-y-3.5 pb-[calc(env(safe-area-inset-bottom)+7rem)] sm:pb-5">
+                  <div className="bg-white rounded-[1.7rem] border border-slate-200/80 shadow-sm overflow-hidden">
+                    <div className="px-4 pt-4 flex items-center justify-between">
+                      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Reason</div>
                       <button
-                        key={pick}
                         type="button"
-                        onClick={() => applyReasonPick(pick)}
+                        onClick={() => {
+                          setReasonText("");
+                          if (reasonError) setReasonError(null);
+                          setReasonSelectedPick(null);
+                          window.setTimeout(() => reasonTextareaRef.current?.focus(), 0);
+                        }}
+                        className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500 hover:border-slate-300 hover:bg-white hover:text-slate-700 transition"
                         disabled={actionBusy}
-                        title={pick}
-                        className={`px-3 py-1.5 rounded-full text-xs font-medium border transition disabled:opacity-50 ${
-                          reasonSelectedPick === pick
-                            ? "border-brand-600 bg-brand-600 text-white"
-                            : "border-gray-200 bg-white/80 text-gray-700 hover:bg-white hover:border-gray-300"
-                        }`}
                       >
-                        {pick}
+                        Clear
                       </button>
-                    ))}
+                    </div>
+
+                    <div className="px-4 pt-3 pb-2 grid grid-cols-2 gap-2">
+                      {reasonQuickPicks.map((pick) => (
+                        <button
+                          key={pick}
+                          type="button"
+                          onClick={() => applyReasonPick(pick)}
+                          disabled={actionBusy}
+                          title={pick}
+                          className={`min-h-[2.75rem] px-3 py-2 rounded-[1.25rem] text-[11px] leading-4 font-black border transition disabled:opacity-50 ${
+                            reasonSelectedPick === pick
+                              ? reasonKind === "cancel"
+                                ? "border-red-600 bg-red-600 text-white shadow-sm shadow-red-600/20"
+                                : "border-[#02665e] bg-[#02665e] text-white shadow-sm shadow-[#02665e]/20"
+                              : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-white"
+                          }`}
+                        >
+                          {pick}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="px-4 pt-2 pb-4">
+                      <textarea
+                        ref={reasonTextareaRef}
+                        value={reasonText}
+                        onChange={(e) => {
+                          setReasonText(e.target.value);
+                          if (reasonSelectedPick) setReasonSelectedPick(null);
+                          if (reasonError) setReasonError(null);
+                        }}
+                        placeholder={
+                          reasonKind === "cancel"
+                            ? "Explain clearly why you are canceling this trip. Include what happened and the next step."
+                            : "Why are you unassigning this driver?"
+                        }
+                        rows={4}
+                        className={`block w-full max-w-full box-border px-4 py-3 rounded-[1.25rem] border bg-slate-50 outline-none text-sm font-semibold leading-6 text-slate-900 placeholder:font-normal placeholder:text-slate-400 resize-none min-h-[8.5rem] focus:ring-2 ${
+                          reasonKind === "cancel" ? "focus:ring-red-500/20 focus:border-red-500" : "focus:ring-[#02665e]/20 focus:border-[#02665e]"
+                        } ${reasonError ? "border-red-300" : "border-slate-200"}`}
+                      />
+                      {reasonKind === "cancel" ? (
+                        <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-slate-500">
+                          <span>Minimum 40 characters required for cancel.</span>
+                          <span>{reasonText.trim().length}/40</span>
+                        </div>
+                      ) : null}
+                      {reasonError ? <div className="mt-2 text-xs font-semibold text-red-600">{reasonError}</div> : null}
+                    </div>
                   </div>
                 </div>
-
-                <textarea
-                  ref={reasonTextareaRef}
-                  value={reasonText}
-                  onChange={(e) => {
-                    setReasonText(e.target.value);
-                    if (reasonSelectedPick) setReasonSelectedPick(null);
-                    if (reasonError) setReasonError(null);
-                  }}
-                  placeholder={
-                    reasonKind === "cancel"
-                      ? "Explain clearly why you are canceling this trip (include who requested it, what happened, and next steps)."
-                      : "Why are you unassigning this driver?"
-                  }
-                  rows={4}
-                  className={`block w-full max-w-full box-border px-3 py-2 rounded-xl border bg-white/80 outline-none text-sm leading-relaxed text-gray-900 shadow-inner resize-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 ${
-                    reasonError ? "border-red-300" : "border-gray-300"
-                  }`}
-                />
-                {reasonKind === "cancel" ? (
-                  <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-gray-500">
-                    <span>Minimum 40 characters required for cancel.</span>
-                    <span>{reasonText.trim().length}/40</span>
-                  </div>
-                ) : null}
-                {reasonError ? <div className="mt-2 text-xs text-red-600">{reasonError}</div> : null}
               </div>
 
-              <div className="px-4 py-4 sm:px-6 sm:py-5 border-t border-gray-200/60 bg-white/60 backdrop-blur flex items-center justify-end">
+              <div className="flex-shrink-0 border-t border-slate-200/80 bg-white/95 px-4 py-4 backdrop-blur-sm sm:px-6">
                 {(() => {
                   const trimmed = reasonText.trim();
                   const minCancelLen = 40;
@@ -2310,26 +2325,43 @@ export default function AdminDriversTripsPage() {
                         : "Reason is required";
 
                   return (
-                <button
-                  type="button"
-                  onClick={submitReasonModal}
-                  disabled={!canSubmit}
-                  aria-label={reasonKind === "cancel" ? "Cancel trip" : "Unassign driver"}
-                  title={submitTitle}
-                  className={`inline-flex items-center justify-center h-11 w-11 rounded-2xl text-white transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${
-                    reasonKind === "cancel"
-                      ? "bg-red-600 hover:bg-red-700 border border-red-600"
-                      : "bg-brand-600 hover:bg-brand-700 border border-brand-600"
-                  }`}
-                >
-                  {actionBusy ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : reasonKind === "cancel" ? (
-                    <Ban className="h-5 w-5" />
-                  ) : (
-                    <UserMinus className="h-5 w-5" />
-                  )}
-                </button>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="text-xs font-medium text-slate-500">
+                        {reasonKind === "cancel"
+                          ? "Provide a clear audit trail for this cancellation"
+                          : "Explain the reassignment so the audit history stays useful"}
+                      </div>
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <button
+                          type="button"
+                          onClick={closeReasonModal}
+                          className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs font-black text-slate-700 transition hover:bg-slate-100"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={submitReasonModal}
+                          disabled={!canSubmit}
+                          aria-label={reasonKind === "cancel" ? "Cancel trip" : "Unassign driver"}
+                          title={submitTitle}
+                          className={`min-w-[13rem] px-5 py-3 rounded-2xl text-white font-black text-xs tracking-[0.08em] shadow-md transition-all duration-150 disabled:opacity-35 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-2 ${
+                            reasonKind === "cancel"
+                              ? "bg-red-600 hover:bg-red-700 shadow-red-600/25"
+                              : "bg-[#02665e] hover:bg-[#027a70] shadow-[#02665e]/30"
+                          }`}
+                        >
+                          {actionBusy ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : reasonKind === "cancel" ? (
+                            <Ban className="h-3.5 w-3.5" />
+                          ) : (
+                            <UserMinus className="h-3.5 w-3.5" />
+                          )}
+                          {reasonKind === "cancel" ? "Cancel Trip" : "Unassign Driver"}
+                        </button>
+                      </div>
+                    </div>
                   );
                 })()}
               </div>
