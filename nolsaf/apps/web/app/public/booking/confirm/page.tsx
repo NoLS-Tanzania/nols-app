@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -16,6 +16,7 @@ import {
   Navigation,
   Edit2,
   Plane,
+  ArrowRight,
 } from "lucide-react";
 import LogoSpinner from "@/components/LogoSpinner";
 import DatePicker from "../../../../components/ui/DatePicker";
@@ -124,6 +125,7 @@ export default function BookingConfirmPage() {
   const [includeTransport, setIncludeTransport] = useState(false);
   const [transportVehicleType, setTransportVehicleType] = useState<TransportVehicleType>("CAR");
   const [pickupMode, setPickupMode] = useState<"current" | "arrival" | "manual">("current");
+  const [pickupMethodChosen, setPickupMethodChosen] = useState(false);
   const [pickupPresetId, setPickupPresetId] = useState<string>("");
   const pickupAddressRef = useRef<HTMLInputElement | null>(null);
   const [currentPickupNeedsConfirm, setCurrentPickupNeedsConfirm] = useState(false);
@@ -1761,21 +1763,23 @@ export default function BookingConfirmPage() {
               </h2>
 
               <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5 lg:space-y-6 overflow-x-hidden">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 lg:gap-5 w-full">
-                  <div className="space-y-2 min-w-0 w-full">
-                    <label className="block text-sm font-semibold text-slate-700">
-                      Full Name <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={guestName}
-                      onChange={(e) => setGuestName(e.target.value)}
-                      required
-                      className="w-full min-w-0 px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm max-w-full box-border"
-                      placeholder="Enter your full name"
-                    />
-                  </div>
+                {/* Full Name — full width */}
+                <div className="space-y-2 min-w-0 w-full">
+                  <label className="block text-sm font-semibold text-slate-700">
+                    Full Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={guestName}
+                    onChange={(e) => setGuestName(e.target.value)}
+                    required
+                    className="w-full min-w-0 px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm max-w-full box-border"
+                    placeholder="Enter your full name"
+                  />
+                </div>
 
+                {/* Phone + Email */}
+                <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:gap-5 w-full">
                   <div className="space-y-2 min-w-0 w-full">
                     <label className="block text-sm font-semibold text-slate-700">
                       Phone Number <span className="text-red-500">*</span>
@@ -1801,12 +1805,10 @@ export default function BookingConfirmPage() {
                     {phoneInlineError ? (
                       <p className="text-xs font-semibold text-red-600">{phoneInlineError}</p>
                     ) : (
-                      <p className="text-xs text-slate-500">Accepted: +2557XXXXXXXX, 07XXXXXXXX, or 7XXXXXXXX.</p>
+                      <p className="text-xs text-slate-500">+2557XXXXXXXX, 07XXXXXXXX, or 7XXXXXXXX</p>
                     )}
                   </div>
-                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 lg:gap-5 w-full">
                   <div className="space-y-2 min-w-0 w-full">
                     <label className="block text-sm font-semibold text-slate-700">
                       Email <span className="text-slate-400 text-xs font-normal">(Optional)</span>
@@ -1828,7 +1830,10 @@ export default function BookingConfirmPage() {
                       <p className="text-xs font-semibold text-red-600">{emailInlineError}</p>
                     )}
                   </div>
+                </div>
 
+                {/* Nationality + Gender */}
+                <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:gap-5 w-full">
                   <div className="space-y-2 min-w-0 w-full">
                     <label className="block text-sm font-semibold text-slate-700">
                       Nationality <span className="text-slate-400 text-xs font-normal">(Optional)</span>
@@ -1846,9 +1851,7 @@ export default function BookingConfirmPage() {
                       placeholder="e.g., Tanzanian"
                     />
                   </div>
-                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 lg:gap-5 w-full">
                   <div className="space-y-2 min-w-0 w-full">
                     <label className="block text-sm font-semibold text-slate-700">
                       Gender <span className="text-slate-400 text-xs font-normal">(Optional)</span>
@@ -1865,9 +1868,6 @@ export default function BookingConfirmPage() {
                       <option value="Female">Female</option>
                       <option value="Other">Other</option>
                     </select>
-                  </div>
-                  <div className="space-y-2 min-w-0 w-full">
-                    {/* Empty space to maintain grid alignment */}
                   </div>
                 </div>
 
@@ -1901,226 +1901,273 @@ export default function BookingConfirmPage() {
                   </div>
 
                   {includeTransport && (
-                    <div className="space-y-4 mt-4 p-5 bg-gradient-to-br from-blue-50/50 to-slate-50 rounded-xl border-2 border-[#02665e]/20 shadow-sm animate-in fade-in slide-in-from-top-2 duration-300">
-                      <div className="space-y-2">
-                        <label className="block text-sm font-semibold text-slate-700">
-                          Transport Type <span className="text-red-500">*</span>
-                        </label>
-                        <select
-                          value={transportVehicleType}
-                          onChange={(e) => setTransportVehicleType(e.target.value as TransportVehicleType)}
-                          aria-label="Transport type"
-                          title="Transport type"
-                          className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm cursor-pointer"
-                        >
-                          <option value="BODA">Boda</option>
-                          <option value="BAJAJI">Bajaji</option>
-                          <option value="CAR">Car</option>
-                          <option value="XL">XL</option>
-                          <option value="PREMIUM">Premium</option>
-                        </select>
-                        <p className="text-xs text-slate-600 flex items-start gap-1">
-                          <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-                          Different transport types have different pricing.
-                        </p>
-                      </div>
-
+                    <div className="space-y-5 mt-4 p-5 bg-white rounded-2xl border border-slate-200/80 shadow-md animate-in fade-in slide-in-from-top-2 duration-300">
+                      {/* Vehicle Type */}
                       <div className="space-y-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <label className="block text-sm font-semibold text-slate-700">
-                            Pickup Location <span className="text-red-500">*</span>
-                          </label>
-
-                          <div className="inline-flex rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-                            <button
-                              type="button"
-                              onClick={() => setPickupMode("current")}
-                              className={[
-                                "px-3 py-2 text-xs font-semibold transition-colors",
-                                pickupMode === "current" ? "bg-[#02665e] text-white" : "text-slate-700 hover:bg-slate-50",
-                              ].join(" ")}
-                              aria-pressed={pickupMode === "current"}
-                              title="Use my current location"
-                            >
-                              Current
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setPickupMode("arrival")}
-                              className={[
-                                "px-3 py-2 text-xs font-semibold transition-colors border-l border-slate-200",
-                                pickupMode === "arrival" ? "bg-[#02665e] text-white" : "text-slate-700 hover:bg-slate-50",
-                              ].join(" ")}
-                              aria-pressed={pickupMode === "arrival"}
-                              title="Select an arrival point (airport/bus terminal)"
-                            >
-                              Arrival
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setPickupMode("manual")}
-                              className={[
-                                "px-3 py-2 text-xs font-semibold transition-colors border-l border-slate-200",
-                                pickupMode === "manual" ? "bg-[#02665e] text-white" : "text-slate-700 hover:bg-slate-50",
-                              ].join(" ")}
-                              aria-pressed={pickupMode === "manual"}
-                              title="Type an address and search"
-                            >
-                              Type
-                            </button>
-                          </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Vehicle Type</span>
+                          <span className="text-[11px] text-slate-400">Price varies per type</span>
                         </div>
-
-                        {pickupMode === "arrival" ? (
-                          <div className="space-y-2">
-                            <select
-                              value={pickupPresetId}
-                              onChange={(e) => handleSelectPickupPreset(e.target.value)}
-                              aria-label="Select arrival pickup point"
-                              title="Select arrival pickup point"
-                              className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm cursor-pointer"
-                            >
-                              <option value="">Select pickup point</option>
-                              {PICKUP_PRESETS.map((p) => (
-                                <option key={p.id} value={p.id}>
-                                  {p.label}
-                                </option>
-                              ))}
-                            </select>
-                            <p className="text-xs text-slate-600 flex items-start gap-1">
-                              <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-                              If you're currently outside Tanzania (e.g., Dubai), choose your arrival pickup point here.
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="space-y-2">
-                            <div className="flex gap-2">
-                              <input
-                                type="text"
-                                ref={pickupAddressRef}
-                                value={transportOriginAddress}
-                                onChange={(e) => setTransportOriginAddress(e.target.value)}
-                                placeholder={pickupMode === "manual" ? "Type pickup address/place (Tanzania)" : "Optional: add a pickup note"}
-                                className="flex-1 px-4 py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm"
-                                required={includeTransport}
-                                readOnly={pickupMode === "current" && currentPickupNeedsConfirm}
-                              />
-                              {pickupMode === "current" ? (
-                                <button
-                                  type="button"
-                                  onClick={handleGetLocation}
-                                  disabled={calculatingFare}
-                                  className="px-4 py-3 bg-gradient-to-r from-[#02665e] to-[#014e47] text-white rounded-xl hover:from-[#014e47] hover:to-[#02665e] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95"
-                                  title="Use current location"
-                                >
-                                  <Navigation className="w-4 h-4" />
-                                </button>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={handleGeocodePickupAddress}
-                                  disabled={calculatingFare}
-                                  className="px-4 py-3 bg-gradient-to-r from-[#02665e] to-[#014e47] text-white rounded-xl hover:from-[#014e47] hover:to-[#02665e] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95"
-                                  title="Find this location"
-                                >
-                                  <MapPin className="w-4 h-4" />
-                                </button>
-                              )}
-                            </div>
-
-                            {pickupMode === "current" ? (
-                              <p className="text-xs text-slate-600 flex items-center gap-1">
-                                <Info className="w-3.5 h-3.5" />
-                                Click the location icon to use your current location.
-                              </p>
-                            ) : (
-                              <p className="text-xs text-slate-600 flex items-start gap-1">
-                                <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-                                We’ll calculate transport from the place you search (within Tanzania) to the property.
-                              </p>
-                            )}
-
-                            {pickupMode === "current" && currentPickupNeedsConfirm && transportOriginAddress.trim() ? (
-                              <div className="bg-white/80 border border-emerald-200 rounded-xl p-3 flex items-start justify-between gap-3">
-                                <div className="text-xs text-slate-700">
-                                  <div className="font-semibold text-emerald-700">We detected your pickup area:</div>
-                                  <div className="mt-0.5 break-words">{transportOriginAddress}</div>
-                                  <div className="mt-1 text-[11px] text-slate-500">Confirm to calculate price and continue.</div>
-                                </div>
-                                <div className="flex items-center gap-2 shrink-0">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setCurrentPickupConfirmed(true);
-                                      setCurrentPickupNeedsConfirm(false);
-                                    }}
-                                    className="px-3 py-2 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 transition"
-                                    title="Yes, this is correct"
-                                  >
-                                    Yes
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setCurrentPickupConfirmed(false);
-                                      setCurrentPickupNeedsConfirm(false);
-                                      setTransportOriginAddress("");
-                                      setTransportOriginLat(null);
-                                      setTransportOriginLng(null);
-                                      setTransportFare(null);
-                                      setPickupMode("manual");
-                                      window.setTimeout(() => pickupAddressRef.current?.focus(), 0);
-                                    }}
-                                    className="px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-50 transition"
-                                    title="No, I'll type it"
-                                  >
-                                    No
-                                  </button>
-                                </div>
-                              </div>
-                            ) : null}
-                          </div>
-                        )}
-
-                        {transportPickupError && (
-                          <div className="bg-red-50/80 border-2 border-red-200 rounded-xl p-3 flex items-start gap-2 animate-in fade-in slide-in-from-top-2">
-                            <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
-                            <p className="text-xs font-semibold text-red-700">{transportPickupError}</p>
-                          </div>
-                        )}
-
-                        {transportOriginLat !== null && transportOriginLng !== null && (
-                          <div className="flex items-center justify-between gap-2 text-xs bg-white/80 border border-emerald-200 rounded-xl px-3 py-2">
-                            <span className="font-semibold text-emerald-700 flex items-center gap-1.5 flex-shrink-0">
-                              <MapPin className="w-3 h-3" />
-                              Pickup ready
-                            </span>
-                            <span className="text-slate-400 font-mono truncate min-w-0 flex-1 text-center px-1">
-                              {transportOriginLat.toFixed(5)}, {transportOriginLng.toFixed(5)}
-                            </span>
-                            <div className="flex items-center gap-1 flex-shrink-0">
-                              <a
-                                href={`https://www.openstreetmap.org/?mlat=${transportOriginLat}&mlon=${transportOriginLng}&zoom=16`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                title="View on OpenStreetMap"
-                                className="h-6 px-2 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-700 font-semibold hover:bg-emerald-100 transition-colors flex items-center gap-0.5 whitespace-nowrap"
+                        <div className="grid grid-cols-5 gap-2">
+                          {(
+                            [
+                              { value: "BODA" as TransportVehicleType, icon: "🏍️", label: "Boda", tier: "Budget" },
+                              { value: "BAJAJI" as TransportVehicleType, icon: "🛺", label: "Bajaji", tier: "Economy" },
+                              { value: "CAR" as TransportVehicleType, icon: "🚗", label: "Car", tier: "Standard" },
+                              { value: "XL" as TransportVehicleType, icon: "🚐", label: "XL / Van", tier: "Roomy" },
+                              { value: "PREMIUM" as TransportVehicleType, icon: "🚘", label: "Premium", tier: "Luxury" },
+                            ]
+                          ).map((v) => {
+                            const active = transportVehicleType === v.value;
+                            return (
+                              <button
+                                key={v.value}
+                                type="button"
+                                onClick={() => setTransportVehicleType(v.value)}
+                                className={[
+                                  "relative flex flex-col items-center justify-center gap-1.5 px-1 py-3 rounded-2xl border-2 transition-all duration-200 focus:outline-none",
+                                  active
+                                    ? "border-[#02665e] bg-gradient-to-b from-[#02665e]/8 to-[#02665e]/4 shadow-md"
+                                    : "border-slate-200 bg-white hover:border-[#02665e]/40 hover:bg-slate-50",
+                                ].join(" ")}
                               >
-                                OSM ↗
-                              </a>
-                              <a
-                                href={`https://maps.google.com/?q=${transportOriginLat},${transportOriginLng}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                title="View on Google Maps"
-                                className="h-6 px-2 rounded-md bg-blue-50 border border-blue-200 text-blue-700 font-semibold hover:bg-blue-100 transition-colors flex items-center gap-0.5 whitespace-nowrap"
-                              >
-                                GMaps ↗
-                              </a>
-                            </div>
-                          </div>
-                        )}
+                                {active && (
+                                  <div className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#02665e]" />
+                                )}
+                                <span className="text-2xl leading-none">{v.icon}</span>
+                                <span className={`text-[11px] font-bold leading-tight text-center ${active ? "text-[#02665e]" : "text-slate-700"}`}>
+                                  {v.label}
+                                </span>
+                                <span className={[
+                                  "text-[9px] font-semibold px-1.5 py-0.5 rounded-full tracking-wide leading-none",
+                                  active ? "bg-[#02665e]/15 text-[#02665e]" : "bg-slate-100 text-slate-400",
+                                ].join(" ")}>
+                                  {v.tier}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
+
+                      {/* separator */}
+                      <div className="border-t border-slate-100" />
+
+                      {/* Pickup Method — locked until vehicle is chosen */}
+                      {!transportVehicleType ? (
+                        <div className="flex items-center gap-3 px-4 py-3.5 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50">
+                          <div className="w-9 h-9 rounded-xl bg-slate-200 flex items-center justify-center flex-shrink-0">
+                            <MapPin className="w-4 h-4 text-slate-400" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-semibold text-slate-400">Pickup Method</div>
+                            <div className="text-xs text-slate-400 mt-0.5">Select a vehicle type above to continue</div>
+                          </div>
+                          <div className="w-5 h-5 rounded-full border-2 border-slate-200 flex-shrink-0" />
+                        </div>
+                      ) : (
+                        <div className="space-y-2.5">
+                        <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Pickup Method</span>
+                        <div className="space-y-2">
+                          {(
+                            [
+                              {
+                                mode: "current" as const,
+                                icon: <Navigation className="w-4 h-4" />,
+                                title: "Current Location",
+                                desc: "Detect my GPS position now",
+                                accent: { ring: "border-sky-400", bg: "bg-sky-50", iconBg: "bg-sky-100", iconColor: "text-sky-600", dot: "bg-sky-500", text: "text-sky-700", btn: "bg-sky-600 hover:bg-sky-700" },
+                              },
+                              {
+                                mode: "arrival" as const,
+                                icon: <Plane className="w-4 h-4" />,
+                                title: "Scheduled Arrival",
+                                desc: "Airport, bus terminal, or ferry port",
+                                accent: { ring: "border-violet-400", bg: "bg-violet-50", iconBg: "bg-violet-100", iconColor: "text-violet-600", dot: "bg-violet-500", text: "text-violet-700", btn: "bg-violet-600 hover:bg-violet-700" },
+                              },
+                              {
+                                mode: "manual" as const,
+                                icon: <MapPin className="w-4 h-4" />,
+                                title: "Enter an Address",
+                                desc: "Search any location in Tanzania",
+                                accent: { ring: "border-amber-400", bg: "bg-amber-50", iconBg: "bg-amber-100", iconColor: "text-amber-600", dot: "bg-amber-500", text: "text-amber-700", btn: "bg-amber-500 hover:bg-amber-600" },
+                              },
+                            ]
+                          ).map((opt) => {
+                            const active = pickupMode === opt.mode;
+                            if (pickupMethodChosen && !active) return null;
+                            return (
+                              <div key={opt.mode} className="overflow-hidden rounded-2xl">
+                                {/* selector row */}
+                                <button
+                                  type="button"
+                                  onClick={() => { setPickupMode(opt.mode); setPickupMethodChosen(true); }}
+                                  aria-pressed={active}
+                                  className={[
+                                    "w-full flex items-center gap-3 py-3 px-4 border-2 transition-all duration-200 focus:outline-none text-left",
+                                    active
+                                      ? `${opt.accent.bg} ${opt.accent.ring} rounded-t-2xl rounded-b-none border-b-transparent`
+                                      : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50 rounded-2xl",
+                                  ].join(" ")}
+                                >
+                                  <div className={[
+                                    "w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors",
+                                    active ? `${opt.accent.iconBg} ${opt.accent.iconColor}` : "bg-slate-100 text-slate-400",
+                                  ].join(" ")}>
+                                    {opt.icon}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className={`text-sm font-semibold leading-tight ${active ? opt.accent.text : "text-slate-700"}`}>
+                                      {opt.title}
+                                    </div>
+                                    {!active && (
+                                      <div className="text-xs text-slate-400 mt-0.5">{opt.desc}</div>
+                                    )}
+                                  </div>
+                                  <div className={[
+                                    "w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all",
+                                    active ? `${opt.accent.ring} bg-white` : "border-slate-300",
+                                  ].join(" ")}>
+                                    {active && <div className={`w-2.5 h-2.5 rounded-full ${opt.accent.dot}`} />}
+                                  </div>
+                                </button>
+
+                                {/* expanded body */}
+                                {active && (
+                                  <div className={[
+                                    "border-2 border-t-0 rounded-b-2xl px-4 pb-4 pt-3 space-y-3 animate-in fade-in slide-in-from-top-1 duration-200",
+                                    opt.accent.ring, opt.accent.bg,
+                                  ].join(" ")}>
+
+                                    {/* ── Current Location ── */}
+                                    {opt.mode === "current" && (
+                                      <>
+                                        {!currentPickupConfirmed && (
+                                          <button type="button" onClick={handleGetLocation} disabled={calculatingFare}
+                                            className={`w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-white text-sm font-semibold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm active:scale-[0.98] ${opt.accent.btn}`}>
+                                            <Navigation className="w-4 h-4 flex-shrink-0" />
+                                            {calculatingFare ? "Detecting location…" : "Detect my current location"}
+                                          </button>
+                                        )}
+                                        {currentPickupConfirmed && transportOriginLat !== null && (
+                                          <button type="button" onClick={() => { setCurrentPickupConfirmed(false); setTransportOriginAddress(""); setTransportOriginLat(null); setTransportOriginLng(null); setTransportFare(null); }}
+                                            className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-xl border border-sky-300 bg-white/70 text-sky-700 text-xs font-semibold hover:bg-white transition-all">
+                                            <Navigation className="w-3.5 h-3.5 flex-shrink-0" />
+                                            Re-detect location
+                                          </button>
+                                        )}
+                                        {currentPickupNeedsConfirm && transportOriginAddress.trim() && (
+                                          <div className="bg-white rounded-xl p-3 border border-sky-200 space-y-2">
+                                            <div className="text-xs font-semibold text-sky-700">We detected your area:</div>
+                                            <div className="text-sm text-slate-700 break-words">{transportOriginAddress}</div>
+                                            <div className="flex gap-2 pt-1">
+                                              <button type="button" onClick={() => { setCurrentPickupConfirmed(true); setCurrentPickupNeedsConfirm(false); }}
+                                                className="flex-1 py-2.5 rounded-xl bg-sky-600 text-white text-xs font-semibold hover:bg-sky-700 transition">
+                                                Yes, looks right
+                                              </button>
+                                              <button type="button" onClick={() => {
+                                                setCurrentPickupConfirmed(false); setCurrentPickupNeedsConfirm(false);
+                                                setTransportOriginAddress(""); setTransportOriginLat(null); setTransportOriginLng(null); setTransportFare(null);
+                                                setPickupMode("manual"); window.setTimeout(() => pickupAddressRef.current?.focus(), 0);
+                                              }} className="flex-1 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-50 transition">
+                                                No, type it instead
+                                              </button>
+                                            </div>
+                                          </div>
+                                        )}
+                                        <p className="text-xs text-sky-600/80 flex items-center gap-1.5">
+                                          <Info className="w-3.5 h-3.5 flex-shrink-0" />
+                                          We use your GPS to calculate the exact fare.
+                                        </p>
+                                      </>
+                                    )}
+
+                                    {/* ── Scheduled Arrival ── */}
+                                    {opt.mode === "arrival" && (
+                                      <>
+                                        <select value={pickupPresetId} onChange={(e) => handleSelectPickupPreset(e.target.value)}
+                                          aria-label="Select arrival pickup point" title="Select arrival pickup point"
+                                          className="w-full px-4 py-3 border border-violet-200 rounded-xl text-sm font-medium bg-white focus:outline-none focus:ring-2 focus:ring-violet-200 focus:border-violet-400 cursor-pointer transition-all">
+                                          <option value="">Choose airport, bus terminal or ferry…</option>
+                                          {PICKUP_PRESETS.map((p) => (<option key={p.id} value={p.id}>{p.label}</option>))}
+                                        </select>
+                                        <p className="text-xs text-violet-600/80 flex items-start gap-1.5">
+                                          <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                                          Arriving from abroad? Pick your terminal and we'll schedule a timed pickup.
+                                        </p>
+                                      </>
+                                    )}
+
+                                    {/* ── Enter Address ── */}
+                                    {opt.mode === "manual" && (
+                                      <>
+                                        <div className="flex gap-2">
+                                          <input type="text" ref={pickupAddressRef} value={transportOriginAddress}
+                                            onChange={(e) => setTransportOriginAddress(e.target.value)}
+                                            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleGeocodePickupAddress(); } }}
+                                            placeholder="e.g. Mlimani City Mall, Dar es Salaam"
+                                            className="flex-1 px-4 py-3 border border-amber-200 rounded-xl text-sm font-medium bg-white focus:outline-none focus:ring-2 focus:ring-amber-200 focus:border-amber-400 transition-all"
+                                            required={includeTransport} />
+                                          <button type="button" onClick={handleGeocodePickupAddress}
+                                            disabled={calculatingFare || !transportOriginAddress.trim()}
+                                            className={`px-4 py-3 rounded-xl text-white font-semibold text-sm flex items-center gap-1.5 transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-sm active:scale-95 ${opt.accent.btn}`}>
+                                            <MapPin className="w-4 h-4" />Find
+                                          </button>
+                                        </div>
+                                        <p className="text-xs text-amber-600/80 flex items-start gap-1.5">
+                                          <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                                          Type a place or landmark in Tanzania, then tap Find.
+                                        </p>
+                                      </>
+                                    )}
+
+                                    {/* shared: error */}
+                                    {transportPickupError && (
+                                      <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-xl animate-in fade-in">
+                                        <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                                        <p className="text-xs font-semibold text-red-700">{transportPickupError}</p>
+                                      </div>
+                                    )}
+
+                                    {/* shared: confirmed pin */}
+                                    {transportOriginLat !== null && transportOriginLng !== null && (
+                                      <div className="flex items-center gap-3 bg-white border border-emerald-200 rounded-xl px-3 py-2.5 animate-in fade-in duration-200">
+                                        <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                          <div className="text-xs font-bold text-emerald-700">Pickup set</div>
+                                          <div className="text-xs text-slate-500 truncate mt-0.5">
+                                            {transportOriginAddress || `${transportOriginLat.toFixed(4)}, ${transportOriginLng.toFixed(4)}`}
+                                          </div>
+                                        </div>
+                                        <a href={`https://maps.google.com/?q=${transportOriginLat},${transportOriginLng}`}
+                                          target="_blank" rel="noopener noreferrer"
+                                          className="text-[11px] font-semibold text-emerald-600 hover:text-emerald-800 underline underline-offset-2 whitespace-nowrap flex-shrink-0">
+                                          Maps ↗
+                                        </a>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {pickupMethodChosen && (
+                          <div className="flex justify-end pt-1">
+                            <button
+                              type="button"
+                              onClick={() => { setPickupMethodChosen(false); setTransportOriginAddress(""); setTransportOriginLat(null); setTransportOriginLng(null); setTransportFare(null); setCurrentPickupConfirmed(false); setCurrentPickupNeedsConfirm(false); setPickupPresetId(""); }}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-500 hover:text-slate-700 hover:border-slate-300 hover:bg-slate-50 transition-all duration-150 shadow-sm"
+                            >
+                              <Edit2 className="w-3 h-3 flex-shrink-0" />
+                              Change method
+                            </button>
+                          </div>
+                        )}
+                        </div>
+                      )}
 
                       {/* Arrival Information Section */}
                       {pickupMode === "current" ? (
@@ -2152,203 +2199,211 @@ export default function BookingConfirmPage() {
                         </p>
                         
                         <div className="space-y-4 w-full min-w-0">
-                          {/* Arrival Type */}
-                          <div className="space-y-2 w-full min-w-0">
-                            <label className="block text-sm font-semibold text-slate-700">
-                              How are you arriving?
-                              {requiresArrivalInfo && <span className="text-red-500"> *</span>}
-                            </label>
-                            <select
-                              value={arrivalType}
-                              onChange={(e) => setArrivalType(e.target.value as any)}
-                              aria-label="Arrival type"
-                              title="Arrival type"
-                              disabled={arrivalTypeLocked}
-                              className={[
-                                "w-full min-w-0 px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm cursor-pointer max-w-full box-border",
-                                arrivalTypeLocked ? "opacity-80 cursor-not-allowed" : "",
-                              ].join(" ")}
-                            >
-                              <option value="">Select arrival type</option>
-                              <option value="FLIGHT">Flight</option>
-                              <option value="BUS">Bus</option>
-                              <option value="TRAIN">Train</option>
-                              <option value="FERRY">Ferry</option>
-                              <option value="OTHER">Other</option>
-                            </select>
-                            {arrivalTypeLocked && (
-                              <p className="text-xs text-slate-600 flex items-start gap-1">
-                                <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-                                Auto-selected from your pickup point. Switch pickup point to change.
-                              </p>
-                            )}
+
+                          {/* Row 1: How are you arriving? + Transport Number */}
+                          <div className="grid grid-cols-2 gap-3 sm:gap-4 w-full min-w-0">
+                            {/* Arrival Type */}
+                            <div className="space-y-2 min-w-0 w-full">
+                              <label className="block text-sm font-semibold text-slate-700">
+                                How are you arriving?
+                                {requiresArrivalInfo && <span className="text-red-500"> *</span>}
+                              </label>
+                              <select
+                                value={arrivalType}
+                                onChange={(e) => setArrivalType(e.target.value as any)}
+                                aria-label="Arrival type"
+                                title="Arrival type"
+                                disabled={arrivalTypeLocked}
+                                className={[
+                                  "w-full min-w-0 px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm cursor-pointer max-w-full box-border",
+                                  arrivalTypeLocked ? "opacity-80 cursor-not-allowed" : "",
+                                ].join(" ")}
+                              >
+                                <option value="">Select arrival type</option>
+                                <option value="FLIGHT">Flight</option>
+                                <option value="BUS">Bus</option>
+                                <option value="TRAIN">Train</option>
+                                <option value="FERRY">Ferry</option>
+                                <option value="OTHER">Other</option>
+                              </select>
+                              {arrivalTypeLocked && (
+                                <p className="text-xs text-slate-600 flex items-start gap-1">
+                                  <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                                  Auto-selected from your pickup point. Switch pickup point to change.
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Transport Number */}
+                            <div className="space-y-2 min-w-0 w-full">
+                              <label className="block text-sm font-semibold text-slate-700">
+                                {arrivalType === "FLIGHT" ? "Flight Number" :
+                                 arrivalType === "BUS" ? "Bus Number" :
+                                 arrivalType === "TRAIN" ? "Train Number" :
+                                 arrivalType === "FERRY" ? "Ferry Number" :
+                                 arrivalType === "OTHER" ? "Transport Number" :
+                                 <span className="text-slate-400">Number</span>}
+                              </label>
+                              <input
+                                type="text"
+                                value={arrivalNumber}
+                                onChange={(e) => setArrivalNumber(e.target.value)}
+                                disabled={!arrivalType}
+                                placeholder={
+                                  !arrivalType ? "Select type first" :
+                                  arrivalType === "FLIGHT" ? "e.g., JN123" :
+                                  arrivalType === "BUS" ? "e.g., BUS-456" :
+                                  arrivalType === "TRAIN" ? "e.g., TR-789" :
+                                  arrivalType === "FERRY" ? "e.g., FR-012" :
+                                  "Transport number"
+                                }
+                                className="w-full min-w-0 px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm max-w-full box-border disabled:opacity-50 disabled:cursor-not-allowed"
+                              />
+                            </div>
                           </div>
 
-                          {/* Arrival Number & Company - shown when arrival type is selected */}
-                          {arrivalType && (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 w-full min-w-0">
-                              <div className="space-y-2 min-w-0 w-full">
-                                <label className="block text-sm font-semibold text-slate-700">
-                                  {arrivalType === "FLIGHT" ? "Flight Number" :
-                                   arrivalType === "BUS" ? "Bus Number" :
-                                   arrivalType === "TRAIN" ? "Train Number" :
-                                   arrivalType === "FERRY" ? "Ferry Number" :
-                                   "Transport Number"}
-                                </label>
-                                <input
-                                  type="text"
-                                  value={arrivalNumber}
-                                  onChange={(e) => setArrivalNumber(e.target.value)}
-                                  placeholder={arrivalType === "FLIGHT" ? "e.g., JN123" :
-                                               arrivalType === "BUS" ? "e.g., BUS-456" :
-                                               arrivalType === "TRAIN" ? "e.g., TR-789" :
-                                               arrivalType === "FERRY" ? "e.g., FR-012" :
-                                               "Transport number"}
-                                  className="w-full min-w-0 px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm max-w-full box-border"
-                                />
-                              </div>
-                              <div className="space-y-2 min-w-0 w-full">
-                                <label className="block text-sm font-semibold text-slate-700">
-                                  {arrivalType === "FLIGHT" ? "Airline" :
-                                   arrivalType === "BUS" ? "Bus Company" :
-                                   arrivalType === "TRAIN" ? "Train Operator" :
-                                   arrivalType === "FERRY" ? "Ferry Operator" :
-                                   "Transport Company"}
-                                </label>
-                                <input
-                                  type="text"
-                                  value={transportCompany}
-                                  onChange={(e) => setTransportCompany(e.target.value)}
-                                  placeholder={arrivalType === "FLIGHT" ? "e.g., Precision Air" :
-                                               arrivalType === "BUS" ? "e.g., Scania" :
-                                               arrivalType === "TRAIN" ? "e.g., TAZARA" :
-                                               arrivalType === "FERRY" ? "e.g., Azam Marine" :
-                                               "Company name"}
-                                  className="w-full min-w-0 px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm max-w-full box-border"
-                                />
-                              </div>
+                          {/* Row 2: Company/Airline + Arrival Time */}
+                          <div className="grid grid-cols-2 gap-3 sm:gap-4 w-full min-w-0">
+                            {/* Company */}
+                            <div className="space-y-2 min-w-0 w-full">
+                              <label className="block text-sm font-semibold text-slate-700">
+                                {arrivalType === "FLIGHT" ? "Airline" :
+                                 arrivalType === "BUS" ? "Bus Company" :
+                                 arrivalType === "TRAIN" ? "Train Operator" :
+                                 arrivalType === "FERRY" ? "Ferry Operator" :
+                                 arrivalType === "OTHER" ? "Transport Company" :
+                                 <span className="text-slate-400">Company</span>}
+                              </label>
+                              <input
+                                type="text"
+                                value={transportCompany}
+                                onChange={(e) => setTransportCompany(e.target.value)}
+                                disabled={!arrivalType}
+                                placeholder={
+                                  !arrivalType ? "Select type first" :
+                                  arrivalType === "FLIGHT" ? "e.g., Precision Air" :
+                                  arrivalType === "BUS" ? "e.g., Scania" :
+                                  arrivalType === "TRAIN" ? "e.g., TAZARA" :
+                                  arrivalType === "FERRY" ? "e.g., Azam Marine" :
+                                  "Company name"
+                                }
+                                className="w-full min-w-0 px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm max-w-full box-border disabled:opacity-50 disabled:cursor-not-allowed"
+                              />
                             </div>
-                          )}
 
-                          {/* Arrival Time and Pickup Location - Two columns on large screens */}
-                          {arrivalType && (
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 lg:gap-5 w-full min-w-0">
-                              {/* Arrival Time */}
-                              <div className="space-y-2 w-full min-w-0">
-                                <label className="block text-sm font-semibold text-slate-700">
-                                  Arrival Time
-                                  {requiresArrivalInfo && <span className="text-red-500"> *</span>}
-                                </label>
-                                <div className="space-y-2 sm:space-y-3">
-                                  {/* Date Picker Button */}
-                                  <div className="relative">
-                                    <button
-                                      type="button"
-                                      onClick={() => setArrivalDatePickerOpen(true)}
-                                      className="w-full min-w-0 px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 pl-8 sm:pl-10 md:pl-11 pr-8 sm:pr-10 md:pr-11 border-2 border-slate-300 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-gradient-to-r from-slate-50 to-blue-50/50 shadow-sm max-w-full box-border flex items-center justify-between group"
-                                    >
-                                      <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
-                                        <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#02665e] flex-shrink-0" />
-                                        <span className="text-slate-900 truncate text-xs sm:text-sm">
-                                          {arrivalDate
-                                            ? (() => {
-                                                const date = new Date(arrivalDate);
-                                                const day = String(date.getDate()).padStart(2, "0");
-                                                const month = String(date.getMonth() + 1).padStart(2, "0");
-                                                const year = date.getFullYear();
-                                                return `${day} / ${month} / ${year}`;
-                                              })()
-                                            : "dd / mm / yyyy"}
-                                        </span>
+                            {/* Arrival Time */}
+                            <div className="space-y-2 w-full min-w-0">
+                              <label className="block text-sm font-semibold text-slate-700">
+                                Arrival Time
+                                {requiresArrivalInfo && <span className="text-red-500"> *</span>}
+                              </label>
+                              <div className="space-y-2">
+                                <div className="relative">
+                                  <button
+                                    type="button"
+                                    onClick={() => setArrivalDatePickerOpen(true)}
+                                    className="w-full min-w-0 px-3 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-gradient-to-r from-slate-50 to-blue-50/50 shadow-sm max-w-full box-border flex items-center justify-between group"
+                                  >
+                                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                      <Calendar className="w-3.5 h-3.5 text-[#02665e] flex-shrink-0" />
+                                      <span className="text-slate-900 truncate text-xs sm:text-sm">
+                                        {arrivalDate
+                                          ? (() => {
+                                              const date = new Date(arrivalDate);
+                                              const day = String(date.getDate()).padStart(2, "0");
+                                              const month = String(date.getMonth() + 1).padStart(2, "0");
+                                              const year = date.getFullYear();
+                                              return `${day} / ${month} / ${year}`;
+                                            })()
+                                          : "dd / mm / yyyy"}
+                                      </span>
+                                    </div>
+                                    <Calendar className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#02665e] transition-colors flex-shrink-0" />
+                                  </button>
+                                  {arrivalDatePickerOpen && (
+                                    <>
+                                      <div className="fixed inset-0 z-[100]" onClick={() => setArrivalDatePickerOpen(false)} />
+                                      <div className="absolute z-[101] top-full left-0 mt-2 bg-white rounded-xl border-2 border-slate-200 shadow-2xl max-h-[calc(100vh-200px)] overflow-y-auto">
+                                        <DatePicker
+                                          selected={arrivalDate}
+                                          onSelectAction={(s) => {
+                                            const date = Array.isArray(s) ? s[0] : s;
+                                            setArrivalDate(date || "");
+                                            setArrivalDatePickerOpen(false);
+                                          }}
+                                          onCloseAction={() => setArrivalDatePickerOpen(false)}
+                                          allowRange={false}
+                                          minDate={new Date().toISOString().split("T")[0]}
+                                        />
                                       </div>
-                                      <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 group-hover:text-[#02665e] transition-colors flex-shrink-0" />
-                                    </button>
-                                    {arrivalDatePickerOpen && (
-                                      <>
-                                        <div className="fixed inset-0 z-[100]" onClick={() => setArrivalDatePickerOpen(false)} />
-                                        <div className="absolute z-[101] top-full left-0 mt-2 bg-white rounded-xl border-2 border-slate-200 shadow-2xl max-h-[calc(100vh-200px)] overflow-y-auto">
-                                          <DatePicker
-                                            selected={arrivalDate}
-                                            onSelectAction={(s) => {
-                                              const date = Array.isArray(s) ? s[0] : s;
-                                              setArrivalDate(date || "");
-                                              setArrivalDatePickerOpen(false);
-                                            }}
-                                            onCloseAction={() => setArrivalDatePickerOpen(false)}
-                                            allowRange={false}
-                                            minDate={new Date().toISOString().split("T")[0]}
-                                          />
-                                        </div>
-                                      </>
-                                    )}
+                                    </>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <div className="flex-1 min-w-0">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max="23"
+                                      value={arrivalTimeHour}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        if (val === "" || (parseInt(val) >= 0 && parseInt(val) <= 23)) {
+                                          setArrivalTimeHour(val);
+                                        }
+                                      }}
+                                      placeholder="HH"
+                                      required={requiresArrivalInfo}
+                                      aria-required={requiresArrivalInfo}
+                                      className="w-full min-w-0 px-2 sm:px-3 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl text-xs sm:text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm text-center max-w-full box-border"
+                                    />
                                   </div>
-                                  {/* Time Inputs */}
-                                  <div className="flex items-center gap-2 sm:gap-3">
-                                    <div className="flex-1 min-w-0">
-                                      <input
-                                        type="number"
-                                        min="0"
-                                        max="23"
-                                        value={arrivalTimeHour}
-                                        onChange={(e) => {
-                                          const val = e.target.value;
-                                          if (val === "" || (parseInt(val) >= 0 && parseInt(val) <= 23)) {
-                                            setArrivalTimeHour(val);
-                                          }
-                                        }}
-                                        placeholder="--"
-                                        required={requiresArrivalInfo}
-                                        aria-required={requiresArrivalInfo}
-                                        className="w-full min-w-0 px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 border-2 border-slate-300 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm text-center max-w-full box-border"
-                                      />
-                                    </div>
-                                    <span className="flex items-center text-slate-600 font-semibold text-sm sm:text-base">:</span>
-                                    <div className="flex-1 min-w-0">
-                                      <input
-                                        type="number"
-                                        min="0"
-                                        max="59"
-                                        value={arrivalTimeMinute}
-                                        onChange={(e) => {
-                                          const val = e.target.value;
-                                          if (val === "" || (parseInt(val) >= 0 && parseInt(val) <= 59)) {
-                                            setArrivalTimeMinute(val);
-                                          }
-                                        }}
-                                        placeholder="--"
-                                        required={requiresArrivalInfo}
-                                        aria-required={requiresArrivalInfo}
-                                        className="w-full min-w-0 px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 border-2 border-slate-300 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm text-center max-w-full box-border"
-                                      />
-                                    </div>
+                                  <span className="text-slate-600 font-bold text-sm">:</span>
+                                  <div className="flex-1 min-w-0">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max="59"
+                                      value={arrivalTimeMinute}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        if (val === "" || (parseInt(val) >= 0 && parseInt(val) <= 59)) {
+                                          setArrivalTimeMinute(val);
+                                        }
+                                      }}
+                                      placeholder="MM"
+                                      required={requiresArrivalInfo}
+                                      aria-required={requiresArrivalInfo}
+                                      className="w-full min-w-0 px-2 sm:px-3 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl text-xs sm:text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm text-center max-w-full box-border"
+                                    />
                                   </div>
                                 </div>
                               </div>
-
-                              {/* Pickup Location (specific area/terminal) */}
-                              <div className="space-y-2 w-full min-w-0">
-                                <label className="block text-sm font-semibold text-slate-700">
-                                  Specific Pickup Area/Terminal
-                                  {requiresArrivalInfo && <span className="text-red-500"> *</span>}
-                                </label>
-                                <input
-                                  type="text"
-                                  value={pickupLocation}
-                                  onChange={(e) => setPickupLocation(e.target.value)}
-                                  placeholder={arrivalType === "FLIGHT" ? "e.g., Terminal 1, Gate 3" :
-                                               arrivalType === "BUS" ? "e.g., Ubungo Bus Terminal, Platform 5" :
-                                               arrivalType === "TRAIN" ? "e.g., Central Station, Platform 2" :
-                                               arrivalType === "FERRY" ? "e.g., Ferry Terminal, Dock A" :
-                                               "Specific pickup location"}
-                                  required={requiresArrivalInfo}
-                                  className="w-full min-w-0 px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm max-w-full box-border"
-                                />
-                                <p className="text-xs text-slate-600 mt-1.5">
-                                  Specify the exact pickup point (terminal, gate, platform, etc.)
-                                </p>
-                              </div>
                             </div>
-                          )}
+                          </div>
+
+                          {/* Row 3: Specific Pickup Area/Terminal — full width */}
+                          <div className="space-y-2 w-full min-w-0">
+                            <label className="block text-sm font-semibold text-slate-700">
+                              Specific Pickup Area/Terminal
+                              {requiresArrivalInfo && <span className="text-red-500"> *</span>}
+                            </label>
+                            <input
+                              type="text"
+                              value={pickupLocation}
+                              onChange={(e) => setPickupLocation(e.target.value)}
+                              placeholder={arrivalType === "FLIGHT" ? "e.g., Terminal 1, Gate 3" :
+                                           arrivalType === "BUS" ? "e.g., Ubungo Bus Terminal, Platform 5" :
+                                           arrivalType === "TRAIN" ? "e.g., Central Station, Platform 2" :
+                                           arrivalType === "FERRY" ? "e.g., Ferry Terminal, Dock A" :
+                                           "Specific pickup location"}
+                              required={requiresArrivalInfo}
+                              className="w-full min-w-0 px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm max-w-full box-border"
+                            />
+                            <p className="text-xs text-slate-600 mt-1.5">
+                              Specify the exact pickup point (terminal, gate, platform, etc.)
+                            </p>
+                          </div>
                         </div>
                       </div>
                       )}
@@ -2362,60 +2417,194 @@ export default function BookingConfirmPage() {
                         </div>
                       )}
 
-                      {transportFare && (
-                        <div className="p-4 bg-white rounded-xl border-2 border-[#02665e]/30 shadow-md animate-in fade-in slide-in-from-bottom-2 duration-300">
-                          <div className="flex items-center justify-between mb-3">
-                            <div>
-                              <span className="text-sm font-bold text-slate-800">Transport Fare</span>
-                              <span className="ml-2 text-xs text-slate-500 font-medium">({getVehicleTypeLabel(transportVehicleType)})</span>
-                              <span className="ml-2 text-xs text-slate-500 font-medium">(Fixed upfront price)</span>
+                      {calculatingFare && !transportFare && (
+                        <div className="animate-in fade-in duration-200 rounded-2xl overflow-hidden border border-slate-200/80 bg-white shadow-sm">
+                          {/* skeleton header */}
+                          <div className="px-5 pt-5 pb-4 border-b border-slate-100">
+                            <div className="flex items-center justify-between mb-5">
+                              <div className="h-3 w-20 rounded-full bg-slate-200 animate-pulse" />
+                              <div className="flex gap-1.5">
+                                <div className="h-6 w-14 rounded-full bg-slate-100 animate-pulse" />
+                                <div className="h-6 w-14 rounded-full bg-slate-100 animate-pulse" />
+                              </div>
                             </div>
-                            <span className="text-xl font-bold text-[#02665e]">
-                              {transportFare.toLocaleString()} {currency}
-                            </span>
+                            {/* route skeleton */}
+                            <div className="flex gap-4">
+                              <div className="flex flex-col items-center gap-0 pt-0.5">
+                                <div className="w-3 h-3 rounded-full border-2 border-slate-300 bg-white animate-pulse" />
+                                <div className="w-px flex-1 border-l-2 border-dashed border-slate-200 my-1.5" style={{minHeight: 36}} />
+                                <div className="w-3 h-3 rounded-sm bg-slate-300 animate-pulse" />
+                              </div>
+                              <div className="flex-1 flex flex-col justify-between gap-5 min-w-0">
+                                <div className="space-y-1.5">
+                                  <div className="h-2.5 w-16 rounded-full bg-slate-100 animate-pulse" />
+                                  <div className="h-3.5 w-44 rounded-full bg-slate-200 animate-pulse" />
+                                </div>
+                                <div className="space-y-1.5">
+                                  <div className="h-2.5 w-14 rounded-full bg-slate-100 animate-pulse" />
+                                  <div className="h-3.5 w-32 rounded-full bg-slate-200 animate-pulse" />
+                                </div>
+                              </div>
+                            </div>
+                            {/* chips skeleton */}
+                            <div className="flex gap-2 mt-5">
+                              <div className="h-7 w-20 rounded-full bg-slate-100 animate-pulse" />
+                              <div className="h-7 w-20 rounded-full bg-slate-100 animate-pulse" />
+                            </div>
                           </div>
-                          {transportOriginLat !== null && transportOriginLng !== null && !!property && property.latitude !== null && property.longitude !== null && (
-                            <>
-                              <p className="text-xs text-slate-600 mb-1">
-                                {getFareBreakdown(
-                                  calculateTransportFare(
-                                    {
-                                      latitude: transportOriginLat,
-                                      longitude: transportOriginLng,
-                                      address: transportOriginAddress,
-                                    },
-                                    {
-                                      latitude: property.latitude,
-                                      longitude: property.longitude,
-                                    },
-                                    currency,
-                                    arrivalDate
-                                      ? (() => {
-                                          const d = new Date(arrivalDate);
-                                          if (isNaN(d.getTime())) return undefined;
-                                          if (arrivalTimeHour) d.setHours(parseInt(arrivalTimeHour) || 0);
-                                          if (arrivalTimeMinute) d.setMinutes(parseInt(arrivalTimeMinute) || 0);
-                                          return d;
-                                        })()
-                                      : undefined,
-                                    transportVehicleType
-                                  )
-                                )}
-                              </p>
-                              <p className="text-xs text-slate-500 italic">
-                                This is your final fare - no additional charges. Included in your booking total.
-                              </p>
-                            </>
-                          )}
+                          {/* skeleton fare row */}
+                          <div className="px-5 py-4 flex items-center justify-between gap-4">
+                            <div className="space-y-1.5">
+                              <div className="h-2.5 w-24 rounded-full bg-slate-100 animate-pulse" />
+                              <div className="h-7 w-32 rounded-full bg-slate-200 animate-pulse" />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className="relative w-3 h-3">
+                                <div className="absolute inset-0 rounded-full bg-[#02665e]/40 animate-ping" />
+                                <div className="w-3 h-3 rounded-full bg-[#02665e]/60" />
+                              </div>
+                              <span className="text-xs font-semibold text-slate-400 tracking-wide">Calculating…</span>
+                            </div>
+                          </div>
                         </div>
                       )}
 
-                      {calculatingFare && (
-                        <div className="flex items-center gap-2 text-sm text-slate-600">
-                          <LogoSpinner size="xs" ariaLabel="Calculating fare" />
-                          Calculating fare...
-                        </div>
-                      )}
+                      {transportFare && (() => {
+                        const hasCoords =
+                          transportOriginLat !== null &&
+                          transportOriginLng !== null &&
+                          !!property &&
+                          property.latitude !== null &&
+                          property.longitude !== null;
+                        const fareAt = arrivalDate
+                          ? (() => {
+                              const d = new Date(arrivalDate);
+                              if (isNaN(d.getTime())) return undefined;
+                              if (arrivalTimeHour) d.setHours(parseInt(arrivalTimeHour) || 0);
+                              if (arrivalTimeMinute) d.setMinutes(parseInt(arrivalTimeMinute) || 0);
+                              return d;
+                            })()
+                          : undefined;
+                        const fareDetail = hasCoords
+                          ? calculateTransportFare(
+                              { latitude: transportOriginLat!, longitude: transportOriginLng!, address: transportOriginAddress },
+                              { latitude: property!.latitude!, longitude: property!.longitude! },
+                              currency, fareAt, transportVehicleType
+                            )
+                          : null;
+                        const distKm = fareDetail ? fareDetail.distance : null;
+                        const etaMin = fareDetail ? fareDetail.estimatedTime : null;
+                        return (
+                          <div className="animate-in fade-in slide-in-from-bottom-3 duration-400 rounded-2xl overflow-hidden border border-slate-200/80 bg-white shadow-lg">
+                            {/* ── Route card header ── */}
+                            <div className="px-5 pt-5 pb-4 border-b border-slate-100">
+                              {/* top bar */}
+                              <div className="flex items-center justify-between mb-5">
+                                <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Your Ride</span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="inline-flex items-center gap-1 bg-[#02665e]/8 text-[#02665e] border border-[#02665e]/20 text-[11px] font-semibold rounded-full px-2.5 py-1">
+                                    <Car className="w-3 h-3" />
+                                    {getVehicleTypeLabel(transportVehicleType)}
+                                  </span>
+                                  <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 text-[11px] font-semibold rounded-full px-2.5 py-1">
+                                    <ShieldCheck className="w-3 h-3" />
+                                    Fixed
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* ── vertical route timeline ── */}
+                              <div className="flex gap-4">
+                                {/* timeline spine */}
+                                <div className="flex flex-col items-center flex-shrink-0 pt-0.5">
+                                  {/* origin dot */}
+                                  <div className="w-3 h-3 rounded-full border-[2.5px] border-[#02665e] bg-white shadow-sm" />
+                                  {/* dashed connector */}
+                                  <div className="flex-1 flex flex-col items-center gap-[3px] py-1.5" style={{minHeight: 40}}>
+                                    {Array.from({length: 5}).map((_, i) => (
+                                      <div key={i} className="w-px h-1.5 rounded-full bg-slate-300" />
+                                    ))}
+                                  </div>
+                                  {/* destination diamond */}
+                                  <div className="w-3 h-3 rounded-sm bg-[#02665e] shadow-sm rotate-45" />
+                                </div>
+
+                                {/* labels */}
+                                <div className="flex-1 flex flex-col justify-between gap-4 min-w-0">
+                                  <div className="min-w-0">
+                                    <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-0.5">Pickup</div>
+                                    <div className="text-sm font-semibold text-slate-800 truncate leading-snug">
+                                      {transportOriginAddress || "Your current location"}
+                                    </div>
+                                  </div>
+                                  <div className="min-w-0">
+                                    <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-0.5">Drop-off</div>
+                                    <div className="text-sm font-semibold text-slate-800 truncate leading-snug">
+                                      {property?.title || "Property"}
+                                    </div>
+                                    {property?.city && (
+                                      <div className="text-xs text-slate-400 truncate mt-0.5">{[property.city, property.district].filter(Boolean).join(", ")}</div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* ── stats chips ── */}
+                              {(distKm !== null || etaMin !== null) && (
+                                <div className="flex items-center gap-2 mt-5 flex-wrap">
+                                  {distKm !== null && (
+                                    <span className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-200 text-slate-600 text-xs font-semibold rounded-full px-3 py-1.5">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-slate-400 flex-shrink-0" />
+                                      {distKm.toFixed(1)} km
+                                    </span>
+                                  )}
+                                  {etaMin !== null && (
+                                    <span className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-200 text-slate-600 text-xs font-semibold rounded-full px-3 py-1.5">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-slate-400 flex-shrink-0" />
+                                      ~{etaMin} min
+                                    </span>
+                                  )}
+                                  {fareDetail && fareDetail.surgeMultiplier > 1 && (
+                                    <span className="inline-flex items-center gap-1.5 bg-orange-50 border border-orange-200 text-orange-700 text-xs font-semibold rounded-full px-3 py-1.5">
+                                      ×{fareDetail.surgeMultiplier.toFixed(1)} surge
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* ── fare row ── */}
+                            <div className="px-5 py-4 bg-[#02665e]/[0.03]">
+                              <div className="flex items-center justify-between gap-3">
+                                <div>
+                                  <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Total fare</div>
+                                  <div className="flex items-baseline gap-1.5">
+                                    <span className="text-2xl font-black text-slate-900 leading-none tabular-nums">
+                                      {transportFare.toLocaleString()}
+                                    </span>
+                                    <span className="text-sm font-semibold text-slate-400">{currency}</span>
+                                  </div>
+                                </div>
+                                {fareDetail && (
+                                  <div className="hidden sm:flex flex-col items-end gap-1 text-[11px] text-slate-400 text-right">
+                                    <span>Base {fareDetail.baseFare.toLocaleString()}</span>
+                                    <span>Distance {fareDetail.distanceFare.toLocaleString()}</span>
+                                    <span>Time {fareDetail.timeFare.toLocaleString()}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* ── footer ── */}
+                            <div className="px-5 py-3 bg-emerald-50/60 border-t border-emerald-100 flex items-center gap-2">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                              <span className="text-xs text-emerald-800 font-medium">
+                                Fixed upfront fare &mdash; no surprises, included in your booking total.
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>
