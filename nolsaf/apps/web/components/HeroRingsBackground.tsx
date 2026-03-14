@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React from "react";
 
@@ -37,7 +37,7 @@ export default function HeroRingsBackground({
   const blurId   = `${uid}-blur`;
   const ringGId  = `${uid}-ringG`;
 
-  // Off-canvas ring origin â€” bottom-right so only elegant arcs bleed in
+  // Off-canvas ring origin — bottom-right so only elegant arcs bleed in
   const cx = 900;
   const cy = 580;
 
@@ -77,7 +77,7 @@ export default function HeroRingsBackground({
       ].join(" ")}
       aria-hidden
     >
-      {/* â”€â”€ Layer 1: ambient colour blobs â”€â”€ */}
+      {/* ── Layer 1: ambient colour blobs ── */}
       <div
         className="absolute inset-0"
         style={{
@@ -89,7 +89,7 @@ export default function HeroRingsBackground({
         }}
       />
 
-      {/* â”€â”€ Layer 2: orbital ring SVG â”€â”€ */}
+      {/* ── Layer 2: orbital ring SVG ── */}
       <svg
         className="absolute inset-0 h-full w-full"
         viewBox="0 0 1000 700"
@@ -135,8 +135,8 @@ export default function HeroRingsBackground({
         {/* Soft gradient corona */}
         <ellipse cx={cx} cy={cy} rx="440" ry="360" fill={`url(#${coronaId})`} />
 
-        {/* â”€â”€ Rings (5 from tight to wide) â”€â”€ */}
-        {/* Ring 1 â€“ tightest, brightest crescent */}
+        {/* ── Rings (5 from tight to wide) ── */}
+        {/* Ring 1 – tightest, brightest crescent */}
         <circle
           cx={cx} cy={cy} r="120"
           fill="none"
@@ -168,7 +168,7 @@ export default function HeroRingsBackground({
           strokeLinecap="round" strokeDasharray="300 2527"
           className="hrb-s4"
         />
-        {/* Ring 5 â€“ outermost, barely visible */}
+        {/* Ring 5 – outermost, barely visible */}
         <circle
           cx={cx} cy={cy} r="590"
           fill="none"
@@ -177,17 +177,17 @@ export default function HeroRingsBackground({
           className="hrb-s5"
         />
 
-        {/* â”€â”€ Glowing orbital nodes â”€â”€ */}
+        {/* ── Glowing orbital nodes ── */}
         <g filter={`url(#${glowId})`}>
-          {/* Node on ring 1 â€” top */}
+          {/* Node on ring 1 — top */}
           <circle cx={cx}       cy={cy - 120} r="4.2" fill={a}    opacity="0.96" className="hrb-s1" />
           <circle cx={cx}       cy={cy - 120} r="8"   fill={a}    opacity="0.18" className="hrb-s1" />
 
-          {/* Node on ring 2 â€” right side */}
+          {/* Node on ring 2 — right side */}
           <circle cx={cx + 210} cy={cy}       r="3.6" fill={b}    opacity="0.88" className="hrb-s2" />
           <circle cx={cx + 210} cy={cy}       r="7"   fill={b}    opacity="0.16" className="hrb-s2" />
 
-          {/* Node on ring 3 â€” lower-left */}
+          {/* Node on ring 3 — lower-left */}
           <circle cx={cx - 40}  cy={cy + 320} r="3.2" fill={dotA} opacity="0.80" className="hrb-s3" />
           <circle cx={cx - 40}  cy={cy + 320} r="6"   fill={dotA} opacity="0.14" className="hrb-s3" />
 
@@ -195,21 +195,21 @@ export default function HeroRingsBackground({
           <circle cx={cx - 420} cy={cy - 70}  r="2.6" fill={dotB} opacity="0.65" className="hrb-s4" />
         </g>
 
-        {/* â”€â”€ Star field (right half only) â”€â”€ */}
+        {/* ── Star field (right half only) ── */}
         <g>
           {stars.map((s, i) => (
             <circle key={i} cx={s.x} cy={s.y} r={s.r} fill={a} opacity={s.o} />
           ))}
         </g>
 
-        {/* â”€â”€ Blueprint scan-lines (horizontal, very faint) â”€â”€ */}
+        {/* ── Blueprint scan-lines (horizontal, very faint) ── */}
         <g stroke={a} strokeOpacity="0.032" strokeWidth="1">
           {[55, 110, 165, 220, 275, 330, 385, 440, 495, 550, 605].map((y) => (
             <line key={y} x1="380" y1={y} x2="1000" y2={y} />
           ))}
         </g>
 
-        {/* â”€â”€ Vertical accent line from ring origin â”€â”€ */}
+        {/* ── Vertical accent line from ring origin ── */}
         <line
           x1={cx} y1={cy - 600} x2={cx} y2={cy + 80}
           stroke={a} strokeOpacity="0.06" strokeWidth="1"
@@ -222,7 +222,7 @@ export default function HeroRingsBackground({
         />
       </svg>
 
-      {/* â”€â”€ Layer 3: film grain â”€â”€ */}
+      {/* ── Layer 3: film grain ── */}
       <div
         className="absolute inset-0 mix-blend-overlay opacity-[0.14]"
         style={{
@@ -232,10 +232,10 @@ export default function HeroRingsBackground({
         }}
       />
 
-      {/* â”€â”€ Layer 4: top glass sheen â”€â”€ */}
+      {/* ── Layer 4: top glass sheen ── */}
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_30%_at_50%_0%,rgba(255,255,255,0.10),transparent)]" />
 
-      {/* â”€â”€ Layer 5: bottom fade-to-dark (for full variant) â”€â”€ */}
+      {/* ── Layer 5: bottom fade-to-dark (for full variant) ── */}
       {variant === "full" && (
         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom,rgba(5,8,15,0.50),rgba(5,8,15,0.10)_40%,rgba(5,8,15,0.72))]" />
       )}

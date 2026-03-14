@@ -61,7 +61,7 @@ type Ride = {
   updatedAt: string;
 };
 
-/* â”€â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* --- helpers --- */
 function getStatusMeta(status: string) {
   const s = status.toLowerCase();
   if (s.includes("completed"))
@@ -120,7 +120,7 @@ export default function RideDetailPage() {
   const formatTime = (t?: string) =>
     t ? new Date(t).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "N/A";
 
-  /* â”€â”€ Loading â”€â”€ */
+  /* --- Loading --- */
   if (loading) {
     return (
       <div className="mx-auto w-full max-w-4xl space-y-6">
@@ -143,7 +143,7 @@ export default function RideDetailPage() {
     );
   }
 
-  /* â”€â”€ Error â”€â”€ */
+  /* --- Error --- */
   if (error || !ride) {
     return (
       <div className="mx-auto w-full max-w-4xl p-6">
@@ -169,7 +169,7 @@ export default function RideDetailPage() {
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6">
 
-      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â• HERO HEADER â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+      {/* --- HERO HEADER --- */}
       <div
         className="relative overflow-hidden rounded-3xl shadow-[0_4px_32px_rgba(3,105,161,0.22)]"
         style={{ background: "linear-gradient(135deg, #0f172a 0%, #1e3a5f 52%, #0369a1 100%)" }}
@@ -242,10 +242,10 @@ export default function RideDetailPage() {
         </div>
       </div>
 
-      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â• BODY GRID â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+      {/* --- BODY GRID --- */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-        {/* â”€â”€ LEFT / MAIN â”€â”€ */}
+        {/* --- LEFT / MAIN --- */}
         <div className="lg:col-span-2 space-y-5">
 
           {/* Trip Info Card */}
@@ -365,7 +365,7 @@ export default function RideDetailPage() {
 
         </div>
 
-        {/* â”€â”€ RIGHT / SIDEBAR â”€â”€ */}
+        {/* --- RIGHT / SIDEBAR --- */}
         <div className="space-y-5">
 
           {/* Driver Card */}
@@ -474,7 +474,7 @@ export default function RideDetailPage() {
         </div>
       </div>
 
-      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â• CHAT â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+      {/* --- CHAT --- */}
       {showChat && ride.driver && currentUserId && (
         <div className="relative overflow-hidden bg-white rounded-3xl border border-slate-100 shadow-[0_2px_16px_rgba(0,0,0,0.05)]">
           <div className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-3xl"

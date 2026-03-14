@@ -719,7 +719,7 @@ export default function DriverVettingPage() {
   return (
     <div className="flex flex-col gap-5">
 
-      {/* â”€â”€ PAGE HEADER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* --- PAGE HEADER --- */}
       <div
         className="rounded-2xl overflow-hidden"
         style={{ background: "linear-gradient(135deg, #0e2a7a 0%, #0a5c82 45%, #02665e 100%)" }}
@@ -791,7 +791,7 @@ export default function DriverVettingPage() {
         </div>
       </div>
 
-      {/* â”€â”€ BODY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* --- BODY --- */}
       <div className="flex flex-col gap-4">
 
         {/* TABLE PANEL */}
@@ -941,7 +941,7 @@ export default function DriverVettingPage() {
             </div>
           )}
         </div>
-        {/* â”€â”€ DETAIL PANEL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {/* --- DETAIL PANEL --- */}
         {selected && (
           <>
             {/* Backdrop */}
@@ -1331,7 +1331,7 @@ export default function DriverVettingPage() {
               </div>
             )}
 
-            {/* â”€â”€ ACTION BAR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+            {/* --- ACTION BAR --- */}
             <div className="border-t-2 border-slate-200 px-4 py-4 bg-white shadow-[0_-4px_16px_rgba(0,0,0,0.06)] space-y-3 flex-shrink-0">
               {showNoteInput === "revoke" ? (
                 <div className="space-y-3">

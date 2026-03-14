@@ -1424,7 +1424,7 @@ export default function Page() {
 
               </div>
 
-                        {/* RIGHT: digital connection â€” one platform */}
+                        {/* RIGHT: digital connection — one platform */}
 
             <div className="pointer-events-none absolute right-[-18px] bottom-[-8px] flex items-center justify-center w-[148px] opacity-[0.18] z-0 sm:right-0 sm:bottom-0 sm:w-[170px] sm:opacity-[0.24] lg:left-4 lg:right-auto lg:bottom-8 lg:w-[220px] lg:opacity-[0.38] xl:left-8 xl:w-[260px]">
 
@@ -1507,7 +1507,13 @@ export default function Page() {
 
         <div className="public-container relative z-10">
 
-          <div className="mb-12 flex flex-col items-center text-center">
+          <motion.div
+            className="mb-12 flex flex-col items-center text-center"
+            initial={{ opacity: 0, y: 24 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: '-60px' }}
+            transition={{ duration: 0.55, ease: [0.2, 0.8, 0.2, 1] }}
+          >
             <div className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-[11px] font-semibold tracking-[0.12em] uppercase shadow-sm ring-1 bg-gradient-to-r from-emerald-50 via-white to-sky-50 ring-slate-200/80 text-slate-500">
               <span className="w-1.5 h-1.5 rounded-full bg-gradient-to-br from-emerald-400 to-sky-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]" aria-hidden />
               Who It&apos;s For
@@ -1528,17 +1534,22 @@ export default function Page() {
               Travelers, drivers, and property owners {" "}
               <span className="text-slate-700 font-medium">connected by verified listings, clear policies, and dependable support.</span>
             </p>
-          </div>
+          </motion.div>
 
           <div className="grid grid-cols-1 min-[420px]:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-6 min-[420px]:gap-y-6 sm:gap-x-5 sm:gap-y-6 md:gap-y-0 mb-6 sm:mb-8">
-            <div
+            <motion.div
               onClick={() => router.push('/public/properties')}
               onKeyDown={(e) => { if (e.key === 'Enter') router.push('/public/properties'); }}
               role="link"
               tabIndex={0}
               aria-label="Travelers - Browse stays"
-              className="group relative min-w-0 h-full cursor-pointer rounded-3xl overflow-hidden transition-all duration-500 hover:-translate-y-2 hover:shadow-[0_28px_70px_rgba(4,120,87,0.40)]"
+              className="group relative min-w-0 h-full cursor-pointer rounded-3xl overflow-hidden transition-shadow duration-500 hover:shadow-[0_28px_70px_rgba(4,120,87,0.40)]"
               style={{ boxShadow: '0 8px 32px rgba(4,120,87,0.22)' }}
+              initial={{ opacity: 0, y: 32 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-40px' }}
+              transition={{ duration: 0.5, delay: 0, ease: [0.2, 0.8, 0.2, 1] }}
+              whileHover={{ y: -8 }}
             >
               <div className="absolute inset-0" style={{ background: 'linear-gradient(145deg, #022c22 0%, #064e3b 35%, #065f46 65%, #047857 100%)' }} />
               <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.8) 1px, transparent 1px)', backgroundSize: '22px 22px' }} />
@@ -1564,16 +1575,21 @@ export default function Page() {
                   <span className="flex items-center gap-1.5 pt-4"><Eye className="w-3.5 h-3.5" style={{ color: '#34d399' }} aria-hidden />Verified listings</span>
                 </div>
               </div>
-            </div>
+            </motion.div>
 
-            <div
+            <motion.div
               onClick={() => router.push('/account/register?role=driver')}
               onKeyDown={(e) => { if (e.key === 'Enter') router.push('/account/register?role=driver'); }}
               role="link"
               tabIndex={0}
               aria-label="Drivers - Register as a driver"
-              className="group relative min-w-0 h-full cursor-pointer rounded-3xl overflow-hidden transition-all duration-500 hover:-translate-y-2 hover:shadow-[0_28px_70px_rgba(2,132,199,0.40)]"
+              className="group relative min-w-0 h-full cursor-pointer rounded-3xl overflow-hidden transition-shadow duration-500 hover:shadow-[0_28px_70px_rgba(2,132,199,0.40)]"
               style={{ boxShadow: '0 8px 32px rgba(2,132,199,0.22)' }}
+              initial={{ opacity: 0, y: 32 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-40px' }}
+              transition={{ duration: 0.5, delay: 0.1, ease: [0.2, 0.8, 0.2, 1] }}
+              whileHover={{ y: -8 }}
             >
               <div className="absolute inset-0" style={{ background: 'linear-gradient(145deg, #0c1a2e 0%, #0c4a6e 35%, #075985 65%, #0369a1 100%)' }} />
               <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.8) 1px, transparent 1px)', backgroundSize: '22px 22px' }} />
@@ -1599,16 +1615,21 @@ export default function Page() {
                   <span className="flex items-center gap-1.5 pt-4"><Eye className="w-3.5 h-3.5" style={{ color: '#38bdf8' }} aria-hidden />Driver dashboard</span>
                 </div>
               </div>
-            </div>
+            </motion.div>
 
-            <div
+            <motion.div
               onClick={() => router.push('/account/register?role=owner')}
               onKeyDown={(e) => { if (e.key === 'Enter') router.push('/account/register?role=owner'); }}
               role="link"
               tabIndex={0}
               aria-label="Property Owners - List your property"
-              className="group relative min-w-0 col-span-1 min-[420px]:col-span-2 md:col-span-1 h-full sm:mt-0 cursor-pointer rounded-3xl overflow-hidden transition-all duration-500 hover:-translate-y-2 hover:shadow-[0_28px_70px_rgba(109,40,217,0.40)]"
+              className="group relative min-w-0 col-span-1 min-[420px]:col-span-2 md:col-span-1 h-full sm:mt-0 cursor-pointer rounded-3xl overflow-hidden transition-shadow duration-500 hover:shadow-[0_28px_70px_rgba(109,40,217,0.40)]"
               style={{ boxShadow: '0 8px 32px rgba(109,40,217,0.22)' }}
+              initial={{ opacity: 0, y: 32 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-40px' }}
+              transition={{ duration: 0.5, delay: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
+              whileHover={{ y: -8 }}
             >
               <div className="absolute inset-0" style={{ background: 'linear-gradient(145deg, #130828 0%, #2e1065 35%, #3b0764 65%, #4c1d95 100%)' }} />
               <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.8) 1px, transparent 1px)', backgroundSize: '22px 22px' }} />
@@ -1634,7 +1655,7 @@ export default function Page() {
                   <span className="flex items-center gap-1.5 pt-4"><Eye className="w-3.5 h-3.5" style={{ color: '#a78bfa' }} aria-hidden />Owner dashboard</span>
                 </div>
               </div>
-            </div>
+            </motion.div>
           </div>
 
           {/* ── Explore heading — split editorial layout ── */}
@@ -1708,8 +1729,14 @@ export default function Page() {
               const ac = accents[idx % accents.length];
 
               return (
-                <Link
+                <motion.div
                   key={c.key}
+                  initial={{ opacity: 0, y: 24 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: '-30px' }}
+                  transition={{ duration: 0.45, delay: (idx % 5) * 0.07, ease: [0.2, 0.8, 0.2, 1] }}
+                >
+                <Link
                   href={href}
                   aria-label={`Browse ${c.title} stays`}
                   className="group relative block overflow-hidden rounded-[22px] no-underline
@@ -1776,12 +1803,19 @@ export default function Page() {
                     </span>
                   </div>
                 </Link>
+                </motion.div>
               );
             })}
           </div>
 
           {/* ── Featured Destinations — departure-board / travel-ticker heading ── */}
-          <div className="mt-14 sm:mt-16 relative">
+          <motion.div
+            className="mt-14 sm:mt-16 relative"
+            initial={{ opacity: 0, y: 24 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: '-50px' }}
+            transition={{ duration: 0.55, ease: [0.2, 0.8, 0.2, 1] }}
+          >
 
             {/* Horizontal dashed separator — mimics a boarding-pass tear line */}
             <div aria-hidden className="absolute top-1/2 inset-x-0 -translate-y-1/2 flex items-center gap-0 pointer-events-none select-none">
@@ -1841,7 +1875,7 @@ export default function Page() {
                 </div>
               </div>
             </div>
-          </div>
+          </motion.div>
 
             <div
               className="mt-7"

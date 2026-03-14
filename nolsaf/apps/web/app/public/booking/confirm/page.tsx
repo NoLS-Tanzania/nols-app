@@ -118,7 +118,7 @@ export default function BookingConfirmPage() {
   const [nationality, setNationality] = useState("");
   const [sex, setSex] = useState<"Male" | "Female" | "Other" | "">("");
   const [ageGroup] = useState<"Adult" | "Child" | "">("Adult");
-  const [specialRequests, setSpecialRequests] = useState("");
+  const specialRequests = "";
   
   // Transportation
   const [includeTransport, setIncludeTransport] = useState(false);
@@ -1291,8 +1291,7 @@ export default function BookingConfirmPage() {
             href={property ? `/public/properties/${property.id}` : "/public/properties"}
             className="inline-flex items-center text-slate-600 hover:text-[#02665e] transition-all duration-200 group"
           >
-            <ChevronLeft className="w-5 h-5 mr-1 group-hover:-translate-x-1 transition-transform duration-200" />
-            <span className="font-medium">Back to property</span>
+            <ChevronLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform duration-200" />
           </Link>
         </div>
       </div>
@@ -2419,19 +2418,6 @@ export default function BookingConfirmPage() {
                       )}
                     </div>
                   )}
-                </div>
-
-                <div className="space-y-2 w-full min-w-0">
-                  <label className="block text-sm font-semibold text-slate-700">
-                    Special Requests <span className="text-slate-400 text-xs font-normal">(Optional)</span>
-                  </label>
-                  <textarea
-                    value={specialRequests}
-                    onChange={(e) => setSpecialRequests(e.target.value)}
-                    rows={4}
-                    className="w-full min-w-0 px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm resize-none max-w-full box-border"
-                    placeholder="Any special requests or notes for the host..."
-                  />
                 </div>
 
                 {error && (

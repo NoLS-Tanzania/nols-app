@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import { Building2, CheckCircle2, ChevronDown, HelpCircle, Home, Landmark, LayoutGrid, MapPin, AlertCircle, Pencil, X } from "lucide-react";
@@ -1154,7 +1154,7 @@ const nameOk = title.trim().length >= 3;
                               !tourismCountry
                                 ? "Set your location first"
                                 : tourismSitesLoading
-                                  ? "Loadingâ€¦"
+                                  ? "Loading…"
                                   : "Search or skip"
                             }
                             className="add-property-field-control h-12 pl-4 pr-24 disabled:text-slate-400 disabled:cursor-not-allowed"
@@ -1215,7 +1215,7 @@ const nameOk = title.trim().length >= 3;
                                 </button>
 
                                 {tourismSitesLoading ? (
-                                  <div className="px-3 py-2 text-sm text-slate-500">Loading parksâ€¦</div>
+                                  <div className="px-3 py-2 text-sm text-slate-500">Loading parks…</div>
                                 ) : null}
 
                                 {!tourismSitesLoading && filteredTourismSites.length === 0 ? (
@@ -1333,7 +1333,7 @@ const nameOk = title.trim().length >= 3;
                 </div>
               </div>
 
-              {/* Location â€” drag-to-pin map (Google Maps business listing style) */}
+              {/* Location — drag-to-pin map (Google Maps business listing style) */}
               <div className="mt-6">
                 <div className="mb-3">
                   <p className="text-sm font-semibold text-slate-800 flex items-center gap-2">

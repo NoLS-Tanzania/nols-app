@@ -4,6 +4,7 @@ import "mapbox-gl/dist/mapbox-gl.css";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
+import { motion } from "framer-motion";
 import type { Socket } from "socket.io-client";
 import type { ReactNode, ComponentType } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -72,6 +73,8 @@ import {
   Calendar,
   Plus,
   Minus,
+  LogIn,
+  LogOut,
 } from "lucide-react";
 import LogoSpinner from "@/components/LogoSpinner";
 import DatePicker from "../../../../components/ui/DatePicker";
@@ -1610,6 +1613,16 @@ export default function PublicPropertyDetailPage() {
     return normalize(direct) || normalize(viaServices) || null;
   }, [property, servicesObj]);
   
+    // Fix UTF-8 mojibake encoding issues
+  const fixEncoding = (s?: string | null): string => {
+    if (!s) return '';
+    return s
+      .replace(/\u00e2\u20ac\u201c/g, '\u2013')
+      .replace(/\u00e2\u20ac\u201d/g, '\u2014')
+      .replace(/\u00e2\u20ac\u2122/g, '\u2019')
+      .replace(/\u00e2\u20ac\u0153/g, '\u201c');
+  };
+
   // Default payment methods that should always be displayed
   const servicesByCategory = useMemo(() => {
     const DEFAULT_PAYMENT_METHODS = ["Mobile money", "Cash", "Card", "Bank transfer"];
@@ -1737,9 +1750,6 @@ export default function PublicPropertyDetailPage() {
 
         {/* ── Property header card ── */}
         <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-white border border-slate-100 shadow-[0_4px_24px_rgba(2,102,94,0.10)]">
-
-          {/* Teal gradient top accent bar */}
-          <div className="h-1.5 w-full" style={{ background: 'linear-gradient(90deg,#02665e 0%,#02b4f5 50%,#02665e 100%)' }} />
 
           <div className="relative px-5 sm:px-8 pt-5 sm:pt-6 pb-6 sm:pb-7">
 
@@ -2360,7 +2370,7 @@ export default function PublicPropertyDetailPage() {
 
               <button
                 type="button"
-                onClick={() => alert("Booking flow is coming next (Phase 2).")}
+                onClick={() => { const params = new URLSearchParams({ property: String(property.id) }); if (selectedDates.checkIn) params.set('checkIn', selectedDates.checkIn); if (selectedDates.checkOut) params.set('checkOut', selectedDates.checkOut); router.push(`/public/booking/confirm?${params.toString()}`); }}
                 className="mt-4 w-full rounded-xl bg-[#02665e] text-white py-3 text-sm font-semibold hover:bg-[#014e47] transition-colors"
               >
                 Request booking
@@ -3270,348 +3280,139 @@ export default function PublicPropertyDetailPage() {
             if (!rows.length) return <p className="mt-2 text-sm text-slate-600">Room details coming soon.</p>;
 
             return (
-              <div className="mt-4">
-                {/* Mobile: stacked rows */}
-                <div className="space-y-3 md:hidden">
-                  {rows.map((r, idx) => (
-                    <div key={`${r.roomType}-${idx}`} className="rounded-xl border border-slate-200 bg-white p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="text-sm font-semibold text-slate-900 truncate">
-                            <span className="inline-flex items-center gap-2">
-                              <DoorClosed className="w-4 h-4 text-slate-500" aria-hidden />
-                              <span className="truncate">{r.roomType}</span>
-                            </span>
-                            {typeof r.roomsCount === "number" && r.roomsCount > 0 ? (
-                              <span className="ml-2 inline-flex items-center rounded-full bg-slate-50 border border-slate-200 px-2 py-0.5 text-[11px] font-semibold text-slate-700">
-                                x{r.roomsCount}
-                              </span>
-                            ) : null}
-                          </div>
-                          <div className="mt-1">
-                            <div className="inline-flex items-center gap-1.5 text-xs text-slate-600">
-                              <BedDouble className="w-3.5 h-3.5 text-slate-500" aria-hidden />
-                              <span className="truncate">{r.bedsSummary}</span>
-                            </div>
-                            {getBedDimensions(r.bedsSummary) && (
-                              <div className="mt-1 text-[10px] text-slate-500 leading-tight">
-                                {getBedDimensions(r.bedsSummary)}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        <div className="text-right flex-shrink-0">
-                          <div className="text-sm font-bold text-slate-900">{fmtMoney(r.pricePerNight, property.currency)}</div>
-                          <div className="text-[11px] text-slate-500">per night</div>
-                          {r.discountLabel ? (
-                            <div className="mt-1 text-[11px] font-semibold text-emerald-700">{r.discountLabel}</div>
-                          ) : null}
-                        </div>
+              <div className="mt-5 space-y-4">
+                {rows.map((r, idx) => {
+                  return (
+                    <motion.div
+                      key={r.roomType + '-' + idx}
+                      initial={{ opacity: 0, y: 18 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true, margin: '-24px' }}
+                      transition={{ duration: 0.42, delay: idx * 0.07, ease: [0.2, 0.8, 0.2, 1] }}
+                      className="group relative flex rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition-shadow duration-300"
+                    >
+                      {/* Room index number */}
+                      <div className="flex-shrink-0 w-10 flex items-start justify-center pt-5 select-none" aria-hidden>
+                        <span className="text-2xl font-black text-slate-200 tabular-nums leading-none">
+                          {String(idx + 1).padStart(2, '0')}
+                        </span>
                       </div>
 
-                      {r.description ? (
-                        <div className="mt-3 p-3 bg-gradient-to-br from-slate-50 to-slate-100/50 rounded-lg border border-slate-200/60">
-                          <p className="text-sm text-slate-800 leading-relaxed font-normal">
-                            {capWords(r.description, 180)}
-                          </p>
-                        </div>
-                      ) : null}
+                      {/* Main content */}
+                      <div className="flex-1 min-w-0 flex flex-col md:flex-row gap-0">
 
-                      {r.amenities.length ? (
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {r.amenities.slice(0, 6).map((a) => (
-                            <RoomAmenityChip
-                              key={a}
-                              label={a}
-                              activeHint={roomAmenityHint}
-                              onTouchHint={(label) => setRoomAmenityHint(label)}
-                            />
-                          ))}
-                        </div>
-                      ) : null}
+                        {/* Info block */}
+                        <div className="flex-1 min-w-0 p-4 sm:p-5">
+                          {/* Room type + count */}
+                          <div className="flex items-center gap-2.5 flex-wrap">
+                            <span className="inline-flex items-center gap-1.5 text-base sm:text-lg font-bold text-slate-900">
+                              <DoorClosed className="w-4 h-4 text-slate-500 flex-shrink-0" aria-hidden />
+                              {r.roomType}
+                            </span>
+                            {typeof r.roomsCount === 'number' && r.roomsCount > 0 && (
+                              <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 bg-slate-50 text-slate-700 ring-slate-200/60">
+                                {r.roomsCount} {r.roomsCount === 1 ? 'room' : 'rooms'}
+                              </span>
+                            )}
+                          </div>
 
-                      {r.bathItems && r.bathItems.length > 0 ? (
-                        <div className="mt-3">
-                          <div className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2 flex-wrap">
-                            <div className="flex items-center gap-2">
-                              <Bath className="w-4 h-4 text-slate-600" />
-                              <span>Bathroom</span>
+                          {/* Bed type + dimensions */}
+                          <div className="mt-2 flex items-start gap-1.5">
+                            <BedDouble className="w-3.5 h-3.5 text-slate-400 mt-0.5 flex-shrink-0" aria-hidden />
+                            <div>
+                              <span className="text-sm text-slate-700">{r.bedsSummary}</span>
+                              {getBedDimensions(r.bedsSummary) && (
+                                <div className="text-xs text-slate-500 mt-0.5">{getBedDimensions(r.bedsSummary)}</div>
+                              )}
                             </div>
-                            {r.bathPrivate && (r.bathPrivate === "yes" || r.bathPrivate === "no") && (
-                              <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold shrink-0 ${
-                                r.bathPrivate === "yes" 
-                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200" 
-                                  : "bg-blue-50 text-blue-700 border border-blue-200"
-                              }`}>
-                                {r.bathPrivate === "yes" ? (
-                                  <>
-                                    <Lock className="w-3.5 h-3.5 flex-shrink-0" />
-                                    <span>Private</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Share2 className="w-3.5 h-3.5 flex-shrink-0" />
-                                    <span>Shared</span>
-                                  </>
+                          </div>
+
+                          {/* Description */}
+                          {r.description ? (
+                            <div className="mt-3 rounded-xl bg-slate-50 border border-slate-100 px-3.5 py-2.5">
+                              <p className="text-sm text-slate-700 leading-relaxed">{capWords(r.description, 220)}</p>
+                            </div>
+                          ) : null}
+
+                          {/* Room amenities */}
+                          {r.amenities.length > 0 && (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {r.amenities.slice(0, 8).map((a) => (
+                                <RoomAmenityChip key={a} label={a} activeHint={roomAmenityHint} onTouchHint={(label) => setRoomAmenityHint(label)} />
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Bathroom */}
+                          {(r.bathItems && r.bathItems.length > 0) ? (
+                            <div className="mt-4 pt-3 border-t border-slate-100">
+                              <div className="flex items-center gap-2 flex-wrap mb-2">
+                                <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
+                                  <Bath className="w-3.5 h-3.5 text-slate-500" />
+                                  Bathroom amenities
+                                </div>
+                                {r.bathPrivate === 'yes' && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    <Lock className="w-3 h-3" /> Private
+                                  </span>
+                                )}
+                                {r.bathPrivate === 'no' && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                                    <Share2 className="w-3 h-3" /> Shared
+                                  </span>
                                 )}
                               </div>
-                            )}
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            {r.bathItems.map((item) => (
-                              <RoomAmenityChip
-                                key={item}
-                                label={item}
-                                activeHint={roomAmenityHint}
-                                onTouchHint={(label) => setRoomAmenityHint(label)}
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      ) : r.bathPrivate && (r.bathPrivate === "yes" || r.bathPrivate === "no") ? (
-                        <div className="mt-3">
-                          <div className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2 flex-wrap">
-                            <div className="flex items-center gap-2">
-                              <Bath className="w-4 h-4 text-slate-600" />
-                              <span>Bathroom</span>
-                            </div>
-                            <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold shrink-0 ${
-                              r.bathPrivate === "yes" 
-                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200" 
-                                : "bg-blue-50 text-blue-700 border border-blue-200"
-                            }`}>
-                              {r.bathPrivate === "yes" ? (
-                                <>
-                                  <Lock className="w-3.5 h-3.5 flex-shrink-0" />
-                                  <span>Private</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Share2 className="w-3.5 h-3.5 flex-shrink-0" />
-                                  <span>Shared</span>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ) : null}
-
-                      <div className="mt-3">
-                        <div className="text-[11px] font-semibold text-slate-700">Policies</div>
-                        <ul className="mt-1 space-y-1 text-[12px] text-slate-700">
-                          {r.policies.slice(0, 4).map((p, i) => (
-                            <li key={i} className="truncate flex items-center gap-1.5">
-                              {p.Icon && (
-                                <p.Icon className={`w-3.5 h-3.5 flex-shrink-0 ${p.iconColor || "text-slate-600"}`} aria-hidden />
-                              )}
-                              <span>{p.text}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const params = new URLSearchParams({
-                            property: String(property.id),
-                          });
-                          // Use roomCode if available, otherwise use index as fallback
-                          if (r.roomCode) {
-                            params.set("roomCode", r.roomCode);
-                          } else {
-                            // Use index as identifier when code is not available
-                            const roomIndex = rows.findIndex((row) => row === r);
-                            if (roomIndex >= 0) {
-                              params.set("roomIndex", String(roomIndex));
-                            }
-                          }
-                          router.push(`/public/booking/confirm?${params.toString()}`);
-                        }}
-                        className="mt-4 w-full rounded-lg bg-[#02665e] text-white py-1.5 px-3 text-xs font-medium hover:bg-[#014e47] transition-colors shadow-sm hover:shadow"
-                      >
-                        Pay now
-                      </button>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Desktop: modern column-aligned "card rows" (clean + transitional) */}
-                <div className="hidden md:block">
-                  <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
-                    <div className="grid grid-cols-12 gap-3 px-4 py-3 bg-slate-50 border-b border-slate-200">
-                      <div className="col-span-2 text-[12px] font-semibold text-slate-600">Room type</div>
-                      <div className="col-span-2 text-[12px] font-semibold text-slate-600">Bed Type &amp; Size</div>
-                      <div className="col-span-4 text-[12px] font-semibold text-slate-600">Description &amp; Amenities</div>
-                      <div className="col-span-2 text-[12px] font-semibold text-slate-600">Price &amp; Discounts</div>
-                      <div className="col-span-1 text-[12px] font-semibold text-slate-600">Pay now</div>
-                      <div className="col-span-1 text-[12px] font-semibold text-slate-600">Policies</div>
-                    </div>
-
-                    <div className="divide-y divide-slate-200">
-                      {rows.map((r, idx) => (
-                        <div
-                          key={`${r.roomType}-${idx}`}
-                          className={[
-                            "grid grid-cols-12 gap-3 px-4 py-4",
-                            "bg-white",
-                            "hover:bg-slate-50",
-                            "motion-safe:transition-colors motion-safe:duration-200",
-                          ].join(" ")}
-                        >
-                          {/* Room type */}
-                          <div className="col-span-2">
-                            <div className="inline-flex items-start gap-2 text-base font-semibold text-slate-900">
-                              <DoorClosed className="w-4 h-4 text-slate-500 mt-0.5 flex-shrink-0" aria-hidden />
-                              <span className="break-words">{r.roomType}</span>
-                            </div>
-                            {typeof r.roomsCount === "number" && r.roomsCount > 0 ? (
-                              <div className="mt-1 inline-flex items-center rounded-full bg-slate-50 border border-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-700">
-                                {r.roomsCount} rooms
-                              </div>
-                            ) : null}
-                          </div>
-
-                          {/* Beds */}
-                          <div className="col-span-2">
-                            <div className="inline-flex items-start gap-2 text-base text-slate-800">
-                              <BedDouble className="w-4 h-4 text-slate-500 mt-0.5 flex-shrink-0" aria-hidden />
-                              <span className="break-words">{r.bedsSummary}</span>
-                            </div>
-                            {getBedDimensions(r.bedsSummary) && (
-                              <div className="mt-1.5 text-xs text-slate-600 leading-tight">
-                                {getBedDimensions(r.bedsSummary)}
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Description & Amenities */}
-                          <div className="col-span-4">
-                            {r.description ? (
-                              <div className="p-3 rounded-xl border border-slate-200 bg-white">
-                                <p className="text-sm text-slate-800 leading-relaxed break-words">
-                                  {capWords(r.description, 220)}
-                                </p>
-                              </div>
-                            ) : (
-                              <div className="text-sm text-slate-600">—</div>
-                            )}
-
-                            {r.amenities.length ? (
-                              <div className="mt-2 flex flex-wrap gap-2">
-                                {r.amenities.slice(0, 6).map((a) => (
-                                  <RoomAmenityChip
-                                    key={a}
-                                    label={a}
-                                    activeHint={roomAmenityHint}
-                                    onTouchHint={(label) => setRoomAmenityHint(label)}
-                                  />
+                              <div className="flex flex-wrap gap-2">
+                                {r.bathItems.map((item) => (
+                                  <RoomAmenityChip key={item} label={item} activeHint={roomAmenityHint} onTouchHint={(label) => setRoomAmenityHint(label)} />
                                 ))}
                               </div>
-                            ) : null}
+                            </div>
+                          ) : r.bathPrivate === 'yes' || r.bathPrivate === 'no' ? (
+                            <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-2">
+                              <Bath className="w-3.5 h-3.5 text-slate-500" />
+                              {r.bathPrivate === 'yes' ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  <Lock className="w-3 h-3" /> Private bathroom
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                                  <Share2 className="w-3 h-3" /> Shared bathroom
+                                </span>
+                              )}
+                            </div>
+                          ) : null}
 
-                            {r.bathItems && r.bathItems.length > 0 ? (
-                              <div className="mt-3 pt-3 border-t border-slate-100">
-                                <div className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2 flex-wrap">
-                                  <div className="flex items-center gap-2">
-                                    <Bath className="w-4 h-4 text-slate-600" />
-                                    <span>Bathroom amenities</span>
-                                  </div>
-                                  {r.bathPrivate && (r.bathPrivate === "yes" || r.bathPrivate === "no") && (
-                                    <div
-                                      className={[
-                                        "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium",
-                                        r.bathPrivate === "yes"
-                                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                          : "bg-blue-50 text-blue-700 border border-blue-200",
-                                      ].join(" ")}
-                                    >
-                                      {r.bathPrivate === "yes" ? (
-                                        <>
-                                          <Lock className="w-3 h-3" />
-                                          <span>Private</span>
-                                        </>
-                                      ) : (
-                                        <>
-                                          <Share2 className="w-3 h-3" />
-                                          <span>Shared</span>
-                                        </>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="flex flex-wrap gap-2">
-                                  {r.bathItems.map((item) => (
-                                    <RoomAmenityChip
-                                      key={item}
-                                      label={item}
-                                      activeHint={roomAmenityHint}
-                                      onTouchHint={(label) => setRoomAmenityHint(label)}
-                                    />
-                                  ))}
-                                </div>
-                              </div>
-                            ) : null}
-                          </div>
-
-                          {/* Price */}
-                          <div className="col-span-2">
-                            <div className="text-base font-bold text-slate-900">{fmtMoney(r.pricePerNight, property.currency)}</div>
-                            <div className="text-xs text-slate-500">per night</div>
-                            {r.discountLabel ? (
-                              <div className="mt-1 inline-flex items-center rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-xs font-semibold text-emerald-800">
-                                {r.discountLabel}
-                              </div>
-                            ) : (
-                              <div className="mt-1 text-xs text-slate-500">No discounts</div>
-                            )}
-                          </div>
-
-                          {/* Pay */}
-                          <div className="col-span-1">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const params = new URLSearchParams({ property: String(property.id) });
-                                if (r.roomCode) {
-                                  params.set("roomCode", r.roomCode);
-                                } else {
-                                  const roomIndex = rows.findIndex((row) => row === r);
-                                  if (roomIndex >= 0) params.set("roomIndex", String(roomIndex));
-                                }
-                                router.push(`/public/booking/confirm?${params.toString()}`);
-                              }}
-                              className={[
-                                "w-full rounded-xl bg-[#02665e] text-white px-3 py-2 text-sm font-semibold",
-                                "hover:bg-[#014e47]",
-                                "motion-safe:transition-all motion-safe:duration-200",
-                                "shadow-sm hover:shadow",
-                                "active:scale-[0.98]",
-                              ].join(" ")}
-                            >
-                              Pay now
-                            </button>
-                            <div className="mt-2 text-[11px] text-slate-500">Secure checkout</div>
-                          </div>
-
-                          {/* Policies */}
-                          <div className="col-span-1">
-                            <div className="flex flex-col gap-1.5">
-                              {r.policies.slice(0, 3).map((p, i) => (
-                                <div key={i} className="inline-flex items-center gap-1.5 text-xs text-slate-700">
-                                  {p.Icon ? (
-                                    <p.Icon className={`w-3.5 h-3.5 flex-shrink-0 ${p.iconColor || "text-slate-600"}`} aria-hidden />
-                                  ) : null}
-                                  <span className="truncate">{p.text}</span>
+                          {/* Policies row */}
+                          {r.policies.length > 0 && (
+                            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
+                              {r.policies.slice(0, 4).map((pol, i) => (
+                                <div key={i} className="inline-flex items-center gap-1.5 text-xs text-slate-600">
+                                  {pol.Icon && <pol.Icon className={`w-3.5 h-3.5 flex-shrink-0 ${pol.iconColor || 'text-slate-500'}`} aria-hidden />}
+                                  <span>{pol.text}</span>
                                 </div>
                               ))}
                             </div>
+                          )}
+                        </div>
+
+                        {/* CTA strip: row on mobile, col on desktop */}
+                        <div className="flex-shrink-0 w-full md:w-52 flex flex-row items-center gap-3 md:flex-col md:items-stretch md:justify-between md:border-l border-t md:border-t-0 border-slate-100 px-4 py-3 md:p-5">
+                          <div className="flex-1 min-w-0">
+                            <div className="text-base md:text-xl font-black text-slate-900 tabular-nums leading-tight">{fmtMoney(r.pricePerNight, property.currency)}</div>
+                            <div className="text-xs text-slate-500">per night</div>
+                            {r.discountLabel ? (<div className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[11px] font-semibold text-emerald-700"><Tags className="w-2.5 h-2.5" aria-hidden />{r.discountLabel}</div>) : (<div className="mt-1 inline-flex items-center gap-1 rounded-full bg-slate-50 border border-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-400">No discount</div>)}
+                          </div>
+                          <div className="flex-shrink-0 flex flex-col items-center gap-1">
+                            <button type="button" onClick={() => { const params = new URLSearchParams({ property: String(property.id) }); if (r.roomCode) { params.set('roomCode', r.roomCode); } else { const roomIndex = rows.findIndex((row) => row === r); if (roomIndex >= 0) params.set('roomIndex', String(roomIndex)); } router.push(`/public/booking/confirm?${params.toString()}`); }} className="inline-flex items-center justify-center rounded-xl bg-gradient-to-br from-[#02665e] to-[#014e47] px-5 py-2 text-sm font-bold text-white shadow-sm transition-all duration-200 hover:shadow-md hover:from-[#027a70] hover:to-[#02665e] active:scale-[0.97] md:w-full">Pay now</button>
+                            <span className="text-center text-[10px] text-slate-400">Secure checkout</span>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+
+                      </div>
+                    </motion.div>
+                  );
+                })}
               </div>
             );
           })()}
@@ -3896,144 +3697,118 @@ export default function PublicPropertyDetailPage() {
           )}
         </div>
 
-        {/* House Rules Section - Three Column Layout */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm nols-entrance">
-          <div className="flex items-center gap-2 mb-6">
-            <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#02665e]/10 text-[#02665e]">
+        {/* House Rules Section */}
+        <div className="rounded-2xl border border-slate-100 bg-white shadow-sm nols-entrance overflow-hidden">
+          {/* Header bar */}
+          <div className="flex items-center gap-3 px-5 sm:px-6 py-4 bg-gradient-to-r from-[#02665e]/5 to-transparent border-b border-slate-100">
+            <span className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-[#02665e]/10 text-[#02665e]">
               <Home className="w-5 h-5" aria-hidden />
             </span>
-            <h2 className="text-lg sm:text-xl font-semibold text-slate-900">House Rules</h2>
+            <div>
+              <h2 className="text-base font-bold text-slate-900 leading-tight">House Rules</h2>
+              <p className="text-xs text-slate-400 mt-0.5">Review before you book</p>
+            </div>
           </div>
-          
+
           {houseRules ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-slate-100">
               {/* Column 1: Check-in & Check-out */}
-              <div className="space-y-4 nols-entrance nols-delay-1">
-                <div className="flex items-center gap-2 mb-3">
-                  <Clock className="w-5 h-5 text-[#02665e]" />
-                  <h3 className="text-sm font-semibold text-slate-900">Check-in & Check-out</h3>
+              <div className="p-5 sm:p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Clock className="w-4 h-4 text-[#02665e]" />
+                  <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Check-in & Check-out</h3>
                 </div>
-                <div className="space-y-3">
-                  {houseRules.checkIn ? (
-                    <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3 transition-all duration-200 hover:shadow-sm hover:-translate-y-0.5 motion-safe:duration-300">
-                      <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Check-in</div>
-                      <div className="text-sm font-medium text-slate-900">{houseRules.checkIn}</div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-3">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
+                      <LogIn className="w-3.5 h-3.5 text-emerald-600" />
                     </div>
-                  ) : (
-                    <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3">
-                      <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">Check-in</div>
-                      <div className="text-sm text-slate-400">Not specified</div>
+                    <div>
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider leading-none">Check-in</div>
+                      <div className="text-sm font-semibold text-slate-800 mt-0.5">
+                        {houseRules.checkIn ? fixEncoding(houseRules.checkIn) : <span className="text-slate-400 font-normal text-xs">Not specified</span>}
+                      </div>
                     </div>
-                  )}
-                  {houseRules.checkOut ? (
-                    <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3 transition-all duration-200 hover:shadow-sm hover:-translate-y-0.5 motion-safe:duration-300">
-                      <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Check-out</div>
-                      <div className="text-sm font-medium text-slate-900">{houseRules.checkOut}</div>
+                  </div>
+                  <div className="pl-4">
+                    <div className="w-px h-4 border-l-2 border-dashed border-slate-200" />
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-rose-50 flex items-center justify-center">
+                      <LogOut className="w-3.5 h-3.5 text-rose-500" />
                     </div>
-                  ) : (
-                    <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3">
-                      <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">Check-out</div>
-                      <div className="text-sm text-slate-400">Not specified</div>
+                    <div>
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider leading-none">Check-out</div>
+                      <div className="text-sm font-semibold text-slate-800 mt-0.5">
+                        {houseRules.checkOut ? fixEncoding(houseRules.checkOut) : <span className="text-slate-400 font-normal text-xs">Not specified</span>}
+                      </div>
                     </div>
-                  )}
+                  </div>
                 </div>
               </div>
 
-              {/* Column 2: Pets */}
-              <div className="space-y-4 nols-entrance nols-delay-2">
-                <div className="flex items-center gap-2 mb-3">
-                  <Users className="w-5 h-5 text-[#02665e]" />
-                  <h3 className="text-sm font-semibold text-slate-900">Pets</h3>
+              {/* Column 2: Policies */}
+              <div className="p-5 sm:p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Users className="w-4 h-4 text-[#02665e]" />
+                  <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Policies</h3>
                 </div>
                 <div className="space-y-3">
                   {houseRules.pets !== undefined ? (
-                    <div className={`rounded-lg border p-3 transition-all duration-200 hover:shadow-sm hover:-translate-y-0.5 motion-safe:duration-300 ${
-                      houseRules.pets 
-                        ? "border-emerald-200 bg-gradient-to-br from-emerald-50 to-white" 
-                        : "border-rose-200 bg-gradient-to-br from-rose-50 to-white"
-                    }`}>
-                      <div className="flex items-center gap-2 mb-2">
-                        {houseRules.pets ? (
-                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                        ) : (
-                          <X className="w-4 h-4 text-rose-600" />
-                        )}
-                        <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                          {houseRules.pets ? "Allowed" : "Not Allowed"}
-                        </div>
+                    <div className="flex items-start gap-3">
+                      <span className={`inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg mt-0.5 ${houseRules.pets ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-500'}`}>
+                        {houseRules.pets ? <CheckCircle2 className="w-3.5 h-3.5" /> : <X className="w-3.5 h-3.5" />}
+                      </span>
+                      <div>
+                        <div className="text-sm font-semibold text-slate-700">Pets {houseRules.pets ? 'Allowed' : 'Not Allowed'}</div>
+                        {houseRules.petsNote && <div className="text-xs text-slate-500 mt-0.5 leading-relaxed">{houseRules.petsNote}</div>}
                       </div>
-                      {houseRules.petsNote && (
-                        <div className="text-sm text-slate-700 mt-2">{houseRules.petsNote}</div>
-                      )}
                     </div>
                   ) : (
-                    <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3">
-                      <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">Pets</div>
-                      <div className="text-sm text-slate-400">Not specified</div>
+                    <div className="flex items-center gap-3">
+                      <span className="inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400">
+                        <X className="w-3.5 h-3.5" />
+                      </span>
+                      <div className="text-sm text-slate-400">Pets policy not specified</div>
                     </div>
                   )}
                   {houseRules.smoking !== undefined && (
-                    <div className={`rounded-lg border p-3 transition-all duration-200 hover:shadow-sm hover:-translate-y-0.5 motion-safe:duration-300 ${
-                      !houseRules.smoking 
-                        ? "border-emerald-200 bg-gradient-to-br from-emerald-50 to-white" 
-                        : "border-rose-200 bg-gradient-to-br from-rose-50 to-white"
-                    }`}>
-                      <div className="flex items-center gap-2 mb-2">
-                        {houseRules.smoking ? (
-                          <CigaretteOff className="w-4 h-4 text-rose-600" />
-                        ) : (
-                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                        )}
-                        <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                          Smoking {houseRules.smoking ? "Not Allowed" : "Allowed"}
-                        </div>
-                      </div>
+                    <div className="flex items-start gap-3">
+                      <span className={`inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg mt-0.5 ${!houseRules.smoking ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-500'}`}>
+                        {houseRules.smoking ? <CigaretteOff className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                      </span>
+                      <div className="text-sm font-semibold text-slate-700">Smoking {houseRules.smoking ? 'Not Allowed' : 'Allowed'}</div>
                     </div>
                   )}
                 </div>
               </div>
 
               {/* Column 3: Safety Measures */}
-              <div className="space-y-4 nols-entrance nols-delay-3">
-                <div className="flex items-center gap-2 mb-3">
-                  <ShieldCheck className="w-5 h-5 text-[#02665e]" />
-                  <h3 className="text-sm font-semibold text-slate-900">Safety Measures</h3>
+              <div className="p-5 sm:p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <ShieldCheck className="w-4 h-4 text-[#02665e]" />
+                  <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Safety Measures</h3>
                 </div>
-                <div className="space-y-2">
+                <ul className="space-y-2.5">
                   {[
-                    "Keep the property clean and well-maintained",
+                    "Keep property clean and well-maintained",
                     "Return all keys and access cards upon checkout",
                     "Report any incidents or damages immediately",
                     "Respect quiet hours and neighbors",
-                    "Follow all posted safety guidelines"
-                  ].map((measure, idx) => (
-                    <div 
-                      key={idx}
-                      className="flex items-start gap-2 rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3 transition-all duration-200 hover:shadow-sm hover:border-[#02665e]/30 hover:-translate-y-0.5 motion-safe:duration-300"
-                    >
-                      <CheckCircle2 className="w-4 h-4 text-[#02665e] flex-shrink-0 mt-0.5" />
-                      <span className="text-sm text-slate-700 leading-relaxed">{measure}</span>
-                    </div>
+                    "Follow all posted safety guidelines",
+                    ...(houseRules.safetyMeasures && Array.isArray(houseRules.safetyMeasures) ? houseRules.safetyMeasures : [])
+                  ].map((measure: string, idx: number) => (
+                    <li key={idx} className="flex items-start gap-2.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-[#02665e] flex-shrink-0 mt-0.5" />
+                      <span className="text-sm text-slate-600 leading-relaxed">{measure}</span>
+                    </li>
                   ))}
-                  {houseRules.safetyMeasures && Array.isArray(houseRules.safetyMeasures) && houseRules.safetyMeasures.length > 0 && (
-                    <>
-                      {houseRules.safetyMeasures.map((measure: string, idx: number) => (
-                        <div 
-                          key={`custom-${idx}`}
-                          className="flex items-start gap-2 rounded-lg border border-[#02665e]/20 bg-gradient-to-br from-[#02665e]/5 to-white p-3 transition-all duration-200 hover:shadow-sm hover:border-[#02665e]/40 hover:-translate-y-0.5 motion-safe:duration-300"
-                        >
-                          <CheckCircle2 className="w-4 h-4 text-[#02665e] flex-shrink-0 mt-0.5" />
-                          <span className="text-sm text-slate-700 leading-relaxed font-medium">{measure}</span>
-                        </div>
-                      ))}
-                    </>
-                  )}
-                </div>
+                </ul>
               </div>
             </div>
           ) : (
-            <div className="text-sm text-slate-500 italic text-center py-8">
-              House rules will be available soon. The owner is setting up the rules for this property.
+            <div className="px-6 py-10 text-center">
+              <div className="text-sm text-slate-400 italic">House rules will be available soon. The owner is setting up the rules for this property.</div>
             </div>
           )}
         </div>

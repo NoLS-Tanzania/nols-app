@@ -3,6 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { MapPin, ImageIcon } from "lucide-react";
+import { motion } from "framer-motion";
 
 import VerifiedIcon from "./VerifiedIcon";
 import { getPropertyCommission, calculatePriceWithCommission } from "../lib/priceUtils";
@@ -60,8 +61,12 @@ export default function PublicApprovedPropertyCard({
   );
 
   return (
-    <Link href={href} className="group no-underline text-slate-900" aria-label={`View ${p.title}`}>
-      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition-shadow">
+    <Link href={href} className="group no-underline text-slate-900 block" aria-label={`View ${p.title}`}>
+      <motion.div
+        className="rounded-2xl border border-slate-200 bg-white shadow-sm"
+        whileHover={{ y: -5, boxShadow: "0 16px 40px rgba(2,6,23,0.13)" }}
+        transition={{ duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
+      >
         {/* Title (above image) */}
         <div className="px-3 pt-3 sm:px-4 sm:pt-4">
           <div className="text-sm sm:text-base font-bold text-slate-900 truncate">{p.title}</div>
@@ -76,7 +81,7 @@ export default function PublicApprovedPropertyCard({
                 alt=""
                 fill
                 sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
-                className="object-cover"
+                className="object-cover transition-transform duration-500 ease-out group-hover:scale-[1.08]"
               />
             ) : (
               <PhotoPlaceholder />
@@ -108,7 +113,7 @@ export default function PublicApprovedPropertyCard({
             </span>
           </div>
         </div>
-      </div>
+      </motion.div>
     </Link>
   );
 }

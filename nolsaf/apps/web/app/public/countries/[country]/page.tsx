@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import CountryTourismSiteList, { type TourismSite } from "@/components/CountryTourismSiteList";
 import CountryFiltersRow from "@/components/CountryFiltersRow";
@@ -32,7 +32,7 @@ const COUNTRY_TOURISM: Record<string, CountryTourism> = {
     subtitle: "Safaris, parks, mountains, and islands",
     hero: {
       title: "Plan your Tanzania trip by park",
-      body: "Choose a park, then review approved stays inside or nearby. NoLSAF keeps booking, payment, and transport coordinated endâ€‘toâ€‘end.",
+      body: "Choose a park, then review approved stays inside or nearby. NoLSAF keeps booking, payment, and transport coordinated end‑to‑end.",
     },
     highlights: [
       { src: "/assets/Mount Kilimanjaro.jpg", alt: "Mount Kilimanjaro" },
@@ -93,7 +93,7 @@ const COUNTRY_TOURISM: Record<string, CountryTourism> = {
     subtitle: "Big Five safaris, lakes, and coast",
     hero: {
       title: "Explore Kenya with confidence",
-      body: "Pick your safari regions or coastal escape â€” then book stays, plan transport, and keep your trip coordinated from one place.",
+      body: "Pick your safari regions or coastal escape — then book stays, plan transport, and keep your trip coordinated from one place.",
     },
     highlights: [
       { src: "/assets/Big Five.jpg", alt: "Big Five" },
@@ -102,7 +102,7 @@ const COUNTRY_TOURISM: Record<string, CountryTourism> = {
     major: [
       { slug: "maasai-mara", name: "Maasai Mara", note: "World-class safari and seasonal wildebeest migration.", imageSrc: "/assets/Great Migration.jpg", imageAlt: "Great Migration", details: ["Pick lodging that matches your game drive plans."] },
       { slug: "amboseli-national-park", name: "Amboseli National Park", note: "Elephants with dramatic Mount Kilimanjaro views.", imageSrc: "/assets/Mount Kilimanjaro.jpg", imageAlt: "Mount Kilimanjaro view", details: ["Great for short safaris and photo trips."] },
-      { slug: "tsavo", name: "Tsavo (East & West)", note: "One of Kenyaâ€™s largest park systems for classic game drives.", imageSrc: "/assets/Big Five.jpg", imageAlt: "Safari wildlife", details: ["Ideal for road-trip style itineraries."] },
+      { slug: "tsavo", name: "Tsavo (East & West)", note: "One of Kenya’s largest park systems for classic game drives.", imageSrc: "/assets/Big Five.jpg", imageAlt: "Safari wildlife", details: ["Ideal for road-trip style itineraries."] },
       { slug: "diani-beach", name: "Diani Beach", note: "Top beach destination with excursions and water activities.", imageSrc: "/assets/Toursite.jpeg", imageAlt: "Coastal travel", details: ["Combine beach stays with day tours."] },
       { slug: "nairobi-national-park", name: "Nairobi (city + Nairobi National Park)", note: "Gateway hub with a unique park near the city.", imageSrc: "/assets/Lion in the Jangle.jpg", imageAlt: "Wildlife", details: ["Useful for arrivals, departures, and short stays."] },
     ],
@@ -121,7 +121,7 @@ const COUNTRY_TOURISM: Record<string, CountryTourism> = {
     subtitle: "Gorillas, waterfalls, lakes, and forests",
     hero: {
       title: "Know what youre booking in Uganda",
-      body: "See key tourist sites by country â€” then choose verified stays nearby and coordinate transport for a smoother, safer trip.",
+      body: "See key tourist sites by country — then choose verified stays nearby and coordinate transport for a smoother, safer trip.",
     },
     highlights: [{ src: "/assets/Lion in the Jangle.jpg", alt: "Wildlife" }],
     major: [

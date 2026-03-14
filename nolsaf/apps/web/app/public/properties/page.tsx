@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -772,14 +773,24 @@ export default function PropertiesPage() {
           )}
 
           {loading && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-5">
-              {Array.from({ length: 8 }).map((_, i) => (
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 sm:gap-5">
+              {Array.from({ length: 10 }).map((_, i) => (
                 <div key={i} className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-sm">
-                  <div className="aspect-square bg-slate-100 animate-pulse" />
-                  <div className="p-4 space-y-2">
-                    <div className="h-4 w-2/3 bg-slate-100 animate-pulse rounded" />
-                    <div className="h-3 w-1/2 bg-slate-100 animate-pulse rounded" />
-                    <div className="h-3 w-1/3 bg-slate-100 animate-pulse rounded" />
+                  {/* Title bar above image */}
+                  <div className="px-3 pt-3 sm:px-4 sm:pt-4">
+                    <div className="h-4 w-3/4 bg-slate-100 animate-pulse rounded-md" />
+                  </div>
+                  {/* Square image area */}
+                  <div className="px-3 mt-2 sm:px-4 sm:mt-3">
+                    <div className="aspect-square bg-slate-100 animate-pulse rounded-2xl" />
+                  </div>
+                  {/* Location + price + button */}
+                  <div className="p-3 sm:p-4 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="h-3 w-2/5 bg-slate-100 animate-pulse rounded" />
+                      <div className="h-4 w-1/4 bg-slate-100 animate-pulse rounded" />
+                    </div>
+                    <div className="h-8 w-full bg-slate-100 animate-pulse rounded-xl mt-1" />
                   </div>
                 </div>
               ))}
@@ -798,8 +809,15 @@ export default function PropertiesPage() {
           {!loading && !error && (data?.items?.length ?? 0) > 0 && (
             <>
               <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 sm:gap-5">
-                {(data?.items ?? []).map((p) => (
-                  <PublicApprovedPropertyCard key={p.id} p={p} systemCommission={systemCommission} />
+                {(data?.items ?? []).map((p, idx) => (
+                  <motion.div
+                    key={p.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.40, delay: Math.min(idx, 9) * 0.06, ease: [0.2, 0.8, 0.2, 1] }}
+                  >
+                    <PublicApprovedPropertyCard p={p} systemCommission={systemCommission} />
+                  </motion.div>
                 ))}
               </div>
 

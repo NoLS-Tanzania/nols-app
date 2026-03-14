@@ -1570,7 +1570,7 @@ export default function AdminHomePage() {
                 </div>
 
                 <div className="p-5 sm:p-6 grid grid-cols-12 gap-6 items-center">
-                  {/* â”€â”€ NoLSAF Revenue Visa Card â”€â”€ */}
+                  {/* --- NoLSAF Revenue Visa Card --- */}
                   <div className="col-span-12 sm:col-span-5 lg:col-span-4">
                     <div
                       className="relative rounded-[22px] overflow-hidden shadow-2xl hover:-translate-y-1.5 transition-all duration-500 cursor-default select-none"
