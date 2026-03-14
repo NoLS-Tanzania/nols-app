@@ -120,16 +120,26 @@ function formatDuration(ms: number) {
   return `${minutes}m`;
 }
 
-function _claimTimingLabel(row: ScheduledTripRow) {
+type ClaimStatusVariant = "assigned" | "open" | "waiting" | "expired" | "unknown";
+
+function claimTimingLabel(row: ScheduledTripRow): { text: string; variant: ClaimStatusVariant } {
   const now = Date.now();
   const opensAt = new Date(row.claimOpensAt).getTime();
   const scheduledAt = new Date(row.scheduledAt).getTime();
-  if (!Number.isFinite(opensAt) || !Number.isFinite(scheduledAt)) return null;
-  if (row.driver != null) return "Assigned";
-  if (now < opensAt) return `Waiting (opens in ${formatDuration(opensAt - now)})`;
-  if (now >= opensAt && now <= scheduledAt) return "Claim open";
-  return "Window passed";
+  if (!Number.isFinite(opensAt) || !Number.isFinite(scheduledAt)) return { text: "Unknown", variant: "unknown" };
+  if (row.driver != null) return { text: "Assigned", variant: "assigned" };
+  if (now < opensAt) return { text: `Opens in ${formatDuration(opensAt - now)}`, variant: "waiting" };
+  if (now >= opensAt && now <= scheduledAt) return { text: "Claims open", variant: "open" };
+  return { text: "Expired", variant: "expired" };
 }
+
+const CLAIM_STATUS_STYLES: Record<ClaimStatusVariant, string> = {
+  assigned: "bg-green-100 text-green-800",
+  open: "bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200",
+  waiting: "bg-slate-100 text-slate-700",
+  expired: "bg-rose-100 text-rose-800",
+  unknown: "bg-gray-100 text-gray-500",
+};
 
 function compactPreviewText(input: string, headWords = 2) {
   const text = (input ?? "").trim();
@@ -183,14 +193,14 @@ export default function AdminScheduledTripsPage() {
   const [reasonSelectedPick, setReasonSelectedPick] = useState<string | null>(null);
   const reasonTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
-  const [sort, setSort] = useState<{ key: "trip" | "when" | "route" | "vehicle" | "claims" | "amount"; dir: "asc" | "desc" }>(
+  const [sort, setSort] = useState<{ key: "trip" | "when" | "route" | "vehicle" | "claims" | "amount" | "status"; dir: "asc" | "desc" }>(
     { key: "when", dir: "asc" }
   );
 
   const pages = Math.max(1, Math.ceil(total / pageSize));
 
   const toggleSort = useCallback(
-    (key: "trip" | "when" | "route" | "vehicle" | "claims" | "amount") => {
+    (key: "trip" | "when" | "route" | "vehicle" | "claims" | "amount" | "status") => {
       setSort((prev) => {
         if (prev.key === key) {
           return { key, dir: prev.dir === "asc" ? "desc" : "asc" };
@@ -202,7 +212,7 @@ export default function AdminScheduledTripsPage() {
   );
 
   const SortIcon = useCallback(
-    ({ columnKey }: { columnKey: "trip" | "when" | "route" | "vehicle" | "claims" | "amount" }) => {
+    ({ columnKey }: { columnKey: "trip" | "when" | "route" | "vehicle" | "claims" | "amount" | "status" }) => {
       if (sort.key !== columnKey) return <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" aria-hidden />;
       return sort.dir === "asc" ? (
         <ArrowUp className="h-3.5 w-3.5 text-gray-600" aria-hidden />
@@ -252,6 +262,12 @@ export default function AdminScheduledTripsPage() {
         }
         case "amount":
           return (safeNum(a.amount) - safeNum(b.amount)) * dirMul;
+        case "status": {
+          const ORDER: ClaimStatusVariant[] = ["open", "waiting", "assigned", "expired", "unknown"];
+          const ai = ORDER.indexOf(claimTimingLabel(a).variant);
+          const bi = ORDER.indexOf(claimTimingLabel(b).variant);
+          return (ai - bi) * dirMul;
+        }
         default:
           return 0;
       }
@@ -652,6 +668,17 @@ export default function AdminScheduledTripsPage() {
                     <SortIcon columnKey="claims" />
                   </button>
                 </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">
+                  <button
+                    type="button"
+                    onClick={() => toggleSort("status")}
+                    className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 shadow-none appearance-none hover:text-gray-900 focus-visible:outline-none focus-visible:underline whitespace-nowrap"
+                    aria-label="Sort by claim status"
+                  >
+                    Claim Status
+                    <SortIcon columnKey="status" />
+                  </button>
+                </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">
                   <button
                     type="button"
@@ -669,13 +696,13 @@ export default function AdminScheduledTripsPage() {
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 <TableRow hover={false}>
-                  <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">
+                  <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500">
                     Loading...
                   </td>
                 </TableRow>
               ) : list.length === 0 ? (
                 <TableRow hover={false}>
-                  <td colSpan={7} className="px-4 py-10 text-center text-sm text-gray-500">
+                  <td colSpan={8} className="px-4 py-10 text-center text-sm text-gray-500">
                     No scheduled trips found.
                   </td>
                 </TableRow>
@@ -726,6 +753,16 @@ export default function AdminScheduledTripsPage() {
                           <div className="text-sm text-gray-900 font-medium">{row.claimCount}/{row.claimLimit}</div>
                           <div className="text-xs text-gray-500">{row.claimsRemaining} remaining</div>
                         </td>
+                        <td className="px-4 py-3">
+                          {(() => {
+                            const s = claimTimingLabel(row);
+                            return (
+                              <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${CLAIM_STATUS_STYLES[s.variant]}`}>
+                                {s.text}
+                              </span>
+                            );
+                          })()}
+                        </td>
                         <td className="px-4 py-3 text-sm text-gray-700">{row.amount.toLocaleString()} {row.currency}</td>
                         <td className="px-4 py-3 text-right">
                           <button
@@ -751,7 +788,7 @@ export default function AdminScheduledTripsPage() {
 
                       {expanded && (
                         <TableRow hover={false} key={`${row.id}-details`}>
-                          <td colSpan={7} className="px-4 py-5 bg-gray-50/40">
+                          <td colSpan={8} className="px-4 py-5 bg-gray-50/40">
                             {detailsLoading ? (
                               <div className="text-sm text-gray-500">Loading details...</div>
                             ) : !details ? (
