@@ -1,9 +1,32 @@
 "use client";
 import React, { useRef, useState, useEffect } from "react";
-import { Download } from 'lucide-react';
+import { Download, RefreshCw, AlertTriangle } from 'lucide-react';
 import Chart from "@/components/Chart";
 import { REGIONS } from '@/lib/tzRegions';
 import { escapeAttr, escapeHtml } from "@/utils/html";
+
+function fmtK(n: number) {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
+  return String(Math.round(n));
+}
+function fmtTFLabel(tf: string) {
+  return tf === '24h' ? 'Last 24 hours' : tf === '7d' ? 'Last 7 days' : tf === '30d' ? 'Last 30 days' : 'Last 12 months';
+}
+
+const AXIS_STYLE = {
+  grid: { color: 'rgba(0,0,0,0.04)' },
+  ticks: { font: { size: 11 }, color: '#94a3b8' },
+  border: { display: false },
+};
+
+const TOOLTIP_STYLE = {
+  backgroundColor: '#1e293b',
+  titleColor: '#94a3b8',
+  bodyColor: '#f1f5f9',
+  padding: 12,
+  cornerRadius: 10,
+};
 
 export default function GeneralReports() {
   const [activeTab, setActiveTab] = useState<'financial'|'invoices'>('financial');
@@ -11,26 +34,18 @@ export default function GeneralReports() {
   // default timeframe for admins when they login
   const [timeframe, setTimeframe] = useState<'24h'|'7d'|'30d'|'12m'>('7d');
   const [groupBy, setGroupBy] = useState<'region'|'propertyType'>('propertyType');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const regionalCanvas = useRef<HTMLCanvasElement | null>(null);
-  const revenueCanvas = useRef<HTMLCanvasElement | null>(null);
-  const transactionsCanvas = useRef<HTMLCanvasElement | null>(null);
-  const invoiceStatusCanvas = useRef<HTMLCanvasElement | null>(null);
-  const fixTrendCanvas = useRef<HTMLCanvasElement | null>(null);
-
-  function showReportTab(tab: 'financial'|'invoices') {
-    setActiveTab(tab);
-  }
-
-  // individual canvas PNG export removed in favor of unified Export menu
+  const revenueAreaCanvas = useRef<HTMLCanvasElement | null>(null);
+  const propertyTypeCanvas = useRef<HTMLCanvasElement | null>(null);
+  const activePropsCanvas = useRef<HTMLCanvasElement | null>(null);
+  const invoiceDonutCanvas = useRef<HTMLCanvasElement | null>(null);
+  const invoiceBarCanvas = useRef<HTMLCanvasElement | null>(null);
 
   // Unified export: CSV (all sections), PNG (all canvases), PDF (print-friendly page)
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const exportMenuRef = React.useRef<HTMLDivElement | null>(null);
-
-  // Metrics docs moved to global admin sidebar (/admin/metrics-docs)
-
-  // (auto-refresh removed per design) — data refresh should be triggered by data fetch hooks or server push
 
   // Close export menu when clicking outside
   React.useEffect(() => {
@@ -57,11 +72,10 @@ export default function GeneralReports() {
   function exportAllPNGs() {
     try {
       const canvases: Array<{c: HTMLCanvasElement | null; name: string}> = [
-        { c: regionalCanvas.current, name: `regional-performance-${region}-${timeframe}.png` },
-        { c: revenueCanvas.current, name: `revenue-summary-${region}-${timeframe}.png` },
-        { c: transactionsCanvas.current, name: `active-properties-${region}-${timeframe}.png` },
-        { c: invoiceStatusCanvas.current, name: `invoice-status-${region}-${timeframe}.png` },
-        { c: fixTrendCanvas.current, name: `fix-trend-${region}-${timeframe}.png` }
+        { c: revenueAreaCanvas.current, name: `revenue-trend-${region}-${timeframe}.png` },
+        { c: propertyTypeCanvas.current, name: `property-type-${region}-${timeframe}.png` },
+        { c: activePropsCanvas.current, name: `active-properties-${region}-${timeframe}.png` },
+        { c: invoiceDonutCanvas.current, name: `invoice-status-${region}-${timeframe}.png` },
       ];
       canvases.forEach(({c, name}) => {
         if (!c) return;
@@ -78,44 +92,36 @@ export default function GeneralReports() {
   function exportAllCSV() {
     try {
       // Unified CSV: single table with a 'section' column and common metric columns.
-      const header = ['section','label','revenue_tzs','active_properties','sessions','count'];
+      const header = ['section','label','revenue_tzs','active_properties','count'];
       const rows: string[][] = [header];
 
-      // Regional Performance rows (from API)
+      // Revenue Trend rows
       const labels = (Array.isArray(revenueSeries?.labels) && revenueSeries.labels.length) ? revenueSeries.labels : (Array.isArray(activePropsSeries?.labels) ? activePropsSeries.labels : []);
       (labels || []).forEach((lab, i) => {
         rows.push([
-          `Regional Performance`,
+          'Revenue Trend',
           String(lab),
           String((revenueSeries.data && revenueSeries.data[i]) ?? ''),
           String((activePropsSeries.data && activePropsSeries.data[i]) ?? ''),
-          '',
           ''
         ]);
       });
 
-      // Property Type Performance rows
+      // Property Type rows
       const typeLabels = (Array.isArray(revenueByType?.labels) && revenueByType.labels.length) ? revenueByType.labels : (Array.isArray(activePropsBreakdown?.labels) ? activePropsBreakdown.labels : []);
       (typeLabels || []).forEach((t, i) => {
         rows.push([
-          `Property Type Performance`,
+          'Property Type Performance',
           String(t),
           String((revenueByType.data && revenueByType.data[i]) ?? ''),
           String((activePropsBreakdown.data && activePropsBreakdown.data[i]) ?? ''),
-          '',
           ''
         ]);
       });
 
-      // Invoice Overview rows
+      // Invoice rows
       Object.entries(invoiceStatusCounts || {}).forEach(([label, count]) => {
-        rows.push(['Invoice Overview', String(label), '', '', '', String(count ?? '')]);
-      });
-
-      // Requests for Fix (trend) — use revenueSeries as proxy (counts scaled)
-      (Array.isArray(revenueSeries?.labels) ? revenueSeries.labels : []).forEach((lab, i) => {
-        const val = Array.isArray(revenueSeries?.data) && revenueSeries.data[i] ? Math.round((revenueSeries.data[i] || 0) / 1000) : '';
-        rows.push(['Requests for Fix (Trend)', String(lab), '', '', '', String(val)]);
+        rows.push(['Invoice Status', String(label), '', '', String(count ?? '')]);
       });
 
       const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
@@ -138,11 +144,10 @@ export default function GeneralReports() {
   function exportAllPDF() {
     try {
       const canvases: Array<{c: HTMLCanvasElement | null; title: string}> = [
-        { c: regionalCanvas.current, title: 'Regional Performance' },
-        { c: revenueCanvas.current, title: 'Revenue Summary' },
-        { c: transactionsCanvas.current, title: 'Active Properties' },
-        { c: invoiceStatusCanvas.current, title: 'Invoice Status' },
-        { c: fixTrendCanvas.current, title: 'Requests for Fix (Trend)' }
+        { c: revenueAreaCanvas.current, title: 'Revenue Trend' },
+        { c: propertyTypeCanvas.current, title: 'Revenue by Property Type' },
+        { c: activePropsCanvas.current, title: 'Active Properties Trend' },
+        { c: invoiceDonutCanvas.current, title: 'Invoice Status Distribution' },
       ];
       const imgs = canvases.map(({c, title}) => ({ title, dataUrl: c ? c.toDataURL('image/png') : null }));
 
@@ -172,7 +177,8 @@ export default function GeneralReports() {
   }
 
   // Choose regions from shared list
-  const regionOptions = [{ id: 'ALL', name: 'All Regions' }, ...REGIONS.map(r => ({ id: r.id, name: r.name }))];
+  // Use numeric code (e.g. "11") as id — matches what the DB stores in property.regionId
+  const regionOptions = [{ id: 'ALL', name: 'All Regions' }, ...REGIONS.map(r => ({ id: r.code ?? r.id, name: r.name }))];
 
   // State for API-driven datasets
   const [revenueSeries, setRevenueSeries] = useState<{ labels: string[]; data: number[] }>({ labels: [], data: [] });
@@ -194,14 +200,14 @@ export default function GeneralReports() {
   // Fetch from API when region/timeframe/group change
   useEffect(() => {
     const { from, to } = timeframeToRange(timeframe as string);
-    // Always use same-origin paths (Next rewrites proxy to API in dev).
     const base = '';
+    setLoading(true);
+    setError(null);
 
     async function load() {
       try {
         const qs = `?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&region=${encodeURIComponent(region)}`;
-        
-        // Helper to safely parse JSON responses
+
         const safeJsonParse = async (response: Response) => {
           if (!response.ok) {
             const text = await response.text();
@@ -215,267 +221,374 @@ export default function GeneralReports() {
           return response.json();
         };
 
-        const r1 = await fetch(`${base}/admin/stats/revenue-series${qs}`, { credentials: "include" });
-        const rev = await safeJsonParse(r1);
+        const [rev, ap, rbt, apb, invs] = await Promise.all([
+          fetch(`${base}/admin/stats/revenue-series${qs}`, { credentials: 'include' }).then(safeJsonParse),
+          fetch(`${base}/admin/stats/active-properties-series${qs}`, { credentials: 'include' }).then(safeJsonParse),
+          fetch(`${base}/admin/stats/revenue-by-type${qs}`, { credentials: 'include' }).then(safeJsonParse),
+          fetch(`${base}/admin/stats/active-properties-breakdown?groupBy=${encodeURIComponent(groupBy)}&region=${encodeURIComponent(region)}`, { credentials: 'include' }).then(safeJsonParse),
+          fetch(`${base}/admin/stats/invoice-status?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, { credentials: 'include' }).then(safeJsonParse),
+        ]);
+
         setRevenueSeries(rev || { labels: [], data: [] });
-
-        const r2 = await fetch(`${base}/admin/stats/active-properties-series${qs}`, { credentials: "include" });
-        const ap = await safeJsonParse(r2);
         setActivePropsSeries(ap || { labels: [], data: [] });
-
-        const r3 = await fetch(`${base}/admin/stats/revenue-by-type${qs}`, { credentials: "include" });
-        const rbt = await safeJsonParse(r3);
         setRevenueByType(rbt || { labels: [], data: [] });
-
-        const q2 = `?groupBy=${encodeURIComponent(groupBy)}&region=${encodeURIComponent(region)}`;
-        const r4 = await fetch(`${base}/admin/stats/active-properties-breakdown${q2}`, { credentials: "include" });
-        const apb = await safeJsonParse(r4);
         setActivePropsBreakdown(apb || { labels: [], data: [] });
-
-        const r5 = await fetch(`${base}/admin/stats/invoice-status?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, { credentials: "include" });
-        const invs = await safeJsonParse(r5);
         setInvoiceStatusCounts(invs || {});
       } catch (err: any) {
         console.error('Failed to load reports', err);
-        // Set empty data to prevent JSON parse errors
+        setError(err?.message || 'Failed to load report data');
         setRevenueSeries({ labels: [], data: [] });
         setActivePropsSeries({ labels: [], data: [] });
         setRevenueByType({ labels: [], data: [] });
         setActivePropsBreakdown({ labels: [], data: [] });
         setInvoiceStatusCounts({});
+      } finally {
+        setLoading(false);
       }
     }
     void load();
   }, [region, timeframe, groupBy]);
 
-  // Derived chart objects from API data
-  const regionalLabels = (Array.isArray(revenueSeries?.labels) && revenueSeries.labels.length) ? revenueSeries.labels : (Array.isArray(activePropsSeries?.labels) ? activePropsSeries.labels : []);
-  const regionalChartData = {
-    labels: regionalLabels,
+  // ── Derived chart data ────────────────────────────────────────────────────
+  const trendLabels = revenueSeries.labels.length ? revenueSeries.labels : activePropsSeries.labels;
+
+  // Revenue area chart (smooth gradient line)
+  const revenueAreaData = {
+    labels: trendLabels,
+    datasets: [{
+      label: 'Revenue (TZS)',
+      data: revenueSeries.data || [],
+      borderColor: '#6366f1',
+      backgroundColor: 'rgba(99,102,241,0.12)',
+      fill: true,
+      tension: 0.45,
+      pointRadius: 3,
+      pointHoverRadius: 6,
+      pointBackgroundColor: '#6366f1',
+      borderWidth: 2.5,
+    }],
+  } as any;
+
+  // Active properties smooth line
+  const activePropsData = {
+    labels: trendLabels,
+    datasets: [{
+      label: 'Active Properties',
+      data: activePropsSeries.data || [],
+      borderColor: '#10b981',
+      backgroundColor: 'rgba(16,185,129,0.10)',
+      fill: true,
+      tension: 0.45,
+      pointRadius: 3,
+      pointHoverRadius: 6,
+      pointBackgroundColor: '#10b981',
+      borderWidth: 2.5,
+    }],
+  } as any;
+
+  // Property type bar chart (horizontal for readability)
+  const propTypeLabels = revenueByType.labels.length ? revenueByType.labels : activePropsBreakdown.labels;
+  const propertyTypeData = {
+    labels: propTypeLabels,
     datasets: [
-      { label: 'Revenue', data: revenueSeries.data || [], backgroundColor: '#4f46e5', yAxisID: 'y' },
-      { label: 'Active Properties', data: activePropsSeries.data || [], type: 'line', borderColor: '#f97316', backgroundColor: '#f97316', yAxisID: 'y1', tension: 0.3, pointRadius: 4 }
-    ]
+      {
+        label: 'Revenue (TZS)',
+        data: revenueByType.data || [],
+        backgroundColor: propTypeLabels.map((_, i) => [
+          'rgba(99,102,241,0.80)', 'rgba(16,185,129,0.80)', 'rgba(245,158,11,0.80)',
+          'rgba(239,68,68,0.80)', 'rgba(14,165,233,0.80)', 'rgba(168,85,247,0.80)',
+        ][i % 6]),
+        borderRadius: 6,
+        yAxisID: 'y',
+      },
+      {
+        label: 'Active Properties',
+        data: activePropsBreakdown.data || [],
+        backgroundColor: 'rgba(0,0,0,0)',
+        borderColor: '#f59e0b',
+        borderWidth: 2,
+        type: 'line' as any,
+        tension: 0.3,
+        pointRadius: 5,
+        pointBackgroundColor: '#f59e0b',
+        yAxisID: 'y1',
+      },
+    ],
   } as any;
 
-  const propertyTypeChartData = {
-    labels: revenueByType.labels || activePropsBreakdown.labels || [],
-    datasets: [
-      { label: 'Revenue', data: revenueByType.data || [], backgroundColor: '#4f46e5', yAxisID: 'y' },
-      { label: 'Active Properties', data: activePropsBreakdown.data || [], type: 'line', borderColor: '#f97316', backgroundColor: '#f97316', yAxisID: 'y1', tension: 0.3, pointRadius: 4 },
-    ]
-  } as any;
-
-  const revenueSummaryChart = {
-    labels: revenueSeries.labels || [],
-    datasets: [{ label: 'Revenue', data: revenueSeries.data || [], backgroundColor: '#4f46e5' }]
-  } as any;
-
-  const activePropertiesChart = {
-    labels: activePropsSeries.labels || [],
-    datasets: [{ label: 'Active Properties', data: activePropsSeries.data || [], borderColor: '#f97316', fill: false, tension: 0.2 }]
-  } as any;
-
-  // invoiceStatusCounts -> pie data
+  // Invoice donut
   const invoiceLabels = Object.keys(invoiceStatusCounts || {});
-  const invoiceData = invoiceLabels.map(l => invoiceStatusCounts[l] ?? 0);
-  const invoicePie = { labels: invoiceLabels, datasets: [{ data: invoiceData, backgroundColor: ['#6366f1','#10b981','#f59e0b','#ef4444','#a78bfa'] }] } as any;
+  const invoiceValues = invoiceLabels.map(l => invoiceStatusCounts[l] ?? 0);
+  const INVOICE_COLORS: Record<string, string> = {
+    PAID: '#10b981', APPROVED: '#6366f1', RECEIVED: '#14b8a6',
+    REQUESTED: '#f59e0b', REJECTED: '#ef4444', PENDING: '#94a3b8',
+  };
+  const invoiceDonutData = {
+    labels: invoiceLabels,
+    datasets: [{
+      data: invoiceValues,
+      backgroundColor: invoiceLabels.map(l => INVOICE_COLORS[l] ?? '#94a3b8'),
+      borderWidth: 0,
+      hoverOffset: 8,
+    }],
+  } as any;
 
-  const fixTrendChart = { labels: revenueSeries.labels || [], datasets: [{ label: 'Count', data: (revenueSeries.data || []).map((v: number) => Math.round((v || 0) / 1000)), borderColor: '#06b6d4', fill: false }] } as any;
+  // Invoice bar (horizontal)
+  const invoiceBarData = {
+    labels: invoiceLabels,
+    datasets: [{
+      label: 'Count',
+      data: invoiceValues,
+      backgroundColor: invoiceLabels.map(l => INVOICE_COLORS[l] ?? '#94a3b8'),
+      borderRadius: 6,
+    }],
+  } as any;
+
+  // KPI totals
+  const totalInvoices = invoiceValues.reduce((s, v) => s + v, 0);
+  const paidInvoices = invoiceStatusCounts['PAID'] ?? 0;
+  const conversionRate = totalInvoices ? Math.round((paidInvoices / totalInvoices) * 100) : 0;
+
+  // Shared chart option helpers
+  const lineOpts = (_ytitle: string) => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: 'index' as const, intersect: false },
+    plugins: { legend: { display: false }, tooltip: TOOLTIP_STYLE },
+    scales: {
+      x: { ...AXIS_STYLE },
+      y: {
+        ...AXIS_STYLE,
+        beginAtZero: true,
+        title: { display: false },
+        ticks: { ...AXIS_STYLE.ticks, callback: (v: any) => fmtK(Number(v)) },
+      },
+    },
+  });
 
   return (
     <div id="general-reports-page" className="page-content">
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">General Reports</h2>
-        <div className="mb-6">
-          <button onClick={() => showReportTab('financial')} id="tab-financial" className={`px-4 py-2 rounded-l-lg ${activeTab==='financial' ? 'bg-indigo-600 text-white' : 'bg-gray-100'}`}>Financial Reports</button>
-          <button onClick={() => showReportTab('invoices')} id="tab-invoices" className={`px-4 py-2 rounded-r-lg ${activeTab==='invoices' ? 'bg-indigo-600 text-white' : 'bg-gray-100'}`}>Invoice Overview</button>
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+
+        {/* ── Header bar ─────────────────────────────────────────────────── */}
+        <div className="flex items-center justify-between gap-4 px-6 py-4 border-b border-slate-100 flex-wrap">
+          <div>
+            <h2 className="text-xl font-bold text-slate-900 tracking-tight">General Reports</h2>
+            <p className="text-xs text-slate-400 mt-0.5">{fmtTFLabel(timeframe)} · {regionOptions.find(r => r.id === region)?.name ?? region}</p>
+          </div>
+
+          {/* Tab toggle */}
+          <div className="flex items-center rounded-xl bg-slate-100 p-1 gap-1">
+            {(['financial', 'invoices'] as const).map(tab => (
+              <button key={tab} onClick={() => setActiveTab(tab)}
+                className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${activeTab === tab ? 'bg-white shadow-sm text-indigo-700' : 'text-slate-500 hover:text-slate-700'}`}>
+                {tab === 'financial' ? 'Financial' : 'Invoices'}
+              </button>
+            ))}
+          </div>
+
+          {/* Controls */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Region */}
+            <select value={region} onChange={e => setRegion(e.target.value)}
+              className="h-8 px-3 text-xs rounded-lg border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300">
+              {regionOptions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+            </select>
+
+            {/* Timeframe pills */}
+            <div className="flex items-center rounded-lg border border-slate-200 bg-white overflow-hidden">
+              {(['24h','7d','30d','12m'] as const).map(tf => (
+                <button key={tf} onClick={() => setTimeframe(tf)}
+                  className={`h-8 px-3 text-xs font-semibold border-r border-slate-200 last:border-0 transition-colors ${timeframe === tf ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
+                  {tf}
+                </button>
+              ))}
+            </div>
+
+            {/* Group pills (Financial only) */}
+            {activeTab === 'financial' && (
+              <div className="flex items-center rounded-lg border border-slate-200 bg-white overflow-hidden">
+                {([['propertyType','By Type'],['region','By Region']] as const).map(([v, label]) => (
+                  <button key={v} onClick={() => setGroupBy(v)}
+                    className={`h-8 px-3 text-xs font-semibold border-r border-slate-200 last:border-0 transition-colors ${groupBy === v ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Export */}
+            <div className="relative" ref={exportMenuRef}>
+              <button onMouseDown={e => e.preventDefault()} onClick={() => setExportMenuOpen(o => !o)}
+                className="h-8 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold inline-flex items-center gap-1.5 transition-colors">
+                <Download className="h-3.5 w-3.5" />
+                Export
+              </button>
+              {exportMenuOpen && (
+                <div className="absolute right-0 mt-1 w-40 bg-white rounded-xl border border-slate-200 shadow-lg z-20 overflow-hidden">
+                  {([['CSV', exportAllCSV], ['PNGs', exportAllPNGs], ['PDF', exportAllPDF]] as [string, () => void][]).map(([label, fn]) => (
+                    <button key={label} onMouseDown={e => e.preventDefault()} onClick={() => fn()}
+                      className="block w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors">
+                      Export {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {loading && <RefreshCw className="h-4 w-4 text-slate-400 animate-spin" />}
+          </div>
         </div>
-        {/* Metrics docs moved to the sidebar (Admin -> Metrics docs) */}
-        {activeTab === 'financial' ? (
-          <div id="report-financial" className="report-tab">
-            <div className="mb-6">
-              <div className="flex items-center justify-between gap-4 flex-wrap">
-                <div className="flex items-center gap-3">
-                  <label htmlFor="regionSelector" className="text-sm text-gray-700">Region:</label>
-                  <select id="regionSelector" onChange={(e)=>setRegion(e.target.value)} value={region} className="px-3 py-2 border rounded">
-                    {regionOptions.map(r => (
-                      <option key={r.id} value={r.id}>{r.name}</option>
-                    ))}
-                  </select>
 
-                  <label htmlFor="timeframeSelector" className="text-sm text-gray-700">Timeframe:</label>
-                  <select id="timeframeSelector" onChange={(e)=>setTimeframe(e.target.value as any)} value={timeframe} className="px-3 py-2 border rounded">
-                    <option value="24h">24h</option>
-                    <option value="7d">7d</option>
-                    <option value="30d">30d</option>
-                    <option value="12m">12m</option>
-                  </select>
+        {/* ── Error banner ───────────────────────────────────────────────── */}
+        {error && (
+          <div className="mx-6 mt-4 flex items-center gap-3 rounded-xl bg-red-50 border border-red-200 px-4 py-3">
+            <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />
+            <p className="text-sm text-red-700">{error}</p>
+          </div>
+        )}
 
-                  <label htmlFor="groupBySelector" className="text-sm text-gray-700">Group:</label>
-                  <select id="groupBySelector" onChange={(e)=>setGroupBy(e.target.value as any)} value={groupBy} className="px-3 py-2 border rounded">
-                    <option value="propertyType">Property Type</option>
-                    <option value="region">Region</option>
-                  </select>
+        <div className="p-6 space-y-6">
+
+          {/* ── FINANCIAL TAB ──────────────────────────────────────────── */}
+          {activeTab === 'financial' && (
+            <>
+              {/* Revenue area chart — full width */}
+              <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <div className="text-sm font-bold text-slate-800">Revenue Trend</div>
+                    <div className="text-xs text-slate-400 mt-0.5">{fmtTFLabel(timeframe)}</div>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs text-indigo-500 font-semibold bg-indigo-50 px-3 py-1 rounded-full">
+                    <span className="h-2 w-2 rounded-full bg-indigo-500 inline-block" /> TZS
+                  </div>
+                </div>
+                <div style={{ height: 260 }}>
+                  <Chart type="line" height={260} data={revenueAreaData} options={lineOpts('Revenue')} onCanvas={c => { revenueAreaCanvas.current = c; }} />
+                </div>
+              </div>
+
+              {/* Property type + Active properties side by side */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                {/* Property type bar+line */}
+                <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <div className="text-sm font-bold text-slate-800">{groupBy === 'propertyType' ? 'Revenue by Property Type' : 'Revenue by Region'}</div>
+                      <div className="text-xs text-slate-400 mt-0.5">Revenue bars · Properties line</div>
+                    </div>
+                  </div>
+                  <div style={{ height: 260 }}>
+                    <Chart type="bar" height={260} data={propertyTypeData}
+                      options={{
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: { mode: 'index', intersect: false },
+                        plugins: {
+                          legend: { position: 'bottom', labels: { font: { size: 11 }, color: '#64748b', boxWidth: 12, padding: 14 } },
+                          tooltip: TOOLTIP_STYLE,
+                        },
+                        scales: {
+                          x: { ...AXIS_STYLE },
+                          y: { ...AXIS_STYLE, title: { display: false }, ticks: { ...AXIS_STYLE.ticks, callback: (v: any) => fmtK(Number(v)) } },
+                          y1: { ...AXIS_STYLE, position: 'right', grid: { drawOnChartArea: false }, title: { display: false }, ticks: { ...AXIS_STYLE.ticks, callback: (v: any) => String(v) } },
+                        },
+                      }}
+                      onCanvas={c => { propertyTypeCanvas.current = c; }} />
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <div className="relative inline-block text-left" ref={exportMenuRef}>
-                    <button id="exportBtn" onMouseDown={(e) => e.preventDefault()} onClick={() => setExportMenuOpen(open => !open)} className="px-3 py-2 bg-green-600 text-white rounded inline-flex items-center gap-2">
-                      <Download className="h-4 w-4" aria-hidden="true" />
-                      <span>Export ▾</span>
-                    </button>
-                    {exportMenuOpen && (
-                      <div className="absolute right-0 mt-2 w-46 bg-white border rounded shadow-lg z-10">
-                        <button onMouseDown={(e) => e.preventDefault()} className="block w-full text-left px-3 py-2 hover:bg-gray-100" onClick={exportAllCSV}>Export CSV</button>
-                        <button onMouseDown={(e) => e.preventDefault()} className="block w-full text-left px-3 py-2 hover:bg-gray-100" onClick={exportAllPNGs}>Export PNGs</button>
-                        <button onMouseDown={(e) => e.preventDefault()} className="block w-full text-left px-3 py-2 hover:bg-gray-100" onClick={exportAllPDF}>Export PDF</button>
-                      </div>
-                    )}
+                {/* Active properties area */}
+                <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <div className="text-sm font-bold text-slate-800">Active Properties</div>
+                      <div className="text-xs text-slate-400 mt-0.5">{fmtTFLabel(timeframe)}</div>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs text-emerald-600 font-semibold bg-emerald-50 px-3 py-1 rounded-full">
+                      <span className="h-2 w-2 rounded-full bg-emerald-500 inline-block" /> Count
+                    </div>
+                  </div>
+                  <div style={{ height: 260 }}>
+                    <Chart type="line" height={260} data={activePropsData}
+                      options={{ ...lineOpts('Properties'), scales: { ...lineOpts('Properties').scales, y: { ...lineOpts('Properties').scales.y, ticks: { ...AXIS_STYLE.ticks, callback: (v: any) => String(Math.round(Number(v))) } } } }}
+                      onCanvas={c => { activePropsCanvas.current = c; }} />
                   </div>
                 </div>
               </div>
+            </>
+          )}
 
-              <div className="bg-white rounded-lg p-4 shadow">
-                <h3 className="text-sm font-medium text-gray-700 mb-2">{groupBy === 'propertyType' ? 'Property Type Performance' : 'Regional Performance'}</h3>
-                {/* Full explanation for metrics will live in documentation/expanded help, remove inline note */}
-                <div className="chart-aspect relative w-full">
+          {/* ── INVOICES TAB ───────────────────────────────────────────── */}
+          {activeTab === 'invoices' && (
+            <>
+              {/* KPI tiles */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {[
+                  { label: 'Total Invoices', value: totalInvoices, color: 'text-slate-800', bg: 'bg-slate-50' },
+                  { label: 'Paid', value: invoiceStatusCounts['PAID'] ?? 0, color: 'text-emerald-700', bg: 'bg-emerald-50' },
+                  { label: 'Approved', value: invoiceStatusCounts['APPROVED'] ?? 0, color: 'text-indigo-700', bg: 'bg-indigo-50' },
+                  { label: 'Rejected', value: invoiceStatusCounts['REJECTED'] ?? 0, color: 'text-red-700', bg: 'bg-red-50' },
+                ].map(({ label, value, color, bg }) => (
+                  <div key={label} className={`rounded-2xl border border-slate-100 ${bg} p-5 shadow-sm`}>
+                    <div className="text-[11px] text-slate-400 uppercase tracking-wider font-semibold mb-1">{label}</div>
+                    <div className={`text-3xl font-extrabold ${color}`}>{loading ? '…' : value}</div>
+                    {label === 'Paid' && totalInvoices > 0 && (
+                      <div className="mt-2">
+                        <div className="h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                          <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${conversionRate}%` }} />
+                        </div>
+                        <div className="text-[10px] text-slate-400 mt-1">{conversionRate}% payment rate</div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
 
-                  {groupBy === 'propertyType' ? (
-                    <Chart
-                      type="bar"
-                      height={360}
-                      data={propertyTypeChartData as any}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                {/* Donut */}
+                <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+                  <div className="text-sm font-bold text-slate-800 mb-1">Status Distribution</div>
+                  <div className="text-xs text-slate-400 mb-4">{fmtTFLabel(timeframe)}</div>
+                  <div style={{ height: 280 }}>
+                    <Chart type="doughnut" height={280} data={invoiceDonutData}
                       options={{
                         responsive: true,
                         maintainAspectRatio: false,
-                        plugins: { legend: { position: 'top' } },
-                        scales: {
-                          y: {
-                            type: 'linear', position: 'left', title: { display: true, text: 'Revenue (TZS)' },
-                            ticks: { callback: (v: any) => `${Number(v).toLocaleString()} TZS` }
-                          },
-                          y1: {
-                            type: 'linear', position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Count' },
-                            ticks: { callback: (v: any) => String(v) }
-                          }
-                        }
+                        cutout: '62%',
+                        plugins: {
+                          legend: { position: 'bottom', labels: { font: { size: 11 }, color: '#64748b', boxWidth: 12, padding: 16 } },
+                          tooltip: TOOLTIP_STYLE,
+                        },
                       }}
-                      onCanvas={(c)=>{ regionalCanvas.current = c }}
-                    />
-                  ) : (
-                    <Chart
-                      type="bar"
-                      height={360}
-                      data={regionalChartData as any}
+                      onCanvas={c => { invoiceDonutCanvas.current = c; }} />
+                  </div>
+                </div>
+
+                {/* Horizontal bar breakdown */}
+                <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+                  <div className="text-sm font-bold text-slate-800 mb-1">Invoice Counts by Status</div>
+                  <div className="text-xs text-slate-400 mb-4">Absolute volume per status</div>
+                  <div style={{ height: 280 }}>
+                    <Chart type="bar" height={280} data={invoiceBarData}
                       options={{
                         responsive: true,
                         maintainAspectRatio: false,
-                        plugins: { legend: { position: 'top' } },
+                        indexAxis: 'y' as const,
+                        plugins: { legend: { display: false }, tooltip: TOOLTIP_STYLE },
                         scales: {
-                          y: {
-                            type: 'linear', position: 'left', title: { display: true, text: 'Revenue (TZS)' },
-                            ticks: { callback: (v: any) => `${Number(v).toLocaleString()} TZS` }
-                          },
-                          y1: {
-                            type: 'linear', position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Active Properties' },
-                            ticks: { callback: (v: any) => String(v) }
-                          }
-                        }
+                          x: { ...AXIS_STYLE, beginAtZero: true, ticks: { ...AXIS_STYLE.ticks, callback: (v: any) => String(v) } },
+                          y: { ...AXIS_STYLE },
+                        },
                       }}
-                      onCanvas={(c)=>{ regionalCanvas.current = c }}
-                    />
-                  )}
-                </div>
-                {/* Metrics modal removed from this page — use /admin/metrics-docs for the full documentation */}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-white rounded-lg p-4 shadow">
-                <h3 className="text-sm font-medium text-gray-700 mb-2">Revenue ({timeframe === '12m' ? 'Last 12 months' : timeframe === '30d' ? 'Last 30 days' : timeframe === '7d' ? 'Last 7 days' : 'Last 24 hours'})</h3>
-                <div className="relative w-full">
-                  {/* Revenue-only chart for the summary card */}
-                  <Chart
-                    type="bar"
-                    height={320}
-                    data={revenueSummaryChart as any}
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      plugins: { legend: { display: false } },
-                      scales: { y: { beginAtZero: true, title: { display: true, text: 'Revenue (TZS)' }, ticks: { callback: (v:any) => `${Number(v).toLocaleString()} TZS` } } }
-                    }}
-                    onCanvas={(c)=>{ revenueCanvas.current = c }}
-                  />
+                      onCanvas={c => { invoiceBarCanvas.current = c; }} />
+                  </div>
                 </div>
               </div>
-              <div className="bg-white rounded-lg p-4 shadow">
-                <h3 className="text-sm font-medium text-gray-700 mb-2">Active Properties ({timeframe === '12m' ? 'Last 12 months' : timeframe === '30d' ? 'Last 30 days' : timeframe === '7d' ? 'Last 7 days' : 'Last 24 hours'})</h3>
-                <div className="relative w-full">
-                  <Chart
-                    type="line"
-                    height={320}
-                    data={activePropertiesChart as any}
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      plugins: { legend: { display: false } },
-                      scales: { y: { beginAtZero: true, title: { display: true, text: 'Active Properties' }, ticks: { callback: (v:any) => String(v) } } }
-                    }}
-                    onCanvas={(c)=>{ transactionsCanvas.current = c }}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div id="report-invoices" className="report-tab mt-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-              {(() => {
-                const received = invoiceStatusCounts['RECEIVED'] ?? invoiceStatusCounts['REQUESTED'] ?? 0;
-                const paid = invoiceStatusCounts['PAID'] ?? 0;
-                const approved = invoiceStatusCounts['APPROVED'] ?? 0;
-                const rejected = invoiceStatusCounts['REJECTED'] ?? 0;
-                return (
-                  <>
-                    <div className="bg-gray-50 rounded-lg p-4 text-center">
-                      <p className="text-sm text-gray-600">Received Invoices</p>
-                      <p className="text-2xl font-bold">{received}</p>
-                    </div>
-                    <div className="bg-gray-50 rounded-lg p-4 text-center">
-                      <p className="text-sm text-gray-600">Paid</p>
-                      <p className="text-2xl font-bold">{paid}</p>
-                    </div>
-                    <div className="bg-gray-50 rounded-lg p-4 text-center">
-                      <p className="text-sm text-gray-600">Approved</p>
-                      <p className="text-2xl font-bold">{approved}</p>
-                    </div>
-                    <div className="bg-gray-50 rounded-lg p-4 text-center">
-                      <p className="text-sm text-gray-600">Rejected</p>
-                      <p className="text-2xl font-bold">{rejected}</p>
-                    </div>
-                  </>
-                );
-              })()}
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-white rounded-lg p-4 shadow">
-                <h3 className="text-sm font-medium text-gray-700 mb-2">Invoice Status Distribution</h3>
-                <div className="relative w-full">
-                  <Chart type="doughnut" height={320} data={invoicePie} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }} onCanvas={(c)=>{ invoiceStatusCanvas.current = c }} />
-                </div>
-              </div>
-              <div className="bg-white rounded-lg p-4 shadow">
-                <h3 className="text-sm font-medium text-gray-700 mb-2">Requests for Fix (Trend)</h3>
-                <div className="relative w-full">
-                  <Chart type="line" height={320} data={fixTrendChart as any} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }} onCanvas={(c)=>{ fixTrendCanvas.current = c }} />
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -1,8 +1,7 @@
 "use client";
 import { createPortal } from "react-dom";
-import AdminPageHeader from "@/components/AdminPageHeader";
 import Link from "next/link";
-import { AlertTriangle, Bell, CheckCheck, ChevronDown, ChevronUp, FileCheck2, FileBadge, LayoutDashboard, Building2, RefreshCw, ShieldCheck, Users, BarChart3, LineChart, X } from "lucide-react";
+import { AlertTriangle, Bell, CheckCheck, ChevronDown, ChevronUp, Eye, EyeOff, FileCheck2, FileBadge, LayoutDashboard, Building2, RefreshCw, ShieldCheck, Users, BarChart3, LineChart, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
 import GeneralReports from '@/components/GeneralReports';
@@ -82,6 +81,7 @@ export default function AdminHome() {
   // KPI and widget state
   const [overview, setOverview] = useState<any>(null);
   const [loadingKpis, setLoadingKpis] = useState<boolean>(true);
+  const [revealedCards, setRevealedCards] = useState<Set<string>>(new Set());
   // Properties (Approvals widget)
   const [propNew, setPropNew] = useState<any>({ items: [], total: 0 }); // NEW = PENDING (submitted, not yet handled)
   const [propPending, setPropPending] = useState<any>({ items: [], total: 0 }); // PENDING bucket = SUSPENDED
@@ -537,7 +537,7 @@ export default function AdminHome() {
             >
               <LayoutDashboard className="h-5 w-5" style={{ color: "rgba(255,255,255,0.90)" }} />
             </div>
-            <div>
+            <div className="flex-1 min-w-0">
               <h1 className="text-xl sm:text-2xl font-bold tracking-tight" style={{ color: "#fff", textShadow: "0 2px 10px rgba(0,0,0,0.35)" }}>
                 Owners Control Dashboard
               </h1>
@@ -548,9 +548,9 @@ export default function AdminHome() {
           </div>
 
           {/* KPI chips */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
             {loadingKpis ? (
-              Array.from({ length: 4 }).map((_, i) => (
+              Array.from({ length: 5 }).map((_, i) => (
                 <div
                   key={i}
                   className="animate-pulse rounded-xl h-20"
@@ -559,20 +559,38 @@ export default function AdminHome() {
               ))
             ) : (
               [
-                { label: "No. Owners",     value: String(overview?.ownerCount ?? overview?.owners ?? 0),              accent: "rgba(56,189,248,0.22)",  border: "rgba(56,189,248,0.35)",  text: "#7dd3fc" },
-                { label: "No. Properties", value: String(overview?.propertyCount ?? overview?.properties ?? 0),       accent: "rgba(16,185,129,0.20)",  border: "rgba(16,185,129,0.32)",  text: "#6ee7b7" },
-                { label: "Net Payable",    value: fmt(overview?.netPayable ?? 0),                                      accent: "rgba(239,68,68,0.18)",   border: "rgba(239,68,68,0.30)",   text: "#fca5a5" },
-                { label: "NoLSAF Revenue", value: fmt(overview?.nolsRevenue ?? overview?.revenue ?? 0),               accent: "rgba(99,102,241,0.20)",  border: "rgba(99,102,241,0.32)",  text: "#a5b4fc" },
-              ].map(({ label, value, accent, border, text }) => (
-                <div
-                  key={label}
-                  className="rounded-xl px-4 py-3"
-                  style={{ background: accent, border: `1px solid ${border}` }}
-                >
-                  <p className="text-xs font-semibold uppercase tracking-widest mb-1.5" style={{ color: "rgba(255,255,255,0.42)" }}>{label}</p>
-                  <p className="text-xl sm:text-2xl font-black tabular-nums leading-none" style={{ color: text }}>{value}</p>
-                </div>
-              ))
+                { label: "No. Owners",      value: String(overview?.ownersCount ?? overview?.ownerCount ?? 0),                                               accent: "rgba(56,189,248,0.22)",  border: "rgba(56,189,248,0.35)",  text: "#7dd3fc",  mask: false },
+                { label: "No. Properties",  value: String(overview?.propertiesCount ?? overview?.propertyCount ?? 0),                                        accent: "rgba(16,185,129,0.20)",  border: "rgba(16,185,129,0.32)",  text: "#6ee7b7",  mask: false },
+                { label: "Total Payment",   value: fmt(overview?.totalPayment ?? 0),                                                                          accent: "rgba(245,158,11,0.18)",  border: "rgba(245,158,11,0.30)",  text: "#fcd34d",  mask: true  },
+                { label: "Net Payable",     value: fmt(overview?.ownerPayouts ?? overview?.netPayable ?? 0),                                                  accent: "rgba(239,68,68,0.18)",   border: "rgba(239,68,68,0.30)",   text: "#fca5a5",  mask: true  },
+                { label: "NoLSAF Revenue",  value: fmt(overview?.companyRevenue ?? overview?.nolsRevenue ?? 0),                                               accent: "rgba(99,102,241,0.20)",  border: "rgba(99,102,241,0.32)",  text: "#a5b4fc",  mask: true  },
+              ].map(({ label, value, accent, border, text, mask }) => {
+                const revealed = revealedCards.has(label);
+                const toggle = () => setRevealedCards(prev => {
+                  const next = new Set(prev);
+                  if (revealed) { next.delete(label); } else { next.add(label); }
+                  return next;
+                });
+                return (
+                  <div
+                    key={label}
+                    className="rounded-xl px-4 py-3"
+                    style={{ background: accent, border: `1px solid ${border}` }}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.42)" }}>{label}</p>
+                      {mask && (
+                        <button onClick={toggle} className="p-0 leading-none opacity-40 hover:opacity-80 transition-opacity" style={{ background: 'none', border: 'none' }}>
+                          {revealed ? <EyeOff className="h-3 w-3" style={{ color: text }} /> : <Eye className="h-3 w-3" style={{ color: text }} />}
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-xl sm:text-2xl font-black tabular-nums leading-none select-none" style={{ color: text }}>
+                      {mask && !revealed ? '••••••' : value}
+                    </p>
+                  </div>
+                );
+              })
             )}
           </div>
         </div>
@@ -790,7 +808,7 @@ export default function AdminHome() {
                       style={{
                         background: modalBg,
                         boxShadow: `0 40px 100px -24px rgba(0,0,0,0.95), 0 0 0 1px rgba(255,255,255,0.08), 0 0 60px -20px ${accentColor}28, inset 0 1px 0 rgba(255,255,255,0.09)`,
-                        maxHeight: "min(640px, 82vh)",
+                        maxHeight: "min(640px, 88vh)",
                       }}
                     >
                       {/* Top accent bar */}
@@ -836,8 +854,8 @@ export default function AdminHome() {
                         </div>
                       </div>
 
-                      {/* Body — scrollable */}
-                      <div className="flex-1 overflow-y-auto px-5 pt-4 pb-3 space-y-3" style={{ overscrollBehavior: "contain" }}>
+                      {/* Body */}
+                      <div className="px-5 pt-4 pb-3 space-y-3">
 
                         {/* ─ POST-CONFIRM SUCCESS ─ */}
                         {vSuccess ? (
@@ -864,74 +882,58 @@ export default function AdminHome() {
                             </div>
 
                             {/* Post-confirm: send additional note to owner */}
-                            <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.08)", background: "rgba(0,0,0,0.30)" }}>
-                              {/* Card header */}
-                              <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", background: "rgba(255,255,255,0.03)" }}>
-                                <div className="h-7 w-7 rounded-xl flex items-center justify-center flex-shrink-0"
-                                  style={{ background: "rgba(99,102,241,0.18)", border: "1px solid rgba(99,102,241,0.28)" }}>
-                                  <Bell className="h-3.5 w-3.5" style={{ color: "#a5b4fc" }} />
-                                </div>
-                                <div className="min-w-0">
-                                  <div className="text-[11px] font-bold text-slate-300 uppercase tracking-widest">Send Note to Owner</div>
-                                  <div className="text-[10px] text-slate-500 mt-0.5">Optional — direct message after check-in confirmation</div>
-                                </div>
+                            <div className="rounded-2xl border border-white/8 bg-white/4 p-4 space-y-3">
+                              <div className="flex items-center gap-2">
+                                <Bell className="h-4 w-4 text-slate-400 flex-shrink-0" />
+                                <p className="text-sm font-bold text-slate-300">Send a note to owner</p>
+                                <span className="ml-auto text-[10px] text-slate-500 font-medium">Optional</span>
                               </div>
-
-                              {/* Card body */}
-                              <div className="px-4 py-3.5 space-y-2.5">
-                                {vNotifSent ? (
-                                  <div className="flex items-center gap-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-4 py-3">
-                                    <div className="h-7 w-7 rounded-full flex-shrink-0 flex items-center justify-center bg-emerald-500/20 border border-emerald-500/30">
-                                      <CheckCheck className="h-3.5 w-3.5 text-emerald-400" />
+                              {vNotifSent ? (
+                                <div className="flex items-center gap-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-3 py-2.5">
+                                  <CheckCheck className="h-3.5 w-3.5 text-emerald-400 flex-shrink-0" />
+                                  <span className="text-xs text-emerald-300">{vNotifSent}</span>
+                                </div>
+                              ) : (
+                                <div className="space-y-2">
+                                  <div className="grid grid-cols-2 gap-2 text-xs">
+                                    <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-2.5">
+                                      <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">To</div>
+                                      <div className="font-semibold text-white truncate">{vSuccess.ownerName}</div>
                                     </div>
-                                    <span className="text-xs text-emerald-300 font-medium">{vNotifSent}</span>
-                                  </div>
-                                ) : (
-                                  <div className="space-y-2">
-                                    {/* Recipient pill */}
-                                    <div className="flex items-center gap-2 rounded-xl px-3 py-2" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
-                                      <div className="h-5 w-5 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-bold text-white"
-                                        style={{ background: "rgba(99,102,241,0.35)", border: "1px solid rgba(99,102,241,0.4)" }}>
-                                        {(vSuccess.ownerName ?? "O").charAt(0).toUpperCase()}
-                                      </div>
-                                      <span className="text-[11px] text-slate-400">To: <span className="text-slate-200 font-semibold">{vSuccess.ownerName}</span></span>
-                                    </div>
-                                    <div className="space-y-1.5">
-                                      <label className="text-[9px] uppercase tracking-widest text-slate-500 font-semibold pl-1">Subject</label>
+                                    <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-2.5">
+                                      <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Subject</div>
                                       <input value={vNotifSubject} onChange={e => setVNotifSubject(e.target.value)}
-                                        placeholder="e.g. Check-in confirmed for your guest"
-                                        className="w-full px-3 py-2.5 text-xs rounded-xl text-white placeholder:text-slate-600 outline-none transition"
-                                        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.10)" }}
-                                        onFocus={e => { e.currentTarget.style.border = "1px solid rgba(99,102,241,0.45)"; e.currentTarget.style.background = "rgba(255,255,255,0.07)"; }}
-                                        onBlur={e => { e.currentTarget.style.border = "1px solid rgba(255,255,255,0.10)"; e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }} />
+                                        placeholder="e.g. Check-in confirmed"
+                                        className="w-full bg-transparent text-white placeholder:text-slate-600 outline-none text-xs font-semibold"
+                                        onFocus={e => { e.currentTarget.closest('.rounded-xl')!.setAttribute('style','border-color:rgba(99,102,241,0.4)'); }}
+                                        onBlur={e => { e.currentTarget.closest('.rounded-xl')!.setAttribute('style',''); }} />
                                     </div>
-                                    <div className="space-y-1.5">
-                                      <label className="text-[9px] uppercase tracking-widest text-slate-500 font-semibold pl-1">Message</label>
-                                      <textarea value={vNotifMsg} onChange={e => setVNotifMsg(e.target.value)} rows={3}
-                                        placeholder="Write your message to the owner…"
-                                        className="w-full px-3 py-2.5 text-xs rounded-xl text-white placeholder:text-slate-600 outline-none transition resize-none"
-                                        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.10)" }}
-                                        onFocus={e => { e.currentTarget.style.border = "1px solid rgba(99,102,241,0.45)"; e.currentTarget.style.background = "rgba(255,255,255,0.07)"; }}
-                                        onBlur={e => { e.currentTarget.style.border = "1px solid rgba(255,255,255,0.10)"; e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }} />
-                                    </div>
-                                    {vNotifError && (
-                                      <div className="flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/8 px-3 py-2">
-                                        <AlertTriangle className="h-3 w-3 text-red-400 flex-shrink-0" />
-                                        <p className="text-[11px] text-red-400">{vNotifError}</p>
-                                      </div>
-                                    )}
-                                    <button type="button" onClick={vSendNotif} disabled={vNotifSending || !vNotifSubject.trim() || !vNotifMsg.trim()}
-                                      className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold tracking-wide transition disabled:opacity-40 disabled:cursor-not-allowed"
-                                      style={{ background: "linear-gradient(135deg,rgba(99,102,241,0.28),rgba(79,70,229,0.18))", border: "1px solid rgba(99,102,241,0.35)", color: "#a5b4fc", boxShadow: "0 0 30px -10px rgba(99,102,241,0.3)" }}
-                                      onMouseEnter={e => { if (!e.currentTarget.disabled) e.currentTarget.style.background = "linear-gradient(135deg,rgba(99,102,241,0.40),rgba(79,70,229,0.28))"; }}
-                                      onMouseLeave={e => { e.currentTarget.style.background = "linear-gradient(135deg,rgba(99,102,241,0.28),rgba(79,70,229,0.18))"; }}>
-                                      {vNotifSending
-                                        ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Sending…</>
-                                        : <><Bell className="h-3.5 w-3.5" /> Send to {vSuccess.ownerName}</>}
-                                    </button>
                                   </div>
-                                )}
-                              </div>
+                                  <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-2.5">
+                                    <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Message</div>
+                                    <textarea value={vNotifMsg} onChange={e => setVNotifMsg(e.target.value)} rows={2}
+                                      placeholder="Write your message to the owner…"
+                                      className="w-full bg-transparent text-white placeholder:text-slate-600 outline-none text-xs resize-none"
+                                      onFocus={e => { e.currentTarget.closest('.rounded-xl')!.setAttribute('style','border-color:rgba(99,102,241,0.4)'); }}
+                                      onBlur={e => { e.currentTarget.closest('.rounded-xl')!.setAttribute('style',''); }} />
+                                  </div>
+                                  {vNotifError && (
+                                    <div className="flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/8 px-3 py-2">
+                                      <AlertTriangle className="h-3 w-3 text-red-400 flex-shrink-0" />
+                                      <p className="text-[11px] text-red-400">{vNotifError}</p>
+                                    </div>
+                                  )}
+                                  <button type="button" onClick={vSendNotif} disabled={vNotifSending || !vNotifSubject.trim() || !vNotifMsg.trim()}
+                                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed"
+                                    style={{ background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.25)", color: "#a5b4fc" }}
+                                    onMouseEnter={e => { if (!e.currentTarget.disabled) e.currentTarget.style.background = "rgba(99,102,241,0.25)"; }}
+                                    onMouseLeave={e => { e.currentTarget.style.background = "rgba(99,102,241,0.15)"; }}>
+                                    {vNotifSending
+                                      ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Sending…</>
+                                      : <><Bell className="h-3.5 w-3.5" /> Send to {vSuccess.ownerName}</>}
+                                  </button>
+                                </div>
+                              )}
                             </div>
 
                             <button type="button" onClick={vCloseModal}
@@ -1216,22 +1218,6 @@ export default function AdminHome() {
       {/* Compact overview removed; replaced by GeneralReports below */}
       {/* General reports section (new) */}
       <GeneralReports />
-    </div>
-  );
-}
-
-function StatCard({ label, value, rail }: { label: string; value: string; rail: string }) {
-  return (
-    <div className={`stat-card ${rail}`}>
-      <div className="stat-body">
-        <div className="stat-top">
-          <div className="stat-icon" />
-          <div>
-            <div className="stat-label">{label}</div>
-            <div className="stat-value">{value}</div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

@@ -9,7 +9,9 @@ export interface BreakdownResponse {
 }
 
 export interface OverviewResponse {
+  totalPayment: number;
   grossAmount: number;
+  ownerPayouts: number;
   companyRevenue: number;
   propertiesCount: number;
   ownersCount: number;

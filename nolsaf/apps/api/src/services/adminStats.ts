@@ -123,6 +123,7 @@ export async function getOverview() {
         where: {
           role: 'OWNER',
           suspendedAt: null,
+          kycStatus: 'APPROVED_KYC',
           id: { in: approvedOwnerIds },
         },
       })
@@ -133,25 +134,44 @@ export async function getOverview() {
     where: { status: 'APPROVED' },
   });
 
-  // 3. Net Payable: Sum of netPayable from PAID invoices (owner disbursements)
-  const ownerNetPayableAgg = await prisma.invoice.aggregate({
-    _sum: { netPayable: true },
-    where: { status: 'PAID' },
+  // 3. Total Payment: accommodation revenue from all active (non-cancelled) bookings.
+  //    = SUM(booking.totalAmount - transportFare) for CONFIRMED, CHECKED_IN, CHECKED_OUT.
+  //    Excludes transport (pass-through) and excludes cancelled bookings.
+  const activeBookings = await prisma.booking.findMany({
+    where: { status: { in: ['CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT'] } },
+    select: { totalAmount: true, transportFare: true },
   });
-  const netPayable = Number(ownerNetPayableAgg._sum.netPayable ?? 0);
+  const totalPayment = activeBookings.reduce(
+    (sum, b) => sum + Math.max(0, Number(b.totalAmount ?? 0) - Number(b.transportFare ?? 0)),
+    0
+  );
 
-  // 4. NoLSAF Revenue: Sum of commissionAmount from PAID invoices (commission revenue)
-  const revenueAgg = await prisma.invoice.aggregate({
-    _sum: { commissionAmount: true },
-    where: { status: 'PAID' },
+  // 4. Net Payable: owner payouts from APPROVED + PAID invoices (committed by NoLSAF).
+  const settledInvoices = await prisma.invoice.findMany({
+    where: { status: { in: ['APPROVED', 'PAID'] } },
+    select: { netPayable: true, commissionAmount: true },
   });
-  const nolsRevenue = Number(revenueAgg._sum.commissionAmount ?? 0);
+  const ownerPayouts = settledInvoices.reduce(
+    (sum, inv) => sum + Number(inv.netPayable ?? 0),
+    0
+  );
+
+  // 5. NoLSAF Revenue: commission from APPROVED + PAID invoices.
+  const companyRevenue = settledInvoices.reduce(
+    (sum, inv) => sum + Number(inv.commissionAmount ?? 0),
+    0
+  );
+
+  // grossAmount kept for compatibility: accommodation settled (netPayable + commission)
+  const grossAmount = ownerPayouts + companyRevenue;
 
   return {
-    ownerCount: activeApprovedOwnersCount,
-    propertyCount: approvedPropertiesCount,
-    netPayable,
-    nolsRevenue,
+    ownersCount: activeApprovedOwnersCount,
+    propertiesCount: approvedPropertiesCount,
+    totalPayment,
+    grossAmount,
+    ownerPayouts,
+    companyRevenue,
     lastUpdated: new Date().toISOString(),
   };
 }
