@@ -1908,7 +1908,8 @@ export default function BookingConfirmPage() {
                           <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Vehicle Type</span>
                           <span className="text-[11px] text-slate-400">Price varies per type</span>
                         </div>
-                        <div className="grid grid-cols-5 gap-2">
+                        <div className="overflow-x-auto -mx-5 px-5 pb-1">
+                          <div className="flex gap-2">
                           {(
                             [
                               { value: "BODA" as TransportVehicleType, icon: "🏍️", label: "Boda", tier: "Budget" },
@@ -1925,7 +1926,7 @@ export default function BookingConfirmPage() {
                                 type="button"
                                 onClick={() => setTransportVehicleType(v.value)}
                                 className={[
-                                  "relative flex flex-col items-center justify-center gap-1.5 px-1 py-3 rounded-2xl border-2 transition-all duration-200 focus:outline-none",
+                                  "relative flex-shrink-0 w-[90px] flex flex-col items-center justify-center gap-1.5 px-1 py-3 rounded-2xl border-2 transition-all duration-200 focus:outline-none",
                                   active
                                     ? "border-[#02665e] bg-gradient-to-b from-[#02665e]/8 to-[#02665e]/4 shadow-md"
                                     : "border-slate-200 bg-white hover:border-[#02665e]/40 hover:bg-slate-50",
@@ -1947,6 +1948,7 @@ export default function BookingConfirmPage() {
                               </button>
                             );
                           })}
+                          </div>
                         </div>
                       </div>
 
@@ -1995,7 +1997,6 @@ export default function BookingConfirmPage() {
                             ]
                           ).map((opt) => {
                             const active = pickupMode === opt.mode;
-                            if (pickupMethodChosen && !active) return null;
                             return (
                               <div key={opt.mode} className="overflow-hidden rounded-2xl">
                                 {/* selector row */}
