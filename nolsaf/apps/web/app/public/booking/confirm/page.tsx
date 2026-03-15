@@ -1969,6 +1969,7 @@ export default function BookingConfirmPage() {
                             ]
                           ).map((opt) => {
                             const active = pickupMode === opt.mode;
+                            if (pickupMethodChosen && !active) return null;
                             return (
                               <div key={opt.mode} className="overflow-hidden rounded-2xl">
                                 {/* selector row */}
@@ -2161,14 +2162,35 @@ export default function BookingConfirmPage() {
                           })}
                         </div>
                         {pickupMethodChosen && (
-                          <div className="flex justify-end pt-1">
+                          <div className="flex items-center justify-center pt-3 pb-1">
                             <button
                               type="button"
                               onClick={() => { setPickupMethodChosen(false); setTransportOriginAddress(""); setTransportOriginLat(null); setTransportOriginLng(null); setTransportFare(null); setCurrentPickupConfirmed(false); setCurrentPickupNeedsConfirm(false); setPickupPresetId(""); }}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-500 hover:text-slate-700 hover:border-slate-300 hover:bg-slate-50 transition-all duration-150 shadow-sm"
+                              className="group inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-bold tracking-wide uppercase transition-all duration-200 active:scale-95 select-none"
+                              style={{
+                                background: "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)",
+                                border: "1.5px solid #cbd5e1",
+                                color: "#475569",
+                                boxShadow: "0 1px 4px rgba(0,0,0,0.08), 0 0 0 0 #6366f1",
+                              }}
+                              onMouseEnter={e => {
+                                (e.currentTarget as HTMLButtonElement).style.background = "linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)";
+                                (e.currentTarget as HTMLButtonElement).style.borderColor = "#a5b4fc";
+                                (e.currentTarget as HTMLButtonElement).style.color = "#4338ca";
+                                (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 2px 8px rgba(99,102,241,0.18)";
+                              }}
+                              onMouseLeave={e => {
+                                (e.currentTarget as HTMLButtonElement).style.background = "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)";
+                                (e.currentTarget as HTMLButtonElement).style.borderColor = "#cbd5e1";
+                                (e.currentTarget as HTMLButtonElement).style.color = "#475569";
+                                (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 1px 4px rgba(0,0,0,0.08)";
+                              }}
                             >
-                              <Edit2 className="w-3 h-3 flex-shrink-0" />
-                              Change method
+                              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style={{flexShrink:0}} xmlns="http://www.w3.org/2000/svg">
+                                <path d="M2 8C2 4.686 4.686 2 8 2c1.87 0 3.55.81 4.72 2.1L11 6h4V2l-1.44 1.44A7 7 0 1 0 15 8h-2a5 5 0 1 1-5-5 4.99 4.99 0 0 1 3.54 1.46L9.5 6.5 8 5v4h4l-1.5-1.5L12 6h.72A6 6 0 1 1 8 2" stroke="currentColor" strokeWidth="0" />
+                                <path d="M13.5 2.5v3h-3M2.5 8a5.5 5.5 0 1 0 5.5-5.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                              Switch pickup method
                             </button>
                           </div>
                         )}
@@ -2178,77 +2200,104 @@ export default function BookingConfirmPage() {
                       {/* Arrival Information Section */}
                       {pickupMode === "current" ? (
                         <div className="pt-4 mt-4 border-t border-slate-200/60">
-                          <h3 className="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
-                            <Plane className="w-4 h-4 text-[#02665e] flex-shrink-0" />
-                            <span>Arrival Information</span>
-                            <span className="text-slate-400 text-xs font-normal">(Not required)</span>
-                          </h3>
                           <div className="rounded-xl border border-slate-200 bg-white/70 px-4 py-3 text-xs text-slate-600 flex items-start gap-2">
-                            <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                            <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-slate-400" />
                             <p>
-                              For <span className="font-semibold">instant pickup</span>, arrival details are not needed. If you're traveling and want to schedule an airport/bus-terminal pickup, switch Pickup Location to <span className="font-semibold">Arrival</span>.
+                              For <span className="font-semibold text-slate-700">instant pickup</span>, arrival details are not needed. Switch to <span className="font-semibold text-violet-600">Scheduled Arrival</span> if you want a timed airport or terminal pickup.
                             </p>
                           </div>
                         </div>
                       ) : (
-                      <div className="pt-4 mt-4 border-t border-slate-200/60">
-                        <h3 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
-                          <Plane className="w-4 h-4 text-[#02665e] flex-shrink-0" />
-                          <span>Arrival Information</span>
-                          {requiresArrivalInfo && <span className="text-red-500">*</span>}
-                          {!requiresArrivalInfo && (
-                            <span className="text-slate-400 text-xs font-normal">(Optional)</span>
-                          )}
-                        </h3>
-                        <p className="text-xs text-slate-600 mb-4">
-                          Help us coordinate your pickup by providing your arrival details
-                        </p>
-                        
-                        <div className="space-y-4 w-full min-w-0">
-
-                          {/* Row 1: How are you arriving? + Transport Number */}
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 w-full min-w-0">
-                            {/* Arrival Type */}
-                            <div className="space-y-2 min-w-0 w-full">
-                              <label className="block text-sm font-semibold text-slate-700">
-                                How are you arriving?
-                                {requiresArrivalInfo && <span className="text-red-500"> *</span>}
-                              </label>
-                              <select
-                                value={arrivalType}
-                                onChange={(e) => setArrivalType(e.target.value as any)}
-                                aria-label="Arrival type"
-                                title="Arrival type"
-                                disabled={arrivalTypeLocked}
-                                className={[
-                                  "w-full min-w-0 px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm cursor-pointer max-w-full box-border",
-                                  arrivalTypeLocked ? "opacity-80 cursor-not-allowed" : "",
-                                ].join(" ")}
-                              >
-                                <option value="">Select arrival type</option>
-                                <option value="FLIGHT">Flight</option>
-                                <option value="BUS">Bus</option>
-                                <option value="TRAIN">Train</option>
-                                <option value="FERRY">Ferry</option>
-                                <option value="OTHER">Other</option>
-                              </select>
-                              {arrivalTypeLocked && (
-                                <p className="text-xs text-slate-600 flex items-start gap-1">
-                                  <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-                                  Auto-selected from your pickup point. Switch pickup point to change.
-                                </p>
-                              )}
+                      <div className="mt-5">
+                        {/* Section header */}
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{background:"linear-gradient(135deg,#02665e,#028a7a)"}}>
+                            <Plane className="w-4 h-4 text-white" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm font-bold text-slate-800">Arrival Information</span>
+                              {requiresArrivalInfo
+                                ? <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-500 border border-red-200 uppercase tracking-wide">Required</span>
+                                : <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-400 border border-slate-200 uppercase tracking-wide">Optional</span>
+                              }
                             </div>
+                            <p className="text-xs text-slate-500 mt-0.5">Help us coordinate your pickup with your arrival details</p>
+                          </div>
+                        </div>
 
+                        <div className="space-y-4" style={{boxSizing:"border-box"}}>
+
+                          {/* ── Arrival type chips ── */}
+                          <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">
+                              How are you arriving?{requiresArrivalInfo && <span className="text-red-500 ml-1">*</span>}
+                            </label>
+                            {arrivalTypeLocked ? (
+                              /* Locked — show as read-only badge */
+                              <div className="flex items-center gap-2">
+                                {(() => {
+                                  const map: Record<string, {icon:string; label:string; bg:string; text:string; border:string}> = {
+                                    FLIGHT: {icon:"✈", label:"Flight",  bg:"#eff6ff", text:"#1d4ed8", border:"#bfdbfe"},
+                                    BUS:    {icon:"🚌",label:"Bus",     bg:"#f0fdf4", text:"#15803d", border:"#bbf7d0"},
+                                    TRAIN:  {icon:"🚆",label:"Train",   bg:"#fffbeb", text:"#b45309", border:"#fde68a"},
+                                    FERRY:  {icon:"⛴", label:"Ferry",  bg:"#f5f3ff", text:"#6d28d9", border:"#ddd6fe"},
+                                    OTHER:  {icon:"📍",label:"Other",   bg:"#f8fafc", text:"#475569", border:"#e2e8f0"},
+                                  };
+                                  const t = map[arrivalType] ?? map.OTHER;
+                                  return (
+                                    <div className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold border-2" style={{background:t.bg, color:t.text, borderColor:t.border}}>
+                                      <span>{t.icon}</span>
+                                      <span>{t.label}</span>
+                                      <span className="ml-1 text-[10px] font-normal opacity-60">auto-selected</span>
+                                      <Info className="w-3 h-3 opacity-40" />
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+                            ) : (
+                              /* Unlocked — clickable chips */
+                              <div className="flex flex-wrap gap-2">
+                                {([
+                                  {value:"FLIGHT", icon:"✈",  label:"Flight"},
+                                  {value:"BUS",    icon:"🚌", label:"Bus"},
+                                  {value:"TRAIN",  icon:"🚆", label:"Train"},
+                                  {value:"FERRY",  icon:"⛴",  label:"Ferry"},
+                                  {value:"OTHER",  icon:"📍", label:"Other"},
+                                ] as const).map((t) => {
+                                  const active = arrivalType === t.value;
+                                  return (
+                                    <button
+                                      key={t.value}
+                                      type="button"
+                                      onClick={() => setArrivalType(t.value)}
+                                      className={[
+                                        "inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border-2 transition-all duration-150 active:scale-95 select-none",
+                                        active
+                                          ? "bg-[#02665e] text-white border-[#02665e] shadow-md"
+                                          : "bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50",
+                                      ].join(" ")}
+                                    >
+                                      <span>{t.icon}</span>
+                                      <span>{t.label}</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* ── Number + Company row ── */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             {/* Transport Number */}
-                            <div className="space-y-2 min-w-0 w-full">
-                              <label className="block text-sm font-semibold text-slate-700">
+                            <div className="space-y-1.5">
+                              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide">
                                 {arrivalType === "FLIGHT" ? "Flight Number" :
-                                 arrivalType === "BUS" ? "Bus Number" :
-                                 arrivalType === "TRAIN" ? "Train Number" :
-                                 arrivalType === "FERRY" ? "Ferry Number" :
-                                 arrivalType === "OTHER" ? "Transport Number" :
-                                 <span className="text-slate-400">Number</span>}
+                                 arrivalType === "BUS"    ? "Bus Number" :
+                                 arrivalType === "TRAIN"  ? "Train Number" :
+                                 arrivalType === "FERRY"  ? "Ferry Number" :
+                                 arrivalType === "OTHER"  ? "Transport Number" :
+                                 "Number"}
                               </label>
                               <input
                                 type="text"
@@ -2256,29 +2305,27 @@ export default function BookingConfirmPage() {
                                 onChange={(e) => setArrivalNumber(e.target.value)}
                                 disabled={!arrivalType}
                                 placeholder={
-                                  !arrivalType ? "Select type first" :
+                                  !arrivalType           ? "Select type first" :
                                   arrivalType === "FLIGHT" ? "e.g., JN123" :
-                                  arrivalType === "BUS" ? "e.g., BUS-456" :
-                                  arrivalType === "TRAIN" ? "e.g., TR-789" :
-                                  arrivalType === "FERRY" ? "e.g., FR-012" :
+                                  arrivalType === "BUS"    ? "e.g., BUS-456" :
+                                  arrivalType === "TRAIN"  ? "e.g., TR-789" :
+                                  arrivalType === "FERRY"  ? "e.g., FR-012" :
                                   "Transport number"
                                 }
-                                className="w-full min-w-0 px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm max-w-full box-border disabled:opacity-50 disabled:cursor-not-allowed"
+                                style={{boxSizing:"border-box"}}
+                                className="w-full px-3 py-2.5 border-2 border-slate-200 rounded-xl text-sm font-semibold focus:outline-none focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10 hover:border-slate-300 bg-white transition-all disabled:opacity-40 disabled:cursor-not-allowed placeholder:font-normal placeholder:text-slate-400"
                               />
                             </div>
-                          </div>
 
-                          {/* Row 2: Company/Airline + Arrival Time */}
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 w-full min-w-0">
                             {/* Company */}
-                            <div className="space-y-2 min-w-0 w-full">
-                              <label className="block text-sm font-semibold text-slate-700">
+                            <div className="space-y-1.5">
+                              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide">
                                 {arrivalType === "FLIGHT" ? "Airline" :
-                                 arrivalType === "BUS" ? "Bus Company" :
-                                 arrivalType === "TRAIN" ? "Train Operator" :
-                                 arrivalType === "FERRY" ? "Ferry Operator" :
-                                 arrivalType === "OTHER" ? "Transport Company" :
-                                 <span className="text-slate-400">Company</span>}
+                                 arrivalType === "BUS"    ? "Bus Company" :
+                                 arrivalType === "TRAIN"  ? "Train Operator" :
+                                 arrivalType === "FERRY"  ? "Ferry Operator" :
+                                 arrivalType === "OTHER"  ? "Transport Company" :
+                                 "Company"}
                               </label>
                               <input
                                 type="text"
@@ -2286,130 +2333,111 @@ export default function BookingConfirmPage() {
                                 onChange={(e) => setTransportCompany(e.target.value)}
                                 disabled={!arrivalType}
                                 placeholder={
-                                  !arrivalType ? "Select type first" :
+                                  !arrivalType             ? "Select type first" :
                                   arrivalType === "FLIGHT" ? "e.g., Precision Air" :
-                                  arrivalType === "BUS" ? "e.g., Scania" :
-                                  arrivalType === "TRAIN" ? "e.g., TAZARA" :
-                                  arrivalType === "FERRY" ? "e.g., Azam Marine" :
+                                  arrivalType === "BUS"    ? "e.g., Scania" :
+                                  arrivalType === "TRAIN"  ? "e.g., TAZARA" :
+                                  arrivalType === "FERRY"  ? "e.g., Azam Marine" :
                                   "Company name"
                                 }
-                                className="w-full min-w-0 px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm max-w-full box-border disabled:opacity-50 disabled:cursor-not-allowed"
+                                style={{boxSizing:"border-box"}}
+                                className="w-full px-3 py-2.5 border-2 border-slate-200 rounded-xl text-sm font-semibold focus:outline-none focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10 hover:border-slate-300 bg-white transition-all disabled:opacity-40 disabled:cursor-not-allowed placeholder:font-normal placeholder:text-slate-400"
                               />
                             </div>
+                          </div>
 
-                            {/* Arrival Time */}
-                            <div className="space-y-2 w-full min-w-0">
-                              <label className="block text-sm font-semibold text-slate-700">
-                                Arrival Time
-                                {requiresArrivalInfo && <span className="text-red-500"> *</span>}
-                              </label>
-                              <div className="space-y-2">
-                                <div className="relative">
-                                  <button
-                                    type="button"
-                                    onClick={() => setArrivalDatePickerOpen(true)}
-                                    className="w-full min-w-0 px-3 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-gradient-to-r from-slate-50 to-blue-50/50 shadow-sm max-w-full box-border flex items-center justify-between group"
-                                  >
-                                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                      <Calendar className="w-3.5 h-3.5 text-[#02665e] flex-shrink-0" />
-                                      <span className="text-slate-900 truncate text-xs sm:text-sm">
-                                        {arrivalDate
-                                          ? (() => {
-                                              const date = new Date(arrivalDate);
-                                              const day = String(date.getDate()).padStart(2, "0");
-                                              const month = String(date.getMonth() + 1).padStart(2, "0");
-                                              const year = date.getFullYear();
-                                              return `${day} / ${month} / ${year}`;
-                                            })()
-                                          : "dd / mm / yyyy"}
-                                      </span>
+                          {/* ── Arrival Date + Time combined ── */}
+                          <div className="space-y-1.5">
+                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide">
+                              Arrival Date &amp; Time{requiresArrivalInfo && <span className="text-red-500 ml-1">*</span>}
+                            </label>
+                            <div className="flex items-stretch gap-2" style={{boxSizing:"border-box"}}>
+                              {/* Date picker button */}
+                              <div className="relative flex-1 min-w-0">
+                                <button
+                                  type="button"
+                                  onClick={() => setArrivalDatePickerOpen(true)}
+                                  style={{boxSizing:"border-box"}}
+                                  className="w-full flex items-center gap-2 px-3 py-2.5 border-2 border-slate-200 rounded-xl text-sm font-semibold hover:border-[#02665e]/40 focus:outline-none focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10 bg-white transition-all group"
+                                >
+                                  <Calendar className="w-4 h-4 text-[#02665e] flex-shrink-0" />
+                                  <span className={arrivalDate ? "text-slate-800 truncate" : "text-slate-400 font-normal"}>
+                                    {arrivalDate ? (() => {
+                                      const d = new Date(arrivalDate);
+                                      return `${String(d.getDate()).padStart(2,"0")} / ${String(d.getMonth()+1).padStart(2,"0")} / ${d.getFullYear()}`;
+                                    })() : "dd / mm / yyyy"}
+                                  </span>
+                                </button>
+                                {arrivalDatePickerOpen && (
+                                  <>
+                                    <div className="fixed inset-0 z-[100]" onClick={() => setArrivalDatePickerOpen(false)} />
+                                    <div className="absolute z-[101] top-full left-0 mt-2 bg-white rounded-xl border-2 border-slate-200 shadow-2xl max-h-[calc(100vh-200px)] overflow-y-auto">
+                                      <DatePicker
+                                        selected={arrivalDate}
+                                        onSelectAction={(s) => {
+                                          const date = Array.isArray(s) ? s[0] : s;
+                                          setArrivalDate(date || "");
+                                          setArrivalDatePickerOpen(false);
+                                        }}
+                                        onCloseAction={() => setArrivalDatePickerOpen(false)}
+                                        allowRange={false}
+                                        minDate={new Date().toISOString().split("T")[0]}
+                                      />
                                     </div>
-                                    <Calendar className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#02665e] transition-colors flex-shrink-0" />
-                                  </button>
-                                  {arrivalDatePickerOpen && (
-                                    <>
-                                      <div className="fixed inset-0 z-[100]" onClick={() => setArrivalDatePickerOpen(false)} />
-                                      <div className="absolute z-[101] top-full left-0 mt-2 bg-white rounded-xl border-2 border-slate-200 shadow-2xl max-h-[calc(100vh-200px)] overflow-y-auto">
-                                        <DatePicker
-                                          selected={arrivalDate}
-                                          onSelectAction={(s) => {
-                                            const date = Array.isArray(s) ? s[0] : s;
-                                            setArrivalDate(date || "");
-                                            setArrivalDatePickerOpen(false);
-                                          }}
-                                          onCloseAction={() => setArrivalDatePickerOpen(false)}
-                                          allowRange={false}
-                                          minDate={new Date().toISOString().split("T")[0]}
-                                        />
-                                      </div>
-                                    </>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <div className="flex-1 min-w-0">
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      max="23"
-                                      value={arrivalTimeHour}
-                                      onChange={(e) => {
-                                        const val = e.target.value;
-                                        if (val === "" || (parseInt(val) >= 0 && parseInt(val) <= 23)) {
-                                          setArrivalTimeHour(val);
-                                        }
-                                      }}
-                                      placeholder="HH"
-                                      required={requiresArrivalInfo}
-                                      aria-required={requiresArrivalInfo}
-                                      className="w-full min-w-0 px-2 sm:px-3 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl text-xs sm:text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm text-center max-w-full box-border"
-                                    />
-                                  </div>
-                                  <span className="text-slate-600 font-bold text-sm">:</span>
-                                  <div className="flex-1 min-w-0">
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      max="59"
-                                      value={arrivalTimeMinute}
-                                      onChange={(e) => {
-                                        const val = e.target.value;
-                                        if (val === "" || (parseInt(val) >= 0 && parseInt(val) <= 59)) {
-                                          setArrivalTimeMinute(val);
-                                        }
-                                      }}
-                                      placeholder="MM"
-                                      required={requiresArrivalInfo}
-                                      aria-required={requiresArrivalInfo}
-                                      className="w-full min-w-0 px-2 sm:px-3 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl text-xs sm:text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm text-center max-w-full box-border"
-                                    />
-                                  </div>
-                                </div>
+                                  </>
+                                )}
+                              </div>
+                              {/* Time HH:MM */}
+                              <div className="flex items-center gap-1 flex-shrink-0" style={{boxSizing:"border-box"}}>
+                                <input
+                                  type="number" min="0" max="23"
+                                  value={arrivalTimeHour}
+                                  onChange={(e) => { const v=e.target.value; if(v===""||( +v>=0&&+v<=23)) setArrivalTimeHour(v); }}
+                                  placeholder="HH"
+                                  required={requiresArrivalInfo}
+                                  style={{boxSizing:"border-box", width:"3.5rem"}}
+                                  className="px-2 py-2.5 border-2 border-slate-200 rounded-xl text-sm font-semibold text-center focus:outline-none focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10 hover:border-slate-300 bg-white transition-all placeholder:font-normal placeholder:text-slate-400"
+                                />
+                                <span className="text-slate-500 font-bold text-base select-none">:</span>
+                                <input
+                                  type="number" min="0" max="59"
+                                  value={arrivalTimeMinute}
+                                  onChange={(e) => { const v=e.target.value; if(v===""||( +v>=0&&+v<=59)) setArrivalTimeMinute(v); }}
+                                  placeholder="MM"
+                                  required={requiresArrivalInfo}
+                                  style={{boxSizing:"border-box", width:"3.5rem"}}
+                                  className="px-2 py-2.5 border-2 border-slate-200 rounded-xl text-sm font-semibold text-center focus:outline-none focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10 hover:border-slate-300 bg-white transition-all placeholder:font-normal placeholder:text-slate-400"
+                                />
                               </div>
                             </div>
                           </div>
 
-                          {/* Row 3: Specific Pickup Area/Terminal — full width */}
-                          <div className="space-y-2 w-full min-w-0">
-                            <label className="block text-sm font-semibold text-slate-700">
-                              Specific Pickup Area/Terminal
-                              {requiresArrivalInfo && <span className="text-red-500"> *</span>}
+                          {/* ── Specific pickup area ── */}
+                          <div className="space-y-1.5">
+                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide">
+                              Specific Pickup Area / Terminal{requiresArrivalInfo && <span className="text-red-500 ml-1">*</span>}
                             </label>
                             <input
                               type="text"
                               value={pickupLocation}
                               onChange={(e) => setPickupLocation(e.target.value)}
-                              placeholder={arrivalType === "FLIGHT" ? "e.g., Terminal 1, Gate 3" :
-                                           arrivalType === "BUS" ? "e.g., Ubungo Bus Terminal, Platform 5" :
-                                           arrivalType === "TRAIN" ? "e.g., Central Station, Platform 2" :
-                                           arrivalType === "FERRY" ? "e.g., Ferry Terminal, Dock A" :
-                                           "Specific pickup location"}
+                              placeholder={
+                                arrivalType === "FLIGHT" ? "e.g., Terminal 1, Gate 3" :
+                                arrivalType === "BUS"    ? "e.g., Ubungo Bus Terminal, Platform 5" :
+                                arrivalType === "TRAIN"  ? "e.g., Central Station, Platform 2" :
+                                arrivalType === "FERRY"  ? "e.g., Kivukoni Ferry, Dock A" :
+                                "Specific pickup spot"
+                              }
                               required={requiresArrivalInfo}
-                              className="w-full min-w-0 px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm max-w-full box-border"
+                              style={{boxSizing:"border-box"}}
+                              className="w-full px-3 py-2.5 border-2 border-slate-200 rounded-xl text-sm font-semibold focus:outline-none focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10 hover:border-slate-300 bg-white transition-all placeholder:font-normal placeholder:text-slate-400"
                             />
-                            <p className="text-xs text-slate-600 mt-1.5">
-                              Specify the exact pickup point (terminal, gate, platform, etc.)
+                            <p className="text-xs text-slate-400 flex items-center gap-1">
+                              <Info className="w-3 h-3 flex-shrink-0" />
+                              Terminal, gate, platform, dock — be as specific as possible
                             </p>
                           </div>
+
                         </div>
                       </div>
                       )}
