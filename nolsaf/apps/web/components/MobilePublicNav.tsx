@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import React, { useEffect, useState, useCallback } from "react";
-import { Home, Building2, Plus, User, Car, Calendar, Users, ClipboardList, Settings as SettingsIcon, LogOut, X } from "lucide-react";
+import { Home, Building2, PlusSquare, User, Car, Calendar, Users, ClipboardList, Settings as SettingsIcon, LogOut, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 
 interface MeResponse {
@@ -68,169 +68,118 @@ export default function MobilePublicNav() {
     onMouseLeave:  release,
   });
 
-  const iconScale = (s: Slot): React.CSSProperties => ({
-    transform:  pressed === s ? "scale(0.80)" : "scale(1)",
+  const itemScale = (s: Slot): React.CSSProperties => ({
+    transform:  pressed === s ? "scale(0.88)" : "scale(1)",
     transition: pressed === s
       ? "transform 0.07s cubic-bezier(0.25,0.46,0.45,0.94)"
-      : "transform 0.40s cubic-bezier(0.34,1.56,0.64,1)",
+      : "transform 0.36s cubic-bezier(0.34,1.56,0.64,1)",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: "3px",
   });
 
-  const fabScale = (s: Slot): React.CSSProperties => ({
-    transform:  pressed === s ? "scale(0.84)" : "scale(1)",
-    transition: pressed === s
-      ? "transform 0.07s cubic-bezier(0.25,0.46,0.45,0.94)"
-      : "transform 0.42s cubic-bezier(0.34,1.56,0.64,1)",
-  });
+  const BRAND = "#02665e";
+  const iconColor = (active: boolean) => active ? BRAND : "rgba(30,40,60,0.42)";
+  const strokeW   = (active: boolean) => active ? 2.4 : 1.6;
+  const labelColor = (active: boolean) => active ? BRAND : "rgba(30,40,60,0.42)";
 
-  /* Brand accent - clean teal */
-  const TEAL = "#2dd4bf";
+  const TabItem = ({
+    slot, label, icon, onClick, href,
+  }: {
+    slot: Slot;
+    label: string;
+    icon: React.ReactNode;
+    href?: string;
+    onClick?: () => void;
+  }) => {
+    const active =
+      slot === "home" ? isHome :
+      slot === "stays" ? isProperties :
+      slot === "rides" ? isRides :
+      slot === "account" ? isAccount : false;
 
-  const iconColor  = (active: boolean) => active ? TEAL : "rgba(30,40,60,0.50)";
-  const strokeW    = (active: boolean) => active ? 2.4 : 1.5;
+    const inner = (
+      <span style={itemScale(slot)}>
+        {/* Active dot indicator above icon */}
+        <span style={{
+          width: active ? "18px" : "0px",
+          height: "2.5px",
+          borderRadius: "999px",
+          background: BRAND,
+          opacity: active ? 1 : 0,
+          transition: "width 0.22s ease, opacity 0.22s ease",
+          marginBottom: "-1px",
+        }} />
+        <span style={{ lineHeight: 0 }}>{icon}</span>
+        <span style={{
+          fontSize: "10px",
+          fontWeight: active ? 700 : 500,
+          letterSpacing: "0.01em",
+          color: labelColor(active),
+          lineHeight: 1,
+          transition: "color 0.18s ease",
+        }}>
+          {label}
+        </span>
+      </span>
+    );
+
+    const cls = "relative flex items-center justify-center flex-1 h-full select-none outline-none";
+
+    if (href) {
+      return (
+        <Link href={href} aria-label={label} style={{ textDecoration: "none" }} className={cls} {...touch(slot)}>
+          {inner}
+        </Link>
+      );
+    }
+    return (
+      <button type="button" aria-label={label} style={{ background: "none", border: "none", padding: 0 }} className={`${cls} cursor-pointer`} onClick={onClick} {...touch(slot)}>
+        {inner}
+      </button>
+    );
+  };
 
   return (
     <>
     <nav
       aria-label="Mobile navigation"
-      className="flex md:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-50"
+      className="md:hidden fixed bottom-0 inset-x-0 z-50"
       style={{
-        background: "rgba(255,255,255,0.88)",
-        backdropFilter: "blur(20px) saturate(1.8)",
-        WebkitBackdropFilter: "blur(20px) saturate(1.8)",
-        borderRadius: "999px",
-        border: "1px solid rgba(0,0,0,0.07)",
-        boxShadow: "0 8px 32px rgba(0,0,0,0.14), 0 1px 0 rgba(255,255,255,0.9) inset, 0 0 0 0.5px rgba(45,212,191,0.18)",
-        paddingBottom: "0px",
-        width: "auto",
-        minWidth: "280px",
-        maxWidth: "360px",
+        background: "rgba(255,255,255,0.97)",
+        backdropFilter: "blur(16px) saturate(1.6)",
+        WebkitBackdropFilter: "blur(16px) saturate(1.6)",
+        borderTop: "1px solid rgba(2,102,94,0.10)",
+        boxShadow: "0 -4px 24px rgba(0,0,0,0.07)",
+        paddingBottom: "env(safe-area-inset-bottom, 0px)",
       }}
     >
-      {/* Subtle teal shimmer on top edge */}
+      {/* Teal shimmer along top edge */}
       <div
-        className="absolute inset-x-6 top-0 h-px pointer-events-none rounded-full"
-        style={{
-          background:
-            "linear-gradient(90deg, transparent 0%, rgba(45,212,191,0.40) 30%, rgba(45,212,191,0.70) 50%, rgba(45,212,191,0.40) 70%, transparent 100%)",
-        }}
         aria-hidden
+        style={{
+          position: "absolute",
+          top: 0,
+          left: "10%",
+          right: "10%",
+          height: "1px",
+          background: "linear-gradient(90deg, transparent 0%, rgba(2,102,94,0.35) 40%, rgba(2,102,94,0.55) 50%, rgba(2,102,94,0.35) 60%, transparent 100%)",
+        }}
       />
 
-      <div className="flex w-full items-stretch h-[58px] px-1">
-
-        {/* Home */}
-        <Link
-          href="/public"
-          aria-label="Home"
-          style={{ textDecoration: "none" }}
-          className="relative flex items-center justify-center flex-1 h-full select-none outline-none"
-          {...touch("home")}
-        >
-          <span
-            className="absolute top-0 left-1/2 -translate-x-1/2 rounded-b-full"
-            style={{
-              width:      isHome ? "22px" : "0px",
-              height:     "2.5px",
-              background: TEAL,
-              opacity:    isHome ? 1 : 0,
-              transition: "width 0.2s ease, opacity 0.2s ease",
-            }}
-          />
-          <span style={iconScale("home")}>
-            <Home width={22} height={22} strokeWidth={strokeW(isHome)} color={iconColor(isHome)} />
-          </span>
-        </Link>
-
-        {/* Stays */}
-        <Link
-          href="/public/properties"
-          aria-label="Browse stays"
-          style={{ textDecoration: "none" }}
-          className="relative flex items-center justify-center flex-1 h-full select-none outline-none"
-          {...touch("stays")}
-        >
-          <span
-            className="absolute top-0 left-1/2 -translate-x-1/2 rounded-b-full"
-            style={{
-              width:      isProperties ? "22px" : "0px",
-              height:     "2.5px",
-              background: TEAL,
-              opacity:    isProperties ? 1 : 0,
-              transition: "width 0.2s ease, opacity 0.2s ease",
-            }}
-          />
-          <span style={iconScale("stays")}>
-            <Building2 width={22} height={22} strokeWidth={strokeW(isProperties)} color={iconColor(isProperties)} />
-          </span>
-        </Link>
-
-        {/* List Property FAB */}
-        <Link
-          href="/account/register?role=owner"
-          aria-label="List your property"
-          style={{ textDecoration: "none" }}
-          className="flex items-center justify-center flex-1 h-full select-none outline-none"
-          {...touch("list")}
-        >
-          <span
-            className="flex items-center justify-center w-[42px] h-[42px] rounded-full"
-            style={{
-              ...fabScale("list"),
-              background: "linear-gradient(135deg, #0a5c82 0%, #02665e 100%)",
-              boxShadow: pressed === "list"
-                ? "0 2px 8px rgba(2,102,94,0.35)"
-                : "0 4px 18px rgba(2,102,94,0.60), 0 0 0 1px rgba(45,212,191,0.22)",
-            }}
-          >
-            <Plus width={20} height={20} strokeWidth={2.6} color="#ffffff" />
-          </span>
-        </Link>
-
-        {/* My Rides */}
-        <Link
-          href={authed ? "/account/rides" : "/account/sign-in"}
-          aria-label="My rides"
-          style={{ textDecoration: "none" }}
-          className="relative flex items-center justify-center flex-1 h-full select-none outline-none"
-          {...touch("rides")}
-        >
-          <span
-            className="absolute top-0 left-1/2 -translate-x-1/2 rounded-b-full"
-            style={{
-              width:      isRides ? "22px" : "0px",
-              height:     "2.5px",
-              background: TEAL,
-              opacity:    isRides ? 1 : 0,
-              transition: "width 0.2s ease, opacity 0.2s ease",
-            }}
-          />
-          <span style={iconScale("rides")}>
-            <Car width={22} height={22} strokeWidth={strokeW(isRides)} color={iconColor(isRides)} />
-          </span>
-        </Link>
-
-        {/* Account */}
-        <button
-          type="button"
-          aria-label={authed ? "My account" : "Sign in"}
-          style={{ background: "none", border: "none", padding: 0 }}
-          className="relative flex items-center justify-center flex-1 h-full select-none outline-none cursor-pointer"
+      <div className="flex w-full items-stretch h-[62px] max-w-lg mx-auto px-2">
+        <TabItem slot="home"  label="Home"   href="/public"             icon={<Home        width={22} height={22} strokeWidth={strokeW(isHome)}       color={iconColor(isHome)}       />} />
+        <TabItem slot="stays" label="Stays"  href="/public/properties"  icon={<Building2   width={22} height={22} strokeWidth={strokeW(isProperties)} color={iconColor(isProperties)} />} />
+        <TabItem slot="list"  label="List"   href="/account/register?role=owner" icon={<PlusSquare  width={22} height={22} strokeWidth={strokeW(false)}       color={iconColor(false)}        />} />
+        <TabItem slot="rides" label="Rides"  href={authed ? "/account/rides" : "/account/sign-in"} icon={<Car width={22} height={22} strokeWidth={strokeW(isRides)} color={iconColor(isRides)} />} />
+        <TabItem
+          slot="account"
+          label={authed ? "Account" : "Sign in"}
           onClick={() => authed ? setMenuOpen(true) : router.push("/account/sign-in")}
-          {...touch("account")}
-        >
-          <span
-            className="absolute top-0 left-1/2 -translate-x-1/2 rounded-b-full"
-            style={{
-              width:      isAccount ? "22px" : "0px",
-              height:     "2.5px",
-              background: TEAL,
-              opacity:    isAccount ? 1 : 0,
-              transition: "width 0.2s ease, opacity 0.2s ease",
-            }}
-          />
-          <span style={iconScale("account")}>
-            {authed && user?.profileImage ? (
-              <span className="relative block">
+          icon={
+            authed && user?.profileImage ? (
+              <span className="relative block" style={{ lineHeight: 0 }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={user.profileImage}
@@ -241,7 +190,7 @@ export default function MobilePublicNav() {
                   style={{
                     width: "24px",
                     height: "24px",
-                    outline: isAccount ? `2px solid ${TEAL}` : "1.5px solid rgba(0,0,0,0.12)",
+                    outline: isAccount ? `2px solid ${BRAND}` : "1.5px solid rgba(0,0,0,0.12)",
                     outlineOffset: "1px",
                   }}
                 />
@@ -249,10 +198,9 @@ export default function MobilePublicNav() {
               </span>
             ) : (
               <User width={22} height={22} strokeWidth={strokeW(isAccount)} color={iconColor(isAccount)} />
-            )}
-          </span>
-        </button>
-
+            )
+          }
+        />
       </div>
     </nav>
 

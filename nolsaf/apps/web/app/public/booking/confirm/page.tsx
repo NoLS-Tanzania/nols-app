@@ -124,9 +124,6 @@ export default function BookingConfirmPage() {
   const checkInBtnRef = useRef<HTMLButtonElement>(null);
   const checkOutBtnRef = useRef<HTMLButtonElement>(null);
   const arrivalDateBtnRef = useRef<HTMLButtonElement>(null);
-  const [checkInPickerPos, setCheckInPickerPos] = useState({ top: 0, left: 0 });
-  const [checkOutPickerPos, setCheckOutPickerPos] = useState({ top: 0, left: 0 });
-  const [arrivalDatePickerPos, setArrivalDatePickerPos] = useState({ top: 0, left: 0 });
 
   const [selectedRoomCode, setSelectedRoomCode] = useState<string | null>(null);
   const [selectedRoomIndex, setSelectedRoomIndex] = useState<number | null>(null);
@@ -1383,15 +1380,7 @@ export default function BookingConfirmPage() {
                         <button
                           ref={checkInBtnRef}
                           type="button"
-                          onClick={() => {
-                            const rect = checkInBtnRef.current?.getBoundingClientRect();
-                            if (rect) {
-                              const pw = 288;
-                              const left = Math.max(8, Math.min(rect.left, window.innerWidth - pw - 8));
-                              setCheckInPickerPos({ top: rect.bottom + 4, left });
-                            }
-                            setCheckInPickerOpen(true);
-                          }}
+                          onClick={() => setCheckInPickerOpen(true)}
                           className="w-full min-w-0 px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 pl-8 sm:pl-10 md:pl-11 pr-8 sm:pr-10 md:pr-11 border-2 border-slate-300 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-gradient-to-r from-slate-50 to-blue-50/50 shadow-sm max-w-full box-border flex items-center justify-between group"
                         >
                           <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
@@ -1413,7 +1402,7 @@ export default function BookingConfirmPage() {
                         {checkInPickerOpen && (
                           <>
                             <div className="fixed inset-0 z-40" onClick={() => setCheckInPickerOpen(false)} />
-                            <div style={{ position: "fixed", top: checkInPickerPos.top, left: checkInPickerPos.left, zIndex: 50 }}>
+                            <div className="absolute z-50 top-full left-0 mt-1">
                               <DatePicker
                                 selected={bookingData?.checkIn || undefined}
                                 onSelectAction={(s) => {
@@ -1446,15 +1435,7 @@ export default function BookingConfirmPage() {
                         <button
                           ref={checkOutBtnRef}
                           type="button"
-                          onClick={() => {
-                            const rect = checkOutBtnRef.current?.getBoundingClientRect();
-                            if (rect) {
-                              const pw = 288;
-                              const left = Math.max(8, Math.min(rect.left, window.innerWidth - pw - 8));
-                              setCheckOutPickerPos({ top: rect.bottom + 4, left });
-                            }
-                            setCheckOutPickerOpen(true);
-                          }}
+                          onClick={() => setCheckOutPickerOpen(true)}
                           className="w-full min-w-0 px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 pl-8 sm:pl-10 md:pl-11 pr-8 sm:pr-10 md:pr-11 border-2 border-slate-300 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-gradient-to-r from-slate-50 to-blue-50/50 shadow-sm max-w-full box-border flex items-center justify-between group"
                         >
                           <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
@@ -1476,7 +1457,7 @@ export default function BookingConfirmPage() {
                         {checkOutPickerOpen && (
                           <>
                             <div className="fixed inset-0 z-40" onClick={() => setCheckOutPickerOpen(false)} />
-                            <div style={{ position: "fixed", top: checkOutPickerPos.top, left: checkOutPickerPos.left, zIndex: 50 }}>
+                            <div className="absolute z-50 top-full left-0 mt-1">
                               <DatePicker
                                 selected={bookingData?.checkOut || undefined}
                                 onSelectAction={(s) => {
@@ -2430,15 +2411,7 @@ export default function BookingConfirmPage() {
                                 <button
                                   ref={arrivalDateBtnRef}
                                   type="button"
-                                  onClick={() => {
-                                    const rect = arrivalDateBtnRef.current?.getBoundingClientRect();
-                                    if (rect) {
-                                      const pw = 288;
-                                      const left = Math.max(8, Math.min(rect.left, window.innerWidth - pw - 8));
-                                      setArrivalDatePickerPos({ top: rect.bottom + 4, left });
-                                    }
-                                    setArrivalDatePickerOpen(true);
-                                  }}
+                                  onClick={() => setArrivalDatePickerOpen(true)}
                                   style={{boxSizing:"border-box"}}
                                   className="w-full flex items-center gap-2 px-3 py-2.5 border-2 border-slate-200 rounded-xl text-sm font-semibold hover:border-[#02665e]/40 focus:outline-none focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10 bg-white transition-all group"
                                 >
@@ -2453,7 +2426,7 @@ export default function BookingConfirmPage() {
                                 {arrivalDatePickerOpen && (
                                   <>
                                     <div className="fixed inset-0 z-[100]" onClick={() => setArrivalDatePickerOpen(false)} />
-                                    <div style={{ position: "fixed", top: arrivalDatePickerPos.top, left: arrivalDatePickerPos.left, zIndex: 101 }}>
+                                    <div className="absolute z-[101] top-full left-0 mt-1">
                                       <DatePicker
                                         selected={arrivalDate}
                                         onSelectAction={(s) => {
