@@ -2202,7 +2202,7 @@ export default function BookingConfirmPage() {
                         <div className="space-y-4 w-full min-w-0">
 
                           {/* Row 1: How are you arriving? + Transport Number */}
-                          <div className="grid grid-cols-2 gap-3 sm:gap-4 w-full min-w-0">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 w-full min-w-0">
                             {/* Arrival Type */}
                             <div className="space-y-2 min-w-0 w-full">
                               <label className="block text-sm font-semibold text-slate-700">
@@ -2264,7 +2264,7 @@ export default function BookingConfirmPage() {
                           </div>
 
                           {/* Row 2: Company/Airline + Arrival Time */}
-                          <div className="grid grid-cols-2 gap-3 sm:gap-4 w-full min-w-0">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 w-full min-w-0">
                             {/* Company */}
                             <div className="space-y-2 min-w-0 w-full">
                               <label className="block text-sm font-semibold text-slate-700">
