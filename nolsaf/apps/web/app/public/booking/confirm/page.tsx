@@ -121,6 +121,13 @@ export default function BookingConfirmPage() {
   const [checkInPickerOpen, setCheckInPickerOpen] = useState(false);
   const [checkOutPickerOpen, setCheckOutPickerOpen] = useState(false);
 
+  const checkInBtnRef = useRef<HTMLButtonElement>(null);
+  const checkOutBtnRef = useRef<HTMLButtonElement>(null);
+  const arrivalDateBtnRef = useRef<HTMLButtonElement>(null);
+  const [checkInPickerPos, setCheckInPickerPos] = useState({ top: 0, left: 0 });
+  const [checkOutPickerPos, setCheckOutPickerPos] = useState({ top: 0, left: 0 });
+  const [arrivalDatePickerPos, setArrivalDatePickerPos] = useState({ top: 0, left: 0 });
+
   const [selectedRoomCode, setSelectedRoomCode] = useState<string | null>(null);
   const [selectedRoomIndex, setSelectedRoomIndex] = useState<number | null>(null);
 
@@ -1226,12 +1233,62 @@ export default function BookingConfirmPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">
-        <div className="text-center animate-in fade-in duration-300">
-          <LogoSpinner size="xl" className="mx-auto mb-4" ariaLabel="Loading booking details" />
-          <p className="text-slate-700 font-medium text-lg">Loading booking details...</p>
-          <p className="text-slate-500 text-sm mt-2">Please wait</p>
+      <div className="min-h-screen bg-slate-50" style={{boxSizing:"border-box"}}>
+        {/* Top accent bar */}
+        <div style={{height:3, background:"linear-gradient(90deg,#02665e,#028a7a,#45aa99)", width:"100%"}} />
+        <div className="max-w-2xl mx-auto px-4 py-10 space-y-5">
+
+          {/* Header skeleton */}
+          <div className="flex items-center gap-3">
+            <div style={{width:36,height:36,borderRadius:10,background:"#e2e8f0"}} className="skeleton-pulse" />
+            <div className="space-y-2">
+              <div style={{width:180,height:14,borderRadius:6,background:"#e2e8f0"}} className="skeleton-pulse" />
+              <div style={{width:120,height:11,borderRadius:6,background:"#f1f5f9"}} className="skeleton-pulse" />
+            </div>
+          </div>
+
+          {/* Property card skeleton */}
+          <div style={{background:"#fff",borderRadius:16,padding:20,boxShadow:"0 1px 8px rgba(0,0,0,0.07)",boxSizing:"border-box"}}>
+            <div className="flex gap-3">
+              <div style={{width:80,height:80,borderRadius:12,background:"#e2e8f0",flexShrink:0}} className="skeleton-pulse" />
+              <div className="space-y-2 flex-1" style={{minWidth:0}}>
+                <div style={{width:"70%",height:14,borderRadius:6,background:"#e2e8f0"}} className="skeleton-pulse" />
+                <div style={{width:"50%",height:11,borderRadius:6,background:"#f1f5f9"}} className="skeleton-pulse" />
+                <div style={{width:"40%",height:11,borderRadius:6,background:"#f1f5f9"}} className="skeleton-pulse" />
+              </div>
+            </div>
+            <div style={{marginTop:16,height:1,background:"#f1f5f9"}} />
+            <div className="flex gap-3 pt-4">
+              {["60%","40%"].map((w,i) => (
+                <div key={i} style={{width:w,height:12,borderRadius:6,background:"#e2e8f0"}} className="skeleton-pulse" />
+              ))}
+            </div>
+          </div>
+
+          {/* Form fields skeleton */}
+          {[1,2,3].map((i) => (
+            <div key={i} style={{background:"#fff",borderRadius:16,padding:20,boxShadow:"0 1px 8px rgba(0,0,0,0.07)",boxSizing:"border-box"}}>
+              <div style={{width:100,height:11,borderRadius:6,background:"#e2e8f0",marginBottom:12}} className="skeleton-pulse" />
+              <div style={{width:"100%",height:44,borderRadius:10,background:"#f8fafc",border:"2px solid #f1f5f9"}} className="skeleton-pulse" />
+              {i < 3 && <div style={{width:"100%",height:44,borderRadius:10,background:"#f8fafc",border:"2px solid #f1f5f9",marginTop:10}} className="skeleton-pulse" />}
+            </div>
+          ))}
+
+          {/* Spinner + label at bottom */}
+          <div className="flex flex-col items-center gap-3 pt-4">
+            <LogoSpinner size="md" ariaLabel="Loading booking details" />
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+              <p style={{fontSize:13,fontWeight:600,color:"#475569"}}>Fetching your booking details</p>
+              <p style={{fontSize:11,color:"#94a3b8"}}>Just a moment…</p>
+            </div>
+          </div>
         </div>
+
+        {/* Skeleton pulse keyframe — scoped */}
+        <style>{`
+          @keyframes _sk_pulse { 0%,100%{opacity:1} 50%{opacity:0.45} }
+          .skeleton-pulse { animation: _sk_pulse 1.6s ease-in-out infinite; }
+        `}</style>
       </div>
     );
   }
@@ -1324,8 +1381,17 @@ export default function BookingConfirmPage() {
                       </label>
                       <div className="relative">
                         <button
+                          ref={checkInBtnRef}
                           type="button"
-                          onClick={() => setCheckInPickerOpen(true)}
+                          onClick={() => {
+                            const rect = checkInBtnRef.current?.getBoundingClientRect();
+                            if (rect) {
+                              const pw = 288;
+                              const left = Math.max(8, Math.min(rect.left, window.innerWidth - pw - 8));
+                              setCheckInPickerPos({ top: rect.bottom + 4, left });
+                            }
+                            setCheckInPickerOpen(true);
+                          }}
                           className="w-full min-w-0 px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 pl-8 sm:pl-10 md:pl-11 pr-8 sm:pr-10 md:pr-11 border-2 border-slate-300 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-gradient-to-r from-slate-50 to-blue-50/50 shadow-sm max-w-full box-border flex items-center justify-between group"
                         >
                           <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
@@ -1347,7 +1413,7 @@ export default function BookingConfirmPage() {
                         {checkInPickerOpen && (
                           <>
                             <div className="fixed inset-0 z-40" onClick={() => setCheckInPickerOpen(false)} />
-                            <div className="absolute z-50 top-full left-0 mt-2">
+                            <div style={{ position: "fixed", top: checkInPickerPos.top, left: checkInPickerPos.left, zIndex: 50 }}>
                               <DatePicker
                                 selected={bookingData?.checkIn || undefined}
                                 onSelectAction={(s) => {
@@ -1378,8 +1444,17 @@ export default function BookingConfirmPage() {
                       </label>
                       <div className="relative">
                         <button
+                          ref={checkOutBtnRef}
                           type="button"
-                          onClick={() => setCheckOutPickerOpen(true)}
+                          onClick={() => {
+                            const rect = checkOutBtnRef.current?.getBoundingClientRect();
+                            if (rect) {
+                              const pw = 288;
+                              const left = Math.max(8, Math.min(rect.left, window.innerWidth - pw - 8));
+                              setCheckOutPickerPos({ top: rect.bottom + 4, left });
+                            }
+                            setCheckOutPickerOpen(true);
+                          }}
                           className="w-full min-w-0 px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 pl-8 sm:pl-10 md:pl-11 pr-8 sm:pr-10 md:pr-11 border-2 border-slate-300 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-gradient-to-r from-slate-50 to-blue-50/50 shadow-sm max-w-full box-border flex items-center justify-between group"
                         >
                           <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
@@ -1401,7 +1476,7 @@ export default function BookingConfirmPage() {
                         {checkOutPickerOpen && (
                           <>
                             <div className="fixed inset-0 z-40" onClick={() => setCheckOutPickerOpen(false)} />
-                            <div className="absolute z-50 top-full left-0 mt-2">
+                            <div style={{ position: "fixed", top: checkOutPickerPos.top, left: checkOutPickerPos.left, zIndex: 50 }}>
                               <DatePicker
                                 selected={bookingData?.checkOut || undefined}
                                 onSelectAction={(s) => {
@@ -1774,10 +1849,8 @@ export default function BookingConfirmPage() {
                       className="w-full min-w-0 px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-white shadow-sm max-w-full box-border"
                       placeholder="+255 XXX XXX XXX"
                     />
-                    {phoneInlineError ? (
+                    {phoneInlineError && (
                       <p className="text-xs font-semibold text-red-600">{phoneInlineError}</p>
-                    ) : (
-                      <p className="text-xs text-slate-500">+2557XXXXXXXX, 07XXXXXXXX, or 7XXXXXXXX</p>
                     )}
                   </div>
 
@@ -2355,8 +2428,17 @@ export default function BookingConfirmPage() {
                               {/* Date picker button */}
                               <div className="relative flex-1 min-w-0">
                                 <button
+                                  ref={arrivalDateBtnRef}
                                   type="button"
-                                  onClick={() => setArrivalDatePickerOpen(true)}
+                                  onClick={() => {
+                                    const rect = arrivalDateBtnRef.current?.getBoundingClientRect();
+                                    if (rect) {
+                                      const pw = 288;
+                                      const left = Math.max(8, Math.min(rect.left, window.innerWidth - pw - 8));
+                                      setArrivalDatePickerPos({ top: rect.bottom + 4, left });
+                                    }
+                                    setArrivalDatePickerOpen(true);
+                                  }}
                                   style={{boxSizing:"border-box"}}
                                   className="w-full flex items-center gap-2 px-3 py-2.5 border-2 border-slate-200 rounded-xl text-sm font-semibold hover:border-[#02665e]/40 focus:outline-none focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/10 bg-white transition-all group"
                                 >
@@ -2371,7 +2453,7 @@ export default function BookingConfirmPage() {
                                 {arrivalDatePickerOpen && (
                                   <>
                                     <div className="fixed inset-0 z-[100]" onClick={() => setArrivalDatePickerOpen(false)} />
-                                    <div className="absolute z-[101] top-full left-0 mt-2 bg-white rounded-xl border-2 border-slate-200 shadow-2xl max-h-[calc(100vh-200px)] overflow-y-auto">
+                                    <div style={{ position: "fixed", top: arrivalDatePickerPos.top, left: arrivalDatePickerPos.left, zIndex: 101 }}>
                                       <DatePicker
                                         selected={arrivalDate}
                                         onSelectAction={(s) => {
