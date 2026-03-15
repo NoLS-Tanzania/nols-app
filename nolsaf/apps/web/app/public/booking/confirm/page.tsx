@@ -16,10 +16,11 @@ import {
   Navigation,
   Edit2,
   Plane,
-  ArrowRight,
 } from "lucide-react";
 import LogoSpinner from "@/components/LogoSpinner";
 import DatePicker from "../../../../components/ui/DatePicker";
+import LocationPickerModal from "../../../../components/ui/LocationPickerModal";
+import { TANZANIA_LOCATIONS } from "../../../../lib/tanzania-locations";
 import { 
   getPropertyCommission, 
   calculatePriceWithCommission 
@@ -32,37 +33,7 @@ import {
   getVehicleTypeLabel,
 } from "../../../../lib/transportFareCalculator";
 
-type PickupPreset = {
-  id: string;
-  label: string;
-  lat: number;
-  lng: number;
-  arrivalType: "FLIGHT" | "BUS" | "TRAIN" | "FERRY" | "OTHER";
-};
-
-const PICKUP_PRESETS: PickupPreset[] = [
-  {
-    id: "JNIA",
-    label: "Julius Nyerere International Airport (DAR)",
-    lat: -6.878111,
-    lng: 39.202625,
-    arrivalType: "FLIGHT",
-  },
-  {
-    id: "ZNZ",
-    label: "Abeid Amani Karume International Airport (ZNZ)",
-    lat: -6.222025,
-    lng: 39.224886,
-    arrivalType: "FLIGHT",
-  },
-  {
-    id: "Ubungo",
-    label: "Ubungo Bus Terminal (Dar es Salaam)",
-    lat: -6.77239,
-    lng: 39.21432,
-    arrivalType: "BUS",
-  },
-];
+// Tanzania locations are imported from lib/tanzania-locations.ts
 
 type Property = {
   id: number;
@@ -127,6 +98,7 @@ export default function BookingConfirmPage() {
   const [pickupMode, setPickupMode] = useState<"current" | "arrival" | "manual">("current");
   const [pickupMethodChosen, setPickupMethodChosen] = useState(false);
   const [pickupPresetId, setPickupPresetId] = useState<string>("");
+  const [locationPickerOpen, setLocationPickerOpen] = useState(false);
   const pickupAddressRef = useRef<HTMLInputElement | null>(null);
   const [currentPickupNeedsConfirm, setCurrentPickupNeedsConfirm] = useState(false);
   const [currentPickupConfirmed, setCurrentPickupConfirmed] = useState(false);
@@ -1235,7 +1207,7 @@ export default function BookingConfirmPage() {
 
   function handleSelectPickupPreset(id: string) {
     setPickupPresetId(id);
-    const preset = PICKUP_PRESETS.find((p) => p.id === id);
+    const preset = TANZANIA_LOCATIONS.find((p) => p.id === id);
     if (!preset) {
       setTransportOriginLat(null);
       setTransportOriginLng(null);
@@ -2086,16 +2058,49 @@ export default function BookingConfirmPage() {
                                     {/* ── Scheduled Arrival ── */}
                                     {opt.mode === "arrival" && (
                                       <>
-                                        <select value={pickupPresetId} onChange={(e) => handleSelectPickupPreset(e.target.value)}
-                                          aria-label="Select arrival pickup point" title="Select arrival pickup point"
-                                          className="w-full px-4 py-3 border border-violet-200 rounded-xl text-sm font-medium bg-white focus:outline-none focus:ring-2 focus:ring-violet-200 focus:border-violet-400 cursor-pointer transition-all">
-                                          <option value="">Choose airport, bus terminal or ferry…</option>
-                                          {PICKUP_PRESETS.map((p) => (<option key={p.id} value={p.id}>{p.label}</option>))}
-                                        </select>
+                                        {/* Picker trigger button */}
+                                        <button
+                                          type="button"
+                                          onClick={() => setLocationPickerOpen(true)}
+                                          className="w-full flex items-center gap-3 px-4 py-3 border-2 border-violet-200 rounded-xl bg-white hover:border-violet-400 hover:bg-violet-50/40 transition-all text-left group"
+                                        >
+                                          {pickupPresetId ? (() => {
+                                            const preset = TANZANIA_LOCATIONS.find(p => p.id === pickupPresetId);
+                                            if (!preset) return null;
+                                            const icons: Record<string, React.ReactNode> = {
+                                              airport:      <span className="w-8 h-8 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center flex-shrink-0 text-base">✈</span>,
+                                              bus_terminal: <span className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center flex-shrink-0 text-base">🚌</span>,
+                                              ferry_port:   <span className="w-8 h-8 rounded-lg bg-violet-100 text-violet-700 flex items-center justify-center flex-shrink-0 text-base">⛴</span>,
+                                            };
+                                            return (
+                                              <>
+                                                {icons[preset.category]}
+                                                <span className="flex-1 min-w-0">
+                                                  <span className="block text-sm font-semibold text-slate-800 truncate">{preset.label}</span>
+                                                  <span className="block text-xs text-slate-500">{preset.city}{preset.iataCode ? ` · ${preset.iataCode}` : ""}</span>
+                                                </span>
+                                                <span className="text-xs text-violet-500 font-medium group-hover:text-violet-700">Change</span>
+                                              </>
+                                            );
+                                          })() : (
+                                            <>
+                                              <span className="w-8 h-8 rounded-lg bg-slate-100 text-slate-400 flex items-center justify-center flex-shrink-0 text-base">📍</span>
+                                              <span className="flex-1 text-sm font-medium text-slate-400">Choose airport, bus terminal or ferry…</span>
+                                              <span className="text-xs text-violet-500 font-medium">Browse</span>
+                                            </>
+                                          )}
+                                        </button>
                                         <p className="text-xs text-violet-600/80 flex items-start gap-1.5">
                                           <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
                                           Arriving from abroad? Pick your terminal and we'll schedule a timed pickup.
                                         </p>
+                                        {/* Picker modal */}
+                                        <LocationPickerModal
+                                          open={locationPickerOpen}
+                                          selectedId={pickupPresetId}
+                                          onSelectAction={(id) => handleSelectPickupPreset(id)}
+                                          onCloseAction={() => setLocationPickerOpen(false)}
+                                        />
                                       </>
                                     )}
 
