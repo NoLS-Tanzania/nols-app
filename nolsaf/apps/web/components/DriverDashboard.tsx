@@ -206,11 +206,9 @@ export default function DriverDashboard({ className }: { className?: string }) {
 
   // Setup Socket.IO for real-time reminder updates
   useEffect(() => {
-    // Get authentication token
+    // Auth cookies are forwarded automatically via withCredentials: true.
+    // Only check readable cookies as a transitional fallback.
     const token = typeof window !== 'undefined' ? (
-      window.localStorage.getItem("token") ||
-      window.localStorage.getItem("nolsaf_token") ||
-      window.localStorage.getItem("__Host-nolsaf_token") ||
       (() => {
         const m = String(document.cookie || "").match(/(?:^|;\s*)(?:nolsaf_token|__Host-nolsaf_token|token)=([^;]+)/);
         return m?.[1] ? decodeURIComponent(m[1]) : null;

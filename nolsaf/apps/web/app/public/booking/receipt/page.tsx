@@ -51,6 +51,7 @@ export default function ReceiptPage() {
 
   useEffect(() => {
     const invoiceId = searchParams?.get("invoiceId");
+    const accessToken = searchParams?.get("accessToken");
 
     if (!invoiceId) {
       setError("Missing invoice ID");
@@ -58,17 +59,24 @@ export default function ReceiptPage() {
       return;
     }
 
-    fetchReceipt(Number(invoiceId));
+    if (!accessToken) {
+      setError("Missing invoice access token");
+      setLoading(false);
+      return;
+    }
+
+    fetchReceipt(Number(invoiceId), accessToken);
   }, [searchParams]);
 
-  async function fetchReceipt(invoiceId: number) {
+  async function fetchReceipt(invoiceId: number, accessToken: string) {
     try {
       const API = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000").replace(/\/$/, "");
+      const accessQuery = `accessToken=${encodeURIComponent(accessToken)}`;
       const candidates = [
         // Prefer same-origin (works with Next rewrites/proxies and avoids CORS issues)
-        `/api/public/invoices/${invoiceId}`,
+        `/api/public/invoices/${invoiceId}?${accessQuery}`,
         // Fallback to explicit API base if configured
-        `${API}/api/public/invoices/${invoiceId}`,
+        `${API}/api/public/invoices/${invoiceId}?${accessQuery}`,
       ];
 
       let lastErr: any = null;

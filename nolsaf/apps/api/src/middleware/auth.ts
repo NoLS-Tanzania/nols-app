@@ -29,8 +29,9 @@ export interface AuthedRequest extends Request {
 
 function isLocalDevBypassAllowed(req: Request): boolean {
   if (process.env.NODE_ENV === "production" || process.env.NODE_ENV === "test") return false;
-  // Set DISABLE_DEV_BYPASS=true in .env to opt-out even in development/staging.
-  if (process.env.DISABLE_DEV_BYPASS === "true") return false;
+  // Fail-closed: bypass only activates when explicitly opted in.
+  // Add ENABLE_DEV_BYPASS=true to .env.local to enable in local development.
+  if (process.env.ENABLE_DEV_BYPASS !== "true") return false;
   const ip = String((req as any).ip ?? "");
   const forwardedFor = String(req.headers["x-forwarded-for"] || "").split(",")[0]?.trim() || "";
   const realIp = String(req.headers["x-real-ip"] || "").trim();
@@ -202,7 +203,7 @@ export const requireAuth: RequestHandler = async (req, res, next) => {
   // DEV behavior: keep current dev-bypass so the app keeps working locally.
   // Production is strict: no token -> 401.
   if (isLocalDevBypassAllowed(req)) {
-    console.warn(`[DEV_BYPASS] No token on ${req.method} ${req.path} — injecting dev admin stub. Set DISABLE_DEV_BYPASS=true to disable.`);
+    console.warn(`[DEV_BYPASS] No token on ${req.method} ${req.path} — injecting dev admin stub. Remove ENABLE_DEV_BYPASS=true from .env.local to disable.`);
     (req as AuthedRequest).user = { id: 1, role: "ADMIN" };
     try {
       touchActiveUser(1, "ADMIN");
@@ -261,7 +262,7 @@ export function requireRole(required?: Role) {
     // Dev bypass: keep local development productive.
     if (isLocalDevBypassAllowed(req)) {
       if (!(req as AuthedRequest).user) {
-        console.warn(`[DEV_BYPASS] No user on ${req.method} ${req.path} — injecting dev admin stub. Set DISABLE_DEV_BYPASS=true to disable.`);
+        console.warn(`[DEV_BYPASS] No user on ${req.method} ${req.path} — injecting dev admin stub. Remove ENABLE_DEV_BYPASS=true from .env.local to disable.`);
         (req as AuthedRequest).user = { id: 1, role: "ADMIN" };
       }
       try {

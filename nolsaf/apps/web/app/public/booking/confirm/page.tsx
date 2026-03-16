@@ -780,8 +780,16 @@ export default function BookingConfirmPage() {
         throw new Error(`Invoice response was not valid JSON. ${statusMsg}${invoiceBodyText ? ` Response: ${invoiceBodyText}` : ""}`);
       }
 
-      // Redirect to payment page with invoice ID
-      router.push(`/public/booking/payment?invoiceId=${invoiceResult.invoiceId}`);
+      if (!invoiceResult.accessToken) {
+        throw new Error("Invoice access token was not returned. Please try again.");
+      }
+
+      // Redirect to payment page with invoice ID + access token
+      const paymentParams = new URLSearchParams({
+        invoiceId: String(invoiceResult.invoiceId),
+        accessToken: String(invoiceResult.accessToken),
+      });
+      router.push(`/public/booking/payment?${paymentParams.toString()}`);
     } catch (err: any) {
       console.error("Booking submission error:", err);
       

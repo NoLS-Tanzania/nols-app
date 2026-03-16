@@ -1478,8 +1478,13 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
 router.get("/:id", async (req: Request, res: Response) => {
   try {
     const bookingId = Number(req.params.id);
+    const bookingCode = String(req.query.bookingCode || "").trim().toUpperCase();
     if (!bookingId || isNaN(bookingId)) {
       return res.status(400).json({ error: "Invalid booking ID" });
+    }
+
+    if (!bookingCode) {
+      return res.status(400).json({ error: "Booking code is required" });
     }
 
     const booking = await prisma.booking.findUnique({
@@ -1506,6 +1511,10 @@ router.get("/:id", async (req: Request, res: Response) => {
     });
 
     if (!booking) {
+      return res.status(404).json({ error: "Booking not found" });
+    }
+
+    if (!booking.code?.code || booking.code.code.toUpperCase() !== bookingCode) {
       return res.status(404).json({ error: "Booking not found" });
     }
 

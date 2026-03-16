@@ -141,14 +141,11 @@ function addDays(d: Date, days: number) {
   return copy;
 }
 
-// Helper to get auth token
+// Helper to get auth token.
+// httpOnly cookies are forwarded automatically via withCredentials: true.
 function getAuthToken(): string | null {
   if (typeof window === 'undefined') return null;
-  const lsToken =
-    window.localStorage.getItem("token") ||
-    window.localStorage.getItem("nolsaf_token") ||
-    window.localStorage.getItem("__Host-nolsaf_token");
-  if (lsToken) return lsToken;
+  // Only check readable cookies here as a transitional fallback.
   const m = String(document.cookie || "").match(/(?:^|;\s*)(?:nolsaf_token|__Host-nolsaf_token|token)=([^;]+)/);
   return m?.[1] ? decodeURIComponent(m[1]) : null;
 }

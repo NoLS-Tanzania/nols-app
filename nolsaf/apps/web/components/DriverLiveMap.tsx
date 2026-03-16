@@ -3,8 +3,9 @@ import React, { useEffect, useState, useRef, useCallback } from "react";
 import { Check, X, Flag, CheckCircle } from 'lucide-react';
 import axios from "axios";
 
-// Use same-origin for HTTP calls so Next.js rewrites proxy to the API in dev
-const api = axios.create({ baseURL: "" });
+// Use same-origin for HTTP calls so Next.js rewrites proxy to the API in dev.
+// withCredentials ensures httpOnly auth cookies are forwarded automatically.
+const api = axios.create({ baseURL: "", withCredentials: true });
 
 export default function DriverLiveMap({ liveOnly }: { liveOnly?: boolean } = {}) {
   const [data, setData] = useState<any | null>(null);
@@ -45,8 +46,7 @@ export default function DriverLiveMap({ liveOnly }: { liveOnly?: boolean } = {})
   }, []);
 
   useEffect(() => {
-    const t = localStorage.getItem("token");
-    if (t) api.defaults.headers.common["Authorization"] = `Bearer ${t}`;
+    // Auth is handled by httpOnly cookies via withCredentials: true on the axios instance.
     let mounted = true;
     (async () => {
       try {

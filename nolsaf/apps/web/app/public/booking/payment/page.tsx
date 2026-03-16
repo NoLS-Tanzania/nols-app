@@ -101,10 +101,12 @@ export default function PaymentPage() {
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchInvoice = useCallback(
-    async (invoiceId: number) => {
+    async (invoiceId: number, accessToken: string) => {
       try {
         const API = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000").replace(/\/$/, "");
-        const response = await fetch(`${API}/api/public/invoices/${invoiceId}`);
+        const url = new URL(`${API}/api/public/invoices/${invoiceId}`);
+        url.searchParams.set("accessToken", accessToken);
+        const response = await fetch(url.toString());
 
         if (!response.ok) {
           throw new Error("Failed to fetch invoice");
@@ -121,7 +123,11 @@ export default function PaymentPage() {
 
         // If already paid, redirect to receipt
         if (data.status === "PAID") {
-          router.push(`/public/booking/receipt?invoiceId=${invoiceId}`);
+          const receiptParams = new URLSearchParams({
+            invoiceId: String(invoiceId),
+            accessToken,
+          });
+          router.push(`/public/booking/receipt?${receiptParams.toString()}`);
           return;
         }
       } catch (err: any) {
@@ -135,13 +141,20 @@ export default function PaymentPage() {
 
   useEffect(() => {
     const invoiceId = searchParams?.get("invoiceId");
+    const accessToken = searchParams?.get("accessToken");
     if (!invoiceId) {
       setError("Missing invoice ID");
       setLoading(false);
       return;
     }
 
-    fetchInvoice(Number(invoiceId));
+    if (!accessToken) {
+      setError("Missing invoice access token");
+      setLoading(false);
+      return;
+    }
+
+    fetchInvoice(Number(invoiceId), accessToken);
   }, [searchParams, fetchInvoice]);
 
   // Cleanup polling on unmount
@@ -225,7 +238,13 @@ export default function PaymentPage() {
           
           // Redirect to receipt after 2 seconds
           setTimeout(() => {
-            router.push(`/public/booking/receipt?invoiceId=${invoice?.id}`);
+            const accessToken = searchParams?.get("accessToken");
+            if (!invoice?.id || !accessToken) return;
+            const receiptParams = new URLSearchParams({
+              invoiceId: String(invoice.id),
+              accessToken,
+            });
+            router.push(`/public/booking/receipt?${receiptParams.toString()}`);
           }, 2000);
         } else if (data.paymentStatus === "FAILED") {
           // Payment failed
