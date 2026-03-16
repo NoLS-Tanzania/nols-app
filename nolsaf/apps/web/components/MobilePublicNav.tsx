@@ -80,9 +80,9 @@ export default function MobilePublicNav() {
   });
 
   const BRAND = "#02665e";
-  const iconColor = (active: boolean) => active ? BRAND : "rgba(30,40,60,0.42)";
+  const iconColor = (active: boolean) => active ? BRAND : "rgba(2,102,94,0.45)";
   const strokeW   = (active: boolean) => active ? 2.4 : 1.6;
-  const labelColor = (active: boolean) => active ? BRAND : "rgba(30,40,60,0.42)";
+  const labelColor = (active: boolean) => active ? BRAND : "rgba(2,102,94,0.45)";
 
   const TabItem = ({
     slot, label, icon, onClick, href,
@@ -169,38 +169,36 @@ export default function MobilePublicNav() {
       />
 
       <div className="flex w-full items-stretch h-[62px] max-w-lg mx-auto px-2">
-        <TabItem slot="home"  label="Home"   href="/public"             icon={<Home        width={22} height={22} strokeWidth={strokeW(isHome)}       color={iconColor(isHome)}       />} />
-        <TabItem slot="stays" label="Stays"  href="/public/properties"  icon={<Building2   width={22} height={22} strokeWidth={strokeW(isProperties)} color={iconColor(isProperties)} />} />
-        <TabItem slot="list"  label="List"   href="/account/register?role=owner" icon={<PlusSquare  width={22} height={22} strokeWidth={strokeW(false)}       color={iconColor(false)}        />} />
-        <TabItem slot="rides" label="Rides"  href={authed ? "/account/rides" : "/account/sign-in"} icon={<Car width={22} height={22} strokeWidth={strokeW(isRides)} color={iconColor(isRides)} />} />
-        <TabItem
-          slot="account"
-          label={authed ? "Account" : "Sign in"}
-          onClick={() => authed ? setMenuOpen(true) : router.push("/account/sign-in")}
-          icon={
-            authed && user?.profileImage ? (
-              <span className="relative block" style={{ lineHeight: 0 }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={user.profileImage}
-                  alt={user.name ?? "Account"}
-                  width={24}
-                  height={24}
-                  className="rounded-full object-cover"
-                  style={{
-                    width: "24px",
-                    height: "24px",
-                    outline: isAccount ? `2px solid ${BRAND}` : "1.5px solid rgba(0,0,0,0.12)",
-                    outlineOffset: "1px",
-                  }}
-                />
-                <span className="absolute -bottom-0.5 -right-0.5 w-[7px] h-[7px] rounded-full bg-emerald-400 ring-[1.5px] ring-white" />
-              </span>
-            ) : (
-              <User width={22} height={22} strokeWidth={strokeW(isAccount)} color={iconColor(isAccount)} />
-            )
-          }
-        />
+        {TabItem({ slot:"home",  label:"Home",   href:"/public",             icon:<Home        width={22} height={22} strokeWidth={strokeW(isHome)}       color={iconColor(isHome)}       /> })}
+        {TabItem({ slot:"stays", label:"Stays",  href:"/public/properties",  icon:<Building2   width={22} height={22} strokeWidth={strokeW(isProperties)} color={iconColor(isProperties)} /> })}
+        {TabItem({ slot:"list",  label:"List",   href:"/account/register?role=owner", icon:<PlusSquare  width={22} height={22} strokeWidth={strokeW(false)}       color={iconColor(false)}        /> })}
+        {TabItem({ slot:"rides", label:"Rides",  href:authed ? "/account/rides" : "/account/sign-in", icon:<Car width={22} height={22} strokeWidth={strokeW(isRides)} color={iconColor(isRides)} /> })}
+        {TabItem({
+          slot: "account",
+          label: authed ? "Account" : "Sign in",
+          onClick: () => authed ? setMenuOpen(true) : router.push("/account/sign-in"),
+          icon: authed && user?.profileImage ? (
+            <span className="relative block" style={{ lineHeight: 0 }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={user.profileImage}
+                alt={user.name ?? "Account"}
+                width={24}
+                height={24}
+                className="rounded-full object-cover"
+                style={{
+                  width: "24px",
+                  height: "24px",
+                  outline: isAccount ? `2px solid ${BRAND}` : "1.5px solid rgba(0,0,0,0.12)",
+                  outlineOffset: "1px",
+                }}
+              />
+              <span className="absolute -bottom-0.5 -right-0.5 w-[7px] h-[7px] rounded-full bg-emerald-400 ring-[1.5px] ring-white" />
+            </span>
+          ) : (
+            <User width={22} height={22} strokeWidth={strokeW(isAccount)} color={iconColor(isAccount)} />
+          ),
+        })}
       </div>
     </nav>
 

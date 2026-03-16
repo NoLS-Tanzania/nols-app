@@ -23,6 +23,7 @@ export default function UpdatesPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [activeVideoUrl, setActiveVideoUrl] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     title: "",
     content: "",
@@ -205,9 +206,14 @@ export default function UpdatesPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this update?")) return;
+  const handleDelete = (id: string) => {
+    setDeleteConfirmId(id);
+  };
 
+  const handleDeleteConfirmed = async () => {
+    if (!deleteConfirmId) return;
+    const id = deleteConfirmId;
+    setDeleteConfirmId(null);
     try {
       await api.delete(`/api/admin/updates/${id}`, { withCredentials: true });
       setSuccess("Update deleted successfully!");
@@ -229,6 +235,47 @@ export default function UpdatesPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+      {deleteConfirmId && (
+        <div
+          className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirm delete"
+          onClick={() => setDeleteConfirmId(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl bg-white shadow-xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6 flex flex-col items-center gap-4 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
+                <Trash2 className="h-6 w-6 text-red-600" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Delete this update?</h2>
+                <p className="mt-1 text-sm text-slate-500">This action cannot be undone.</p>
+              </div>
+              <div className="flex gap-3 w-full mt-2">
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirmId(null)}
+                  className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeleteConfirmed}
+                  className="flex-1 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-red-700 transition-colors"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {activeVideoUrl && (
         <div
           className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4"

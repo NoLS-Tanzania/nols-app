@@ -27,7 +27,6 @@ import {
 } from "../../../../lib/priceUtils";
 import {
   calculateTransportFare,
-  getFareBreakdown,
   type Location,
   type TransportVehicleType,
   getVehicleTypeLabel,

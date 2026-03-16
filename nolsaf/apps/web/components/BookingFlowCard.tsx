@@ -331,7 +331,7 @@ export default function BookingFlowCard() {
             </nav>
 
             {/* Content */}
-            <div className="mt-6 grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+            <div className="mt-6 grid grid-cols-1 md:grid-cols-12 gap-6 items-stretch">
               {/* Image */}
               <div className="md:col-span-6 order-1 md:order-2">
                 <div
@@ -385,11 +385,13 @@ export default function BookingFlowCard() {
               </div>
 
               {/* Text / actions */}
-              <div className="md:col-span-6 order-2 md:order-1">
-                <div className="rounded-3xl overflow-hidden border border-white/70 bg-white/70 backdrop-blur-xl ring-1 ring-slate-200/70 p-4 sm:p-5 shadow-[0_18px_55px_rgba(2,6,23,0.10)]">
+              <div className="md:col-span-6 order-2 md:order-1 flex flex-col">
+                <div className="rounded-3xl overflow-hidden border border-white/70 bg-white/70 backdrop-blur-xl ring-1 ring-slate-200/70 p-4 sm:p-5 shadow-[0_18px_55px_rgba(2,6,23,0.10)] flex flex-col flex-1">
                   <div className="text-base font-semibold text-slate-900 tracking-tight">{activeMeta.title}</div>
                   <div className="mt-1 text-sm text-slate-600 leading-relaxed">{activeMeta.kicker}</div>
 
+                  {/* Step content — fixed min-height prevents page layout shift when switching steps */}
+                  <div style={{ minHeight: 220 }}>
                   {activeStep === 1 ? (
                     <>
                       <div className="mt-4">
@@ -542,6 +544,8 @@ export default function BookingFlowCard() {
                       </ul>
                     </div>
                   ) : null}
+
+                  </div>
 
                   <div className="mt-5">
                     {/* Mobile: compact icon button — Desktop: full text button */}

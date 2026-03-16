@@ -48,7 +48,12 @@ function toApiDto(row: any) {
 /** GET /api/admin/updates - List all updates */
 router.get("/", async (_req, res) => {
   try {
-    const rows = await prisma.siteUpdate.findMany({ orderBy: { createdAt: "desc" } });
+    // Raise sort buffer for this session so ORDER BY createdAt never OOMs
+    await prisma.$executeRaw`SET sort_buffer_size = 8388608`;
+    const rows = await prisma.siteUpdate.findMany({
+      orderBy: { createdAt: "desc" },
+      select: { id: true, title: true, content: true, images: true, videos: true, createdAt: true, updatedAt: true },
+    });
     const items = rows.map(toApiDto);
     res.json({ items, total: items.length });
   } catch (err: any) {
