@@ -261,7 +261,7 @@ export default function PublicHeader({
     { href: '/public/properties', label: 'Properties' },
     { href: '/public/group-stays', label: 'Group Stays' },
     { href: '/public/plan-with-us', label: 'Plan With Us' },
-    { href: '/public/no4p-ai', label: 'No4P AI' },
+    { href: '/public/n-sat', label: 'N-SaT' },
   ], []);
 
   const NavLink = ({ href, children, onClick }: { href: string; children: React.ReactNode; onClick?: () => void }) => {

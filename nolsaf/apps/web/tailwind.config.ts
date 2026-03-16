@@ -42,6 +42,7 @@ export default {
         "rotate-clock": { "0%": { transform: "rotate(0deg)" }, "100%": { transform: "rotate(360deg)" } },
         "rotate-minute": { "0%": { transform: "rotate(0deg)" }, "100%": { transform: "rotate(360deg)" } },
         "pulse-soft": { "0%, 100%": { opacity: "0.4" }, "50%": { opacity: "0.6" } },
+        "fade-in": { "0%": { opacity: "0", transform: "translateY(8px)" }, "100%": { opacity: "1", transform: "translateY(0)" } },
       },
       animation: { 
         shimmer: "shimmer 1.35s linear infinite",
@@ -49,6 +50,7 @@ export default {
         "rotate-clock": "rotate-clock 120s linear infinite",
         "rotate-minute": "rotate-minute 3600s linear infinite",
         "pulse-soft": "pulse-soft 3s ease-in-out infinite",
+        "fadeIn": "fade-in 0.22s ease-out both",
       },
     },
   },

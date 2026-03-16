@@ -391,7 +391,9 @@ export default function BookingFlowCard() {
                   <div className="mt-1 text-sm text-slate-600 leading-relaxed">{activeMeta.kicker}</div>
 
                   {/* Step content — fixed min-height prevents page layout shift when switching steps */}
-                  <div style={{ minHeight: 220 }}>
+                  <div
+                    style={{ minHeight: 220, transition: 'opacity 0.18s ease', opacity: isTransitioning ? 0 : 1 }}
+                  >
                   {activeStep === 1 ? (
                     <>
                       <div className="mt-4">
