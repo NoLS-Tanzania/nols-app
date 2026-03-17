@@ -43,23 +43,23 @@ export default function CookieConsent() {
       role="dialog"
       aria-modal="false"
       aria-label="Cookie preferences"
-      className="fixed bottom-4 left-4 z-[99999] w-[min(94vw,36rem)] shadow-2xl rounded-2xl border border-gray-200 bg-white overflow-hidden"
-      style={{ boxShadow: "0 8px 48px rgba(0,0,0,0.18)" }}
+      className="fixed bottom-4 left-4 z-[99999] w-[min(94vw,32rem)] shadow-xl rounded-2xl border border-blue-100 overflow-hidden"
+      style={{ background: "linear-gradient(135deg, #eef3ff 0%, #e8f4ff 60%, #dff0fa 100%)", boxShadow: "0 4px 32px rgba(30,40,120,0.13)" }}
     >
       {/* Close (dismiss without deciding) */}
       <button
         onClick={() => save("declined")}
         aria-label="Dismiss cookie notice"
-        className="absolute top-3 right-3 h-7 w-7 flex items-center justify-center text-gray-400 hover:text-gray-700 transition-colors"
+        className="absolute top-2.5 right-2.5 h-6 w-6 flex items-center justify-center text-slate-400 hover:text-slate-700 transition-colors"
       >
         <X className="h-4 w-4" />
       </button>
 
-      <div className="px-5 pt-5 pb-4">
+      <div className="px-4 pt-4 pb-3">
         {!managing ? (
           <>
             {/* ── Main notice ── */}
-            <p className="text-sm leading-relaxed text-gray-800 pr-6">
+            <p className="text-xs leading-relaxed text-[#1e1e5e] pr-5">
               By clicking <strong>&ldquo;Accept&rdquo;</strong>, you agree to the storing of cookies
               on your device to keep you signed in, enhance your experience, analyze site usage, and
               support our marketing efforts. View our{" "}
@@ -79,22 +79,22 @@ export default function CookieConsent() {
               for more information.
             </p>
 
-            <div className="mt-5 flex items-center justify-end gap-2.5">
+            <div className="mt-3.5 flex items-center justify-end gap-3">
               <button
                 onClick={() => setManaging(true)}
-                className="px-4 py-2 text-sm font-semibold rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+                className="text-xs text-slate-500 hover:text-slate-700 transition-colors outline-none focus:outline-none"
               >
                 Preferences
               </button>
               <button
                 onClick={() => save("declined", { analytics: false, marketing: false })}
-                className="px-4 py-2 text-sm font-semibold rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+                className="px-4 py-1.5 text-xs font-medium rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors outline-none focus:outline-none"
               >
                 Reject
               </button>
               <button
                 onClick={() => save("accepted")}
-                className="px-5 py-2 text-sm font-bold rounded-xl bg-[#1a1a4e] text-white hover:bg-[#12123a] active:scale-[0.97] transition-all shadow-sm"
+                className="px-5 py-1.5 text-xs font-semibold rounded-full bg-[#1a1a4e] text-white hover:bg-[#12123a] active:scale-[0.97] transition-all outline-none focus:outline-none"
               >
                 Accept
               </button>
