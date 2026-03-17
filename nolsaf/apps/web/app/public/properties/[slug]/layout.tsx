@@ -1,16 +1,39 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { cache } from "react";
 
 const SITE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://nolsaf.com";
+
+const HOTEL_STAR_MAP: Record<string, number> = {
+  basic: 1,
+  simple: 2,
+  moderate: 3,
+  high: 4,
+  luxury: 5,
+};
 
 type Props = {
   params: Promise<{ slug: string }>;
   children: ReactNode;
 };
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { slug } = await params;
+// Cached so generateMetadata and the layout share one fetch per request
+const fetchProperty = cache(async (slug: string) => {
+  const apiBase =
+    process.env.API_ORIGIN ||
+    process.env.NEXT_PUBLIC_API_URL ||
+    "http://localhost:4000";
 
+  const res = await fetch(
+    `${apiBase}/api/public/properties/${encodeURIComponent(slug)}`,
+    { next: { revalidate: 3600 } }
+  );
+  if (!res.ok) throw new Error("not found");
+  const json = await res.json();
+  return json?.property ?? json;
+});
+
+const fetchReviews = cache(async (propertyId: number) => {
   try {
     const apiBase =
       process.env.API_ORIGIN ||
@@ -18,15 +41,21 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       "http://localhost:4000";
 
     const res = await fetch(
-      `${apiBase}/api/public/properties/${encodeURIComponent(slug)}`,
+      `${apiBase}/api/property-reviews/${propertyId}`,
       { next: { revalidate: 3600 } }
     );
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+});
 
-    if (!res.ok) throw new Error("not found");
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { slug } = await params;
 
-    const json = await res.json();
-    const property = json?.property ?? json;
-
+  try {
+    const property = await fetchProperty(slug);
     if (!property?.title) throw new Error("no title");
 
     const title = property.title as string;
@@ -42,10 +71,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         .join(", ") ||
       "Verified accommodation on NoLSAF";
 
-    const location = [
-      property.city || property.district,
-      property.regionName,
-    ]
+    const location = [property.city || property.district, property.regionName]
       .filter(Boolean)
       .join(", ");
 
@@ -81,6 +107,107 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 }
 
-export default function PropertySlugLayout({ children }: { children: ReactNode }) {
-  return <>{children}</>;
+export default async function PropertySlugLayout({ params, children }: Props) {
+  const { slug } = await params;
+
+  let jsonLd: Record<string, unknown> | null = null;
+
+  try {
+    const property = await fetchProperty(slug);
+
+    if (property?.title) {
+      const canonicalUrl = `${SITE_URL}/public/properties/${slug}`;
+      const description: string =
+        (property.description as string | null) ||
+        [property.type, property.city || property.district, property.regionName, property.country]
+          .filter(Boolean)
+          .join(", ") ||
+        "Verified accommodation on NoLSAF";
+
+      // Determine Schema.org @type from property type
+      const typeMap: Record<string, string> = {
+        hotel: "Hotel",
+        hostel: "Hostel",
+        resort: "Resort",
+        motel: "Motel",
+        "bed and breakfast": "BedAndBreakfast",
+        apartment: "Apartment",
+      };
+      const schemaType =
+        typeMap[(property.type as string)?.toLowerCase()] ?? "LodgingBusiness";
+
+      // Address
+      const address: Record<string, string> = {
+        "@type": "PostalAddress",
+        addressCountry: property.country ?? "TZ",
+      };
+      if (property.regionName) address.addressRegion = property.regionName;
+      if (property.city || property.district)
+        address.addressLocality = property.city ?? property.district;
+      if (property.street) address.streetAddress = property.street;
+
+      jsonLd = {
+        "@context": "https://schema.org",
+        "@type": schemaType,
+        name: property.title,
+        description: description.slice(0, 300),
+        url: canonicalUrl,
+        address,
+      };
+
+      // Geo coordinates
+      if (property.latitude && property.longitude) {
+        jsonLd.geo = {
+          "@type": "GeoCoordinates",
+          latitude: property.latitude,
+          longitude: property.longitude,
+        };
+      }
+
+      // Images
+      if ((property.images as string[])?.length) {
+        jsonLd.image = (property.images as string[]).slice(0, 3);
+      }
+
+      // Hotel star rating
+      const starNum = HOTEL_STAR_MAP[(property.hotelStar as string)?.toLowerCase()];
+      if (starNum) {
+        jsonLd.starRating = { "@type": "Rating", ratingValue: starNum };
+      }
+
+      // Price range
+      if (property.basePrice && property.currency) {
+        jsonLd.priceRange = `${property.currency} ${property.basePrice.toLocaleString()}`;
+      }
+
+      // Aggregate rating from reviews
+      if (property.id) {
+        const reviewsData = await fetchReviews(property.id as number);
+        const stats = reviewsData?.stats ?? reviewsData;
+        if (stats?.averageRating && stats?.totalReviews > 0) {
+          jsonLd.aggregateRating = {
+            "@type": "AggregateRating",
+            ratingValue: Number(stats.averageRating).toFixed(1),
+            reviewCount: stats.totalReviews,
+            bestRating: 5,
+            worstRating: 1,
+          };
+        }
+      }
+    }
+  } catch {
+    // JSON-LD is enhancement only — never break the page
+  }
+
+  return (
+    <>
+      {jsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      )}
+      {children}
+    </>
+  );
 }
