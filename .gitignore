@@ -6,3 +6,11 @@
 # TypeScript incremental build cache
 *.tsbuildinfo
 **/*.tsbuildinfo
+
+# Local database backups — never commit these
+remote-backup.sql
+*.session.sql
+nolsapp.session.sql
+
+# Local machine artefacts
+DESKTOP-*.err
