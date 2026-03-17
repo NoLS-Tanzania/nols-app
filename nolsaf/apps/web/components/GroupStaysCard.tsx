@@ -890,13 +890,26 @@ export default function GroupStaysCard({ onCloseAction }: { onCloseAction?: () =
                         <div>
                           <label htmlFor="from-location" className="block text-xs text-slate-600">Street</label>
                           <div className="relative">
-                            <select id="from-location" value={fromLocation} onChange={(e) => setFromLocation(e.target.value)} disabled={!fromWard} className="groupstays-select mt-1 w-full rounded-md px-3 py-2 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 pr-9 disabled:bg-slate-50 disabled:text-slate-400">
-                              <option value="">Select street</option>
-                              {getStreetsFor(fromRegion, fromDistrict, fromWard).map((street) => (
-                                <option key={street} value={street}>{street}</option>
-                              ))}
-                            </select>
-                            <ChevronDown className="groupstays-chevron pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden />
+                            {getStreetsFor(fromRegion, fromDistrict, fromWard).length === 0 && fromWard ? (
+                              <input
+                                id="from-location"
+                                type="text"
+                                value={fromLocation}
+                                onChange={(e) => setFromLocation(e.target.value)}
+                                placeholder="e.g. Forodhani"
+                                className="groupstays-select mt-1 w-full rounded-md px-3 py-2 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                              />
+                            ) : (
+                              <>
+                                <select id="from-location" value={fromLocation} onChange={(e) => setFromLocation(e.target.value)} disabled={!fromWard} className="groupstays-select mt-1 w-full rounded-md px-3 py-2 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 pr-9 disabled:bg-slate-50 disabled:text-slate-400">
+                                  <option value="">Select street</option>
+                                  {getStreetsFor(fromRegion, fromDistrict, fromWard).map((street) => (
+                                    <option key={street} value={street}>{street}</option>
+                                  ))}
+                                </select>
+                                <ChevronDown className="groupstays-chevron pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden />
+                              </>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -948,13 +961,26 @@ export default function GroupStaysCard({ onCloseAction }: { onCloseAction?: () =
                       <div>
                         <label htmlFor="to-location" className="block text-xs text-slate-600">Street</label>
                         <div className="relative">
-                          <select id="to-location" value={toLocation} onChange={(e) => setToLocation(e.target.value)} disabled={!toWard} className="groupstays-select mt-1 w-full rounded-md px-3 py-2 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 pr-9 disabled:bg-slate-50 disabled:text-slate-400">
-                            <option value="">Select street</option>
-                            {getStreetsFor(toRegion, toDistrict, toWard).map((street) => (
-                              <option key={street} value={street}>{street}</option>
-                            ))}
-                          </select>
-                          <ChevronDown className="groupstays-chevron pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden />
+                          {getStreetsFor(toRegion, toDistrict, toWard).length === 0 && toWard ? (
+                            <input
+                              id="to-location"
+                              type="text"
+                              value={toLocation}
+                              onChange={(e) => setToLocation(e.target.value)}
+                              placeholder="e.g. Forodhani"
+                              className="groupstays-select mt-1 w-full rounded-md px-3 py-2 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                            />
+                          ) : (
+                            <>
+                              <select id="to-location" value={toLocation} onChange={(e) => setToLocation(e.target.value)} disabled={!toWard} className="groupstays-select mt-1 w-full rounded-md px-3 py-2 border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 pr-9 disabled:bg-slate-50 disabled:text-slate-400">
+                                <option value="">Select street</option>
+                                {getStreetsFor(toRegion, toDistrict, toWard).map((street) => (
+                                  <option key={street} value={street}>{street}</option>
+                                ))}
+                              </select>
+                              <ChevronDown className="groupstays-chevron pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden />
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>

@@ -40,7 +40,9 @@
     "create:test-user-data": "node scripts/create-comprehensive-test-user-data.js",
     "create:test-owners": "node scripts/create-test-owners.js"
   },
-  "dependencies": {},
+  "dependencies": {
+    "pdf-parse": "^2.4.5"
+  },
   "pnpm": {
     "overrides": {
       "axios": "1.13.5",

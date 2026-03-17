@@ -1,0 +1,61 @@
+﻿=== All region slugs ===
+/location/arusha/
+/location/dar-es-salaam/
+/location/dodoma/
+/location/geita/
+/location/iringa/
+/location/kagera/
+/location/katavi/
+/location/kigoma/
+/location/kilimanjaro/
+/location/lindi/
+/location/manyara/
+/location/mara/
+/location/mbeya/
+/location/mjini-magharibi/
+/location/morogoro/
+/location/mtwara/
+/location/mwanza/
+/location/njombe/
+/location/pemba-north/
+/location/pemba-south/
+/location/pwani/
+/location/rukwa/
+/location/ruvuma/
+/location/shinyanga/
+/location/simiyu/
+/location/singida/
+/location/songwe/
+/location/tabora/
+/location/tanga/
+/location/unguja-north/
+/location/unguja-south/
+
+=== Zanzibar-related ===
+/location/mjini-magharibi/
+/location/pemba-north/
+/location/pemba-south/
+/location/unguja-north/
+/location/unguja-south/
+
+=== Ward page postcodes found === [ '00400', '48449', '70466', '17715', '23124' ]
+
+=== Table area ===
+<table border="0" style="border-collapse: collapse" width="100%" cellpadding="0" height="110">
+<tr>
+                <td bgcolor="BLACK">
+                <div align="center">
+
+                    <table border="0" width="800" id="table1" cellspacing="1" height="66">
+                        <tr>
+                            <td valign="top" style="border-style: double; border-width: 3px; padding-left: 4px; padding-right: 4px; padding-top: 1px; padding-bottom: 1px">
+                            <p align="center">
+                            <font face="Verdana" style="font-size: 36pt; font-weight: 700" color="#00FF00">
+                            <br>
+                            Unusual Traffic Activity<br>
+                            </font>
+                            <font face="Verdana" style="font-size: 9pt; font-weight: 700" color="#C0C0C0">
+                            <br>
+                            </font>
+                        
+                            <font face="Arial" styl
