@@ -18,6 +18,7 @@ import {
   Star,
 } from "lucide-react";
 import { useToast } from "@/hooks/useToast";
+import AwardedTripCard from "@/components/AwardedTripCard";
 
 const api = axios.create({ baseURL: "", withCredentials: true });
 
@@ -937,11 +938,13 @@ export default function DriverScheduledTripsPage() {
       ) : null}
 
       <div className="relative z-10 w-full max-w-6xl mx-auto p-4 sm:p-6">
-        {previewTrip ? (
+        {previewTrip && view === "awarded" ? (
+          <AwardedTripCard trip={previewTrip} onClose={closePreview} />
+        ) : previewTrip ? (
           <TripPreviewModal
             trip={previewTrip}
             view={view}
-            pickupCountdown={view === "awarded" ? getPickupCountdown(previewTrip.scheduledDate) : null}
+            pickupCountdown={null}
             closePreview={closePreview}
             openClaimConfirm={openClaimConfirm}
             claiming={claiming}
