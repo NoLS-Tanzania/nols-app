@@ -276,6 +276,10 @@ export const PropertyLocationMap = memo(function PropertyLocationMap({
           zoom: isDefaultCoords ? 12 : 17,
           interactive: true,
           attributionControl: false,
+          antialias: false,
+          fadeDuration: 0,
+          maxTileCacheSize: 20,
+          devicePixelRatio: Math.min(typeof window !== "undefined" ? (window.devicePixelRatio ?? 1) : 1, 1.5),
         });
 
         try {
@@ -465,7 +469,11 @@ export const PropertyLocationMap = memo(function PropertyLocationMap({
       cancelled = true;
       if (!mapRef.current) initStartedRef.current = false;
     };
-  }, [detectLocation, emitLocation, isInteractive, latitude, longitude, mapToken, pulseCenterPin]);
+  // latitude and longitude are intentionally excluded from deps.
+  // Init runs once when the token + container are ready.
+  // Coordinate updates after init are handled by the separate easeTo effect.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detectLocation, emitLocation, isInteractive, mapToken, pulseCenterPin]);
 
   useEffect(() => {
     return () => {

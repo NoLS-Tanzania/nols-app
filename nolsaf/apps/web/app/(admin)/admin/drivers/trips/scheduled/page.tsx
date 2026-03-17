@@ -193,6 +193,17 @@ export default function AdminScheduledTripsPage() {
   const [reasonSelectedPick, setReasonSelectedPick] = useState<string | null>(null);
   const reasonTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
+  // Award / reassign modal (replaces window.prompt)
+  const [actionModalMounted, setActionModalMounted] = useState(false);
+  const [actionModalOpen, setActionModalOpen] = useState(false);
+  const [actionModalKind, setActionModalKind] = useState<"award" | "reassign" | null>(null);
+  const [actionModalBookingId, setActionModalBookingId] = useState<number | null>(null);
+  const [actionModalClaimId, setActionModalClaimId] = useState<number | null>(null);
+  const [actionModalText, setActionModalText] = useState("");
+  const [actionModalError, setActionModalError] = useState<string | null>(null);
+  const [actionModalPick, setActionModalPick] = useState<string | null>(null);
+  const actionModalTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+
   const [sort, setSort] = useState<{ key: "trip" | "when" | "route" | "vehicle" | "claims" | "amount" | "status"; dir: "asc" | "desc" }>(
     { key: "when", dir: "asc" }
   );
@@ -322,51 +333,88 @@ export default function AdminScheduledTripsPage() {
     }
   }, []);
 
-  const award = useCallback(
-    async (bookingId: number, claimId: number) => {
-      const reason = window.prompt("Reason for assigning this driver:")?.trim() ?? "";
-      if (!reason) {
-        alert("Reason is required to assign a driver.");
-        return;
-      }
+  const openActionModal = useCallback((kind: "award" | "reassign", bookingId: number, claimId: number) => {
+    setActionModalKind(kind);
+    setActionModalBookingId(bookingId);
+    setActionModalClaimId(claimId);
+    setActionModalText("");
+    setActionModalError(null);
+    setActionModalPick(null);
+    setActionModalMounted(true);
+    requestAnimationFrame(() => {
+      setActionModalOpen(true);
+      window.setTimeout(() => actionModalTextareaRef.current?.focus(), 0);
+    });
+  }, []);
 
-      setAwardBusyClaimId(claimId);
-      try {
-        await api.post(`/api/admin/drivers/trips/scheduled/${bookingId}/award`, { claimId, reason });
-        await Promise.all([load(), loadDetails(bookingId)]);
-      } catch (err: any) {
-        console.error("Failed to award claim", err);
-        const msg = err?.response?.data?.error || "Failed to award claim";
-        alert(msg);
-      } finally {
-        setAwardBusyClaimId(null);
-      }
-    },
-    [load, loadDetails]
+  const closeActionModal = useCallback(() => {
+    setActionModalOpen(false);
+    window.setTimeout(() => {
+      setActionModalMounted(false);
+      setActionModalKind(null);
+      setActionModalBookingId(null);
+      setActionModalClaimId(null);
+      setActionModalText("");
+      setActionModalError(null);
+      setActionModalPick(null);
+    }, 200);
+  }, []);
+
+  const submitActionModal = useCallback(async () => {
+    if (!actionModalBookingId || !actionModalClaimId || !actionModalKind) return;
+    const reason = actionModalText.trim();
+    if (!reason) {
+      setActionModalError("Reason is required");
+      return;
+    }
+    if (actionModalKind === "award") {
+      setAwardBusyClaimId(actionModalClaimId);
+    } else {
+      setReassignBusyClaimId(actionModalClaimId);
+    }
+    try {
+      const endpoint = actionModalKind === "award"
+        ? `/api/admin/drivers/trips/scheduled/${actionModalBookingId}/award`
+        : `/api/admin/drivers/trips/scheduled/${actionModalBookingId}/reassign`;
+      await api.post(endpoint, { claimId: actionModalClaimId, reason });
+      closeActionModal();
+      await Promise.all([load(), loadDetails(actionModalBookingId)]);
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || (actionModalKind === "award" ? "Failed to award claim" : "Failed to reassign");
+      setActionModalError(msg);
+    } finally {
+      setAwardBusyClaimId(null);
+      setReassignBusyClaimId(null);
+    }
+  }, [actionModalBookingId, actionModalClaimId, actionModalKind, actionModalText, closeActionModal, load, loadDetails]);
+
+  const award = useCallback(
+    (bookingId: number, claimId: number) => openActionModal("award", bookingId, claimId),
+    [openActionModal]
   );
 
   const reassign = useCallback(
-    async (bookingId: number, claimId: number) => {
-      const reason = window.prompt("Reason for reassigning this trip:")?.trim() ?? "";
-      if (!reason) {
-        alert("Reason is required to reassign a driver.");
-        return;
-      }
-
-      setReassignBusyClaimId(claimId);
-      try {
-        await api.post(`/api/admin/drivers/trips/scheduled/${bookingId}/reassign`, { claimId, reason });
-        await Promise.all([load(), loadDetails(bookingId)]);
-      } catch (err: any) {
-        console.error("Failed to reassign claim", err);
-        const msg = err?.response?.data?.error || "Failed to reassign";
-        alert(msg);
-      } finally {
-        setReassignBusyClaimId(null);
-      }
-    },
-    [load, loadDetails]
+    (bookingId: number, claimId: number) => openActionModal("reassign", bookingId, claimId),
+    [openActionModal]
   );
+
+  const awardQuickPicks = useMemo(() => [
+    "Best claim score",
+    "VIP driver",
+    "Requested by customer",
+    "Strong on-time record",
+    "Nearest available",
+    "Other",
+  ], []);
+
+  const reassignQuickPicks = useMemo(() => [
+    "Driver unavailable",
+    "Better qualified driver",
+    "Customer requested change",
+    "Vehicle upgrade needed",
+    "Driver location change",
+    "Other",
+  ], []);
 
   const unassignQuickPicks = useMemo(
     () => [
@@ -1022,6 +1070,131 @@ export default function AdminScheduledTripsPage() {
         </div>
       </div>
       </div>
+
+      {/* Award / Reassign Modal (replaces window.prompt) */}
+      {actionModalMounted && (
+        <div className={`fixed inset-0 z-50 ${actionModalOpen ? "" : "pointer-events-none"}`}>
+          <div
+            className={`absolute inset-0 bg-black/50 transition-opacity duration-200 ${actionModalOpen ? "opacity-100" : "opacity-0"}`}
+            onClick={closeActionModal}
+          />
+          <div className="relative h-full w-full flex items-start sm:items-center justify-center p-3 sm:p-6 overflow-y-auto">
+            <div
+              className={`relative w-full max-w-lg my-3 sm:my-0 max-h-[92vh] overflow-hidden rounded-2xl sm:rounded-3xl border border-white/30 shadow-2xl flex flex-col bg-gradient-to-b from-surface via-white to-emerald-50 transition-all duration-200 ease-out ${
+                actionModalOpen ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-[0.98] translate-y-2"
+              }`}
+              role="dialog"
+              aria-modal="true"
+              aria-label={actionModalKind === "award" ? "Award driver" : "Reassign driver"}
+            >
+              <div className="relative overflow-hidden border-b border-white/40">
+                <div className={`absolute inset-0 ${actionModalKind === "award" ? "bg-gradient-to-r from-emerald-700 via-emerald-600 to-teal-500" : "bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-500"}`} />
+                <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_20%_20%,white,transparent_40%),radial-gradient(circle_at_80%_10%,white,transparent_35%)]" />
+                <div className="relative px-4 pt-5 pb-6 sm:px-6 sm:pt-6 sm:pb-6 flex items-start justify-between gap-3 text-white">
+                  <div className="min-w-0 flex-1">
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+                      <div className="min-w-0 text-base sm:text-lg font-semibold leading-snug truncate">
+                        {actionModalKind === "award" ? "Award Driver" : "Reassign Driver"}
+                      </div>
+                      {actionModalBookingId ? (
+                        <div className="inline-flex items-center gap-2 px-2 py-1 rounded-full bg-white/15 border border-white/25 backdrop-blur text-xs text-white">
+                          <span className="text-white/90">Trip</span>
+                          <span className="select-text">{`#${actionModalBookingId}`}</span>
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="mt-2 text-xs text-white/85">Select a quick reason or type your own (required).</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={closeActionModal}
+                    className="h-9 w-9 sm:h-10 sm:w-10 shrink-0 rounded-xl bg-white/15 border border-white/25 text-white hover:bg-white/20 transition"
+                    aria-label="Close"
+                  >
+                    <X className="h-4 w-4 mx-auto" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-4 sm:p-6 flex-1 overflow-y-auto">
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex items-center justify-between gap-3 mb-2">
+                      <label className="block text-xs font-medium text-gray-600">Reason</label>
+                      <button
+                        type="button"
+                        onClick={() => { setActionModalText(""); setActionModalPick(null); if (actionModalError) setActionModalError(null); window.setTimeout(() => actionModalTextareaRef.current?.focus(), 0); }}
+                        className="text-xs font-medium text-gray-600 hover:text-gray-900"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                    <div className="mb-3">
+                      <div className="text-[11px] font-medium tracking-wide uppercase text-gray-500 mb-2">Quick pick</div>
+                      <div className="flex flex-wrap gap-2">
+                        {(actionModalKind === "award" ? awardQuickPicks : reassignQuickPicks).map((pick) => (
+                          <button
+                            key={pick}
+                            type="button"
+                            onClick={() => {
+                              setActionModalPick(pick);
+                              setActionModalText(pick === "Other" ? "" : pick);
+                              if (actionModalError) setActionModalError(null);
+                              window.setTimeout(() => actionModalTextareaRef.current?.focus(), 0);
+                            }}
+                            className={`px-3 py-1.5 rounded-full text-xs font-medium border transition ${
+                              actionModalPick === pick
+                                ? actionModalKind === "award"
+                                  ? "border-emerald-700 bg-emerald-700 text-white"
+                                  : "border-blue-700 bg-blue-700 text-white"
+                                : "border-gray-200 bg-white/80 text-gray-700 hover:bg-white hover:border-gray-300"
+                            }`}
+                          >
+                            {pick}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <textarea
+                      ref={actionModalTextareaRef}
+                      value={actionModalText}
+                      onChange={(e) => {
+                        setActionModalText(e.target.value);
+                        if (actionModalPick) setActionModalPick(null);
+                        if (actionModalError) setActionModalError(null);
+                      }}
+                      placeholder={actionModalKind === "award" ? "Why are you awarding this driver?" : "Why are you reassigning this trip?"}
+                      rows={4}
+                      className={`block w-full box-border px-3 py-2 rounded-xl border bg-white/80 outline-none text-sm leading-relaxed text-gray-900 shadow-inner resize-none focus:ring-2 ${
+                        actionModalKind === "award" ? "focus:ring-emerald-600 focus:border-emerald-600" : "focus:ring-blue-600 focus:border-blue-600"
+                      } ${actionModalError ? "border-red-300" : "border-gray-300"}`}
+                    />
+                    {actionModalError ? <div className="mt-2 text-xs text-red-600">{actionModalError}</div> : null}
+                  </div>
+                </div>
+              </div>
+
+              <div className="px-4 py-4 sm:px-6 sm:py-5 border-t border-gray-200/60 bg-white/60 backdrop-blur flex items-center justify-end">
+                <button
+                  type="button"
+                  onClick={submitActionModal}
+                  disabled={!actionModalText.trim()}
+                  className={`inline-flex items-center gap-2 px-5 h-11 rounded-2xl text-white text-sm font-semibold transition shadow-sm disabled:opacity-40 disabled:cursor-not-allowed ${
+                    actionModalKind === "award"
+                      ? "bg-emerald-700 hover:bg-emerald-800 border border-emerald-700"
+                      : "bg-blue-700 hover:bg-blue-800 border border-blue-700"
+                  }`}
+                >
+                  {(actionModalKind === "award" ? awardBusyClaimId === actionModalClaimId : reassignBusyClaimId === actionModalClaimId)
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : <UserCheck className="h-4 w-4" />}
+                  {actionModalKind === "award" ? "Award Driver" : "Reassign Driver"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Unassign Reason Modal (avoid browser prompt "localhost says") */}
       {reasonMounted && (
