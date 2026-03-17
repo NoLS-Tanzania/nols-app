@@ -43,14 +43,14 @@ export default function CookieConsent() {
       role="dialog"
       aria-modal="false"
       aria-label="Cookie preferences"
-      className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[99999] w-[min(94vw,42rem)] shadow-2xl rounded-2xl border border-gray-200 bg-white overflow-hidden"
+      className="fixed bottom-4 left-4 z-[99999] w-[min(94vw,36rem)] shadow-2xl rounded-2xl border border-gray-200 bg-white overflow-hidden"
       style={{ boxShadow: "0 8px 48px rgba(0,0,0,0.18)" }}
     >
       {/* Close (dismiss without deciding) */}
       <button
         onClick={() => save("declined")}
         aria-label="Dismiss cookie notice"
-        className="absolute top-3 right-3 h-8 w-8 flex items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+        className="absolute top-3 right-3 h-7 w-7 flex items-center justify-center text-gray-400 hover:text-gray-700 transition-colors"
       >
         <X className="h-4 w-4" />
       </button>
@@ -82,7 +82,7 @@ export default function CookieConsent() {
             <div className="mt-5 flex items-center justify-end gap-2.5">
               <button
                 onClick={() => setManaging(true)}
-                className="px-4 py-2 text-sm font-semibold text-[#02665e] underline underline-offset-2 hover:text-[#014e47] transition-colors"
+                className="px-4 py-2 text-sm font-semibold rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
               >
                 Preferences
               </button>
@@ -159,8 +159,7 @@ export default function CookieConsent() {
         )}
       </div>
 
-      {/* Bottom accent */}
-      <div className="h-1 w-full bg-gradient-to-r from-[#02665e] via-[#02c9bb] to-[#02665e]" />
+
     </div>
   );
 }
