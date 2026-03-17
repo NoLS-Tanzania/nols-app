@@ -2,7 +2,7 @@
 
 import { TermsSection } from "./Terms";
 
-export const VERIFICATION_LAST_UPDATED = "2025-01-15";
+export const VERIFICATION_LAST_UPDATED = "1 January 2026";
 
 export const VERIFICATION_SECTIONS: TermsSection[] = [
   {

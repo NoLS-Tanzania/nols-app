@@ -23,7 +23,12 @@ export default function Terms({ headline = "Terms of Service", lastUpdated, sect
         </h1>
           )}
         {lastUpdated && (
-          <p className="text-xs sm:text-sm text-gray-600 break-words">Last updated: {lastUpdated}</p>
+          <div className="inline-flex items-center gap-2 mx-auto px-3.5 py-1.5 rounded-full bg-gray-100 border border-gray-200">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
+            <p className="text-xs font-medium text-gray-500 tracking-wide">
+              Last updated: <span className="text-gray-700 font-semibold">{lastUpdated}</span>
+            </p>
+          </div>
         )}
       </header>
       )}

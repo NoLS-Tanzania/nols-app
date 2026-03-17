@@ -3,7 +3,7 @@
 import Link from "@/components/PolicyLink";
 import { TermsSection } from "./Terms";
 
-export const TERMS_LAST_UPDATED = "2025-12-11";
+export const TERMS_LAST_UPDATED = "1 January 2026";
 
 export const TERMS_SECTIONS: TermsSection[] = [
   {

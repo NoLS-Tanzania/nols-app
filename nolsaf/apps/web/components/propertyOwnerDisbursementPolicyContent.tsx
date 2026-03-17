@@ -3,7 +3,7 @@
 import Link from "@/components/PolicyLink";
 import { TermsSection } from "./Terms";
 
-export const PROPERTY_OWNER_DISBURSEMENT_POLICY_LAST_UPDATED = "2025-01-20";
+export const PROPERTY_OWNER_DISBURSEMENT_POLICY_LAST_UPDATED = "1 January 2026";
 
 export const PROPERTY_OWNER_DISBURSEMENT_POLICY_SECTIONS: TermsSection[] = [
   {

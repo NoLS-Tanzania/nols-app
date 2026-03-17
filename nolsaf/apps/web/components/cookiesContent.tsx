@@ -3,7 +3,7 @@
 import Link from "@/components/PolicyLink";
 import { TermsSection } from "./Terms";
 
-export const COOKIES_LAST_UPDATED = "2025-01-15";
+export const COOKIES_LAST_UPDATED = "1 January 2026";
 
 export const COOKIES_SECTIONS: TermsSection[] = [
   {
