@@ -49,7 +49,7 @@ export const TERMS_SECTIONS: TermsSection[] = [
           limited to residential units and related lodging facilities. Each Accommodation constitutes a distinct offering from an Owner
           and may include various amenities and features designed to meet the diverse needs of Users. Properties are subject to
           availability and compliance with relevant local laws and regulations governing their operation.<br />
-          1.1.6 Group stay, refers to a reservation made for a number of guests traveling together and requiring multiple accommodations
+          1.1.7 Group stay, refers to a reservation made for a number of guests traveling together and requiring multiple accommodations
           within the same property, typically characterized by the booking of multiple rooms or a larger unit capable of housing several
           individuals.
         </p>
@@ -218,7 +218,7 @@ export const TERMS_SECTIONS: TermsSection[] = [
           and available options on the platform.<br />
           b. Property Verification, one of NoLSAF's major responsibilities is to verify and ensure that only verified properties are
           available on the platform. This verification process includes assessing the quality and reliability of properties to maintain
-          high standards for Users.<br />
+          high standards for Users. For full details on how properties are assessed, see our <Link href="/verification-policy" className="text-blue-600 hover:text-blue-800 underline">Verification Policy</Link>.<br />
           c. Secure Transactions, NoLSAF will facilitate secure payment processing for all bookings made through the platform, providing
           Users with a safe environment for financial transactions.<br />
           d. Customer Support, we are responsible for offering timely and effective customer support. Users can reach out to our support
@@ -245,15 +245,15 @@ export const TERMS_SECTIONS: TermsSection[] = [
           throughout the transportation experience.<br />
           d. Communication, drivers must communicate promptly with Users/Traveller/customers regarding any changes to schedules or
           potential delays.<br />
-          1.9.4 Event Planner Responsibilities<br />
-          a. Planning and Coordination, event planners are responsible for the overall planning and coordination of events booked through
-          the NoLSAF platform, ensuring that all details are managed effectively.<br />
-          b. Client Communication, event planners must maintain clear communication with Clients regarding their event needs,
-          expectations, and any pertinent updates during the planning process.<br />
-          c. Budget Management, event planners should adhere to the agreed-upon budget and communicate any potential changes to ensure
-          transparency with Clients.<br />
-          d. Supplier Management, planners are responsible for coordinating with vendors and suppliers, ensuring that all services are
-          delivered as promised within the agreed timelines.
+          1.9.4 Agent Responsibilities<br />
+          a. Representation, agents acting on behalf of Users or Owners must have explicit written authorisation and are bound by the same
+          obligations as the party they represent under these Terms.<br />
+          b. Accuracy, agents are responsible for ensuring that all information submitted through the platform on behalf of their clients
+          is accurate, current, and complete.<br />
+          c. Compliance, agents must comply with all applicable NoLSAF policies and any instructions issued by NoLSAF in relation to the
+          use of the platform.<br />
+          d. Liability, NoLSAF shall not be held liable for any acts, omissions, or representations made by agents acting outside the
+          scope of their authorisation.
         </p>
 
         <p>
@@ -297,9 +297,10 @@ export const TERMS_SECTIONS: TermsSection[] = [
 
         <p>
           <strong>1.13 Governing Law and Jurisdiction</strong><br />
-          These Terms and Conditions are governed by the laws of the jurisdiction in which NoLSAF operates. Any disputes arising from or
-          related to these Terms will be subject to the exclusive jurisdiction of the courts in that region. Users agree to submit to the
-          personal jurisdiction of these courts for the resolution of any disputes.
+          These Terms and Conditions are governed by the laws of the United Republic of Tanzania. Any disputes arising from or related to
+          these Terms will be subject to the exclusive jurisdiction of the competent courts of Tanzania. Users agree to submit to the
+          personal jurisdiction of these courts for the resolution of any disputes, without prejudice to any mandatory consumer
+          protection rights that may apply in the User's country of residence.
         </p>
 
         <p>

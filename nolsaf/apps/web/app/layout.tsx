@@ -8,18 +8,63 @@ import type { Metadata } from "next";
 import ToastContainer from "../components/ToastContainer";
 import SuspendedAccessOverlay from "../components/SuspendedAccessOverlay";
 import MobilePublicNav from "../components/MobilePublicNav";
+import CookieConsent from "../components/CookieConsent";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+const SITE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://nolsaf.com";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: {
-    default: "NoLSAF | Quality Stay for Every Wallet...",
+    default: "NoLSAF | Quality Stay for Every Wallet",
     template: "%s | NoLSAF",
+  },
+  description:
+    "NoLSAF is East Africa's verification-first travel platform — discover verified accommodation, book transport, and plan end-to-end stays across Tanzania and beyond.",
+  keywords: [
+    "accommodation Tanzania",
+    "hotel booking Tanzania",
+    "Dar es Salaam hotels",
+    "Zanzibar accommodation",
+    "East Africa travel",
+    "NoLSAF",
+    "verified stays",
+    "group stays Tanzania",
+    "airport transfer Tanzania",
+  ],
+  openGraph: {
+    type: "website",
+    siteName: "NoLSAF",
+    title: "NoLSAF | Quality Stay for Every Wallet",
+    description:
+      "Verified accommodation, seamless transport and flexible payments — all in one platform built for Africa.",
+    url: SITE_URL,
+    images: [
+      {
+        url: `${SITE_URL}/og-default.jpg`,
+        width: 1200,
+        height: 630,
+        alt: "NoLSAF — Quality Stay for Every Wallet",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "NoLSAF | Quality Stay for Every Wallet",
+    description:
+      "Verified accommodation, seamless transport and flexible payments — built for Africa.",
+    images: [`${SITE_URL}/og-default.jpg`],
   },
   icons: {
     icon: [{ url: "/icon", type: "image/png", sizes: "64x64" }],
     apple: [{ url: "/apple-icon", type: "image/png", sizes: "180x180" }],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true, "max-image-preview": "large" },
   },
 };
 
@@ -73,6 +118,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <Suspense fallback={null}>
           <MobilePublicNav />
         </Suspense>
+        <CookieConsent />
       </body>
     </html>
   );
