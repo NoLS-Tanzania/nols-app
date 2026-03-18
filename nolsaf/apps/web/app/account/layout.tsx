@@ -9,6 +9,7 @@ import AgentFooter from "@/components/AgentFooter";
 import LayoutFrame from "@/components/LayoutFrame";
 import FloatingChatWidget from "@/components/FloatingChatWidget";
 import AgentPortalHeader from "@/components/AgentPortalHeader";
+import MobileAgentNav from "@/components/MobileAgentNav";
 
 const LegalModal = dynamic(() => import("@/components/LegalModal"), { ssr: false });
 
@@ -46,7 +47,7 @@ export default function CustomerAccountLayout({ children }: { children: ReactNod
           />
 
           {/* Main content */}
-          <div className={isAgentPortalRoute ? "pt-6 pb-6" : "pt-16 pb-6"}>
+          <div className={isAgentPortalRoute ? "pt-6 pb-20 md:pb-6" : "pt-16 pb-6"}>
             <main className="w-full max-w-full overflow-x-hidden">
               {children}
             </main>
@@ -59,6 +60,7 @@ export default function CustomerAccountLayout({ children }: { children: ReactNod
       </div>
 
       {isAgentPortalRoute ? <LegalModal /> : null}
+      {isAgentPortalRoute && <MobileAgentNav />}
       {!isAgentPortalRoute && <FloatingChatWidget position="bottom-right" mobileBottomOffset={56} />}
     </div>
   );

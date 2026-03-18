@@ -51,10 +51,12 @@ export default function MobilePublicNav() {
 
   // Hide on portals that have their own navigation
   const isHidden =
-    pathname.startsWith("/admin")  ||
-    pathname.startsWith("/owner")  ||
-    pathname.startsWith("/driver") ||
-    pathname.startsWith("/agent");
+    pathname.startsWith("/admin")         ||
+    pathname.startsWith("/owner")         ||
+    pathname.startsWith("/driver")        ||
+    pathname.startsWith("/agent")         ||
+    pathname === "/account/agent"         ||
+    pathname.startsWith("/account/agent/");
 
   if (isHidden) return null;
 

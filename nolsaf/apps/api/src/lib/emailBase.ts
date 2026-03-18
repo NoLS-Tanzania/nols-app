@@ -142,7 +142,7 @@ function buildSecurityFooter(): string {
           <a href="https://nolsaf.com" style="color:${BRAND_TEAL};text-decoration:none;">nolsaf.com</a>
         </p>
         <p style="margin:0 0 10px;font-size:11px;color:#9ca3af;line-height:1.65;max-width:440px;margin-left:auto;margin-right:auto;font-family:'Poppins','Segoe UI',Arial,sans-serif;">
-          This is an automated security notification from NoLSAF.
+          This is an automated security notification from NoLSAF. Do not reply to this email.
           If you did not perform this action, contact
           <a href="mailto:security@nolsaf.com" style="color:#dc2626;text-decoration:none;font-weight:600;">security@nolsaf.com</a>
           immediately.
