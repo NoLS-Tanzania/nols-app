@@ -89,11 +89,38 @@ export async function verifyCsrfToken(sessionId: string, token: string): Promise
 }
 
 /**
- * Get session ID from request (uses IP + User-Agent as fallback)
+ * Get session ID from request.
+ *
+ * Priority:
+ *  1. JWT cookie (nolsaf_token / token) — ties the CSRF token to the
+ *     authenticated session. A new JWT is issued on every login, so each
+ *     session automatically gets a fresh CSRF binding.
+ *  2. IP + User-Agent fallback — weaker, but acceptable for unauthenticated
+ *     state-changing endpoints (e.g. public plan-request submissions).
  */
 function getSessionId(req: Request): string {
-  // In a real app, you'd use a session ID from cookies
-  // For now, use IP + User-Agent as a simple identifier
+  const cookieHeader = req.headers.cookie || "";
+  // Parse cookies manually — avoids a cookie-parser dependency.
+  const jwt = cookieHeader
+    .split(";")
+    .map((part) => part.trim())
+    .reduce<string | null>((found, part) => {
+      if (found) return found;
+      const eqIdx = part.indexOf("=");
+      if (eqIdx === -1) return null;
+      const name = part.slice(0, eqIdx).trim();
+      if (name === "nolsaf_token" || name === "token") {
+        return part.slice(eqIdx + 1).trim();
+      }
+      return null;
+    }, null);
+
+  if (jwt) {
+    // Hash the token so the raw credential never appears in any store key.
+    return crypto.createHash("sha256").update(jwt).digest("hex");
+  }
+
+  // Unauthenticated fallback.
   const ip = req.ip || req.socket.remoteAddress || "unknown";
   const ua = req.get("user-agent") || "unknown";
   return crypto.createHash("sha256").update(`${ip}:${ua}`).digest("hex");
