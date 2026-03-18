@@ -11,6 +11,7 @@
 remote-backup.sql
 *.session.sql
 nolsapp.session.sql
+backups/
 
 # Local machine artefacts
 DESKTOP-*.err
