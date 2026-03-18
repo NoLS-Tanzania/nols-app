@@ -79,7 +79,7 @@ export async function sendMail(
   }
   }
 
-  const from = process.env.EMAIL_FROM || process.env.RESEND_FROM_DOMAIN || "no-reply@nolsaf.com";
+  const from = process.env.EMAIL_FROM || process.env.RESEND_FROM_DOMAIN || "support@nolsaf.com";
   
   // Sanitize HTML content
   const clean = sanitizeHtml(html, {
