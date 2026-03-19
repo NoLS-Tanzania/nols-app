@@ -32,7 +32,7 @@ export default function DriverFooter() {
   
   return (
     <AdminFooter
-      policyBasePath=""
+      policyBasePath="/driver"
       showDriverDisbursementPolicy={true}
       showPropertyOwnerDisbursementPolicy={false}
       containerClassName="public-container pt-10 pb-9"

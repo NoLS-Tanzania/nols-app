@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { Bell, ChevronDown, ChevronUp, ExternalLink, User, Calendar, Building2, AlertTriangle, RefreshCw } from "lucide-react";
+import { Bell, Check, ChevronDown, ChevronUp, ExternalLink, User, Calendar, Building2, AlertTriangle, RefreshCw } from "lucide-react";
 import Link from "next/link";
 
 type Message = {
@@ -9,21 +9,21 @@ type Message = {
   title: string;
   body: string;
   time?: string;
-  date?: string; // ISO date string used for sorting
-  createdAt?: string; // ISO date string
+  date?: string;
+  createdAt?: string;
   unread: boolean;
-  meta?: any; // Additional metadata (propertyId, propertyTitle, ownerId, etc.)
+  meta?: any;
 };
 
 export default function Page() {
-  const [tab, setTab] = useState<'unread' | 'viewed'>('unread');
+  const [tab, setTab] = useState<"unread" | "viewed">("unread");
   const [unread, setUnread] = useState<Message[]>([]);
   const [viewed, setViewed] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   const formatTime = useCallback((dateString?: string) => {
-    if (!dateString) return '';
+    if (!dateString) return "";
     try {
       const date = new Date(dateString);
       const now = new Date();
@@ -31,372 +31,354 @@ export default function Page() {
       const diffMins = Math.floor(diffMs / 60000);
       const diffHours = Math.floor(diffMs / 3600000);
       const diffDays = Math.floor(diffMs / 86400000);
-      
-      if (diffMins < 1) return 'Just now';
-      if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
-      if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-      if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
-      
-      return date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
+      if (diffMins < 1) return "Just now";
+      if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? "s" : ""} ago`;
+      if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
+      if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
+      return date.toLocaleDateString("en-US", {
+        year: "numeric", month: "short", day: "numeric",
+        hour: "2-digit", minute: "2-digit",
       });
     } catch {
       return dateString;
     }
   }, []);
 
-  const fetchTab = useCallback(async (tab: 'unread' | 'viewed') => {
+  const fetchTab = useCallback(async (t: "unread" | "viewed") => {
     setLoading(true);
     setFetchError(null);
     const ac = new AbortController();
-    const t = window.setTimeout(() => ac.abort(), 10_000);
+    const timer = window.setTimeout(() => ac.abort(), 10_000);
     try {
-      const q = new URLSearchParams({ tab, page: '1', pageSize: '50' });
-      // Use relative paths in browser to leverage Next.js rewrites (avoids CORS issues)
-      const url = `/api/admin/notifications?${q.toString()}`;
-      const r = await fetch(url, { credentials: 'include', signal: ac.signal });
+      const q = new URLSearchParams({ tab: t, page: "1", pageSize: "50" });
+      const r = await fetch(`/api/admin/notifications?${q.toString()}`, {
+        credentials: "include",
+        signal: ac.signal,
+      });
       if (!r.ok) {
-        const is5xx = r.status >= 500;
-        throw new Error(is5xx
-          ? `SERVER_${r.status}`
-          : `Fetch failed ${r.status}`);
+        throw new Error(r.status >= 500 ? `SERVER_${r.status}` : `Fetch failed ${r.status}`);
       }
       const data = await r.json();
-      // Format time for each notification
       const formatted = (data.items ?? []).map((item: any) => ({
         ...item,
-        time: formatTime(item.createdAt || item.date),
+        time: formatTime(item.createdAt ?? item.date),
       }));
-      if (tab === 'unread') setUnread(formatted);
+      if (t === "unread") setUnread(formatted);
       else setViewed(formatted);
     } catch (err: any) {
-      const msg: string = err?.message ?? '';
-      if (err?.name === 'AbortError' || msg.toLowerCase().includes('aborted')) {
-        setFetchError('The server took too long to respond. It may be starting up — please wait a moment and retry.');
-      } else if (msg.startsWith('SERVER_502') || msg.startsWith('SERVER_503')) {
-        setFetchError('The server is temporarily unavailable (502). It may be starting up — please wait a moment and retry.');
-      } else if (msg.startsWith('SERVER_')) {
-        setFetchError(`Server error (${msg.replace('SERVER_', '')}). Please retry.`);
-      } else if (msg.toLowerCase().includes('failed to fetch') || msg.toLowerCase().includes('networkerror')) {
-        setFetchError('Network error — check your connection and retry.');
+      const msg: string = err?.message ?? "";
+      if (err?.name === "AbortError" || msg.toLowerCase().includes("aborted")) {
+        setFetchError("The server took too long to respond. It may be starting up — please wait a moment and retry.");
+      } else if (msg.startsWith("SERVER_502") || msg.startsWith("SERVER_503")) {
+        setFetchError("The server is temporarily unavailable. It may be starting up — please wait a moment and retry.");
+      } else if (msg.startsWith("SERVER_")) {
+        setFetchError(`Server error (${msg.replace("SERVER_", "")}). Please retry.`);
+      } else if (msg.toLowerCase().includes("failed to fetch") || msg.toLowerCase().includes("networkerror")) {
+        setFetchError("Network error — check your connection and retry.");
       } else {
-        setFetchError('Failed to load notifications. Please try again.');
+        setFetchError("Failed to load notifications. Please try again.");
       }
     } finally {
-      window.clearTimeout(t);
+      window.clearTimeout(timer);
       setLoading(false);
     }
   }, [formatTime]);
 
   useEffect(() => {
-    // initial load for both tabs (small page size)
-    fetchTab('unread');
-    fetchTab('viewed');
+    fetchTab("unread");
+    fetchTab("viewed");
   }, [fetchTab]);
+
   const [openId, setOpenId] = useState<string | null>(null);
 
   const renderList = (items: Message[]) => {
-    if (items.length === 0) return (
-      <div className="text-center text-gray-500 py-12">
-        <p className="text-sm">No messages in this list.</p>
-      </div>
-    );
+    if (items.length === 0) {
+      return (
+        <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-gradient-to-br from-slate-50 to-white p-10 text-center">
+          <div className="inline-flex items-center justify-center h-12 w-12 rounded-2xl bg-[#02665e]/10 text-[#02665e] mb-3">
+            <Bell className="h-6 w-6" aria-hidden />
+          </div>
+          <div className="text-sm font-bold text-slate-900">No notifications</div>
+          <div className="text-sm text-slate-500 mt-1">
+            {tab === "unread" ? "All caught up — nothing new." : "No viewed notifications yet."}
+          </div>
+        </div>
+      );
+    }
 
     return (
-      <div className="space-y-4">
-        {items.map((m) => (
-          <div 
-            key={m.id} 
-            className={`bg-white rounded-lg border transition-all duration-200 overflow-hidden ${
-              m.unread 
-                ? 'border-gray-200 shadow-sm hover:shadow-md' 
-                : 'border-gray-200 hover:border-gray-300'
-            }`}
-          >
-            {/* Header Bar */}
-            <div className={`px-5 py-3 ${m.unread ? 'bg-gray-50' : 'bg-white'} border-b border-gray-100`}>
+      <div className="space-y-3">
+        {items.map((m) => {
+          const isOpen = openId === m.id;
+          return (
+            <div
+              key={m.id}
+              className={`rounded-2xl border bg-white shadow-sm overflow-hidden transition-colors ${
+                m.unread ? "border-[#02665e]/25" : "border-slate-200"
+              }`}
+            >
+              {/* Row header */}
               <button
-                className="w-full flex items-center justify-between gap-4"
+                type="button"
+                className="w-full px-4 py-3.5 flex items-start justify-between gap-4 text-left"
                 onClick={async () => {
-                  const next = openId === m.id ? null : m.id;
+                  const next = isOpen ? null : m.id;
                   setOpenId(next);
-                  // optimistically mark as read when opening an unread message
                   if (m.unread && next === m.id) {
                     try {
-                      // Use relative paths in browser to leverage Next.js rewrites (avoids CORS issues)
-                      const url = `/api/admin/notifications/${m.id}/mark-read`;
-                      await fetch(url, { method: 'POST', credentials: 'include' });
-                      // update local state
+                      await fetch(`/api/admin/notifications/${m.id}/mark-read`, {
+                        method: "POST",
+                        credentials: "include",
+                      });
                       setUnread((u) => u.filter((x) => x.id !== m.id));
                       setViewed((v) => [{ ...m, unread: false }, ...v]);
                     } catch (err) {
-                      console.error('mark read failed', err);
+                      console.error("mark read failed", err);
                     }
                   }
                 }}
               >
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-gray-900">{m.title}</div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {m.unread && (
+                      <span className="h-2 w-2 rounded-full bg-[#02665e] flex-shrink-0" aria-hidden />
+                    )}
+                    <span className="text-sm font-bold text-slate-900 truncate">{m.title}</span>
+                  </div>
+                  <div className="mt-1 flex items-center gap-2 flex-wrap text-xs font-semibold text-slate-500">
+                    <span>{m.time}</span>
+                    {m.unread && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-[#02665e]/10 text-[#02665e] border border-[#02665e]/15">
+                        Unread
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
                   {m.unread && (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-500 text-white flex-shrink-0">
-                      Unread
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#02665e]">
+                      <Check className="h-4 w-4" aria-hidden />
+                      Mark read
                     </span>
                   )}
-                  <div className="text-xs text-gray-500 flex-shrink-0">{m.time}</div>
-                </div>
-                <div className="flex items-center flex-shrink-0">
-                  {openId === m.id ? (
-                    <ChevronUp className="h-5 w-5 text-gray-400" />
-                  ) : (
-                    <ChevronDown className="h-5 w-5 text-gray-400" />
-                  )}
+                  {isOpen
+                    ? <ChevronUp className="h-5 w-5 text-slate-400" aria-hidden />
+                    : <ChevronDown className="h-5 w-5 text-slate-400" aria-hidden />}
                 </div>
               </button>
-            </div>
 
-            {/* Expanded Content */}
-            {openId === m.id && (
-              <div className="px-5 py-5 bg-white">
-                {/* Main Message */}
-                <div className="mb-5">
-                  <p className="text-sm text-gray-700 leading-relaxed">{m.body}</p>
-                </div>
-                
-                {/* Details Section */}
-                {m.meta && (
-                  <div className="space-y-4 pt-4 border-t border-gray-200">
-                    {/* Property Information */}
-                    {m.meta.propertyId && (
-                      <div className="flex items-start gap-3">
-                        <div className="w-9 h-9 rounded-lg bg-[#02665e]/10 flex items-center justify-center flex-shrink-0">
-                          <Building2 className="w-4.5 h-4.5 text-[#02665e]" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
-                            PROPERTY
+              {/* Expanded body */}
+              {isOpen && (
+                <div className="px-4 pb-4">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 space-y-4">
+                    <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{m.body}</p>
+
+                    {m.meta && (
+                      <div className="pt-3 border-t border-slate-200 space-y-3">
+                        {m.meta.propertyId && (
+                          <div className="flex items-start gap-3">
+                            <div className="w-8 h-8 rounded-xl bg-[#02665e]/10 flex items-center justify-center flex-shrink-0">
+                              <Building2 className="w-4 h-4 text-[#02665e]" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-0.5">Property</div>
+                              <div className="text-sm font-semibold text-slate-900 mb-1">
+                                {m.meta.propertyTitle || `Property #${m.meta.propertyId}`}
+                              </div>
+                              <Link
+                                href={`/admin/properties/previews?previewId=${m.meta.propertyId}`}
+                                className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#02665e] hover:text-[#014e47] no-underline transition-colors"
+                              >
+                                View Property <ExternalLink className="w-3.5 h-3.5" />
+                              </Link>
+                            </div>
                           </div>
-                          <div className="text-sm font-semibold text-gray-900 mb-2">
-                            {m.meta.propertyTitle || `Property #${m.meta.propertyId}`}
+                        )}
+
+                        {(m.meta.ownerId || m.meta.ownerName) && (
+                          <div className="flex items-start gap-3">
+                            <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
+                              <User className="w-4 h-4 text-blue-600" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-0.5">Property Owner</div>
+                              <div className="text-sm font-semibold text-slate-900 mb-1">
+                                {m.meta.ownerName || `Owner #${m.meta.ownerId}`}
+                              </div>
+                              {m.meta.ownerId && (
+                                <Link
+                                  href={`/admin/owners/${m.meta.ownerId}`}
+                                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#02665e] hover:text-[#014e47] no-underline transition-colors"
+                                >
+                                  View Owner <ExternalLink className="w-3.5 h-3.5" />
+                                </Link>
+                              )}
+                            </div>
                           </div>
-                          <Link 
-                            href={`/admin/properties/previews?previewId=${m.meta.propertyId}`}
-                            className="inline-flex items-center gap-1.5 text-xs text-[#02665e] hover:text-[#014e47] font-medium underline transition-colors"
-                          >
-                            View Property <ExternalLink className="w-3.5 h-3.5" />
-                          </Link>
-                        </div>
+                        )}
+
+                        {m.meta.approvedBy && (
+                          <div className="flex items-start gap-3">
+                            <div className="w-8 h-8 rounded-xl bg-indigo-50 flex items-center justify-center flex-shrink-0">
+                              <User className="w-4 h-4 text-indigo-600" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-0.5">Approved By</div>
+                              <div className="text-sm font-semibold text-slate-900">
+                                {m.meta.approvedByName || `Admin #${m.meta.approvedBy}`}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {m.createdAt && (
+                          <div className="flex items-start gap-3">
+                            <div className="w-8 h-8 rounded-xl bg-purple-50 flex items-center justify-center flex-shrink-0">
+                              <Calendar className="w-4 h-4 text-purple-600" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-0.5">Date &amp; Time</div>
+                              <div className="text-sm font-semibold text-slate-900">
+                                {new Date(m.createdAt).toLocaleString("en-US", {
+                                  year: "numeric", month: "long", day: "numeric",
+                                  hour: "2-digit", minute: "2-digit",
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {m.meta.note && (
+                          <div className="pt-3 border-t border-slate-200">
+                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-1">Note</div>
+                            <div className="text-sm text-slate-800 leading-relaxed">{m.meta.note}</div>
+                          </div>
+                        )}
+
+                        {m.meta.reasons && (
+                          <div className="pt-3 border-t border-slate-200">
+                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-1">Reasons</div>
+                            <div className="text-sm text-slate-800 leading-relaxed">
+                              {Array.isArray(m.meta.reasons) ? m.meta.reasons.join(", ") : m.meta.reasons}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
-                    
-                    {/* Owner Information */}
-                    {(m.meta.ownerId || m.meta.ownerName) && (
-                      <div className="flex items-start gap-3">
-                        <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-                          <User className="w-4.5 h-4.5 text-blue-600" />
+
+                    {!m.meta && m.createdAt && (
+                      <div className="pt-3 border-t border-slate-200 flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-xl bg-purple-50 flex items-center justify-center flex-shrink-0">
+                          <Calendar className="w-4 h-4 text-purple-600" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
-                            PROPERTY OWNER
-                          </div>
-                          <div className="text-sm font-semibold text-gray-900 mb-2">
-                            {m.meta.ownerName || `Owner #${m.meta.ownerId}`}
-                          </div>
-                          {m.meta.ownerId && (
-                            <Link 
-                              href={`/admin/owners/${m.meta.ownerId}`}
-                              className="inline-flex items-center gap-1.5 text-xs text-[#02665e] hover:text-[#014e47] font-medium underline transition-colors"
-                            >
-                              View Owner <ExternalLink className="w-3.5 h-3.5" />
-                            </Link>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Approved By Information */}
-                    {m.meta.approvedBy && (
-                      <div className="flex items-start gap-3">
-                        <div className="w-9 h-9 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0">
-                          <User className="w-4.5 h-4.5 text-indigo-600" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
-                            APPROVED BY
-                          </div>
-                          <div className="text-sm font-semibold text-gray-900">
-                            {m.meta.approvedByName || `Admin #${m.meta.approvedBy}`}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Timestamp */}
-                    {m.createdAt && (
-                      <div className="flex items-start gap-3">
-                        <div className="w-9 h-9 rounded-lg bg-purple-50 flex items-center justify-center flex-shrink-0">
-                          <Calendar className="w-4.5 h-4.5 text-purple-600" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
-                            DATE & TIME
-                          </div>
-                          <div className="text-sm font-semibold text-gray-900">
-                            {new Date(m.createdAt).toLocaleString('en-US', {
-                              year: 'numeric',
-                              month: 'long',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
+                          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-0.5">Date &amp; Time</div>
+                          <div className="text-sm font-semibold text-slate-900">
+                            {new Date(m.createdAt).toLocaleString("en-US", {
+                              year: "numeric", month: "long", day: "numeric",
+                              hour: "2-digit", minute: "2-digit",
                             })}
                           </div>
                         </div>
                       </div>
                     )}
-                    
-                    {/* Additional notes/reasons */}
-                    {m.meta.note && (
-                      <div className="pt-4 border-t border-gray-200">
-                        <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
-                          NOTE
-                        </div>
-                        <div className="text-sm text-gray-900 leading-relaxed">{m.meta.note}</div>
-                      </div>
-                    )}
-                    
-                    {m.meta.reasons && (
-                      <div className="pt-4 border-t border-gray-200">
-                        <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
-                          REASONS
-                        </div>
-                        <div className="text-sm text-gray-900 leading-relaxed">
-                          {Array.isArray(m.meta.reasons) 
-                            ? m.meta.reasons.join(', ')
-                            : m.meta.reasons}
-                        </div>
-                      </div>
-                    )}
                   </div>
-                )}
-                
-                {/* Fallback: Show timestamp if no meta but createdAt exists */}
-                {!m.meta && m.createdAt && (
-                  <div className="flex items-start gap-3 pt-4 border-t border-gray-200">
-                    <div className="w-9 h-9 rounded-lg bg-purple-50 flex items-center justify-center flex-shrink-0">
-                      <Calendar className="w-4.5 h-4.5 text-purple-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
-                        DATE & TIME
-                      </div>
-                      <div className="text-sm font-semibold text-gray-900">
-                        {new Date(m.createdAt).toLocaleString('en-US', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     );
   };
 
-  const currentItems = tab === 'unread' ? unread : viewed;
+  const currentItems = tab === "unread" ? unread : viewed;
   const hasItems = currentItems.length > 0;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-      {/* Header */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0">
-            <Bell className="h-6 w-6 text-indigo-600" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Notifications</h1>
-            <p className="mt-1 text-sm text-gray-600">
-              {hasItems 
-                ? `${currentItems.length} ${currentItems.length === 1 ? 'notification' : 'notifications'} in ${tab === 'unread' ? 'unread' : 'viewed'} list`
-                : `Manage your system notifications`}
+    <div className="w-full py-4 space-y-5">
+      {/* Hero card */}
+      <div className="relative rounded-3xl border border-slate-200 bg-white/70 backdrop-blur overflow-hidden shadow-sm">
+        <div className="absolute inset-0 bg-gradient-to-br from-[#02665e]/8 via-white to-slate-50" aria-hidden />
+        <div className="relative px-5 py-7 sm:px-8 sm:py-9">
+          <div className="mx-auto max-w-2xl text-center">
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">Notifications</h1>
+            <p className="mt-1.5 text-sm sm:text-base text-slate-500">
+              System events, approval updates, and admin alerts.
             </p>
           </div>
-        </div>
-      </div>
 
-      {/* Tabs */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
-        <div className="flex gap-2 items-center justify-center">
-          <button
-            onClick={() => setTab('unread')}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
-              tab === 'unread' 
-                ? 'bg-[#02665e] text-white shadow-sm' 
-                : 'bg-white hover:bg-gray-50 border border-gray-300 text-gray-700'
-            }`}
-          >
-            Unread
-            {unread.length > 0 && (
-              <span className={`text-xs px-2 py-0.5 rounded-full ${
-                tab === 'unread' 
-                  ? 'bg-white/20 text-white' 
-                  : 'bg-red-100 text-red-700'
-              }`}>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => setTab("unread")}
+              className={`inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-semibold transition-colors ${
+                tab === "unread"
+                  ? "border-[#02665e]/30 bg-[#02665e]/10 text-[#02665e]"
+                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              Unread
+              <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-2 rounded-full bg-white/80 border border-slate-200 text-xs font-extrabold tabular-nums text-slate-700">
                 {unread.length}
               </span>
-            )}
-          </button>
-          <button
-            onClick={() => setTab('viewed')}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
-              tab === 'viewed' 
-                ? 'bg-[#02665e] text-white shadow-sm' 
-                : 'bg-white hover:bg-gray-50 border border-gray-300 text-gray-700'
-            }`}
-          >
-            Viewed
-            {viewed.length > 0 && (
-              <span className={`text-xs px-2 py-0.5 rounded-full ${
-                tab === 'viewed' 
-                  ? 'bg-white/20 text-white' 
-                  : 'bg-gray-100 text-gray-700'
-              }`}>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setTab("viewed")}
+              className={`inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-semibold transition-colors ${
+                tab === "viewed"
+                  ? "border-[#02665e]/30 bg-[#02665e]/10 text-[#02665e]"
+                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              Viewed
+              <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-2 rounded-full bg-white/80 border border-slate-200 text-xs font-extrabold tabular-nums text-slate-700">
                 {viewed.length}
               </span>
-            )}
-          </button>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Notifications List */}
-      <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
-        <div className="p-6">
+      {/* List card */}
+      <div className="rounded-2xl border border-slate-200 bg-white/70 backdrop-blur overflow-hidden shadow-sm">
+        <div className="px-5 py-3.5 border-b border-slate-200 bg-gradient-to-br from-slate-50 to-white flex items-center justify-between gap-4">
+          <span className="text-sm font-bold text-slate-900">
+            {tab === "unread" ? "Unread" : "Viewed"}
+          </span>
+          {loading && <span className="text-xs font-semibold text-slate-400">Loading…</span>}
+          {!loading && (
+            <button
+              type="button"
+              onClick={() => { fetchTab("unread"); fetchTab("viewed"); }}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              Refresh
+            </button>
+          )}
+        </div>
+
+        <div className="p-4 sm:p-5">
           {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-2 border-gray-300 border-t-emerald-600"></div>
+            <div className="flex items-center justify-center py-14">
+              <div className="animate-spin rounded-full h-8 w-8 border-2 border-slate-200 border-t-[#02665e]" />
             </div>
           ) : fetchError ? (
-            <div className="flex flex-col items-center justify-center py-12 gap-4">
-              <div className="w-14 h-14 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center">
+            <div className="flex flex-col items-center justify-center py-12 gap-4 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center">
                 <AlertTriangle className="h-7 w-7 text-amber-500" />
               </div>
-              <div className="text-center max-w-sm">
-                <p className="text-sm font-semibold text-gray-800 mb-1">Could not load notifications</p>
-                <p className="text-sm text-gray-500 leading-relaxed">{fetchError}</p>
+              <div className="max-w-sm">
+                <p className="text-sm font-bold text-slate-900 mb-1">Could not load notifications</p>
+                <p className="text-sm text-slate-500 leading-relaxed">{fetchError}</p>
               </div>
               <button
-                onClick={() => { fetchTab('unread'); fetchTab('viewed'); }}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#02665e] text-white text-sm font-medium hover:bg-[#014e47] transition-colors"
+                type="button"
+                onClick={() => { fetchTab("unread"); fetchTab("viewed"); }}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#02665e] text-white text-sm font-semibold hover:bg-[#014e47] transition-colors"
               >
                 <RefreshCw className="h-4 w-4" />
                 Retry
@@ -405,16 +387,14 @@ export default function Page() {
           ) : hasItems ? (
             renderList(currentItems)
           ) : (
-            <div className="text-center py-12">
-              <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
-                <Bell className="h-8 w-8 text-gray-400" />
+            <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-gradient-to-br from-slate-50 to-white p-10 text-center">
+              <div className="inline-flex items-center justify-center h-12 w-12 rounded-2xl bg-[#02665e]/10 text-[#02665e] mb-3">
+                <Bell className="h-6 w-6" aria-hidden />
               </div>
-              <p className="text-gray-500 font-medium">No {tab === 'unread' ? 'unread' : 'viewed'} notifications</p>
-              <p className="text-sm text-gray-400 mt-1">
-                {tab === 'unread' 
-                  ? 'All notifications have been read' 
-                  : 'No viewed notifications yet'}
-              </p>
+              <div className="text-sm font-bold text-slate-900">No notifications</div>
+              <div className="text-sm text-slate-500 mt-1">
+                {tab === "unread" ? "All caught up — nothing new." : "No viewed notifications yet."}
+              </div>
             </div>
           )}
         </div>

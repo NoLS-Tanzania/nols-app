@@ -147,11 +147,11 @@ function statusPill(status: string, hasFile: boolean) {
   }
 }
 
-function StatCard({ label, value, tone }: { label: string; value: string; tone: string }) {
+function StatCard({ label, value, accent }: { label: string; value: string; accent?: string }) {
   return (
-    <div className={`rounded-[22px] border px-4 py-4 backdrop-blur-md sm:px-5 ${tone}`}>
-      <div className="text-[11px] font-medium uppercase tracking-[0.24em] text-white/70">{label}</div>
-      <div className="mt-2 text-3xl font-semibold text-white">{value}</div>
+    <div className="flex flex-col items-center justify-center py-5 px-3 gap-1">
+      <span className="text-[9px] font-black uppercase tracking-[0.32em] text-white/40">{label}</span>
+      <span className={`mt-1 text-[2.05rem] font-bold leading-none tabular-nums ${accent ?? "text-white"}`}>{value}</span>
     </div>
   )
 }
@@ -162,10 +162,10 @@ function TabButton({ active, children, onClick }: { active: boolean; children: R
       type="button"
       onClick={onClick}
       className={[
-        "rounded-full border px-5 py-3 text-sm font-semibold backdrop-blur-sm transition-all",
+        "rounded-full px-5 py-2.5 text-sm font-semibold transition-all duration-200",
         active
-          ? "border-white/20 bg-white/16 text-white shadow-[0_10px_30px_rgba(15,23,42,0.18)]"
-          : "border-white/10 bg-white/8 text-white/78 hover:border-white/20 hover:bg-white/12",
+          ? "bg-white text-slate-950 shadow-[0_2px_14px_rgba(0,0,0,0.22)]"
+          : "text-white/55 hover:text-white/85",
       ].join(" ")}
     >
       {children}
@@ -307,43 +307,71 @@ export default function DriverManagementPageClient() {
 
   return (
     <div className="w-full max-w-full space-y-8 overflow-x-hidden pb-8">
-      <section className="relative overflow-hidden rounded-[34px] border border-slate-900/40 bg-[linear-gradient(135deg,#0f2d68_0%,#0a6a74_52%,#0c6b5f_100%)] px-5 py-6 shadow-[0_24px_60px_rgba(15,23,42,0.24)] sm:px-7 lg:px-8 lg:py-7">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.14),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(52,211,153,0.12),transparent_30%)]" aria-hidden />
-        <div className="absolute inset-x-0 top-10 h-px bg-white/10" aria-hidden />
-        <div className="absolute inset-x-0 top-20 h-px bg-white/10" aria-hidden />
-        <div className="absolute inset-x-0 bottom-16 h-px bg-white/10" aria-hidden />
-        <div className="absolute left-6 right-6 top-[42%] hidden h-[2px] bg-white/20 md:block" aria-hidden />
-        <div className="absolute left-[5%] top-[53%] hidden h-[2px] w-[16%] rotate-[-18deg] bg-white/28 md:block" aria-hidden />
-        <div className="absolute left-[20%] top-[45%] hidden h-[2px] w-[13%] rotate-[8deg] bg-white/28 md:block" aria-hidden />
-        <div className="absolute left-[32%] top-[34%] hidden h-[2px] w-[15%] rotate-[-10deg] bg-white/28 md:block" aria-hidden />
-        <div className="absolute left-[46%] top-[40%] hidden h-[2px] w-[16%] rotate-[12deg] bg-white/28 md:block" aria-hidden />
-        <div className="absolute left-[61%] top-[30%] hidden h-[2px] w-[14%] rotate-[-8deg] bg-white/28 md:block" aria-hidden />
-        <div className="absolute left-[74%] top-[38%] hidden h-[2px] w-[18%] rotate-[10deg] bg-white/28 md:block" aria-hidden />
-        <div className="absolute bottom-3 left-0 right-0 flex items-end justify-between px-6 opacity-20 md:px-10" aria-hidden>
-          {[34, 48, 28, 58, 41, 66, 36, 54, 24, 70, 46, 38, 59, 43, 52].map((height, index) => (
-            <span key={index} className="w-[4.8%] rounded-t-2xl bg-white/40" style={{ height: `${height}%` }} />
-          ))}
+      <section
+        className="relative overflow-hidden rounded-[36px] border border-white/[8%] shadow-[0_40px_100px_rgba(6,12,30,0.58)]"
+        style={{ background: "linear-gradient(158deg, #07162c 0%, #0d2c56 40%, #095f74 72%, #07654e 100%)" }}
+      >
+        {/* Dot-grid overlay */}
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{
+            backgroundImage: "radial-gradient(rgba(255,255,255,0.10) 1px, transparent 1px)",
+            backgroundSize: "30px 30px",
+            maskImage: "radial-gradient(ellipse 74% 62% at 50% 44%, black 0%, transparent 100%)",
+            WebkitMaskImage: "radial-gradient(ellipse 74% 62% at 50% 44%, black 0%, transparent 100%)",
+          }}
+          aria-hidden
+        />
+        {/* Top-center radial glow behind icon */}
+        <div className="pointer-events-none absolute inset-x-0 -top-24 flex justify-center" aria-hidden>
+          <div
+            className="h-[400px] w-[400px] rounded-full"
+            style={{ background: "radial-gradient(circle, rgba(13,232,192,0.16) 0%, transparent 65%)" }}
+          />
         </div>
+        {/* Watermark gear — bottom-right */}
+        <div className="pointer-events-none absolute -bottom-14 -right-14 opacity-[0.04]" aria-hidden>
+          <Settings className="h-[280px] w-[280px] text-white" />
+        </div>
+        {/* Thin horizontal accent lines */}
+        <div className="pointer-events-none absolute inset-x-0 top-[41%] h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" aria-hidden />
+        <div className="pointer-events-none absolute inset-x-0 bottom-[24%] h-px bg-gradient-to-r from-transparent via-white/[6%] to-transparent" aria-hidden />
 
-        <div className="relative">
+        <div className="relative px-6 py-9 sm:px-8 lg:px-10 lg:py-11">
           <div className="flex flex-col items-center text-center">
-            <div className="relative inline-flex h-16 w-16 items-center justify-center rounded-full border border-white/18 bg-white/10 text-white shadow-[0_0_0_8px_rgba(255,255,255,0.05),0_14px_36px_rgba(15,23,42,0.22)] backdrop-blur-md">
-              <Settings className="h-7 w-7" aria-hidden />
+            {/* Concentric rings + icon */}
+            <div className="relative inline-flex items-center justify-center" aria-hidden="true">
+              <div className="absolute h-[108px] w-[108px] rounded-full border border-white/[7%]" />
+              <div className="absolute h-[80px] w-[80px] rounded-full border border-white/[11%]" />
+              <div className="relative z-10 flex h-[58px] w-[58px] items-center justify-center rounded-full border border-white/20 bg-gradient-to-br from-white/20 to-white/5 shadow-[0_0_0_5px_rgba(255,255,255,0.04),0_18px_44px_rgba(0,0,0,0.36),inset_0_1px_0_rgba(255,255,255,0.22)] backdrop-blur-xl">
+                <Settings className="h-6 w-6 text-white" />
+              </div>
             </div>
-            <h1 className="mt-6 text-3xl font-semibold tracking-tight text-white sm:text-4xl">Management</h1>
-            <p className="mt-3 max-w-xl text-sm text-white/70 sm:text-base">Driver document control and account access in one place.</p>
+
+            <h1 className="mt-8 text-[2.6rem] font-bold tracking-[-0.03em] text-white sm:text-5xl">Management</h1>
+            <div className="mt-3 flex items-center gap-4">
+              <span className="h-px w-10 bg-gradient-to-r from-transparent to-white/20" aria-hidden />
+              <p className="text-sm text-white/50">Driver document control and account access in one place.</p>
+              <span className="h-px w-10 bg-gradient-to-l from-transparent to-white/20" aria-hidden />
+            </div>
           </div>
 
-          <div className="mt-7 grid grid-cols-3 gap-3 xl:max-w-xl xl:mx-auto">
-            <StatCard label="On file" value={`${availableCount}/4`} tone="border-white/10 bg-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]" />
-            <StatCard label="Pending" value={String(pendingCount)} tone="border-white/10 bg-emerald-400/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]" />
-            <StatCard label="Expiring" value={String(expiringCount)} tone="border-rose-300/20 bg-rose-400/14 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]" />
+          {/* Stats — unified connected strip */}
+          <div className="mx-auto mt-9 max-w-[22rem] xl:max-w-sm">
+            <div className="grid grid-cols-3 divide-x divide-white/10 overflow-hidden rounded-[22px] border border-white/10 bg-white/5 shadow-[inset_0_1px_0_rgba(255,255,255,0.09)] backdrop-blur-md">
+              <StatCard label="On File" value={`${availableCount}/4`} />
+              <StatCard label="Pending" value={String(pendingCount)} accent={pendingCount > 0 ? "text-amber-300" : undefined} />
+              <StatCard label="Expiring" value={String(expiringCount)} accent={expiringCount > 0 ? "text-rose-300" : undefined} />
+            </div>
           </div>
 
-          <div className="mt-6 flex flex-wrap justify-center gap-3">
-            <TabButton active={tab === "documents"} onClick={() => setTab("documents")}>Documents</TabButton>
-            <TabButton active={tab === "safety"} onClick={() => setTab("safety")}>Safety Measures</TabButton>
-            <TabButton active={tab === "settings"} onClick={() => setTab("settings")}>Settings</TabButton>
+          {/* Tab selector */}
+          <div className="mt-6 flex justify-center">
+            <div className="flex gap-1 rounded-full border border-white/10 bg-slate-900/55 p-1">
+              <TabButton active={tab === "documents"} onClick={() => setTab("documents")}>Documents</TabButton>
+              <TabButton active={tab === "safety"} onClick={() => setTab("safety")}>Safety Measures</TabButton>
+              <TabButton active={tab === "settings"} onClick={() => setTab("settings")}>Settings</TabButton>
+            </div>
           </div>
         </div>
       </section>
@@ -412,7 +440,11 @@ export default function DriverManagementPageClient() {
                         : "Not uploaded yet"
 
                   return (
-                    <article key={card.key} className="rounded-[26px] border border-slate-200/90 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-5 shadow-[0_14px_34px_rgba(15,23,42,0.06)] transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_22px_44px_rgba(15,23,42,0.08)]">
+                    <article key={card.key} className="relative overflow-hidden rounded-[26px] border border-slate-200/90 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-5 shadow-[0_14px_34px_rgba(15,23,42,0.06)] transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_24px_52px_rgba(15,23,42,0.10)]">
+                      <div
+                        className={`pointer-events-none absolute inset-y-0 left-0 w-[3px] ${card.key === "license" ? "bg-emerald-400" : card.key === "insurance" ? "bg-amber-400" : card.key === "national-id" ? "bg-sky-400" : "bg-violet-400"}`}
+                        aria-hidden
+                      />
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex items-start gap-3">
                           <div className={`mt-0.5 flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] ring-1 ring-black/5 ${card.tint}`}>
@@ -459,7 +491,8 @@ export default function DriverManagementPageClient() {
                   )
                 })}
 
-                <article className="rounded-[26px] border border-slate-200/90 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-5 shadow-[0_14px_34px_rgba(15,23,42,0.06)] transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_22px_44px_rgba(15,23,42,0.08)]">
+                <article className="relative overflow-hidden rounded-[26px] border border-slate-200/90 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-5 shadow-[0_14px_34px_rgba(15,23,42,0.06)] transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_24px_52px_rgba(15,23,42,0.10)]">
+                  <div className="pointer-events-none absolute inset-y-0 left-0 w-[3px] bg-teal-400" aria-hidden />
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-emerald-50 text-emerald-700 ring-1 ring-black/5">

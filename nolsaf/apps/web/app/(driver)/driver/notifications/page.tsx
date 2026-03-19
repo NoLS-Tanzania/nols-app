@@ -1,12 +1,87 @@
 "use client";
-import React, { useEffect, useState } from "react";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Bell } from "lucide-react";
+import { Bell, Check, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
+import { useSocket } from "@/hooks/useSocket";
+
+type DriverNotification = {
+  id: string | number;
+  title: string;
+  body: string;
+  createdAt?: string;
+  unread: boolean;
+  meta?: any;
+  time?: string;
+};
+
+function formatTime(dateString?: string) {
+  if (!dateString) return "";
+  try {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins} min ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
+    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
+    return date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return dateString;
+  }
+}
 
 export default function DriverNotificationsPage() {
-  const [unreadCount, setUnreadCount] = useState<number>(0);
-  const [readCount, setReadCount] = useState<number>(0);
-  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<"unread" | "viewed">("unread");
+  const [unread, setUnread] = useState<DriverNotification[]>([]);
+  const [viewed, setViewed] = useState<DriverNotification[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [openId, setOpenId] = useState<string | number | null>(null);
+
+  const { socket } = useSocket(undefined, { enabled: true, joinDriverRoom: true });
+
+  const counts = useMemo(() => ({ unread: unread.length, viewed: viewed.length }), [unread.length, viewed.length]);
+
+  const fetchTab = useCallback(async (t: "unread" | "viewed", signal?: AbortSignal) => {
+    const q = new URLSearchParams({ tab: t, page: "1", pageSize: "50" });
+    const r = await fetch(`/api/driver/notifications?${q.toString()}`, { credentials: "include", signal });
+    if (!r.ok) throw new Error(`Fetch failed ${r.status}`);
+    const data = await r.json();
+    return (data.items ?? []).map((x: any) => ({
+      id: x.id,
+      title: x.title,
+      body: x.body,
+      createdAt: x.createdAt,
+      unread: !!x.unread,
+      meta: x.meta ?? null,
+      time: formatTime(x.createdAt),
+    })) as DriverNotification[];
+  }, []);
+
+  const refresh = useCallback(async (opts?: { showLoading?: boolean }) => {
+    if (opts?.showLoading ?? true) setLoading(true);
+    try {
+      const controller = new AbortController();
+      const [u, v] = await Promise.all([fetchTab("unread", controller.signal), fetchTab("viewed", controller.signal)]);
+      setUnread(u);
+      setViewed(v);
+    } catch { /* ignore */ } finally {
+      if (opts?.showLoading ?? true) setLoading(false);
+    }
+  }, [fetchTab]);
+
+  useEffect(() => {
+    if (!socket) return;
+    const onNew = (payload: any) => {
+      if (payload?.type !== "driver") return;
+      void refresh({ showLoading: false });
+    };
+    socket.on("notification:new", onNew);
+    return () => { socket.off("notification:new", onNew); };
+  }, [socket, refresh]);
 
   useEffect(() => {
     let mounted = true;
@@ -14,53 +89,154 @@ export default function DriverNotificationsPage() {
     (async () => {
       try {
         setLoading(true);
-        const [ru, rr] = await Promise.all([
-          fetch('/api/driver/notifications?tab=unread&page=1&pageSize=3', { credentials: "include", signal: controller.signal }),
-          fetch('/api/driver/notifications?tab=viewed&page=1&pageSize=1', { credentials: "include", signal: controller.signal }),
-        ]);
-
-        const ju = ru.ok ? await ru.json() : null;
-        const jr = rr.ok ? await rr.json() : null;
+        const [u, v] = await Promise.all([fetchTab("unread", controller.signal), fetchTab("viewed", controller.signal)]);
         if (!mounted) return;
-
-        setUnreadCount(Number(ju?.totalUnread ?? ju?.total ?? 0));
-        setReadCount(Number(jr?.totalViewed ?? jr?.total ?? 0));
-      } catch (err) {
-        // ignore errors here; show zeros by default
-      } finally {
+        setUnread(u);
+        setViewed(v);
+      } catch { /* ignore */ } finally {
         if (mounted) setLoading(false);
       }
     })();
     return () => { mounted = false; controller.abort(); };
-  }, []);
+  }, [fetchTab]);
+
+  const list = tab === "unread" ? unread : viewed;
 
   return (
-    <div className="min-h-[60vh] flex items-center justify-center px-4 sm:px-6 lg:px-8">
-      <div className="max-w-lg w-full text-center space-y-4">
-        <div className="flex justify-center">
-          <Bell className="h-10 w-10 text-blue-600" aria-hidden />
+    <div className="w-full py-4">
+      {/* Hero card */}
+      <div className="relative rounded-3xl border border-slate-200 bg-white/70 backdrop-blur shadow-card overflow-hidden mb-6">
+        <div className="absolute inset-0 bg-gradient-to-br from-[#02665e]/10 via-white to-slate-50" aria-hidden />
+        <div className="relative p-5 sm:p-7">
+          <div className="mx-auto max-w-2xl text-center">
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">Notifications</h1>
+            <p className="text-sm sm:text-base text-slate-600 mt-1">Updates from admins and assignment activity.</p>
+          </div>
+
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => setTab("unread")}
+              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold shadow-card transition-colors ${
+                tab === "unread"
+                  ? "border-[#02665e]/30 bg-[#02665e]/10 text-[#02665e]"
+                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              Unread
+              <span className="inline-flex items-center justify-center min-w-7 h-6 px-2 rounded-full bg-white/70 border border-slate-200 text-xs font-extrabold tabular-nums">
+                {counts.unread}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setTab("viewed")}
+              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold shadow-card transition-colors ${
+                tab === "viewed"
+                  ? "border-[#02665e]/30 bg-[#02665e]/10 text-[#02665e]"
+                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              Read
+              <span className="inline-flex items-center justify-center min-w-7 h-6 px-2 rounded-full bg-white/70 border border-slate-200 text-xs font-extrabold tabular-nums">
+                {counts.viewed}
+              </span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* List card */}
+      <div className="rounded-2xl border border-slate-200 bg-white/70 backdrop-blur shadow-card overflow-hidden">
+        <div className="p-4 sm:p-5 border-b border-slate-200 bg-gradient-to-br from-slate-50 to-white flex items-center justify-between gap-4">
+          <div className="text-sm font-bold text-slate-900">{tab === "unread" ? "Unread" : "Read"}</div>
+          {loading ? <div className="text-xs font-semibold text-slate-500">Loading…</div> : null}
         </div>
 
-        <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-gray-900">
-          Driver Notifications
-        </h1>
+        <div className="p-4 sm:p-5">
+          {list.length === 0 ? (
+            <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-gradient-to-br from-slate-50 to-white p-8 text-center">
+              <div className="inline-flex items-center justify-center h-12 w-12 rounded-2xl bg-[#02665e]/10 text-[#02665e] mb-3">
+                <Bell className="h-6 w-6" aria-hidden />
+              </div>
+              <div className="text-sm font-bold text-slate-900">No notifications</div>
+              <div className="text-sm text-slate-600 mt-1">You&apos;re all caught up.</div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {list.map((m) => {
+                const isOpen = openId === m.id;
+                const actionLink = m?.meta?.link;
+                return (
+                  <div
+                    key={String(m.id)}
+                    className={`rounded-2xl border bg-white shadow-card overflow-hidden transition-colors ${m.unread ? "border-[#02665e]/20" : "border-slate-200"}`}
+                  >
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const next = isOpen ? null : m.id;
+                        setOpenId(next);
+                        if (m.unread && next === m.id) {
+                          try {
+                            await fetch(`/api/driver/notifications/${encodeURIComponent(String(m.id))}/mark-read`, {
+                              method: "POST", credentials: "include",
+                            });
+                            setUnread((u) => u.filter((x) => x.id !== m.id));
+                            setViewed((v) => [{ ...m, unread: false }, ...v]);
+                          } catch { /* ignore */ }
+                        }
+                      }}
+                      className="w-full px-4 py-3 flex items-start justify-between gap-4 text-left"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 min-w-0">
+                          {m.unread ? <span className="h-2 w-2 rounded-full bg-[#02665e]" aria-hidden /> : null}
+                          <div className="text-sm font-bold text-slate-900 truncate">{m.title}</div>
+                        </div>
+                        <div className="mt-1 flex items-center gap-2 text-xs font-semibold text-slate-500">
+                          <span>{m.time || ""}</span>
+                          {m.unread ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-[#02665e]/10 text-[#02665e] border border-[#02665e]/15">
+                              Unread
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {m.unread ? (
+                          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#02665e]">
+                            <Check className="h-4 w-4" aria-hidden />
+                            Mark read
+                          </span>
+                        ) : null}
+                        {isOpen
+                          ? <ChevronUp className="h-5 w-5 text-slate-400" aria-hidden />
+                          : <ChevronDown className="h-5 w-5 text-slate-400" aria-hidden />}
+                      </div>
+                    </button>
 
-        <p className="text-sm text-gray-600">View your system notifications and updates</p>
-
-        <div className="flex justify-center gap-3">
-          <Link
-            href="/driver/notifications/unread"
-            className="inline-flex items-center px-4 py-1.5 rounded-full text-sm font-medium transition-colors border border-gray-200 text-gray-700 bg-white shadow-sm hover:bg-gray-50 no-underline hover:no-underline focus:outline-none focus:ring-4 focus:ring-[#02665e]/15 focus:ring-offset-2 focus:ring-offset-white"
-          >
-            Unread ({loading ? "..." : unreadCount})
-          </Link>
-
-          <Link
-            href="/driver/notifications/read"
-            className="inline-flex items-center px-4 py-1.5 rounded-full text-sm font-medium transition-colors border border-gray-200 text-gray-700 bg-white shadow-sm hover:bg-gray-50 no-underline hover:no-underline focus:outline-none focus:ring-4 focus:ring-[#02665e]/15 focus:ring-offset-2 focus:ring-offset-white"
-          >
-            Read ({loading ? "..." : readCount})
-          </Link>
+                    {isOpen ? (
+                      <div className="px-4 pb-4">
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+                          <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{m.body}</div>
+                          {typeof actionLink === "string" && actionLink.trim() ? (
+                            <div className="mt-3">
+                              <Link href={actionLink} className="inline-flex items-center gap-2 text-sm font-semibold text-[#02665e] hover:text-[#02665e]/80 no-underline">
+                                Open related page
+                                <ExternalLink className="h-4 w-4" aria-hidden />
+                              </Link>
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>
