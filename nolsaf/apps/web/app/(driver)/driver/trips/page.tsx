@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import TableRow from "@/components/TableRow"
-import { ArrowUpDown, CalendarClock, CheckCircle2, ChevronDown, ChevronUp, Eye, Flag, ListChecks, MapPin, Navigation, Sparkles, Wallet, X, XCircle, Zap } from "lucide-react"
+import { ArrowUpDown, CalendarClock, CheckCircle2, ChevronDown, ChevronUp, Eye, Flag, ListChecks, MapPin, Navigation, Sparkles, X, XCircle, Zap } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 type TripDetails = {
@@ -425,79 +425,42 @@ export default function DriverTripsPage() {
   }, 0)
 
   return (
-    <div className="w-full max-w-full space-y-6 overflow-x-hidden">
-      <section className="relative w-full max-w-full overflow-hidden rounded-[2rem] border border-slate-200 bg-[linear-gradient(135deg,#f8fafc_0%,#eef8f4_32%,#e9f4ff_100%)] p-6 shadow-[0_24px_70px_-30px_rgba(15,23,42,0.35)] sm:p-7">
-        <div className="pointer-events-none absolute inset-0 opacity-70">
-          <div className="absolute -left-24 top-10 h-48 w-48 rounded-full bg-emerald-200/35 blur-3xl" />
-          <div className="absolute right-0 top-0 h-56 w-56 rounded-full bg-sky-200/35 blur-3xl" />
-          <div className="absolute bottom-0 left-1/3 h-40 w-40 rounded-full bg-indigo-100/40 blur-3xl" />
-        </div>
-
-        <div className="relative z-10 flex flex-col gap-6">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-            <div className="max-w-3xl">
-              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200/80 bg-white/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-emerald-700 shadow-sm backdrop-blur">
-                <Sparkles className="h-3.5 w-3.5" />
-                Driver Operations
-              </div>
-              <div className="mt-5 flex items-start gap-4">
-                <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-950 text-emerald-300 shadow-[0_18px_40px_-18px_rgba(15,23,42,0.7)]">
-                  <ListChecks className="h-7 w-7" aria-hidden />
-                </div>
-                <div>
-                  <h1 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">My Trips</h1>
-                  <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 sm:text-[15px]">
-                    A cleaner command view for admin-assigned work and on-demand allocations, designed for faster reading, stronger focus, and more premium trip control.
-                  </p>
-                </div>
-              </div>
+    <div className="w-full max-w-full space-y-5 overflow-x-hidden">
+      <div
+        className="relative overflow-hidden rounded-2xl text-white shadow-xl"
+        style={{ background: "linear-gradient(135deg, #031c22 0%, #02423d 45%, #0b7a71 100%)" }}
+      >
+        <div className="pointer-events-none absolute -right-12 -top-12 h-48 w-48 rounded-full opacity-20 blur-3xl" style={{ background: "#35a79c" }} aria-hidden />
+        <div className="pointer-events-none absolute -bottom-8 left-1/3 h-32 w-32 rounded-full opacity-10 blur-2xl" style={{ background: "#02665e" }} aria-hidden />
+        <div className="relative p-5 sm:p-6">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-white/65">
+            <Sparkles className="h-3 w-3" />
+            Driver Operations
+          </span>
+          <div className="mt-4 flex items-center gap-3">
+            <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white/10">
+              <ListChecks className="h-5 w-5 text-white" />
             </div>
-
-            <div className="grid grid-cols-2 gap-3 sm:min-w-[320px]">
-              {[
-                {
-                  label: "Total trips",
-                  value: allTrips.length,
-                  tone: "from-slate-950 to-slate-800 text-white border-slate-800",
-                  icon: ListChecks,
-                },
-                {
-                  label: "Live queue",
-                  value: activeTrips.length,
-                  tone: "from-emerald-500 to-emerald-600 text-white border-emerald-500",
-                  icon: Zap,
-                },
-                {
-                  label: "Completed",
-                  value: completedTrips.length,
-                  tone: "from-sky-500 to-sky-600 text-white border-sky-500",
-                  icon: CheckCircle2,
-                },
-                {
-                  label: "Trip value",
-                  value: formatAmount(totalTripValue, "TZS"),
-                  tone: "from-white to-slate-50 text-slate-900 border-slate-200",
-                  icon: Wallet,
-                },
-              ].map((card) => {
-                const Icon = card.icon
-                return (
-                  <div
-                    key={card.label}
-                    className={`rounded-2xl border bg-gradient-to-br p-4 shadow-[0_18px_40px_-22px_rgba(15,23,42,0.45)] ${card.tone}`}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] opacity-75">{card.label}</div>
-                      <Icon className="h-4 w-4 opacity-80" />
-                    </div>
-                    <div className="mt-3 text-2xl font-black tracking-tight">{card.value}</div>
-                  </div>
-                )
-              })}
+            <div>
+              <h1 className="text-2xl font-black tracking-tight sm:text-3xl">My Trips</h1>
+              <p className="mt-0.5 text-xs text-white/50">Trip command center &middot; assigned &amp; live demand</p>
             </div>
           </div>
-
+          <div className="mt-5 grid grid-cols-4 divide-x divide-white/10 overflow-hidden rounded-xl border border-white/10 bg-white/5">
+            {([
+              { label: "Total", value: String(allTrips.length), compact: false },
+              { label: "Active", value: String(activeTrips.length), compact: false },
+              { label: "Done", value: String(completedTrips.length), compact: false },
+              { label: "Value", value: `TSh\u00a0${totalTripValue.toLocaleString()}`, compact: true },
+            ]).map((stat) => (
+              <div key={stat.label} className="flex flex-col items-center justify-center py-4 text-center">
+                <div className={`font-black text-white ${stat.compact ? "text-sm sm:text-base" : "text-2xl"}`}>{stat.value}</div>
+                <div className="mt-0.5 text-[10px] font-semibold uppercase tracking-wider text-white/45">{stat.label}</div>
+              </div>
+            ))}
+          </div>
         </div>
+      </div>
 
         <div className="mt-6">
           {loading && (
@@ -649,37 +612,39 @@ export default function DriverTripsPage() {
             }
 
             return (
-              <div className="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-5">
-                <div className="rounded-[1.75rem] border border-slate-200/80 bg-white/75 p-5 shadow-[0_20px_50px_-30px_rgba(15,23,42,0.4)] backdrop-blur">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="text-base font-bold text-slate-950">Assigned by Admin</div>
-                      <div className="mt-1 text-sm text-slate-500">Directly managed operational trips.</div>
+              <div className="space-y-4">
+                <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
+                  <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-indigo-50">
+                        <ListChecks className="h-4 w-4 text-indigo-600" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold text-slate-900">Admin Assigned</div>
+                        <div className="text-xs text-slate-400">Directly managed operational trips</div>
+                      </div>
                     </div>
-                    <div className="shrink-0 flex h-11 min-w-[3rem] items-center justify-center rounded-2xl bg-indigo-50 px-3 text-sm font-black text-indigo-700 shadow-sm">
+                    <div className="flex h-7 min-w-[1.75rem] flex-shrink-0 items-center justify-center rounded-full bg-indigo-50 px-2.5 text-xs font-bold text-indigo-700">
                       {adminTrips.length}
                     </div>
-                  </div>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">Managed dispatch</span>
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">Start-ready</span>
                   </div>
                   <TripsTable items={adminTrips} defaultAction="START" />
                 </div>
 
-                <div className="rounded-[1.75rem] border border-slate-200/80 bg-white/75 p-5 shadow-[0_20px_50px_-30px_rgba(15,23,42,0.4)] backdrop-blur">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="text-base font-bold text-slate-950">Auto allocated / On-demand</div>
-                      <div className="mt-1 text-sm text-slate-500">Driver-led demand and instant matching flow.</div>
+                <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
+                  <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-emerald-50">
+                        <Zap className="h-4 w-4 text-emerald-600" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold text-slate-900">On-demand / Auto</div>
+                        <div className="text-xs text-slate-400">Driver-led instant matching</div>
+                      </div>
                     </div>
-                    <div className="shrink-0 flex h-11 min-w-[3rem] items-center justify-center rounded-2xl bg-emerald-50 px-3 text-sm font-black text-emerald-700 shadow-sm">
+                    <div className="flex h-7 min-w-[1.75rem] flex-shrink-0 items-center justify-center rounded-full bg-emerald-50 px-2.5 text-xs font-bold text-emerald-700">
                       {autoTrips.length}
                     </div>
-                  </div>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">Live demand</span>
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">Review flow</span>
                   </div>
                   <TripsTable items={autoTrips} defaultAction="VIEW" />
                 </div>
@@ -687,7 +652,6 @@ export default function DriverTripsPage() {
             )
           })()}
         </div>
-      </section>
 
       {viewTripId && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
