@@ -44,6 +44,7 @@ import {
   Star,
   CheckCircle2,
   Eye,
+  Car,
 } from 'lucide-react';
 import DriverAvailabilitySwitch from "@/components/DriverAvailabilitySwitch";
 import useDriverAvailability from "@/hooks/useDriverAvailability";
@@ -55,9 +56,6 @@ import {
   Tooltip,
   ResponsiveContainer,
   CartesianGrid,
-  Cell,
-  BarChart,
-  Bar,
 } from "recharts";
 
 // Use same-origin calls + secure httpOnly cookie session.
@@ -160,6 +158,7 @@ export default function DriverDashboard({ className }: { className?: string }) {
   const [formTrips, setFormTrips] = useState<number | ''>('');
   const [formMoney, setFormMoney] = useState<number | ''>('');
   const [formMoneyUrgent, setFormMoneyUrgent] = useState(false);
+  const [activeTab, setActiveTab] = React.useState<'earnings' | 'trips'>('earnings');
 
   useEffect(() => {
     if (showGoalsModal) {
@@ -625,25 +624,6 @@ export default function DriverDashboard({ className }: { className?: string }) {
 
   const tripsByProperty = centerArrange(sorted);
 
-  const chartHeight = Math.max(150, tripsByProperty.length * 40);
-
-  // Custom tick renderer to display multi-line labels (split on spaces or '/').
-  const MultiLineTick = ({ x, y, payload }: any) => {
-    const raw = String(payload?.value ?? '');
-    // split on spaces or slashes to create multiple lines
-    const parts = raw.split(/\s+|\//).filter(Boolean);
-    const lineHeight = 12;
-    return (
-      <g transform={`translate(${x},${y + 10})`}>
-        <text x={0} y={0} textAnchor="end" fontSize={12} fill="#374151">
-          {parts.map((line: string, i: number) => (
-            <tspan key={i} x={0} dy={i === 0 ? 0 : lineHeight}>{line}</tspan>
-          ))}
-        </text>
-      </g>
-    );
-  };
-
   // Mark reminder as read (optimistic)
   const markAsRead = async (id: string) => {
     try {
@@ -657,32 +637,96 @@ export default function DriverDashboard({ className }: { className?: string }) {
   return (
     <div className={`w-full max-w-full space-y-6 ${className || ""}`}>
       {/* Hero */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-blue-700 text-white rounded-2xl p-6 shadow-lg border border-slate-800">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="space-y-2">
-            <p className="text-sm text-slate-200">{greeting()}, {name}</p>
-            <h1 className="text-2xl md:text-3xl font-semibold leading-tight">
-              {available ? "You\u0027re online and ready for rides" : "You\u0027re offline and not receiving rides"}
-            </h1>
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-sm font-medium text-white ring-1 ring-white/20">
-                <span className={`h-2 w-2 rounded-full ${available ? "bg-emerald-400" : "bg-red-400"} animate-pulse`} />
-                {available ? "Online" : "Offline"}
-              </span>
-              <span className="text-slate-200 text-sm flex items-center gap-1">
-                <ShieldCheck className="h-4 w-4" /> Safe driving mode active
-              </span>
-            </div>
+      <div
+        className="relative overflow-hidden rounded-2xl text-white shadow-xl"
+        style={{
+          background: available
+            ? "linear-gradient(135deg, #031c22 0%, #02423d 45%, #0b7a71 100%)"
+            : "linear-gradient(135deg, #0f172a 0%, #1e293b 45%, #334155 100%)",
+        }}
+      >
+        {/* Decorative glow */}
+        <div
+          className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full opacity-20 blur-3xl"
+          style={{ background: available ? "#35a79c" : "#6366f1" }}
+          aria-hidden
+        />
+        <div
+          className="pointer-events-none absolute -bottom-10 left-1/3 h-32 w-32 rounded-full opacity-10 blur-2xl"
+          style={{ background: available ? "#02665e" : "#475569" }}
+          aria-hidden
+        />
+
+        {/* Watermark sparkline — earnings trend silhouette */}
+        <svg
+          viewBox="0 0 400 90"
+          preserveAspectRatio="none"
+          className="pointer-events-none absolute inset-0 h-full w-full"
+          aria-hidden
+        >
+          <defs>
+            <linearGradient id="sparkFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="white" stopOpacity="0.07" />
+              <stop offset="100%" stopColor="white" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          {/* Area fill */}
+          <path
+            d="M0,70 C30,68 50,55 80,52 C110,49 130,62 160,45 C190,28 210,38 240,30 C270,22 290,40 320,28 C350,16 370,24 400,18 L400,90 L0,90 Z"
+            fill="url(#sparkFill)"
+          />
+          {/* Line */}
+          <path
+            d="M0,70 C30,68 50,55 80,52 C110,49 130,62 160,45 C190,28 210,38 240,30 C270,22 290,40 320,28 C350,16 370,24 400,18"
+            fill="none"
+            stroke="white"
+            strokeOpacity="0.13"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          {/* Highlight dots at peaks */}
+          {[
+            [160, 45], [240, 30], [320, 28], [400, 18],
+          ].map(([cx, cy], i) => (
+            <circle key={i} cx={cx} cy={cy} r="2.5" fill="white" fillOpacity="0.18" />
+          ))}
+        </svg>
+
+        <div className="relative p-5 sm:p-6">
+          {/* Top row: greeting + status badge */}
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <p className="text-sm font-medium text-white/70 tracking-wide">
+              {greeting()}, <span className="text-white font-semibold">{name}</span>
+            </p>
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${
+                available
+                  ? "bg-emerald-500/20 text-emerald-300 ring-emerald-400/30"
+                  : "bg-slate-500/20 text-slate-300 ring-slate-400/30"
+              }`}
+            >
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${available ? "bg-emerald-400 animate-pulse" : "bg-slate-400"}`}
+              />
+              {available ? "Online" : "Offline"}
+            </span>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="text-right mr-1">
-              <div className="text-sm text-slate-200">Status</div>
-              <div className="text-lg font-semibold flex items-center gap-2">
-                <span className={`h-2.5 w-2.5 rounded-full ${available ? "bg-emerald-400" : "bg-red-400"}`} />
-                {available ? "Online" : "Offline"}
-              </div>
+
+          {/* Title + switch on same row */}
+          <div className="flex items-end justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-xl sm:text-2xl font-bold leading-snug tracking-tight">
+                {available ? "Ready for rides" : "Not receiving rides"}
+              </h1>
+              <p className="mt-1.5 flex items-center gap-1.5 text-xs text-white/55">
+                <ShieldCheck className="h-3.5 w-3.5 flex-shrink-0" />
+                Safe driving mode active
+              </p>
             </div>
-            <DriverAvailabilitySwitch />
+            <div className="flex-shrink-0">
+              <DriverAvailabilitySwitch />
+            </div>
           </div>
         </div>
       </div>
@@ -897,61 +941,135 @@ export default function DriverDashboard({ className }: { className?: string }) {
       )}
 
       {/* Analytics Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Earnings Chart */}
-        <div className="bg-white rounded-lg p-4 shadow-sm">
-          <div className="font-medium text-gray-800 mb-3">Earnings (7 days)</div>
-          <ResponsiveContainer width="100%" height={150}>
-            <LineChart data={stats.earningsChart}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="day" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} />
-              <Tooltip formatter={(value: any) => `${fmtMoney(value)} TZS`} />
-              <Line 
-                type="monotone" 
-                dataKey="amount" 
-                stroke="#2563eb" 
-                strokeWidth={2}
-                dot={{ fill: '#2563eb', r: 4 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+      {(() => {
+        const weekTotal = (stats.earningsChart || []).reduce((s: number, d: any) => s + (Number(d.amount) || 0), 0);
+        const maxTrips = Math.max(...(tripsByProperty.map((d: any) => d.trips || 0)), 1);
+        const BRAND = '#02665e';
+        const hasEarnings = weekTotal > 0;
+        const hasTrips = tripsByProperty.some((d: any) => (d.trips || 0) > 0);
 
-        {/* Trips by Properties */}
-        <div className="bg-white rounded-lg p-4 shadow-sm">
-          <div className="font-medium text-gray-800 mb-3">Trips by Properties</div>
-          <ResponsiveContainer width="100%" height={Math.max(240, Math.min(420, chartHeight))}>
-            <BarChart
-              data={tripsByProperty}
-              margin={{ top: 10, right: 20, left: 20, bottom: 60 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="name" type="category" tick={<MultiLineTick />} interval={0} />
-              <YAxis type="number" tick={{ fontSize: 12 }} />
-              <Tooltip
-                content={({ active, payload }: any) => {
-                  if (!active || !payload || !payload.length) return null;
-                  const p = payload[0];
-                  const name = p?.payload?.name ?? p?.name ?? '';
-                  const value = p?.value ?? 0;
-                  return (
-                    <div className="bg-white text-sm rounded shadow-md p-2">
-                      <div className="font-medium text-gray-800">{name}</div>
-                      <div className="text-xs text-gray-600">{value} trips</div>
-                    </div>
-                  );
-                }}
-              />
-              <Bar dataKey="trips" barSize={24}>
-                {tripsByProperty.map((entry: any, index: number) => (
-                  <Cell key={`cell-${index}`} fill={["#7c3aed", "#059669", "#2563eb", "#e11d48", "#10b981", "#f97316"][index % 6]} />
+        return (
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+            {/* Card header */}
+            <div className="flex items-center justify-between px-5 pt-5 pb-3">
+              <div>
+                <p className="text-xs font-medium text-slate-400 uppercase tracking-widest mb-0.5">Analytics</p>
+                <p className="text-base font-semibold text-slate-800">
+                  {activeTab === 'earnings' ? (
+                    <>Week earnings&nbsp;<span className="text-[#02665e]">{fmtMoney(weekTotal)} TZS</span></>
+                  ) : (
+                    <>Trips by property type</>
+                  )}
+                </p>
+              </div>
+              {/* Tab toggle */}
+              <div className="flex items-center gap-3">
+                {(['earnings', 'trips'] as const).map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => setActiveTab(t)}
+                    title={t === 'earnings' ? 'Earnings' : 'Trips'}
+                    className={[
+                      'transition-all duration-200 bg-transparent border-none outline-none',
+                      activeTab === t
+                        ? 'text-[#02665e]'
+                        : 'text-slate-300 hover:text-slate-500',
+                    ].join(' ')}
+                  >
+                    {t === 'earnings'
+                      ? <TrendingUp className="h-5 w-5" />
+                      : <Car className="h-5 w-5" />}
+                  </button>
                 ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
+              </div>
+            </div>
+
+            <div className="px-5 pb-5">
+              {activeTab === 'earnings' ? (
+                !hasEarnings ? (
+                  <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
+                    <div className="h-10 w-10 rounded-full bg-slate-50 flex items-center justify-center">
+                      <TrendingUp className="h-5 w-5 text-slate-300" />
+                    </div>
+                    <p className="text-sm font-medium text-slate-400">No earnings this week yet</p>
+                    <p className="text-xs text-slate-300">Complete rides to see your chart</p>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={180}>
+                    <LineChart data={stats.earningsChart} margin={{ top: 6, right: 4, left: -20, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="earningsGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor={BRAND} stopOpacity={0.18} />
+                          <stop offset="100%" stopColor={BRAND} stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="4 4" stroke="#f1f5f9" vertical={false} />
+                      <XAxis
+                        dataKey="day"
+                        tick={{ fontSize: 11, fill: '#94a3b8' }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        tick={{ fontSize: 11, fill: '#94a3b8' }}
+                        axisLine={false}
+                        tickLine={false}
+                        tickFormatter={(v: number) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : String(v)}
+                      />
+                      <Tooltip
+                        contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)', fontSize: '12px' }}
+                        formatter={(value: any) => [`${fmtMoney(value)} TZS`, 'Earnings']}
+                        cursor={{ stroke: BRAND, strokeWidth: 1, strokeDasharray: '4 2' }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="amount"
+                        stroke={BRAND}
+                        strokeWidth={2.5}
+                        dot={{ fill: BRAND, r: 3.5, strokeWidth: 0 }}
+                        activeDot={{ r: 5, fill: BRAND, strokeWidth: 2, stroke: '#fff' }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                )
+              ) : (
+                !hasTrips ? (
+                  <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
+                    <div className="h-10 w-10 rounded-full bg-slate-50 flex items-center justify-center">
+                      <CheckCircle2 className="h-5 w-5 text-slate-300" />
+                    </div>
+                    <p className="text-sm font-medium text-slate-400">No trips recorded yet</p>
+                    <p className="text-xs text-slate-300">Complete trips to see breakdown by property</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3 pt-1">
+                    {tripsByProperty.slice(0, 6).map((entry: any, i: number) => {
+                      const pct = Math.round(((entry.trips || 0) / maxTrips) * 100);
+                      const colors = ['#02665e', '#0b7a71', '#35a79c', '#059669', '#6366f1', '#f59e0b'];
+                      return (
+                        <div key={entry.name} className="flex items-center gap-3">
+                          <div className="w-24 flex-shrink-0 text-xs text-slate-600 font-medium truncate text-right">
+                            {entry.name}
+                          </div>
+                          <div className="flex-1 h-2 rounded-full bg-slate-100 overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all duration-700"
+                              style={{ width: `${pct}%`, background: colors[i % colors.length] }}
+                            />
+                          </div>
+                          <div className="w-6 flex-shrink-0 text-xs font-semibold text-slate-500 text-right">
+                            {entry.trips}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* High Demand Zones moved to Live Map page */}
 

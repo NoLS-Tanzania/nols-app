@@ -80,10 +80,6 @@ export default function DriverAvailabilitySwitch({
         setPendingTarget(null);
         timeoutRef.current = null;
       }, 10000);
-      // show a short toast for success
-      try {
-        window.dispatchEvent(new CustomEvent('nols:toast', { detail: { type: 'success', title: next ? 'You are live' : 'You are offline', message: next ? 'You\'re available to accept rides.' : 'You won\'t receive new assignments.', duration: 5000 } }));
-      } catch (e) {}
     } catch (err) {
       // error: ensure pending lasts at least desiredDelay
       try { window.clearTimeout(timeoutRef.current as any); } catch (e) {}
@@ -105,52 +101,67 @@ export default function DriverAvailabilitySwitch({
 
   const isCompact = variant === "compact";
 
+  // Resolved visual state (what we're moving TO during pending, settled when idle/success)
+  const visuallyActive = isClient && (status === 'pending' ? (pendingTarget ?? available) : available);
+
   return (
     <div className={className}>
-      <div className={isCompact ? "flex items-center" : "flex flex-col items-center gap-3"}>
-        <button
-          onClick={toggle}
-          disabled={status === 'pending'}
-          aria-label={available ? "Go offline" : "Go online"}
-          title={available ? "Go offline" : "Go online"}
-          className={[
-            "relative inline-flex items-center justify-center rounded-full shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2",
-            isCompact ? "h-11 w-11" : "h-10 w-10",
-            status === 'pending' ? 'scale-[0.97]' : '',
-            isClient && available ? 'bg-green-600 text-white hover:bg-green-700 focus:ring-green-300' : 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-300',
-          ].join(" ")}
-        >
-          <Power 
-            className={[
-              isCompact ? "h-5 w-5" : "h-5 w-5",
-              "transition-colors duration-200",
-              !isClient ? 'text-red-200' : available ? 'text-green-200' : 'text-red-200',
-              status === 'pending' ? 'opacity-0' : '',
-            ].join(" ")}
-            aria-hidden="true"
+      <button
+        onClick={toggle}
+        disabled={status === 'pending'}
+        aria-label={available ? "Go offline" : "Go online"}
+        title={available ? "Go offline" : "Go online"}
+        className={[
+          "relative inline-flex items-center justify-center rounded-full transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 select-none",
+          isCompact ? "h-11 w-11" : "h-[3.1rem] w-[3.1rem]",
+          status === 'pending' ? "scale-95" : "hover:scale-105 active:scale-95",
+          visuallyActive
+            ? "focus-visible:ring-emerald-400"
+            : "focus-visible:ring-slate-400",
+        ].join(" ")}
+        style={{
+          background: visuallyActive
+            ? "linear-gradient(135deg, #02665e 0%, #0b7a71 55%, #35a79c 100%)"
+            : "rgba(255,255,255,0.12)",
+          boxShadow: visuallyActive
+            ? "0 0 0 4px rgba(52,211,153,0.18), 0 8px 20px rgba(2,102,94,0.35)"
+            : "0 0 0 1px rgba(255,255,255,0.15), 0 4px 12px rgba(0,0,0,0.25)",
+        }}
+      >
+        {/* Pulse ring — only when live and idle */}
+        {visuallyActive && status === 'idle' && (
+          <span
+            className="absolute inset-0 rounded-full animate-ping"
+            style={{ background: "rgba(52,211,153,0.22)", animationDuration: "2.2s" }}
+            aria-hidden
+          />
+        )}
+
+        {/* Icon or spinner */}
+        {status === 'pending' ? (
+          <LoaderCircle
+            className="h-5 w-5 animate-spin"
+            style={{ color: visuallyActive ? "#ffffff" : "rgba(255,255,255,0.7)" }}
+            aria-hidden
+          />
+        ) : (
+          <Power
+            className="h-5 w-5 transition-colors duration-300"
+            style={{ color: visuallyActive ? "#ffffff" : "rgba(255,255,255,0.55)" }}
+            aria-hidden
             suppressHydrationWarning
           />
-          {status === 'pending' ? (
-            <LoaderCircle className="absolute h-5 w-5 animate-spin text-white" aria-hidden="true" />
-          ) : null}
-        </button>
-
-        {!isCompact && (
-          <div aria-live="polite" role="status">
-          {status === 'pending' ? (
-            <div className="flex items-center gap-2 px-3 py-1 rounded-md text-sm font-medium bg-white">
-              <span aria-hidden className="dot-spinner dot-sm" aria-live="polite">
-                <span className="dot dot-blue" />
-                <span className="dot dot-black" />
-                <span className="dot dot-yellow" />
-                <span className="dot dot-green" />
-              </span>
-              <span className={pendingTarget ? 'text-green-600' : 'text-red-600'}>{pendingTarget ? 'Going live...' : 'Going offline...'}</span>
-            </div>
-          ) : null}
-          </div>
         )}
-      </div>
+
+        {/* Screen-reader live region — no visible text */}
+        <span className="sr-only" aria-live="polite">
+          {status === 'pending'
+            ? (pendingTarget ? "Going online" : "Going offline")
+            : available
+            ? "You are online"
+            : "You are offline"}
+        </span>
+      </button>
     </div>
   );
 }
