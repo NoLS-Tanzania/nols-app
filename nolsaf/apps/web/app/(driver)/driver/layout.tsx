@@ -424,10 +424,10 @@ export default function DriverLayout({ children }: { children: ReactNode }) {
 
           {/* Sidebar anchored inside the frame container */}
           <aside
-            className={`${sidebarOpen ? "md:block" : "md:hidden"} hidden absolute left-2 sm:left-3 md:left-4 top-16 w-56 shadow-sm bg-emerald-50/60 border border-slate-200 owner-sidebar-container rounded-l-2xl z-0 h-[calc(100vh-4rem)]`}
+            className={`${sidebarOpen ? "md:block" : "md:hidden"} hidden absolute left-2 sm:left-3 md:left-4 top-16 w-56 owner-sidebar-container rounded-2xl z-0 h-[calc(100vh-4rem)] overflow-hidden`}
           >
-            <div className="sidebar-scroll h-full">
-              <div className="p-4 pt-2">
+            <div className="h-full overflow-y-auto scroll-smooth pb-4">
+              <div className="p-2 pt-2">
                 <DriverSidebar />
               </div>
             </div>
