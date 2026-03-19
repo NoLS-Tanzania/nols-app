@@ -18,6 +18,8 @@ import {
 } from "lucide-react";
 import React from "react";
 
+const BRAND = "#02665e";
+
 function Item({
   href,
   label,
@@ -38,51 +40,57 @@ function Item({
       href={href}
       aria-current={active ? "page" : undefined}
       className={[
-        "no-underline group relative flex items-center justify-between",
-        "rounded-xl sm:rounded-2xl border transition-all duration-150",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-200 focus-visible:ring-offset-0",
-        isSubItem ? "ml-2 sm:ml-3 px-2.5 sm:px-3 py-1.5 sm:py-2" : "px-2.5 sm:px-3 py-2 sm:py-2.5",
+        "no-underline group relative flex items-center gap-3 rounded-xl transition-all duration-150",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 focus-visible:ring-offset-0",
+        isSubItem ? "pl-10 pr-3 py-1.5" : "px-3 py-2.5",
         active
-          ? "border-brand-200/80 bg-brand-50/80 text-slate-900 shadow-sm"
-          : "border-transparent bg-white/0 text-slate-700 hover:bg-white/70 hover:border-slate-200/70 hover:shadow-sm",
+          ? "text-[#02665e]"
+          : "text-slate-600 hover:text-slate-900",
       ].join(" ")}
-      style={{ backfaceVisibility: 'hidden', transform: 'translateZ(0)' }}
+      style={active ? { background: "rgba(2,102,94,0.07)" } : undefined}
     >
-      <div className="flex items-center gap-3 min-w-0">
-        {Icon ? (
-          <span
-            className={[
-              "relative inline-flex items-center justify-center flex-shrink-0",
-              isSubItem ? "h-7 w-7 sm:h-8 sm:w-8 rounded-xl sm:rounded-2xl" : "h-8 w-8 sm:h-9 sm:w-9 rounded-xl sm:rounded-2xl",
-              "border bg-white/70 shadow-sm ring-1 ring-slate-900/5",
-              active
-                ? "border-brand-200/70 bg-brand-50 text-brand-700"
-                : "border-slate-200/70 text-slate-500 group-hover:text-slate-600 group-hover:bg-white",
-            ].join(" ")}
-            aria-hidden
-          >
-            <span className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-br from-brand/10 via-transparent to-transparent" aria-hidden />
-            <Icon className={isSubItem ? "relative h-3.5 w-3.5 sm:h-4 sm:w-4" : "relative h-4 w-4 sm:h-[18px] sm:w-[18px]"} aria-hidden />
-          </span>
-        ) : null}
-
-        <span
-          className={[
-            "truncate",
-            isSubItem ? "text-[12px] sm:text-[13px] font-medium" : "text-[12px] sm:text-[13px] font-semibold tracking-tight",
-          ].join(" ")}
-        >
-          {label}
-        </span>
-      </div>
-
-      <ChevronRight
-        className={[
-          "h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0 transition-opacity",
-          active ? "text-brand-700/70 opacity-100" : "text-slate-400 opacity-70 group-hover:opacity-100",
-        ].join(" ")}
+      {/* Left accent bar */}
+      <span
+        className="absolute left-0 top-1 bottom-1 w-[3px] rounded-full transition-opacity duration-150"
+        style={{ background: BRAND, opacity: active ? 1 : 0 }}
         aria-hidden
       />
+
+      {Icon && (
+        <span
+          className={[
+            "flex-shrink-0 flex items-center justify-center rounded-lg transition-all duration-150",
+            isSubItem ? "h-6 w-6" : "h-8 w-8",
+          ].join(" ")}
+          style={
+            active
+              ? { background: "rgba(2,102,94,0.12)", color: BRAND }
+              : undefined
+          }
+          aria-hidden
+        >
+          <Icon
+            className={[
+              "transition-colors duration-150",
+              isSubItem ? "h-3.5 w-3.5" : "h-[17px] w-[17px]",
+              active
+                ? ""
+                : "text-slate-400 group-hover:text-slate-600",
+            ].join(" ")}
+            aria-hidden
+          />
+        </span>
+      )}
+
+      <span
+        className={[
+          "truncate transition-all duration-150",
+          isSubItem ? "text-[12px]" : "text-[13px]",
+          active ? "font-semibold" : "font-medium",
+        ].join(" ")}
+      >
+        {label}
+      </span>
     </Link>
   );
 }
@@ -117,80 +125,65 @@ export default function DriverSidebar() {
 
   return (
     <div>
-      <div className="relative overflow-hidden rounded-[1.4rem] sm:rounded-3xl border border-slate-200/70 bg-white/75 backdrop-blur shadow-card ring-1 ring-slate-900/5">
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-brand/10 via-white/80 to-slate-50" aria-hidden />
-        <div className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full bg-brand/10 blur-3xl" aria-hidden />
-        <div className="relative p-2 sm:p-2.5">
-          <div className="space-y-0.5 sm:space-y-1">
-          {/* Dashboard */}
+      <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
+        {/* Brand top strip */}
+        <div className="h-1 w-full" style={{ background: `linear-gradient(90deg, ${BRAND} 0%, #0b7a71 60%, #35a79c 100%)` }} />
+
+        <div className="p-2.5 space-y-0.5">
           <Item href="/driver" label="Dashboard" Icon={LayoutDashboard} currentPath={path} />
-
-          {/* My Profile */}
           <Item href="/driver/profile" label="My Profile" Icon={User} currentPath={path} />
-
-          {/* Live Map */}
           <Item href="/driver/map?live=1" label="Live Map" Icon={Map} currentPath={path} />
-
-          {/* My Trips */}
           <Item href="/driver/trips" label="My Trips" Icon={ListChecks} currentPath={path} />
-
-          {/* Claim Trips */}
           <Item href="/driver/trips/scheduled" label="Claim Trips" Icon={BarChart2} currentPath={path} />
-
-          {/* Reminders */}
           <Item href="/driver/reminders" label="Reminders" Icon={Bell} currentPath={path} />
 
-          {/* My Revenue */}
-          <div>
-            <button 
-              onClick={() => setRevenueOpen(v => !v)} 
+          {/* Revenue group */}
+          <div className="pt-0.5">
+            <button
+              onClick={() => setRevenueOpen(v => !v)}
               className={[
-                "w-full group relative flex items-center justify-between",
-                "rounded-xl sm:rounded-2xl px-2.5 sm:px-3 py-2 sm:py-2.5 text-[12px] sm:text-[13px] font-semibold tracking-tight",
-                "border transition-all duration-150",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-200 focus-visible:ring-offset-0",
+                "w-full group relative flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-150",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200",
                 revenueOpen || isRevenueRoute
-                  ? "border-slate-200/70 bg-white/70 text-slate-900 shadow-sm"
-                  : "border-transparent bg-white/0 text-slate-700 hover:bg-white/70 hover:border-slate-200/70 hover:shadow-sm",
+                  ? "text-[#02665e] font-semibold"
+                  : "text-slate-600 hover:text-slate-900 font-medium",
               ].join(" ")}
-              style={{ backfaceVisibility: 'hidden', transform: 'translateZ(0)' }}
+              style={revenueOpen || isRevenueRoute ? { background: "rgba(2,102,94,0.07)" } : undefined}
             >
-              <span className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-                <span
-                  className={[
-                    "relative inline-flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl sm:rounded-2xl flex-shrink-0",
-                    "border bg-white/70 shadow-sm ring-1 ring-slate-900/5",
-                    revenueOpen || isRevenueRoute
-                      ? "border-brand-200/70 bg-brand-50 text-brand-700"
-                      : "border-slate-200/70 text-slate-500 group-hover:text-slate-600 group-hover:bg-white",
-                  ].join(" ")}
-                  aria-hidden
-                >
-                  <span className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-br from-brand/10 via-transparent to-transparent" aria-hidden />
-                  <BadgeDollarSign className="relative h-4 w-4 sm:h-[18px] sm:w-[18px]" aria-hidden />
-                </span>
-                <span className="truncate">My Revenue</span>
+              <span
+                className="absolute left-0 top-1 bottom-1 w-[3px] rounded-full transition-opacity duration-150"
+                style={{ background: BRAND, opacity: revenueOpen || isRevenueRoute ? 1 : 0 }}
+                aria-hidden
+              />
+              <span
+                className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg transition-all duration-150"
+                style={revenueOpen || isRevenueRoute ? { background: "rgba(2,102,94,0.12)", color: BRAND } : undefined}
+                aria-hidden
+              >
+                <BadgeDollarSign className={[
+                  "h-[17px] w-[17px] transition-colors duration-150",
+                  revenueOpen || isRevenueRoute ? "" : "text-slate-400 group-hover:text-slate-600",
+                ].join(" ")} aria-hidden />
               </span>
-              {revenueOpen ? (
-                <ChevronDown className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-slate-500 group-hover:text-slate-600" aria-hidden />
-              ) : (
-                <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-slate-500 group-hover:text-slate-600" aria-hidden />
-              )}
+              <span className="flex-1 truncate text-[13px] text-left">My Revenue</span>
+              {revenueOpen
+                ? <ChevronDown className="h-4 w-4 flex-shrink-0 text-slate-400" aria-hidden />
+                : <ChevronRight className="h-4 w-4 flex-shrink-0 text-slate-400" aria-hidden />}
             </button>
             {revenueOpen && (
-              <div className="mt-1 space-y-1">
+              <div className="mt-0.5 space-y-0.5">
                 <Item href="/driver/invoices" label="Invoices" Icon={FileText} isSubItem currentPath={path} />
                 <Item href="/driver/payouts" label="Payouts" Icon={Wallet} isSubItem currentPath={path} />
               </div>
             )}
           </div>
 
-          {/* Management */}
-          <div className="my-1 h-px bg-slate-200/60" aria-hidden />
+          {/* Divider */}
+          <div className="my-1 mx-3 h-px bg-slate-100" aria-hidden />
           <Item href="/driver/management" label="Management" Icon={Settings} currentPath={path} />
-          </div>
         </div>
       </div>
     </div>
   );
 }
+
