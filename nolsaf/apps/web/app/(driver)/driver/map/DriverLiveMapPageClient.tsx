@@ -17,7 +17,7 @@ import useDriverAvailability from "@/hooks/useDriverAvailability";
 import { ToastContainer } from "@/components/Toast";
 import { useConnectionStatus } from "@/hooks/useConnectionStatus";
 import ConnectionStatusIndicator from "@/components/ConnectionStatusIndicator";
-import { Check, Route as RouteIcon, X, Info } from "lucide-react";
+import { Check, Route as RouteIcon, X, Info, Navigation, MapPin } from "lucide-react";
 import { openInMaps } from "@/lib/navigation";
 import { acceptGpsTrackPoint } from "@/lib/gpsTracking";
 
@@ -1824,73 +1824,76 @@ export default function DriverLiveMapPage() {
                 className={[
                   "rounded-2xl shadow-2xl w-[19rem] max-w-[calc(100vw-2rem)] overflow-hidden",
                   mapTheme === "dark"
-                    ? "bg-slate-900/90 ring-1 ring-white/10 backdrop-blur-md"
-                    : "bg-white ring-1 ring-slate-200/80 backdrop-blur-sm",
+                    ? "bg-slate-900 ring-1 ring-white/10"
+                    : "bg-white ring-1 ring-slate-200/60",
                 ].join(" ")}
+                style={{ boxShadow: "0 8px 32px rgba(2,102,94,0.18), 0 2px 8px rgba(0,0,0,0.10)" }}
               >
-                {/* Drag handle — amber accent bar + scheduled label row */}
+                {/* Drag handle — rich teal header */}
                 <div
-                  className="cursor-grab active:cursor-grabbing select-none touch-none"
+                  className="cursor-grab active:cursor-grabbing select-none touch-none bg-gradient-to-br from-[#02665e] to-[#014d47] px-4 pt-3 pb-3"
                   onPointerDown={handleAdminCardDragStart}
                   onPointerMove={handleAdminCardDragMove}
                   onPointerUp={handleAdminCardDragEnd}
                   onPointerCancel={handleAdminCardDragEnd}
                 >
-                  {/* Amber accent bar */}
-                  <div className="h-[3px] bg-gradient-to-r from-amber-500 via-orange-400 to-amber-500" />
-
-                  <div className="px-4 pt-3 pb-1 flex items-center gap-2">
-                    <span className={[
-                      "text-[10px] font-black uppercase tracking-[0.15em] px-2 py-0.5 rounded-full",
-                      mapTheme === "dark"
-                        ? "bg-amber-400/15 text-amber-300"
-                        : "bg-amber-50 text-amber-700 ring-1 ring-amber-200",
-                    ].join(" ")}>
-                      Scheduled Trip
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="bg-amber-400/20 text-amber-300 text-[9px] font-black uppercase tracking-[0.18em] px-2 py-0.5 rounded-full ring-1 ring-amber-400/30">
+                        Scheduled
+                      </span>
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" aria-hidden />
+                    </div>
+                    <span className="text-[9px] text-white/40 font-medium flex items-center gap-1">
+                      <svg className="h-2.5 w-2.5 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="1"/><circle cx="5" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>
+                      drag
                     </span>
-                    <span className={["h-1.5 w-1.5 rounded-full animate-pulse", mapTheme === "dark" ? "bg-amber-400" : "bg-amber-500"].join(" ")} aria-hidden />
-                    {/* drag hint */}
-                    <span className={["ml-auto text-[9px] font-medium", mapTheme === "dark" ? "text-slate-500" : "text-slate-400"].join(" ")}>drag to move</span>
                   </div>
-                </div>
 
-                <div className="px-4 pb-4 pt-2 space-y-3">
-                  {/* Passenger row */}
-                  <div className="flex items-center gap-3">
-                    <div className={[
-                      "h-11 w-11 rounded-xl flex items-center justify-center font-bold text-base flex-shrink-0",
-                      mapTheme === "dark"
-                        ? "bg-[#02665e]/30 text-teal-200 ring-1 ring-teal-500/20"
-                        : "bg-[#02665e]/10 text-[#02665e] ring-1 ring-[#02665e]/15",
-                    ].join(" ")}>
+                  {/* Passenger name + fare inline in header */}
+                  <div className="mt-2.5 flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-white/15 ring-1 ring-white/20 flex items-center justify-center font-bold text-base text-white flex-shrink-0">
                       {activeTrip.passengerName?.charAt(0).toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className={["text-sm font-bold truncate leading-tight", mapTheme === "dark" ? "text-slate-50" : "text-slate-900"].join(" ")}>
+                      <p className="text-sm font-bold text-white truncate leading-tight">
                         {activeTrip.passengerName}
                       </p>
-                      <p className={["text-[11px] truncate mt-0.5", mapTheme === "dark" ? "text-slate-400" : "text-slate-500"].join(" ")}>
+                      <p className="text-[10px] text-white/55 mt-0.5">Passenger</p>
+                    </div>
+                    {activeTrip.fare && (
+                      <div className="text-right flex-shrink-0">
+                        <p className="text-base font-extrabold text-white leading-tight">{activeTrip.fare}</p>
+                        <p className="text-[9px] text-white/50 font-medium uppercase tracking-wide">Fare</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="px-4 py-3 space-y-3">
+                  {/* Destination row */}
+                  <div className={[
+                    "flex items-start gap-2.5 px-3 py-2.5 rounded-xl",
+                    mapTheme === "dark" ? "bg-white/5" : "bg-slate-50 ring-1 ring-slate-100",
+                  ].join(" ")}>
+                    <MapPin className={["h-3.5 w-3.5 mt-0.5 flex-shrink-0", mapTheme === "dark" ? "text-amber-400" : "text-[#02665e]"].join(" ")} />
+                    <div className="flex-1 min-w-0">
+                      <p className={["text-[9.5px] font-bold uppercase tracking-wider mb-0.5", mapTheme === "dark" ? "text-slate-500" : "text-slate-400"].join(" ")}>Drop-off</p>
+                      <p className={["text-[11.5px] font-semibold leading-snug", mapTheme === "dark" ? "text-slate-200" : "text-slate-800"].join(" ")}>
                         {activeTrip.dropoffAddress ?? "Destination set"}
                       </p>
                     </div>
-                    {activeTrip.fare && (
-                      <span className={["text-sm font-extrabold flex-shrink-0", mapTheme === "dark" ? "text-white" : "text-slate-900"].join(" ")}>
-                        {activeTrip.fare}
-                      </span>
-                    )}
                   </div>
+
+                  {/* Divider */}
+                  <div className={mapTheme === "dark" ? "border-t border-white/8" : "border-t border-slate-100"} />
 
                   {/* Confirm pickup + begin route button */}
                   <button
                     onClick={() => setAdminCardDismissed(true)}
-                    className={[
-                      "w-full py-2.5 rounded-xl text-sm font-semibold active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2",
-                      mapTheme === "dark"
-                        ? "bg-[#02665e]/25 text-teal-200 hover:bg-[#02665e]/35 ring-1 ring-teal-500/25"
-                        : "bg-[#02665e] text-white hover:bg-[#024d47] shadow-sm shadow-[#02665e]/20",
-                    ].join(" ")}
+                    className="w-full py-3 rounded-xl text-[13px] font-bold active:scale-[0.98] transition-all duration-150 flex items-center justify-center gap-2 bg-[#02665e] text-white hover:bg-[#024d47] shadow-md shadow-[#02665e]/30"
                   >
-                    <Check className="h-4 w-4" />
+                    <Navigation className="h-4 w-4" />
                     Passenger Aboard — Begin Route
                   </button>
                 </div>
