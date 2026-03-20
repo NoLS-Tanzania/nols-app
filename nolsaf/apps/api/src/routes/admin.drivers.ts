@@ -1722,9 +1722,8 @@ router.get("/trips/scheduled", async (req, res) => {
           break;
         }
         case "assigned": {
-          // Driver assigned but trip not completed.
+          // Driver assigned but trip not yet completed — keep regardless of scheduled date.
           where.driverId = { not: null };
-          where.scheduledDate = { gte: now };
           where.status = { in: ["ASSIGNED", "CONFIRMED", "PENDING"] };
           break;
         }
