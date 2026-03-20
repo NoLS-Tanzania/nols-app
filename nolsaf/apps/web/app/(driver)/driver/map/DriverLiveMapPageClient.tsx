@@ -119,7 +119,6 @@ export default function DriverLiveMapPage() {
   // If this page is opened from the Trips table (admin-assigned), preload the trip into the map flow.
   useEffect(() => {
     if (!tripIdParam) return;
-    if (liveOnly) return;
     if (preloadedTripIdRef.current === tripIdParam) return;
 
     preloadedTripIdRef.current = tripIdParam;

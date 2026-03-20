@@ -563,7 +563,7 @@ export default function DriverTripsPage() {
                               {defaultAction === "START" && !isClosed ? (
                                 <button
                                   type="button"
-                                  onClick={() => router.push(`/driver/map?tripId=${encodeURIComponent(String(t.id))}&source=${encodeURIComponent(source)}`)}
+                                  onClick={() => router.push(`/driver/map?live=1&tripId=${encodeURIComponent(String(t.id))}&source=${encodeURIComponent(source)}`)}
                                   className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 text-xs font-semibold shadow-sm hover:bg-emerald-100"
                                   title="Start this trip on the map"
                                 >
