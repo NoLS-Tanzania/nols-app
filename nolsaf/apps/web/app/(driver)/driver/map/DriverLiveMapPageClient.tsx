@@ -69,6 +69,8 @@ export default function DriverLiveMapPage() {
   const [completedSteps, setCompletedSteps] = useState<TripStep[]>([]);
   const [hasClearLocationInfo, setHasClearLocationInfo] = useState(false);
   const [isAtDestination, setIsAtDestination] = useState(false);
+  // Admin/scheduled trip — compact card visible until driver dismisses it
+  const [adminCardDismissed, setAdminCardDismissed] = useState(false);
   const requestAlertedRef = useRef<string | null>(null);
   const preloadedTripIdRef = useRef<string | null>(null);
   
@@ -175,7 +177,8 @@ export default function DriverLiveMapPage() {
         setActiveTrip(nextActiveTrip);
         setTripStage(stage);
         setHasClearLocationInfo(stage !== 'accepted'); // admin trips bypass pickup confirmation
-        setBottomSheetCollapsed(isAdminTrip ? false : true); // open sheet for admin trips
+        setBottomSheetCollapsed(true); // keep map visible; admin trips use the compact focus card
+        setAdminCardDismissed(false); // show the compact card fresh for this trip
         setOverlayVisible(true);
         setShowLiveOverlay(false);
 
@@ -1205,6 +1208,13 @@ export default function DriverLiveMapPage() {
   if (liveOnly) {
     const isFocusedTripFlow = Boolean(activeTrip && tripStage !== 'completed' && tripStage !== 'waiting');
     const showPickupFocusCard = Boolean(activeTrip && bottomSheetCollapsed && overlayVisible && tripStage === 'accepted' && !hasClearLocationInfo);
+    const showAdminTripCard = Boolean(
+      activeTrip?.isAdminTrip &&
+      tripStage === 'in_transit' &&
+      !adminCardDismissed &&
+      bottomSheetCollapsed &&
+      overlayVisible
+    );
     const arriveMin =
       destinationCountdownSec !== null ? Math.max(1, Math.round(destinationCountdownSec / 60)) : destinationETA;
 
@@ -1760,6 +1770,77 @@ export default function DriverLiveMapPage() {
                       I have clear location info
                     </button>
                   )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Admin / Scheduled trip compact focus card — stays visible until driver confirms pickup */}
+          {showAdminTripCard && (
+            <div className="absolute bottom-6 right-4 z-30 pointer-events-auto animate-fade-in-up">
+              <div
+                className={[
+                  "rounded-2xl shadow-2xl w-[19rem] max-w-[calc(100vw-2rem)] overflow-hidden",
+                  mapTheme === "dark"
+                    ? "bg-slate-900/90 ring-1 ring-white/10 backdrop-blur-md"
+                    : "bg-white ring-1 ring-slate-200/80 backdrop-blur-sm",
+                ].join(" ")}
+              >
+                {/* Amber accent bar — signals scheduled/admin context */}
+                <div className="h-[3px] bg-gradient-to-r from-amber-500 via-orange-400 to-amber-500" />
+
+                <div className="p-4 space-y-3">
+                  {/* Header label */}
+                  <div className="flex items-center gap-2">
+                    <span className={[
+                      "text-[10px] font-black uppercase tracking-[0.15em] px-2 py-0.5 rounded-full",
+                      mapTheme === "dark"
+                        ? "bg-amber-400/15 text-amber-300"
+                        : "bg-amber-50 text-amber-700 ring-1 ring-amber-200",
+                    ].join(" ")}>
+                      Scheduled Trip
+                    </span>
+                    <span className={["h-1.5 w-1.5 rounded-full animate-pulse", mapTheme === "dark" ? "bg-amber-400" : "bg-amber-500"].join(" ")} aria-hidden />
+                  </div>
+
+                  {/* Passenger row */}
+                  <div className="flex items-center gap-3">
+                    <div className={[
+                      "h-11 w-11 rounded-xl flex items-center justify-center font-bold text-base flex-shrink-0",
+                      mapTheme === "dark"
+                        ? "bg-[#02665e]/30 text-teal-200 ring-1 ring-teal-500/20"
+                        : "bg-[#02665e]/10 text-[#02665e] ring-1 ring-[#02665e]/15",
+                    ].join(" ")}>
+                      {activeTrip.passengerName?.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={["text-sm font-bold truncate leading-tight", mapTheme === "dark" ? "text-slate-50" : "text-slate-900"].join(" ")}>
+                        {activeTrip.passengerName}
+                      </p>
+                      <p className={["text-[11px] truncate mt-0.5", mapTheme === "dark" ? "text-slate-400" : "text-slate-500"].join(" ")}>
+                        {activeTrip.dropoffAddress ?? "Destination set"}
+                      </p>
+                    </div>
+                    {activeTrip.fare && (
+                      <span className={["text-sm font-extrabold flex-shrink-0", mapTheme === "dark" ? "text-white" : "text-slate-900"].join(" ")}>
+                        {activeTrip.fare}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Confirm pickup + begin route button */}
+                  <button
+                    onClick={() => setAdminCardDismissed(true)}
+                    className={[
+                      "w-full py-2.5 rounded-xl text-sm font-semibold active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2",
+                      mapTheme === "dark"
+                        ? "bg-[#02665e]/25 text-teal-200 hover:bg-[#02665e]/35 ring-1 ring-teal-500/25"
+                        : "bg-[#02665e] text-white hover:bg-[#024d47] shadow-sm shadow-[#02665e]/20",
+                    ].join(" ")}
+                  >
+                    <Check className="h-4 w-4" />
+                    Passenger Aboard — Begin Route
+                  </button>
                 </div>
               </div>
             </div>
