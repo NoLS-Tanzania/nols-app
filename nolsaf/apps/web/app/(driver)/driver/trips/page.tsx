@@ -684,9 +684,9 @@ export default function DriverTripsPage() {
       {startTripConfirmId && (() => {
         const confirmTrip = (trips ?? []).find((t: any) => Number(t.id) === startTripConfirmId.id)
         return (
-          <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-4 sm:p-6">
+          <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px)+4rem)] sm:pb-6 sm:p-6">
             <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm" onClick={() => setStartTripConfirmId(null)} />
-            <div className="relative w-full max-w-sm overflow-hidden rounded-[1.6rem] border border-white/10 bg-[linear-gradient(160deg,#031c22_0%,#02423d_60%,#0b7a71_100%)] shadow-[0_40px_80px_-20px_rgba(3,28,34,0.75)] text-white animate-fade-in-up">
+            <div className="relative w-full max-w-sm overflow-y-auto max-h-[calc(100dvh-6rem)] rounded-[1.6rem] border border-white/10 bg-[linear-gradient(160deg,#031c22_0%,#02423d_60%,#0b7a71_100%)] shadow-[0_40px_80px_-20px_rgba(3,28,34,0.75)] text-white animate-fade-in-up">
               {/* decorative glows */}
               <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-teal-400/15 blur-3xl" />
               <div className="pointer-events-none absolute -bottom-8 left-6 h-28 w-28 rounded-full bg-emerald-300/10 blur-2xl" />
