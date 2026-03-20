@@ -684,26 +684,26 @@ export default function DriverTripsPage() {
       {startTripConfirmId && (() => {
         const confirmTrip = (trips ?? []).find((t: any) => Number(t.id) === startTripConfirmId.id)
         return (
-          <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px)+4rem)] sm:pb-6 sm:p-6">
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-5">
             <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm" onClick={() => setStartTripConfirmId(null)} />
-            <div className="relative w-full max-w-sm overflow-y-auto max-h-[calc(100dvh-6rem)] rounded-[1.6rem] border border-white/10 bg-[linear-gradient(160deg,#031c22_0%,#02423d_60%,#0b7a71_100%)] shadow-[0_40px_80px_-20px_rgba(3,28,34,0.75)] text-white animate-fade-in-up">
+            <div className="relative w-full max-w-xs overflow-hidden rounded-[1.6rem] border border-white/10 bg-[linear-gradient(160deg,#031c22_0%,#02423d_60%,#0b7a71_100%)] shadow-[0_40px_80px_-20px_rgba(3,28,34,0.75)] text-white animate-fade-in-up">
               {/* decorative glows */}
               <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-teal-400/15 blur-3xl" />
               <div className="pointer-events-none absolute -bottom-8 left-6 h-28 w-28 rounded-full bg-emerald-300/10 blur-2xl" />
 
-              <div className="relative p-5">
-                <div className="flex items-center gap-3 mb-4">
-                  <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-white/10 border border-white/15 shadow-inner">
-                    <Navigation className="h-5 w-5 text-white" />
+              <div className="relative p-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-white/10 border border-white/15 shadow-inner">
+                    <Navigation className="h-4 w-4 text-white" />
                   </span>
                   <div>
                     <div className="text-[10px] uppercase tracking-widest font-semibold text-white/55">Confirm action</div>
-                    <div className="text-base font-black tracking-tight leading-tight">Start this trip?</div>
+                    <div className="text-sm font-black tracking-tight leading-tight">Start this trip?</div>
                   </div>
                 </div>
 
                 {confirmTrip && (
-                  <div className="mb-4 rounded-xl border border-white/10 bg-white/8 px-3.5 py-3 space-y-1.5">
+                  <div className="mb-3 rounded-xl border border-white/10 bg-white/8 px-3 py-2.5 space-y-1.5">
                     {(confirmTrip.pickup || confirmTrip.from) && (
                       <div className="flex items-start gap-2 text-xs">
                         <MapPin className="h-3.5 w-3.5 text-blue-300 flex-shrink-0 mt-0.5" />
@@ -719,7 +719,7 @@ export default function DriverTripsPage() {
                   </div>
                 )}
 
-                <p className="text-xs text-white/60 mb-5 leading-relaxed">
+                <p className="text-xs text-white/60 mb-4 leading-relaxed">
                   This will open the live map. Make sure you are ready to depart before confirming.
                 </p>
 
@@ -727,7 +727,7 @@ export default function DriverTripsPage() {
                   <button
                     type="button"
                     onClick={() => setStartTripConfirmId(null)}
-                    className="flex-1 rounded-xl border border-white/15 bg-white/8 px-4 py-2.5 text-sm font-semibold text-white/80 hover:bg-white/14 transition-colors"
+                    className="flex-1 rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white hover:bg-white/20 transition-colors"
                   >
                     Cancel
                   </button>
