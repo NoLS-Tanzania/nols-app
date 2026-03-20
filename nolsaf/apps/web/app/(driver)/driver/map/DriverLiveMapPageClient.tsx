@@ -16,7 +16,6 @@ import { useToast } from "@/hooks/useToast";
 import useDriverAvailability from "@/hooks/useDriverAvailability";
 import { ToastContainer } from "@/components/Toast";
 import { useConnectionStatus } from "@/hooks/useConnectionStatus";
-import LoadingSpinner from "@/components/LoadingSpinner";
 import ConnectionStatusIndicator from "@/components/ConnectionStatusIndicator";
 import { Check, Route as RouteIcon, X, Info } from "lucide-react";
 import { openInMaps } from "@/lib/navigation";
@@ -39,6 +38,8 @@ export default function DriverLiveMapPage() {
   const router = useRouter();
   const liveOnly = search?.get('live') === '1';
   const tripIdParam = search?.get('tripId');
+  // Source passed by the Trip Ledger — lets us detect admin trips before the API responds
+  const tripSourceParam = String(search?.get('source') ?? '').toUpperCase();
 
   const [mapTheme, setMapTheme] = useState<"light" | "dark">("light");
   const [mapLayer, setMapLayer] = useState<"navigation" | "streets" | "outdoors" | "satellite">("navigation");
@@ -74,6 +75,7 @@ export default function DriverLiveMapPage() {
   // Loading and error states
   const [isAccepting, setIsAccepting] = useState(false);
   const [isDeclining, setIsDeclining] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [isCancelling, setIsCancelling] = useState(false);
   
   // Real-time ETA updates
@@ -130,11 +132,19 @@ export default function DriverLiveMapPage() {
         });
         const t = resp?.data ?? {};
 
+        // Detect assignment source — admin-assigned trips start directly at the
+        // destination navigation phase because the driver is already at the pickup location.
+        // tripSourceParam (from URL) is used as a fallback if the API doesn't return the field.
+        const rawSource = String(
+          t?.assignmentSource ?? t?.assignment_source ?? t?.assignment ?? t?.source ?? ""
+        ).toUpperCase();
+        const isAdminTrip = rawSource === "ADMIN" || tripSourceParam === "ADMIN";
+
         const status = String(t?.status ?? "").toUpperCase();
         const stage: TripStage = status.includes("COMPLETED")
           ? "completed"
-          : status.includes("IN_PROGRESS")
-            ? "in_transit"
+          : (isAdminTrip || status.includes("IN_PROGRESS"))
+            ? "in_transit"   // admin trips skip the pickup-navigation phase
             : "accepted";
 
         const currency = String(t?.currency ?? "TZS").toUpperCase();
@@ -158,16 +168,39 @@ export default function DriverLiveMapPage() {
           pickupLng: t?.pickupLng ?? null,
           dropoffLat: t?.dropoffLat ?? null,
           dropoffLng: t?.dropoffLng ?? null,
+          isAdminTrip,
         };
 
         if (cancelled) return;
         setTripRequest(null);
         setActiveTrip(nextActiveTrip);
         setTripStage(stage);
-        setHasClearLocationInfo(false);
-        setBottomSheetCollapsed(true);
+        setHasClearLocationInfo(stage !== 'accepted'); // admin trips bypass pickup confirmation
+        setBottomSheetCollapsed(isAdminTrip ? false : true); // open sheet for admin trips
         setOverlayVisible(true);
         setShowLiveOverlay(false);
+
+        // For admin-assigned trips the driver is already at the pickup point —
+        // immediately start navigating to the destination.
+        if (stage === 'in_transit' && nextActiveTrip.dropoffLat && nextActiveTrip.dropoffLng) {
+          startETAUpdates(nextActiveTrip.dropoffLat, nextActiveTrip.dropoffLng, 'destination');
+          if (destinationMonitorRef.current) destinationMonitorRef.current.stopMonitoring();
+          destinationMonitorRef.current = new LocationMonitor();
+          destinationMonitorRef.current.startMonitoring(
+            nextActiveTrip.dropoffLat,
+            nextActiveTrip.dropoffLng,
+            () => {
+              setIsAtDestination(true);
+              stopETAUpdates();
+              notifyDriver(
+                'Arrived at Destination',
+                'You have arrived at the destination. You can now confirm arrival.',
+                { vibrate: true, sound: true, vibrationPattern: [300, 100, 300, 100, 300] }
+              );
+            },
+            0.05
+          );
+        }
       } catch (e) {
         if (!cancelled) {
           error("Failed to Load Trip", "Could not open this trip on the map. Please try again.");
@@ -178,7 +211,8 @@ export default function DriverLiveMapPage() {
     return () => {
       cancelled = true;
     };
-  }, [tripIdParam, liveOnly, error]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tripIdParam, liveOnly, error, tripSourceParam]);
   
   // Location monitoring refs
   const pickupMonitorRef = useRef<LocationMonitor | null>(null);
@@ -492,7 +526,8 @@ export default function DriverLiveMapPage() {
     }
   };
   
-  // Trip cancellation handler
+  // Trip cancellation handler (UI button removed — kept for future use)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleCancelTrip = async (tripId: string, reason?: string) => {
     if (!isOnline) {
       error("No Connection", "Please check your internet connection and try again.");
@@ -1657,79 +1692,73 @@ export default function DriverLiveMapPage() {
             <div className="absolute bottom-6 right-4 z-30 pointer-events-auto animate-fade-in-up">
               <div
                 className={[
-                  "backdrop-blur-sm rounded-2xl shadow-xl transition-all duration-300 p-4 w-[18.5rem] max-w-[calc(100vw-2rem)] space-y-3 border",
+                  "rounded-2xl shadow-2xl w-[19rem] max-w-[calc(100vw-2rem)] overflow-hidden",
                   mapTheme === "dark"
-                    ? "bg-slate-950/70 border-white/15 text-slate-100"
-                    : "bg-white/95 border-slate-200 text-slate-900",
+                    ? "bg-slate-900/90 ring-1 ring-white/10 backdrop-blur-md"
+                    : "bg-white ring-1 ring-slate-200/80 backdrop-blur-sm",
                 ].join(" ")}
               >
-                <div className="flex items-center gap-3">
-                  <div
-                    className={[
-                      "h-10 w-10 rounded-full flex items-center justify-center font-semibold",
-                      mapTheme === "dark" ? "bg-white/10 text-slate-100 border border-white/10" : "bg-slate-100 text-slate-700",
-                    ].join(" ")}
-                  >
-                    {activeTrip.passengerName?.charAt(0).toUpperCase()}
+                {/* Top accent bar */}
+                <div className="h-[3px] bg-gradient-to-r from-[#02665e] via-teal-400 to-[#02665e]" />
+
+                <div className="p-4 space-y-3.5">
+                  {/* Customer row */}
+                  <div className="flex items-center gap-3">
+                    <div className={[
+                      "h-11 w-11 rounded-xl flex items-center justify-center font-bold text-base flex-shrink-0",
+                      mapTheme === "dark"
+                        ? "bg-[#02665e]/30 text-teal-200 ring-1 ring-teal-500/20"
+                        : "bg-[#02665e]/10 text-[#02665e] ring-1 ring-[#02665e]/15",
+                    ].join(" ")}>
+                      {activeTrip.passengerName?.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={["text-sm font-bold truncate leading-tight", mapTheme === "dark" ? "text-slate-50" : "text-slate-900"].join(" ")}>
+                        {activeTrip.passengerName}
+                      </p>
+                      <p className={["text-[11px] truncate mt-0.5", mapTheme === "dark" ? "text-slate-400" : "text-slate-500"].join(" ")}>
+                        {activeTrip.pickupAddress}
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={["text-sm font-semibold truncate", mapTheme === "dark" ? "text-slate-50" : "text-slate-900"].join(" ")}>
-                      {activeTrip.passengerName}
-                    </p>
-                    <p className={["text-xs truncate", mapTheme === "dark" ? "text-slate-200/75" : "text-slate-500"].join(" ")}>
-                      {activeTrip.pickupAddress}
-                    </p>
+
+                  {/* Fare + status strip */}
+                  <div className={[
+                    "flex items-center justify-between px-3.5 py-2.5 rounded-xl",
+                    mapTheme === "dark" ? "bg-white/5" : "bg-slate-50",
+                  ].join(" ")}>
+                    <span className={["text-base font-extrabold tracking-tight", mapTheme === "dark" ? "text-white" : "text-slate-900"].join(" ")}>
+                      {activeTrip.fare}
+                    </span>
+                    <span className={[
+                      "inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.15em] px-2.5 py-1 rounded-full",
+                      mapTheme === "dark"
+                        ? "bg-teal-400/15 text-teal-300"
+                        : "bg-[#02665e]/10 text-[#02665e]",
+                    ].join(" ")}>
+                      <span className={["h-1.5 w-1.5 rounded-full animate-pulse", mapTheme === "dark" ? "bg-teal-400" : "bg-[#02665e]"].join(" ")} aria-hidden />
+                      Going to Pickup
+                    </span>
                   </div>
-                </div>
-                <div className={["flex items-center justify-between text-sm", mapTheme === "dark" ? "text-slate-200/85" : "text-slate-700"].join(" ")}>
-                  <span className="font-semibold">{activeTrip.fare}</span>
-                  <span className={["text-xs uppercase tracking-wide", mapTheme === "dark" ? "text-slate-300/70" : "text-slate-500"].join(" ")}>
-                    Going to Pickup
-                  </span>
-                </div>
-                <div className="space-y-2">
-                  <p className={["text-[12px] leading-5", mapTheme === "dark" ? "text-slate-300/75" : "text-slate-500"].join(" ")}>
+
+                  {/* Instruction */}
+                  <p className={["text-[11.5px] leading-[1.55]", mapTheme === "dark" ? "text-slate-400" : "text-slate-500"].join(" ")}>
                     Use the phone action on the right for call or SMS, then confirm once the pickup instructions are clear.
                   </p>
-                  
-                  {/* Confirm Location Info Button - Only show if not confirmed yet */}
+
+                  {/* Confirm Location Info Button */}
                   {!hasClearLocationInfo && (
                     <button
                       onClick={handleConfirmLocationInfo}
                       className={[
-                        "w-full py-2.5 rounded-xl text-sm font-medium active:scale-[0.98] transition-all duration-200 border",
+                        "w-full py-2.5 rounded-xl text-sm font-semibold active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2",
                         mapTheme === "dark"
-                          ? "bg-[#02665e]/18 text-[#bbf1ea] hover:bg-[#02665e]/24 border-[#35a79c]/30"
-                          : "bg-[#02665e]/8 text-[#02665e] hover:bg-[#02665e]/12 border-[#02665e]/20",
+                          ? "bg-[#02665e]/25 text-teal-200 hover:bg-[#02665e]/35 ring-1 ring-teal-500/25"
+                          : "bg-[#02665e] text-white hover:bg-[#024d47] shadow-sm shadow-[#02665e]/20",
                       ].join(" ")}
                     >
-                      ✓ I have clear location info
-                    </button>
-                  )}
-                  
-                  {/* Cancel Trip Button */}
-                  {tripStage === 'accepted' && (
-                    <button
-                      onClick={() => handleCancelTrip(activeTrip.id)}
-                      disabled={isCancelling}
-                      className={[
-                        "w-full py-2 rounded-xl text-sm font-medium active:scale-[0.98] transition-all duration-200 border disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2",
-                        mapTheme === "dark"
-                          ? "bg-red-500/10 text-red-200 hover:bg-red-500/15 border-red-400/25"
-                          : "bg-red-50 text-red-700 hover:bg-red-100 border-red-200",
-                      ].join(" ")}
-                    >
-                      {isCancelling ? (
-                        <>
-                          <LoadingSpinner size="sm" />
-                          <span>Cancelling...</span>
-                        </>
-                      ) : (
-                        <>
-                          <X className="h-4 w-4" />
-                          <span>Cancel Trip</span>
-                        </>
-                      )}
+                      <Check className="h-4 w-4" />
+                      I have clear location info
                     </button>
                   )}
                 </div>

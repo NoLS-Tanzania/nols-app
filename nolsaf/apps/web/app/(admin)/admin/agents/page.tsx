@@ -878,57 +878,97 @@ export default function AdminAgentsPage() {
       {/* Agent Detail Modal */}
       {viewingAgent && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) closeAgentDetails();
           }}
         >
-          <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-[2px]" aria-hidden />
-          <div className="relative bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden shadow-2xl ring-1 ring-black/5 flex flex-col">
+          <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm" aria-hidden />
+          <div className="relative bg-white rounded-3xl max-w-4xl w-full max-h-[92vh] overflow-hidden shadow-[0_32px_80px_rgba(0,0,0,0.32)] ring-1 ring-black/8 flex flex-col">
             {/* Header */}
-            <div className="bg-gradient-to-r from-[#02665e] to-[#024d47] px-6 py-4 flex items-center justify-between flex-shrink-0">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="h-10 w-10 rounded-xl bg-white/15 text-white flex items-center justify-center font-bold tracking-wide flex-shrink-0">
-                  {initials(viewingAgent.user.name)}
+            <div
+              className="relative flex-shrink-0 overflow-hidden"
+              style={{ background: "linear-gradient(135deg, #07332f 0%, #02665e 55%, #038a7e 100%)" }}
+            >
+              {/* Dot-grid texture */}
+              <div
+                className="pointer-events-none absolute inset-0"
+                style={{
+                  backgroundImage: "radial-gradient(rgba(255,255,255,0.08) 1px, transparent 1px)",
+                  backgroundSize: "22px 22px",
+                  maskImage: "radial-gradient(ellipse 80% 90% at 30% 50%, black 0%, transparent 100%)",
+                  WebkitMaskImage: "radial-gradient(ellipse 80% 90% at 30% 50%, black 0%, transparent 100%)",
+                }}
+                aria-hidden
+              />
+              {/* Radial glow behind avatar */}
+              <div className="pointer-events-none absolute -left-8 -top-8 h-48 w-48 rounded-full" style={{ background: "radial-gradient(circle, rgba(255,255,255,0.10) 0%, transparent 65%)" }} aria-hidden />
+              {/* Bottom edge line */}
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-white/10" aria-hidden />
+
+              <div className="relative px-6 py-5 flex items-center justify-between gap-4">
+                {/* Left: avatar + identity */}
+                <div className="flex items-center gap-4 min-w-0">
+                  {/* Avatar with ring */}
+                  <div className="relative flex-shrink-0">
+                    <div className="h-[52px] w-[52px] rounded-2xl bg-white/15 border border-white/25 shadow-[0_0_0_3px_rgba(255,255,255,0.08)] flex items-center justify-center">
+                      <span className="text-lg font-extrabold tracking-wide text-white">{initials(viewingAgent.user.name)}</span>
+                    </div>
+                    {/* Online/status dot */}
+                    <span className={`absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-[#02665e] ${
+                      viewingAgent.status === "ACTIVE" ? "bg-emerald-400" :
+                      viewingAgent.status === "SUSPENDED" ? "bg-red-400" : "bg-amber-400"
+                    }`} aria-hidden />
+                  </div>
+
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className="text-xl font-bold text-white leading-tight truncate">{viewingAgent.user.name || "Agent Details"}</h2>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-[0.14em] ${
+                        viewingAgent.status === "ACTIVE" ? "bg-emerald-400/20 text-emerald-200 border border-emerald-300/25" :
+                        viewingAgent.status === "SUSPENDED" ? "bg-red-400/20 text-red-200 border border-red-300/25" :
+                        "bg-amber-400/20 text-amber-200 border border-amber-300/25"
+                      }`}>{viewingAgent.status}</span>
+                    </div>
+                    <div className="mt-0.5 text-sm text-white/60 truncate">{viewingAgent.user.email || "—"}</div>
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <h2 className="text-xl font-bold text-white truncate">{viewingAgent.user.name || "Agent Details"}</h2>
-                  <div className="text-sm text-white/80 truncate">{viewingAgent.user.email || "—"}</div>
+
+                {/* Right: actions */}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {viewingAgent.status !== "SUSPENDED" ? (
+                    <button
+                      onClick={() => setSuspendModal({ open: true, agentId: viewingAgent.id, reason: "", step: 1, confirmName: "" })}
+                      title="Suspend agent"
+                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-red-500/15 hover:bg-red-500/30 text-white text-xs font-semibold transition-colors border border-red-400/25"
+                    >
+                      <ShieldOff size={13} />
+                      Suspend
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setRestoreModal({ open: true, agentId: viewingAgent.id, notes: "" })}
+                      title="Restore agent access"
+                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-400/20 hover:bg-emerald-400/35 text-white text-xs font-semibold transition-colors border border-emerald-300/30"
+                    >
+                      <ShieldCheck size={13} />
+                      Restore
+                    </button>
+                  )}
+                  <button
+                    onClick={closeAgentDetails}
+                    aria-label="Close agent details"
+                    className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-colors"
+                    title="Close"
+                  >
+                    <X size={16} />
+                  </button>
                 </div>
-              </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                {viewingAgent.status !== "SUSPENDED" ? (
-                  <button
-                    onClick={() => setSuspendModal({ open: true, agentId: viewingAgent.id, reason: "", step: 1, confirmName: "" })}
-                    title="Suspend agent"
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/35 text-white text-xs font-medium transition-colors border border-red-400/30"
-                  >
-                    <ShieldOff size={13} />
-                    Suspend
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => setRestoreModal({ open: true, agentId: viewingAgent.id, notes: "" })}
-                    title="Restore agent access"
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-400/20 hover:bg-emerald-400/35 text-white text-xs font-medium transition-colors border border-emerald-300/30"
-                  >
-                    <ShieldCheck size={13} />
-                    Restore
-                  </button>
-                )}
-                <button
-                  onClick={closeAgentDetails}
-                  aria-label="Close agent details"
-                  className="group p-2 rounded-xl text-white/90 hover:text-white hover:bg-white/10 transition-colors"
-                  title="Close"
-                >
-                  <X size={18} className="transition-transform duration-200 group-hover:rotate-90" />
-                </button>
               </div>
             </div>
             
             {/* Content */}
-            <div className="flex-1 overflow-y-auto bg-gray-50 min-w-0 min-h-0">
+            <div className="flex-1 overflow-y-auto bg-slate-50/60 min-w-0 min-h-0">
               {loadingAgentDetails ? (
                 <div className="p-6 text-center">
                   <Loader2 className="h-6 w-6 text-[#02665e] animate-spin mx-auto mb-2" />
@@ -967,225 +1007,161 @@ export default function AdminAgentsPage() {
                   </button>
                 </div>
               ) : (
-              <div className="p-6 space-y-6">
+              <div className="p-5 sm:p-6 space-y-5">
                 {/* Agent Information - Always Visible */}
-                <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
-                  <div className="flex items-center gap-2 mb-4">
-                    <User className="h-5 w-5 text-[#02665e]" />
-                    <h3 className="text-base font-semibold text-gray-900">Agent Information</h3>
+                <div className="rounded-2xl border border-slate-200/80 bg-white shadow-sm overflow-hidden">
+                  {/* Section header bar */}
+                  <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white">
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#02665e]/10 text-[#02665e]">
+                        <User className="h-4 w-4" />
+                      </div>
+                      <h3 className="text-sm font-bold text-slate-900 tracking-tight">Agent Information</h3>
+                    </div>
                     <button
                       type="button"
                       onClick={() => docsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
-                      className="ml-auto inline-flex items-center justify-center rounded-md p-2 text-[#02665e] hover:text-[#014d47] hover:bg-[#02665e]/10"
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
                       aria-label="Review documents"
                       title="Review submitted documents"
                     >
-                      <Eye className="h-4 w-4" />
+                      <Eye className="h-3.5 w-3.5" />
+                      Documents
                     </button>
                   </div>
-                  <div className="space-y-4">
-                    {/* Agent Name */}
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1.5">Name</label>
-                      <p className="text-base font-semibold text-gray-900">{viewingAgent.user.name || "N/A"}</p>
+
+                  <div className="p-5 space-y-5">
+                    {/* Identity row */}
+                    <div className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100">
+                      <div className="h-12 w-12 rounded-2xl bg-[#02665e]/10 border border-[#02665e]/15 flex items-center justify-center flex-shrink-0">
+                        <span className="text-base font-extrabold text-[#02665e]">{initials(viewingAgent.user.name)}</span>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Full Name</div>
+                        <div className="mt-0.5 text-base font-bold text-slate-900 truncate">{viewingAgent.user.name || "N/A"}</div>
+                        <div className="text-xs text-slate-500 truncate">{viewingAgent.user.email || "—"}</div>
+                      </div>
                     </div>
 
-                    {/* Location and Specialization Row */}
+                    {/* Location + Specialization */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {/* Location */}
-                      <div>
-                        <label className="text-xs font-medium text-gray-500 mb-1.5 flex items-center gap-1">
-                          <MapPin className="h-3 w-3" />
-                          Location
-                        </label>
+                      <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-4">
+                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2 flex items-center gap-1"><MapPin className="h-3 w-3" />Location</div>
                         {viewingAgent.areasOfOperation && Array.isArray(viewingAgent.areasOfOperation) && viewingAgent.areasOfOperation.length > 0 ? (
                           <div className="flex flex-wrap gap-1.5">
                             {viewingAgent.areasOfOperation.slice(0, 3).map((area: string, idx: number) => (
-                              <span key={idx} className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-700 rounded-md text-xs font-medium border border-blue-200">
-                                <MapPin className="h-3 w-3" />
-                                {area}
+                              <span key={idx} className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-700 rounded-lg text-xs font-semibold border border-blue-200">
+                                <MapPin className="h-3 w-3" />{area}
                               </span>
                             ))}
                             {viewingAgent.areasOfOperation.length > 3 && (
-                              <span className="text-xs text-gray-500 px-2.5 py-1">+{viewingAgent.areasOfOperation.length - 3} more</span>
+                              <span className="text-xs text-slate-400 px-2 py-1">+{viewingAgent.areasOfOperation.length - 3} more</span>
                             )}
                           </div>
-                        ) : (
-                          <p className="text-sm text-gray-400">N/A</p>
-                        )}
+                        ) : <p className="text-sm text-slate-400">N/A</p>}
                       </div>
 
-                      {/* Specialization */}
-                      <div>
-                        <label className="text-xs font-medium text-gray-500 mb-1.5 flex items-center gap-1">
-                          <Briefcase className="h-3 w-3" />
-                          Specialization
-                        </label>
+                      <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-4">
+                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2 flex items-center gap-1"><Briefcase className="h-3 w-3" />Specialization</div>
                         {viewingAgent.specializations && Array.isArray(viewingAgent.specializations) && viewingAgent.specializations.length > 0 ? (
                           <div className="flex flex-wrap gap-1.5">
                             {viewingAgent.specializations.slice(0, 3).map((spec: string, idx: number) => (
-                              <span key={idx} className="inline-flex items-center gap-1 px-2.5 py-1 bg-green-50 text-green-700 rounded-md text-xs font-medium border border-green-200">
-                                <Briefcase className="h-3 w-3" />
-                                {spec}
+                              <span key={idx} className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-semibold border border-emerald-200">
+                                <Briefcase className="h-3 w-3" />{spec}
                               </span>
                             ))}
                             {viewingAgent.specializations.length > 3 && (
-                              <span className="text-xs text-gray-500 px-2.5 py-1">+{viewingAgent.specializations.length - 3} more</span>
+                              <span className="text-xs text-slate-400 px-2 py-1">+{viewingAgent.specializations.length - 3} more</span>
                             )}
                           </div>
-                        ) : (
-                          <p className="text-sm text-gray-400">N/A</p>
-                        )}
+                        ) : <p className="text-sm text-slate-400">N/A</p>}
                       </div>
                     </div>
 
-                    {/* Status, Availability, Workload, Rating */}
-                    <div className="grid grid-cols-2 md:grid-cols-2 gap-4 pt-2 border-t border-gray-100">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1.5">Status</label>
-                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-full ${getStatusColor(viewingAgent.status)}`}>
+                    {/* Status / Availability / Workload / Rating grid */}
+                    <div className="grid grid-cols-2 gap-3 pt-1">
+                    <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3.5">
+                      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Status</div>
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-full ${getStatusColor(viewingAgent.status)}`}>
                         {getStatusIcon(viewingAgent.status)}
                         <span>{viewingAgent.status}</span>
                       </span>
                     </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1.5">Availability</label>
-                      <span className={`inline-block px-2.5 py-1 text-xs font-semibold rounded-full ${viewingAgent.isAvailable ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                        {viewingAgent.isAvailable ? 'Available' : 'Not Available'}
+                    <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3.5">
+                      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Availability</div>
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold rounded-full ${
+                        viewingAgent.isAvailable ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'
+                      }`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${viewingAgent.isAvailable ? 'bg-emerald-500' : 'bg-red-400'}`} aria-hidden />
+                        {viewingAgent.isAvailable ? 'Available' : 'Unavailable'}
                       </span>
                     </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1.5">Workload</label>
-                      <p className="text-sm text-gray-900">
-                        {viewingAgent.currentActiveRequests} / {viewingAgent.maxActiveRequests}
+                    <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3.5">
+                      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Workload</div>
+                      <p className="text-sm font-bold text-slate-900">
+                        {viewingAgent.currentActiveRequests} <span className="text-slate-400 font-normal">/ {viewingAgent.maxActiveRequests}</span>
                       </p>
-                      <div className="w-full bg-gray-200 rounded-full h-2 mt-1 max-w-[200px]">
+                      <div className="w-full bg-slate-200 rounded-full h-1.5 mt-2">
                         <div
-                          className={`h-2 rounded-full transition-all duration-300 ${
+                          className={`h-1.5 rounded-full transition-all duration-300 ${
                             viewingAgent.currentActiveRequests >= viewingAgent.maxActiveRequests
                               ? "bg-red-500"
                               : viewingAgent.currentActiveRequests >= viewingAgent.maxActiveRequests * 0.8
-                              ? "bg-yellow-500"
-                              : "bg-green-500"
+                              ? "bg-amber-400"
+                              : "bg-emerald-500"
                           }`}
                           style={{ width: `${Math.min(100, (viewingAgent.currentActiveRequests / viewingAgent.maxActiveRequests) * 100)}%` }}
                         />
                       </div>
                     </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1.5">
-                        Rating
+                    {/* Ratings */}
+                    <div className="col-span-2 rounded-xl border border-amber-100 bg-amber-50/50 p-3.5">
+                      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-3 flex items-center gap-1">
+                        <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                        Performance Ratings
                         {viewingAgent.performanceMetrics?.totalReviews > 0 && (
-                          <span className="text-gray-400 font-normal ml-1">
-                            ({viewingAgent.performanceMetrics.totalReviews} {viewingAgent.performanceMetrics.totalReviews === 1 ? 'review' : 'reviews'})
-                          </span>
+                          <span className="ml-auto text-[10px] font-semibold text-amber-600">({viewingAgent.performanceMetrics.totalReviews} {viewingAgent.performanceMetrics.totalReviews === 1 ? 'review' : 'reviews'})</span>
                         )}
-                      </label>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-gray-600">Punctuality</span>
-                          <div className="flex items-center gap-1">
-                            {[1, 2, 3, 4, 5].map((star) => {
-                              const rating = viewingAgent.performanceMetrics?.punctualityRating || 0;
-                              const isFilled = rating >= star;
-                              const isHalfFilled = rating >= star - 0.5 && rating < star;
-                              return (
-                                <Star
-                                  key={star}
-                                  className={`h-3 w-3 ${
-                                    isFilled
-                                      ? "fill-yellow-400 text-yellow-400"
-                                      : isHalfFilled
-                                      ? "fill-yellow-200 text-yellow-400"
-                                      : "text-gray-300"
-                                  }`}
-                                />
-                              );
-                            })}
-                            <span className="text-xs text-gray-500 ml-1">
-                              {viewingAgent.performanceMetrics?.punctualityRating 
-                                ? viewingAgent.performanceMetrics.punctualityRating.toFixed(1)
-                                : '0.0'}/5
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-gray-600">Customer Care</span>
-                          <div className="flex items-center gap-1">
-                            {[1, 2, 3, 4, 5].map((star) => {
-                              const rating = viewingAgent.performanceMetrics?.customerCareRating || 0;
-                              const isFilled = rating >= star;
-                              const isHalfFilled = rating >= star - 0.5 && rating < star;
-                              return (
-                                <Star
-                                  key={star}
-                                  className={`h-3 w-3 ${
-                                    isFilled
-                                      ? "fill-yellow-400 text-yellow-400"
-                                      : isHalfFilled
-                                      ? "fill-yellow-200 text-yellow-400"
-                                      : "text-gray-300"
-                                  }`}
-                                />
-                              );
-                            })}
-                            <span className="text-xs text-gray-500 ml-1">
-                              {viewingAgent.performanceMetrics?.customerCareRating 
-                                ? viewingAgent.performanceMetrics.customerCareRating.toFixed(1)
-                                : '0.0'}/5
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-gray-600">Communication</span>
-                          <div className="flex items-center gap-1">
-                            {[1, 2, 3, 4, 5].map((star) => {
-                              const rating = viewingAgent.performanceMetrics?.communicationRating || 0;
-                              const isFilled = rating >= star;
-                              const isHalfFilled = rating >= star - 0.5 && rating < star;
-                              return (
-                                <Star
-                                  key={star}
-                                  className={`h-3 w-3 ${
-                                    isFilled
-                                      ? "fill-yellow-400 text-yellow-400"
-                                      : isHalfFilled
-                                      ? "fill-yellow-200 text-yellow-400"
-                                      : "text-gray-300"
-                                  }`}
-                                />
-                              );
-                            })}
-                            <span className="text-xs text-gray-500 ml-1">
-                              {viewingAgent.performanceMetrics?.communicationRating 
-                                ? viewingAgent.performanceMetrics.communicationRating.toFixed(1)
-                                : '0.0'}/5
-                            </span>
-                          </div>
-                        </div>
                       </div>
+                      {([
+                        { label: 'Punctuality', val: viewingAgent.performanceMetrics?.punctualityRating || 0 },
+                        { label: 'Customer Care', val: viewingAgent.performanceMetrics?.customerCareRating || 0 },
+                        { label: 'Communication', val: viewingAgent.performanceMetrics?.communicationRating || 0 },
+                      ] as { label: string; val: number }[]).map(({ label, val }) => (
+                        <div key={label} className="flex items-center gap-2 mb-1.5 last:mb-0">
+                          <span className="text-[11px] font-semibold text-slate-600 w-28 shrink-0">{label}</span>
+                          <div className="flex-1 bg-slate-200 rounded-full h-1.5">
+                            <div className="h-1.5 rounded-full bg-amber-400" style={{ width: `${(val / 5) * 100}%` }} />
+                          </div>
+                          <span className="text-[11px] font-bold text-slate-800 w-8 text-right shrink-0">{val > 0 ? val.toFixed(1) : '—'}</span>
+                        </div>
+                      ))}
                     </div>
                     </div>
                   </div>
                 </div>
 
                 {/* Agent Documents */}
-                <div ref={docsRef} className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
-                  <div className="flex items-center justify-between gap-3 mb-4">
+                <div ref={docsRef} className="rounded-2xl border border-slate-200/80 bg-white shadow-sm overflow-hidden">
+                  <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white">
                     <div className="flex items-center gap-2">
-                      <GraduationCap className="h-5 w-5 text-[#02665e]" />
-                      <h3 className="text-base font-semibold text-gray-900">Agent Documents</h3>
+                      <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#02665e]/10 text-[#02665e]">
+                        <GraduationCap className="h-4 w-4" />
+                      </div>
+                      <h3 className="text-sm font-bold text-slate-900 tracking-tight">Agent Documents</h3>
                     </div>
                     <button
                       type="button"
                       onClick={() => viewingAgent?.id && loadDocuments(viewingAgent.id)}
-                      className="inline-flex items-center justify-center rounded-lg border border-gray-200 p-2 text-gray-700 hover:bg-gray-50"
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
                       aria-label="Reload agent documents"
                       title="Reload"
                     >
-                      <RefreshCw className="h-4 w-4" />
+                      <RefreshCw className="h-3.5 w-3.5" />
+                      Reload
                     </button>
                   </div>
+                  <div className="p-5">
 
                   {docsLoading ? (
                     <div className="py-6 text-center text-sm text-gray-500">
@@ -1208,21 +1184,41 @@ export default function AdminAgentsPage() {
                         const isNotUploaded = !latest?.url;
 
                         return (
-                          <div key={reqDoc.type} className="border border-gray-200 rounded-xl p-4 bg-white shadow-sm h-full flex flex-col">
-                            <div className="min-w-0">
-                              <div className="text-sm font-semibold text-gray-900">{reqDoc.label}</div>
-                              <div className="text-xs text-gray-500 mt-1">
-                                Type: <span className="font-mono">{reqDoc.type}</span>
+                          <div key={reqDoc.type} className={`relative rounded-xl overflow-hidden border h-full flex flex-col shadow-sm ${
+                            isApproved ? 'border-emerald-200 bg-emerald-50/40' :
+                            isRejected ? 'border-red-200 bg-red-50/30' :
+                            canPreview  ? 'border-amber-200 bg-amber-50/30' :
+                            'border-slate-200 bg-white'
+                          }`}>
+                            {/* Left status accent strip */}
+                            <div className={`absolute left-0 inset-y-0 w-[3px] ${
+                              isApproved ? 'bg-emerald-500' :
+                              isRejected ? 'bg-red-400' :
+                              canPreview  ? 'bg-amber-400' :
+                              'bg-slate-300'
+                            }`} aria-hidden />
+                            <div className="pl-4 pr-4 pt-4 pb-3 min-w-0">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <div className="text-sm font-bold text-slate-900 leading-snug">{reqDoc.label}</div>
+                                  <div className="text-[10px] text-slate-400 mt-0.5 font-mono">{reqDoc.type}</div>
+                                </div>
+                                <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide ${
+                                  isApproved ? 'bg-emerald-100 text-emerald-700' :
+                                  isRejected ? 'bg-red-100 text-red-600' :
+                                  canPreview  ? 'bg-amber-100 text-amber-700' :
+                                  'bg-slate-100 text-slate-500'
+                                }`}>{isApproved ? 'Approved' : isRejected ? 'Rejected' : canPreview ? 'Pending' : 'Missing'}</span>
                               </div>
 
                               {isRejected && latest?.reason ? (
-                                <div className="mt-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">
-                                  Rejection reason: {latest.reason}
+                                <div className="mt-2.5 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                                  {latest.reason}
                                 </div>
                               ) : null}
                             </div>
 
-                            <div className="mt-4 flex items-center justify-end gap-2">
+                            <div className="mt-auto px-4 pb-4 flex items-center justify-end gap-2 pt-2">
                               {/* NOT UPLOADED icon only */}
                               {isNotUploaded ? (
                                 <span
@@ -1309,12 +1305,11 @@ export default function AdminAgentsPage() {
                     </div>
                   )}
 
-                  <div className="mt-4 text-xs text-gray-500">
-                    Approving/rejecting is authenticated and stored server-side. When the agent re-uploads a document, it returns to <span className="font-semibold">PENDING</span> automatically.
+                  <div className="mt-4 text-xs text-slate-400">
+                    Approving / rejecting is stored server-side. When the agent re-uploads, status resets to <span className="font-semibold text-slate-600">PENDING</span>.
+                  </div>
                   </div>
                 </div>
-
-                {/* Document Preview Popup */}
                 {docPreview.open ? (
                   <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Document preview">
                     <div className="w-full max-w-5xl bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
@@ -1366,21 +1361,24 @@ export default function AdminAgentsPage() {
 
                 {/* Promotion Progress */}
                 {viewingAgent.promotionProgress && (
-                  <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
-                    <div className="flex items-center gap-2 mb-4">
-                      <Trophy className="h-5 w-5 text-[#02665e]" />
-                      <h3 className="text-base font-semibold text-gray-900">Promotion Progress</h3>
+                  <div className="rounded-2xl border border-slate-200/80 bg-white shadow-sm overflow-hidden">
+                    <div className="flex items-center gap-3 px-5 py-3.5 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#02665e]/10 text-[#02665e]">
+                        <Trophy className="h-4 w-4" />
+                      </div>
+                      <h3 className="text-sm font-bold text-slate-900 tracking-tight">Promotion Progress</h3>
                       {viewingAgent.level && (
-                        <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
+                        <span className={`ml-auto px-2.5 py-1 text-xs font-bold rounded-full ${
                           viewingAgent.level === 'PLATINUM' ? 'bg-purple-100 text-purple-700 border border-purple-200' :
                           viewingAgent.level === 'GOLD' ? 'bg-yellow-100 text-yellow-700 border border-yellow-200' :
-                          viewingAgent.level === 'SILVER' ? 'bg-gray-100 text-gray-700 border border-gray-200' :
+                          viewingAgent.level === 'SILVER' ? 'bg-slate-100 text-slate-700 border border-slate-200' :
                           'bg-amber-100 text-amber-700 border border-amber-200'
                         }`}>
                           {viewingAgent.level}
                         </span>
                       )}
                     </div>
+                    <div className="p-5">
 
                     <div className="space-y-4">
                       {/* Overall Progress */}
@@ -1459,36 +1457,35 @@ export default function AdminAgentsPage() {
 
                       {/* Promotion Eligibility */}
                       {viewingAgent.promotionProgress.eligibleForPromotion && (
-                        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                        <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-4">
                           <div className="flex items-center gap-2">
-                            <CheckCircle2 className="h-5 w-5 text-green-600" />
+                            <CheckCircle2 className="h-5 w-5 text-emerald-600" />
                             <div>
-                              <p className="text-sm font-semibold text-green-800">Eligible for Promotion!</p>
-                              <p className="text-xs text-green-700 mt-1">
-                                This agent has met all requirements for promotion to the next level.
-                              </p>
+                              <p className="text-sm font-bold text-emerald-800">Eligible for Promotion!</p>
+                              <p className="text-xs text-emerald-700 mt-0.5">This agent has met all requirements for the next level.</p>
                             </div>
                           </div>
                         </div>
                       )}
                     </div>
+                    </div>
                   </div>
                 )}
 
                 {/* Personal Details & Education - Collapsible */}
-                <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+                <div className="rounded-2xl border border-slate-200/80 bg-white shadow-sm overflow-hidden">
                   <button
                     type="button"
                     onClick={() => setPersonalDetailsOpen(!personalDetailsOpen)}
-                    className="group w-full flex items-center justify-between px-5 py-4 bg-gradient-to-r from-gray-50 to-white hover:from-white hover:to-gray-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30"
+                    className="group w-full flex items-center justify-between px-5 py-3.5 bg-gradient-to-r from-slate-50 to-white hover:from-white hover:to-slate-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30"
                     aria-expanded={personalDetailsOpen}
                     aria-controls="personal-details-panel"
                   >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="h-9 w-9 rounded-xl bg-[#02665e]/10 text-[#02665e] border border-[#02665e]/15 flex items-center justify-center shrink-0">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#02665e]/10 text-[#02665e]">
                         <User className="h-4 w-4" />
                       </div>
-                      <h3 className="text-sm font-semibold text-gray-900 truncate">Personal Details & Education</h3>
+                      <h3 className="text-sm font-bold text-slate-900 tracking-tight">Personal Details &amp; Education</h3>
                     </div>
                     <ChevronDown
                       className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${
@@ -1497,7 +1494,7 @@ export default function AdminAgentsPage() {
                     />
                   </button>
                   {personalDetailsOpen && (
-                    <div id="personal-details-panel" className="px-5 pb-5 space-y-5 border-t border-gray-200">
+                    <div id="personal-details-panel" className="px-5 pb-5 space-y-5 border-t border-slate-100">
                       {/* Personal Information */}
                       <div className="pt-5">
                         <h4 className="text-sm font-semibold text-gray-700 mb-3">Personal Information</h4>
@@ -1682,11 +1679,14 @@ export default function AdminAgentsPage() {
 
                 {/* Suspension / Restoration Audit */}
                 {(viewingAgent.status === "SUSPENDED" || viewingAgent.suspendedAt || viewingAgent.restoredAt) && (
-                  <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
-                    <div className="flex items-center gap-2 mb-4">
-                      <ShieldOff className="h-5 w-5 text-red-500" />
-                      <h3 className="text-base font-semibold text-gray-900">Account Audit Trail</h3>
+                  <div className="rounded-2xl border border-slate-200/80 bg-white shadow-sm overflow-hidden">
+                    <div className="flex items-center gap-3 px-5 py-3.5 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-red-50 text-red-500">
+                        <ShieldOff className="h-4 w-4" />
+                      </div>
+                      <h3 className="text-sm font-bold text-slate-900 tracking-tight">Account Audit Trail</h3>
                     </div>
+                    <div className="p-5">
                     <div className="space-y-3">
                       {/* Suspension record */}
                       {viewingAgent.suspendedAt && (
@@ -1725,11 +1725,10 @@ export default function AdminAgentsPage() {
                         </div>
                       )}
                     </div>
+                    </div>
                   </div>
                 )}
-
-                {/* Track Tasks */}
-                <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
+                <div className="rounded-2xl border border-slate-200/80 bg-white shadow-sm overflow-hidden">
                   {(() => {
                     const allTasks = viewingAgent.assignedPlanRequests || [];
                     const completedTasks = allTasks.filter((t: any) => t?.status === "COMPLETED" || t?.status === "CLOSED");
@@ -1738,29 +1737,31 @@ export default function AdminAgentsPage() {
 
                     return (
                       <>
-                        <div className="flex items-center justify-between gap-3 mb-4">
+                        <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white">
                           <div className="flex items-center gap-2 min-w-0">
-                            <Briefcase className="h-5 w-5 text-[#02665e]" />
-                            <h3 className="text-base font-semibold text-gray-900">Track Tasks</h3>
+                            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#02665e]/10 text-[#02665e]">
+                              <Briefcase className="h-4 w-4" />
+                            </div>
+                            <h3 className="text-sm font-bold text-slate-900 tracking-tight">Track Tasks</h3>
                             {allTasks.length > 0 ? (
-                              <span className="px-2 py-0.5 bg-[#02665e]/10 text-[#02665e] text-xs font-semibold rounded-full">
+                              <span className="px-2.5 py-0.5 bg-[#02665e]/10 text-[#02665e] text-[11px] font-bold rounded-full">
                                 {allTasks.length} {allTasks.length === 1 ? "task" : "tasks"}
                               </span>
                             ) : null}
                           </div>
 
                           {allTasks.length > 0 ? (
-                            <div className="inline-flex items-center rounded-xl border border-gray-200 bg-gray-50 p-1">
+                            <div className="inline-flex items-center rounded-xl border border-slate-200 bg-slate-100 p-1">
                               <button
                                 type="button"
                                 onClick={() => setTaskView("IN_PROGRESS")}
                                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                                  taskView === "IN_PROGRESS" ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900"
+                                  taskView === "IN_PROGRESS" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-900"
                                 }`}
                                 aria-pressed={taskView === "IN_PROGRESS"}
                               >
                                 In progress
-                                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700">
+                                <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] bg-amber-100 text-amber-700 font-bold">
                                   {inProgressTasks.length}
                                 </span>
                               </button>
@@ -1768,12 +1769,12 @@ export default function AdminAgentsPage() {
                                 type="button"
                                 onClick={() => setTaskView("COMPLETED")}
                                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                                  taskView === "COMPLETED" ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900"
+                                  taskView === "COMPLETED" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-900"
                                 }`}
                                 aria-pressed={taskView === "COMPLETED"}
                               >
                                 Completed
-                                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+                                <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] bg-emerald-100 text-emerald-700 font-bold">
                                   {completedTasks.length}
                                 </span>
                               </button>
@@ -1782,14 +1783,14 @@ export default function AdminAgentsPage() {
                         </div>
 
                         {visibleTasks.length > 0 ? (
-                          <div className="space-y-4">
+                          <div className="p-5 space-y-3">
                             {visibleTasks.map((task: any) => {
                         const assignedDate = new Date(task.createdAt);
                         const completedDate = task.updatedAt ? new Date(task.updatedAt) : null;
                         const isCompleted = task.status === 'COMPLETED' || task.status === 'CLOSED';
                         
                         return (
-                          <div key={task.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                          <div key={task.id} className="rounded-xl border border-slate-200 bg-white p-4 hover:shadow-sm transition-shadow">
                             <div className="flex items-start justify-between mb-3">
                               <div className="flex-1">
                                 <div className="flex items-center gap-2 mb-2">
@@ -1901,14 +1902,14 @@ export default function AdminAgentsPage() {
                             })}
                           </div>
                         ) : allTasks.length > 0 ? (
-                          <div className="text-center py-8 text-gray-500">
-                            <Briefcase className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                            <p className="text-sm">{taskView === "COMPLETED" ? "No completed tasks yet" : "No in-progress tasks right now"}</p>
+                          <div className="px-5 py-10 text-center text-slate-400">
+                            <Briefcase className="h-10 w-10 mx-auto mb-3 text-slate-300" />
+                            <p className="text-sm font-medium">{taskView === "COMPLETED" ? "No completed tasks yet" : "No in-progress tasks right now"}</p>
                           </div>
                         ) : (
-                          <div className="text-center py-8 text-gray-500">
-                            <Briefcase className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                            <p className="text-sm">No tasks assigned yet</p>
+                          <div className="px-5 py-10 text-center text-slate-400">
+                            <Briefcase className="h-10 w-10 mx-auto mb-3 text-slate-300" />
+                            <p className="text-sm font-medium">No tasks assigned yet</p>
                           </div>
                         )}
                       </>
@@ -1920,15 +1921,17 @@ export default function AdminAgentsPage() {
             </div>
 
             {/* Footer */}
-            <div className="border-t border-gray-200 bg-white px-6 py-4 flex justify-end gap-3 flex-shrink-0">
+            <div className="border-t border-slate-100 bg-slate-50/80 px-6 py-3.5 flex items-center justify-between gap-3 flex-shrink-0">
+              <p className="text-xs text-slate-400">Agent #{viewingAgent.id}</p>
               <button
                 onClick={() => {
                   setViewingAgent(null);
                   setAgentDetailsError(null);
                 }}
                 aria-label="Close agent details"
-                className="px-6 py-2.5 bg-[#02665e] text-white rounded-lg font-medium hover:bg-[#024d47] hover:shadow-md transition-all duration-300 ease-in-out hover:scale-105 active:scale-95 text-sm"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#02665e] text-white text-sm font-semibold hover:bg-[#024d47] transition-colors shadow-sm"
               >
+                <X size={14} />
                 Close
               </button>
             </div>
