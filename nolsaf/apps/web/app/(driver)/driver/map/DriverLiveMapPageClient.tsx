@@ -71,6 +71,9 @@ export default function DriverLiveMapPage() {
   const [isAtDestination, setIsAtDestination] = useState(false);
   // Admin/scheduled trip — compact card visible until driver dismisses it
   const [adminCardDismissed, setAdminCardDismissed] = useState(false);
+  const [adminCardPos, setAdminCardPos] = useState<{ x: number; y: number } | null>(null);
+  const adminCardRef = useRef<HTMLDivElement>(null);
+  const adminCardDragRef = useRef<{ startPtrX: number; startPtrY: number; startCardX: number; startCardY: number } | null>(null);
   const requestAlertedRef = useRef<string | null>(null);
   const preloadedTripIdRef = useRef<string | null>(null);
   
@@ -179,6 +182,7 @@ export default function DriverLiveMapPage() {
         setHasClearLocationInfo(stage !== 'accepted'); // admin trips bypass pickup confirmation
         setBottomSheetCollapsed(true); // keep map visible; admin trips use the compact focus card
         setAdminCardDismissed(false); // show the compact card fresh for this trip
+        setAdminCardPos(null);        // reset drag position for this trip
         setOverlayVisible(true);
         setShowLiveOverlay(false);
 
@@ -1218,6 +1222,37 @@ export default function DriverLiveMapPage() {
     const arriveMin =
       destinationCountdownSec !== null ? Math.max(1, Math.round(destinationCountdownSec / 60)) : destinationETA;
 
+    // Drag handlers for the admin trip card
+    const handleAdminCardDragStart = (e: React.PointerEvent<HTMLDivElement>) => {
+      e.stopPropagation();
+      const card = adminCardRef.current;
+      const parent = card?.parentElement;
+      if (!card || !parent) return;
+      const cardRect = card.getBoundingClientRect();
+      const parentRect = parent.getBoundingClientRect();
+      e.currentTarget.setPointerCapture(e.pointerId);
+      adminCardDragRef.current = {
+        startPtrX: e.clientX,
+        startPtrY: e.clientY,
+        startCardX: adminCardPos?.x ?? (cardRect.left - parentRect.left),
+        startCardY: adminCardPos?.y ?? (cardRect.top - parentRect.top),
+      };
+    };
+    const handleAdminCardDragMove = (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!adminCardDragRef.current || !adminCardRef.current) return;
+      const parent = adminCardRef.current.parentElement;
+      if (!parent) return;
+      const parentRect = parent.getBoundingClientRect();
+      const cardW = adminCardRef.current.offsetWidth;
+      const cardH = adminCardRef.current.offsetHeight;
+      const dx = e.clientX - adminCardDragRef.current.startPtrX;
+      const dy = e.clientY - adminCardDragRef.current.startPtrY;
+      const nx = Math.max(8, Math.min(parentRect.width - cardW - 8, adminCardDragRef.current.startCardX + dx));
+      const ny = Math.max(8, Math.min(parentRect.height - cardH - 8, adminCardDragRef.current.startCardY + dy));
+      setAdminCardPos({ x: nx, y: ny });
+    };
+    const handleAdminCardDragEnd = () => { adminCardDragRef.current = null; };
+
     return (
       <div className="w-full h-[calc(100vh-8rem)] flex flex-col overflow-hidden relative">
         {/* MAP CONTAINER - Primary visible element */}
@@ -1777,7 +1812,14 @@ export default function DriverLiveMapPage() {
 
           {/* Admin / Scheduled trip compact focus card — stays visible until driver confirms pickup */}
           {showAdminTripCard && (
-            <div className="absolute bottom-6 right-4 z-30 pointer-events-auto animate-fade-in-up">
+            <div
+              ref={adminCardRef}
+              className="absolute z-30 pointer-events-auto"
+              style={adminCardPos
+                ? { left: adminCardPos.x, top: adminCardPos.y }
+                : { bottom: 24, right: 16 }
+              }
+            >
               <div
                 className={[
                   "rounded-2xl shadow-2xl w-[19rem] max-w-[calc(100vw-2rem)] overflow-hidden",
@@ -1786,12 +1828,18 @@ export default function DriverLiveMapPage() {
                     : "bg-white ring-1 ring-slate-200/80 backdrop-blur-sm",
                 ].join(" ")}
               >
-                {/* Amber accent bar — signals scheduled/admin context */}
-                <div className="h-[3px] bg-gradient-to-r from-amber-500 via-orange-400 to-amber-500" />
+                {/* Drag handle — amber accent bar + scheduled label row */}
+                <div
+                  className="cursor-grab active:cursor-grabbing select-none touch-none"
+                  onPointerDown={handleAdminCardDragStart}
+                  onPointerMove={handleAdminCardDragMove}
+                  onPointerUp={handleAdminCardDragEnd}
+                  onPointerCancel={handleAdminCardDragEnd}
+                >
+                  {/* Amber accent bar */}
+                  <div className="h-[3px] bg-gradient-to-r from-amber-500 via-orange-400 to-amber-500" />
 
-                <div className="p-4 space-y-3">
-                  {/* Header label */}
-                  <div className="flex items-center gap-2">
+                  <div className="px-4 pt-3 pb-1 flex items-center gap-2">
                     <span className={[
                       "text-[10px] font-black uppercase tracking-[0.15em] px-2 py-0.5 rounded-full",
                       mapTheme === "dark"
@@ -1801,8 +1849,12 @@ export default function DriverLiveMapPage() {
                       Scheduled Trip
                     </span>
                     <span className={["h-1.5 w-1.5 rounded-full animate-pulse", mapTheme === "dark" ? "bg-amber-400" : "bg-amber-500"].join(" ")} aria-hidden />
+                    {/* drag hint */}
+                    <span className={["ml-auto text-[9px] font-medium", mapTheme === "dark" ? "text-slate-500" : "text-slate-400"].join(" ")}>drag to move</span>
                   </div>
+                </div>
 
+                <div className="px-4 pb-4 pt-2 space-y-3">
                   {/* Passenger row */}
                   <div className="flex items-center gap-3">
                     <div className={[
