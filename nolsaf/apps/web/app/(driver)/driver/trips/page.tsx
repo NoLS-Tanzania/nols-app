@@ -216,6 +216,21 @@ export default function DriverTripsPage() {
     )
   }
 
+  // Compact single-line version for table cells
+  const renderLocationCell = (value?: string | null) => {
+    const location = summarizeLocation(value)
+    // Build a short representative string: title + first part of street/region if available
+    const subtitle = location.street || location.region || null
+    return (
+      <div>
+        <div className="font-semibold text-slate-900 truncate">{location.title || '—'}</div>
+        {subtitle && (
+          <div className="text-[11px] text-slate-400 truncate mt-0.5">{subtitle}</div>
+        )}
+      </div>
+    )
+  }
+
   const formatDate = (iso?: string) => {
     if (!iso) return "-"
     const d = new Date(iso)
@@ -553,8 +568,8 @@ export default function DriverTripsPage() {
                             <td className="px-5 py-4 text-sm text-slate-700 whitespace-nowrap align-top">
                               {canShowDropoff ? `${formatDate(dropoffIso)} ${formatTime(dropoffIso)}` : "—"}
                             </td>
-                            <td className="px-5 py-4 text-sm text-slate-700 max-w-[280px] break-words leading-5 align-top">{renderLocationSummary(t.pickup || t.from || '—')}</td>
-                            <td className="px-5 py-4 text-sm text-slate-700 max-w-[280px] break-words leading-5 align-top">{renderLocationSummary(t.dropoff || t.to || '—')}</td>
+                            <td className="px-5 py-4 text-sm text-slate-700 max-w-[180px] align-top">{renderLocationCell(t.pickup || t.from || '—')}</td>
+                            <td className="px-5 py-4 text-sm text-slate-700 max-w-[180px] align-top">{renderLocationCell(t.dropoff || t.to || '—')}</td>
                             <td className="px-5 py-4 text-sm text-slate-700 font-mono font-medium whitespace-nowrap align-top">{t.trip_code || t.code || t.reference || t.tripCode || '—'}</td>
                             <td className="px-5 py-4 text-sm whitespace-nowrap align-top">{renderAssignmentBadge(source)}</td>
                             <td className="px-5 py-4 text-sm whitespace-nowrap align-top">{renderStatusBadge(t.status)}</td>
