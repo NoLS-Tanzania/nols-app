@@ -1903,9 +1903,9 @@ export default function DriverLiveMapPage() {
 
           {/* Overlay toggle button moved into the floating actions stack (consistent sizing/spacing). */}
           
-          {/* Trip Steps / ETA badge - keep inside rounded map frame */}
+          {/* Trip Steps / ETA badge - bottom-left to avoid right-side floating actions */}
           {activeTrip && tripStage !== 'dropoff' && tripStage !== 'completed' && !showPickupFocusCard && (
-            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-30 pointer-events-auto">
+            <div className="absolute bottom-4 left-4 z-30 pointer-events-auto">
               <TripSteps
                 currentStep={getCurrentStep()}
                 completedSteps={completedSteps}

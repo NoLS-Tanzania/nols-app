@@ -173,88 +173,61 @@ export default function TripSteps({
 
   return (
     <>
-      {/* Pickup countdown (before enabling arrival confirmation) */}
+      {/* Pickup ETA compact pill */}
       {!isCompleted && canProceed && isPickupStep && !isAtPickup && (
         <div
           className={[
-            "group relative overflow-hidden backdrop-blur-xl py-2.5 px-3.5 rounded-full shadow-[0_18px_60px_rgba(15,23,42,0.18)] flex items-center gap-3 transition-all duration-300 ease-out animate-fade-in-up",
+            "relative overflow-hidden backdrop-blur-xl rounded-2xl shadow-[0_8px_32px_rgba(15,23,42,0.18)] flex items-center gap-2.5 px-3 py-2 transition-all duration-300 animate-fade-in-up",
             glassPill,
           ].join(" ")}
           title="Drive to pickup to enable confirmation"
         >
-          <span className="absolute inset-0 bg-gradient-to-r from-blue-200/0 via-blue-200/18 to-blue-200/0 opacity-80 animate-[pulse_3.2s_ease-in-out_infinite]" />
-
           <span className="relative flex-shrink-0">
-            <span className="absolute -inset-1 rounded-full bg-blue-500/25 blur-sm" />
-            <span className="relative h-9 w-9 rounded-full bg-gradient-to-br from-blue-600 to-blue-500 border border-white/60 flex items-center justify-center shadow-md">
-              <MapPin className="h-4 w-4 text-white" />
+            <span className="absolute -inset-1 rounded-full bg-blue-500/20 blur-sm" />
+            <span className="relative h-8 w-8 rounded-xl bg-gradient-to-br from-blue-600 to-blue-500 flex items-center justify-center shadow-sm">
+              <MapPin className="h-3.5 w-3.5 text-white" />
             </span>
           </span>
-
-          <span className="relative min-w-0 flex flex-col leading-tight">
-            <span className={["text-[10px] uppercase tracking-wide font-semibold", pillLabel].join(" ")}>
-              Arrival ETA
-            </span>
+          <span className="flex flex-col leading-none">
+            <span className={["text-[9px] uppercase tracking-wider font-bold mb-0.5", pillLabel].join(" ")}>ETA</span>
             {typeof pickupCountdownMin === "number" && Number.isFinite(pickupCountdownMin) ? (
-              <span className={["text-base font-semibold truncate", pillValue].join(" ")}>
-                <span className={["text-xl font-extrabold tabular-nums animate-[pulse_2.6s_ease-in-out_infinite]", pillNumber].join(" ")}>
-                  {pickupCountdownMin}
-                </span>{" "}
-                <span className={["font-semibold", pillUnitStrong].join(" ")}>min</span>{" "}
-                <span className={["font-semibold", pillUnit].join(" ")}>to pickup</span>
+              <span className={["text-base font-extrabold tabular-nums", pillNumber].join(" ")}>
+                {pickupCountdownMin}<span className={["text-[11px] font-semibold ml-0.5", pillUnit].join(" ")}>m</span>
               </span>
             ) : (
-              <span className={["text-base font-semibold", pillCalc].join(" ")}>Calculating…</span>
+              <span className={["text-xs font-semibold", pillCalc].join(" ")}>—</span>
             )}
           </span>
-
-          <span
-            className="relative ml-1 h-2.5 w-2.5 rounded-full bg-blue-600 shadow-[0_0_0_4px_rgba(37,99,235,0.18)] animate-[pulse_2.2s_ease-in-out_infinite]"
-            aria-hidden="true"
-          />
+          <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse flex-shrink-0" aria-hidden />
         </div>
       )}
 
-      {/* Current Step Button - Very Small with Step-Specific Colors */}
+      {/* Destination ETA compact pill */}
       {!isCompleted && canProceed && isDestinationStep && !isAtDestination && (
         <div
           className={[
-            "group relative overflow-hidden backdrop-blur-xl py-2.5 px-3.5 rounded-full shadow-[0_18px_60px_rgba(15,23,42,0.18)] flex items-center gap-3 transition-all duration-300 ease-out animate-fade-in-up",
+            "relative overflow-hidden backdrop-blur-xl rounded-2xl shadow-[0_8px_32px_rgba(15,23,42,0.18)] flex items-center gap-2.5 px-3 py-2 transition-all duration-300 animate-fade-in-up",
             glassPill,
           ].join(" ")}
           title="Drive to destination to enable confirmation"
         >
-          {/* soft animated wash (keeps it feeling alive) */}
-          <span className="absolute inset-0 bg-gradient-to-r from-amber-200/0 via-amber-200/18 to-amber-200/0 opacity-80 animate-[pulse_3.2s_ease-in-out_infinite]" />
-
           <span className="relative flex-shrink-0">
-            <span className="absolute -inset-1 rounded-full bg-amber-400/25 blur-sm" />
-            <span className="relative h-9 w-9 rounded-full bg-gradient-to-br from-amber-500 to-orange-500 border border-white/60 flex items-center justify-center shadow-md">
-              <Flag className="h-4 w-4 text-white" />
+            <span className="absolute -inset-1 rounded-full bg-amber-400/20 blur-sm" />
+            <span className="relative h-8 w-8 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center shadow-sm">
+              <Flag className="h-3.5 w-3.5 text-white" />
             </span>
           </span>
-
-          <span className="relative min-w-0 flex flex-col leading-tight">
-            <span className={["text-[10px] uppercase tracking-wide font-semibold", pillLabel].join(" ")}>
-              Arrival ETA
-            </span>
+          <span className="flex flex-col leading-none">
+            <span className={["text-[9px] uppercase tracking-wider font-bold mb-0.5", pillLabel].join(" ")}>ETA</span>
             {typeof destinationCountdownMin === "number" && Number.isFinite(destinationCountdownMin) ? (
-              <span className={["text-base font-semibold truncate", pillValue].join(" ")}>
-                <span className={["text-xl font-extrabold tabular-nums animate-[pulse_2.6s_ease-in-out_infinite]", pillNumber].join(" ")}>
-                  {destinationCountdownMin}
-                </span>{" "}
-                <span className={["font-semibold", pillUnitStrong].join(" ")}>min</span>{" "}
-                <span className={["font-semibold", pillUnit].join(" ")}>to destination</span>
+              <span className={["text-base font-extrabold tabular-nums", pillNumber].join(" ")}>
+                {destinationCountdownMin}<span className={["text-[11px] font-semibold ml-0.5", pillUnit].join(" ")}>m</span>
               </span>
             ) : (
-              <span className={["text-base font-semibold", pillCalc].join(" ")}>Calculating…</span>
+              <span className={["text-xs font-semibold", pillCalc].join(" ")}>—</span>
             )}
           </span>
-
-          <span
-            className="relative ml-1 h-2.5 w-2.5 rounded-full bg-amber-500 shadow-[0_0_0_4px_rgba(251,191,36,0.18)] animate-[pulse_2.2s_ease-in-out_infinite]"
-            aria-hidden="true"
-          />
+          <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse flex-shrink-0" aria-hidden />
         </div>
       )}
 
