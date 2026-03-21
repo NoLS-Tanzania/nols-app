@@ -594,20 +594,21 @@ export default function RideDetailPage() {
 
                       {/* barcode + pulsing dot */}
                       <div className="flex items-center justify-between gap-2">
-                        <svg width="130" height="22" viewBox="0 0 130 22" aria-hidden>
+                        <svg width="150" height="26" viewBox="0 0 150 26" aria-hidden>
                           {(() => {
+                            // Clean barcode: deterministic widths (1–3px bars), always separated by gaps (2–4px)
                             const bars: { x: number; w: number }[] = [];
                             let x = 0;
-                            let seed = ((ride.driver!.id * 1664525) + 1013904223) & 0x7fffffff;
-                            while (x < 130) {
-                              seed = ((seed * 1664525) + 1013904223) & 0x7fffffff;
-                              const w = (seed % 3) + 1;
-                              const gap = ((seed >> 4) % 4) + 1;
-                              if (seed % 2 === 0) bars.push({ x, w });
-                              x += w + gap;
+                            let s = Math.abs((ride.driver!.id * 6364136223846793005 + 1442695040888963407) | 0) >>> 0;
+                            const next = () => { s = ((s * 1664525) + 1013904223) >>> 0; return s; };
+                            while (x < 150) {
+                              const barW = (next() % 3) + 1;        // 1, 2 or 3px bar
+                              const gapW = (next() % 3) + 2;        // 2, 3 or 4px gap
+                              bars.push({ x, w: barW });
+                              x += barW + gapW;
                             }
                             return bars.map(({ x, w }) => (
-                              <rect key={x} x={x} y={0} width={w} height={22} fill="rgba(255,255,255,0.65)" />
+                              <rect key={x} x={x} y={2} width={w} height={22} rx="0.5" fill="rgba(255,255,255,0.72)" />
                             ));
                           })()}
                         </svg>
