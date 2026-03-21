@@ -590,34 +590,32 @@ export default function RideDetailPage() {
                           <p className="text-[7px] font-bold uppercase tracking-widest text-white/35">Languages</p>
                           <p className="text-[10px] font-black text-white mt-0.5">English · Kiswahili</p>
                         </div>
-                      </div>
-
-                      {/* barcode + pulsing dot */}
-                      <div className="flex items-center justify-between gap-2">
-                        <svg width="150" height="26" viewBox="0 0 150 26" aria-hidden>
-                          {(() => {
-                            // Clean barcode: deterministic widths (1–3px bars), always separated by gaps (2–4px)
-                            const bars: { x: number; w: number }[] = [];
-                            let x = 0;
-                            let s = Math.abs((ride.driver!.id * 6364136223846793005 + 1442695040888963407) | 0) >>> 0;
-                            const next = () => { s = ((s * 1664525) + 1013904223) >>> 0; return s; };
-                            while (x < 150) {
-                              const barW = (next() % 3) + 1;        // 1, 2 or 3px bar
-                              const gapW = (next() % 3) + 2;        // 2, 3 or 4px gap
-                              bars.push({ x, w: barW });
-                              x += barW + gapW;
-                            }
-                            return bars.map(({ x, w }) => (
-                              <rect key={x} x={x} y={2} width={w} height={22} rx="0.5" fill="rgba(255,255,255,0.72)" />
-                            ));
-                          })()}
-                        </svg>
-                        <div className="inline-flex items-center gap-1 flex-shrink-0">
-                          <span className="relative flex h-1.5 w-1.5">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75" />
-                            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-400" />
-                          </span>
-                          <span className="text-[7px] font-bold uppercase tracking-widest text-white/35">Active</span>
+                        {/* barcode + active dot — shares last row with Languages */}
+                        <div className="flex flex-col justify-center gap-1">
+                          <svg width="100" height="20" viewBox="0 0 100 20" aria-hidden>
+                            {(() => {
+                              const bars: { x: number; w: number }[] = [];
+                              let x = 0;
+                              let s = Math.abs((ride.driver!.id * 6364136223846793005 + 1442695040888963407) | 0) >>> 0;
+                              const next = () => { s = ((s * 1664525) + 1013904223) >>> 0; return s; };
+                              while (x < 100) {
+                                const barW = (next() % 3) + 1;
+                                const gapW = (next() % 3) + 2;
+                                bars.push({ x, w: barW });
+                                x += barW + gapW;
+                              }
+                              return bars.map(({ x, w }) => (
+                                <rect key={x} x={x} y={1} width={w} height={18} rx="0.5" fill="rgba(255,255,255,0.72)" />
+                              ));
+                            })()}
+                          </svg>
+                          <div className="inline-flex items-center gap-1">
+                            <span className="relative flex h-1.5 w-1.5 flex-shrink-0">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75" />
+                              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-400" />
+                            </span>
+                            <span className="text-[7px] font-bold uppercase tracking-widest text-white/35">Active</span>
+                          </div>
                         </div>
                       </div>
 
