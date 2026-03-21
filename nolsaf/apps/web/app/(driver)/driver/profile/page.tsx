@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import axios from "axios";
@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import DatePickerField from "@/components/DatePickerField";
 
-// ─── Driver document types ──────────────────────────────────────────────────
+// --- Driver document types --------------------------------------------------
 const DRIVER_DOC_TYPES = [
   { type: "DRIVER_LICENSE",       label: "Driving Licence",              hasExpiry: true,  expiryLabel: "Licence expiry date" },
   { type: "NATIONAL_ID",          label: "National ID",                  hasExpiry: false },
@@ -32,17 +32,17 @@ function maskAccount(v?: string | null) {
 function maskPhone(v?: string | null) {
   if (!v) return "—";
   const s = String(v);
-  return s.length <= 6 ? s.replace(/.(?=.{2})/g, "*") : s.slice(0, 4) + "••••" + s.slice(-2);
+  return s.length <= 6 ? s.replace(/.(?=.{2})/g, "*") : s.slice(0, 4) + "————" + s.slice(-2);
 }
 function maskRef(v?: string | null) {
   if (!v) return "—";
   const s = String(v);
-  return s.length <= 8 ? s.slice(0, 2) + "••••" + s.slice(-2) : s.slice(0, 4) + "••••" + s.slice(-4);
+  return s.length <= 8 ? s.slice(0, 2) + "————" + s.slice(-2) : s.slice(0, 4) + "————" + s.slice(-4);
 }
 
 const api = axios.create({ baseURL: "", withCredentials: true });
 
-// ─── Shared display components ───────────────────────────────────────────────
+// --- Shared display components -----------------------------------------------
 function InfoItem({
   icon, label, value, tone = "light", accent = "brand",
 }: {
@@ -60,7 +60,7 @@ function InfoItem({
       <div className={iconCls}>{icon}</div>
       <div className="min-w-0">
         <div className={dark ? "text-xs font-semibold text-white/60" : "text-xs font-semibold text-slate-600"}>{label}</div>
-        <div className={dark ? "text-sm font-bold text-white mt-0.5 break-words" : "text-sm font-bold text-slate-900 mt-0.5 break-words"}>{value}</div>
+        <div className={dark ? "text-sm font-normal text-white mt-0.5 break-words" : "text-sm font-normal text-slate-900 mt-0.5 break-words"}>{value}</div>
       </div>
     </div>
   );
@@ -129,7 +129,7 @@ function EditableInfoItem({
             </div>
           )
         ) : (
-          <div className={`text-sm font-bold mt-0.5 break-words ${!value ? "text-slate-400" : "text-slate-900"}`}>
+          <div className={`text-sm font-normal mt-0.5 break-words ${!value ? "text-slate-400" : "text-slate-900"}`}>
             {fieldType === "date" && value ? new Date(value).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : display}
           </div>
         )}
@@ -138,7 +138,7 @@ function EditableInfoItem({
   );
 }
 
-// ─── Main component ──────────────────────────────────────────────────────────
+// --- Main component ----------------------------------------------------------
 export default function DriverProfile() {
   const [form, setForm] = useState<any>({});
   const [me, setMe] = useState<any>(null);
@@ -322,7 +322,7 @@ export default function DriverProfile() {
           <span className="dot dot-blue" /><span className="dot dot-black" />
           <span className="dot dot-yellow" /><span className="dot dot-green" />
         </div>
-        <p className="text-sm text-slate-600 mt-4">Loading profile…</p>
+        <p className="text-sm text-slate-600 mt-4">Loading profile—</p>
       </div>
     );
   }
@@ -351,7 +351,7 @@ export default function DriverProfile() {
   return (
     <div className="w-full py-2 sm:py-4">
 
-      {/* ── Hero banner ─────────────────────────────────────────────────── */}
+      {/* -- Hero banner --------------------------------------------------- */}
       <div className="mb-6 relative rounded-3xl border border-white/10 bg-slate-950 shadow-card overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-[#02665e]/20 via-slate-950 to-slate-900" aria-hidden />
         <div className="relative p-5 sm:p-7">
@@ -391,7 +391,7 @@ export default function DriverProfile() {
         </div>
       </div>
 
-      {/* ── Save feedback ──────────────────────────────────────────────── */}
+      {/* -- Save feedback ------------------------------------------------ */}
       {(saveSuccess || saveError) && (
         <div className={`mb-5 rounded-2xl border px-5 py-3.5 text-sm font-semibold ${saveSuccess ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-rose-50 border-rose-200 text-rose-800"}`}>
           {saveSuccess ?? saveError}
@@ -400,7 +400,7 @@ export default function DriverProfile() {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
 
-        {/* ── Personal details ──────────────────────────────────────────── */}
+        {/* -- Personal details -------------------------------------------- */}
         <div className="lg:col-span-7 rounded-2xl border border-slate-200 bg-white shadow-card overflow-hidden">
           <div className="p-5 sm:p-6 border-b border-slate-200 bg-slate-50/60">
             <div className="text-sm font-bold text-slate-900">Personal details</div>
@@ -464,7 +464,7 @@ export default function DriverProfile() {
           </div>
         </div>
 
-        {/* ── Driving details ───────────────────────────────────────────── */}
+        {/* -- Driving details --------------------------------------------- */}
         <div className="lg:col-span-5 rounded-2xl border border-slate-200 bg-white shadow-card overflow-hidden">
           <div className="p-5 sm:p-6 border-b border-slate-200 bg-slate-50/60">
             <div className="text-sm font-bold text-slate-900">Driving details</div>
@@ -488,14 +488,14 @@ export default function DriverProfile() {
                 <div className="text-xs font-semibold text-slate-600">VIP vehicle class</div>
                 {form.isVipDriver
                   ? <span className="inline-flex items-center gap-1.5 mt-1 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold">VIP — Premium eligible</span>
-                  : <div className="text-sm font-bold text-slate-900 mt-0.5">Standard class</div>}
+                  : <div className="text-sm font-normal text-slate-900 mt-0.5">Standard class</div>}
                 <div className="text-[10px] text-slate-400 mt-1">Set during registration, reviewed by our team.</div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* ── Payment phone — dark card ─────────────────────────────────── */}
+        {/* -- Payment phone — dark card ----------------------------------- */}
         <div className="lg:col-span-6 relative rounded-2xl border border-white/10 bg-slate-950/70 shadow-card overflow-hidden backdrop-blur-xl">
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-[#02665e]/20 via-slate-950/80 to-slate-950" aria-hidden />
           <div className="pointer-events-none absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-white/10 to-transparent" aria-hidden />
@@ -536,7 +536,7 @@ export default function DriverProfile() {
                       />
                     </div>
                   )
-                  : <div className={`text-sm font-bold mt-0.5 ${!form.paymentPhone ? "text-white/40" : "text-white"}`}>{form.paymentPhone || "—"}</div>}
+                  : <div className={`text-sm font-normal mt-0.5 ${!form.paymentPhone ? "text-white/40" : "text-white"}`}>{form.paymentPhone || "—"}</div>}
                 {form.paymentVerified || form.paymentPhoneVerified
                   ? <span className="inline-flex items-center gap-1 mt-1.5 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400"><CheckCircle className="w-3 h-3" />Verified</span>
                   : <span className="inline-flex items-center gap-1 mt-1.5 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400"><AlertCircle className="w-3 h-3" />Not verified</span>}
@@ -545,7 +545,7 @@ export default function DriverProfile() {
           </div>
         </div>
 
-        {/* ── Payout details — dark card ────────────────────────────────── */}
+        {/* -- Payout details — dark card ---------------------------------- */}
         <div className="lg:col-span-6 relative rounded-2xl border border-white/10 bg-slate-950/70 shadow-card overflow-hidden backdrop-blur-xl">
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-[#0a5c82]/15 via-slate-950/85 to-slate-950" aria-hidden />
           <div className="pointer-events-none absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-white/10 to-transparent" aria-hidden />
@@ -561,7 +561,7 @@ export default function DriverProfile() {
           </div>
         </div>
 
-        {/* ── Required documents ────────────────────────────────────────── */}
+        {/* -- Required documents ------------------------------------------ */}
         <div className="lg:col-span-12 rounded-2xl border border-slate-200 bg-white shadow-card overflow-hidden">
           <div className="p-5 sm:p-6 border-b border-slate-200 bg-slate-50/60">
             <div className="text-sm font-bold text-slate-900">Required documents</div>
@@ -586,7 +586,7 @@ export default function DriverProfile() {
                     <div className="text-xs font-semibold text-slate-600">Document type</div>
                     <select value={selectedDocType} onChange={(e) => { setSelectedDocType(e.target.value); setDocError(null); setInlineExpiryType(null); }}
                       className="mt-2 w-full h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30">
-                      <option value="">Select document…</option>
+                      <option value="">Select document—</option>
                       {missingDocTypes.map(dt => <option key={dt.type} value={dt.type}>{dt.label}</option>)}
                     </select>
                     <div className="text-xs text-slate-600 mt-2">Select type, then drag & drop or click to upload.</div>
@@ -621,7 +621,7 @@ export default function DriverProfile() {
                           <Plus className="w-5 h-5" aria-hidden />
                         </div>
                         <div className="min-w-0">
-                          <div className="text-sm font-semibold text-slate-900">{docUploading ? "Uploading…" : !selectedDocType ? "Select a document type above" : "Drag & drop to upload"}</div>
+                          <div className="text-sm font-semibold text-slate-900">{docUploading ? "Uploading—" : !selectedDocType ? "Select a document type above" : "Drag & drop to upload"}</div>
                           <div className="text-xs font-semibold text-slate-600 mt-0.5">or click to browse</div>
                         </div>
                       </div>
@@ -669,7 +669,7 @@ export default function DriverProfile() {
                     </div>
                     {expiresOn && (
                       <div className={`mt-1.5 text-[10px] font-medium ${isExpired ? "text-rose-600" : typeof daysLeft === "number" && daysLeft <= 10 ? "text-orange-600" : "text-slate-500"}`}>
-                        {isExpired ? "⚠ Expired: " : "Expires: "}{expiresOn}
+                        {isExpired ? "? Expired: " : "Expires: "}{expiresOn}
                         {!isExpired && typeof daysLeft === "number" && daysLeft <= 30 && ` (${daysLeft}d left)`}
                       </div>
                     )}
@@ -733,7 +733,7 @@ export default function DriverProfile() {
           </div>
         </div>
 
-        {/* ── Payment methods ───────────────────────────────────────────── */}
+        {/* -- Payment methods --------------------------------------------- */}
         <div className="lg:col-span-12 rounded-2xl border border-slate-200 bg-white shadow-card overflow-hidden">
           <div className="p-5 sm:p-6 border-b border-slate-200 bg-slate-50/60">
             <div className="text-sm font-bold text-slate-900">Payment methods</div>
@@ -743,7 +743,7 @@ export default function DriverProfile() {
             {loadingPaymentMethods ? (
               <div className="py-8 flex flex-col items-center gap-3">
                 <div className="dot-spinner dot-sm" aria-hidden><span className="dot dot-blue" /><span className="dot dot-black" /><span className="dot dot-yellow" /><span className="dot dot-green" /></div>
-                <p className="text-sm text-slate-500">Loading…</p>
+                <p className="text-sm text-slate-500">Loading—</p>
               </div>
             ) : !paymentMethods || paymentMethods.length === 0 ? (
               <div className="py-10 flex flex-col items-center gap-3 text-center">
@@ -770,7 +770,7 @@ export default function DriverProfile() {
           </div>
         </div>
 
-        {/* ── Account actions ───────────────────────────────────────────── */}
+        {/* -- Account actions --------------------------------------------- */}
         <div className="lg:col-span-12 rounded-2xl border border-slate-200 bg-white shadow-card overflow-hidden">
           <div className="p-5 sm:p-6 border-b border-slate-200 bg-slate-50/60">
             <div className="text-sm font-bold text-slate-900">Account actions</div>
@@ -779,7 +779,7 @@ export default function DriverProfile() {
           <div className="p-5 sm:p-6 grid grid-cols-2 gap-3">
             <button onClick={save} disabled={saving}
               className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#02665e] text-white text-sm font-semibold hover:bg-[#02665e]/90 shadow-card transition-colors disabled:opacity-60 disabled:cursor-wait">
-              <Save className="h-4 w-4" />{saving ? "Saving…" : "Save changes"}
+              <Save className="h-4 w-4" />{saving ? "Saving—" : "Save changes"}
             </button>
             <button onClick={() => { window.location.href = "/driver/security"; }}
               className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-semibold hover:bg-slate-50 shadow-card transition-colors">

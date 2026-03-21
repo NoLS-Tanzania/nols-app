@@ -149,9 +149,9 @@ function statusPill(status: string, hasFile: boolean) {
 
 function StatCard({ label, value, accent }: { label: string; value: string; accent?: string }) {
   return (
-    <div className="flex flex-col items-center justify-center py-5 px-3 gap-1">
-      <span className="text-[9px] font-black uppercase tracking-[0.32em] text-white/40">{label}</span>
-      <span className={`mt-1 text-[2.05rem] font-bold leading-none tabular-nums ${accent ?? "text-white"}`}>{value}</span>
+    <div className="bg-white/10 backdrop-blur-sm rounded-xl px-4 py-3 border border-white/15 flex flex-col gap-0.5">
+      <span className="text-white/55 text-xs font-medium">{label}</span>
+      <span className={`text-xl font-bold leading-tight tabular-nums ${accent ?? "text-white"}`}>{value}</span>
     </div>
   )
 }
@@ -162,10 +162,10 @@ function TabButton({ active, children, onClick }: { active: boolean; children: R
       type="button"
       onClick={onClick}
       className={[
-        "rounded-full px-5 py-2.5 text-sm font-semibold transition-all duration-200",
+        "rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-200",
         active
-          ? "bg-white text-slate-950 shadow-[0_2px_14px_rgba(0,0,0,0.22)]"
-          : "text-white/55 hover:text-white/85",
+          ? "bg-white text-[#02665e] shadow-sm"
+          : "text-white/80 hover:text-white hover:bg-white/10",
       ].join(" ")}
     >
       {children}
@@ -308,57 +308,40 @@ export default function DriverManagementPageClient() {
   return (
     <div className="w-full max-w-full space-y-8 overflow-x-hidden pb-8">
       <section
-        className="relative overflow-hidden rounded-[36px] border border-white/[8%] shadow-[0_40px_100px_rgba(6,12,30,0.58)]"
-        style={{ background: "linear-gradient(158deg, #07162c 0%, #0d2c56 40%, #095f74 72%, #07654e 100%)" }}
+        className="relative overflow-hidden rounded-2xl"
+        style={{ background: "linear-gradient(135deg, #02665e 0%, #014e47 55%, #013d38 100%)", minHeight: 210 }}
       >
         {/* Dot-grid overlay */}
         <div
-          className="pointer-events-none absolute inset-0"
+          className="pointer-events-none absolute inset-0 opacity-30"
           style={{
-            backgroundImage: "radial-gradient(rgba(255,255,255,0.10) 1px, transparent 1px)",
-            backgroundSize: "30px 30px",
-            maskImage: "radial-gradient(ellipse 74% 62% at 50% 44%, black 0%, transparent 100%)",
-            WebkitMaskImage: "radial-gradient(ellipse 74% 62% at 50% 44%, black 0%, transparent 100%)",
+            backgroundImage: "radial-gradient(rgba(255,255,255,0.12) 1px, transparent 1px)",
+            backgroundSize: "28px 28px",
           }}
           aria-hidden
         />
-        {/* Top-center radial glow behind icon */}
-        <div className="pointer-events-none absolute inset-x-0 -top-24 flex justify-center" aria-hidden>
-          <div
-            className="h-[400px] w-[400px] rounded-full"
-            style={{ background: "radial-gradient(circle, rgba(13,232,192,0.16) 0%, transparent 65%)" }}
-          />
+        {/* Teal radial glow */}
+        <div className="pointer-events-none absolute inset-x-0 -top-16 flex justify-center" aria-hidden>
+          <div className="h-[320px] w-[320px] rounded-full" style={{ background: "radial-gradient(circle, rgba(255,255,255,0.08) 0%, transparent 65%)" }} />
         </div>
         {/* Watermark gear — bottom-right */}
-        <div className="pointer-events-none absolute -bottom-14 -right-14 opacity-[0.04]" aria-hidden>
-          <Settings className="h-[280px] w-[280px] text-white" />
+        <div className="pointer-events-none absolute -bottom-10 -right-10 opacity-[0.05]" aria-hidden>
+          <Settings className="h-[220px] w-[220px] text-white" />
         </div>
-        {/* Thin horizontal accent lines */}
-        <div className="pointer-events-none absolute inset-x-0 top-[41%] h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" aria-hidden />
-        <div className="pointer-events-none absolute inset-x-0 bottom-[24%] h-px bg-gradient-to-r from-transparent via-white/[6%] to-transparent" aria-hidden />
 
-        <div className="relative px-6 py-9 sm:px-8 lg:px-10 lg:py-11">
+        <div className="relative px-5 pt-7 pb-6 sm:px-8">
           <div className="flex flex-col items-center text-center">
-            {/* Concentric rings + icon */}
-            <div className="relative inline-flex items-center justify-center" aria-hidden="true">
-              <div className="absolute h-[108px] w-[108px] rounded-full border border-white/[7%]" />
-              <div className="absolute h-[80px] w-[80px] rounded-full border border-white/[11%]" />
-              <div className="relative z-10 flex h-[58px] w-[58px] items-center justify-center rounded-full border border-white/20 bg-gradient-to-br from-white/20 to-white/5 shadow-[0_0_0_5px_rgba(255,255,255,0.04),0_18px_44px_rgba(0,0,0,0.36),inset_0_1px_0_rgba(255,255,255,0.22)] backdrop-blur-xl">
-                <Settings className="h-6 w-6 text-white" />
-              </div>
+            {/* Icon */}
+            <div className="h-12 w-12 rounded-2xl bg-white/15 flex items-center justify-center border border-white/20 shadow-lg backdrop-blur-sm mb-4">
+              <Settings className="h-5 w-5 text-white" />
             </div>
-
-            <h1 className="mt-8 text-[2.6rem] font-bold tracking-[-0.03em] text-white sm:text-5xl">Management</h1>
-            <div className="mt-3 flex items-center gap-4">
-              <span className="h-px w-10 bg-gradient-to-r from-transparent to-white/20" aria-hidden />
-              <p className="text-sm text-white/50">Driver document control and account access in one place.</p>
-              <span className="h-px w-10 bg-gradient-to-l from-transparent to-white/20" aria-hidden />
-            </div>
+            <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">Management</h1>
+            <p className="mt-2 text-white/55 text-sm">Driver document control and account access in one place.</p>
           </div>
 
-          {/* Stats — unified connected strip */}
-          <div className="mx-auto mt-9 max-w-[22rem] xl:max-w-sm">
-            <div className="grid grid-cols-3 divide-x divide-white/10 overflow-hidden rounded-[22px] border border-white/10 bg-white/5 shadow-[inset_0_1px_0_rgba(255,255,255,0.09)] backdrop-blur-md">
+          {/* Stats tiles */}
+          <div className="mx-auto mt-6 max-w-sm">
+            <div className="grid grid-cols-3 gap-2.5">
               <StatCard label="On File" value={`${availableCount}/4`} />
               <StatCard label="Pending" value={String(pendingCount)} accent={pendingCount > 0 ? "text-amber-300" : undefined} />
               <StatCard label="Expiring" value={String(expiringCount)} accent={expiringCount > 0 ? "text-rose-300" : undefined} />
@@ -366,8 +349,8 @@ export default function DriverManagementPageClient() {
           </div>
 
           {/* Tab selector */}
-          <div className="mt-6 flex justify-center">
-            <div className="flex gap-1 rounded-full border border-white/10 bg-slate-900/55 p-1">
+          <div className="mt-5 flex justify-center">
+            <div className="flex gap-1 rounded-2xl border border-white/20 bg-black/20 p-1 backdrop-blur-sm">
               <TabButton active={tab === "documents"} onClick={() => setTab("documents")}>Documents</TabButton>
               <TabButton active={tab === "safety"} onClick={() => setTab("safety")}>Safety Measures</TabButton>
               <TabButton active={tab === "settings"} onClick={() => setTab("settings")}>Settings</TabButton>

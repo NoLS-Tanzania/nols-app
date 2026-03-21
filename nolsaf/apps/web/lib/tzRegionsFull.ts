@@ -34977,7 +34977,6 @@ export const REGIONS_FULL_DATA: RegionFullData[] = [
               "MWASWALE",
               "MWAMALIZI",
               "NDING’HO",
-              "NG��WALALI",
               "NG’WALALI"
             ]
           },

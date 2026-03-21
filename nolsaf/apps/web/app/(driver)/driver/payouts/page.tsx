@@ -2,9 +2,30 @@
 import React, { useEffect, useState } from "react";
 // DriverPageHeader intentionally omitted here so the payouts header (icon + label)
 // appears at the top of the page without the extra route-based icon.
-import { Wallet, CreditCard, Eye, Download, X } from "lucide-react";
-import Spinner from "@/components/Spinner";
+import { Wallet, CreditCard, Eye, Download, X, RefreshCcw, Clock, AlertTriangle, TrendingUp } from "lucide-react";
 import TableRow from "@/components/TableRow"
+
+function RevenueVisualization({ amounts }: { amounts: number[] }) {
+  const raw = amounts.length >= 4 ? amounts.slice(-18) : [40, 65, 50, 80, 55, 90, 70, 60, 85, 75, 95, 65, 78, 88, 60, 72, 55, 82]
+  const max = Math.max(...raw, 1)
+  const W = 480; const H = 110; const count = raw.length; const slot = W / count; const barW = Math.max(8, slot - 6)
+  const pts = raw.map((v, i) => [i * slot + slot / 2, H - Math.max(8, (v / max) * (H - 16)) - 4] as [number, number])
+  let linePath = ""
+  if (pts.length >= 2) {
+    linePath = `M ${pts[0][0]} ${pts[0][1]}`
+    for (let i = 1; i < pts.length; i++) { const cpx = (pts[i-1][0]+pts[i][0])/2; linePath += ` C ${cpx} ${pts[i-1][1]} ${cpx} ${pts[i][1]} ${pts[i][0]} ${pts[i][1]}` }
+  }
+  const areaPath = linePath + ` L ${pts[pts.length-1][0]} ${H} L ${pts[0][0]} ${H} Z`
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMax slice" className="absolute inset-0 w-full h-full" aria-hidden>
+      <defs><linearGradient id="pvGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="white" stopOpacity="0.25" /><stop offset="100%" stopColor="white" stopOpacity="0.03" /></linearGradient></defs>
+      {raw.map((v,i) => { const h=Math.max(8,(v/max)*(H-16)); return <rect key={i} x={i*slot+(slot-barW)/2} y={H-h} width={barW} height={h} rx={4} fill="white" fillOpacity={0.08} /> })}
+      {pts.length>=2 && <path d={areaPath} fill="url(#pvGrad)" />}
+      {pts.length>=2 && <path d={linePath} fill="none" stroke="white" strokeWidth="2" strokeOpacity="0.45" strokeLinecap="round" strokeLinejoin="round" />}
+      {pts.map(([x,y],i) => <circle key={i} cx={x} cy={y} r={3} fill="white" fillOpacity="0.5" />)}
+    </svg>
+  )
+}
 import { escapeAttr, escapeHtml } from "@/utils/html";
 
 type ColDef = { key: string; label: string; sortable?: boolean; align?: "left" | "right" };
@@ -21,6 +42,7 @@ const PAYOUT_COLUMNS: ColDef[] = [
 
 export default function DriverPayoutsPage() {
   const [loading, setLoading] = useState(true);
+  const [refreshTick, setRefreshTick] = useState(0);
   const [payouts, setPayouts] = useState<any[]>([]);
   const [page, setPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(10);
@@ -59,7 +81,7 @@ export default function DriverPayoutsPage() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [refreshTick]);
 
   // close actions menu when clicking outside or pressing Escape
   useEffect(() => {
@@ -284,40 +306,90 @@ export default function DriverPayoutsPage() {
         try { openPrintableReceipt(payout) } catch { window.alert('Unable to generate receipt PDF') }
       }
     }
+  const payoutAmounts = payouts.map((p: any) => Number(p.netPaid ?? p.amount ?? p.net ?? 0)).filter((n: number) => n > 0)
+  const totalPaidOut = payouts.reduce((s: number, p: any) => s + (Number(p.netPaid ?? p.amount ?? p.net ?? 0) || 0), 0)
+  const avgPayout = payouts.length > 0 ? totalPaidOut / payouts.length : 0
+  const fmtTZS = (n: number) => new Intl.NumberFormat(undefined, { style: "currency", currency: "TZS", maximumFractionDigits: 0 }).format(n)
+  const thisMonthSum = (() => { const now = new Date(); const m = now.getMonth(); const y = now.getFullYear(); return payouts.filter((p: any) => { const d = new Date(p.paidAt || p.date || 0); return d.getMonth()===m && d.getFullYear()===y }).reduce((s: number, p: any) => s + (Number(p.netPaid ?? p.amount ?? p.net ?? 0) || 0), 0) })()
+  const lastPayoutAmt = payouts.length > 0 ? Number(payouts[0]?.netPaid ?? payouts[0]?.amount ?? payouts[0]?.net ?? 0) || 0 : null
+  const lastPayoutDate = payouts.length > 0 ? new Date(payouts[0]?.paidAt || payouts[0]?.date || 0).toLocaleDateString() : null
+
   return (
-    <div className="w-full max-w-full space-y-6 overflow-x-hidden">
-      <section className="w-full max-w-full bg-white rounded-lg p-6 border-2 border-slate-200 shadow-sm overflow-x-hidden">
-        <div className="flex flex-col items-center mb-6">
-          <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-emerald-50 text-emerald-600">
-            <Wallet className="h-6 w-6" aria-hidden />
-          </div>
-          <h1 className="mt-3 text-2xl font-semibold text-gray-900">Payouts</h1>
-        </div>
+    <div className="w-full max-w-full space-y-5 pb-8">
 
-        <div className="mt-6">
-          {loading ? (
-            <div className="flex items-center justify-center space-x-3 text-gray-600 mb-4">
-              <Spinner size="sm" className="mx-auto" ariaLabel="Checking for payouts" />
-              <span>Loading payouts…</span>
+      {/* Hero header with revenue visualization */}
+      <div className="relative rounded-2xl overflow-hidden" style={{ background: "linear-gradient(135deg, #02665e 0%, #014e47 55%, #013d38 100%)", minHeight: 210 }}>
+        <RevenueVisualization amounts={payoutAmounts} />
+        <div className="relative z-10 px-5 pt-6 pb-5">
+          <div className="flex items-start gap-3 mb-5">
+            <div className="h-11 w-11 rounded-2xl bg-white/15 flex items-center justify-center flex-shrink-0 backdrop-blur-sm border border-white/20">
+              <Wallet className="h-5 w-5 text-white" />
             </div>
-          ) : (
-            <div className="mt-4">
-              <div className="flex items-center justify-between mb-4">
-                <div className="text-sm font-medium text-slate-700">Showing {payouts.length} payouts</div>
-                <div className="flex items-center gap-2">
-                  <label htmlFor="payout-page-size" className="text-sm text-slate-600">Rows:</label>
-                  <select id="payout-page-size" value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }} className="text-sm border-2 border-slate-200 rounded-md px-3 py-1.5 bg-white hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
-                    {[5,10,25,50].map(n => (
-                      <option key={n} value={n}>{n}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-2xl font-bold text-white tracking-tight">Payouts</h1>
+              <p className="text-white/55 text-sm">Your payment history &amp; earnings</p>
+            </div>
+            <button onClick={() => setRefreshTick(t => t + 1)} disabled={loading} className="h-9 w-9 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center transition-colors flex-shrink-0" title="Refresh">
+              <RefreshCcw className={`h-4 w-4 text-white ${loading ? "animate-spin" : ""}`} />
+            </button>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div className="bg-white/10 backdrop-blur-sm rounded-xl px-4 py-3 border border-white/15">
+              <p className="text-white/55 text-xs font-medium mb-1">Total Paid Out</p>
+              <p className="text-white font-bold text-base leading-tight">{fmtTZS(totalPaidOut)}</p>
+              <p className="text-white/45 text-xs mt-0.5">{payouts.length} payout{payouts.length !== 1 ? "s" : ""}</p>
+            </div>
+            <div className="bg-white/10 backdrop-blur-sm rounded-xl px-4 py-3 border border-white/15">
+              <p className="text-white/55 text-xs font-medium mb-1 flex items-center gap-1"><TrendingUp className="h-3 w-3" /> This Month</p>
+              <p className="text-emerald-300 font-bold text-base leading-tight">{fmtTZS(thisMonthSum)}</p>
+              <p className="text-white/45 text-xs mt-0.5">current month</p>
+            </div>
+            <div className="bg-white/10 backdrop-blur-sm rounded-xl px-4 py-3 border border-white/15">
+              <p className="text-white/55 text-xs font-medium mb-1 flex items-center gap-1"><Clock className="h-3 w-3" /> Avg Payout</p>
+              <p className="text-amber-300 font-bold text-base leading-tight">{fmtTZS(avgPayout)}</p>
+              <p className="text-white/45 text-xs mt-0.5">per payout</p>
+            </div>
+            <div className="bg-white/10 backdrop-blur-sm rounded-xl px-4 py-3 border border-white/15">
+              <p className="text-white/55 text-xs font-medium mb-1 flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> Last Payout</p>
+              <p className="text-rose-300 font-bold text-base leading-tight">{lastPayoutAmt !== null ? fmtTZS(lastPayoutAmt) : "—"}</p>
+              <p className="text-white/45 text-xs mt-0.5">{lastPayoutDate ?? "no data"}</p>
+            </div>
+          </div>
+        </div>
+      </div>
 
-              {/* sorting and pagination logic */}
-              {/** compute sorted and paginated rows */}
-              {
-                (() => {
+      {/* Payouts table card */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-50 flex items-center gap-3">
+          <div className="h-8 w-8 rounded-xl bg-[#02665e]/10 text-[#02665e] flex items-center justify-center flex-shrink-0">
+            <Wallet className="h-4 w-4" />
+          </div>
+          <span className="font-semibold text-slate-800">Payout Records</span>
+          <div className="ml-auto flex items-center gap-2">
+            <span className="text-xs text-slate-500">Rows:</span>
+            <select id="payout-page-size" value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }} className="text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-[#02665e]/30">
+              {[5,10,25,50].map(n => (<option key={n} value={n}>{n}</option>))}
+            </select>
+          </div>
+          {loading && (
+            <span aria-hidden className="dot-spinner dot-sm" aria-live="polite">
+              <span className="dot dot-blue" /><span className="dot dot-black" /><span className="dot dot-yellow" /><span className="dot dot-green" />
+            </span>
+          )}
+        </div>
+        {loading ? (
+          <div className="flex items-center justify-center py-16 gap-3 text-slate-500">
+            <span aria-hidden className="dot-spinner dot-sm" aria-live="polite">
+              <span className="dot dot-blue" /><span className="dot dot-black" /><span className="dot dot-yellow" /><span className="dot dot-green" />
+            </span>
+            <span className="text-sm">Loading payouts…</span>
+          </div>
+        ) : (
+          <div>
+            {/* sorting and pagination logic */}
+            {/** compute sorted and paginated rows */}
+            {
+              (() => {
                   const getVal = (p: any, key: string) => {
                     switch (key) {
                       case 'date': return new Date(p.date || p.createdAt || p.paidAt || 0).getTime() || 0;
@@ -438,12 +510,12 @@ export default function DriverPayoutsPage() {
 
                   return (
                     <>
-                      <div className="overflow-x-auto rounded-lg border border-slate-200 max-w-full">
-                        <table className="w-full divide-y divide-slate-200 table-auto">
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[640px] table-auto">
                           <thead>
-                            <tr className="bg-slate-50">
+                            <tr className="bg-[#02665e]/5 border-b border-[#02665e]/10">
                               {PAYOUT_COLUMNS.map(col => (
-                                <th key={col.key} className={`px-6 py-3 text-${col.align === 'right' ? 'right' : 'left'} text-xs font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-200 ${col.sortable === false ? '' : 'cursor-pointer select-none hover:bg-slate-100'}`}
+                                <th key={col.key} className={`px-5 py-3 whitespace-nowrap text-${col.align === 'right' ? 'right' : 'left'} text-xs font-semibold text-[#02665e] uppercase tracking-wider ${col.sortable === false ? '' : 'cursor-pointer select-none hover:bg-[#02665e]/10'}`}
                                   onClick={() => {
                                     if (col.sortable === false) return;
                                     if (sortBy === col.key) setSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
@@ -461,7 +533,7 @@ export default function DriverPayoutsPage() {
                               ))}
                             </tr>
                           </thead>
-                          <tbody className="bg-white divide-y divide-slate-100">
+                          <tbody className="divide-y divide-slate-100">
                             {pageRows.length === 0 ? (
                               <tr className="bg-white">
                                 <td colSpan={PAYOUT_COLUMNS.length} className="px-6 py-12 text-center">
@@ -481,14 +553,14 @@ export default function DriverPayoutsPage() {
                             const invoiceHref = payout.invoiceId ? `/driver/invoices/${payout.invoiceId}` : `#`;
 
                             return (
-                              <TableRow key={payout.id || invoice || `payout-${idx}`} className="hover:bg-slate-50 transition-colors">
-                                <td className="px-6 py-4 text-sm font-medium text-slate-900 whitespace-nowrap">{fmt(date)}</td>
-                                <td className="px-6 py-4 text-sm text-slate-700 font-medium">{invoice}</td>
-                                <td className="px-6 py-4 text-sm text-slate-700 font-mono font-medium">{trip}</td>
-                                <td className="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">{timeFmt(paidAt)}</td>
-                                <td className="px-6 py-4 text-sm text-slate-700">{renderPaidTo(payout)}</td>
-                                <td className="px-6 py-4 text-sm font-semibold text-slate-900 text-right whitespace-nowrap">{typeof net === "number" ? net.toFixed(2) : net}</td>
-                                <td className="px-6 py-4 text-sm text-right relative whitespace-nowrap">
+                              <TableRow key={payout.id || invoice || `payout-${idx}`}>
+                                <td className="px-5 py-3.5 text-sm text-slate-700 whitespace-nowrap">{fmt(date)}</td>
+                                <td className="px-5 py-3.5 text-sm font-medium text-slate-800">{invoice}</td>
+                                <td className="px-5 py-3.5 text-xs font-mono text-slate-600 whitespace-nowrap">{trip}</td>
+                                <td className="px-5 py-3.5 text-sm text-slate-700 whitespace-nowrap">{timeFmt(paidAt)}</td>
+                                <td className="px-5 py-3.5 text-sm text-slate-700">{renderPaidTo(payout)}</td>
+                                <td className="px-5 py-3.5 text-sm font-semibold text-slate-900 text-right whitespace-nowrap">{typeof net === "number" ? net.toFixed(2) : net}</td>
+                                <td className="px-5 py-3.5 text-sm text-right relative whitespace-nowrap">
                                   <div className="flex items-center justify-end">
                                       {(() => {
                                       const idKey = String(payout.id || invoice || `payout-${idx}`)
@@ -500,16 +572,16 @@ export default function DriverPayoutsPage() {
                                             onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === idKey ? null : idKey) }}
                                             aria-haspopup="true"
                                             aria-label="Payout actions"
-                                            className="p-1.5 rounded-md hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-200 transition-colors"
+                                            className="p-1.5 rounded-lg hover:bg-[#02665e]/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30 transition-colors"
                                             title="Actions"
                                           >
-                                            <Eye className="h-5 w-5 text-sky-600 cursor-pointer" aria-hidden />
+                                            <Eye className="h-5 w-5 text-[#02665e] cursor-pointer" aria-hidden />
                                           </button>
 
                                           {openMenuId === idKey && (
-                                            <div className="absolute right-0 mt-2 w-44 bg-white border-2 border-slate-200 rounded-lg shadow-lg z-10 payout-actions-popover">
+                                            <div className="absolute right-0 mt-2 w-44 bg-white border border-slate-200 rounded-xl shadow-lg z-10 payout-actions-popover">
                                               <div className="py-1">
-                                                <button onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); if (payout.invoiceId) { window.location.href = `/driver/invoices/${payout.invoiceId}` } else { window.location.href = invoiceHref } }} className="w-full text-left px-4 py-2 text-sm text-sky-600 hover:bg-slate-50 flex items-center space-x-2 transition-colors">
+                                                <button onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); if (payout.invoiceId) { window.location.href = `/driver/invoices/${payout.invoiceId}` } else { window.location.href = invoiceHref } }} className="w-full text-left px-4 py-2 text-sm text-[#02665e] hover:bg-slate-50 flex items-center gap-2 transition-colors">
                                                   <Eye className="h-4 w-4" />
                                                   <span>View invoice</span>
                                                 </button>
@@ -541,21 +613,20 @@ export default function DriverPayoutsPage() {
                       </div>
 
                       {/* pagination controls */}
-                      <div className="mt-4 flex items-center justify-between pt-4 border-t border-slate-200">
-                        <div className="text-sm font-medium text-slate-700">Page {current} of {totalPages}</div>
+                      <div className="px-5 py-4 flex items-center justify-between border-t border-slate-50">
+                        <div className="text-xs text-slate-500">Page {current} of {totalPages}</div>
                         <div className="flex items-center gap-2">
-                          <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={current===1} className="px-4 py-2 text-sm font-medium rounded-md border-2 border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">Prev</button>
-                          <button onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={current===totalPages} className="px-4 py-2 text-sm font-medium rounded-md border-2 border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">Next</button>
+                          <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={current===1} className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">Prev</button>
+                          <button onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={current===totalPages} className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">Next</button>
                         </div>
                       </div>
                     </>
                   );
-                })()
-              }
-            </div>
-          )}
-        </div>
-      </section>
+              })()
+            }
+          </div>
+        )}
+      </div>
     </div>
   );
 }
