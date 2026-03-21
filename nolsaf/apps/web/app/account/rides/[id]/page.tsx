@@ -412,7 +412,7 @@ export default function RideDetailPage() {
             {/* Perspective wrapper — 3D flip card LANDSCAPE */}
             <div style={{ perspective: "1200px" }}>
               <div
-                className="h-[480px] sm:h-[300px]"
+                className="h-[380px] sm:h-[300px]"
                 style={{
                   position: "relative",
                   transformStyle: "preserve-3d",
@@ -428,8 +428,8 @@ export default function RideDetailPage() {
                 >
                   {/* bg */}
                   <div className="absolute inset-0" style={{ background: "linear-gradient(135deg, #0b1e35 0%, #0f2d4a 48%, #0c4a6e 100%)" }} />
-                  {/* left photo strip — landscape only */}
-                  <div className="hidden sm:block absolute top-0 left-0 bottom-0 w-[140px]" style={{ background: "linear-gradient(180deg, rgba(5,150,105,0.18) 0%, rgba(3,105,161,0.22) 100%)", borderRight: "1px solid rgba(5,150,105,0.18)" }} />
+                  {/* left photo strip — always visible */}
+                  <div className="absolute top-0 left-0 bottom-0 w-[110px] sm:w-[140px]" style={{ background: "linear-gradient(180deg, rgba(5,150,105,0.18) 0%, rgba(3,105,161,0.22) 100%)", borderRight: "1px solid rgba(5,150,105,0.18)" }} />
                   {/* decorative SVG */}
                   <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 500 300" fill="none" preserveAspectRatio="xMidYMid slice" aria-hidden>
                     {/* concentric arcs top-right */}
@@ -461,13 +461,13 @@ export default function RideDetailPage() {
                   {/* left green accent line */}
                   <div className="absolute top-0 left-0 bottom-0 w-[3px]" style={{ background: "linear-gradient(180deg, #10b981 0%, #0369a1 100%)" }} />
                   {/* bottom green stripe */}
-                  <div className="absolute bottom-0 left-0 sm:left-[140px] right-0 h-[3px]" style={{ background: "linear-gradient(90deg, #059669, #0369a1)" }} />
+                  <div className="absolute bottom-0 left-[110px] sm:left-[140px] right-0 h-[3px]" style={{ background: "linear-gradient(90deg, #059669, #0369a1)" }} />
 
-                  {/* FRONT CONTENT — portrait on mobile, landscape on sm+ */}
-                  <div className="relative flex flex-col sm:flex-row h-full">
+                  {/* FRONT CONTENT — side-by-side on all sizes */}
+                  <div className="relative flex flex-row h-full">
 
-                    {/* TOP (portrait) / LEFT (landscape) — photo column */}
-                    <div className="w-full sm:w-[140px] sm:flex-shrink-0 flex flex-col sm:flex-col items-center justify-center gap-2 px-4 sm:px-3 py-4 sm:py-0 border-b border-white/10 sm:border-b-0">
+                    {/* LEFT — photo column */}
+                    <div className="w-[110px] sm:w-[140px] flex-shrink-0 flex flex-col items-center justify-center gap-2 px-2 sm:px-3">
                       <div
                         className="h-[88px] w-[88px] rounded-full overflow-hidden flex items-center justify-center flex-shrink-0"
                         style={{
@@ -640,12 +640,12 @@ export default function RideDetailPage() {
                     <circle cx="40"  cy="40"  r="80"  stroke="white" strokeOpacity="0.04" strokeWidth="1" fill="none" />
                   </svg>
 
-                  {/* BACK CONTENT — portrait on mobile, landscape on sm+ */}
-                  <div className="relative flex flex-col sm:flex-row h-full">
+                  {/* BACK CONTENT — side-by-side on all sizes */}
+                  <div className="relative flex flex-row h-full">
 
                     {/* LEFT — quote stripe */}
                     <div className="w-[5px] flex-shrink-0" style={{ background: "linear-gradient(180deg, #10b981 0%, #0369a1 100%)" }} />
-                    <div className="hidden sm:flex w-[110px] flex-shrink-0 flex-col justify-center items-center gap-3 px-3 border-r border-white/8">
+                    <div className="hidden sm:flex w-[110px] sm:w-[140px] flex-shrink-0 flex-col justify-center items-center gap-3 px-3 border-r border-white/8">
                       {/* big quote mark */}
                       <span className="font-black leading-none select-none" style={{ fontSize: "5rem", color: "rgba(16,185,129,0.18)", lineHeight: 1 }}>&ldquo;</span>
                       <div className="text-center">
