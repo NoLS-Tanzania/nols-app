@@ -459,7 +459,7 @@ export default function DriverLayout({ children }: { children: ReactNode }) {
         </div>
       </div>
 
-      <div className="hidden md:block">
+      <div className="pb-20 md:pb-0">
         <DriverFooter />
       </div>
 

@@ -164,7 +164,9 @@ export default function DriverProfile() {
   const [licenseExpiresOn, setLicenseExpiresOn] = useState("");
   const [insuranceExpiresOn, setInsuranceExpiresOn] = useState("");
   const [inlineExpiryType, setInlineExpiryType] = useState<string | null>(null);
-
+  const [deleteStep, setDeleteStep] = useState<null | 'confirm' | 'verify'>(null);
+  const [deleteNameInput, setDeleteNameInput] = useState("");
+  const [deleting, setDeleting] = useState(false);
   type CloudinarySig = { timestamp: number; signature: string; folder: string; cloudName: string; apiKey: string };
 
   async function uploadToCloudinary(file: File, folder: string) {
@@ -258,7 +260,12 @@ export default function DriverProfile() {
       Boolean(form.licenseNumber),
       Boolean(form.vehicleType),
       Boolean(form.plateNumber || form.vehiclePlate),
-      ...DRIVER_DOC_TYPES.map(dt => Boolean(getLatestDriverDoc(docs, dt.type)?.url)),
+      ...DRIVER_DOC_TYPES.map(dt => {
+        const d = getLatestDriverDoc(docs, dt.type);
+        if (!d?.url) return false;
+        const expAt = d?.metadata?.expiresAt ? new Date(d.metadata.expiresAt) : d?.metadata?.expiresOn ? new Date(d.metadata.expiresOn) : null;
+        return !(expAt && expAt.getTime() < Date.now());
+      }),
     ];
     const done = checks.filter(Boolean).length;
     return { pct: Math.round((done / checks.length) * 100), done, total: checks.length };
@@ -349,6 +356,7 @@ export default function DriverProfile() {
   const missingDocTypes = DRIVER_DOC_TYPES.filter(dt => !getLatestDriverDoc(allDocs, dt.type)?.url);
 
   return (
+    <>
     <div className="w-full py-2 sm:py-4">
 
       {/* -- Hero banner --------------------------------------------------- */}
@@ -440,23 +448,7 @@ export default function DriverProfile() {
               <EditableInfoItem icon={<Globe className="w-5 h-5" />} label="Nationality" value={form.nationality} fieldKey="nationality" {...editProps} />
               <EditableInfoItem icon={<MapPin className="w-5 h-5" />} label="Region" value={form.region} fieldKey="region" {...editProps} />
               <EditableInfoItem icon={<MapPin className="w-5 h-5" />} label="District" value={form.district} fieldKey="district" {...editProps} />
-              <div className="flex items-start gap-3 group min-w-0 overflow-hidden">
-                <div className="h-10 w-10 rounded-2xl bg-[#02665e]/5 border border-[#02665e]/15 flex items-center justify-center text-[#02665e] flex-shrink-0">
-                  <Calendar className="w-5 h-5" />
-                </div>
-                <div className="min-w-0 flex-1 overflow-hidden">
-                  <div className="text-xs font-semibold text-slate-600 mb-1.5">Date of birth</div>
-                  <DatePickerField
-                    label="Date of birth"
-                    value={form.dateOfBirth || ""}
-                    onChangeAction={(iso) => editProps.onChange("dateOfBirth", iso)}
-                    allowPast={true}
-                    twoMonths={false}
-                    widthClassName="w-full"
-                    size="sm"
-                  />
-                </div>
-              </div>
+              <EditableInfoItem icon={<Calendar className="w-5 h-5" />} label="Date of birth" value={form.dateOfBirth} fieldKey="dateOfBirth" fieldType="date" {...editProps} />
               <EditableInfoItem icon={<User className="w-5 h-5" />} label="Gender" value={form.gender} fieldKey="gender" fieldType="select"
                 selectOptions={[{value:"male",label:"Male"},{value:"female",label:"Female"},{value:"other",label:"Other"},{value:"prefer_not_to_say",label:"Prefer not to say"}]}
                 {...editProps} />
@@ -639,11 +631,11 @@ export default function DriverProfile() {
                 const hasUrl = Boolean(doc?.url);
                 const statusText = hasUrl ? (status || "PENDING") : "NOT_UPLOADED";
                 const expiresOn = doc?.metadata?.expiresOn ?? null;
-                const expiresAt = doc?.metadata?.expiresAt ? new Date(doc.metadata.expiresAt) : null;
+                const expiresAt = doc?.metadata?.expiresAt ? new Date(doc.metadata.expiresAt) : doc?.metadata?.expiresOn ? new Date(doc.metadata.expiresOn) : null;
                 const isExpired = expiresAt ? expiresAt.getTime() < Date.now() : false;
                 const daysLeft = expiresAt ? Math.ceil((expiresAt.getTime() - Date.now()) / 86400000) : null;
                 const DocIcon = dt.type === "NATIONAL_ID" ? UserCircle : dt.type === "VEHICLE_REGISTRATION" ? Truck : dt.type === "INSURANCE" ? Shield : FileText;
-                const badgeCls = statusText === "APPROVED" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : statusText === "REJECTED" ? "bg-rose-50 text-rose-700 border-rose-200" : statusText === "PENDING" ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-slate-50 text-slate-600 border-slate-200";
+                const badgeCls = isExpired ? "bg-rose-50 text-rose-700 border-rose-200" : statusText === "APPROVED" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : statusText === "REJECTED" ? "bg-rose-50 text-rose-700 border-rose-200" : statusText === "PENDING" ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-slate-50 text-slate-600 border-slate-200";
                 return (
                   <div key={dt.type} className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
                     <div className="flex items-start justify-between gap-2">
@@ -702,7 +694,7 @@ export default function DriverProfile() {
                     )}
                     {/* Upload / Change button — only available when not yet uploaded or rejected */}
                     {(() => {
-                      const canUpload = !hasUrl || statusText === "REJECTED";
+                      const canUpload = !hasUrl || statusText === "REJECTED" || isExpired;
                       if (!canUpload) {
                         return (
                           <div className="mt-3 flex items-center gap-1.5 text-[10px] font-semibold text-slate-400">
@@ -789,14 +781,8 @@ export default function DriverProfile() {
               className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-semibold hover:bg-slate-50 shadow-card transition-colors">
               <LogOut className="h-4 w-4" />Logout
             </button>
-            <button onClick={async () => {
-              if (!confirm("Delete your account? This is irreversible.")) return;
-              try {
-                await api.delete("/api/account");
-                try { await fetch("/api/auth/logout", { method: "POST", credentials: "include" }); } catch {}
-                alert("Account deleted."); window.location.href = "/";
-              } catch (err: any) { alert("Could not delete account: " + String(err?.message ?? err)); }
-            }} className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-rose-600 text-white text-sm font-semibold hover:bg-rose-700 shadow-card transition-colors">
+            <button onClick={() => { setDeleteStep('confirm'); setDeleteNameInput(""); }}
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-rose-600 text-white text-sm font-semibold hover:bg-rose-700 shadow-card transition-colors">
               <Trash2 className="h-4 w-4" />Delete account
             </button>
           </div>
@@ -804,5 +790,107 @@ export default function DriverProfile() {
 
       </div>
     </div>
+
+    {/* Delete account modal */}
+    {deleteStep !== null && (
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Delete account"
+        className="fixed inset-0 z-[9999] flex items-center justify-center p-5 pt-16 pb-20 md:p-8"
+        onClick={(e) => { if (e.target === e.currentTarget) { setDeleteStep(null); setDeleteNameInput(""); } }}
+      >
+        <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" aria-hidden />
+        <div className="relative w-full max-w-md rounded-3xl bg-white shadow-[0_32px_80px_rgba(0,0,0,0.22)] overflow-hidden">
+          <div className="h-1.5 w-full bg-gradient-to-r from-rose-500 via-rose-600 to-rose-500" />
+
+          {deleteStep === 'confirm' && (
+            <div className="p-5">
+              <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-50 border border-rose-100">
+                <Trash2 className="h-5 w-5 text-rose-600" />
+              </div>
+              <h2 className="text-center text-base font-bold text-slate-900">Delete your account?</h2>
+              <p className="mt-1.5 text-center text-xs text-slate-500">
+                This action is <span className="font-semibold text-rose-600">permanent and irreversible</span>. Before you continue, understand what will be lost:
+              </p>
+              <ul className="mt-4 space-y-2 rounded-2xl border border-rose-100 bg-rose-50/60 px-3.5 py-3">
+                {[
+                  "Your driver profile, ratings, and trip history will be permanently deleted.",
+                  "Pending payouts or outstanding balances may be forfeited.",
+                  "Any active bookings linked to your account will be cancelled.",
+                  "You will lose access immediately \u2014 no recovery is possible.",
+                ].map((item) => (
+                  <li key={item} className="flex items-start gap-2 text-xs text-rose-800">
+                    <AlertCircle className="mt-px h-3.5 w-3.5 flex-shrink-0 text-rose-500" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-4 flex gap-2.5">
+                <button
+                  onClick={() => { setDeleteStep(null); setDeleteNameInput(""); }}
+                  className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors" style={{padding:"0.5rem 1rem"}}>
+                  No, keep my account
+                </button>
+                <button
+                  onClick={() => setDeleteStep('verify')}
+                  className="flex-1 rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 transition-colors">
+                  Yes, continue
+                </button>
+              </div>
+            </div>
+          )}
+
+          {deleteStep === 'verify' && (
+            <div className="p-5">
+              <button
+                onClick={() => setDeleteStep('confirm')}
+                className="mb-4 flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-700 transition-colors">
+                <ArrowLeft className="h-3.5 w-3.5" /> Back
+              </button>
+              <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-50 border border-rose-100">
+                <Shield className="h-5 w-5 text-rose-600" />
+              </div>
+              <h2 className="text-center text-base font-bold text-slate-900">Final confirmation</h2>
+              <p className="mt-1.5 text-center text-xs text-slate-500">
+                Type your full name exactly as registered to confirm deletion.
+              </p>
+              <p className="mt-2.5 text-center text-xs font-mono font-semibold tracking-wide text-slate-700 bg-slate-100 rounded-lg py-1.5 px-3">
+                {form.fullName || "\u2014"}
+              </p>
+              <input
+                type="text"
+                autoFocus
+                autoComplete="off"
+                placeholder="Type your full name\u2026"
+                value={deleteNameInput}
+                onChange={(e) => setDeleteNameInput(e.target.value)}
+                className="mt-3 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-400/25"
+              />
+              <button
+                disabled={deleteNameInput.trim() !== (form.fullName ?? "").trim() || deleting}
+                onClick={async () => {
+                  setDeleting(true);
+                  try {
+                    await api.delete("/api/account");
+                    try { await fetch("/api/auth/logout", { method: "POST", credentials: "include" }); } catch {}
+                    window.location.href = "/";
+                  } catch (err: any) {
+                    setDeleting(false);
+                    setDeleteStep(null);
+                    setDeleteNameInput("");
+                    alert("Could not delete account: " + String(err?.message ?? err));
+                  }
+                }}
+                className="mt-3 w-full rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-40">
+                {deleting ? "Deleting\u2026" : "Permanently delete my account"}
+              </button>
+              <p className="mt-3 text-center text-xs text-slate-400">This cannot be undone.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    )}
+    </>
   );
 }

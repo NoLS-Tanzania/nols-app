@@ -50,7 +50,7 @@ const sleepTiers: Tier[] = [
     features: [
       'Everything in Guided Restoration',
       'Private sanctuary suite',
-      'Dedicated mentor — full programme',
+      'Dedicated mentor full programme',
       'Extended follow-up (6 weeks)',
       'Priority re-booking access',
     ],
@@ -78,7 +78,7 @@ const loveTiers: Tier[] = [
     tag: 'Most chosen',
     features: [
       'Everything in Still Retreat',
-      'Certified guide — couples sessions',
+      'Certified guide couples sessions',
       'Personalised restoration programme',
       'Post-stay follow-up (2 weeks)',
     ],
@@ -91,7 +91,7 @@ const loveTiers: Tier[] = [
     features: [
       'Everything in Restoration Journey',
       'Private suite with curated décor',
-      'Dedicated guide — full immersion',
+      'Dedicated guide full immersion',
       'Extended follow-up (6 weeks)',
       'Priority re-booking access',
     ],

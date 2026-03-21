@@ -83,7 +83,7 @@ function extractWardName(html, wardSlug) {
   if (h1Match) {
     let name = h1Match[1].trim();
     // Clean "BROWSE LOCATION - BUBUBU, MAGHARIBI, MJINI MAGHARIBI" â†’ "BUBUBU"
-    name = name.replace(/^BROWSE LOCATION\s*[-â€“]\s*/i, '');
+    name = name.replace(/^BROWSE LOCATION\s*[--]\s*/i, '');
     name = name.replace(/,.*$/, ''); // strip ", DISTRICT, REGION"
     return name.trim().toUpperCase();
   }
@@ -153,7 +153,7 @@ async function scrapeRegion(region) {
   if (!regionPage) { console.log('  âœ— Region page failed'); return { name: region.name, code: region.code, districts: [] }; }
 
   const districtPaths = extractDistrictLinks(regionPage, region.slug);
-  console.log(`  Districts found: ${districtPaths.length} â€” ${districtPaths.map(p => p.split('/')[3]).join(', ')}`);
+  console.log(`  Districts found: ${districtPaths.length} - ${districtPaths.map(p => p.split('/')[3]).join(', ')}`);
 
   const builtDistricts = [];
   let distCode = parseInt(region.code) * 10 + 1; // e.g. 71 â†’ 711, 712, ...
