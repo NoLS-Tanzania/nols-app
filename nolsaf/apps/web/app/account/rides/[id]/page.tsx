@@ -663,8 +663,8 @@ export default function RideDetailPage() {
 
                     {/* RIGHT — bio + commitments */}
                     <div className="flex-1 min-w-0 flex flex-col justify-between py-3 sm:py-3.5 pr-4 pl-4 sm:pl-3">
-                      <div className="flex items-start justify-between mb-1.5">
-                        <p className="text-[9px] font-black uppercase tracking-[0.28em] text-white/40">NoLSAF · Driver Profile</p>
+                      <div className="flex items-start justify-between mb-2">
+                        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/50">NoLSAF · Driver Profile</p>
                         <button
                           onClick={() => setCardFlipped(false)}
                           className="flex-shrink-0 ml-2 h-6 w-6 rounded-full flex items-center justify-center hover:bg-emerald-500/20 transition-colors"
@@ -678,36 +678,36 @@ export default function RideDetailPage() {
                       </div>
 
                       {/* bio */}
-                      <p className="text-[9.5px] leading-[1.65] text-white/60 mb-2">
+                      <p className="text-[11px] leading-[1.7] text-white/75 mb-3">
                         {pickExtendedBio(ride.driver)}
                       </p>
 
                       {/* commitment pills — 2 columns */}
-                      <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-2">
                         {[
                           "Safety-first on every road",
                           "On-time, every time",
                           "Licensed & NoLSAF-verified",
                           "Clean vehicle, smooth ride",
                         ].map((item, i) => (
-                          <div key={i} className="flex items-center gap-1.5 min-w-0">
+                          <div key={i} className="flex items-center gap-2 min-w-0">
                             <span
-                              className="flex-shrink-0 h-3 w-3 rounded-full flex items-center justify-center"
-                              style={{ background: "rgba(5,150,105,0.2)", border: "1px solid rgba(5,150,105,0.4)" }}
+                              className="flex-shrink-0 h-4 w-4 rounded-full flex items-center justify-center"
+                              style={{ background: "rgba(5,150,105,0.25)", border: "1.5px solid rgba(5,150,105,0.5)" }}
                             >
-                              <svg viewBox="0 0 6 6" className="h-1.5 w-1.5">
-                                <path d="M1 3L2.5 4.5L5 1.5" stroke="#10b981" strokeWidth="1.3" fill="none" strokeLinecap="round" />
+                              <svg viewBox="0 0 6 6" className="h-2 w-2">
+                                <path d="M1 3L2.5 4.5L5 1.5" stroke="#10b981" strokeWidth="1.4" fill="none" strokeLinecap="round" />
                               </svg>
                             </span>
-                            <p className="text-[9px] text-white/48 leading-tight truncate">{item}</p>
+                            <p className="text-[10.5px] font-semibold text-white/65 leading-tight truncate">{item}</p>
                           </div>
                         ))}
                       </div>
 
                       {/* footer */}
-                      <div className="flex items-center justify-between mt-1.5">
-                        <p className="text-[7px] font-black uppercase tracking-widest text-white/20">NoLSAF © {new Date().getFullYear()}</p>
-                        <p className="text-[7px] font-black tracking-widest text-white/20">
+                      <div className="flex items-center justify-between mt-2">
+                        <p className="text-[8px] font-black uppercase tracking-widest text-white/30">NoLSAF © {new Date().getFullYear()}</p>
+                        <p className="text-[8px] font-black tracking-widest text-white/30">
                           NLS-{String(ride.driver.id).padStart(4,"0")}
                         </p>
                       </div>
