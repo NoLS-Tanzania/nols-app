@@ -412,7 +412,7 @@ export default function RideDetailPage() {
             {/* Perspective wrapper — 3D flip card LANDSCAPE */}
             <div style={{ perspective: "1200px" }}>
               <div
-                className="h-[460px] sm:h-[300px]"
+                className="h-[480px] sm:h-[300px]"
                 style={{
                   position: "relative",
                   transformStyle: "preserve-3d",
@@ -466,8 +466,8 @@ export default function RideDetailPage() {
                   {/* FRONT CONTENT — portrait on mobile, landscape on sm+ */}
                   <div className="relative flex flex-col sm:flex-row h-full">
 
-                    {/* LEFT/TOP — photo column */}
-                    <div className="w-full sm:w-[140px] sm:flex-shrink-0 flex flex-row sm:flex-col items-center justify-center gap-3 sm:gap-2 px-4 sm:px-3 py-3 sm:py-0 h-[110px] sm:h-auto border-b border-white/10 sm:border-b-0">
+                    {/* TOP (portrait) / LEFT (landscape) — photo column */}
+                    <div className="w-full sm:w-[140px] sm:flex-shrink-0 flex flex-col sm:flex-col items-center justify-center gap-2 px-4 sm:px-3 py-4 sm:py-0 border-b border-white/10 sm:border-b-0">
                       <div
                         className="h-[88px] w-[88px] rounded-full overflow-hidden flex items-center justify-center flex-shrink-0"
                         style={{
