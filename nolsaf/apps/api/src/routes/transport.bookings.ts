@@ -242,6 +242,7 @@ router.get("/:id", requireAuth as RequestHandler, (async (req: AuthedRequest, re
             isVipDriver: true,
             operationArea: true,
             district: true,
+            region: true,
           },
         },
         property: { select: { id: true, title: true, regionName: true, district: true } },

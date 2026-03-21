@@ -68,6 +68,7 @@ type Ride = {
     isVipDriver?: boolean;
     operationArea?: string | null;
     district?: string | null;
+    region?: string | null;
   };
   property?: { id: number; title: string; regionName?: string; district?: string };
   paymentStatus?: string;
@@ -413,7 +414,7 @@ export default function RideDetailPage() {
               <div
                 style={{
                   position: "relative",
-                  height: "230px",
+                  height: "270px",
                   transformStyle: "preserve-3d",
                   transition: "transform 0.7s cubic-bezier(0.4,0,0.2,1)",
                   transform: cardFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
@@ -481,7 +482,7 @@ export default function RideDetailPage() {
                     </div>
 
                     {/* RIGHT — details column */}
-                    <div className="flex-1 min-w-0 flex flex-col justify-between py-4 pr-4 pl-3">
+                    <div className="flex-1 min-w-0 flex flex-col justify-between py-3 pr-4 pl-3">
 
                       {/* top: branding + route icon + flip */}
                       <div className="flex items-start justify-between">
@@ -540,7 +541,7 @@ export default function RideDetailPage() {
                       </div>
 
                       {/* info grid */}
-                      <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-1">
                         <div>
                           <p className="text-[7px] font-bold uppercase tracking-widest text-white/35">ID No.</p>
                           <p className="text-[10px] font-black text-white tracking-wider mt-0.5">
@@ -559,14 +560,16 @@ export default function RideDetailPage() {
                             {[ride.driver.vehicleMake, ride.driver.vehicleType].filter(Boolean).join(" · ") || ride.vehicleType || "—"}
                           </p>
                         </div>
-                        {(ride.driver.operationArea || ride.driver.district) && (
-                          <div>
-                            <p className="text-[7px] font-bold uppercase tracking-widest text-white/35">Area</p>
-                            <p className="text-[10px] font-black text-white mt-0.5 truncate">
-                              {ride.driver.operationArea || ride.driver.district}
-                            </p>
-                          </div>
-                        )}
+                        <div>
+                          <p className="text-[7px] font-bold uppercase tracking-widest text-white/35">Region / District</p>
+                          <p className="text-[10px] font-black text-white mt-0.5 truncate">
+                            {ride.driver.operationArea || ride.driver.district || ride.driver.region || "Tanzania"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[7px] font-bold uppercase tracking-widest text-white/35">Languages</p>
+                          <p className="text-[10px] font-black text-white mt-0.5">English · Kiswahili</p>
+                        </div>
                       </div>
 
                       {/* barcode + pulsing dot */}
@@ -645,9 +648,13 @@ export default function RideDetailPage() {
                         <p className="text-[9px] font-black uppercase tracking-[0.28em] text-white/40">NoLSAF · Driver Profile</p>
                         <button
                           onClick={() => setCardFlipped(false)}
-                          className="text-[8px] font-black uppercase tracking-widest text-white/28 hover:text-emerald-400 transition-colors flex-shrink-0 ml-2"
+                          className="flex-shrink-0 ml-2 h-6 w-6 rounded-full flex items-center justify-center hover:bg-emerald-500/20 transition-colors"
+                          style={{ border: "1px solid rgba(255,255,255,0.15)" }}
+                          aria-label="Back to ID card"
                         >
-                          ← ID
+                          <svg viewBox="0 0 10 10" className="h-3 w-3" fill="none" aria-hidden>
+                            <path d="M6.5 2L3.5 5L6.5 8" stroke="rgba(255,255,255,0.45)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
                         </button>
                       </div>
 
@@ -656,15 +663,15 @@ export default function RideDetailPage() {
                         {pickExtendedBio(ride.driver)}
                       </p>
 
-                      {/* commitment pills */}
-                      <div className="space-y-1">
+                      {/* commitment pills — 2 columns */}
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
                         {[
                           "Safety-first on every road",
                           "On-time, every time",
                           "Licensed & NoLSAF-verified",
                           "Clean vehicle, smooth ride",
                         ].map((item, i) => (
-                          <div key={i} className="flex items-center gap-1.5">
+                          <div key={i} className="flex items-center gap-1.5 min-w-0">
                             <span
                               className="flex-shrink-0 h-3 w-3 rounded-full flex items-center justify-center"
                               style={{ background: "rgba(5,150,105,0.2)", border: "1px solid rgba(5,150,105,0.4)" }}
@@ -673,7 +680,7 @@ export default function RideDetailPage() {
                                 <path d="M1 3L2.5 4.5L5 1.5" stroke="#10b981" strokeWidth="1.3" fill="none" strokeLinecap="round" />
                               </svg>
                             </span>
-                            <p className="text-[9px] text-white/48 leading-none">{item}</p>
+                            <p className="text-[9px] text-white/48 leading-tight truncate">{item}</p>
                           </div>
                         ))}
                       </div>
