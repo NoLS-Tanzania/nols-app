@@ -414,7 +414,7 @@ export default function RideDetailPage() {
               <div
                 style={{
                   position: "relative",
-                  height: "270px",
+                  height: "300px",
                   transformStyle: "preserve-3d",
                   transition: "transform 0.7s cubic-bezier(0.4,0,0.2,1)",
                   transform: cardFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
@@ -431,14 +431,30 @@ export default function RideDetailPage() {
                   {/* left photo strip */}
                   <div className="absolute top-0 left-0 bottom-0 w-[140px]" style={{ background: "linear-gradient(180deg, rgba(5,150,105,0.18) 0%, rgba(3,105,161,0.22) 100%)", borderRight: "1px solid rgba(5,150,105,0.18)" }} />
                   {/* decorative SVG */}
-                  <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 500 230" fill="none" preserveAspectRatio="xMidYMid slice" aria-hidden>
+                  <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 500 300" fill="none" preserveAspectRatio="xMidYMid slice" aria-hidden>
                     {/* concentric arcs top-right */}
                     <circle cx="480" cy="40" r="110" stroke="white" strokeOpacity="0.05" strokeWidth="1" fill="none" />
                     <circle cx="480" cy="40" r="78"  stroke="white" strokeOpacity="0.04" strokeWidth="1" fill="none" />
                     <circle cx="480" cy="40" r="48"  stroke="white" strokeOpacity="0.035" strokeWidth="1" fill="none" />
                     {/* road path behind photo strip */}
-                    <path d="M60 230 Q70 160 90 120 Q105 90 110 0" stroke="white" strokeOpacity="0.06" strokeWidth="24" fill="none" strokeLinecap="round" />
-                    <path d="M60 230 Q70 160 90 120 Q105 90 110 0" stroke="white" strokeOpacity="0.12" strokeWidth="1.5" strokeDasharray="10 8" fill="none" strokeLinecap="round" />
+                    <path d="M60 300 Q70 200 90 150 Q105 110 110 0" stroke="white" strokeOpacity="0.06" strokeWidth="24" fill="none" strokeLinecap="round" />
+                    <path d="M60 300 Q70 200 90 150 Q105 110 110 0" stroke="white" strokeOpacity="0.12" strokeWidth="1.5" strokeDasharray="10 8" fill="none" strokeLinecap="round" />
+                    {/* fingerprint — centred on the right detail column ~(330,170) */}
+                    <g transform="translate(310,90)" opacity="0.055">
+                      {/* core loops */}
+                      <ellipse cx="40" cy="80" rx="6"  ry="9"  stroke="white" strokeWidth="1.3" fill="none"/>
+                      <ellipse cx="40" cy="80" rx="13" ry="17" stroke="white" strokeWidth="1.3" fill="none"/>
+                      <ellipse cx="40" cy="80" rx="21" ry="27" stroke="white" strokeWidth="1.2" fill="none"/>
+                      <ellipse cx="40" cy="80" rx="30" ry="38" stroke="white" strokeWidth="1.2" fill="none"/>
+                      <ellipse cx="40" cy="80" rx="39" ry="49" stroke="white" strokeWidth="1.1" fill="none"/>
+                      <ellipse cx="40" cy="80" rx="49" ry="60" stroke="white" strokeWidth="1.1" fill="none"/>
+                      <ellipse cx="40" cy="80" rx="59" ry="71" stroke="white" strokeWidth="1.0" fill="none"/>
+                      {/* open bottom arcs to give fingerprint feel */}
+                      <path d="M10 130 Q40 150 70 130" stroke="white" strokeWidth="1.1" fill="none" strokeLinecap="round"/>
+                      <path d="M2  118 Q40 142 78 118" stroke="white" strokeWidth="1.0" fill="none" strokeLinecap="round"/>
+                      {/* centre dot */}
+                      <circle cx="40" cy="80" r="2.5" fill="white"/>
+                    </g>
                   </svg>
                   {/* top sheen */}
                   <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent pointer-events-none" />
@@ -493,9 +509,13 @@ export default function RideDetailPage() {
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => setCardFlipped(true)}
-                            className="text-[8px] font-black uppercase tracking-widest text-white/28 hover:text-emerald-400 transition-colors"
+                            className="flex-shrink-0 h-6 w-6 rounded-full flex items-center justify-center hover:bg-emerald-500/20 transition-colors"
+                            style={{ border: "1px solid rgba(255,255,255,0.15)", background: "transparent" }}
+                            aria-label="View driver profile"
                           >
-                            Profile →
+                            <svg viewBox="0 0 10 10" className="h-3 w-3" fill="none" aria-hidden>
+                              <path d="M3.5 2L6.5 5L3.5 8" stroke="rgba(255,255,255,0.45)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
                           </button>
                           {/* Route / navigation icon replacing chip */}
                           <div
@@ -522,11 +542,11 @@ export default function RideDetailPage() {
                         >
                           {ride.driver.name}
                         </p>
-                        <p className="text-[8px] font-black uppercase tracking-[0.25em] text-emerald-400 mt-1">
-                          {ride.driver.isVipDriver ? "✦ Premium Certified" : "NoLSAF Certified Driver"}
+                        <p className="text-[8px] font-black uppercase tracking-[0.25em] text-emerald-400 mt-0.5">
+                          {ride.driver.isVipDriver ? "✶ Premium Certified" : "NoLSAF Certified Driver"}
                         </p>
                         {ride.driver.rating != null && (
-                          <div className="flex items-center gap-0.5 mt-1">
+                          <div className="flex items-center gap-0.5 mt-0.5">
                             {[1,2,3,4,5].map((i) => (
                               <Star key={i} className="h-2.5 w-2.5"
                                 style={{
@@ -541,7 +561,7 @@ export default function RideDetailPage() {
                       </div>
 
                       {/* info grid */}
-                      <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
                         <div>
                           <p className="text-[7px] font-bold uppercase tracking-widest text-white/35">ID No.</p>
                           <p className="text-[10px] font-black text-white tracking-wider mt-0.5">
@@ -649,7 +669,7 @@ export default function RideDetailPage() {
                         <button
                           onClick={() => setCardFlipped(false)}
                           className="flex-shrink-0 ml-2 h-6 w-6 rounded-full flex items-center justify-center hover:bg-emerald-500/20 transition-colors"
-                          style={{ border: "1px solid rgba(255,255,255,0.15)" }}
+                          style={{ border: "1px solid rgba(255,255,255,0.15)", background: "transparent" }}
                           aria-label="Back to ID card"
                         >
                           <svg viewBox="0 0 10 10" className="h-3 w-3" fill="none" aria-hidden>
