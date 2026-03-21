@@ -230,7 +230,20 @@ router.get("/:id", requireAuth as RequestHandler, (async (req: AuthedRequest, re
       where: { id: bookingId },
       include: {
         user: { select: { id: true, name: true, email: true, phone: true } },
-        driver: { select: { id: true, name: true, email: true, phone: true } },
+        driver: {
+          select: {
+            id: true, name: true, email: true, phone: true,
+            avatarUrl: true,
+            plateNumber: true,
+            vehiclePlate: true,
+            vehicleType: true,
+            vehicleMake: true,
+            rating: true,
+            isVipDriver: true,
+            operationArea: true,
+            district: true,
+          },
+        },
         property: { select: { id: true, title: true, regionName: true, district: true } },
       },
     });

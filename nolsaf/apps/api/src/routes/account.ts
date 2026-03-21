@@ -2057,43 +2057,90 @@ router.post("/2fa/sms/disable", sensitive as unknown as RequestHandler, disableS
 const deleteAccount: RequestHandler = async (req, res) => {
   try {
     const userId = getUserId(req as AuthedRequest);
-    
-    // Revoke active sessions first (best-effort)
+
+    // ── 1. Block deletion if driver has a live trip ──────────────────────
     try {
-      await prisma.session.updateMany({ 
-        where: { userId, revokedAt: null }, 
-        data: { revokedAt: new Date() } 
+      const liveCount: number = await (prisma as any).transportBooking.count({
+        where: { driverId: userId, status: 'IN_PROGRESS' },
       });
-    } catch (e) {
-      // Best-effort
-    }
+      if (liveCount > 0) {
+        return res.status(409).json({
+          error: "You have an active trip in progress. Complete it before deleting your account.",
+          code: "HAS_ACTIVE_TRIPS",
+          count: liveCount,
+        });
+      }
+    } catch { /* transportBooking model may not be present — skipped */ }
 
-    // Get before state for audit
-    const meta = (prisma as any).user?._meta ?? {};
-    let before: any = null;
+    // ── 2. Auto-unassign CONFIRMED trips → return them to PENDING pool ───
+    const unassignedTripIds: number[] = [];
     try {
-      before = await prisma.user.findUnique({ where: { id: userId } });
-    } catch (e) {
-      // Best-effort
-    }
+      const confirmedTrips: { id: number }[] = await (prisma as any).transportBooking.findMany({
+        where: { driverId: userId, status: { in: ['CONFIRMED', 'ACCEPTED'] } },
+        select: { id: true },
+      });
+      if (confirmedTrips.length > 0) {
+        await (prisma as any).transportBooking.updateMany({
+          where: { id: { in: confirmedTrips.map((t: any) => t.id) } },
+          data: {
+            driverId: null,
+            status: 'PENDING',
+            notes: `[DRIVER_DELETED] Driver account deleted on ${new Date().toISOString().slice(0, 10)}. Trip returned to pool for reassignment.`,
+          },
+        });
+        unassignedTripIds.push(...confirmedTrips.map((t: any) => t.id));
+      }
+    } catch { /* best-effort */ }
 
+    // ── 3. Revoke active sessions ────────────────────────────────────────
+    try {
+      await prisma.session.updateMany({
+        where: { userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+    } catch { /* best-effort */ }
+
+    // ── 4. Capture state for audit / notification ────────────────────────
+    let before: any = null;
+    try { before = await prisma.user.findUnique({ where: { id: userId } }); } catch {}
+    const driverName: string = before?.name ?? 'Deleted Driver';
+
+    // ── 5. Soft-delete with PII anonymisation ────────────────────────────
+    const meta = (prisma as any).user?._meta ?? {};
     if (Object.prototype.hasOwnProperty.call(meta, 'deletedAt')) {
-      // Soft-delete if schema has deletedAt
-      await prisma.user.update({ 
-        where: { id: userId }, 
-        data: { deletedAt: new Date() } 
-      } as any);
+      await (prisma.user.update as any)({
+        where: { id: userId },
+        data: {
+          deletedAt: new Date(),
+          name: 'Deleted Driver',
+          email: `deleted_${userId}_${Date.now()}@nolsaf.invalid`,
+          phone: null,
+        },
+      });
     } else {
-      // Fallback: hard-delete
       try {
-        await prisma.user.delete({ where: { id: userId } } as any);
+        await (prisma.user.delete as any)({ where: { id: userId } });
       } catch (e: any) {
         console.error('Failed to delete user', e);
         return sendError(res, 500, "Failed to delete account");
       }
     }
 
-    await audit(req as AuthedRequest, 'USER_ACCOUNT_DELETE', `user:${userId}`, before, null);
+    // ── 6. Alert admins in real-time if any trips returned to pool ───────
+    try {
+      const io = (req.app as any)?.get?.('io');
+      if (io && unassignedTripIds.length > 0) {
+        io.to('admin:all').emit('driver:account:deleted', {
+          driverId: userId,
+          driverName,
+          unassignedTripIds,
+          at: new Date().toISOString(),
+        });
+      }
+    } catch { /* best-effort */ }
+
+    // ── 7. Audit trail ───────────────────────────────────────────────────
+    await audit(req as AuthedRequest, 'USER_ACCOUNT_DELETE', `user:${userId}`, before, { unassignedTripIds });
     sendSuccess(res, null, "Account deleted successfully");
   } catch (error: any) {
     console.error('account.delete failed', error);

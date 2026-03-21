@@ -4,6 +4,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import Link from "next/link";
 import axios from "axios";
 import {
+  AlertTriangle,
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
@@ -14,6 +15,7 @@ import {
   Eye,
   ListFilter,
   Loader2,
+  Search,
   ShieldCheck,
   Timer,
   Trophy,
@@ -22,6 +24,7 @@ import {
   X,
 } from "lucide-react";
 import TableRow from "@/components/TableRow";
+import { useSocket } from "@/hooks/useSocket";
 
 // Use same-origin for HTTP calls so Next.js rewrites proxy to the API
 const api = axios.create({ baseURL: "", withCredentials: true });
@@ -48,6 +51,7 @@ type ScheduledTripRow = {
   claimLimit: number;
   claimsRemaining: number;
   createdAt: string;
+  notes?: string | null;
 };
 
 type ScheduledTripClaim = {
@@ -168,8 +172,10 @@ function compactLocation(loc: { address: string | null; ward: string | null; dis
 }
 
 export default function AdminScheduledTripsPage() {
-  const [stage, setStage] = useState<"waiting" | "claim_open" | "assigned" | "in_progress" | "completed" | "all">("waiting");
+  const [stage, setStage] = useState<"waiting" | "claim_open" | "assigned" | "in_progress" | "completed" | "all" | "driver_left">("waiting");
   const [vehicleType, setVehicleType] = useState<string>("");
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
   const [vehicleFilterOpen, setVehicleFilterOpen] = useState(false);
   const [list, setList] = useState<ScheduledTripRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -183,6 +189,18 @@ export default function AdminScheduledTripsPage() {
   const [awardBusyClaimId, setAwardBusyClaimId] = useState<number | null>(null);
   const [reassignBusyClaimId, setReassignBusyClaimId] = useState<number | null>(null);
   const [unassignBusyBookingId, setUnassignBusyBookingId] = useState<number | null>(null);
+  const [driverDeletedBanner, setDriverDeletedBanner] = useState<{ driverName: string; tripCount: number } | null>(null);
+
+  // Debounce search input → search (500 ms)
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      setSearch(searchInput.trim());
+      setPage(1);
+    }, 500);
+    return () => window.clearTimeout(t);
+  }, [searchInput]);
+
+  const { socket } = useSocket();
 
   // Reason modal (unassign)
   const [reasonMounted, setReasonMounted] = useState(false);
@@ -300,6 +318,7 @@ export default function AdminScheduledTripsPage() {
         paymentStatus: "PAID",
       };
       if (vehicleType) params.vehicleType = vehicleType;
+      if (search) params.q = search;
 
       const r = await api.get<{ items: ScheduledTripRow[]; total: number }>("/api/admin/drivers/trips/scheduled", { params });
       setList(r.data?.items ?? []);
@@ -316,7 +335,21 @@ export default function AdminScheduledTripsPage() {
     } finally {
       setLoading(false);
     }
-  }, [expandedId, page, pageSize, stage, vehicleType]);
+  }, [expandedId, page, pageSize, search, stage, vehicleType]);
+
+  // Listen for real-time driver account deletions
+  useEffect(() => {
+    if (!socket) return;
+    const handler = (payload: { driverName?: string; unassignedTripIds?: number[] }) => {
+      const count = payload?.unassignedTripIds?.length ?? 0;
+      if (count > 0) {
+        setDriverDeletedBanner({ driverName: payload.driverName ?? 'A driver', tripCount: count });
+        load();
+      }
+    };
+    socket.on('driver:account:deleted', handler);
+    return () => { socket.off('driver:account:deleted', handler); };
+  }, [socket, load]);
 
   // Keep dependency list accurate after switching to stage.
 
@@ -500,6 +533,8 @@ export default function AdminScheduledTripsPage() {
         return "bg-gradient-to-b from-indigo-50 via-white to-white";
       case "completed":
         return "bg-gradient-to-b from-teal-50 via-white to-white";
+      case "driver_left":
+        return "bg-gradient-to-b from-orange-50 via-white to-white";
       case "all":
       default:
         return "bg-gradient-to-b from-gray-50 via-white to-white";
@@ -518,6 +553,8 @@ export default function AdminScheduledTripsPage() {
         return "bg-gradient-to-br from-indigo-50/70 to-white";
       case "completed":
         return "bg-gradient-to-br from-teal-50/70 to-white";
+      case "driver_left":
+        return "bg-gradient-to-br from-orange-50/70 to-white";
       case "all":
       default:
         return "bg-gradient-to-br from-gray-50/70 to-white";
@@ -532,6 +569,7 @@ export default function AdminScheduledTripsPage() {
       { value: "assigned", label: "Assigned", Icon: UserCheck },
       { value: "in_progress", label: "In progress", Icon: Calendar },
       { value: "completed", label: "Completed", Icon: CheckCircle2 },
+      { value: "driver_left", label: "Driver left", Icon: UserMinus },
       { value: "all", label: "All", Icon: ListFilter },
     ],
     []
@@ -540,6 +578,37 @@ export default function AdminScheduledTripsPage() {
   return (
     <div className={`min-h-screen ${stageBg}`}>
       <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      {/* Driver-deleted real-time alert banner */}
+      {driverDeletedBanner && (
+        <div className="rounded-2xl bg-white shadow-sm ring-1 ring-orange-200 overflow-hidden">
+          <div className="h-1 w-full bg-gradient-to-r from-orange-400 via-orange-500 to-orange-400" />
+          <div className="flex items-start gap-4 px-5 py-4">
+            <div className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl border border-orange-100 bg-orange-50">
+              <AlertTriangle className="h-5 w-5 text-orange-500" aria-hidden />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-900">
+                {driverDeletedBanner.driverName} deleted their account
+              </p>
+              <p className="mt-0.5 text-xs text-gray-500">
+                {driverDeletedBanner.tripCount} trip{driverDeletedBanner.tripCount !== 1 ? 's' : ''} returned to pool and need immediate reassignment.
+                {' '}
+                <button
+                  onClick={() => { setStage('driver_left'); setDriverDeletedBanner(null); }}
+                  className="font-semibold text-orange-600 hover:text-orange-800 underline transition-colors">
+                  View now →
+                </button>
+              </p>
+            </div>
+            <button
+              onClick={() => setDriverDeletedBanner(null)}
+              aria-label="Dismiss"
+              className="flex-shrink-0 rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div className="rounded-2xl bg-gradient-to-b from-white to-gray-50/40 p-6 shadow-sm ring-1 ring-gray-100">
         <div className="flex flex-col items-center text-center">
@@ -650,6 +719,29 @@ export default function AdminScheduledTripsPage() {
               </div>
             </div>
           </fieldset>
+
+          {/* Search box */}
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" aria-hidden />
+            <input
+              type="search"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Search by trip code, passenger, address…"
+              className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2 pl-9 pr-9 text-sm text-gray-900 placeholder-gray-400 focus:border-emerald-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-100 transition-colors"
+              aria-label="Search trips"
+            />
+            {searchInput && (
+              <button
+                type="button"
+                onClick={() => setSearchInput("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-gray-400 hover:text-gray-600"
+                aria-label="Clear search"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
 
           <div className="text-xs text-gray-500">Showing paid trips only (paymentStatus=PAID). Waiting trips are those whose claim window has not opened yet.</div>
         </div>
@@ -783,6 +875,12 @@ export default function AdminScheduledTripsPage() {
                             <span aria-hidden>•</span>
                             <span>{row.status}</span>
                           </div>
+                          {row.notes?.includes('[DRIVER_DELETED]') && (
+                            <span className="mt-1 inline-flex items-center gap-1 rounded-full border border-orange-200 bg-orange-50 px-2 py-0.5 text-xs font-semibold text-orange-700">
+                              <UserMinus className="h-3 w-3" aria-hidden />
+                              Driver left
+                            </span>
+                          )}
                           <div className="text-xs text-gray-500">
                             Passenger: {row.passenger?.name || row.passenger?.email || "N/A"}
                           </div>

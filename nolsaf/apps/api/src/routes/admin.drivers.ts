@@ -1735,6 +1735,12 @@ router.get("/trips/scheduled", async (req, res) => {
           where.status = "COMPLETED";
           break;
         }
+        case "driver_left": {
+          // Trips returned to pool because the driver deleted their account
+          where.driverId = null;
+          where.notes = { contains: '[DRIVER_DELETED]' };
+          break;
+        }
         case "all": {
           // no extra filtering
           break;
@@ -1817,6 +1823,7 @@ router.get("/trips/scheduled", async (req, res) => {
         if (b.status === "COMPLETED") return "completed";
         if (b.status === "IN_PROGRESS") return "in_progress";
         if (b.driverId != null) return "assigned";
+        if (b.driverId == null && typeof b.notes === 'string' && b.notes.includes('[DRIVER_DELETED]')) return "driver_left";
         if (scheduledDate > claimOpenCutoff) return "waiting";
         if (scheduledDate >= now && scheduledDate <= claimOpenCutoff) return "claim_open";
         return "all";
@@ -1847,6 +1854,7 @@ router.get("/trips/scheduled", async (req, res) => {
         claimLimit,
         claimsRemaining: Math.max(0, claimLimit - claimCount),
         createdAt: (b.createdAt ?? b.updatedAt)?.toISOString?.() ?? String(b.createdAt ?? b.updatedAt ?? ""),
+        notes: b.notes ?? null,
       };
     });
 
