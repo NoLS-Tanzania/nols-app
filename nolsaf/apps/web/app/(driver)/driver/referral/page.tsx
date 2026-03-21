@@ -524,31 +524,31 @@ export default function DriverReferral() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white rounded-xl p-6 border-2 border-slate-200 shadow-sm transition-all duration-300 hover:shadow-lg hover:scale-105 hover:border-blue-300 animate-fade-in-up delay-200">
-          <div className="flex items-center gap-3 mb-2">
-            <Users className="w-4 h-4 text-blue-600 transition-transform duration-300 group-hover:scale-110" />
-            <h3 className="text-sm font-semibold text-slate-900 transition-colors duration-300">Total Referrals</h3>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-6">
+        <div className="bg-white rounded-xl p-4 sm:p-6 border-2 border-slate-200 shadow-sm transition-all duration-300 hover:shadow-lg hover:scale-105 hover:border-blue-300 animate-fade-in-up delay-200">
+          <div className="flex items-center gap-2 mb-2">
+            <Users className="w-4 h-4 text-blue-600 flex-shrink-0 transition-transform duration-300 group-hover:scale-110" />
+            <h3 className="text-xs sm:text-sm font-semibold text-slate-900 transition-colors duration-300 leading-tight">Total Referrals</h3>
           </div>
-          <p className="text-2xl font-bold text-slate-900 transition-all duration-500">{referralData.totalReferrals}</p>
+          <p className="text-xl sm:text-2xl font-bold text-slate-900 transition-all duration-500">{referralData.totalReferrals}</p>
           <p className="text-xs text-slate-500 mt-1 transition-colors duration-300">{referralData.activeReferrals} active</p>
         </div>
 
-        <div className="bg-white rounded-xl p-6 border-2 border-slate-200 shadow-sm transition-all duration-300 hover:shadow-lg hover:scale-105 hover:border-emerald-300 animate-fade-in-up delay-300">
-          <div className="flex items-center gap-3 mb-2">
-            <Gift className="w-4 h-4 text-emerald-600 transition-transform duration-300 group-hover:scale-110" />
-            <h3 className="text-sm font-semibold text-slate-900 transition-colors duration-300">Total Credits</h3>
+        <div className="bg-white rounded-xl p-4 sm:p-6 border-2 border-slate-200 shadow-sm transition-all duration-300 hover:shadow-lg hover:scale-105 hover:border-emerald-300 animate-fade-in-up delay-300">
+          <div className="flex items-center gap-2 mb-2">
+            <Gift className="w-4 h-4 text-emerald-600 flex-shrink-0 transition-transform duration-300 group-hover:scale-110" />
+            <h3 className="text-xs sm:text-sm font-semibold text-slate-900 transition-colors duration-300 leading-tight">Total Credits</h3>
           </div>
-          <p className="text-2xl font-bold text-slate-900 transition-all duration-500">{referralData.totalCredits.toLocaleString()}</p>
+          <p className="text-xl sm:text-2xl font-bold text-slate-900 transition-all duration-500">{referralData.totalCredits.toLocaleString()}</p>
           <p className="text-xs text-slate-500 mt-1 transition-colors duration-300">{referralData.pendingCredits} pending</p>
         </div>
 
-        <div className="bg-white rounded-xl p-6 border-2 border-slate-200 shadow-sm transition-all duration-300 hover:shadow-lg hover:scale-105 hover:border-purple-300 animate-fade-in-up delay-400">
-          <div className="flex items-center gap-3 mb-2">
-            <TrendingUp className="w-4 h-4 text-purple-600 transition-transform duration-300 group-hover:scale-110" />
-            <h3 className="text-sm font-semibold text-slate-900 transition-colors duration-300">Earnings</h3>
+        <div className="col-span-2 md:col-span-1 bg-white rounded-xl p-4 sm:p-6 border-2 border-slate-200 shadow-sm transition-all duration-300 hover:shadow-lg hover:scale-105 hover:border-purple-300 animate-fade-in-up delay-400">
+          <div className="flex items-center gap-2 mb-2">
+            <TrendingUp className="w-4 h-4 text-purple-600 flex-shrink-0 transition-transform duration-300 group-hover:scale-110" />
+            <h3 className="text-xs sm:text-sm font-semibold text-slate-900 transition-colors duration-300 leading-tight">Earnings</h3>
           </div>
-          <p className="text-2xl font-bold text-slate-900 transition-all duration-500">
+          <p className="text-xl sm:text-2xl font-bold text-slate-900 transition-all duration-500">
             {referralData.totalCredits > 0 ? `TZS ${referralData.totalCredits.toLocaleString()}` : 'TZS 0'}
           </p>
           <p className="text-xs text-slate-500 mt-1 transition-colors duration-300">From referrals</p>

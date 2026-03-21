@@ -34,7 +34,7 @@ export default function TripReviewModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center px-3 pb-4 sm:pb-0">
+    <div className="fixed inset-0 z-[150] flex items-center justify-center px-4">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
