@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
@@ -24,7 +24,6 @@ import {
   Hash,
   Building2,
   ExternalLink,
-  ShieldCheck,
   Star,
 } from "lucide-react";
 import Link from "next/link";
@@ -109,18 +108,18 @@ type DriverBioInput = {
   vehicleMake?: string | null;
 };
 
-function pickBio(d: DriverBioInput): string {
+function pickExtendedBio(d: DriverBioInput): string {
   const first = (d.name ?? "").split(" ")[0] || "Your driver";
   if (d.isVipDriver)
-    return `Premium-certified and trained for executive comfort. ${first} ensures privacy, punctuality and a first-class experience on every ride.`;
+    return `Exclusively trained for executive and long-distance travel, ${first} is one of NOLS\u2019 Premium-certified specialists. Clients receive complete discretion, immaculate presentation, and an on-time arrival record that only genuine professionalism builds \u2014 expect nothing less than first-class, every single journey.`;
   if (d.rating != null && d.rating >= 4.5)
-    return `One of NoLSAF\u2019 highest-rated drivers \u2014 consistently punctual, courteous, and dependable. ${first} sets the standard for every trip.`;
+    return `With a near-perfect rating earned across hundreds of journeys, ${first} has built a reputation that only consistent excellence creates. Composed under any condition, communicative when it counts, and unfailingly punctual \u2014 ${first} is the standard every NOLS driver aspires to.`;
   const area = d.operationArea || d.district;
   if (area)
-    return `A local specialist serving ${area}. ${first} knows every route, every shortcut, and keeps every passenger on time.`;
+    return `Nobody reads ${area} the way ${first} does. Every route is mentally mapped before the journey begins \u2014 peak-hour shortcuts, alternate roads, and the local instinct to adapt on the spot. Passengers arrive relaxed, on time, and in the best possible hands.`;
   if (d.vehicleMake)
-    return `${first} drives a well-maintained ${d.vehicleMake} and takes pride in delivering a clean, comfortable ride \u2014 every single time.`;
-  return `Background-checked and NoLSAF-verified. ${first} is trained to get you there safely, smoothly, and right on schedule.`;
+    return `Behind the wheel of a ${d.vehicleMake}, ${first} treats every trip as a VIP assignment. The vehicle is inspected before each journey, kept spotless inside and out, and driven with the steady care that tells a passenger they are exactly where they should be.`;
+  return `Background-checked, fully licensed, and trusted by hundreds of NOLS passengers across Tanzania. ${first} brings calm conviction to every route \u2014 from pickup to drop-off, reliability is not a policy here; it is simply how ${first} works, every single time.`;
 }
 
 function InfoRow({ label, value }: { label: string; value?: string | null }) {
@@ -141,6 +140,7 @@ export default function RideDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [showChat, setShowChat] = useState(false);
+  const [cardFlipped, setCardFlipped] = useState(false);
 
   useEffect(() => {
     api.get("/api/account/me").then((res) => setCurrentUserId(res.data?.id || null)).catch(() => {});
@@ -406,177 +406,294 @@ export default function RideDetailPage() {
         {/* --- RIGHT / SIDEBAR --- */}
         <div className="space-y-5">
 
-          {/* Driver ID Card — premium visa-style */}
+          {/* ===== Driver Physical ID Card ===== */}
           {ride.driver && (<>
-            <div
-              className="relative rounded-[22px] overflow-hidden shadow-2xl select-none cursor-default hover:-translate-y-1.5 hover:shadow-[0_28px_60px_-10px_rgba(12,74,110,0.55)] transition-all duration-500"
-              style={{
-                background: "linear-gradient(135deg, #0f172a 0%, #1a3a5f 50%, #0c4a6e 100%)",
-                minHeight: "290px",
-              }}
-            >
-              {/* SVG decorative layer */}
-              <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 420 290" fill="none" preserveAspectRatio="xMidYMid slice" aria-hidden>
-                <circle cx="390" cy="55" r="155" stroke="white" strokeOpacity="0.06" strokeWidth="1" fill="none" />
-                <circle cx="390" cy="55" r="115" stroke="white" strokeOpacity="0.05" strokeWidth="1" fill="none" />
-                <circle cx="390" cy="55" r="78" stroke="white" strokeOpacity="0.04" strokeWidth="1" fill="none" />
-                <circle cx="35" cy="275" r="115" stroke="white" strokeOpacity="0.04" strokeWidth="1" fill="none" />
-                {/* Sparkline wave */}
-                <polyline points="20,260 60,235 100,242 140,212 180,225 220,196 260,208 300,180 340,193 380,162 420,148" stroke="white" strokeOpacity="0.14" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-                <polygon points="20,260 60,235 100,242 140,212 180,225 220,196 260,208 300,180 340,193 380,162 420,148 420,290 20,290" fill="white" fillOpacity="0.03" />
-                {([[60,235],[140,212],[220,196],[300,180],[380,162]] as [number,number][]).map(([cx,cy],i) => (
-                  <circle key={i} cx={cx} cy={cy} r="2.5" fill="white" fillOpacity="0.22" />
-                ))}
-                {/* NFC arcs */}
-                <path d="M396 26 Q407 38 396 50" stroke="white" strokeOpacity="0.55" strokeWidth="2" fill="none" strokeLinecap="round" />
-                <path d="M389 20 Q406 38 389 56" stroke="white" strokeOpacity="0.35" strokeWidth="2" fill="none" strokeLinecap="round" />
-                <path d="M382 14 Q405 38 382 62" stroke="white" strokeOpacity="0.18" strokeWidth="2" fill="none" strokeLinecap="round" />
-              </svg>
+            {/* Perspective wrapper — 3D flip card */}
+            <div style={{ perspective: "1100px" }}>
+              <div
+                style={{
+                  position: "relative",
+                  height: "440px",
+                  transformStyle: "preserve-3d",
+                  transition: "transform 0.7s cubic-bezier(0.4,0,0.2,1)",
+                  transform: cardFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
+                }}
+              >
 
-              {/* Top sheen */}
-              <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent pointer-events-none" />
+                {/* ── FRONT FACE ── */}
+                <div
+                  style={{
+                    position: "absolute", inset: 0,
+                    backfaceVisibility: "hidden",
+                  }}
+                  className="rounded-[24px] overflow-hidden shadow-2xl cursor-default select-none"
+                >
+                  {/* card bg */}
+                  <div className="absolute inset-0" style={{ background: "linear-gradient(155deg, #0c1b2e 0%, #12304d 52%, #0c4a6e 100%)" }} />
 
-              <div className="relative flex flex-col justify-between gap-4 p-5" style={{ minHeight: "290px" }}>
-
-                {/* Row 1 — branding + chip */}
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-[11px] font-black uppercase tracking-[0.25em] text-white/45">NoLSAF</p>
-                    <p className="text-[13px] font-black text-white tracking-wide leading-tight mt-0.5">Driver ID</p>
-                  </div>
-                  {/* EMV chip */}
-                  <svg width="40" height="32" viewBox="0 0 38 30" fill="none" className="opacity-80 flex-shrink-0" aria-hidden>
-                    <rect x="1" y="1" width="36" height="28" rx="4" fill="#c8a84b" stroke="#a07830" strokeWidth="0.8" />
-                    <rect x="1" y="10" width="36" height="10" fill="#b8983a" />
-                    <rect x="13" y="1" width="12" height="28" fill="#b8983a" />
-                    <rect x="13" y="10" width="12" height="10" fill="#a07830" />
-                    <rect x="1" y="10" width="36" height="0.8" fill="#8a6820" />
-                    <rect x="1" y="19.2" width="36" height="0.8" fill="#8a6820" />
-                    <rect x="13" y="1" width="0.8" height="28" fill="#8a6820" />
-                    <rect x="24.2" y="1" width="0.8" height="28" fill="#8a6820" />
+                  {/* SVG decoration */}
+                  <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 420 440" fill="none" preserveAspectRatio="xMidYMid slice" aria-hidden>
+                    <circle cx="390" cy="65" r="170" stroke="white" strokeOpacity="0.05" strokeWidth="1" fill="none" />
+                    <circle cx="390" cy="65" r="125" stroke="white" strokeOpacity="0.04" strokeWidth="1" fill="none" />
+                    <circle cx="390" cy="65" r="82" stroke="white" strokeOpacity="0.035" strokeWidth="1" fill="none" />
+                    <circle cx="30" cy="410" r="140" stroke="white" strokeOpacity="0.04" strokeWidth="1" fill="none" />
+                    {/* NFC arcs top-right */}
+                    <path d="M398 28 Q411 44 398 60" stroke="white" strokeOpacity="0.55" strokeWidth="2" fill="none" strokeLinecap="round" />
+                    <path d="M391 20 Q410 44 391 68" stroke="white" strokeOpacity="0.35" strokeWidth="2" fill="none" strokeLinecap="round" />
+                    <path d="M383 12 Q409 44 383 76" stroke="white" strokeOpacity="0.18" strokeWidth="2" fill="none" strokeLinecap="round" />
                   </svg>
-                </div>
 
-                {/* Row 2 — photo + name + rating + bio */}
-                <div className="flex items-start gap-3.5">
-                  {/* Avatar */}
-                  <div className="relative flex-shrink-0">
-                    {ride.driver.avatarUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={ride.driver.avatarUrl}
-                        alt={ride.driver.name ?? "Driver"}
-                        className="h-16 w-16 rounded-2xl object-cover shadow-lg"
-                        style={{ border: "2px solid rgba(255,255,255,0.18)" }}
-                      />
-                    ) : (
-                      <div
-                        className="h-16 w-16 rounded-2xl flex items-center justify-center text-xl font-black text-white shadow-lg"
-                        style={{
-                          background: "linear-gradient(135deg, rgba(56,189,248,0.28), rgba(99,102,241,0.28))",
-                          border: "1.5px solid rgba(255,255,255,0.18)",
-                        }}
-                      >
-                        {(ride.driver.name ?? "?")[0].toUpperCase()}
+                  {/* top sheen */}
+                  <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent pointer-events-none" />
+
+                  {/* green bottom band */}
+                  <div className="absolute bottom-0 left-0 right-0" style={{ height: "58px", background: "linear-gradient(90deg, #064e3b 0%, #059669 55%, #0369a1 100%)" }} />
+
+                  {/* FRONT CONTENT */}
+                  <div className="relative flex flex-col px-5 pt-4" style={{ height: "440px" }}>
+
+                    {/* Row 1 — branding + flip hint + chip */}
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.32em] text-white/45">NOLSAF</p>
+                        <p className="text-[11px] font-black text-white/60 tracking-widest mt-0.5">DRIVER ID CARD</p>
                       </div>
-                    )}
-                    {/* Verified badge */}
-                    <div
-                      className="absolute -bottom-1.5 -right-1.5 h-5 w-5 rounded-full flex items-center justify-center"
-                      style={{ background: "#10b981", border: "2px solid #0f172a" }}
-                    >
-                      <svg viewBox="0 0 8 8" className="h-2.5 w-2.5">
-                        <path d="M1.5 4L3.3 5.8L6.5 2.2" stroke="white" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setCardFlipped(true)}
+                          className="text-[8px] font-black uppercase tracking-widest text-white/30 hover:text-emerald-400 transition-colors"
+                        >
+                          About →
+                        </button>
+                        {/* EMV chip */}
+                        <svg width="36" height="28" viewBox="0 0 38 30" fill="none" aria-hidden>
+                          <rect x="1" y="1" width="36" height="28" rx="4" fill="#c8a84b" stroke="#a07830" strokeWidth="0.8" />
+                          <rect x="1" y="10" width="36" height="10" fill="#b8983a" />
+                          <rect x="13" y="1" width="12" height="28" fill="#b8983a" />
+                          <rect x="13" y="10" width="12" height="10" fill="#a07830" />
+                          <rect x="1" y="10" width="36" height="0.8" fill="#8a6820" />
+                          <rect x="1" y="19.2" width="36" height="0.8" fill="#8a6820" />
+                          <rect x="13" y="1" width="0.8" height="28" fill="#8a6820" />
+                          <rect x="24.2" y="1" width="0.8" height="28" fill="#8a6820" />
+                        </svg>
+                      </div>
+                    </div>
+
+                    {/* Row 2 — circular avatar */}
+                    <div className="flex justify-center mt-4">
+                      <div className="relative">
+                        <div
+                          className="h-24 w-24 rounded-full overflow-hidden flex items-center justify-center"
+                          style={{
+                            border: "3px solid rgba(5,150,105,0.6)",
+                            boxShadow: "0 0 0 5px rgba(5,150,105,0.12), 0 10px 36px rgba(0,0,0,0.45)",
+                            background: "linear-gradient(135deg, rgba(56,189,248,0.22), rgba(5,150,105,0.18))",
+                          }}
+                        >
+                          {ride.driver.avatarUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={ride.driver.avatarUrl} alt={ride.driver.name ?? "Driver"} className="h-full w-full object-cover" />
+                          ) : (
+                            <span className="font-black text-white" style={{ fontSize: "2.2rem" }}>
+                              {(ride.driver.name ?? "?")[0].toUpperCase()}
+                            </span>
+                          )}
+                        </div>
+                        {/* verified badge */}
+                        <div
+                          className="absolute -bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-full px-2 py-0.5"
+                          style={{ background: "#059669", border: "1.5px solid #0c1b2e" }}
+                        >
+                          <svg viewBox="0 0 8 8" className="h-2 w-2 flex-shrink-0">
+                            <path d="M1.5 4L3.3 5.8L6.5 2.2" stroke="white" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                          </svg>
+                          <span className="text-[7px] font-black uppercase tracking-widest text-white">Verified</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Row 3 — name + title + stars */}
+                    <div className="text-center mt-5">
+                      <p
+                        className="font-black text-white tracking-tight leading-none drop-shadow uppercase"
+                        style={{ fontSize: "clamp(1.3rem, 5.5vw, 1.7rem)", textShadow: "0 2px 12px rgba(0,0,0,0.4)", letterSpacing: "-0.01em" }}
+                      >
+                        {ride.driver.name}
+                      </p>
+                      <p className="text-[8.5px] font-black uppercase tracking-[0.3em] text-emerald-400 mt-2">
+                        {ride.driver.isVipDriver ? "Premium Certified Driver" : "NOLS Certified Driver"}
+                      </p>
+                      {ride.driver.rating != null && (
+                        <div className="flex justify-center items-center gap-0.5 mt-1.5">
+                          {[1, 2, 3, 4, 5].map((i) => (
+                            <Star key={i} className="h-3 w-3"
+                              style={{
+                                fill: i <= Math.round(ride.driver!.rating!) ? "#fbbf24" : "transparent",
+                                color: i <= Math.round(ride.driver!.rating!) ? "#fbbf24" : "rgba(255,255,255,0.18)",
+                              }}
+                            />
+                          ))}
+                          <span className="ml-1 text-[10px] font-black text-white/50">{ride.driver.rating.toFixed(1)}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Divider */}
+                    <div className="h-px bg-white/12 mt-4 mx-0" />
+
+                    {/* Row 4 — ID number */}
+                    <div className="text-center mt-3">
+                      <p className="text-[7.5px] font-bold uppercase tracking-[0.28em] text-white/30">ID No.</p>
+                      <p className="text-[12px] font-black text-white tracking-[0.22em] mt-0.5">
+                        NLS‑{String(ride.driver.id).padStart(4, "0")}‑{new Date(ride.createdAt).getFullYear()}
+                      </p>
+                    </div>
+
+                    {/* Row 5 — barcode */}
+                    <div className="flex justify-center mt-3">
+                      <svg width="200" height="30" viewBox="0 0 200 30" aria-hidden>
+                        {(() => {
+                          const bars: { x: number; w: number }[] = [];
+                          let x = 0;
+                          let s = ((ride.driver!.id * 1664525) + 1013904223) & 0x7fffffff;
+                          while (x < 200) {
+                            s = ((s * 1664525) + 1013904223) & 0x7fffffff;
+                            const w = (s % 3) + 1;
+                            const gap = ((s >> 4) % 4) + 1;
+                            if (s % 2 === 0) bars.push({ x, w });
+                            x += w + gap;
+                          }
+                          return bars.map(({ x, w }) => (
+                            <rect key={x} x={x} y={0} width={w} height={30} fill="rgba(255,255,255,0.72)" />
+                          ));
+                        })()}
                       </svg>
                     </div>
-                  </div>
 
-                  <div className="min-w-0 flex-1">
-                    <p className="font-black text-white leading-tight truncate" style={{ fontSize: "clamp(1rem, 4vw, 1.15rem)" }}>{ride.driver.name}</p>
-
-                    {/* Rating */}
-                    {ride.driver.rating != null && (
-                      <div className="mt-1 inline-flex items-center gap-0.5">
-                        {[1, 2, 3, 4, 5].map((i) => (
-                          <Star
-                            key={i}
-                            className="h-2.5 w-2.5"
-                            style={{
-                              fill: i <= Math.round(ride.driver!.rating!) ? "#fbbf24" : "transparent",
-                              color: i <= Math.round(ride.driver!.rating!) ? "#fbbf24" : "rgba(255,255,255,0.2)",
-                            }}
-                          />
-                        ))}
-                        <span className="ml-1 text-[10px] font-bold text-white/55">
-                          {ride.driver.rating.toFixed(1)}
-                        </span>
+                    {/* Green bottom strip — absolute, vehicle + plate + circles */}
+                    <div
+                      className="absolute bottom-0 left-0 right-0 flex items-center px-5 gap-3"
+                      style={{ height: "58px", background: "linear-gradient(90deg, #064e3b 0%, #059669 55%, #0369a1 100%)" }}
+                    >
+                      <div className="min-w-0">
+                        <p className="text-[7px] font-bold uppercase tracking-widest text-white/50">Vehicle</p>
+                        <p className="text-[10px] font-black text-white mt-0.5 truncate">
+                          {[ride.driver.vehicleMake, ride.driver.vehicleType].filter(Boolean).join(" · ") || ride.vehicleType || "—"}
+                        </p>
                       </div>
-                    )}
-
-                    {/* VIP badge */}
-                    {ride.driver.isVipDriver && (
-                      <div className="mt-1 inline-flex items-center gap-1">
-                        <ShieldCheck className="h-3 w-3 text-amber-400" />
-                        <span className="text-[9px] font-black uppercase tracking-widest text-amber-400">VIP Driver</span>
+                      <div className="w-px h-6 bg-white/22 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-[7px] font-bold uppercase tracking-widest text-white/50">Plate No.</p>
+                        <p className="text-[10px] font-black text-white tracking-widest mt-0.5">
+                          {ride.driver.plateNumber || ride.driver.vehiclePlate || "—"}
+                        </p>
                       </div>
-                    )}
-
-                    {/* Bio */}
-                    <p className="mt-1.5 text-[10px] leading-[1.55] text-white/50 line-clamp-3">
-                      {pickBio(ride.driver)}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Row 3 — vehicle info */}
-                <div className="flex items-center gap-3 pt-3 border-t border-white/10">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[8px] font-bold uppercase tracking-widest text-white/40">Vehicle</p>
-                    <p className="text-[11px] font-black text-white mt-0.5 truncate">
-                      {[ride.driver.vehicleMake, ride.driver.vehicleType].filter(Boolean).join(" · ") ||
-                        ride.vehicleType ||
-                        "—"}
-                    </p>
-                  </div>
-                  <div className="w-px h-8 bg-white/15 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[8px] font-bold uppercase tracking-widest text-white/40">Plate No.</p>
-                    <p className="text-[11px] font-black text-white mt-0.5 tracking-widest">
-                      {ride.driver.plateNumber || ride.driver.vehiclePlate || "—"}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Row 4 — area + pulsing verified + mastercard circles */}
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 flex-wrap flex-1 min-w-0">
-                    {(ride.driver.operationArea || ride.driver.district) && (
-                      <>
-                        <div className="min-w-0">
-                          <p className="text-[8px] font-bold uppercase tracking-widest text-white/40">Area</p>
-                          <p className="text-[10px] font-black text-white mt-0.5 truncate">{ride.driver.operationArea || ride.driver.district}</p>
-                        </div>
-                        <div className="w-px h-8 bg-white/15 flex-shrink-0" />
-                      </>
-                    )}
-                    <div className="inline-flex items-center gap-1.5">
-                      <span className="relative flex h-2 w-2 flex-shrink-0">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75" />
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
-                      </span>
-                      <p className="text-[8px] font-bold text-white/60 uppercase tracking-wide">Verified</p>
+                      <div className="ml-auto flex -space-x-2.5 flex-shrink-0">
+                        <div className="w-8 h-8 rounded-full opacity-90" style={{ background: "radial-gradient(circle at 38% 38%, #1a6baf, #0a3a7a)" }} />
+                        <div className="w-8 h-8 rounded-full opacity-70" style={{ background: "radial-gradient(circle at 62% 38%, #059669, #064e3b)" }} />
+                      </div>
                     </div>
-                  </div>
-                  {/* Dual circles — Mastercard style */}
-                  <div className="flex -space-x-3 flex-shrink-0 ml-2">
-                    <div className="w-9 h-9 rounded-full opacity-90 flex-shrink-0" style={{ background: "radial-gradient(circle at 40% 40%, #1a6baf, #0a3a7a)" }} />
-                    <div className="w-9 h-9 rounded-full opacity-75 flex-shrink-0" style={{ background: "radial-gradient(circle at 60% 40%, #0c4a6e, #014d69)" }} />
+
                   </div>
                 </div>
+                {/* END FRONT FACE */}
+
+                {/* ── BACK FACE ── */}
+                <div
+                  style={{
+                    position: "absolute", inset: 0,
+                    backfaceVisibility: "hidden",
+                    transform: "rotateY(180deg)",
+                  }}
+                  className="rounded-[24px] overflow-hidden shadow-2xl cursor-default select-none"
+                >
+                  {/* card bg */}
+                  <div className="absolute inset-0" style={{ background: "linear-gradient(155deg, #0c1b2e 0%, #12304d 55%, #0c4a6e 100%)" }} />
+                  {/* green-to-teal top stripe */}
+                  <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-teal-400 to-sky-500" />
+                  {/* top sheen */}
+                  <div className="absolute top-1.5 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
+                  {/* subtle circles */}
+                  <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 420 440" fill="none" preserveAspectRatio="xMidYMid slice" aria-hidden>
+                    <circle cx="380" cy="390" r="160" stroke="white" strokeOpacity="0.04" strokeWidth="1" fill="none" />
+                    <circle cx="380" cy="390" r="115" stroke="white" strokeOpacity="0.03" strokeWidth="1" fill="none" />
+                    <circle cx="40" cy="70" r="95" stroke="white" strokeOpacity="0.04" strokeWidth="1" fill="none" />
+                  </svg>
+
+                  {/* BACK CONTENT */}
+                  <div className="relative flex flex-col px-5 pt-4 pb-5" style={{ height: "440px" }}>
+
+                    {/* back header */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.32em] text-white/45">NOLSAF</p>
+                        <p className="text-[11px] font-black text-emerald-400 tracking-widest mt-0.5">DRIVER PROFILE</p>
+                      </div>
+                      <button
+                        onClick={() => setCardFlipped(false)}
+                        className="text-[8px] font-black uppercase tracking-widest text-white/30 hover:text-emerald-400 transition-colors"
+                      >
+                        ← ID Card
+                      </button>
+                    </div>
+
+                    {/* divider */}
+                    <div className="h-px bg-white/10 mt-3 mb-3" />
+
+                    {/* opening quote + label */}
+                    <div className="flex items-end gap-1.5 mb-1">
+                      <span className="text-[44px] font-black leading-none" style={{ color: "rgba(16,185,129,0.22)" }}>&rdquo;</span>
+                      <p className="text-[7.5px] font-black uppercase tracking-[0.28em] text-emerald-400 mb-1">About This Driver</p>
+                    </div>
+
+                    {/* bio */}
+                    <p className="text-[10.5px] leading-[1.72] text-white/62 mb-3">
+                      {pickExtendedBio(ride.driver)}
+                    </p>
+
+                    {/* commitment */}
+                    <div className="h-px bg-white/10 mb-2.5" />
+                    <p className="text-[7.5px] font-black uppercase tracking-[0.28em] text-white/30 mb-2.5">Our Commitment</p>
+                    <ul className="space-y-2">
+                      {[
+                        "Safety-first driving on every route, every time",
+                        "On-time arrivals — we respect your schedule",
+                        "Professionally licensed and NOLS-verified",
+                        "Clean, well-maintained and comfortably driven",
+                      ].map((item, i) => (
+                        <li key={i} className="flex items-start gap-2">
+                          <span
+                            className="mt-0.5 flex-shrink-0 h-3.5 w-3.5 rounded-full flex items-center justify-center"
+                            style={{ background: "rgba(5,150,105,0.18)", border: "1px solid rgba(5,150,105,0.42)" }}
+                          >
+                            <svg viewBox="0 0 6 6" className="h-2 w-2">
+                              <path d="M1 3L2.5 4.5L5 1.5" stroke="#10b981" strokeWidth="1.3" fill="none" strokeLinecap="round" />
+                            </svg>
+                          </span>
+                          <p className="text-[10px] text-white/52 leading-snug">{item}</p>
+                        </li>
+                      ))}
+                    </ul>
+
+                    {/* bottom row */}
+                    <div className="mt-auto pt-3 border-t border-white/10 flex items-center justify-between">
+                      <div className="inline-flex items-center gap-1.5">
+                        <span className="relative flex h-2 w-2 flex-shrink-0">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75" />
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
+                        </span>
+                        <p className="text-[7.5px] font-bold text-white/42 uppercase tracking-wide">Verified Driver</p>
+                      </div>
+                      <p className="text-[7.5px] font-black text-white/22 tracking-widest">NOLSAF © {new Date().getFullYear()}</p>
+                    </div>
+
+                  </div>
+                </div>
+                {/* END BACK FACE */}
 
               </div>
             </div>
-
+            {/* end 3D flip wrapper */}
             {/* Action buttons below the ID card */}
             <div className="flex gap-2 mt-1">
               {ride.driver.phone && (
