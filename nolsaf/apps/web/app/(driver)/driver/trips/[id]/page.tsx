@@ -236,6 +236,7 @@ export default function TripDetailPage({ params }: { params: Promise<{ id: strin
   const fromDisplay =
     trip.fromAddress ||
     [trip.fromWard, trip.fromDistrict, trip.fromRegion].filter(Boolean).join(", ") ||
+    trip.pickupLocation ||
     null;
   const toDisplay =
     trip.toAddress ||
@@ -266,7 +267,7 @@ export default function TripDetailPage({ params }: { params: Promise<{ id: strin
         <div className="relative z-10 flex items-center justify-between px-4 pt-4 pb-1">
           <button
             onClick={() => router.back()}
-            className="flex items-center justify-center w-9 h-9 rounded-full bg-white/8 hover:bg-white/16 border border-white/10 transition-colors text-white"
+            className="flex items-center justify-center w-9 h-9 rounded-full hover:bg-white/10 transition-colors text-white"
             aria-label="Go back"
           >
             <ArrowLeft size={18} />
@@ -489,15 +490,40 @@ export default function TripDetailPage({ params }: { params: Promise<{ id: strin
             </div>
           )}
 
-          {/* Notes */}
-          {trip.notes && (
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
-              <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-1">
-                <FileText size={11} /> Special instructions
-              </div>
-              <p className="text-sm text-slate-700 leading-relaxed">{trip.notes}</p>
+          {/* Driver reminders — always visible */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-1.5">
+              <BadgeCheck size={11} className="text-[#02665e]" /> Driver Reminders
             </div>
-          )}
+            <ul className="space-y-2">
+              {[
+                "Arrive at the pickup point on time or earlier.",
+                "Greet your passenger politely and professionally.",
+                "Keep your vehicle clean and presentable.",
+                "Drive safely and respect all traffic rules.",
+                "If delayed, call the passenger immediately.",
+              ].map((reminder) => (
+                <li key={reminder} className="flex items-start gap-2">
+                  <CheckCircle2 size={13} className="flex-shrink-0 mt-0.5 text-[#02665e]" />
+                  <span className="text-sm text-slate-700 leading-snug">{reminder}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Passenger instructions — only genuine notes, never system policy */}
+          {(() => {
+            const note = trip.notes?.trimStart() ?? "";
+            if (!note || note.startsWith("NoLSAF Auction Policy")) return null;
+            return (
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-1">
+                  <FileText size={11} /> Passenger instructions
+                </div>
+                <p className="text-sm text-slate-700 leading-relaxed">{note}</p>
+              </div>
+            );
+          })()}
 
           {/* Claim status callout */}
           {trip.claim && !claimAccepted && (
