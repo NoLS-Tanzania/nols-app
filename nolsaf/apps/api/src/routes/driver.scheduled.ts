@@ -899,7 +899,7 @@ router.get("/:id", limitDriverTripsList, (async (req: AuthedRequest, res: Respon
       toRegion: booking.toRegion,
       toDistrict: booking.toDistrict,
       toWard: booking.toWard,
-      toAddress: booking.toAddress,
+      toAddress: booking.toAddress || (booking as any).property?.title || null,
       toLatitude: booking.toLatitude,
       toLongitude: booking.toLongitude,
       amount: booking.amount,
