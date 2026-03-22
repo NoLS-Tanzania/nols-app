@@ -6032,7 +6032,7 @@ router.patch('/:id(\\d+)/kyc', limitAdminTripsWrite, async (req, res) => {
             : sanitizedNote || 'your profile information';
 
           const smsText =
-            `NoLSAF: Following our review of your driver application, please update the following: ${fieldList}. ` +
+            `Following our review of your driver application, please update the following: ${fieldList}. ` +
             `Open the NoLSAF app to make the required corrections. For help, contact support.`;
 
           await sendSms(phone, smsText);
@@ -6053,7 +6053,7 @@ router.patch('/:id(\\d+)/kyc', limitAdminTripsWrite, async (req, res) => {
       // ── SMS ──────────────────────────────────────────────────────────────────
       if (driverPhone) {
         try {
-          const smsTxt = `NoLSAF: Congratulations ${firstName}! Your driver account is approved. Log in now and start earning with Africa's leading travel & stays platform. Welcome aboard!`;
+          const smsTxt = `Congratulations ${firstName}! Your driver account is approved. Log in now and start earning with Africa's leading travel & stays platform. Welcome aboard!`;
           await sendSms(driverPhone, smsTxt);
         } catch (smsErr: any) {
           console.warn('[KYC approve] SMS failed (non-fatal):', smsErr?.message ?? smsErr);
@@ -6169,7 +6169,7 @@ router.patch('/:id(\\d+)/kyc', limitAdminTripsWrite, async (req, res) => {
 
       if (driverPhone) {
         try {
-          const smsTxt = `NoLSAF: Hello ${firstName}, your driver application was not approved.${rejectReason ? ` Reason: ${rejectReason}.` : ''} Review the feedback in your account or contact support@nolsaf.com for guidance.`;
+          const smsTxt = `Hello ${firstName}, your driver application was not approved.${rejectReason ? ` Reason: ${rejectReason}.` : ''} Review the feedback in your account or contact support@nolsaf.com for guidance.`;
           await sendSms(driverPhone, smsTxt);
         } catch (smsErr: any) {
           console.warn('[KYC reject] SMS failed (non-fatal):', smsErr?.message ?? smsErr);
