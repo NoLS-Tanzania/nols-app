@@ -6,6 +6,7 @@ import { audit } from "../lib/audit.js";
 import { z } from "zod";
 import { limitDriverTripClaim, limitDriverTripsList } from "../middleware/rateLimit.js";
 import { AUTO_DISPATCH_GRACE_MS, AUTO_DISPATCH_LOOKAHEAD_MS } from "../lib/transportPolicy.js";
+import { sendSms } from "../lib/sms.js";
 
 export const router = Router();
 
@@ -605,17 +606,59 @@ router.post("/:id/claim", limitDriverTripClaim, (async (req: AuthedRequest, res:
 
       // Create notifications
       try {
+        const tripDateLabel = new Date(updated.scheduledDate).toLocaleDateString("en-GB", {
+          weekday: "long", day: "2-digit", month: "long", year: "numeric",
+        });
+        const fromLabel = [updated.fromAddress, updated.fromWard, updated.fromDistrict, updated.fromRegion]
+          .filter(Boolean).join(", ") || "Origin";
+        const toLabel = [updated.toAddress || updated.property?.title, updated.toWard, updated.toDistrict, updated.toRegion]
+          .filter(Boolean).join(", ") || "Destination";
+        const amountLabel = updated.amount
+          ? `${updated.currency || "TZS"} ${Number(updated.amount).toLocaleString()}`
+          : null;
+        const vehicleLabel = updated.vehicleType ? ` (${updated.vehicleType})` : "";
+
+        // Estimate review deadline: results are declared before the trip date.
+        // We give drivers a realistic expectation: selection is typically confirmed
+        // at least 24 hours before pickup.
+        const pickupAt = updated.pickupTime || updated.scheduledDate;
+        const reviewDeadline = new Date(new Date(pickupAt).getTime() - 24 * 60 * 60 * 1000);
+        const reviewDeadlineLabel = reviewDeadline.toLocaleDateString("en-GB", {
+          weekday: "short", day: "2-digit", month: "short", year: "numeric",
+        });
+
         await tx.notification.create({
           data: {
             userId: user.id,
-            title: "Claim submitted",
-            body: `Your claim is pending review for the trip on ${new Date(updated.scheduledDate).toLocaleDateString()}.`,
+            title: "Claim submitted — pending review",
+            body: [
+              `Your offer for the trip on ${tripDateLabel} has been received and is now under review by the NoLSAF team.`,
+              `Route: ${fromLabel} → ${toLabel}${vehicleLabel}`,
+              amountLabel ? `Fare: ${amountLabel}` : null,
+              updated.pickupLocation ? `Pickup point: ${updated.pickupLocation}` : null,
+              ``,
+              `What happens next:`,
+              `• Our team reviews all driver offers for this trip.`,
+              `• The selected driver will be notified by ${reviewDeadlineLabel} — at least 24 hours before the trip.`,
+              `• You will receive a notification here and an SMS on your phone with the result.`,
+              ``,
+              `Thank you for being part of the NoLSAF family — keep claiming and stay ready!`,
+            ].filter((l) => l !== null).join("\n"),
             unread: true,
             type: "ride",
             meta: {
               transportBookingId: updated.id,
               status: "CLAIM_PENDING",
               claimId: claim.id,
+              tripDate: updated.scheduledDate,
+              pickupTime: updated.pickupTime,
+              pickupLocation: updated.pickupLocation,
+              from: fromLabel,
+              to: toLabel,
+              vehicleType: updated.vehicleType,
+              amount: updated.amount ? Number(updated.amount) : null,
+              currency: updated.currency,
+              reviewDeadline: reviewDeadline.toISOString(),
             },
           },
         });
@@ -629,12 +672,34 @@ router.post("/:id/claim", limitDriverTripClaim, (async (req: AuthedRequest, res:
 
     // Audit log for driver claim
     try {
-      // Fetch driver name for audit log
+      // Fetch driver name + phone for audit log and SMS
       const driverUser = await prisma.user.findUnique({
         where: { id: user.id },
-        select: { name: true, email: true },
+        select: { name: true, email: true, phone: true },
       });
-      
+
+      // SMS confirmation to the driver
+      if (driverUser?.phone) {
+        const b = (result as any).updated;
+        const tripDateSms = new Date(b.scheduledDate).toLocaleDateString("en-GB", {
+          day: "2-digit", month: "short", year: "numeric",
+        });
+        const fromSms = [b.fromAddress, b.fromRegion].filter(Boolean).join(", ") || "Origin";
+        const toSms = [b.toAddress || b.property?.title, b.toRegion].filter(Boolean).join(", ") || "Destination";
+        const pickupAt = b.pickupTime || b.scheduledDate;
+        const reviewDeadlineSms = new Date(new Date(pickupAt).getTime() - 24 * 60 * 60 * 1000)
+          .toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+        const smsBody = [
+          `Claim received for trip on ${tripDateSms}.`,
+          `Route: ${fromSms} → ${toSms}.`,
+          `Our team will select a driver by ${reviewDeadlineSms}. You will be notified of the result via app & SMS.`,
+          `Thank you!`,
+        ].join(" ");
+        await sendSms(driverUser.phone, smsBody).catch((smsErr: any) =>
+          console.warn("[claim] SMS confirmation failed:", smsErr?.message || smsErr)
+        );
+      }
+
       await audit(req, "TRANSPORT_BOOKING_CLAIM_SUBMITTED", `transport-booking:${result.id}`, {
         status: "PENDING_ASSIGNMENT",
         driverId: null,

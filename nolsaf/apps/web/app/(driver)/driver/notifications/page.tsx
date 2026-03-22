@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Bell, Check, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
+import { Bell, Check, ChevronDown, ChevronUp, ExternalLink, Trophy, HeartHandshake, Clock } from "lucide-react";
 import { useSocket } from "@/hooks/useSocket";
 
 type DriverNotification = {
@@ -14,6 +14,42 @@ type DriverNotification = {
   meta?: any;
   time?: string;
 };
+
+type NotificationKind = "CLAIM_AWARDED" | "CLAIM_NOT_SELECTED" | "CLAIM_PENDING" | "other";
+
+function resolveKind(m: DriverNotification): NotificationKind {
+  const s = m?.meta?.status as string | undefined;
+  if (s === "CLAIM_AWARDED") return "CLAIM_AWARDED";
+  if (s === "CLAIM_NOT_SELECTED") return "CLAIM_NOT_SELECTED";
+  if (s === "CLAIM_PENDING") return "CLAIM_PENDING";
+  return "other";
+}
+
+function TripDetailPanel({ meta }: { meta: any }) {
+  if (!meta) return null;
+  const rows: { label: string; value: string }[] = [];
+  if (meta.tripDate) rows.push({ label: "Date", value: new Date(meta.tripDate).toLocaleDateString("en-GB", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }) });
+  if (meta.from) rows.push({ label: "From", value: meta.from });
+  if (meta.to) rows.push({ label: "To", value: meta.to });
+  if (meta.vehicleType) rows.push({ label: "Vehicle", value: meta.vehicleType });
+  if (meta.amount) rows.push({ label: "Fare", value: `${meta.currency || "TZS"} ${Number(meta.amount).toLocaleString()}` });
+  if (meta.pickupLocation) rows.push({ label: "Pickup point", value: meta.pickupLocation });
+  if (rows.length === 0) return null;
+  return (
+    <div className="mt-3 rounded-xl border border-[#02665e]/20 bg-[#02665e]/5 overflow-hidden">
+      <table className="w-full text-xs">
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.label} className="border-b border-[#02665e]/10 last:border-0">
+              <td className="px-3 py-2 font-semibold text-[#02665e]/70 w-28 whitespace-nowrap">{r.label}</td>
+              <td className="px-3 py-2 text-slate-800 font-medium">{r.value}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 function formatTime(dateString?: string) {
   if (!dateString) return "";
@@ -168,10 +204,37 @@ export default function DriverNotificationsPage() {
               {list.map((m) => {
                 const isOpen = openId === m.id;
                 const actionLink = m?.meta?.link;
+                const kind = resolveKind(m);
+
+                const cardBorder =
+                  kind === "CLAIM_AWARDED"
+                    ? "border-amber-300/60 bg-gradient-to-br from-amber-50 to-white"
+                    : kind === "CLAIM_NOT_SELECTED"
+                    ? "border-[#02665e]/15 bg-white"
+                    : m.unread
+                    ? "border-[#02665e]/20 bg-white"
+                    : "border-slate-200 bg-white";
+
+                const KindIcon =
+                  kind === "CLAIM_AWARDED"
+                    ? Trophy
+                    : kind === "CLAIM_NOT_SELECTED"
+                    ? HeartHandshake
+                    : kind === "CLAIM_PENDING"
+                    ? Clock
+                    : null;
+
+                const iconColour =
+                  kind === "CLAIM_AWARDED"
+                    ? "text-amber-500"
+                    : kind === "CLAIM_NOT_SELECTED"
+                    ? "text-[#02665e]"
+                    : "text-slate-400";
+
                 return (
                   <div
                     key={String(m.id)}
-                    className={`rounded-2xl border bg-white shadow-card overflow-hidden transition-colors ${m.unread ? "border-[#02665e]/20" : "border-slate-200"}`}
+                    className={`rounded-2xl border shadow-card overflow-hidden transition-colors ${cardBorder}`}
                   >
                     <button
                       type="button"
@@ -190,18 +253,31 @@ export default function DriverNotificationsPage() {
                       }}
                       className="w-full px-4 py-3 flex items-start justify-between gap-4 text-left"
                     >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 min-w-0">
-                          {m.unread ? <span className="h-2 w-2 rounded-full bg-[#02665e]" aria-hidden /> : null}
-                          <div className="text-sm font-bold text-slate-900 truncate">{m.title}</div>
-                        </div>
-                        <div className="mt-1 flex items-center gap-2 text-xs font-semibold text-slate-500">
-                          <span>{m.time || ""}</span>
-                          {m.unread ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-[#02665e]/10 text-[#02665e] border border-[#02665e]/15">
-                              Unread
-                            </span>
-                          ) : null}
+                      <div className="min-w-0 flex-1 flex items-start gap-3">
+                        {KindIcon ? (
+                          <div className={`mt-0.5 flex-shrink-0 ${iconColour}`}>
+                            <KindIcon className="h-4 w-4" aria-hidden />
+                          </div>
+                        ) : m.unread ? (
+                          <span className="mt-1.5 h-2 w-2 flex-shrink-0 rounded-full bg-[#02665e]" aria-hidden />
+                        ) : null}
+                        <div className="min-w-0 flex-1">
+                          <div className={`text-sm font-bold truncate ${kind === "CLAIM_AWARDED" ? "text-amber-700" : "text-slate-900"}`}>
+                            {m.title}
+                          </div>
+                          <div className="mt-1 flex items-center gap-2 text-xs font-semibold text-slate-500">
+                            <span>{m.time || ""}</span>
+                            {m.unread ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-[#02665e]/10 text-[#02665e] border border-[#02665e]/15">
+                                Unread
+                              </span>
+                            ) : null}
+                            {kind === "CLAIM_AWARDED" ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+                                Awarded
+                              </span>
+                            ) : null}
+                          </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
@@ -219,12 +295,13 @@ export default function DriverNotificationsPage() {
 
                     {isOpen ? (
                       <div className="px-4 pb-4">
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+                        <div className={`rounded-2xl border p-4 ${kind === "CLAIM_AWARDED" ? "border-amber-200 bg-amber-50/60" : "border-slate-200 bg-slate-50/60"}`}>
                           <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{m.body}</div>
+                          {kind === "CLAIM_AWARDED" ? <TripDetailPanel meta={m.meta} /> : null}
                           {typeof actionLink === "string" && actionLink.trim() ? (
                             <div className="mt-3">
                               <Link href={actionLink} className="inline-flex items-center gap-2 text-sm font-semibold text-[#02665e] hover:text-[#02665e]/80 no-underline">
-                                Open related page
+                                View trip details
                                 <ExternalLink className="h-4 w-4" aria-hidden />
                               </Link>
                             </div>

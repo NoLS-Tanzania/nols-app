@@ -2215,7 +2215,13 @@ router.post("/trips/scheduled/:id/award", async (req, res) => {
     const result = await prisma.$transaction(async (tx) => {
       const booking = await (tx as any).transportBooking.findUnique({
         where: { id: bookingId },
-        select: { id: true, driverId: true, paymentStatus: true, status: true },
+        select: {
+          id: true, driverId: true, paymentStatus: true, status: true,
+          scheduledDate: true, pickupTime: true, pickupLocation: true,
+          fromRegion: true, fromDistrict: true, fromWard: true, fromAddress: true,
+          toRegion: true, toDistrict: true, toWard: true, toAddress: true,
+          vehicleType: true, amount: true, currency: true,
+        },
       });
       if (!booking) throw new Error("Booking not found");
       if (booking.driverId != null) {
@@ -2239,6 +2245,12 @@ router.post("/trips/scheduled/:id/award", async (req, res) => {
         err.code = "CLAIM_NOT_PENDING";
         throw err;
       }
+
+      // Capture rejected claimants before the updateMany so we can notify them.
+      const pendingRejectedClaims = await (tx as any).transportBookingClaim.findMany({
+        where: { bookingId, id: { not: claimId }, status: "PENDING" },
+        select: { id: true, driverId: true },
+      });
 
       const updatedBooking = await (tx as any).transportBooking.update({
         where: { id: bookingId },
@@ -2296,10 +2308,125 @@ router.post("/trips/scheduled/:id/award", async (req, res) => {
         });
       }
 
-      return updatedBooking;
+      // ── Build human-readable trip detail strings for notifications ──────────
+      const tripDateLabel = booking.scheduledDate
+        ? new Date(booking.scheduledDate).toLocaleDateString("en-GB", {
+            weekday: "long", day: "2-digit", month: "long", year: "numeric",
+          })
+        : "the scheduled date";
+      const fromLabel = [booking.fromAddress, booking.fromWard, booking.fromDistrict, booking.fromRegion]
+        .filter(Boolean).join(", ") || "Origin";
+      const toLabel = [booking.toAddress, booking.toWard, booking.toDistrict, booking.toRegion]
+        .filter(Boolean).join(", ") || "Destination";
+      const amountLabel = booking.amount
+        ? `${booking.currency || "TZS"} ${Number(booking.amount).toLocaleString()}`
+        : null;
+      const vehicleLabel = booking.vehicleType ? ` · ${booking.vehicleType}` : "";
+
+      // Notification for the awarded driver
+      try {
+        await tx.notification.create({
+          data: {
+            userId: claim.driverId,
+            title: "Trip awarded to you",
+            body: [
+              `Congratulations! You have been selected for the trip on ${tripDateLabel}.`,
+              `Route: ${fromLabel} → ${toLabel}${vehicleLabel}`,
+              amountLabel ? `Fare: ${amountLabel}` : null,
+              booking.pickupLocation ? `Pickup point: ${booking.pickupLocation}` : null,
+              `Open the Trips tab for full details and to confirm your readiness.`,
+            ].filter(Boolean).join("\n"),
+            unread: true,
+            type: "ride",
+            meta: {
+              status: "CLAIM_AWARDED",
+              transportBookingId: bookingId,
+              claimId,
+              tripDate: booking.scheduledDate,
+              pickupTime: booking.pickupTime,
+              pickupLocation: booking.pickupLocation,
+              from: fromLabel,
+              to: toLabel,
+              vehicleType: booking.vehicleType,
+              amount: booking.amount ? Number(booking.amount) : null,
+              currency: booking.currency,
+              link: `/driver/trips/${bookingId}`,
+            },
+          },
+        });
+      } catch (notifErr) {
+        console.warn("[award] failed to create award notification:", notifErr);
+      }
+
+      // Encouraging notifications for drivers whose claims were not selected
+      for (const rejected of pendingRejectedClaims) {
+        try {
+          await tx.notification.create({
+            data: {
+              userId: rejected.driverId,
+              title: "Thank you for your offer",
+              body: [
+                `Your offer for the trip on ${tripDateLabel} (${fromLabel} → ${toLabel}) was carefully reviewed.`,
+                `This trip was awarded to another driver who was the best match for this route.`,
+                `We truly value your dedication as part of the NoLSAF family. Do not be discouraged — keep claiming trips and your commitment will be rewarded soon.`,
+                `Thank you for being with us!`,
+              ].join("\n"),
+              unread: true,
+              type: "ride",
+              meta: {
+                status: "CLAIM_NOT_SELECTED",
+                transportBookingId: bookingId,
+                tripDate: booking.scheduledDate,
+                from: fromLabel,
+                to: toLabel,
+              },
+            },
+          });
+        } catch (notifErr) {
+          console.warn("[award] failed to create rejection notification for driver", rejected.driverId, ":", notifErr);
+        }
+      }
+
+      return { updatedBooking, claimDriverId: claim.driverId, rejectedDriverIds: pendingRejectedClaims.map((c: any) => c.driverId), tripDateLabel, fromLabel, toLabel, amountLabel, vehicleLabel };
     });
 
-    return res.json({ success: true, booking: result });
+    // ── Post-transaction: real-time socket events ─────────────────────────────
+    try {
+      const io = (req.app as any)?.get?.("io");
+      if (io && typeof io.to === "function") {
+        const { claimDriverId, rejectedDriverIds } = result as any;
+        io.to(`driver:${claimDriverId}`).emit("notification:new", { type: "driver" });
+        io.to(`driver:${claimDriverId}`).emit("transport:booking:claim_awarded", { transportBookingId: bookingId, claimId });
+        for (const dId of (rejectedDriverIds as number[])) {
+          io.to(`driver:${dId}`).emit("notification:new", { type: "driver" });
+        }
+      }
+    } catch (socketErr) {
+      console.warn("[award] socket emit error:", socketErr);
+    }
+
+    // ── Post-transaction: SMS to the awarded driver ───────────────────────────
+    try {
+      const { updatedBooking, tripDateLabel, fromLabel, toLabel, amountLabel, vehicleLabel } = result as any;
+      const driverPhone: string | undefined = updatedBooking?.driver?.phone;
+      const driverName: string = updatedBooking?.driver?.name || "Driver";
+      if (driverPhone) {
+        const smsBody = [
+          `Congratulations ${driverName}! Your offer has been accepted.`,
+          `Trip: ${tripDateLabel}`,
+          `Route: ${fromLabel} → ${toLabel}${vehicleLabel}`,
+          amountLabel ? `Fare: ${amountLabel}` : null,
+          `Open the NoLSAF Driver app for full details. - NoLSAF Team`,
+        ].filter(Boolean).join(" | ");
+        await sendSms(driverPhone, smsBody).catch((smsErr: any) =>
+          console.warn("[award] SMS to awarded driver failed:", smsErr?.message || smsErr)
+        );
+      }
+    } catch (smsErr) {
+      console.warn("[award] SMS dispatch error:", smsErr);
+    }
+
+    return res.json({ success: true, booking: (result as any).updatedBooking });
   } catch (error: any) {
     const status =
       error?.code === "ALREADY_ASSIGNED" ? 409 :
