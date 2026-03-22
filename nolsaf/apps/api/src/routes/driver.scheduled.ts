@@ -847,5 +847,84 @@ router.get("/scheduled/assigned", limitDriverTripsList, (async (req: AuthedReque
   }
 }) as RequestHandler);
 
+/**
+ * GET /api/driver/trips/:id
+ * Full detail for a single trip — accessible if the driver is assigned to it or has a claim on it.
+ * Must be registered AFTER all /prefix routes to avoid shadowing them.
+ */
+router.get("/:id", limitDriverTripsList, (async (req: AuthedRequest, res: Response) => {
+  try {
+    const user = req.user!;
+    const parsed = idParamSchema.safeParse(req.params);
+    if (!parsed.success) return badRequest(res, "Invalid trip ID", parsed.error.flatten());
+    const tripId = parsed.data.id;
+
+    const booking = await prisma.transportBooking.findUnique({
+      where: { id: tripId },
+      include: {
+        user: { select: { id: true, name: true, phone: true, email: true } },
+        property: { select: { id: true, title: true, regionName: true, district: true, ward: true } },
+        claims: {
+          where: { driverId: user.id },
+          select: { id: true, status: true, createdAt: true },
+          take: 1,
+        } as any,
+      },
+    });
+
+    if (!booking) return res.status(404).json({ error: "Trip not found" });
+
+    const isAssigned = booking.driverId === user.id;
+    const hasClaim = ((booking as any).claims?.length ?? 0) > 0;
+
+    if (!isAssigned && !hasClaim) {
+      return res.status(403).json({ error: "You do not have access to this trip" });
+    }
+
+    const claim = ((booking as any).claims?.[0]) ?? null;
+
+    return res.json({
+      id: booking.id,
+      status: booking.status,
+      vehicleType: booking.vehicleType,
+      scheduledDate: booking.scheduledDate,
+      pickupTime: booking.pickupTime,
+      dropoffTime: booking.dropoffTime,
+      fromRegion: booking.fromRegion,
+      fromDistrict: booking.fromDistrict,
+      fromWard: booking.fromWard,
+      fromAddress: booking.fromAddress,
+      fromLatitude: booking.fromLatitude,
+      fromLongitude: booking.fromLongitude,
+      toRegion: booking.toRegion,
+      toDistrict: booking.toDistrict,
+      toWard: booking.toWard,
+      toAddress: booking.toAddress,
+      toLatitude: booking.toLatitude,
+      toLongitude: booking.toLongitude,
+      amount: booking.amount,
+      currency: booking.currency,
+      numberOfPassengers: booking.numberOfPassengers,
+      notes: booking.notes,
+      arrivalType: booking.arrivalType,
+      arrivalNumber: booking.arrivalNumber,
+      transportCompany: booking.transportCompany,
+      arrivalTime: booking.arrivalTime,
+      pickupLocation: booking.pickupLocation,
+      paymentStatus: booking.paymentStatus,
+      tripCode: booking.tripCode,
+      passenger: booking.user,
+      property: booking.property,
+      claim: claim ? { id: claim.id, status: claim.status, createdAt: claim.createdAt } : null,
+      isAssigned,
+      createdAt: booking.createdAt,
+      updatedAt: booking.updatedAt,
+    });
+  } catch (error: any) {
+    console.error("GET /driver/trips/:id error:", error);
+    return res.status(500).json({ error: "Failed to fetch trip" });
+  }
+}) as RequestHandler);
+
 export default router;
 
