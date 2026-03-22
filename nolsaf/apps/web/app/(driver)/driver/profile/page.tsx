@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import axios from "axios";
@@ -139,6 +139,15 @@ function EditableInfoItem({
 }
 
 // --- Main component ----------------------------------------------------------
+function pickExtendedBio(d: { name?: string|null; rating?: number|null; isVipDriver?: boolean; operationArea?: string|null; district?: string|null; vehicleMake?: string|null }): string {
+  const first = (d.name ?? "").split(" ")[0] || "Your driver";
+  if (d.isVipDriver) return `Exclusively trained for executive travel, ${first} is one of NoLSAF's Premium-certified specialists. Clients receive complete discretion and an on-time arrival record that only genuine professionalism builds.`;
+  if (d.rating != null && d.rating >= 4.5) return `With a near-perfect rating, ${first} has built a reputation that only consistent excellence creates. Composed under any condition and unfailingly punctual.`;
+  const area = d.operationArea || d.district;
+  if (area) return `Nobody reads ${area} the way ${first} does. Every route is mentally mapped before the journey begins — peak-hour shortcuts, alternate roads, and local instinct.`;
+  if (d.vehicleMake) return `Behind the wheel of a ${d.vehicleMake}, ${first} treats every trip as a VIP assignment — vehicle inspected before each journey, kept spotless, driven with steady care.`;
+  return `Background-checked, fully licensed, and trusted by hundreds of NoLSAF passengers. ${first} brings calm conviction to every route — reliability is not a policy here, it is simply how ${first} works.`;
+}
 export default function DriverProfile() {
   const [form, setForm] = useState<any>({});
   const [me, setMe] = useState<any>(null);
@@ -167,6 +176,8 @@ export default function DriverProfile() {
   const [deleteStep, setDeleteStep] = useState<null | 'confirm' | 'verify'>(null);
   const [deleteNameInput, setDeleteNameInput] = useState("");
   const [deleting, setDeleting] = useState(false);
+  const [showIdCard, setShowIdCard] = useState(false);
+  const [idCardFlipped, setIdCardFlipped] = useState(false);
   type CloudinarySig = { timestamp: number; signature: string; folder: string; cloudName: string; apiKey: string };
 
   async function uploadToCloudinary(file: File, folder: string) {
@@ -398,6 +409,32 @@ export default function DriverProfile() {
           </div>
         </div>
       </div>
+
+      {/* ID Card Banner */}
+      <button
+        onClick={() => { setShowIdCard(true); setIdCardFlipped(false); }}
+        className="mb-5 w-full flex items-center justify-between gap-4 rounded-2xl px-5 py-4 text-left transition-all hover:scale-[1.01] active:scale-[0.99]"
+        style={{ background: "linear-gradient(135deg, #0b1e35 0%, #0f2d4a 60%, #0c4a6e 100%)", border: "1px solid rgba(5,150,105,0.35)", boxShadow: "0 4px 20px rgba(5,150,105,0.12)" }}
+      >
+        <div className="flex items-center gap-4">
+          <div className="h-11 w-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(5,150,105,0.2)", border: "1px solid rgba(5,150,105,0.4)" }}>
+            <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" aria-hidden>
+              <rect x="2" y="5" width="20" height="14" rx="2" stroke="#10b981" strokeWidth="1.6" fill="none"/>
+              <circle cx="8.5" cy="12" r="2.5" stroke="#10b981" strokeWidth="1.4"/>
+              <path d="M13 10h5M13 14h3" stroke="#10b981" strokeWidth="1.4" strokeLinecap="round"/>
+            </svg>
+          </div>
+          <div>
+            <p className="text-sm font-bold text-white">Your NoLSAF Driver ID Card</p>
+            <p className="text-xs text-white/50 mt-0.5">View the ID card passengers see when booked with you</p>
+          </div>
+        </div>
+        <div className="flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center" style={{ background: "rgba(5,150,105,0.18)", border: "1px solid rgba(5,150,105,0.35)" }}>
+          <svg viewBox="0 0 10 10" className="h-3 w-3" fill="none" aria-hidden>
+            <path d="M3.5 2L6.5 5L3.5 8" stroke="#10b981" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </div>
+      </button>
 
       {/* -- Save feedback ------------------------------------------------ */}
       {(saveSuccess || saveError) && (
@@ -888,6 +925,148 @@ export default function DriverProfile() {
               <p className="mt-3 text-center text-xs text-slate-400">This cannot be undone.</p>
             </div>
           )}
+        </div>
+      </div>
+    )}
+    {/* Driver ID Card Modal */}
+    {showIdCard && me && (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        style={{ background: "rgba(0,0,0,0.78)", backdropFilter: "blur(8px)" }}
+        onClick={() => setShowIdCard(false)}
+      >
+        <div onClick={(e) => e.stopPropagation()} className="w-full max-w-xl mx-auto">
+          <div className="flex justify-end mb-2">
+            <button onClick={() => setShowIdCard(false)} className="h-9 w-9 rounded-full flex items-center justify-center bg-transparent text-white hover:bg-white/10 transition-colors">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <p className="text-center text-[10px] font-semibold uppercase tracking-widest text-white/40 mb-3">Your NoLSAF Driver ID</p>
+          <div style={{ perspective: "1200px" }}>
+            <div className="h-[240px]" style={{ position: "relative", transformStyle: "preserve-3d", transition: "transform 0.7s cubic-bezier(0.4,0,0.2,1)", transform: idCardFlipped ? "rotateY(180deg)" : "rotateY(0deg)" }}>
+              {/* FRONT */}
+              <div style={{ position: "absolute", inset: 0, backfaceVisibility: "hidden" }} className="rounded-[20px] overflow-hidden shadow-2xl select-none">
+                <div className="absolute inset-0" style={{ background: "linear-gradient(135deg, #0b1e35 0%, #0f2d4a 48%, #0c4a6e 100%)" }} />
+                {/* Decorative background */}
+                {/* Large hollow ring — bottom-right */}
+                <div className="absolute pointer-events-none" style={{ width: 220, height: 220, borderRadius: "50%", border: "1.5px solid rgba(16,185,129,0.10)", bottom: -70, right: -50 }} />
+                {/* Medium ring — top-right */}
+                <div className="absolute pointer-events-none" style={{ width: 130, height: 130, borderRadius: "50%", border: "1px solid rgba(56,189,248,0.10)", top: -45, right: 40 }} />
+                {/* Small ring — center-left area */}
+                <div className="absolute pointer-events-none" style={{ width: 70, height: 70, borderRadius: "50%", border: "1px solid rgba(5,150,105,0.13)", top: "35%", left: "28%" }} />
+                {/* Diagonal subtle lines overlay */}
+                <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ opacity: 0.04 }} preserveAspectRatio="none">
+                  <defs><pattern id="diag" width="18" height="18" patternUnits="userSpaceOnUse" patternTransform="rotate(35)"><line x1="0" y1="0" x2="0" y2="18" stroke="white" strokeWidth="0.8"/></pattern></defs>
+                  <rect width="100%" height="100%" fill="url(#diag)" />
+                </svg>
+                {/* Glowing orb — top-right corner */}
+                <div className="absolute pointer-events-none" style={{ width: 160, height: 100, borderRadius: "50%", background: "radial-gradient(ellipse, rgba(3,105,161,0.22) 0%, transparent 70%)", top: -20, right: -20 }} />
+                {/* Glowing orb — bottom-left */}
+                <div className="absolute pointer-events-none" style={{ width: 120, height: 120, borderRadius: "50%", background: "radial-gradient(ellipse, rgba(5,150,105,0.14) 0%, transparent 70%)", bottom: -30, left: 80 }} />
+                <div className="absolute top-0 left-0 bottom-0 w-[110px] sm:w-[140px]" style={{ background: "linear-gradient(180deg, rgba(5,150,105,0.18) 0%, rgba(3,105,161,0.22) 100%)", borderRight: "1px solid rgba(5,150,105,0.18)" }} />
+                <div className="absolute top-0 left-0 bottom-0 w-[3px]" style={{ background: "linear-gradient(180deg, #10b981 0%, #0369a1 100%)" }} />
+                <div className="absolute bottom-0 left-[110px] sm:left-[140px] right-0 h-[3px]" style={{ background: "linear-gradient(90deg, #059669, #0369a1)" }} />
+                <div className="relative flex flex-row h-full">
+                  <div className="w-[110px] sm:w-[140px] flex-shrink-0 flex flex-col items-center justify-center gap-2 px-2 sm:px-3">
+                    <div className="h-[88px] w-[88px] rounded-full overflow-hidden flex items-center justify-center" style={{ border: "2.5px solid rgba(5,150,105,0.7)", boxShadow: "0 0 0 4px rgba(5,150,105,0.13)", background: "linear-gradient(135deg, rgba(56,189,248,0.2), rgba(5,150,105,0.18))" }}>
+                      {(form.avatarUrl || me.avatarUrl)
+                        ? <img src={form.avatarUrl || me.avatarUrl} alt="driver" className="h-full w-full object-cover" />
+                        : <span className="font-black text-white text-3xl">{((form.fullName || me.name || "?")[0] || "?").toUpperCase()}</span>}
+                    </div>
+                    <div className="inline-flex items-center gap-1 rounded-full px-2 py-0.5" style={{ background: "#059669" }}>
+                      <span className="text-[7px] font-black uppercase tracking-widest text-white">Verified</span>
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0 flex flex-col justify-between py-2 pr-4 pl-3">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="text-[9px] font-black uppercase tracking-[0.3em] text-white/40">NoLSAF</p>
+                        <p className="text-[10px] font-black text-white/55 tracking-widest">DRIVER ID CARD</p>
+                      </div>
+                      <button onClick={() => setIdCardFlipped(true)} className="h-6 w-6 rounded-full flex items-center justify-center" style={{ border: "1px solid rgba(255,255,255,0.15)", background: "transparent" }}>
+                        <svg viewBox="0 0 10 10" className="h-3 w-3" fill="none"><path d="M3.5 2L6.5 5L3.5 8" stroke="rgba(255,255,255,0.45)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                      </button>
+                    </div>
+                    <div>
+                      <p className="font-black text-white uppercase" style={{ fontSize: "clamp(0.85rem,3.5vw,1.1rem)", textShadow: "0 2px 10px rgba(0,0,0,0.4)" }}>{form.fullName || me.name}</p>
+                      <p className="text-[8px] font-black uppercase tracking-[0.25em] text-emerald-400 mt-0.5">{(form.isVipDriver ?? me.isVipDriver) ? "✶ Premium Certified" : "NoLSAF Certified Driver"}</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+                      <div><p className="text-[7px] font-bold uppercase tracking-widest text-white/35">ID No.</p><p className="text-[10px] font-black text-white mt-0">NLS-{String(me.id).padStart(4,"0")}-{new Date().getFullYear()}</p></div>
+                      <div><p className="text-[7px] font-bold uppercase tracking-widest text-white/35">Plate No.</p><p className="text-[10px] font-black text-white mt-0 truncate">{form.plateNumber || form.vehiclePlate || me.plateNumber || me.vehiclePlate || "\u2014"}</p></div>
+                      <div><p className="text-[7px] font-bold uppercase tracking-widest text-white/35">Vehicle</p><p className="text-[10px] font-black text-white mt-0 truncate">{[form.vehicleMake||me.vehicleMake, form.vehicleType||me.vehicleType].filter(Boolean).join(" \u00b7 ") || "\u2014"}</p></div>
+                      <div><p className="text-[7px] font-bold uppercase tracking-widest text-white/35">Region</p><p className="text-[10px] font-black text-white mt-0 truncate">{form.operationArea||form.region||me.operationArea||me.region||"Tanzania"}</p></div>
+                                            <div className="col-span-2 mt-1.5">
+                        <div style={{ background: "#ffffff", borderRadius: "3px", padding: "4px 6px 2px" }}>
+                          <svg width="100%" height="28" viewBox="0 0 210 28" preserveAspectRatio="xMidYMid meet" aria-hidden style={{ display: "block" }}>
+                            {(()=>{ const p=[1,1,3,1,2,1,1,3,1,1,2,1,3,1,1,2,1,1,3,2,1,1,1,3,1,2,1,1,2,1,3,1,1,2,1,1,3,1,2,1,1,3,1,2,1,1,2,1,1,3,1,2,1,1,3,1,1,2,1,3,1,1,2,1,1,3,1,2,1,1,1,3,1,2,1,1,3,1,2,1,1,3,1,1,2,1,3]; const r:JSX.Element[]=[]; let x=2; p.forEach((w,i)=>{ if(i%2===0){r.push(<rect key={i} x={x} y={1} width={w} height={26} fill="#1a1a1a"/>);} x+=w; }); return r; })()}
+                          </svg>
+                          <p style={{ textAlign:"center", fontFamily:"monospace", fontSize:"5.5px", letterSpacing:"0.28em", color:"#444", marginTop:"1px", lineHeight:1 }}>NLS-{String(me.id).padStart(4,"0")}-{new Date().getFullYear()}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {/* BACK FACE */}
+              <div
+                style={{ position: "absolute", inset: 0, backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
+                className="rounded-[20px] overflow-hidden shadow-2xl select-none"
+              >
+                <div className="absolute inset-0" style={{ background: "linear-gradient(135deg, #0b1e35 0%, #0f2d4a 55%, #0c4a6e 100%)" }} />
+                {/* Decorative background */}
+                <div className="absolute pointer-events-none" style={{ width: 200, height: 200, borderRadius: "50%", border: "1.5px solid rgba(16,185,129,0.09)", bottom: -70, right: -60 }} />
+                <div className="absolute pointer-events-none" style={{ width: 100, height: 100, borderRadius: "50%", border: "1px solid rgba(56,189,248,0.10)", top: -30, right: 60 }} />
+                <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ opacity: 0.035 }} preserveAspectRatio="none">
+                  <defs><pattern id="diagB" width="18" height="18" patternUnits="userSpaceOnUse" patternTransform="rotate(35)"><line x1="0" y1="0" x2="0" y2="18" stroke="white" strokeWidth="0.8"/></pattern></defs>
+                  <rect width="100%" height="100%" fill="url(#diagB)" />
+                </svg>
+                <div className="absolute pointer-events-none" style={{ width: 180, height: 120, borderRadius: "50%", background: "radial-gradient(ellipse, rgba(3,105,161,0.18) 0%, transparent 70%)", top: -30, right: -20 }} />
+                <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-emerald-500 via-teal-400 to-sky-500" />
+                <div className="relative flex flex-row h-full">
+                  <div className="w-[5px] flex-shrink-0" style={{ background: "linear-gradient(180deg, #10b981 0%, #0369a1 100%)" }} />
+                  <div className="flex-1 min-w-0 flex flex-col py-3 px-4">
+                    {/* Header */}
+                    <div className="flex items-start justify-between">
+                      <div className="min-w-0">
+                        <p className="text-[8px] font-black uppercase tracking-[0.28em]" style={{color:"rgba(255,255,255,0.35)"}}>NoLSAF \u00b7 Driver Profile</p>
+                        <p className="text-[13px] font-black text-white mt-0.5 leading-none truncate">{form.fullName||me.name||"\u2014"}</p>
+                      </div>
+                      <button onClick={() => setIdCardFlipped(false)} className="h-6 w-6 rounded-full flex items-center justify-center ml-2 flex-shrink-0" style={{ border: "1px solid rgba(255,255,255,0.15)", background: "transparent" }}>
+                        <svg viewBox="0 0 10 10" className="h-3 w-3" fill="none"><path d="M6.5 2L3.5 5L6.5 8" stroke="rgba(255,255,255,0.45)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                      </button>
+                    </div>
+                    <div className="mt-2 mb-2 h-px" style={{background:"linear-gradient(90deg,rgba(16,185,129,0.45),rgba(255,255,255,0.08),transparent)"}} />
+                    <p className="text-[9px] leading-[1.65] text-white/65 mb-2 overflow-hidden" style={{maxHeight:"50px"}}>
+                      {pickExtendedBio({ name: form.fullName||me.name, rating: me.rating, isVipDriver: form.isVipDriver??me.isVipDriver, operationArea: form.operationArea||me.operationArea, district: form.district||me.district, vehicleMake: form.vehicleMake||me.vehicleMake })}
+                    </p>
+                    <p className="text-[6.5px] font-black uppercase tracking-[0.32em] mb-1.5" style={{color:"rgba(52,211,153,0.55)"}}>Service Commitments</p>
+                    <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
+                      {["Safety-first on every road","On-time, every time","Licensed \u0026 NoLSAF-verified","Clean vehicle, smooth ride"].map((item,i) => (
+                        <div key={i} className="flex items-center gap-1.5 min-w-0">
+                          <span className="flex-shrink-0 h-3.5 w-3.5 rounded-full flex items-center justify-center" style={{ background: "rgba(5,150,105,0.25)", border: "1.5px solid rgba(5,150,105,0.5)" }}>
+                            <svg viewBox="0 0 6 6" className="h-2 w-2"><path d="M1 3L2.5 4.5L5 1.5" stroke="#10b981" strokeWidth="1.4" fill="none" strokeLinecap="round" /></svg>
+                          </span>
+                          <p className="text-[9px] font-semibold leading-tight truncate" style={{color:"rgba(255,255,255,0.68)"}}>{item}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex-1" />
+                    <div className="pt-2 border-t" style={{borderColor:"rgba(255,255,255,0.08)"}}>
+                      <div className="flex items-center gap-2">
+                        <p className="text-[7px] font-black uppercase tracking-widest flex-shrink-0" style={{color:"rgba(255,255,255,0.28)"}}>NoLSAF \u00a9 {new Date().getFullYear()}</p>
+                        <svg className="flex-1" height="16" viewBox="0 0 130 16" preserveAspectRatio="xMidYMid meet" aria-hidden style={{background:"rgba(255,255,255,0.12)",borderRadius:"2px"}}>
+                          {(()=>{ const pat=[1,1,3,1,2,1,1,2,1,1,3,1,1,2,1,3,1,1,2,1,1,3,1,2,1,1,2,3,1,1,2,1,1,3,1,1,2,1,3,1,1,2,1,1,3,2,1,1,2,1,3]; const r:JSX.Element[]=[]; let x=2; pat.forEach((w,i)=>{ if(i%2===0){ r.push(<rect key={i} x={x} y={0} width={w} height={16} fill="rgba(255,255,255,0.85)"/>); } x+=w; }); return r; })()}
+                        </svg>
+                        <p className="text-[7px] font-mono tracking-widest flex-shrink-0" style={{color:"rgba(255,255,255,0.28)"}}>NLS-{String(me.id).padStart(4,"0")}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p className="text-center text-[10px] text-white/30 mt-3">Tap › to flip · tap backdrop to close</p>
         </div>
       </div>
     )}
