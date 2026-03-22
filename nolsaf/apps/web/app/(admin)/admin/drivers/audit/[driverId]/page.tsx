@@ -126,12 +126,10 @@ export default function DriverAssignmentAuditPage({ params }: { params: Promise<
         <button
           type="button"
           onClick={() => router.back()}
-          className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-[#02665e] transition-colors group"
+          aria-label="Go back"
+          className="inline-flex items-center justify-center h-9 w-9 rounded-xl bg-white border border-slate-200 shadow-sm text-slate-500 hover:text-[#02665e] hover:border-[#02665e]/30 hover:bg-[#02665e]/5 transition-colors"
         >
-          <span className="inline-flex items-center justify-center h-8 w-8 rounded-xl bg-white border border-slate-200 shadow-sm group-hover:border-[#02665e]/30 group-hover:bg-[#02665e]/5 transition-colors">
-            <ArrowLeft className="h-4 w-4" />
-          </span>
-          Back
+          <ArrowLeft className="h-4 w-4" />
         </button>
 
         {/* Hero header */}
@@ -220,57 +218,70 @@ export default function DriverAssignmentAuditPage({ params }: { params: Promise<
                 <div className="text-sm text-slate-500">Trip assignments for this driver will appear here.</div>
               </div>
             ) : (
-              <div className="divide-y divide-slate-100">
-                {items.map((a, idx) => {
-                  const d = asObj(a.details);
-                  const bookingId = d?.bookingId ?? null;
-                  const claimId = d?.claimId ?? null;
-                  const reason = (typeof d?.reason === "string" ? d.reason.trim() : "") || "—";
+              <div className="overflow-x-auto">
+                <table className="min-w-full">
+                  <thead>
+                    <tr className="border-b border-slate-100 bg-slate-50/70">
+                      {["#", "Date & Time", "Trip", "Claim", "Admin", "Reason", ""].map((h) => (
+                        <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {items.map((a, idx) => {
+                      const d = asObj(a.details);
+                      const bookingId = d?.bookingId ?? null;
+                      const claimId = d?.claimId ?? null;
+                      const reason = (typeof d?.reason === "string" ? d.reason.trim() : "") || "—";
 
-                  return (
-                    <div key={a.id} className="px-5 sm:px-6 py-5 hover:bg-slate-50/60 transition-colors">
-                      <div className="flex items-start gap-4">
-                        <div className="flex-shrink-0 flex items-center justify-center h-8 w-8 rounded-xl bg-[#02665e]/8 border border-[#02665e]/12 text-xs font-bold text-[#02665e] tabular-nums mt-0.5">
-                          {idx + 1}
-                        </div>
-
-                        <div className="flex-1 min-w-0">
-                          <div className="flex flex-wrap items-center gap-2 mb-3">
-                            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500">
-                              <Calendar className="h-3.5 w-3.5" />
+                      return (
+                        <tr key={a.id} className="hover:bg-slate-50/60 transition-colors">
+                          <td className="px-5 py-4">
+                            <span className="inline-flex items-center justify-center h-7 w-7 rounded-lg bg-[#02665e]/8 border border-[#02665e]/12 text-xs font-bold text-[#02665e] tabular-nums">
+                              {idx + 1}
+                            </span>
+                          </td>
+                          <td className="px-5 py-4 whitespace-nowrap">
+                            <div className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
+                              <Calendar className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
                               {formatDate(a.createdAt)}
-                            </span>
-                          </div>
-
-                          <div className="flex flex-wrap gap-2 mb-3">
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-700">
-                              <Hash className="h-3 w-3 text-slate-400" />
-                              Booking&nbsp;
-                              <span className="text-[#02665e]">{bookingId ?? "—"}</span>
-                            </span>
+                            </div>
+                          </td>
+                          <td className="px-5 py-4">
+                            {d?.tripCode ? (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#02665e]/8 border border-[#02665e]/15 text-xs font-semibold text-[#02665e] font-mono">
+                                {d.tripCode}
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-700">
+                                <Hash className="h-3 w-3 text-slate-400" />
+                                Booking&nbsp;<span className="text-[#02665e]">{bookingId ?? "—"}</span>
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-5 py-4">
                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-700">
                               <ClipboardList className="h-3 w-3 text-slate-400" />
-                              Claim&nbsp;
-                              <span className="text-[#02665e]">{claimId ?? "—"}</span>
+                              Claim&nbsp;<span className="text-[#02665e]">{claimId ?? "—"}</span>
                             </span>
+                          </td>
+                          <td className="px-5 py-4">
                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-700">
                               <UserCog className="h-3 w-3 text-slate-400" />
-                              Admin&nbsp;
-                              <span className="text-[#02665e]">#{a.adminId}</span>
+                              Admin&nbsp;<span className="text-[#02665e]">#{a.adminId}</span>
                             </span>
-                          </div>
-
-                          <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-2.5">
-                            <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">Reason</div>
+                          </td>
+                          <td className="px-5 py-4 max-w-xs">
                             <div className="text-sm text-slate-800 font-medium leading-relaxed">{reason}</div>
-                          </div>
-
-                          <RawJsonToggle data={a.details} />
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+                          </td>
+                          <td className="px-5 py-4">
+                            <RawJsonToggle data={a.details} />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>

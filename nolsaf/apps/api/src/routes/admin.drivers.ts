@@ -2217,6 +2217,7 @@ router.post("/trips/scheduled/:id/award", async (req, res) => {
         where: { id: bookingId },
         select: {
           id: true, driverId: true, paymentStatus: true, status: true,
+          tripCode: true,
           scheduledDate: true, pickupTime: true, pickupLocation: true,
           fromRegion: true, fromDistrict: true, fromWard: true, fromAddress: true,
           toRegion: true, toDistrict: true, toWard: true, toAddress: true,
@@ -2303,7 +2304,7 @@ router.post("/trips/scheduled/:id/award", async (req, res) => {
             adminId,
             targetUserId: claim.driverId,
             action: "TRANSPORT_ASSIGN_DRIVER",
-            details: { bookingId, claimId, driverId: claim.driverId, reason },
+            details: { bookingId, tripCode: booking.tripCode ?? null, claimId, driverId: claim.driverId, reason },
           },
         });
       }
@@ -2465,7 +2466,7 @@ router.post("/trips/scheduled/:id/reassign", async (req, res) => {
     const result = await prisma.$transaction(async (tx) => {
       const booking = await (tx as any).transportBooking.findUnique({
         where: { id: bookingId },
-        select: { id: true, driverId: true, paymentStatus: true, status: true },
+        select: { id: true, driverId: true, paymentStatus: true, status: true, tripCode: true },
       });
       if (!booking) throw new Error("Booking not found");
       if (booking.driverId == null) {
@@ -2563,6 +2564,7 @@ router.post("/trips/scheduled/:id/reassign", async (req, res) => {
             action: "TRANSPORT_ASSIGN_DRIVER",
             details: {
               bookingId,
+              tripCode: booking.tripCode ?? null,
               claimId,
               driverId: claim.driverId,
               reason,
@@ -2612,7 +2614,7 @@ router.post("/trips/scheduled/:id/unassign", async (req, res) => {
     const result = await prisma.$transaction(async (tx) => {
       const booking = await (tx as any).transportBooking.findUnique({
         where: { id: bookingId },
-        select: { id: true, driverId: true, paymentStatus: true, status: true },
+        select: { id: true, driverId: true, paymentStatus: true, status: true, tripCode: true },
       });
       if (!booking) throw new Error("Booking not found");
       if (booking.driverId == null) {
@@ -2678,7 +2680,7 @@ router.post("/trips/scheduled/:id/unassign", async (req, res) => {
             adminId,
             targetUserId: prevDriverId,
             action: "TRANSPORT_ASSIGN_DRIVER",
-            details: { bookingId, driverId: null, reason, kind: "UNASSIGN", unassignedDriverId: prevDriverId },
+            details: { bookingId, tripCode: booking.tripCode ?? null, driverId: null, reason, kind: "UNASSIGN", unassignedDriverId: prevDriverId },
           },
         });
       }
