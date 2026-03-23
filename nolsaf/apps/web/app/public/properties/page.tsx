@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -13,7 +12,6 @@ import {
   X,
   LocateFixed,
   ChevronsUpDown,
-  MoreVertical,
   CreditCard,
   Smartphone,
   BadgeCheck,
@@ -41,6 +39,8 @@ import {
   Gamepad2,
   Dumbbell,
   Tag,
+  Trash2,
+  Check,
 } from "lucide-react";
 import SectionSeparator from "../../../components/SectionSeparator";
 import { REGIONS } from "@/lib/tzRegions";
@@ -555,14 +555,21 @@ export default function PropertiesPage() {
           <div className="flex flex-col gap-3">
             <div className="w-full min-w-0">
               {/* Premium header card */}
-              <div className="relative overflow-hidden rounded-[27px] sm:rounded-[35px] px-6 sm:px-10 py-7 sm:py-8 shadow-[0_20px_60px_rgba(2,102,94,0.22)]" style={{ background: 'linear-gradient(140deg,#012e29 0%,#013530 55%,#01241f 100%)' }}>
-
+              <motion.div
+                initial={{ opacity: 0, y: 18 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.45, ease: [0.22, 0.8, 0.32, 1] }}
+                className="relative overflow-hidden rounded-[27px] sm:rounded-[35px] px-6 sm:px-10 pt-7 sm:pt-8 pb-6 shadow-[0_20px_60px_rgba(2,102,94,0.22)]"
+                style={{ background: 'linear-gradient(140deg,#012e29 0%,#013530 55%,#01241f 100%)' }}
+              >
                   {/* Ambient glows */}
                   <div className="pointer-events-none absolute -top-24 -right-24 w-80 h-80 rounded-full" style={{ background: 'radial-gradient(circle,rgba(2,180,245,0.22) 0%,transparent 65%)' }} aria-hidden />
                   <div className="pointer-events-none absolute -bottom-20 -left-20 w-72 h-72 rounded-full" style={{ background: 'radial-gradient(circle,rgba(2,102,94,0.18) 0%,transparent 65%)' }} aria-hidden />
                   <div className="pointer-events-none absolute inset-0" style={{ background: 'radial-gradient(ellipse 70% 55% at 50% 0%,rgba(2,102,94,0.18),transparent 70%)' }} aria-hidden />
+                  {/* Dot-grid texture */}
+                  <div className="pointer-events-none absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.9) 1px, transparent 1px)', backgroundSize: '22px 22px' }} aria-hidden />
 
-                  <div className="relative z-10 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-5">
+                  <div className="relative z-10 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-5">
                     {/* Left: title + tagline */}
                     <div className="min-w-0">
                       <p className="text-[10px] sm:text-xs font-bold tracking-[0.20em] uppercase mb-2.5" style={{ color: '#02b4f5' }}>
@@ -578,29 +585,120 @@ export default function PropertiesPage() {
                       </p>
                     </div>
 
-                    {/* Right: badges */}
-                    <div className="flex flex-row sm:flex-col items-start sm:items-end gap-2 shrink-0 flex-wrap">
-                      <div className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold text-white" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.13)' }}>
-                        <BadgeCheck className="w-3.5 h-3.5 flex-none" style={{ color: '#10b981' }} />
-                        {loading ? (
-                          'Loading…'
-                        ) : (
-                          <><span className="tabular-nums">{total.toLocaleString()}</span>&nbsp;verified &amp; approved listings</>
-                        )}
-                      </div>
-                      <Link
-                        href="/public"
-                        className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02b4f5]/40"
-                        style={{ color: '#02b4f5', background: 'rgba(2,180,245,0.08)', border: '1px solid rgba(2,180,245,0.22)' }}
-                        onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(2,180,245,0.16)')}
-                        onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(2,180,245,0.08)')}
+                    {/* Right: stat card */}
+                    <div className="shrink-0 select-none">
+                      <div
+                        className="flex items-center gap-3 rounded-2xl px-4 py-3"
+                        style={{
+                          background: 'linear-gradient(135deg, rgba(2,102,94,0.45) 0%, rgba(1,60,55,0.60) 100%)',
+                          border: '1px solid rgba(52,211,153,0.25)',
+                          boxShadow: '0 4px 24px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.07)',
+                          backdropFilter: 'blur(12px)',
+                        }}
                       >
-                        <Search className="w-3.5 h-3.5 flex-none" />
-                        Refine search on home
-                      </Link>
+                        {/* Icon circle */}
+                        <div
+                          className="flex items-center justify-center rounded-xl h-9 w-9 shrink-0"
+                          style={{
+                            background: 'rgba(16,185,129,0.15)',
+                            border: '1px solid rgba(52,211,153,0.30)',
+                          }}
+                        >
+                          <BadgeCheck className="w-4.5 h-4.5" style={{ color: '#34d399' }} />
+                        </div>
+
+                        {/* Text block */}
+                        <div className="flex flex-col leading-tight">
+                          {loading ? (
+                            <span className="text-sm font-semibold opacity-50 text-white">—</span>
+                          ) : (
+                            <span
+                              className="text-xl font-extrabold tabular-nums tracking-tight"
+                              style={{ color: '#6ee7b7', lineHeight: 1.1 }}
+                            >
+                              {total.toLocaleString()}
+                            </span>
+                          )}
+                          <span className="text-[10px] font-medium uppercase tracking-widest mt-0.5" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                            Verified &amp; Approved
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   </div>
-              </div>
+
+                  {/* Integrated search bar */}
+                  <div
+                    className="relative z-10 mt-5 flex flex-row items-center gap-1.5 rounded-full p-1.5 transition-all focus-within:ring-1 focus-within:ring-white/20"
+                    style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)' }}
+                  >
+                    <div className="relative flex-1 min-w-0">
+                      <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'rgba(255,255,255,0.4)' }} />
+                      <input
+                        value={getParam(qp, "q")}
+                        onChange={(e) => {
+                          const next = new URLSearchParams(qp.toString());
+                          next.set("page", "1");
+                          setOrDelete(next, "q", e.target.value);
+                          router.push(`/public/properties?${next.toString()}`);
+                        }}
+                        placeholder="Search by region, district, city, title…"
+                        className="w-full min-w-0 rounded-full bg-transparent border border-transparent px-3 py-2.5 pl-10 text-sm text-white placeholder:text-white/40 focus:outline-none"
+                      />
+                    </div>
+                    <div className="flex items-center gap-1 flex-none pl-1.5" style={{ borderLeft: '1px solid rgba(255,255,255,0.14)' }}>
+                      <button
+                        type="button"
+                        onClick={openFilters}
+                        aria-label="Filters"
+                        title="Filters"
+                        className="relative flex-none h-10 w-10 rounded-full bg-transparent inline-flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 active:bg-white/15 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+                      >
+                        <SlidersHorizontal className="w-4 h-4" />
+                        {appliedChips.length > 0 && (
+                          <span className="absolute -top-1 -right-1 inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full text-[11px] font-bold" style={{ background: 'rgba(2,180,245,0.25)', color: '#02b4f5' }}>
+                            {appliedChips.length}
+                          </span>
+                        )}
+                      </button>
+                      {(() => {
+                        const cur = getParam(qp, "sort");
+                        const setSort = (v: "" | "price_asc" | "price_desc") => {
+                          const next = new URLSearchParams(qp.toString());
+                          next.set("page", "1");
+                          setOrDelete(next, "sort", v);
+                          router.push(`/public/properties?${next.toString()}`);
+                        };
+                        const label =
+                          cur === "price_asc"
+                            ? "Price: low → high"
+                            : cur === "price_desc"
+                              ? "Price: high → low"
+                              : "Price: none";
+                        const sortColor =
+                          cur === "price_asc"
+                            ? '#34d399'
+                            : cur === "price_desc"
+                              ? '#f87171'
+                              : 'rgba(255,255,255,0.7)';
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => setSort(nextSort(cur))}
+                            className="h-10 w-10 rounded-full bg-transparent flex items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+                            style={{ color: sortColor }}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.10)')}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                            aria-label={`Sort (${label})`}
+                            title={label}
+                          >
+                            <ChevronsUpDown className="w-5 h-5" />
+                          </button>
+                        );
+                      })()}
+                    </div>
+                  </div>
+              </motion.div>
 
             </div>
           </div>
@@ -609,136 +707,7 @@ export default function PropertiesPage() {
 
           {/* Filters row */}
           <div className="flex flex-col gap-3">
-            <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
-              <div className="flex-1 flex justify-center">
-                <div
-                  className={[
-                    "w-full max-w-4xl",
-                    "flex flex-row items-center gap-1.5",
-                    "rounded-full p-1.5",
-                    "bg-white/85 backdrop-blur-xl",
-                    "border border-slate-200",
-                    "ring-1 ring-slate-200/70",
-                    "shadow-sm",
-                    "overflow-hidden",
-                    "transition-all",
-                    "hover:shadow-md hover:ring-slate-300/70",
-                    "focus-within:shadow-md focus-within:ring-2 focus-within:ring-[#02665e]/15 focus-within:border-[#02665e]/30",
-                  ].join(" ")}
-                >
-                  <div className="relative flex-1 min-w-0">
-                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input
-                      value={getParam(qp, "q")}
-                      onChange={(e) => {
-                        const next = new URLSearchParams(qp.toString());
-                        next.set("page", "1");
-                        setOrDelete(next, "q", e.target.value);
-                        router.push(`/public/properties?${next.toString()}`);
-                      }}
-                      placeholder="Search by region, district, city, title…"
-                      className={[
-                        "w-full min-w-0",
-                        "rounded-full",
-                        "border border-transparent",
-                        "bg-transparent",
-                        "px-3 py-2.5 pl-10",
-                        "text-sm",
-                        "placeholder:text-slate-400",
-                        "focus:outline-none",
-                      ].join(" ")}
-                    />
-                  </div>
 
-                  <div className="flex items-center gap-1 flex-none whitespace-nowrap border-l border-slate-200/80 pl-1.5">
-                    <button
-                      type="button"
-                      onClick={openFilters}
-                      aria-label="Filters"
-                      title="Filters"
-                      className={[
-                        "relative flex-none",
-                        "h-10 w-10",
-                        "rounded-full",
-                        "border border-transparent",
-                        "bg-transparent",
-                        "inline-flex items-center justify-center",
-                        "hover:bg-slate-50",
-                        "active:bg-slate-100",
-                        "transition-colors",
-                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
-                      ].join(" ")}
-                    >
-                      <SlidersHorizontal className="w-4 h-4" />
-                      {appliedChips.length > 0 && (
-                        <span className="absolute -top-1 -right-1 inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full bg-[#02665e]/10 text-[#02665e] text-[11px] font-bold">
-                          {appliedChips.length}
-                        </span>
-                      )}
-                    </button>
-
-                    {(() => {
-                      const cur = getParam(qp, "sort");
-                      const setSort = (v: "" | "price_asc" | "price_desc") => {
-                        const next = new URLSearchParams(qp.toString());
-                        next.set("page", "1");
-                        setOrDelete(next, "sort", v);
-                        router.push(`/public/properties?${next.toString()}`);
-                      };
-                      const label =
-                        cur === "price_asc"
-                          ? "Price: low → high"
-                          : cur === "price_desc"
-                            ? "Price: high → low"
-                            : "Price: none";
-                      const iconColor =
-                        cur === "price_asc"
-                          ? "text-emerald-700"
-                          : cur === "price_desc"
-                            ? "text-rose-600"
-                            : "text-slate-700";
-                      return (
-                        <button
-                          type="button"
-                          onClick={() => setSort(nextSort(cur))}
-                          className={[
-                            "h-10 w-10 rounded-full border flex items-center justify-center",
-                            "bg-transparent",
-                            "border-transparent",
-                            "hover:bg-slate-50 active:bg-slate-100 transition-colors",
-                            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
-                          ].join(" ")}
-                          aria-label={`Sort (${label})`}
-                          title={label}
-                        >
-                          <ChevronsUpDown className={["w-5 h-5", iconColor].join(" ")} />
-                        </button>
-                      );
-                    })()}
-
-                    {/* More filters (3-dots) */}
-                    <div className="relative">
-                      <button
-                        type="button"
-                        disabled
-                        className={[
-                          "h-10 w-10 rounded-full border flex items-center justify-center",
-                          "bg-transparent",
-                          "border-transparent",
-                          "opacity-40 cursor-not-allowed",
-                          "transition-colors",
-                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
-                        ].join(" ")}
-                        aria-label="More filters (disabled)"
-                        title="More filters (disabled)"
-                      >
-                        <MoreVertical className="w-5 h-5 text-slate-700" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
 
             {/* Applied filter chips */}
             {appliedChips.length > 0 && (
@@ -773,9 +742,12 @@ export default function PropertiesPage() {
           )}
 
           {loading && (
-            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 sm:gap-5">
+            <div className="relative">
+              {/* Right-edge fade — mobile scroll hint */}
+              <div className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-slate-50 to-transparent z-10 sm:hidden" />
+            <div className="flex sm:grid overflow-x-auto sm:overflow-visible snap-x snap-mandatory sm:snap-none scroll-smooth gap-3 sm:gap-5 pb-2 sm:pb-0 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {Array.from({ length: 10 }).map((_, i) => (
-                <div key={i} className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-sm">
+                <div key={i} className="snap-start shrink-0 w-[calc(50vw-20px)] sm:w-auto rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-sm">
                   {/* Title bar above image */}
                   <div className="px-3 pt-3 sm:px-4 sm:pt-4">
                     <div className="h-4 w-3/4 bg-slate-100 animate-pulse rounded-md" />
@@ -795,6 +767,7 @@ export default function PropertiesPage() {
                 </div>
               ))}
             </div>
+            </div>
           )}
 
           {!loading && !error && (data?.items?.length ?? 0) === 0 && (
@@ -808,7 +781,43 @@ export default function PropertiesPage() {
 
           {!loading && !error && (data?.items?.length ?? 0) > 0 && (
             <>
-              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 sm:gap-5">
+              {/* ── Mobile: rows of 5, each row is a swipe strip (2 visible, swipe for rest) ── */}
+              <div className="sm:hidden space-y-4">
+                {Array.from({ length: Math.ceil((data?.items?.length ?? 0) / 5) }).map((_, rowIdx) => {
+                  const rowItems = (data?.items ?? []).slice(rowIdx * 5, rowIdx * 5 + 5);
+                  return (
+                    <div key={rowIdx} className="relative">
+                      {/* Right-edge fade hint */}
+                      <div className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-slate-50 to-transparent z-10" />
+                      {/* Swipe hint pill — only on first row */}
+                      {rowIdx === 0 && (
+                        <div className="flex justify-center mb-2">
+                          <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-medium text-slate-500 bg-white border border-slate-200 shadow-sm select-none">
+                            <svg className="w-3.5 h-3.5 opacity-60" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
+                            Swipe to see more
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex overflow-x-auto snap-x snap-mandatory scroll-smooth gap-3 pb-2 -mx-4 px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                        {rowItems.map((p, idx) => (
+                          <motion.div
+                            key={p.id}
+                            className="snap-start shrink-0 w-[calc(50vw-20px)]"
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.40, delay: idx * 0.06, ease: [0.2, 0.8, 0.2, 1] }}
+                          >
+                            <PublicApprovedPropertyCard p={p} systemCommission={systemCommission} />
+                          </motion.div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* ── Desktop: full grid (all items) ── */}
+              <div className="hidden sm:grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-5">
                 {(data?.items ?? []).map((p, idx) => (
                   <motion.div
                     key={p.id}
@@ -820,7 +829,6 @@ export default function PropertiesPage() {
                   </motion.div>
                 ))}
               </div>
-
               {/* Pagination */}
               <div className="mt-8 flex items-center justify-end gap-3 w-full">
                 <button
@@ -855,7 +863,11 @@ export default function PropertiesPage() {
       {/* Filters modal (mobile + desktop) */}
       {filtersOpen && (
         <div className="fixed inset-x-0 bottom-4 sm:bottom-6 z-[120] px-4 sm:px-6 pointer-events-none">
-          <div
+          <motion.div
+            drag
+            dragMomentum={false}
+            dragElastic={0.08}
+            whileDrag={{ scale: 1.01, boxShadow: "0 32px 64px rgba(0,0,0,0.18)" }}
             className={[
               "relative w-full max-w-[28rem] sm:max-w-[26rem] mr-auto pointer-events-auto",
               "rounded-2xl overflow-hidden",
@@ -867,17 +879,23 @@ export default function PropertiesPage() {
               "backdrop-blur-md",
               "border border-white/60 ring-1 ring-slate-200/70",
               // Smooth enter/exit (keeps the old placement)
-              "transition-all duration-200 ease-out",
+              "transition-[opacity,transform] duration-200 ease-out",
               "motion-reduce:transition-none",
               filtersShown ? "opacity-100 translate-y-0 scale-100" : "opacity-0 translate-y-3 scale-[0.98]",
               // Soft elevation & interaction
-              "shadow-xl hover:shadow-2xl transition-shadow",
+              "shadow-xl",
             ].join(" ")}
           >
-            <div className="px-4 py-3 border-b border-slate-100 flex items-start justify-between gap-3">
+            <div className="px-4 py-3 border-b border-slate-100 flex items-start justify-between gap-3 cursor-grab active:cursor-grabbing select-none">
               <div className="min-w-0">
-                <div className="text-base font-semibold text-slate-900">Filters</div>
-                <div className="text-xs text-slate-500 mt-0.5">Search by location, price, nearby, and more</div>
+                <div className="flex items-center gap-2">
+                  <div className="flex flex-col gap-[3px] opacity-30">
+                    <div className="flex gap-[3px]">{[0,1,2].map(i => <span key={i} className="w-[3px] h-[3px] rounded-full bg-slate-600" />)}</div>
+                    <div className="flex gap-[3px]">{[0,1,2].map(i => <span key={i} className="w-[3px] h-[3px] rounded-full bg-slate-600" />)}</div>
+                  </div>
+                  <div className="text-base font-semibold text-slate-900">Filters</div>
+                </div>
+                <div className="text-xs text-slate-500 mt-0.5">Drag to move &middot; Refine your search</div>
               </div>
               <button
                 type="button"
@@ -1405,62 +1423,41 @@ export default function PropertiesPage() {
 
             <div className="px-4 py-3 border-t border-slate-100">
               <div className="text-xs text-slate-600 mb-2">
-                {loading ? "Loading results…" : `Showing ${total.toLocaleString()} results`}
+                {loading ? "Loading results\u2026" : `Showing ${total.toLocaleString()} results`}
               </div>
               <div className="flex items-center justify-between gap-2 flex-nowrap">
                 <button
                   type="button"
                   onClick={clearFilters}
-                  className={[
-                    "inline-flex items-center justify-center",
-                    "h-10 px-3 sm:px-4 rounded-xl",
-                    "text-sm font-semibold text-slate-700 whitespace-nowrap",
-                    "border border-slate-200 bg-white",
-                    "hover:bg-slate-50 active:bg-slate-100",
-                    "transition-colors",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
-                  ].join(" ")}
+                  title="Clear all filters"
+                  aria-label="Clear all filters"
+                  className="h-10 w-10 rounded-xl border border-slate-200 bg-white flex items-center justify-center hover:bg-slate-50 active:bg-slate-100 transition-colors focus-visible:outline-none"
                 >
-                  <span className="sm:hidden">Clear</span>
-                  <span className="hidden sm:inline">Clear all</span>
+                  <Trash2 className="w-4 h-4 text-slate-500" />
                 </button>
                 <div className="flex items-center justify-end gap-2 flex-nowrap">
                   <button
                     type="button"
                     onClick={closeFilters}
-                    className={[
-                      "inline-flex items-center justify-center",
-                      "h-10 px-3 sm:px-4 rounded-xl",
-                      "border border-slate-200 bg-white",
-                      "text-sm font-semibold text-slate-700 whitespace-nowrap",
-                      "hover:bg-slate-50 active:bg-slate-100",
-                      "transition-colors",
-                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
-                    ].join(" ")}
+                    title="Cancel"
+                    aria-label="Cancel"
+                    className="h-10 w-10 rounded-xl border border-slate-200 bg-white flex items-center justify-center hover:bg-slate-50 active:bg-slate-100 transition-colors focus-visible:outline-none"
                   >
-                    Cancel
+                    <X className="w-4 h-4 text-slate-600" />
                   </button>
                   <button
                     type="button"
                     onClick={applyFilters}
-                    className={[
-                      "inline-flex items-center justify-center",
-                      "h-10 px-4 sm:px-5 rounded-xl",
-                      "bg-[#02665e] text-white",
-                      "text-sm font-semibold whitespace-nowrap",
-                      "shadow-sm hover:shadow-md",
-                      "hover:bg-[#014e47] active:bg-[#013a35]",
-                      "transition-all duration-200 motion-safe:active:scale-[0.99]",
-                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
-                    ].join(" ")}
+                    title="Apply filters"
+                    aria-label="Apply filters"
+                    className="h-10 w-10 rounded-xl bg-[#02665e] text-white flex items-center justify-center shadow-sm hover:bg-[#014e47] active:bg-[#013a35] transition-all duration-200 motion-safe:active:scale-[0.99] focus-visible:outline-none"
                   >
-                    <span className="sm:hidden">Apply</span>
-                    <span className="hidden sm:inline">Apply filters</span>
+                    <Check className="w-4 h-4" />
                   </button>
                 </div>
               </div>
             </div>
-          </div>
+          </motion.div>
         </div>
       )}
     </main>
