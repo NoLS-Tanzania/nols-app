@@ -743,8 +743,6 @@ export default function PropertiesPage() {
 
           {loading && (
             <div className="relative">
-              {/* Right-edge fade — mobile scroll hint */}
-              <div className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-slate-50 to-transparent z-10 sm:hidden" />
             <div className="flex sm:grid overflow-x-auto sm:overflow-visible snap-x snap-mandatory sm:snap-none scroll-smooth gap-3 sm:gap-5 pb-2 sm:pb-0 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {Array.from({ length: 10 }).map((_, i) => (
                 <div key={i} className="snap-start shrink-0 w-[calc(50vw-20px)] sm:w-auto rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-sm">
@@ -784,12 +782,16 @@ export default function PropertiesPage() {
               {/* ── Mobile: rows of 5, each row is a swipe strip (2 visible, swipe for rest) ── */}
               <div className="sm:hidden space-y-5">
                 {/* Header: total count */}
-                <div className="flex items-center justify-between text-xs text-slate-500 px-0.5">
-                  <span>
-                    Showing <span className="font-semibold text-slate-700">{(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)}</span> of <span className="font-semibold text-slate-700">{total}</span> properties
-                  </span>
+                <div className="flex items-center justify-between px-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-block w-1 h-4 rounded-full" style={{ background: 'linear-gradient(to bottom, #10b981, #02665e)' }} />
+                    <span className="text-[11px] font-semibold text-slate-700 tracking-wide">
+                      {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)}
+                      <span className="font-normal text-slate-400"> of {total} properties</span>
+                    </span>
+                  </div>
                   {totalPages > 1 && (
-                    <span className="text-slate-400">Page {page} / {totalPages}</span>
+                    <span className="text-[10px] font-medium text-slate-400 tracking-wider uppercase">Page {page}/{totalPages}</span>
                   )}
                 </div>
 
@@ -802,25 +804,34 @@ export default function PropertiesPage() {
                     <div key={rowIdx}>
                       {/* Row label */}
                       <div className="flex items-center justify-between mb-2 px-0.5">
-                        <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
-                          {startNum}–{endNum}
-                        </span>
-                        <span className="inline-flex items-center gap-1 text-[11px] text-slate-400">
-                          <svg className="w-3 h-3 opacity-60" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex items-center justify-center w-5 h-5 rounded-md text-[10px] font-bold text-white" style={{ background: 'linear-gradient(135deg,#02665e,#10b981)' }}>
+                            {rowIdx + 1}
+                          </span>
+                          <span className="text-[11px] font-semibold text-slate-600 tabular-nums">
+                            {startNum}–{endNum}
+                          </span>
+                        </div>
+                        <motion.span
+                          className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-widest select-none"
+                          style={{ color: '#10b981' }}
+                          animate={{ x: [0, 4, 0] }}
+                          transition={{ repeat: Infinity, duration: 1.6, ease: 'easeInOut' }}
+                        >
+                          <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
                           swipe
-                        </span>
+                        </motion.span>
                       </div>
                       <div className="relative">
-                        {/* Right-edge fade hint */}
-                        <div className="pointer-events-none absolute inset-y-0 right-0 w-14 bg-gradient-to-l from-slate-50 to-transparent z-10" />
                         <div className="flex overflow-x-auto snap-x snap-mandatory scroll-smooth gap-3 pb-2 -mx-4 px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                           {rowItems.map((p, idx) => (
                             <motion.div
                               key={p.id}
                               className="snap-start shrink-0 w-[calc(50vw-20px)]"
-                              initial={{ opacity: 0, y: 20 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              transition={{ duration: 0.40, delay: idx * 0.06, ease: [0.2, 0.8, 0.2, 1] }}
+                              initial={{ opacity: 0, x: 40, scale: 0.97 }}
+                              whileInView={{ opacity: 1, x: 0, scale: 1 }}
+                              viewport={{ once: false, amount: 0.3, root: undefined }}
+                              transition={{ duration: 0.35, delay: idx * 0.04, ease: [0.22, 0.8, 0.32, 1] }}
                             >
                               <PublicApprovedPropertyCard p={p} systemCommission={systemCommission} />
                             </motion.div>
@@ -829,7 +840,11 @@ export default function PropertiesPage() {
                       </div>
                       {/* Divider between rows */}
                       {rowIdx < rowCount - 1 && (
-                        <div className="mt-4 border-t border-slate-100" />
+                        <div className="mt-5 flex items-center gap-3">
+                          <div className="flex-1 h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
+                          <span className="text-[9px] font-semibold uppercase tracking-widest text-slate-300 select-none">more</span>
+                          <div className="flex-1 h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
+                        </div>
                       )}
                     </div>
                   );
