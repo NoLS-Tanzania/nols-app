@@ -167,11 +167,9 @@ export default function PublicFooter({ withRail = true }: { withRail?: boolean }
 
   return (
     <footer
-      aria-label="Footer"
+      aria-label="Site footer"
       className="relative w-full mt-10 page-bottom-buffer overflow-hidden border-t border-gray-200/70 bg-gradient-to-b from-white via-slate-50 to-white"
     >
-      <h2 className="sr-only">Footer</h2>
-
       {withRail ? (
         <div aria-hidden className="absolute inset-x-0 top-0 h-1 flex">
           <span className="footer-rail-seg footer-rail-green w-[34%]" />
@@ -377,7 +375,7 @@ export default function PublicFooter({ withRail = true }: { withRail?: boolean }
 
             <div className="mt-8">
               <div className="h-px w-full bg-gradient-to-r from-transparent via-white/15 to-transparent" />
-              <nav aria-label="Footer legal navigation" className="mt-4">
+              <nav aria-label="Site footer navigation" className="mt-4">
                 <ul className="m-0 flex list-none flex-wrap items-center justify-center gap-2.5 p-0">
                   {[
                     { href: "/terms", label: "Terms" },

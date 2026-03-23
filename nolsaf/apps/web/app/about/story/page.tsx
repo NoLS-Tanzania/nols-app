@@ -8,6 +8,7 @@ export const metadata: Metadata = {
   title: "Our Best Story",
   description:
     "The story behind NoLSAF: building a connected travel experience where accommodation, transport, payments, and planning work together.",
+  alternates: { canonical: "https://nolsaf.com/about/story" },
 };
 
 export default function AboutStoryPage() {

@@ -4,6 +4,7 @@ export const metadata: Metadata = {
   title: "Who are we",
   description:
     "Who we are at NoLSAF: a verification-first, end-to-end travel platform for accommodation, transport, payments, and planning — built to deliver Quality Stay For Every Wallet.",
+  alternates: { canonical: "https://nolsaf.com/about/who" },
 };
 
 export default function AboutWhoPage() {

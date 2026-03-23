@@ -4,6 +4,7 @@ export const metadata: Metadata = {
   title: "What we do",
   description:
     "What NoLSAF does: end-to-end travel services that connect accommodation, transport, payments, filtering, and planning in one platform.",
+  alternates: { canonical: "https://nolsaf.com/about/what" },
 };
 
 export default function AboutWhatPage() {
