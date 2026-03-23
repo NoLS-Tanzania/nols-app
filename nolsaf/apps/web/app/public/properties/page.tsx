@@ -782,38 +782,83 @@ export default function PropertiesPage() {
           {!loading && !error && (data?.items?.length ?? 0) > 0 && (
             <>
               {/* ── Mobile: rows of 5, each row is a swipe strip (2 visible, swipe for rest) ── */}
-              <div className="sm:hidden space-y-4">
+              <div className="sm:hidden space-y-5">
+                {/* Header: total count */}
+                <div className="flex items-center justify-between text-xs text-slate-500 px-0.5">
+                  <span>
+                    Showing <span className="font-semibold text-slate-700">{(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)}</span> of <span className="font-semibold text-slate-700">{total}</span> properties
+                  </span>
+                  {totalPages > 1 && (
+                    <span className="text-slate-400">Page {page} / {totalPages}</span>
+                  )}
+                </div>
+
                 {Array.from({ length: Math.ceil((data?.items?.length ?? 0) / 5) }).map((_, rowIdx) => {
                   const rowItems = (data?.items ?? []).slice(rowIdx * 5, rowIdx * 5 + 5);
+                  const rowCount = Math.ceil((data?.items?.length ?? 0) / 5);
+                  const startNum = (page - 1) * pageSize + rowIdx * 5 + 1;
+                  const endNum = Math.min(startNum + rowItems.length - 1, total);
                   return (
-                    <div key={rowIdx} className="relative">
-                      {/* Right-edge fade hint */}
-                      <div className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-slate-50 to-transparent z-10" />
-                      {/* Swipe hint pill — only on first row */}
-                      {rowIdx === 0 && (
-                        <div className="flex justify-center mb-2">
-                          <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-medium text-slate-500 bg-white border border-slate-200 shadow-sm select-none">
-                            <svg className="w-3.5 h-3.5 opacity-60" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
-                            Swipe to see more
-                          </span>
-                        </div>
-                      )}
-                      <div className="flex overflow-x-auto snap-x snap-mandatory scroll-smooth gap-3 pb-2 -mx-4 px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                        {rowItems.map((p, idx) => (
-                          <motion.div
-                            key={p.id}
-                            className="snap-start shrink-0 w-[calc(50vw-20px)]"
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.40, delay: idx * 0.06, ease: [0.2, 0.8, 0.2, 1] }}
-                          >
-                            <PublicApprovedPropertyCard p={p} systemCommission={systemCommission} />
-                          </motion.div>
-                        ))}
+                    <div key={rowIdx}>
+                      {/* Row label */}
+                      <div className="flex items-center justify-between mb-2 px-0.5">
+                        <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
+                          {startNum}–{endNum}
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-[11px] text-slate-400">
+                          <svg className="w-3 h-3 opacity-60" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
+                          swipe
+                        </span>
                       </div>
+                      <div className="relative">
+                        {/* Right-edge fade hint */}
+                        <div className="pointer-events-none absolute inset-y-0 right-0 w-14 bg-gradient-to-l from-slate-50 to-transparent z-10" />
+                        <div className="flex overflow-x-auto snap-x snap-mandatory scroll-smooth gap-3 pb-2 -mx-4 px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                          {rowItems.map((p, idx) => (
+                            <motion.div
+                              key={p.id}
+                              className="snap-start shrink-0 w-[calc(50vw-20px)]"
+                              initial={{ opacity: 0, y: 20 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ duration: 0.40, delay: idx * 0.06, ease: [0.2, 0.8, 0.2, 1] }}
+                            >
+                              <PublicApprovedPropertyCard p={p} systemCommission={systemCommission} />
+                            </motion.div>
+                          ))}
+                        </div>
+                      </div>
+                      {/* Divider between rows */}
+                      {rowIdx < rowCount - 1 && (
+                        <div className="mt-4 border-t border-slate-100" />
+                      )}
                     </div>
                   );
                 })}
+
+                {/* Mobile pagination */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between pt-2">
+                    <button
+                      type="button"
+                      onClick={() => goToPage(page - 1)}
+                      disabled={page <= 1}
+                      aria-label="Previous page"
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" /> Previous
+                    </button>
+                    <span className="text-xs text-slate-500">Page <span className="font-semibold">{page}</span> / {totalPages}</span>
+                    <button
+                      type="button"
+                      onClick={() => goToPage(page + 1)}
+                      disabled={page >= totalPages}
+                      aria-label="Next page"
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+                    >
+                      Next <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* ── Desktop: full grid (all items) ── */}
