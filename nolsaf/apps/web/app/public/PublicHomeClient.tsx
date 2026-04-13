@@ -17,8 +17,6 @@ import {
   CreditCard,
   LifeBuoy,
   BedDouble,
-  PlayCircle,
-  Plus,
   Search,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, FormEvent, useMemo } from "react";
@@ -597,13 +595,13 @@ export default function Page() {
   }, []);
 
   // Rotating search hints for the search input placeholder
-  const searchHints = ['Region', 'Accommodations', 'Amenities', 'Nearby', 'Cities', 'Districts', 'Prices'];
+  const searchHints = ['Zanzibar', 'Serengeti', 'Dar es Salaam', 'Arusha', 'Kilimanjaro', 'Ngorongoro'];
   const [hintIdx, setHintIdx] = useState(0);
   useEffect(() => {
-    const id = window.setInterval(() => setHintIdx((i) => (i + 1) % searchHints.length), 2000);
+    const id = window.setInterval(() => setHintIdx((i) => (i + 1) % searchHints.length), 2500);
     return () => clearInterval(id);
   }, [searchHints.length]);
-  const searchPlaceholder = `Search By ${searchHints[hintIdx]}`;
+  const searchPlaceholder = `Where are you going? e.g. ${searchHints[hintIdx]}`;
 
   // Format a concise range like "21-25/11/2025" when month/year are the same
   const monthShort = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -820,20 +818,16 @@ export default function Page() {
     <main className="min-h-screen text-slate-900" style={{ background: 'linear-gradient(160deg,#f0fdf8 0%,#ffffff 45%,#f5fefb 100%)' }}>
       {/* Layout edge markers (left/right) to indicate content boundaries */}
       <LayoutFrame heightVariant="sm" topVariant="sm" colorVariant="muted" variant="solid" />
-      {/* Hero surround frame (tinted border on ALL sides) */}
+      {/* Hero surround frame */}
       <div className="public-container">
-        <div className="relative overflow-hidden rounded-[34px] sm:rounded-[60px] mx-0 p-[1px] sm:p-4 lg:p-5"
+        <div className="relative overflow-hidden rounded-[34px] sm:rounded-[60px] mx-0 p-0"
           style={{
-            background: "linear-gradient(145deg,#080e28 0%,#0a2235 45%,#012018 100%)",
-            boxShadow: "0 40px 100px rgba(2,102,94,0.38),0 12px 32px rgba(8,30,80,0.55)",
+            background: "transparent",
           }}>
-          {/* Outer ambient — dual teal+navy glow on the surround */}
-          <div className="pointer-events-none absolute inset-0 rounded-[34px] sm:rounded-[60px]" style={{ background: "radial-gradient(ellipse 80% 55% at 60% 45%,rgba(2,102,94,0.30),transparent 70%)" }} aria-hidden />
-          <div className="pointer-events-none absolute inset-0 rounded-[34px] sm:rounded-[60px]" style={{ background: "radial-gradient(ellipse 60% 40% at 25% 60%,rgba(8,50,120,0.22),transparent 65%)" }} aria-hidden />
 
           {/* Inner 1px border — teal-to-blue premium line */}
-          <div className="relative rounded-[30px] sm:rounded-[52px] p-[1px] sm:p-[1.5px]"
-            style={{ background: "linear-gradient(135deg,rgba(255,255,255,0.28) 0%,rgba(2,180,245,0.40) 40%,rgba(2,102,94,0.60) 75%,rgba(255,196,0,0.18) 100%)", boxShadow: "0 28px 72px rgba(0,0,0,0.55)" }}>
+          <div className="relative rounded-[30px] sm:rounded-[52px] p-[1px]"
+            style={{ background: "linear-gradient(135deg,rgba(255,255,255,0.12) 0%,rgba(2,180,245,0.20) 40%,rgba(2,102,94,0.30) 75%,rgba(255,196,0,0.08) 100%)" }}>
             <div className="pointer-events-none absolute inset-0 rounded-[30px] sm:rounded-[52px] bg-gradient-to-b from-white/10 via-white/4 to-transparent" aria-hidden />
 
             <section
@@ -874,17 +868,7 @@ export default function Page() {
           <div className="pointer-events-none absolute -top-20 left-1/3 h-72 w-72 rounded-full" style={{ background: "radial-gradient(circle,rgba(4,180,150,0.22) 0%,transparent 70%)" }} />
           <div className="pointer-events-none absolute -bottom-16 -left-10 h-56 w-56 rounded-full" style={{ background: "radial-gradient(circle,rgba(0,240,190,0.10) 0%,transparent 70%)" }} />
 
-          {/* Decorative background bar chart (right-aligned) */}
-          <div className="pointer-events-none absolute inset-0 flex items-end justify-end pr-6 pb-0" aria-hidden>
-            <div className="flex items-end gap-[5px] h-full" style={{ paddingBottom: 0, paddingTop: 24, opacity: 0.13 }}>
-              {Array.from({ length: 14 }, (_: any, i: number) => ({ v: Math.floor(Math.sin(i * 0.7 + 1) * 3 + 4) })).map((s, i) => {
-                const pct = Math.max(0.08, s.v / 7);
-                return (
-                  <div key={i} className="rounded-t-sm flex-shrink-0" style={{ width: 14, height: (pct * 100) + '%', background: "linear-gradient(to top,rgba(0,255,200,0.9),rgba(0,255,200,0.3))" }} />
-                );
-              })}
-            </div>
-          </div>
+
 
           {/* SVG area wave */}
           <svg className="pointer-events-none absolute inset-0 w-full h-full" preserveAspectRatio="none" viewBox="0 0 400 180" style={{ opacity: 0.07 }}>
@@ -1132,17 +1116,17 @@ export default function Page() {
                   transition={{ duration: 0.6, ease: [0.2, 0.8, 0.2, 1] }}
                   className="max-w-4xl mx-auto text-center"
                 >
-                  <h1 className="text-[2rem] sm:text-5xl md:text-[4.5rem] lg:text-[5.8rem] font-black tracking-[-0.045em] leading-[0.95] sm:leading-[0.86] text-balance">
+                  <h1 className="text-[1.75rem] sm:text-[2.75rem] md:text-[3.5rem] lg:text-[4.25rem] font-black tracking-[-0.045em] leading-[0.95] sm:leading-[0.90] text-balance">
                     <span
                       className="text-transparent bg-clip-text"
                       style={{
-                        backgroundImage: "linear-gradient(100deg,#ffffff 0%,#e2fdf8 40%,#a7f3d0 100%)",
-                        filter: "drop-shadow(0 0 32px rgba(45,212,191,0.45))"
+                        backgroundImage: "linear-gradient(100deg,#ffffff 0%,#f0fdfa 50%,#ccfbf1 100%)",
+                        filter: "drop-shadow(0 0 32px rgba(45,212,191,0.35))"
                       }}
                     >Quality stay</span>
                     <span
                       className="block text-transparent bg-clip-text"
-                      style={{ backgroundImage: "linear-gradient(95deg,#4ade80 0%,#2dd4bf 32%,#38bdf8 62%,#a78bfa 100%)" }}
+                      style={{ backgroundImage: "linear-gradient(95deg,#5eead4 0%,#2dd4bf 50%,#14b8a6 100%)" }}
                     >
                       for every <em className="font-serif not-italic">wallet.</em>
                     </span>
@@ -1394,29 +1378,34 @@ export default function Page() {
                       </button>
                     </div>
                   </form>
-                  <div className="hidden sm:block mt-4 sm:mt-6 lg:mt-8 w-full">
-                    <div className="flex items-center justify-center gap-2 sm:gap-2.5 w-full flex-wrap">
-                      <Link href="/public/properties" aria-label="Browse stays" className="no-underline flex-shrink-0">
-                        <span className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-white font-medium rounded-full bg-emerald-500/90 hover:bg-emerald-400 active:bg-emerald-400 shadow-[0_8px_28px_rgba(16,185,129,0.30)] transition-all">
-                          <BedDouble className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
-                          <span className="whitespace-nowrap">Browse stays</span>
-                        </span>
-                      </Link>
-                      <Link href="/account/register?role=owner" aria-label="List your property" className="no-underline flex-shrink-0">
-                        <span className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-white/85 font-medium rounded-full bg-white/[0.08] ring-1 ring-white/15 hover:bg-white/[0.14] active:bg-white/[0.18] backdrop-blur-sm transition-all">
-                          <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
-                          <span className="whitespace-nowrap">List your property</span>
-                        </span>
-                      </Link>
-                      <button
-                        type="button"
-                        onClick={scrollToBookingFlow}
-                        aria-label="How it works"
-                        className="flex-shrink-0 inline-flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-white/85 font-medium rounded-full bg-white/[0.08] ring-1 ring-white/15 hover:bg-white/[0.14] active:bg-white/[0.18] backdrop-blur-sm transition-all"
-                      >
-                        <PlayCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
-                        <span className="whitespace-nowrap">How it works</span>
-                      </button>
+                  {/* Primary CTA */}
+                  <div className="hidden sm:flex mt-5 sm:mt-7 lg:mt-8 w-full justify-center">
+                    <Link href="/public/properties" aria-label="Browse all stays" className="no-underline">
+                      <span className="inline-flex items-center gap-2.5 px-6 py-3 text-sm text-white font-semibold rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 shadow-[0_12px_40px_rgba(16,185,129,0.35)] hover:shadow-[0_18px_55px_rgba(16,185,129,0.40)] active:scale-95 transition-all duration-200">
+                        <BedDouble className="w-4 h-4 flex-shrink-0" />
+                        <span className="whitespace-nowrap">Browse all stays</span>
+                        <ChevronRight className="w-4 h-4 flex-shrink-0 opacity-70" />
+                      </span>
+                    </Link>
+                  </div>
+
+                  {/* Social proof strip */}
+                  <div className="hidden sm:flex mt-6 sm:mt-8 w-full justify-center">
+                    <div className="flex items-center gap-4 sm:gap-6 text-[11px] sm:text-xs text-white/50 font-medium tracking-wide">
+                      <span className="flex items-center gap-1.5">
+                        <BedDouble className="w-3.5 h-3.5 text-emerald-400/70" />
+                        2,500+ Stays
+                      </span>
+                      <span className="w-px h-3 bg-white/15" aria-hidden />
+                      <span className="flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-teal-400/70" />
+                        30+ Regions
+                      </span>
+                      <span className="w-px h-3 bg-white/15" aria-hidden />
+                      <span className="flex items-center gap-1.5">
+                        <span className="text-emerald-400/70">★</span>
+                        Trusted by travelers
+                      </span>
                     </div>
                   </div>
 
@@ -1424,54 +1413,7 @@ export default function Page() {
 
               </div>
 
-                        {/* RIGHT: digital connection — one platform */}
 
-            <div className="pointer-events-none absolute right-[-18px] bottom-[-8px] flex items-center justify-center w-[148px] opacity-[0.18] z-0 sm:right-0 sm:bottom-0 sm:w-[170px] sm:opacity-[0.24] lg:left-4 lg:right-auto lg:bottom-8 lg:w-[220px] lg:opacity-[0.38] xl:left-8 xl:w-[260px]">
-
-              <div className="absolute top-3 right-3 hidden lg:flex items-center gap-1.5">
-                <span className="text-[9px] font-black uppercase tracking-[0.18em]" style={{ color: "rgba(255,255,255,0.18)" }}>One Platform</span>
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
-              </div>
-
-              <svg viewBox="0 0 240 230" className="w-full max-w-[148px] sm:max-w-[170px] lg:max-w-[220px] xl:max-w-[240px]" aria-hidden fill="none" xmlns="http://www.w3.org/2000/svg">
-                <defs>
-                  <pattern id="hgrid" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
-                    <circle cx="10" cy="10" r="0.8" fill="rgba(255,255,255,0.07)" />
-                  </pattern>
-                </defs>
-                <rect x="0" y="0" width="240" height="230" fill="url(#hgrid)" />
-                <path d="M120,94 C120,70 120,55 120,28" stroke="rgba(45,212,191,0.30)" strokeWidth="1.2" strokeDasharray="5 4" />
-                <path d="M120,94 C100,110 72,136 48,178" stroke="rgba(45,212,191,0.28)" strokeWidth="1.2" strokeDasharray="5 4" />
-                <path d="M120,94 C140,110 168,136 192,178" stroke="rgba(45,212,191,0.28)" strokeWidth="1.2" strokeDasharray="5 4" />
-                <circle cx="120" cy="61" r="2.5" fill="rgba(45,212,191,0.75)" />
-                <circle cx="84" cy="136" r="2.5" fill="rgba(45,212,191,0.55)" />
-                <circle cx="156" cy="136" r="2.5" fill="rgba(45,212,191,0.55)" />
-                <circle cx="120" cy="94" r="36" fill="none" stroke="rgba(45,212,191,0.08)" strokeWidth="1.2" />
-                <circle cx="120" cy="94" r="26" fill="rgba(2,102,94,0.28)" stroke="rgba(45,212,191,0.55)" strokeWidth="1.5" />
-                <circle cx="120" cy="94" r="18" fill="rgba(4,128,112,0.45)" stroke="rgba(45,212,191,0.18)" strokeWidth="1" />
-                <text x="120" y="94" textAnchor="middle" dominantBaseline="middle" fontSize="12" fontWeight="900" fill="rgba(255,255,255,0.85)" fontFamily="ui-sans-serif,system-ui,sans-serif">N</text>
-                <circle cx="120" cy="20" r="18" fill="rgba(56,189,248,0.12)" stroke="rgba(56,189,248,0.45)" strokeWidth="1.3" />
-                <rect x="112" y="14" width="16" height="10" rx="2" fill="none" stroke="rgba(56,189,248,0.85)" strokeWidth="1.2" />
-                <rect x="114" y="11" width="5" height="4" rx="1" fill="rgba(56,189,248,0.55)" />
-                <line x1="112" y1="20" x2="128" y2="20" stroke="rgba(56,189,248,0.40)" strokeWidth="1" />
-                <text x="120" y="46" textAnchor="middle" fontSize="7.5" fontWeight="800" letterSpacing="1.5" fill="rgba(56,189,248,0.62)" fontFamily="ui-sans-serif,system-ui,sans-serif">STAYS</text>
-                <circle cx="46" cy="186" r="18" fill="rgba(52,211,153,0.10)" stroke="rgba(52,211,153,0.45)" strokeWidth="1.3" />
-                <rect x="38" y="181" width="16" height="8" rx="2" fill="none" stroke="rgba(52,211,153,0.85)" strokeWidth="1.2" />
-                <path d="M40 181 L42 178 L48 178 L50 181" stroke="rgba(52,211,153,0.70)" strokeWidth="1.2" />
-                <circle cx="41.5" cy="189" r="2" fill="rgba(52,211,153,0.60)" />
-                <circle cx="50.5" cy="189" r="2" fill="rgba(52,211,153,0.60)" />
-                <text x="46" y="213" textAnchor="middle" fontSize="6.5" fontWeight="800" letterSpacing="1" fill="rgba(52,211,153,0.62)" fontFamily="ui-sans-serif,system-ui,sans-serif">TRANSPORT</text>
-                <circle cx="194" cy="186" r="18" fill="rgba(167,139,250,0.10)" stroke="rgba(167,139,250,0.45)" strokeWidth="1.3" />
-                <circle cx="194" cy="184" r="7" fill="none" stroke="rgba(167,139,250,0.82)" strokeWidth="1.2" />
-                <circle cx="194" cy="184" r="2" fill="rgba(167,139,250,0.55)" />
-                <line x1="194" y1="177" x2="194" y2="179" stroke="rgba(167,139,250,0.55)" strokeWidth="1.2" />
-                <line x1="194" y1="189" x2="194" y2="191" stroke="rgba(167,139,250,0.55)" strokeWidth="1.2" />
-                <line x1="187" y1="184" x2="189" y2="184" stroke="rgba(167,139,250,0.55)" strokeWidth="1.2" />
-                <line x1="199" y1="184" x2="201" y2="184" stroke="rgba(167,139,250,0.55)" strokeWidth="1.2" />
-                <text x="194" y="213" textAnchor="middle" fontSize="7.5" fontWeight="800" letterSpacing="1.2" fill="rgba(167,139,250,0.62)" fontFamily="ui-sans-serif,system-ui,sans-serif">EXPLORE</text>
-              </svg>
-
-            </div>
 
           </div>
 
@@ -1658,56 +1600,21 @@ export default function Page() {
             </motion.div>
           </div>
 
-          {/* ── Explore heading — split editorial layout ── */}
-          <div className="relative z-10 mt-14 sm:mt-16 overflow-hidden">
-            {/* Ghost background word */}
-            <div aria-hidden className="pointer-events-none select-none absolute -top-6 left-0 right-0 flex justify-center">
-              <span className="text-[clamp(72px,16vw,160px)] font-black tracking-tighter leading-none bg-gradient-to-r from-[#02b4f5]/[0.055] via-[#02665e]/[0.045] to-transparent bg-clip-text text-transparent whitespace-nowrap">
-                EXPLORE
-              </span>
-            </div>
+          {/* ── Explore heading — left-aligned editorial ── */}
+          <div className="relative z-10 mt-14 sm:mt-16">
+            {/* Gradient top accent */}
+            <div className="h-[3px] w-16 rounded-full bg-gradient-to-r from-[#02b4f5] to-[#02665e] mb-6" aria-hidden />
 
-            <div className="relative flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8 py-2">
-              {/* LEFT — badge + title + accent line */}
-              <div className="min-w-0">
-                {/* Numbered badge — sharp angled style */}
-                <div className="inline-flex items-center gap-2.5 mb-4">
-                  <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-[11px] font-black text-white shadow-[0_6px_18px_rgba(2,102,94,0.35)]"
-                    style={{ background: 'linear-gradient(135deg, #02665e, #02b4f5)' }}>
-                    02
-                  </span>
-                  <span className="h-px w-10 bg-gradient-to-r from-[#02b4f5]/60 to-transparent" aria-hidden />
-                  <span className="text-[11px] font-semibold tracking-[0.14em] uppercase text-[#02665e]/70">Property Types</span>
-                </div>
+            <p className="text-[11px] font-semibold tracking-[0.14em] uppercase text-slate-400 mb-3">Property Types</p>
 
-                <h2 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-none text-slate-900">
-                  Expl<span className="bg-gradient-to-r from-[#02b4f5] to-[#02665e] bg-clip-text text-transparent">ore</span>
-                </h2>
+            <h2 className="text-3xl sm:text-4xl lg:text-[2.75rem] font-extrabold tracking-tight leading-[1.1] text-slate-900">
+              Explore <span className="bg-gradient-to-r from-[#02b4f5] to-[#02665e] bg-clip-text text-transparent">stays</span>
+            </h2>
 
-                {/* Underline accent */}
-                <div className="mt-4 flex items-center gap-2" aria-hidden>
-                  <div className="h-[3px] w-12 rounded-full bg-gradient-to-r from-[#02b4f5] to-[#02665e] shadow-[0_2px_10px_rgba(2,180,245,0.40)]" />
-                  <div className="h-[3px] w-4 rounded-full bg-gradient-to-r from-[#02665e]/40 to-transparent" />
-                </div>
-              </div>
-
-              {/* RIGHT — subtitle in a contained block */}
-              <div className="lg:max-w-[46ch] flex-shrink-0">
-                <div className="rounded-2xl px-5 py-4 ring-1 ring-slate-200/80 bg-white/60 backdrop-blur-sm shadow-[0_4px_20px_rgba(2,6,23,0.05)]">
-                  <p className="text-sm sm:text-[15px] leading-relaxed text-slate-600">
-                    Browse by property type, compare verified options, and{" "}
-                    <span className="font-semibold text-slate-800">move from discovery to booking in minutes.</span>
-                  </p>
-                  <div className="mt-3 flex items-center gap-2 text-[11px] font-semibold text-[#02665e] tracking-wide">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#02b4f5] shadow-[0_0_6px_rgba(2,180,245,0.7)]" aria-hidden />
-                    Start exploring
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Full-width bottom rule */}
-            <div className="mt-6 h-px w-full bg-gradient-to-r from-transparent via-[#02b4f5]/25 to-transparent" aria-hidden />
+            <p className="mt-3 max-w-[52ch] text-sm sm:text-[15px] leading-relaxed text-slate-500">
+              Browse by property type, compare verified options, and{" "}
+              <span className="font-medium text-slate-700">move from discovery to booking in minutes.</span>
+            </p>
           </div>
 
           {/* ── Property type cards — bespoke premium grid ── */}
@@ -1808,7 +1715,7 @@ export default function Page() {
             })}
           </div>
 
-          {/* ── Featured Destinations — departure-board / travel-ticker heading ── */}
+          {/* ── Featured Destinations — left-aligned editorial heading ── */}
           <motion.div
             className="mt-14 sm:mt-16 relative"
             initial={{ opacity: 0, y: 24 }}
@@ -1816,65 +1723,19 @@ export default function Page() {
             viewport={{ once: true, margin: '-50px' }}
             transition={{ duration: 0.55, ease: [0.2, 0.8, 0.2, 1] }}
           >
+            {/* Gradient top accent */}
+            <div className="h-[3px] w-16 rounded-full bg-gradient-to-r from-[#02b4f5] to-[#02665e] mb-6" aria-hidden />
 
-            {/* Horizontal dashed separator — mimics a boarding-pass tear line */}
-            <div aria-hidden className="absolute top-1/2 inset-x-0 -translate-y-1/2 flex items-center gap-0 pointer-events-none select-none">
-              <div className="flex-1 border-t border-dashed border-slate-200" />
-              <span className="mx-3 w-2 h-2 rounded-full flex-shrink-0 bg-gradient-to-br from-[#02b4f5] to-[#02665e] shadow-[0_0_8px_rgba(2,180,245,0.55)]" />
-              <div className="flex-1 border-t border-dashed border-slate-200" />
-            </div>
+            <p className="text-[11px] font-semibold tracking-[0.14em] uppercase text-slate-400 mb-3">East Africa</p>
 
-            {/* Main content sits above the dashed line */}
-            <div className="relative flex flex-col sm:flex-row sm:items-end sm:justify-between gap-5 sm:gap-10 bg-white/0">
+            <h2 className="text-3xl sm:text-4xl lg:text-[2.75rem] font-extrabold tracking-tight leading-[1.1] text-slate-900">
+              Featured <span className="bg-gradient-to-r from-[#02b4f5] to-[#02665e] bg-clip-text text-transparent">Destinations</span>
+            </h2>
 
-              {/* LEFT — staggered weight title */}
-              <div className="min-w-0">
-                {/* Step badge — different from Explore's numbered square */}
-                <div className="inline-flex items-center gap-2 mb-3">
-                  {/* Pill with location-pin dot */}
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-slate-300 px-3 py-1 text-[10px] font-bold tracking-[0.18em] uppercase text-slate-400">
-                    <svg className="w-2.5 h-2.5 text-[#02b4f5] flex-shrink-0" viewBox="0 0 10 13" fill="currentColor" aria-hidden>
-                      <path d="M5 0a5 5 0 0 0-5 5c0 3.5 5 8 5 8s5-4.5 5-8a5 5 0 0 0-5-5Zm0 7a2 2 0 1 1 0-4 2 2 0 0 1 0 4Z"/>
-                    </svg>
-                    East Africa
-                  </span>
-                </div>
-
-                {/* Two-line staggered title */}
-                <div className="leading-none">
-                  <div className="text-[clamp(28px,5.5vw,52px)] font-light tracking-tight text-slate-400 leading-[1.05]">
-                    Featured
-                  </div>
-                  <div className="text-[clamp(32px,6.5vw,64px)] font-black tracking-tight leading-[1] -mt-1"
-                    style={{ background: 'linear-gradient(100deg, #0c4a6e 0%, #02b4f5 45%, #02665e 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-                    Destinations
-                  </div>
-                </div>
-              </div>
-
-              {/* RIGHT — tag-style subtitle (like a luggage label) */}
-              <div className="flex-shrink-0 sm:max-w-[44ch] sm:pb-1">
-                <div className="relative rounded-2xl border border-dashed border-slate-200 px-4 py-3.5 bg-slate-50/70">
-                  {/* Corner notch decoration */}
-                  <span aria-hidden className="absolute -top-1.5 -right-1.5 w-3 h-3 rounded-full bg-white border border-dashed border-slate-300" />
-                  <span aria-hidden className="absolute -bottom-1.5 -left-1.5 w-3 h-3 rounded-full bg-white border border-dashed border-slate-300" />
-
-                  <p className="text-[13px] sm:text-sm leading-relaxed text-slate-500">
-                    Cities with strong availability —{" "}
-                    <span className="text-slate-800 font-semibold">designed for fast filtering and confident booking.</span>
-                  </p>
-
-                  {/* Airport-style meta row */}
-                  <div className="mt-3 flex items-center gap-3 text-[10px] font-bold tracking-[0.16em] uppercase text-slate-300">
-                    <span>EAF</span>
-                    <span className="h-px flex-1 bg-slate-200" aria-hidden />
-                    <span className="text-[#02b4f5]">Verified</span>
-                    <span className="h-px flex-1 bg-slate-200" aria-hidden />
-                    <span>Live now</span>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <p className="mt-3 max-w-[52ch] text-sm sm:text-[15px] leading-relaxed text-slate-500">
+              Cities with strong availability {" "}
+              <span className="font-medium text-slate-700">designed for fast filtering and confident booking.</span>
+            </p>
           </motion.div>
 
             <div
@@ -1987,574 +1848,103 @@ export default function Page() {
 
           <div className="mt-12">
             <div className="relative overflow-hidden rounded-[32px] bg-gradient-to-br from-slate-950 via-slate-950 to-slate-900 ring-1 ring-white/10 shadow-[0_22px_70px_rgba(2,6,23,0.22)]">
-              {/* cyan/emerald glow wash */}
-              <div
-                className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_40%,rgba(2,180,245,0.22),transparent_55%),radial-gradient(circle_at_82%_68%,rgba(2,102,94,0.16),transparent_58%)]"
-                aria-hidden
-              />
-              {/* portal + wave streams */}
-              <div className="pointer-events-none absolute inset-0 opacity-95" aria-hidden>
-                <svg className="absolute inset-0 h-full w-full" viewBox="0 0 1200 520" preserveAspectRatio="none" aria-hidden="true">
-                  <defs>
-                    <linearGradient id="csWave" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0" stopColor="rgba(2,180,245,0.70)" />
-                      <stop offset="0.55" stopColor="rgba(2,180,245,0.28)" />
-                      <stop offset="1" stopColor="rgba(2,102,94,0.18)" />
-                    </linearGradient>
-                    <linearGradient id="csWave2" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0" stopColor="rgba(255,255,255,0.20)" />
-                      <stop offset="0.6" stopColor="rgba(2,180,245,0.14)" />
-                      <stop offset="1" stopColor="rgba(255,255,255,0.06)" />
-                    </linearGradient>
-                    <radialGradient id="csPortal" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(88 260) rotate(90) scale(240)">
-                      <stop offset="0" stopColor="rgba(2,180,245,0.50)" />
-                      <stop offset="0.45" stopColor="rgba(2,180,245,0.22)" />
-                      <stop offset="1" stopColor="rgba(2,180,245,0.0)" />
-                    </radialGradient>
-                    <filter id="csGlow" x="-30%" y="-30%" width="160%" height="160%">
-                      <feGaussianBlur stdDeviation="1.4" />
-                    </filter>
-                  </defs>
-
-                  {/* portal bloom */}
-                  <circle cx="88" cy="260" r="240" fill="url(#csPortal)" opacity="0.95" />
-
-                  {/* portal rings */}
-                  <g fill="none" stroke="rgba(2,180,245,0.22)" strokeWidth="2" opacity="0.85">
-                    <circle cx="88" cy="260" r="120" />
-                    <circle cx="88" cy="260" r="170" />
-                    <circle cx="88" cy="260" r="215" />
-                  </g>
-                  <g fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth="2" opacity="0.75">
-                    <path d="M12 260 C 32 250, 54 250, 74 260" />
-                    <path d="M18 260 C 38 270, 58 270, 78 260" />
-                  </g>
-
-                  {/* wave lines */}
-                  <g fill="none" strokeLinecap="round" filter="url(#csGlow)">
-                    <path d="M120 240 C 260 160, 420 170, 560 240 C 690 306, 840 312, 1040 250" stroke="url(#csWave)" strokeWidth="2.6" opacity="0.95" />
-                    <path d="M120 268 C 280 210, 420 210, 600 268 C 740 312, 900 320, 1120 292" stroke="url(#csWave2)" strokeWidth="1.8" opacity="0.9" />
-                    <path d="M120 308 C 270 360, 430 356, 620 302 C 770 260, 920 258, 1120 314" stroke="url(#csWave)" strokeWidth="2.1" opacity="0.65" />
-                    <path d="M120 212 C 280 110, 470 120, 660 206 C 790 266, 940 270, 1120 196" stroke="url(#csWave2)" strokeWidth="1.6" opacity="0.55" />
-                  </g>
-
-                  {/* particles */}
-                  <g opacity="0.75">
-                    {[
-                      [420, 210, 3],
-                      [470, 252, 2.5],
-                      [520, 232, 2.2],
-                      [580, 272, 2.8],
-                      [640, 246, 2.2],
-                      [700, 288, 2.6],
-                      [760, 266, 2.2],
-                      [820, 302, 2.8],
-                      [880, 280, 2.4],
-                      [940, 312, 2.8],
-                      [1010, 286, 2.4],
-                    ].map(([x, y, r], i) => (
-                      <g key={i}>
-                        <circle cx={x} cy={y} r={r as number} fill="rgba(2,180,245,0.85)" />
-                        <circle cx={x} cy={y} r={(r as number) * 4} fill="rgba(2,180,245,0.10)" />
-                      </g>
-                    ))}
-                  </g>
-                </svg>
-              </div>
-
-              {/* very subtle grid */}
-              <div className="pointer-events-none absolute inset-0 opacity-20 [background-image:linear-gradient(to_right,rgba(255,255,255,0.06)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.05)_1px,transparent_1px)] [background-size:46px_46px]" aria-hidden />
               <div className="relative p-6 sm:p-8 lg:p-10">
-                {/* ── Connected Services heading — dark cinematic treatment ── */}
+                {/* ── Connected Services heading — left-aligned editorial (dark) ── */}
                 <div className="mb-8">
-                  {/* Top connector bar — node chain */}
-                  <div aria-hidden className="flex items-center gap-0 mb-5">
-                    <span className="w-2 h-2 rounded-full flex-shrink-0 bg-[#02b4f5] shadow-[0_0_10px_rgba(2,180,245,0.85)]" />
-                    <span className="h-px flex-1 bg-gradient-to-r from-[#02b4f5]/80 via-[#02b4f5]/30 to-transparent" />
-                    <span className="mx-1.5 w-1 h-1 rounded-full bg-white/25 flex-shrink-0" />
-                    <span className="h-px w-8 bg-white/10" />
-                    <span className="mx-1.5 w-1 h-1 rounded-full bg-white/15 flex-shrink-0" />
-                    <span className="h-px w-12 bg-white/8" />
-                  </div>
+                  {/* Gradient top accent */}
+                  <div className="h-[3px] w-16 rounded-full bg-gradient-to-r from-[#02b4f5] to-[#02665e] mb-6" aria-hidden />
 
-                  {/* Label chip */}
-                  <div className="inline-flex items-center gap-2 rounded-full border border-dashed border-white/20 px-3 py-1 mb-4">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#02b4f5] shadow-[0_0_6px_rgba(2,180,245,0.9)]" aria-hidden />
-                    <span className="text-[10px] font-bold tracking-[0.20em] uppercase text-white/50">Platform overview</span>
-                  </div>
+                  <p className="text-[11px] font-semibold tracking-[0.14em] uppercase text-white/40 mb-3">Platform Overview</p>
 
-                  {/* Main title — oversized, weight/colour contrast */}
-                  <h2 className="text-[clamp(28px,5vw,54px)] font-black leading-[1.0] tracking-tight">
-                    <span className="text-white/30 font-light">Connected</span>{" "}
+                  <h2 className="text-3xl sm:text-4xl lg:text-[2.75rem] font-extrabold tracking-tight leading-[1.1]">
+                    <span className="text-white/40 font-light">Connected</span>{" "}
                     <span className="text-white">Services</span>
                   </h2>
 
-                  {/* Glow underline accent */}
-                  <div aria-hidden className="mt-3 h-[3px] w-24 rounded-full"
-                    style={{ background: 'linear-gradient(90deg, #02b4f5, #02665e)', boxShadow: '0 0 14px rgba(2,180,245,0.55)' }} />
-
-                  {/* Subtitle — two-part split */}
-                  <p className="mt-4 text-[13px] sm:text-sm leading-relaxed max-w-[64ch]">
-                    <span className="text-white/40">An end‑to‑end travel flow — </span>
-                    <span className="text-white/75 font-medium">stays, transport, and experiences coordinated around your booking.</span>
+                  <p className="mt-3 max-w-[52ch] text-sm sm:text-[15px] leading-relaxed text-white/50">
+                    An end‑to‑end travel flow —{" "}
+                    <span className="font-medium text-white/75">stays, transport, and experiences coordinated around your booking.</span>
                   </p>
                 </div>
 
-                <div className="relative mt-6">
-                  {/* wiring overlay (connectivity cue) */}
-                  <svg
-                    className="pointer-events-none absolute inset-0 hidden lg:block"
-                    viewBox="0 0 1000 520"
-                    preserveAspectRatio="none"
-                    aria-hidden
-                  >
-                    <defs>
-                      <linearGradient id="wireMain" x1="0" y1="0" x2="1" y2="1">
-                        <stop offset="0" stopColor="rgba(255,255,255,0.10)" />
-                        <stop offset="0.55" stopColor="rgba(2,180,245,0.26)" />
-                        <stop offset="1" stopColor="rgba(16,185,129,0.22)" />
-                      </linearGradient>
-                      <filter id="wireGlow" x="-20%" y="-20%" width="140%" height="140%">
-                        <feGaussianBlur stdDeviation="2.2" result="blur" />
-                        <feColorMatrix
-                          in="blur"
-                          type="matrix"
-                          values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0.65 0"
-                          result="glow"
-                        />
-                        <feMerge>
-                          <feMergeNode in="glow" />
-                          <feMergeNode in="SourceGraphic" />
-                        </feMerge>
-                      </filter>
-                    </defs>
-
-                    {/* Left story -> top card */}
-                    <path
-                      d="M 520 168 C 585 168, 600 120, 642 120 C 705 120, 742 140, 760 154"
-                      fill="none"
-                      stroke="url(#wireMain)"
-                      strokeWidth="2.2"
-                      strokeLinecap="round"
-                      opacity="0.9"
-                      filter="url(#wireGlow)"
-                    />
-                    <path
-                      d="M 520 168 C 585 168, 600 120, 642 120 C 705 120, 742 140, 760 154"
-                      fill="none"
-                      stroke="rgba(255,255,255,0.08)"
-                      strokeWidth="6.5"
-                      strokeLinecap="round"
-                      opacity="0.55"
-                    />
-
-                    {/* Left story -> bottom card */}
-                    <path
-                      d="M 520 300 C 585 300, 608 352, 650 362 C 712 376, 736 360, 760 346"
-                      fill="none"
-                      stroke="url(#wireMain)"
-                      strokeWidth="2.2"
-                      strokeLinecap="round"
-                      opacity="0.9"
-                      filter="url(#wireGlow)"
-                    />
-                    <path
-                      d="M 520 300 C 585 300, 608 352, 650 362 C 712 376, 736 360, 760 346"
-                      fill="none"
-                      stroke="rgba(255,255,255,0.08)"
-                      strokeWidth="6.5"
-                      strokeLinecap="round"
-                      opacity="0.55"
-                    />
-
-                    {/* vertical wire between the two right cards */}
-                    <path
-                      d="M 924 178 C 910 218, 910 268, 924 308"
-                      fill="none"
-                      stroke="rgba(255,255,255,0.10)"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      opacity="0.85"
-                    />
-                    <path
-                      d="M 924 178 C 910 218, 910 268, 924 308"
-                      fill="none"
-                      stroke="rgba(2,180,245,0.16)"
-                      strokeWidth="6"
-                      strokeLinecap="round"
-                      opacity="0.45"
-                    />
-
-                    {/* nodes */}
-                    {[ [520,168], [520,300], [760,154], [760,346], [924,178], [924,308] ].map(([cx, cy], i) => (
-                      <g key={i}>
-                        <circle cx={cx} cy={cy} r={4} fill="rgba(255,255,255,0.22)" />
-                        <circle cx={cx} cy={cy} r={2.2} fill="rgba(2,180,245,0.75)" />
-                        <circle cx={cx} cy={cy} r={12} fill="rgba(2,180,245,0.09)" />
-                      </g>
-                    ))}
-                  </svg>
-
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
-              {/* Story (left on desktop, vertically centered vs the two cards) */}
-              <div className="lg:flex lg:items-center">
-                <div className="relative w-full rounded-[28px] p-[1.5px] shadow-[0_24px_64px_rgba(2,102,94,0.28),0_8px_24px_rgba(8,18,50,0.50)]"
-                  style={{ background: "linear-gradient(135deg,rgba(255,255,255,0.22) 0%,rgba(2,180,245,0.32) 40%,rgba(2,102,94,0.55) 80%,rgba(11,31,92,0.40) 100%)" }}>
-                  <div className="relative h-full overflow-hidden rounded-[calc(28px-1.5px)]"
-                    style={{ background: "linear-gradient(155deg,#080e28 0%,#0a1e3a 45%,#041c14 100%)" }}>
-
-                    {/* Ambient glows */}
-                    <div className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(ellipse 70% 50% at 15% 15%,rgba(10,92,130,0.22),transparent 60%)" }} aria-hidden />
-                    <div className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(ellipse 55% 45% at 85% 85%,rgba(2,102,94,0.20),transparent 65%)" }} aria-hidden />
-                    {/* Dot grid */}
-                    <div className="pointer-events-none absolute inset-0 opacity-[0.18] [background-image:radial-gradient(circle_at_1px_1px,rgba(45,212,191,0.55)_1px,transparent_0)] [background-size:26px_26px]" aria-hidden />
-                    {/* Top highlight */}
-                    <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" aria-hidden />
-
-                    <div className="relative z-10 p-7">
-                      {/* Badge */}
-                      <div className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold text-white/90 ring-1 ring-white/15"
-                        style={{ background: "rgba(10,92,130,0.38)", backdropFilter: "blur(8px)" }}>
-                        <Sparkles className="h-3.5 w-3.5 opacity-90" aria-hidden />
-                        End-to-end travel platform
-                      </div>
-
-                      {/* Title */}
-                      <div className="mt-5 text-white font-black text-[1.55rem] tracking-tight leading-[1.18]">
-                        From booking to pickup —{" "}
-                        <span className="text-transparent bg-clip-text" style={{ backgroundImage: "linear-gradient(98deg,#38bdf8 0%,#2dd4bf 55%,#6ee7b7 100%)" }}>
-                          all connected.
-                        </span>
-                      </div>
-
-                      {/* Accent line */}
-                      <div className="mt-3 h-px w-16 rounded-full" style={{ background: "linear-gradient(90deg,#02665e,#0a5c82,transparent)" }} />
-
-                      <div className="mt-3 text-white/60 text-sm leading-relaxed max-w-[52ch]">
-                        Book verified stays, coordinate transport to the property you booked, and connect solo travelers to authentic local experiences — in one flow.
-                      </div>
-
-                      {/* Service chips — 2-col grid, Support centred below */}
-                      <div className="mt-5">
-                        <div className="grid grid-cols-2 gap-2">
-                          {[
-                            { label: "Stays",        Icon: Home      },
-                            { label: "Group Stays",  Icon: Gavel     },
-                            { label: "Transport",    Icon: Car       },
-                            { label: "Local guides", Icon: Users     },
-                          ].map(({ label, Icon }) => (
-                            <span
-                              key={label}
-                              className="inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-white/80 ring-1 ring-white/12 transition-colors duration-200 hover:text-white hover:ring-[#2dd4bf]/40"
-                              style={{ background: "rgba(10,92,130,0.22)", backdropFilter: "blur(6px)" }}
-                            >
-                              <Icon className="h-3.5 w-3.5 opacity-80" aria-hidden />
-                              {label}
-                            </span>
-                          ))}
-                        </div>
-                        {/* Support — centered on its own row */}
-                        <div className="mt-2 flex justify-center">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
+                  {[
+                    { title: "Verified Stays",     desc: "Browse and book verified properties with secure payments and instant confirmation codes.", Icon: Home,       href: "/public/properties?page=1", accent: "#38bdf8" },
+                    { title: "Group Stays",         desc: "Submit requirements once owners compete with offers. You pick the best fit for your budget.", Icon: Gavel,      href: "/public/group-stays",        accent: "#2dd4bf" },
+                    { title: "Transport",           desc: "Coordinate pickup to your booked property with driver confirmation and safety checks.", Icon: Car,        href: "/public/plan-with-us",       accent: "#38bdf8" },
+                    { title: "Local Guides",        desc: "Connect solo travelers to authentic local experiences through one simple request.", Icon: Users,      href: "/public/plan-with-us",       accent: "#2dd4bf" },
+                    { title: "Plan With Us",        desc: "Let our team coordinate stays, transport, and experiences into one seamless trip.", Icon: Sparkles,   href: "/public/plan-with-us",       accent: "#38bdf8" },
+                    { title: "Support",             desc: "Real support from a real team before, during, and after your trip.", Icon: LifeBuoy,   href: "/public/plan-with-us",       accent: "#2dd4bf" },
+                  ].map(({ title, desc, Icon, href, accent }) => (
+                    <Link
+                      key={title}
+                      href={href}
+                      className="group relative block rounded-2xl p-[1px] no-underline hover:no-underline bg-gradient-to-br from-white/[0.08] to-white/[0.02] ring-1 ring-white/[0.08] transition-all duration-300 hover:-translate-y-0.5 hover:ring-white/[0.16]"
+                    >
+                      <div className="relative rounded-[calc(1rem-1px)] bg-white/[0.04] p-5 h-full">
+                        <div className="flex items-center gap-3 mb-3">
                           <span
-                            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-white/80 ring-1 ring-white/12 transition-colors duration-200 hover:text-white hover:ring-[#2dd4bf]/40"
-                            style={{ background: "rgba(10,92,130,0.22)", backdropFilter: "blur(6px)" }}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl ring-1 ring-white/10"
+                            style={{ background: `${accent}15` }}
                           >
-                            <LifeBuoy className="h-3.5 w-3.5 opacity-80" aria-hidden />
-                            Support
+                            <Icon className="h-4 w-4" style={{ color: accent }} aria-hidden />
                           </span>
+                          <h3 className="text-white font-bold text-[15px] tracking-tight">{title}</h3>
+                        </div>
+                        <p className="text-white/45 text-[13px] leading-relaxed">{desc}</p>
+                        <div className="mt-4 flex items-center gap-1 text-xs font-semibold transition-colors duration-200 group-hover:text-white/70" style={{ color: `${accent}99` }}>
+                          Learn more
+                          <ChevronRight className="h-3.5 w-3.5" aria-hidden />
                         </div>
                       </div>
-
-                      {/* CTAs — side by side, no arrows */}
-                      <div className="mt-6 grid grid-cols-2 gap-3">
-                        <Link
-                          href="/public/group-stays"
-                          className="inline-flex items-center justify-center rounded-full px-4 py-2.5 text-white text-sm font-bold no-underline hover:no-underline transition-all duration-300 hover:scale-[1.03] hover:shadow-[0_8px_24px_rgba(2,102,94,0.40)]"
-                          style={{ background: "linear-gradient(135deg,#0b1f5c 0%,#0a5c82 52%,#02665e 100%)", boxShadow: "0 0 0 1px rgba(2,102,94,0.40),0 4px 16px rgba(2,102,94,0.22)" }}
-                        >
-                          Group Stays
-                        </Link>
-                        <Link
-                          href="/public/plan-with-us"
-                          className="inline-flex items-center justify-center rounded-full px-4 py-2.5 text-white/80 text-sm font-semibold ring-1 ring-white/18 no-underline hover:no-underline transition-all duration-200 hover:text-white hover:ring-[#2dd4bf]/40"
-                          style={{ background: "rgba(255,255,255,0.07)" }}
-                        >
-                          Plan with us
-                        </Link>
-                      </div>
-                    </div>
-                  </div>
+                    </Link>
+                  ))}
                 </div>
-              </div>
 
-              {/* Cards (right column, stacked) */}
-              <div className="grid grid-cols-1 gap-6">
-                {/* Card 1 (top) */}
-                <Link
-                  href="/public/group-stays"
-                  onMouseEnter={() => setConnectedServicesPaused(true)}
-                  onMouseLeave={() => setConnectedServicesPaused(false)}
-                  onFocus={() => setConnectedServicesPaused(true)}
-                  onBlur={() => setConnectedServicesPaused(false)}
-                  className={[
-                    "group relative block rounded-[28px] p-[1px] no-underline",
-                    "bg-gradient-to-br from-white/45 via-sky-400/16 to-emerald-500/14",
-                    "shadow-[0_20px_70px_rgba(2,6,23,0.16)] ring-1 ring-white/45",
-                    "transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_32px_110px_rgba(2,6,23,0.22)]",
-                  ].join(" ")}
-                  aria-label="Explore Group Stays"
-                >
-                  <div className="relative overflow-hidden rounded-[27px] bg-white/65 backdrop-blur-2xl ring-1 ring-white/55">
-                    <div
-                      className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_18%,rgba(2,102,94,0.14),transparent_58%),radial-gradient(circle_at_92%_78%,rgba(2,180,245,0.16),transparent_60%)]"
-                      aria-hidden
-                    />
-                    <div
-                      className="pointer-events-none absolute inset-0 opacity-20 [background-image:linear-gradient(to_right,rgba(2,102,94,0.10)_1px,transparent_1px),linear-gradient(to_bottom,rgba(2,180,245,0.08)_1px,transparent_1px)] [background-size:28px_28px]"
-                      aria-hidden
-                    />
-                    <div className="pointer-events-none absolute inset-x-0 top-0 h-10 bg-gradient-to-b from-white/65 to-transparent" aria-hidden />
-                    <div className="pointer-events-none absolute -left-28 top-0 h-full w-28 rotate-12 bg-white/55 blur-xl opacity-0 transition-all duration-700 group-hover:opacity-60 group-hover:translate-x-[520px]" aria-hidden />
-
-                    <div className="relative z-10 p-6">
-                      <AnimatePresence mode="wait" initial={false}>
-                        <motion.div
-                          key={groupStaySlides[groupStaySlide]?.key}
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          transition={{ duration: prefersReducedMotion ? 0 : 0.3, ease: 'easeInOut' }}
-                        >
-                          {(() => {
-                            const s = groupStaySlides[groupStaySlide] || groupStaySlides[0];
-                            const Icon = s.Icon;
-                            return (
-                              <>
-                                <div className="flex items-start justify-between gap-4">
-                                  <div className="flex items-center gap-3">
-                                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-[#02665e]/10 ring-1 ring-[#02665e]/22 shadow-[0_18px_45px_rgba(2,6,23,0.12)] transition-transform duration-300 group-hover:scale-[1.04] group-hover:rotate-[3deg]">
-                                      <Icon className="h-5 w-5 text-[#02665e]" aria-hidden />
-                                    </span>
-                                    <div>
-                                      <div className="inline-flex items-center gap-2 rounded-full bg-[#02665e]/10 ring-1 ring-[#02665e]/20 px-3 py-1.5 text-[#02665e] text-xs font-semibold">
-                                        {s.pill}
-                                      </div>
-                                      <div className="mt-3 text-[#02665e] font-bold text-xl tracking-tight leading-tight">
-                                        {s.title}
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  <div className="hidden sm:flex items-center gap-2 text-[#02665e]/70 text-xs font-semibold">
-                                    <span className="h-1.5 w-1.5 rounded-full bg-[#02b4f5]/80" aria-hidden />
-                                    <span className="tabular-nums">{groupStaySlide + 1}</span>
-                                    <span className="text-[#02665e]/40">/</span>
-                                    <span className="tabular-nums">{groupStaySlides.length}</span>
-                                  </div>
-                                </div>
-
-                                <div className="mt-3 text-[#02665e]/80 text-sm leading-relaxed">{s.body}</div>
-
-                                <div className="mt-4 flex flex-wrap gap-2">
-                                  {s.chips.slice(0, 2).map((c) => (
-                                    <span
-                                      key={c}
-                                      className="inline-flex items-center rounded-full bg-[#02665e]/8 ring-1 ring-[#02665e]/20 px-3 py-1.5 text-[#02665e]/90 text-xs font-semibold"
-                                    >
-                                      {c}
-                                    </span>
-                                  ))}
-                                </div>
-                              </>
-                            );
-                          })()}
-                        </motion.div>
-                      </AnimatePresence>
-
-                      <div className="mt-6 flex items-center justify-end">
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-[#02665e]/10 border border-[#02665e]/25 backdrop-blur-md px-4 py-2 text-[#02665e] text-sm font-semibold shadow-[0_12px_28px_rgba(2,6,23,0.14)] transition-all duration-300 group-hover:bg-[#02665e]/14 group-hover:border-[#02665e]/35">
-                          Start a Group Stay
-                          <ChevronRight className="h-4 w-4 text-[#02665e]" aria-hidden />
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </Link>
-
-                {/* Card 2 (bottom) */}
-                <div
-                  className="group relative rounded-[28px] p-[1px] bg-gradient-to-br from-white/45 via-emerald-500/12 to-sky-400/16 shadow-[0_20px_70px_rgba(2,6,23,0.16)] ring-1 ring-white/45 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_32px_110px_rgba(2,6,23,0.22)]"
-                  onMouseEnter={() => setConnectedServicesPaused(true)}
-                  onMouseLeave={() => setConnectedServicesPaused(false)}
-                  onFocus={() => setConnectedServicesPaused(true)}
-                  onBlur={() => setConnectedServicesPaused(false)}
-                >
-                  <div className="relative overflow-hidden rounded-[27px] bg-white/65 backdrop-blur-2xl ring-1 ring-white/55">
-                    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(2,180,245,0.16),transparent_58%),radial-gradient(circle_at_82%_78%,rgba(2,102,94,0.10),transparent_60%)]" aria-hidden />
-                    <div className="pointer-events-none absolute inset-x-0 top-0 h-10 bg-gradient-to-b from-white/65 to-transparent" aria-hidden />
-                    <div className="pointer-events-none absolute inset-0 opacity-20 [background-image:linear-gradient(to_right,rgba(2,180,245,0.10)_1px,transparent_1px),linear-gradient(to_bottom,rgba(2,102,94,0.08)_1px,transparent_1px)] [background-size:30px_30px]" aria-hidden />
-                    <div className="pointer-events-none absolute -left-28 top-0 h-full w-28 rotate-12 bg-white/55 blur-xl opacity-0 transition-all duration-700 group-hover:opacity-60 group-hover:translate-x-[520px]" aria-hidden />
-
-                    <div className="relative z-10 p-6">
-                      <AnimatePresence mode="wait" initial={false}>
-                        <motion.div
-                          key={connectedSlides[connectedSlide]?.key}
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          transition={{ duration: prefersReducedMotion ? 0 : 0.3, ease: 'easeInOut' }}
-                        >
-                          {(() => {
-                            const s = connectedSlides[connectedSlide] || connectedSlides[0];
-                            const Icon = s.Icon;
-                            return (
-                              <>
-                                <div className="flex items-start justify-between gap-4">
-                                  <div className="flex items-center gap-3">
-                                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-[#02b4f5]/12 ring-1 ring-[#02b4f5]/25 shadow-[0_18px_45px_rgba(2,6,23,0.10)] transition-transform duration-300 group-hover:scale-[1.04] group-hover:rotate-[-3deg]">
-                                      <Icon className="h-5 w-5 text-[#02665e]" aria-hidden />
-                                    </span>
-                                    <div>
-                                      <div className="inline-flex items-center gap-2 rounded-full bg-[#02b4f5]/12 ring-1 ring-[#02b4f5]/25 px-3 py-1.5 text-[#02665e] text-xs font-semibold">
-                                        {s.pill}
-                                      </div>
-                                      <div className="mt-3 text-[#02665e] font-bold text-2xl tracking-tight leading-tight">
-                                        {s.title}
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  <div className="hidden sm:flex items-center gap-2 text-[#02665e]/70 text-xs font-semibold">
-                                    <span className="h-1.5 w-1.5 rounded-full bg-[#02665e]/80" aria-hidden />
-                                    <span className="tabular-nums">{connectedSlide + 1}</span>
-                                    <span className="text-[#02665e]/40">/</span>
-                                    <span className="tabular-nums">{connectedSlides.length}</span>
-                                  </div>
-                                </div>
-
-                                <div className="mt-3 text-[#02665e]/80 text-sm leading-relaxed max-w-[72ch]">{s.body}</div>
-
-                                <div className="mt-4 flex flex-wrap gap-2">
-                                  {s.chips.slice(0, 2).map((c) => (
-                                    <span
-                                      key={c}
-                                      className="inline-flex items-center rounded-full bg-[#02b4f5]/10 ring-1 ring-[#02b4f5]/25 px-3 py-1.5 text-[#02665e]/90 text-xs font-semibold"
-                                    >
-                                      {c}
-                                    </span>
-                                  ))}
-                                </div>
-                              </>
-                            );
-                          })()}
-                        </motion.div>
-                      </AnimatePresence>
-
-                      <div className="mt-6 flex flex-wrap items-center gap-3 justify-end">
-                        <Link
-                          href="/public/properties?page=1"
-                          className="no-underline hover:no-underline inline-flex items-center gap-1.5 rounded-full bg-[#02665e]/10 border border-[#02665e]/25 backdrop-blur-md px-4 py-2 text-[#02665e] text-sm font-semibold shadow-[0_12px_28px_rgba(2,6,23,0.12)] transition-all duration-300 hover:bg-[#02665e]/14 hover:border-[#02665e]/35"
-                        >
-                          Browse stays
-                          <ChevronRight className="h-4 w-4 text-[#02665e]" aria-hidden />
-                        </Link>
-                        <Link
-                          href="#booking-flow"
-                          className="no-underline hover:no-underline inline-flex items-center gap-1.5 rounded-full bg-[#02665e]/6 ring-1 ring-[#02665e]/18 px-4 py-2 text-[#02665e]/90 text-sm font-semibold transition-all duration-300 hover:bg-[#02665e]/10"
-                        >
-                          Booking flow
-                          <ChevronRight className="h-4 w-4 text-[#02665e]" aria-hidden />
-                        </Link>
-                        <Link
-                          href="/cancellation-policy"
-                          className="no-underline hover:no-underline inline-flex items-center gap-1.5 rounded-full bg-[#02665e]/6 ring-1 ring-[#02665e]/18 px-4 py-2 text-[#02665e]/90 text-sm font-semibold transition-all duration-300 hover:bg-[#02665e]/10"
-                        >
-                          Policy
-                          <ChevronRight className="h-4 w-4 text-[#02665e]" aria-hidden />
-                        </Link>
-                      </div>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
-
           </div>
-        </div>
-      </div>
-    </div>
 
-          {/* ── Explore Tourism by Country — atlas / geography heading ── */}
+          {/* ── Explore Tourism by Country ── */}
           <div className="mt-12 relative overflow-hidden rounded-3xl">
-            {/* Background: brand green with a faint atlas grid */}
-            <div aria-hidden className="absolute inset-0" style={{ background: '#02665e' }} />
-            <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.10]"
-              style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,1) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,1) 1px,transparent 1px)', backgroundSize: '48px 48px' }} />
-            <div aria-hidden className="pointer-events-none absolute inset-0" style={{ background: 'radial-gradient(circle at 18% 28%, rgba(56,189,248,0.14) 0%, transparent 34%), radial-gradient(circle at 78% 30%, rgba(45,212,191,0.16) 0%, transparent 36%)' }} />
+            {/* Background */}
+            <div aria-hidden className="absolute inset-0 bg-[#02665e]" />
 
-            {/* Ghost coordinate numbers — atlas feel */}
-            <div aria-hidden className="pointer-events-none select-none absolute top-2 left-4 text-[10px] font-mono text-white/30 leading-4">
-              {['3°S', '6°S', '9°S'].map(l => <div key={l}>{l}</div>)}
-            </div>
-            <div aria-hidden className="pointer-events-none select-none absolute top-2 right-4 text-[10px] font-mono text-white/30 leading-4 text-right">
-              {['33°E', '36°E', '39°E'].map(l => <div key={l}>{l}</div>)}
-            </div>
+            <div className="relative z-10 px-6 py-8 sm:px-8 sm:py-10">
+              {/* Gradient top accent */}
+              <div className="h-[3px] w-16 rounded-full bg-gradient-to-r from-white/70 to-white/20 mb-6" aria-hidden />
 
-            {/* Top light accent line */}
-            <div aria-hidden className="absolute top-0 inset-x-0 h-[3px] bg-gradient-to-r from-transparent via-white/55 to-transparent" />
+              <p className="text-[11px] font-semibold tracking-[0.14em] uppercase text-white/45 mb-3">Regional Focus</p>
 
-            <div className="relative z-10 px-6 py-6 sm:px-8 sm:py-7 flex flex-col sm:flex-row sm:items-center gap-6">
+              <h2 className="text-3xl sm:text-4xl lg:text-[2.75rem] font-extrabold tracking-tight leading-[1.1]">
+                <span className="text-white">Explore Tourism </span>
+                <span className="text-white/40 font-light">by </span>
+                <span className="text-white">Country</span>
+              </h2>
 
-              {/* LEFT — title block */}
-              <div className="min-w-0 flex-1">
-                {/* Step tag — roman numeral style */}
-                <div className="inline-flex items-center gap-2 mb-3">
-                  <span className="text-[10px] font-black tracking-[0.22em] uppercase text-emerald-100/90">III</span>
-                  <span className="h-px w-8 bg-white/35" aria-hidden />
-                  <span className="text-[10px] font-bold tracking-[0.18em] uppercase text-white/55">Regional Focus</span>
-                </div>
+              <p className="mt-3 max-w-[52ch] text-sm sm:text-[15px] leading-relaxed text-white/55">
+                Choose a country to see major and minor tourist sites {" "}
+                <span className="font-medium text-white/80">then book verified stays and coordinate transport in one flow.</span>
+              </p>
 
-                {/* Two-weight title */}
-                <h2 className="text-[clamp(22px,4vw,42px)] leading-tight tracking-tight">
-                  <span className="font-black text-white">Explore </span>
-                  <span className="font-light text-white/72">Tourism </span>
-                  <span className="font-black" style={{ background: 'linear-gradient(100deg,#d1fae5,#ffffff,#99f6e4)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>by Country</span>
-                </h2>
-
-                {/* Subtitle with inline path arrow */}
-                <p className="mt-3 text-[13px] sm:text-sm leading-relaxed text-white/78 max-w-[60ch]">
-                  Choose a country to see major and minor tourist sites —
-                  {" "}<span className="inline-flex items-center gap-1 font-semibold text-white">
-                    then book verified stays
-                    <svg className="w-3.5 h-3.5 text-emerald-100 flex-shrink-0" viewBox="0 0 14 14" fill="none" aria-hidden>
-                      <path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  </span>
-                  {" "}and coordinate transport in one flow.
-                </p>
-              </div>
-
-              {/* RIGHT — three country colour bars */}
-              <div className="flex-shrink-0 flex flex-row sm:flex-col gap-2 sm:gap-2 sm:items-end">
+              {/* Country indicators */}
+              <div className="mt-5 flex flex-wrap items-center gap-4">
                 {[
                   { name: 'Tanzania', colors: ['#1eb53a','#fcd116','#00a3dd','#000000'] },
                   { name: 'Kenya',    colors: ['#006600','#cc0001','#ffffff','#000000'] },
                   { name: 'Uganda',   colors: ['#000000','#fcdc04','#da121a'] },
                 ].map(c => (
                   <div key={c.name} className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold tracking-wide text-white/55 hidden sm:block w-12 text-right">{c.name}</span>
-                    <div className="flex rounded-full overflow-hidden h-2 w-16 sm:w-20">
+                    <div className="flex rounded-full overflow-hidden h-2 w-12">
                       {c.colors.map((col, i) => (
                         <div key={i} className="flex-1 h-full" style={{ background: col }} />
                       ))}
                     </div>
+                    <span className="text-[11px] font-semibold tracking-wide text-white/50">{c.name}</span>
                   </div>
                 ))}
               </div>
             </div>
-
-            {/* Bottom light rule */}
-            <div aria-hidden className="absolute bottom-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
           </div>
           <div className="mt-6">
             <div
@@ -2596,33 +1986,22 @@ export default function Page() {
           </div>
           <FounderStory />
 
-          {/* ── What people say — quotation / voice heading ── */}
-          <div className="mt-14 relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 px-6 py-7 sm:px-10">
-            {/* Giant decorative opening quote */}
-            <div aria-hidden className="pointer-events-none select-none absolute -top-4 -left-2 text-[160px] font-black leading-none text-sky-500/10" style={{ fontFamily: 'Georgia, serif' }}>&ldquo;</div>
-            {/* Closing quote bottom-right */}
-            <div aria-hidden className="pointer-events-none select-none absolute -bottom-10 right-4 text-[160px] font-black leading-none text-sky-500/10" style={{ fontFamily: 'Georgia, serif' }}>&rdquo;</div>
-            {/* Top rule */}
-            <div aria-hidden className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-sky-400/50 to-transparent" />
-            <div className="relative z-10 flex flex-col sm:flex-row sm:items-end gap-4">
-              <div className="flex-1">
-                {/* Eyebrow */}
-                <div className="flex items-center gap-2 mb-3">
-                  {[1,2,3].map(i => <span key={i} className="w-1.5 h-1.5 rounded-full bg-sky-400/60" />)}
-                  <span className="text-[10px] font-bold tracking-[0.22em] uppercase text-sky-400/70 ml-1">Voices</span>
-                </div>
-                {/* Title */}
-                <h2 className="text-[clamp(24px,4.5vw,50px)] leading-tight">
-                  <span className="font-light text-white/50">What people </span>
-                  <span className="font-black" style={{ color: '#02665e' }}>say</span>
-                </h2>
-              </div>
-              {/* Subtitle pill on the right */}
-              <div className="flex-shrink-0 max-w-[280px] rounded-xl border border-white/10 bg-white/5 px-4 py-3">
-                <p className="text-[12px] text-white/50 leading-relaxed">
-                  Feedback from travelers and operators — focused on what matters most.
-                </p>
-              </div>
+          {/* ── What people say — distinct quote-accent style ── */}
+          <div className="mt-14 flex items-start gap-4">
+            {/* Large quote mark as a visual anchor */}
+            <span className="hidden sm:block text-[4.5rem] leading-none font-black bg-gradient-to-b from-[#02b4f5] to-[#02665e] bg-clip-text text-transparent -mt-3 select-none" aria-hidden>&ldquo;</span>
+
+            <div>
+              <p className="text-[11px] font-semibold tracking-[0.14em] uppercase text-slate-400 mb-2">Voices</p>
+
+              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight leading-[1.15] text-slate-900">
+                What people <span className="bg-gradient-to-r from-[#02b4f5] to-[#02665e] bg-clip-text text-transparent">say</span>
+              </h2>
+
+              <p className="mt-2 max-w-[52ch] text-sm sm:text-[15px] leading-relaxed text-slate-500">
+                Feedback from travelers and operators {" "}
+                <span className="font-medium text-slate-700">focused on what matters most.</span>
+              </p>
             </div>
           </div>
           <Testimonials hideTitle />
