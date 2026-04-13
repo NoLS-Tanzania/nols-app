@@ -2493,3 +2493,26 @@ model KycAuditLog {
 }
 
 // =========================================================
+//  PODCAST EPISODES
+// =========================================================
+model PodcastEpisode {
+  id          String   @id @db.VarChar(64)
+  title       String   @db.VarChar(300)
+  description String   @db.Text
+  youtubeUrl  String   @db.VarChar(500)
+  thumbnailUrl String? @db.VarChar(500)
+  guestName   String?  @db.VarChar(200)
+  guestRole   String?  @db.VarChar(200)
+  tags        Json?                        // e.g. ["interview","stakeholder","update"]
+  duration    String?  @db.VarChar(20)     // e.g. "12:34"
+  published   Boolean  @default(false)
+  publishedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([published, publishedAt])
+  @@index([createdAt])
+  @@map("podcast_episodes")
+}
+
+// =========================================================

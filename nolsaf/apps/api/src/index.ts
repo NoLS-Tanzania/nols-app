@@ -67,12 +67,14 @@ import adminPerformanceHighlightsRouter from "./routes/admin.performance.highlig
 import adminNotificationsRouter from "./routes/admin.notifications";
 import adminIntegrationsRouter from "./routes/admin.integrations";
 import adminUpdatesRouter from "./routes/admin.updates";
+import adminPodcastsRouter from "./routes/admin.podcasts";
 import adminCancellationsRouter from "./routes/admin.cancellations";
 import adminNo4pOtpRouter from "./routes/admin.no4pOtp";
 import { router as adminCareersRouter } from "./routes/admin.careers";
 import adminCareersApplicationsRouter from "./routes/admin.careers.applications";
 import adminCareersStatsRouter from "./routes/admin.careers.stats";
 import publicCareersApplyRouter from "./routes/public.careers.apply";
+import publicPodcastsRouter from "./routes/public.podcasts";
 import publicCareersRouter from "./routes/public.careers";
 import ownerMessagesRouter from './routes/owner.messages';
 import ownerNotificationsRouter from './routes/owner.notifications';
@@ -665,6 +667,7 @@ app.use('/api/admin/notifications', requireRole('ADMIN') as express.RequestHandl
 app.use('/api/admin/cancellations', requireRole('ADMIN') as express.RequestHandler, adminCancellationsRouter as express.RequestHandler);
 app.use('/api/admin/no4p-otp', requireRole('ADMIN') as express.RequestHandler, adminNo4pOtpRouter as express.RequestHandler);
 app.use('/api/admin/updates', adminUpdatesRouter as express.RequestHandler);
+app.use('/api/admin/podcasts', adminPodcastsRouter as express.RequestHandler);
 // Register applications routes BEFORE careers routes to avoid route conflicts
 // More specific routes must come before parameterized routes
 app.use('/admin/careers/applications', adminCareersApplicationsRouter);
@@ -727,6 +730,7 @@ app.use("/api/owner/group-stays/claims", ownerGroupStaysClaimsRouter as express.
 app.use('/api/public/support', publicSupportRouter);
 // Public updates endpoint
 app.use('/api/public/updates', publicUpdatesRouter);
+app.use('/api/public/podcasts', publicPodcastsRouter);
 // Public booking view (for QR code scanning)
 app.use('/api/public/booking', publicBookingRouter);
 // Public booking creation (no auth required)

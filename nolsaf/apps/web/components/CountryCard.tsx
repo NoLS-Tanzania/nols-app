@@ -80,19 +80,16 @@ export default function CountryCard({ id, name, flag = '', imageSrc, subtitle, b
       onBlur={() => onHoverAction?.(null)}
       aria-label={`${name} — ${subtitle ?? ''}`}
       // overflow-visible so hover tooltips (payments) aren't clipped
-      className={`relative overflow-visible rounded-3xl p-[1px] card-raise ${highlighted ? 'ring-2 ring-emerald-300 shadow-[0_22px_60px_rgba(2,6,23,0.12)]' : 'ring-1 ring-slate-200/70 shadow-[0_18px_55px_rgba(2,6,23,0.10)]'} bg-gradient-to-br from-white/85 via-slate-200/45 to-emerald-200/35 ${accentClass} ${countryRailClassMap[(id || name || '').toLowerCase()] ?? ''} country-card-article`}
+      className={`relative overflow-visible rounded-2xl card-raise ${highlighted ? 'ring-2 ring-emerald-300 shadow-[0_8px_30px_rgba(2,6,23,0.10)]' : 'ring-1 ring-slate-200/80 shadow-[0_4px_20px_rgba(2,6,23,0.06)]'} transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgba(2,6,23,0.10)] ${accentClass} ${countryRailClassMap[(id || name || '').toLowerCase()] ?? ''} country-card-article`}
     >
-      <div className="relative overflow-hidden rounded-[22px] bg-white/72 backdrop-blur-xl border border-white/70">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.75)_48%,rgba(255,255,255,0.28)_52%,transparent_100%)] opacity-55" aria-hidden />
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_8%,rgba(2,180,245,0.14),transparent_52%),radial-gradient(circle_at_92%_88%,rgba(2,102,94,0.12),transparent_55%)]" aria-hidden />
-        <div className="pointer-events-none absolute inset-0 opacity-25 [background-image:radial-gradient(circle_at_1px_1px,rgba(15,23,42,0.08)_1px,transparent_0)] [background-size:26px_26px]" aria-hidden />
+      <div className="relative overflow-hidden rounded-[15px] bg-white border border-slate-100">
 
         <div className={['relative flex flex-col h-full', isCompact ? 'p-3 md:p-4' : 'p-4 md:p-5'].join(' ')}>
           <div className={['flex items-start', isCompact ? 'gap-2.5' : 'gap-3'].join(' ')}>
             <div className="flex-shrink-0">
               <div
                 className={[
-                  'rounded-2xl bg-white/75 border border-white/70 ring-1 ring-slate-200/60 shadow-sm flex items-center justify-center',
+                  'rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center',
                   isCompact ? 'w-9 h-9 text-lg' : 'w-10 h-10 text-xl',
                 ].join(' ')}
                 aria-hidden
@@ -127,8 +124,8 @@ export default function CountryCard({ id, name, flag = '', imageSrc, subtitle, b
           <div
             className={[
               isCompact
-                ? 'mt-4 rounded-2xl bg-white/60 border border-slate-200/70 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]'
-                : 'mt-4 pt-4 border-t border-slate-200/70 space-y-3',
+                ? 'mt-4 rounded-xl bg-slate-50 border border-slate-100 p-2.5'
+                : 'mt-4 pt-4 border-t border-slate-100 space-y-3',
             ].join(' ')}
           >
             <div
@@ -140,9 +137,9 @@ export default function CountryCard({ id, name, flag = '', imageSrc, subtitle, b
               <span className="text-slate-500 text-xs">Supported</span>
               <span
                 className={[
-                  'inline-flex items-center rounded-full px-3 py-1 font-semibold',
-                  'bg-emerald-500/10 text-emerald-800',
-                  'ring-1 ring-emerald-300/25 border border-white/60 backdrop-blur',
+                  'inline-flex items-center rounded-full px-3 py-1 font-semibold text-xs',
+                  'bg-emerald-50 text-emerald-700',
+                  'ring-1 ring-emerald-200/60',
                   'w-fit whitespace-nowrap',
                 ].join(' ')}
               >
@@ -201,7 +198,7 @@ export default function CountryCard({ id, name, flag = '', imageSrc, subtitle, b
         ) : null}
 
           {/* CTA pinned to bottom so all cards feel uniform */}
-          <div className={[isCompact ? 'pt-3 mt-auto' : 'pt-3 mt-auto border-t border-slate-200/60'].join(' ')}>
+          <div className={[isCompact ? 'pt-3 mt-auto' : 'pt-3 mt-auto border-t border-slate-100'].join(' ')}>
             <Link
               href={href}
               onClick={() => onClickAction?.(id)}
@@ -216,12 +213,12 @@ export default function CountryCard({ id, name, flag = '', imageSrc, subtitle, b
                 `border ${ctaStyle}`,
                 ctaFlagClass,
                 "focus:outline-none focus:ring-4",
-                "transition-all duration-300",
-                isCompact ? "px-4 py-2.5 sm:px-4" : "px-4 py-3 sm:px-4",
+                "transition-all duration-300 hover:scale-[1.02]",
+                isCompact ? "px-5 py-2" : "px-5 py-2.5",
               ].join(" ")}
               aria-label={`View ${name}`}
             >
-              <span className={['relative z-10', isCompact ? 'text-sm' : 'text-sm'].join(' ')}>Explore</span>
+              <span className={['relative z-10 text-sm'].join(' ')}>Explore</span>
             </Link>
           </div>
         </div>

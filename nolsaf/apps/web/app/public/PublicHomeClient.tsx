@@ -28,6 +28,7 @@ import BookingFlowCard from '../../components/BookingFlowCard';
 import FounderStory from '../../components/FounderStory';
 import Testimonials from '../../components/Testimonials';
 import LatestUpdate from '../../components/LatestUpdate';
+import PodcastSection from '../../components/PodcastSection';
 import TrustedBySection from '../../components/TrustedBySection';
 import LayoutFrame from '../../components/LayoutFrame';
 import axios from 'axios';
@@ -270,7 +271,7 @@ export default function Page() {
     };
   }, []);
 
-  const scrollToBookingFlow = useCallback(() => {
+  const _scrollToBookingFlow = useCallback(() => {
     const el = document.getElementById("booking-flow");
     if (!el) return;
     el.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -359,9 +360,9 @@ export default function Page() {
   const [featuredCityCounts, setFeaturedCityCounts] = useState<Record<string, number | null>>({});
   const [featuredCitiesLoading, setFeaturedCitiesLoading] = useState(true);
 
-  const [groupStaySlide, setGroupStaySlide] = useState(0);
-  const [connectedSlide, setConnectedSlide] = useState(0);
-  const [connectedServicesPaused, setConnectedServicesPaused] = useState(false);
+  const [_groupStaySlide, setGroupStaySlide] = useState(0);
+  const [_connectedSlide, setConnectedSlide] = useState(0);
+  const [connectedServicesPaused, _setConnectedServicesPaused] = useState(false);
   const [featuredSlide, setFeaturedSlide] = useState(0);
   const [featuredSlidePaused, setFeaturedSlidePaused] = useState(false);
 
@@ -1862,7 +1863,7 @@ export default function Page() {
                   </h2>
 
                   <p className="mt-3 max-w-[52ch] text-sm sm:text-[15px] leading-relaxed text-white/50">
-                    An end‑to‑end travel flow —{" "}
+                    An end‑to‑end travel flow {" "}
                     <span className="font-medium text-white/75">stays, transport, and experiences coordinated around your booking.</span>
                   </p>
                 </div>
@@ -2072,6 +2073,8 @@ export default function Page() {
             </div>
           </div>
           <LatestUpdate hideTitle />
+
+          <PodcastSection />
         </div>
       </section>
     </main>
