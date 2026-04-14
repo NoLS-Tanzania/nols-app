@@ -30,6 +30,7 @@ import Testimonials from '../../components/Testimonials';
 import LatestUpdate from '../../components/LatestUpdate';
 import PodcastSection from '../../components/PodcastSection';
 import TrustedBySection from '../../components/TrustedBySection';
+import ScrollReveal from '../../components/ScrollReveal';
 import LayoutFrame from '../../components/LayoutFrame';
 import axios from 'axios';
 import DatePicker from '../../components/ui/DatePicker';
@@ -1602,7 +1603,7 @@ export default function Page() {
           </div>
 
           {/* ── Explore heading — left-aligned editorial ── */}
-          <div className="relative z-10 mt-14 sm:mt-16">
+          <ScrollReveal direction="up" className="relative z-10 mt-14 sm:mt-16">
             {/* Gradient top accent */}
             <div className="h-[3px] w-16 rounded-full bg-gradient-to-r from-[#02b4f5] to-[#02665e] mb-6" aria-hidden />
 
@@ -1616,7 +1617,7 @@ export default function Page() {
               Browse by property type, compare verified options, and{" "}
               <span className="font-medium text-slate-700">move from discovery to booking in minutes.</span>
             </p>
-          </div>
+          </ScrollReveal>
 
           {/* ── Property type cards — bespoke premium grid ── */}
           <div className="mt-7 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
@@ -1847,7 +1848,7 @@ export default function Page() {
               </AnimatePresence>
             </div>
 
-          <div className="mt-12">
+          <ScrollReveal direction="up" distance={40} className="mt-12">
             <div className="relative overflow-hidden rounded-[32px] bg-gradient-to-br from-slate-950 via-slate-950 to-slate-900 ring-1 ring-white/10 shadow-[0_22px_70px_rgba(2,6,23,0.22)]">
               <div className="relative p-6 sm:p-8 lg:p-10">
                 {/* ── Connected Services heading — left-aligned editorial (dark) ── */}
@@ -1876,9 +1877,15 @@ export default function Page() {
                     { title: "Local Guides",        desc: "Connect solo travelers to authentic local experiences through one simple request.", Icon: Users,      href: "/public/plan-with-us",       accent: "#2dd4bf" },
                     { title: "Plan With Us",        desc: "Let our team coordinate stays, transport, and experiences into one seamless trip.", Icon: Sparkles,   href: "/public/plan-with-us",       accent: "#38bdf8" },
                     { title: "Support",             desc: "Real support from a real team before, during, and after your trip.", Icon: LifeBuoy,   href: "/public/plan-with-us",       accent: "#2dd4bf" },
-                  ].map(({ title, desc, Icon, href, accent }) => (
-                    <Link
+                  ].map(({ title, desc, Icon, href, accent }, idx) => (
+                    <motion.div
                       key={title}
+                      initial={{ opacity: 0, y: 20 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true, margin: '-30px' }}
+                      transition={{ duration: 0.45, delay: idx * 0.08, ease: [0.2, 0.8, 0.2, 1] }}
+                    >
+                    <Link
                       href={href}
                       className="group relative block rounded-2xl p-[1px] no-underline hover:no-underline bg-gradient-to-br from-white/[0.08] to-white/[0.02] ring-1 ring-white/[0.08] transition-all duration-300 hover:-translate-y-0.5 hover:ring-white/[0.16]"
                     >
@@ -1899,15 +1906,16 @@ export default function Page() {
                         </div>
                       </div>
                     </Link>
+                    </motion.div>
                   ))}
                 </div>
 
               </div>
             </div>
-          </div>
+          </ScrollReveal>
 
           {/* ── Explore Tourism by Country ── */}
-          <div className="mt-12 relative overflow-hidden rounded-3xl">
+          <ScrollReveal direction="up" className="mt-12 relative overflow-hidden rounded-3xl">
             {/* Background */}
             <div aria-hidden className="absolute inset-0 bg-[#02665e]" />
 
@@ -1946,14 +1954,16 @@ export default function Page() {
                 ))}
               </div>
             </div>
-          </div>
+          </ScrollReveal>
           <div className="mt-6">
             <div
               className="grid grid-cols-1 md:grid-cols-3 gap-6"
               style={{ contain: 'layout style' }}
             >
-              {orderedCountries.map((c) => (
-                <CountryCard key={c.id} id={c.id} name={c.name} flag={c.flag} subtitle={c.subtitle} blurb={c.blurb} href={c.href} stats={c.stats} variant="compact" accentClass={c.accentClass} />
+              {orderedCountries.map((c, idx) => (
+                <ScrollReveal key={c.id} direction="up" delay={idx * 0.1} distance={24}>
+                  <CountryCard id={c.id} name={c.name} flag={c.flag} subtitle={c.subtitle} blurb={c.blurb} href={c.href} stats={c.stats} variant="compact" accentClass={c.accentClass} />
+                </ScrollReveal>
               ))}
             </div>
           </div>
@@ -1962,12 +1972,14 @@ export default function Page() {
           
 
           {/* Booking flow card: explain booking steps and allow driver options */}
-          <div id="booking-flow" className="mt-12">
-            <BookingFlowCard />
-          </div>
+          <ScrollReveal direction="up" distance={40} className="mt-12">
+            <div id="booking-flow">
+              <BookingFlowCard />
+            </div>
+          </ScrollReveal>
 
           {/* ── Our story — chapter / memoir heading ── */}
-          <div className="mt-12 relative">
+          <ScrollReveal direction="up" className="mt-12 relative">
             {/* Faint ruled-paper lines behind the heading */}
             <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl"
               style={{ backgroundImage: 'repeating-linear-gradient(transparent,transparent 27px,rgba(203,213,225,0.35) 27px,rgba(203,213,225,0.35) 28px)', backgroundSize: '100% 28px' }} />
@@ -1984,11 +1996,13 @@ export default function Page() {
                 How NoLSAF was built and the standards we hold ourselves to.
               </p>
             </div>
-          </div>
-          <FounderStory />
+          </ScrollReveal>
+          <ScrollReveal direction="up" delay={0.1}>
+            <FounderStory />
+          </ScrollReveal>
 
           {/* ── What people say — distinct quote-accent style ── */}
-          <div className="mt-14 flex items-start gap-4">
+          <ScrollReveal direction="up" className="mt-14 flex items-start gap-4">
             {/* Large quote mark as a visual anchor */}
             <span className="hidden sm:block text-[4.5rem] leading-none font-black bg-gradient-to-b from-[#02b4f5] to-[#02665e] bg-clip-text text-transparent -mt-3 select-none" aria-hidden>&ldquo;</span>
 
@@ -2004,11 +2018,13 @@ export default function Page() {
                 <span className="font-medium text-slate-700">focused on what matters most.</span>
               </p>
             </div>
-          </div>
-          <Testimonials hideTitle />
+          </ScrollReveal>
+          <ScrollReveal direction="up" delay={0.1}>
+            <Testimonials hideTitle />
+          </ScrollReveal>
 
           {/* ── Trusted by — authority / institutional heading ── */}
-          <div className="mt-14 relative overflow-hidden">
+          <ScrollReveal direction="left" distance={24} className="mt-14 relative overflow-hidden">
             {/* Gold horizontal band */}
             <div aria-hidden className="absolute inset-y-0 left-0 w-1 rounded-r-full bg-gradient-to-b from-yellow-300 via-amber-400 to-yellow-300" />
             <div className="pl-6 py-1">
@@ -2035,11 +2051,13 @@ export default function Page() {
                 Organizations that trust NoLSAF for reliable bookings and operations.
               </p>
             </div>
-          </div>
-          <TrustedBySectionWithData />
+          </ScrollReveal>
+          <ScrollReveal direction="up" delay={0.1}>
+            <TrustedBySectionWithData />
+          </ScrollReveal>
 
           {/* ── Latest updates — changelog / terminal heading ── */}
-          <div className="mt-14 relative overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-r from-slate-50 to-emerald-50/40">
+          <ScrollReveal direction="up" className="mt-14 relative overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-r from-slate-50 to-emerald-50/40">
             {/* Scan-line texture */}
             <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.025]"
               style={{ backgroundImage: 'repeating-linear-gradient(0deg,rgba(0,0,0,1) 0px,rgba(0,0,0,1) 1px,transparent 1px,transparent 3px)' }} />
@@ -2071,10 +2089,14 @@ export default function Page() {
                 </p>
               </div>
             </div>
-          </div>
-          <LatestUpdate hideTitle />
+          </ScrollReveal>
+          <ScrollReveal direction="up" delay={0.1}>
+            <LatestUpdate hideTitle />
+          </ScrollReveal>
 
-          <PodcastSection />
+          <ScrollReveal direction="up" delay={0.15}>
+            <PodcastSection />
+          </ScrollReveal>
         </div>
       </section>
     </main>

@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { Play, User, Clock } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
 
 type Episode = {
   id: string;
@@ -44,6 +45,7 @@ function formatDate(iso: string): string {
 export default function PodcastSection() {
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [loading, setLoading] = useState(true);
+  const prefersReduced = useReducedMotion();
 
   useEffect(() => {
     async function load() {
@@ -83,14 +85,20 @@ export default function PodcastSection() {
 
       {/* Episode cards grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        {episodes.map((ep) => {
+        {episodes.map((ep, idx) => {
           const videoId = extractYouTubeId(ep.youtubeUrl);
           const thumb = ep.thumbnailUrl || (videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : null);
           const watchUrl = videoId ? `https://www.youtube.com/watch?v=${videoId}` : ep.youtubeUrl;
 
           return (
-            <a
+            <motion.div
               key={ep.id}
+              initial={prefersReduced ? undefined : { opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-30px' }}
+              transition={{ duration: 0.45, delay: idx * 0.1, ease: [0.2, 0.8, 0.2, 1] }}
+            >
+            <a
               href={watchUrl}
               target="_blank"
               rel="noopener noreferrer"
@@ -157,6 +165,7 @@ export default function PodcastSection() {
                 </div>
               </div>
             </a>
+            </motion.div>
           );
         })}
       </div>
