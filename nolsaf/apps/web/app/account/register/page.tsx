@@ -1,10 +1,101 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import axios from 'axios';
-import { AlertCircle, Check, UserPlus, Lock, LogIn, User, Truck, Building2, Mail, ArrowLeft, Phone, Eye, EyeOff, Shield, Fingerprint, ShieldX, AlertTriangle } from 'lucide-react';
+import { AlertCircle, Check, UserPlus, Lock, LogIn, User, Truck, Building2, Mail, ArrowLeft, Phone, Eye, EyeOff, Shield, Fingerprint, ShieldX, AlertTriangle, ChevronDown } from 'lucide-react';
 import { useRouter, useSearchParams } from "next/navigation";
 import LogoSpinner from "@/components/LogoSpinner";
+
+const COUNTRY_CODES = [
+  // East Africa — primary markets
+  { code: '+255', country: 'TZ', flag: '🇹🇿', label: 'Tanzania' },
+  { code: '+254', country: 'KE', flag: '🇰🇪', label: 'Kenya' },
+  { code: '+256', country: 'UG', flag: '🇺🇬', label: 'Uganda' },
+  { code: '+250', country: 'RW', flag: '🇷🇼', label: 'Rwanda' },
+  // East & Central Africa — expansion
+  { code: '+251', country: 'ET', flag: '🇪🇹', label: 'Ethiopia' },
+  { code: '+257', country: 'BI', flag: '🇧🇮', label: 'Burundi' },
+  { code: '+243', country: 'CD', flag: '🇨🇩', label: 'DR Congo' },
+  { code: '+252', country: 'SO', flag: '🇸🇴', label: 'Somalia' },
+  { code: '+211', country: 'SS', flag: '🇸🇸', label: 'South Sudan' },
+  // Southern Africa
+  { code: '+265', country: 'MW', flag: '🇲🇼', label: 'Malawi' },
+  { code: '+258', country: 'MZ', flag: '🇲🇿', label: 'Mozambique' },
+  { code: '+260', country: 'ZM', flag: '🇿🇲', label: 'Zambia' },
+  { code: '+263', country: 'ZW', flag: '🇿🇼', label: 'Zimbabwe' },
+  { code: '+27',  country: 'ZA', flag: '🇿🇦', label: 'South Africa' },
+  // West & North Africa
+  { code: '+234', country: 'NG', flag: '🇳🇬', label: 'Nigeria' },
+  { code: '+233', country: 'GH', flag: '🇬🇭', label: 'Ghana' },
+  { code: '+212', country: 'MA', flag: '🇲🇦', label: 'Morocco' },
+  { code: '+20',  country: 'EG', flag: '🇪🇬', label: 'Egypt' },
+  // International
+  { code: '+1',   country: 'US', flag: '🇺🇸', label: 'United States' },
+  { code: '+44',  country: 'GB', flag: '🇬🇧', label: 'United Kingdom' },
+  { code: '+971', country: 'AE', flag: '🇦🇪', label: 'UAE' },
+  { code: '+91',  country: 'IN', flag: '🇮🇳', label: 'India' },
+  { code: '+86',  country: 'CN', flag: '🇨🇳', label: 'China' },
+] as const;
+
+function CountryCodePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const selected = COUNTRY_CODES.find((c) => c.code === value) ?? COUNTRY_CODES[0];
+
+  const close = useCallback(() => setOpen(false), []);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) close();
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open, close]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [open, close]);
+
+  return (
+    <div ref={ref} className="relative flex-shrink-0">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl border-2 border-slate-800 bg-slate-900/50 text-slate-200 text-sm font-medium hover:border-slate-700 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] transition-all"
+      >
+        <span className="text-base leading-none">{selected.flag}</span>
+        <span>{selected.code}</span>
+        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="absolute top-full left-0 mt-1.5 z-50 rounded-xl border border-slate-800 bg-slate-950 ring-1 ring-white/10 shadow-2xl overflow-hidden">
+          <div className="max-h-[260px] overflow-y-auto overscroll-contain">
+            {COUNTRY_CODES.map((c) => (
+              <button
+                key={c.code}
+                type="button"
+                onClick={() => { onChange(c.code); close(); }}
+                className={`w-full flex items-center gap-2.5 px-3.5 py-2 text-sm transition-colors whitespace-nowrap ${
+                  c.code === value
+                    ? 'bg-[#02665e]/15 text-[#02665e]'
+                    : 'text-slate-300 hover:bg-slate-900/80 hover:text-slate-100'
+                }`}
+              >
+                <span className="text-base leading-none">{c.flag}</span>
+                <span className="font-medium">{c.code}</span>
+                {c.code === value && <Check className="w-3.5 h-3.5 text-[#02665e] flex-shrink-0" />}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function RegisterPage() {
   const searchParams = useSearchParams();
@@ -370,14 +461,14 @@ export default function RegisterPage() {
 
         <div className="px-6 py-4">
           {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2.5 text-sm text-red-800">
+            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-2.5 text-sm text-red-200">
               <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
               <span className="flex-1">{error}</span>
             </div>
           )}
 
           {success && (
-            <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-start gap-2.5 text-sm text-emerald-800">
+            <div className="mb-4 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-start gap-2.5 text-sm text-emerald-200">
               <Check className="w-4 h-4 mt-0.5 flex-shrink-0" />
               <span className="flex-1">{success}</span>
             </div>
@@ -388,25 +479,14 @@ export default function RegisterPage() {
               <>
                 <div className="space-y-2.5 min-w-0">
                   <label className="block text-sm font-semibold text-slate-200">Phone Number</label>
-                  <div className="relative flex items-center border-2 border-slate-800 rounded-xl overflow-hidden focus-within:border-[#02665e] focus-within:ring-2 focus-within:ring-[#02665e]/20 transition-all duration-200 shadow-sm hover:shadow-md w-full max-w-full box-border bg-slate-950">
-                    <div className="flex items-center px-3 py-2.5 bg-slate-900/50 border-r-2 border-slate-800 relative flex-shrink-0">
-                      <select
-                        value={countryCode}
-                        onChange={(e) => setCountryCode(e.target.value)}
-                        className="country-code-select text-sm font-medium bg-transparent border-none focus:outline-none focus:ring-0 cursor-pointer text-slate-200 pr-0"
-                      >
-                        <option value="+255">+255</option>
-                        <option value="+1">+1</option>
-                        <option value="+256">+256</option>
-                        <option value="+254">+254</option>
-                      </select>
-                    </div>
+                  <div className="flex items-center gap-2 w-full max-w-full box-border">
+                    <CountryCodePicker value={countryCode} onChange={setCountryCode} />
                     <input
                       type="tel"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value.replace(/[^0-9]/g, ''))}
                       placeholder="712345678"
-                      className="flex-1 min-w-0 px-4 py-2.5 text-sm font-medium focus:outline-none placeholder:text-slate-500 bg-transparent text-slate-100 box-border"
+                      className="flex-1 min-w-0 px-4 py-2.5 text-sm font-medium bg-slate-950 text-slate-100 border-2 border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] transition-all duration-200 shadow-sm hover:shadow-md placeholder:text-slate-500 box-border"
                     />
                   </div>
                   <p className="text-xs text-slate-400 flex items-center gap-1.5">
@@ -681,25 +761,25 @@ export default function RegisterPage() {
           {renderBlockedAccountCard()}
 
           {isLockedOut && (
-            <div className="mb-4 rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 to-white p-4">
+            <div className="mb-4 rounded-xl border border-amber-500/20 bg-amber-500/10 p-4">
               <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
-                  <Lock className="w-5 h-5 text-amber-700" />
+                <div className="w-10 h-10 rounded-lg bg-amber-500/20 flex items-center justify-center">
+                  <Lock className="w-5 h-5 text-amber-300" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold text-slate-50">Account temporarily locked</div>
-                  <div className="mt-1 text-xs text-slate-700 leading-relaxed">
+                  <div className="mt-1 text-xs text-slate-300 leading-relaxed">
                     {lockoutMessage ?? 'Too many failed login attempts. Please wait before trying again.'}
                   </div>
 
                   <div className="mt-3 flex items-center justify-between gap-3">
-                    <div className="text-xs text-slate-600">Time remaining</div>
-                    <div className="font-mono text-sm font-semibold text-amber-800 tabular-nums">
+                    <div className="text-xs text-slate-400">Time remaining</div>
+                    <div className="font-mono text-sm font-semibold text-amber-300 tabular-nums">
                       {formatRemaining(lockoutRemainingSeconds)}
                     </div>
                   </div>
 
-                  <div className="mt-2 h-2 rounded-full bg-amber-100 overflow-hidden">
+                  <div className="mt-2 h-2 rounded-full bg-amber-900/40 overflow-hidden">
                     <div
                       className="h-full bg-amber-500 transition-all duration-500"
                       style={{
@@ -720,7 +800,7 @@ export default function RegisterPage() {
           )}
 
           {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2.5 text-sm text-red-800">
+            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-2.5 text-sm text-red-200">
               <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
               <span className="flex-1 min-w-0 break-words">{error}</span>
             </div>
@@ -1084,34 +1164,17 @@ export default function RegisterPage() {
     }
     setForgotLoading(true);
     try {
-      // Call API to send password reset OTP
-      const response = await api.post('/api/auth/forgot-password', {
-        phone: forgotPhone.trim(),
-      });
-      
-      if (response.status === 200) {
-        setSuccess('OTP sent to your phone. Please check and enter the code.');
-        setForgotStep('otp');
-        setForgotCountdown(300); // 5 minutes countdown
-        setForgotLoading(false);
-        setTimeout(() => {
-          if (forgotOtpRef.current) {
-            try { forgotOtpRef.current.focus(); } catch (e) {}
-          }
-        }, 200);
-        return;
-      }
-
+      // Send OTP code (not reset link) for phone-based password reset
       const resp = await fetch('/api/auth/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: `${forgotCountryCode}${forgotPhone}`, role: 'RESET' }),
+        body: JSON.stringify({ phone: `${forgotCountryCode}${forgotPhone}` }),
       });
       if (!resp.ok) {
         const data = await resp.json().catch(() => ({}));
         throw new Error(data?.message || 'Failed to send OTP');
       }
-      setSuccess('OTP sent. Please check your phone.');
+      setSuccess('OTP sent to your phone. Please check and enter the code.');
       setForgotStep('otp');
       setForgotCountdown(60);
       const iv = setInterval(() => {
@@ -1123,6 +1186,11 @@ export default function RegisterPage() {
           return c - 1;
         });
       }, 1000);
+      setTimeout(() => {
+        if (forgotOtpRef.current) {
+          try { forgotOtpRef.current.focus(); } catch (e) {}
+        }
+      }, 200);
     } catch (err: any) {
       setError(err?.message || 'Failed to send OTP');
     } finally {
@@ -1185,8 +1253,10 @@ export default function RegisterPage() {
         const data = await resp.json().catch(() => ({}));
         throw new Error(data?.message || 'Failed to send reset email');
       }
+      const data = await resp.json().catch(() => ({}));
+      const msg = data?.message || 'If an account exists, an email has been sent.';
       setForgotSent(true);
-      setSuccess('Reset link sent. Please check your email.');
+      setSuccess(msg);
     } catch (err: any) {
       setError(err?.message || 'Failed to send reset email');
     } finally {
@@ -1278,7 +1348,7 @@ export default function RegisterPage() {
                 <Mail className="w-8 h-8 text-emerald-200 mx-auto mb-2" />
                 <h3 className="text-sm font-semibold text-emerald-100 mb-1">Check your email</h3>
                 <p className="text-xs text-emerald-200/90 break-words">
-                  We&apos;ve sent a password reset link to {forgotEmail}
+                  If an account with <span className="font-semibold">{forgotEmail}</span> exists, a reset link has been sent.
                 </p>
               </div>
               <button
@@ -1307,7 +1377,7 @@ export default function RegisterPage() {
                   className="w-full max-w-full px-4 py-3 text-lg tracking-widest text-center font-mono bg-slate-950 text-slate-100 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] box-border"
                 />
                 <p className="text-xs text-slate-400 text-center">
-                  OTP sent to {forgotCountryCode}{forgotPhone}
+                  Code sent to <span className="font-semibold text-slate-300">{forgotCountryCode}{forgotPhone}</span>
                 </p>
               </div>
               <div className="flex items-center gap-3 min-w-0">
@@ -1391,17 +1461,7 @@ export default function RegisterPage() {
                   <div className="space-y-2 min-w-0">
                     <label className="block text-sm font-semibold text-slate-200">Phone Number</label>
                     <div className="flex gap-2 min-w-0">
-                      <select
-                        value={forgotCountryCode}
-                        onChange={(e) => setForgotCountryCode(e.target.value)}
-                        className="px-3 py-2.5 text-sm font-medium border-2 border-slate-800 rounded-xl bg-slate-900/50 text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] country-code-select flex-shrink-0"
-                      >
-                        <option value="+255">+255</option>
-                        <option value="+256">+256</option>
-                        <option value="+254">+254</option>
-                        <option value="+250">+250</option>
-                        <option value="+251">+251</option>
-                      </select>
+                      <CountryCodePicker value={forgotCountryCode} onChange={setForgotCountryCode} />
                       <input
                         type="tel"
                         value={forgotPhone}
