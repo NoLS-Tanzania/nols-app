@@ -41,6 +41,16 @@ import {
   Tag,
   Trash2,
   Check,
+  Building2,
+  Hotel,
+  Globe,
+  MapPin,
+  Headphones,
+  Wallet,
+  UserCircle,
+  Compass,
+  SearchX,
+  ArrowRight,
 } from "lucide-react";
 import SectionSeparator from "../../../components/SectionSeparator";
 import { REGIONS } from "@/lib/tzRegions";
@@ -768,97 +778,136 @@ export default function PropertiesPage() {
             </div>
           )}
 
-          {!loading && !error && (data?.items?.length ?? 0) === 0 && (
-            <div className="space-y-8">
-              {/* Hero empty state */}
-              <motion.div
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
-                className="text-center py-6"
-              >
-                <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 flex items-center justify-center mb-4 shadow-sm">
-                  <Search className="w-7 h-7 text-emerald-500" />
+          {!loading && !error && (data?.items?.length ?? 0) === 0 && appliedChips.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4 }}
+              className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden"
+            >
+              {/* Header */}
+              <div className="px-5 pt-6 pb-4 text-center">
+                <div className="mx-auto w-11 h-11 rounded-xl bg-slate-50 flex items-center justify-center mb-3">
+                  <SearchX className="w-5 h-5 text-slate-400" />
                 </div>
-                <h3 className="text-lg font-bold text-slate-900">No properties available yet</h3>
-                <p className="text-sm text-slate-500 mt-1.5 max-w-md mx-auto">
-                  We&apos;re onboarding amazing stays across Tanzania. Check back soon or explore what&apos;s coming.
+                <h3 className="text-[15px] font-bold text-slate-900">No matches for your search</h3>
+                <p className="text-[12.5px] text-slate-500 mt-1 max-w-sm mx-auto">
+                  We couldn&apos;t find properties matching your current filters. Try adjusting or explore a different area.
                 </p>
-              </motion.div>
+              </div>
 
-              {/* Placeholder cards grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                {[
-                  { type: "Hotel", location: "Dar es Salaam", color: "from-blue-400 to-indigo-500", icon: "🏨" },
-                  { type: "Villa", location: "Zanzibar", color: "from-emerald-400 to-teal-500", icon: "🏡" },
-                  { type: "Lodge", location: "Arusha", color: "from-amber-400 to-orange-500", icon: "🏕️" },
-                  { type: "Apartment", location: "Dodoma", color: "from-violet-400 to-purple-500", icon: "🏢" },
-                  { type: "Guest House", location: "Mwanza", color: "from-rose-400 to-pink-500", icon: "🏠" },
-                  { type: "Bungalow", location: "Bagamoyo", color: "from-cyan-400 to-sky-500", icon: "🌴" },
-                ].map((item, i) => (
+              {/* Suggestions */}
+              <div className="px-5 pb-5">
+                <div className="grid grid-cols-2 gap-2.5">
+                  {[
+                    { label: "Clear all filters", sub: "Start fresh", action: () => clearFilters() },
+                    { label: "Try Zanzibar", sub: "Island getaways", action: () => { const n = new URLSearchParams(); n.set("city", "Zanzibar"); n.set("page", "1"); n.set("pageSize", "24"); router.push(`/public/properties?${n.toString()}`); } },
+                    { label: "Try Dar es Salaam", sub: "City stays", action: () => { const n = new URLSearchParams(); n.set("city", "Dar es Salaam"); n.set("page", "1"); n.set("pageSize", "24"); router.push(`/public/properties?${n.toString()}`); } },
+                    { label: "View all stays", sub: "No filters", action: () => router.push("/public/properties") },
+                  ].map((s) => (
+                    <button
+                      key={s.label}
+                      type="button"
+                      onClick={s.action}
+                      className="group flex items-center gap-2.5 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-emerald-50 hover:border-emerald-100 px-3.5 py-3 text-left transition-all duration-200"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[12px] font-semibold text-slate-700 group-hover:text-emerald-700 truncate">{s.label}</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">{s.sub}</p>
+                      </div>
+                      <ArrowRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-emerald-500 flex-shrink-0 transition-colors" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {!loading && !error && (data?.items?.length ?? 0) === 0 && appliedChips.length === 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.45 }}
+              className="space-y-7"
+            >
+              {/* Header */}
+              <div className="text-center py-4">
+                <div className="mx-auto w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center mb-3">
+                  <Compass className="w-5 h-5 text-emerald-600" />
+                </div>
+                <h3 className="text-base font-bold text-slate-900">Your journey starts here</h3>
+                <p className="text-[13px] text-slate-500 mt-1 max-w-md mx-auto leading-relaxed">
+                  NoLSAF is more than stays — it&apos;s accommodation, transport, payments, and local support, all in one platform built for the modern traveler.
+                </p>
+              </div>
+
+              {/* Platform feature cards — 2 cols mobile, 3 cols desktop */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {([
+                  { title: "Unique Stays", desc: "Hotels, villas, lodges & hidden gems across East Africa", Icon: Hotel },
+                  { title: "Solo-Friendly", desc: "Curated experiences for solo travelers exploring Africa", Icon: UserCircle },
+                  { title: "Seamless Transport", desc: "Airport pickups, city rides & inter-city travel on demand", Icon: Car },
+                  { title: "Mobile Payments", desc: "Pay with M-Pesa, Tigo Pesa, cards — all secure & instant", Icon: Wallet },
+                  { title: "24/7 Support", desc: "Real human support whenever you need it, wherever you are", Icon: Headphones },
+                  { title: "Multi-Destination", desc: "Tanzania, Kenya, Zanzibar & expanding across the continent", Icon: Globe },
+                ] as const).map((item, i) => (
                   <motion.div
-                    key={item.type}
-                    initial={{ opacity: 0, y: 20 }}
+                    key={item.title}
+                    initial={{ opacity: 0, y: 14 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.4, delay: 0.1 * i }}
-                    className="group relative overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm hover:shadow-md transition-all duration-300"
+                    transition={{ duration: 0.35, delay: 0.07 * i }}
+                    className="group rounded-xl border border-slate-100 bg-white p-3.5 hover:shadow-md hover:border-emerald-100 transition-all duration-300"
                   >
-                    {/* Gradient image placeholder */}
-                    <div className={`h-36 sm:h-40 bg-gradient-to-br ${item.color} relative overflow-hidden`}>
-                      <div className="absolute inset-0 bg-black/5" />
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="text-5xl opacity-40 group-hover:scale-110 transition-transform duration-500">{item.icon}</span>
-                      </div>
-                      <div className="absolute top-3 left-3">
-                        <span className="px-2.5 py-1 rounded-full bg-white/90 backdrop-blur text-[10px] font-semibold text-slate-700 shadow-sm">{item.type}</span>
-                      </div>
-                      <div className="absolute bottom-0 inset-x-0 h-12 bg-gradient-to-t from-black/20 to-transparent" />
+                    <div className="w-9 h-9 rounded-lg bg-emerald-50 flex items-center justify-center mb-2.5 group-hover:bg-emerald-100 transition-colors duration-300">
+                      <item.Icon className="w-4.5 h-4.5 text-emerald-600" strokeWidth={1.8} />
                     </div>
-                    {/* Card body */}
-                    <div className="p-4">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <div className="h-3 w-32 bg-slate-100 rounded-full mb-2" />
-                          <div className="flex items-center gap-1.5 text-xs text-slate-400">
-                            <LocateFixed className="w-3 h-3" />
-                            <span>{item.location}, Tanzania</span>
-                          </div>
-                        </div>
-                        <div className="flex flex-col items-end">
-                          <div className="h-3 w-14 bg-slate-100 rounded-full mb-1" />
-                          <div className="h-2.5 w-10 bg-slate-50 rounded-full" />
-                        </div>
-                      </div>
-                      <div className="mt-3 flex items-center gap-2">
-                        <div className="h-2 w-12 bg-slate-50 rounded-full" />
-                        <div className="h-2 w-16 bg-slate-50 rounded-full" />
-                        <div className="h-2 w-10 bg-slate-50 rounded-full" />
-                      </div>
-                    </div>
-                    {/* "Coming soon" overlay */}
-                    <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 cursor-default">
-                      <span className="px-4 py-2 rounded-xl bg-slate-900/80 text-white text-xs font-semibold tracking-wide shadow-lg">Coming Soon</span>
-                    </div>
+                    <h4 className="text-[13px] font-semibold text-slate-800 leading-tight">{item.title}</h4>
+                    <p className="text-[10.5px] text-slate-400 mt-0.5 leading-snug">{item.desc}</p>
                   </motion.div>
                 ))}
               </div>
 
-              {/* Call to action */}
+              {/* Solo traveler callout */}
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, delay: 0.5 }}
+                className="rounded-xl border border-emerald-100 bg-gradient-to-r from-emerald-50/60 to-slate-50/60 p-4 flex items-start gap-3"
+              >
+                <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center flex-shrink-0 shadow-sm">
+                  <MapPin className="w-4 h-4 text-emerald-600" />
+                </div>
+                <div>
+                  <p className="text-[12px] font-semibold text-slate-800">Traveling solo?</p>
+                  <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">
+                    NoLSAF is designed for independent travelers who want authentic local experiences without the hassle. Book stays, arrange transport, and pay — all from one app.
+                  </p>
+                </div>
+              </motion.div>
+
+              {/* CTAs */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ duration: 0.5, delay: 0.6 }}
-                className="text-center pb-4"
+                transition={{ duration: 0.4, delay: 0.6 }}
+                className="flex flex-col sm:flex-row items-center justify-center gap-2.5 pb-2"
               >
-                <p className="text-xs text-slate-400">
-                  Are you a property owner?{" "}
-                  <a href="/auth" className="text-emerald-600 hover:text-emerald-700 font-medium underline underline-offset-2">
-                    List your property
-                  </a>{" "}
-                  and reach thousands of travelers.
-                </p>
+                <a
+                  href="/account/register"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm hover:shadow transition-all duration-200"
+                >
+                  <Compass className="w-3.5 h-3.5" />
+                  Start exploring
+                </a>
+                <a
+                  href="/account/register?role=owner"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-sm hover:shadow transition-all duration-200"
+                >
+                  <Building2 className="w-3.5 h-3.5" />
+                  List your property
+                </a>
               </motion.div>
-            </div>
+            </motion.div>
           )}
 
           {!loading && !error && (data?.items?.length ?? 0) > 0 && (
