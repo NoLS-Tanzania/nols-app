@@ -1,11 +1,42 @@
 import "dotenv/config";
 import { prisma } from "@nolsaf/prisma";
 import { hashPassword } from "../lib/crypto.js";
+import { sendSms } from "../lib/sms.js";
+import { sendMail } from "../lib/mailer.js";
+import { getAdminWelcomeEmail, getAdminWelcomeSms } from "../lib/adminEmailTemplates.js";
 
 function requiredEnv(name: string): string {
   const v = String(process.env[name] ?? "").trim();
   if (!v) throw new Error(`Missing required env var: ${name}`);
   return v;
+}
+
+async function sendAdminNotifications(user: { id: number; email: string; name: string | null; phone: string | null }, isNewlyCreated: boolean) {
+  const adminName = user.name || "Admin";
+
+  // Send SMS notification
+  if (user.phone) {
+    try {
+      const smsMessage = getAdminWelcomeSms({ name: adminName, isNewlyCreated });
+      await sendSms(user.phone, smsMessage);
+      console.log(`📱 SMS sent to ${user.phone}`);
+    } catch (err) {
+      console.warn(`⚠️  Failed to send SMS: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // Send email notification
+  try {
+    const { subject, html } = getAdminWelcomeEmail({
+      name: adminName,
+      email: user.email,
+      isNewlyCreated,
+    });
+    await sendMail(user.email, subject, html);
+    console.log(`📧 Email sent to ${user.email}`);
+  } catch (err) {
+    console.warn(`⚠️  Failed to send email: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
 
 async function main() {
@@ -76,6 +107,13 @@ async function main() {
     });
 
     console.log(`✅ Promoted existing user to ADMIN: userId=${existing.id} email=${email}`);
+    
+    // Send notifications
+    await sendAdminNotifications(
+      { id: existing.id, email, name: name || null, phone: phone || null },
+      false
+    );
+    
     return;
   }
 
@@ -89,10 +127,16 @@ async function main() {
       emailVerifiedAt: now as any,
       phoneVerifiedAt: phone ? (now as any) : (undefined as any),
     } as any,
-    select: { id: true, email: true, role: true },
+    select: { id: true, email: true, role: true, name: true, phone: true },
   });
 
   console.log(`✅ Created ADMIN: userId=${created.id} email=${created.email}`);
+  
+  // Send notifications
+  await sendAdminNotifications(
+    { id: created.id, email: created.email, name: created.name || name, phone: created.phone || phone },
+    true
+  );
 }
 
 main()

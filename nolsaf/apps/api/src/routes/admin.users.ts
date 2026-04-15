@@ -4,6 +4,9 @@ import { Prisma } from '@prisma/client';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { audit } from '../lib/audit.js';
+import { sendMail } from '../lib/mailer.js';
+import { sendSms } from '../lib/sms.js';
+import { getAdminRevocationEmail, getAdminRevocationSms } from '../lib/adminEmailTemplates.js';
 
 export const router = Router();
 router.use(requireAuth as RequestHandler, requireRole('ADMIN') as RequestHandler);
@@ -762,6 +765,99 @@ router.post(
       ok: true,
       data: updated,
       message: 'User promoted to ADMIN. Ensure they enable 2FA and verify email/phone.',
+    });
+  })
+);
+
+/**
+ * POST /admin/users/:id/revoke-admin
+ * Body: { confirm: true, reason?: string }
+ * Revokes ADMIN privileges from a user (demotes to CUSTOMER).
+ */
+router.post(
+  '/:id/revoke-admin',
+  asyncHandler(async (req: any, res: any) => {
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ error: 'invalid id' });
+
+    const confirm = Boolean(req.body?.confirm);
+    if (!confirm) {
+      return res.status(400).json({
+        error: 'confirm_required',
+        message: 'Set { confirm: true } to revoke ADMIN privileges from this user.',
+      });
+    }
+
+    const reason = req.body?.reason ? String(req.body.reason).trim() : null;
+    const revokedBy = req.user?.name || req.user?.email || 'System Administrator';
+
+    const target = await prisma.user.findUnique({
+      where: { id },
+      select: { id: true, role: true, email: true, phone: true, name: true, suspendedAt: true, isDisabled: true },
+    });
+    if (!target) return res.status(404).json({ error: 'user_not_found' });
+
+    const before = { role: target.role };
+    const currentRole = String(target.role ?? '').toUpperCase();
+    if (currentRole !== 'ADMIN') {
+      return res.json({
+        ok: true,
+        data: { ...target, role: target.role },
+        message: 'User is not an ADMIN.',
+      });
+    }
+
+    const updated = await prisma.user.update({
+      where: { id },
+      data: { role: 'CUSTOMER' as any },
+      select: { id: true, role: true, email: true, phone: true, name: true, suspendedAt: true, isDisabled: true },
+    });
+
+    // Create audit log
+    try {
+      await audit(req, 'ADMIN_USER_DEMOTED_FROM_ADMIN', `user:${id}`, before, { 
+        role: updated.role,
+        reason: reason || 'No reason provided',
+        revokedBy,
+      });
+    } catch {
+      // ignore audit failures
+    }
+
+    // Send revocation notifications
+    const adminName = target.name || 'Admin';
+    const effectiveDate = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+    // Send SMS notification
+    if (target.phone) {
+      try {
+        const smsMessage = getAdminRevocationSms({ name: adminName, reason: reason || undefined });
+        await sendSms(target.phone, smsMessage);
+        console.log(`📱 Admin revocation SMS sent to ${target.phone}`);
+      } catch (err) {
+        console.warn(`⚠️  Failed to send revocation SMS: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
+    // Send email notification
+    try {
+      const { subject, html } = getAdminRevocationEmail({
+        name: adminName,
+        email: target.email,
+        reason: reason || undefined,
+        revokedBy,
+        effectiveDate,
+      });
+      await sendMail(target.email, subject, html);
+      console.log(`📧 Admin revocation email sent to ${target.email}`);
+    } catch (err) {
+      console.warn(`⚠️  Failed to send revocation email: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    return res.json({
+      ok: true,
+      data: updated,
+      message: 'ADMIN privileges revoked. User demoted to CUSTOMER. Notifications sent.',
     });
   })
 );

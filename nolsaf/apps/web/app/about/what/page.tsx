@@ -50,7 +50,7 @@ export default function AboutWhatPage() {
             <div className="text-base font-semibold tracking-tight text-slate-900">2) End-to-end travel in one platform</div>
             <p className="mt-2 text-sm leading-relaxed text-slate-700">
               We believe booking is incomplete if transport is separated from accommodation. That’s why NoLSAF supports an integrated
-              journey from planning to arrival — so travelers can engage on a “single click” experience rather than juggling disconnected
+              journey from planning to arrival, so travelers can engage on a “single click” experience rather than juggling disconnected
               tools.
             </p>
           </div>

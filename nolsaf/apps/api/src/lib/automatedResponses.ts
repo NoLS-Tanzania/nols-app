@@ -218,7 +218,7 @@ function getEnglishResponse(input: string): { response: string; type: ResponseTy
 
   // === PAYMENT METHODS (DETAILED) ===
   if (/(payment|pay|paying|how (can|do) i pay|payment method|mpesa|m-pesa|airtel money|tigo pesa|bank transfer|credit card|debit card|visa|mastercard|mobile money|azampay|ways to pay)/.test(input)) {
-    return { response: "NoLSAF supports multiple payment methods 💳\n\n📱 Mobile Money:\n• M-Pesa (Vodacom)\n• Tigo Pesa\n• Airtel Money\n→ Instant processing, no extra fees\n\n💳 Card Payments:\n• Visa & Mastercard (debit & credit)\n→ Processed securely via AzamPay\n\n🏦 Bank Transfer:\n• Available for larger bookings\n\nAll payments are encrypted and secure 🔐. You choose your preferred method at checkout. Mobile money is the fastest option in Tanzania!\n\nHaving payment issues? Make sure your account has sufficient balance and try again.", type: "other" };
+    return { response: "NoLSAF supports multiple payment methods 💳\n\n📱 Mobile Money:\n• M-Pesa \n• Mixx by Yas\n• Airtel Money\n• HaloPesa \n Instant processing, no extra fees\n\n💳 Card Payments:\n• Visa & Mastercard (debit & credit)\n→ Processed securely via Stripe\n\n🏦 Bank Transfer:\n• Available for larger bookings\n\nAll payments are encrypted and secure 🔐. You choose your preferred method at checkout. Mobile money is the fastest option in Tanzania!\n\nHaving payment issues? Make sure your account has sufficient balance and try again.", type: "other" };
   }
 
   // === BOOKING STATUS / TRACKING ===

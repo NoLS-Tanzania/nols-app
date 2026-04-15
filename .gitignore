@@ -15,3 +15,14 @@ backups/
 
 # Local machine artefacts
 DESKTOP-*.err
+
+# Product planning documents (local only)
+SMART_TRAVEL_COST_CARD_ROADMAP.md
+MOBILE_STRATEGY.md
+NOLSAF_STRATEGY.md
+*_STRATEGY.md
+
+# AWS deployment guides (contain credentials/endpoints)
+AWS_DEPLOYMENT_GUIDE.md
+AWS_QUICK_START.md
+*DEPLOYMENT_GUIDE*.md
