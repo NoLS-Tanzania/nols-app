@@ -1,11 +1,10 @@
 import { config } from "dotenv";
 import { resolve } from "path";
+import * as readline from "readline";
 
-// Resolve .env relative to THIS script file (src/dev/bootstrap-admin.ts → ../../.env = apps/api/.env)
-// __dirname is the CJS global for the current file's directory — always correct regardless of cwd.
+// Load .env for provider keys (RESEND_API_KEY, etc.) and flags only — NOT for sensitive admin data.
 const envPath = resolve(__dirname, "../../.env");
-config({ path: envPath });
-console.log(`[bootstrap] Loading env from: ${envPath}`);
+config({ path: envPath, override: true });
 
 import { prisma } from "@nolsaf/prisma";
 import { hashPassword } from "../lib/crypto.js";
@@ -13,84 +12,137 @@ import { sendSms } from "../lib/sms.js";
 import { sendMail } from "../lib/mailer.js";
 import { getAdminWelcomeEmail, getAdminWelcomeSms } from "../lib/adminEmailTemplates.js";
 
-function requiredEnv(name: string): string {
-  const v = String(process.env[name] ?? "").trim();
-  if (!v) throw new Error(`Missing required env var: ${name}`);
-  return v;
+// ─── Prompt helpers ──────────────────────────────────────────────────────────
+
+function ask(rl: readline.Interface, question: string): Promise<string> {
+  return new Promise(resolve => rl.question(question, resolve));
 }
 
-async function sendAdminNotifications(user: { id: number; email: string; name: string | null; phone: string | null }, isNewlyCreated: boolean) {
-  const adminName = user.name || "Admin";
+function askPassword(prompt: string): Promise<string> {
+  return new Promise(resolve => {
+    process.stdout.write(prompt);
+    let password = "";
+    process.stdin.setRawMode(true);
+    process.stdin.resume();
+    process.stdin.setEncoding("utf8");
+    const onData = (char: string) => {
+      if (char === "\r" || char === "\n") {
+        process.stdin.setRawMode(false);
+        process.stdin.removeAllListeners("data");
+        process.stdout.write("\n");
+        resolve(password);
+      } else if (char === "\x03") {
+        console.log("\nAborted.");
+        process.exit(0);
+      } else if (char === "\x7F") {
+        if (password.length > 0) {
+          password = password.slice(0, -1);
+          process.stdout.clearLine(0);
+          process.stdout.cursorTo(0);
+          process.stdout.write(prompt + "*".repeat(password.length));
+        }
+      } else {
+        password += char;
+        process.stdout.write("*");
+      }
+    };
+    process.stdin.on("data", onData);
+  });
+}
 
-  // Send SMS notification
+// ─── Notifications ────────────────────────────────────────────────────────────
+
+async function sendAdminNotifications(
+  user: { id: number; email: string; name: string | null; phone: string | null },
+  isNewlyCreated: boolean
+) {
+  const adminName = user.name || "Admin";
   if (user.phone) {
     try {
-      const smsMessage = getAdminWelcomeSms({ name: adminName, isNewlyCreated });
-      await sendSms(user.phone, smsMessage);
+      await sendSms(user.phone, getAdminWelcomeSms({ name: adminName, isNewlyCreated }));
       console.log(`📱 SMS sent to ${user.phone}`);
     } catch (err) {
-      console.warn(`⚠️  Failed to send SMS: ${err instanceof Error ? err.message : String(err)}`);
+      console.warn(`⚠️  SMS failed: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
-
-  // Send email notification
   try {
-    const { subject, html } = getAdminWelcomeEmail({
-      name: adminName,
-      email: user.email,
-      isNewlyCreated,
-    });
+    const { subject, html } = getAdminWelcomeEmail({ name: adminName, email: user.email, isNewlyCreated });
     await sendMail(user.email, subject, html);
     console.log(`📧 Email sent to ${user.email}`);
   } catch (err) {
-    console.warn(`⚠️  Failed to send email: ${err instanceof Error ? err.message : String(err)}`);
+    console.warn(`⚠️  Email failed: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 
+// ─── Main ─────────────────────────────────────────────────────────────────────
+
 async function main() {
-  // Safety: require an explicit confirmation so this can't be run accidentally.
-  // Strip non-alphabetic chars to handle any encoding artefacts (e.g. trailing \r or :)
-  const confirm = String(process.env.BOOTSTRAP_ADMIN_CONFIRM ?? "").replace(/[^A-Za-z]/g, "").toUpperCase();
-  if (confirm !== "YES") {
-    throw new Error(
-      "Refusing to run. Set BOOTSTRAP_ADMIN_CONFIRM=YES to confirm you want to create/promote an admin account."
-    );
-  }
+  console.log("\n╔══════════════════════════════════════════╗");
+  console.log("║     NoLSAF  Bootstrap Admin Setup        ║");
+  console.log("╚══════════════════════════════════════════╝\n");
 
-  const email = requiredEnv("BOOTSTRAP_ADMIN_EMAIL").toLowerCase();
-  const password = requiredEnv("BOOTSTRAP_ADMIN_PASSWORD");
-  const name = String(process.env.BOOTSTRAP_ADMIN_NAME ?? "").trim() || null;
-  const phone = String(process.env.BOOTSTRAP_ADMIN_PHONE ?? "").trim() || null;
-
-  // Default: do NOT take over an existing non-admin account unless explicitly allowed.
-  const allowPromoteExisting = String(process.env.BOOTSTRAP_ADMIN_PROMOTE_EXISTING ?? "")
-    .trim()
-    .toUpperCase() === "YES";
-
-  // If an admin already exists, refuse by default (prevents accidental second bootstrap on prod).
+  // Guard: block if admin already exists (env flag can override)
   const existingAdminCount = await prisma.user.count({ where: { role: "ADMIN" as any } });
   if (existingAdminCount > 0) {
-    const allowWhenAdminExists = String(process.env.BOOTSTRAP_ADMIN_ALLOW_WHEN_ADMIN_EXISTS ?? "")
-      .trim()
-      .toUpperCase() === "YES";
-    if (!allowWhenAdminExists) {
+    const allowWhenExists = String(process.env.BOOTSTRAP_ADMIN_ALLOW_WHEN_ADMIN_EXISTS ?? "")
+      .trim().toUpperCase() === "YES";
+    if (!allowWhenExists) {
       throw new Error(
         `\n❌ BLOCKED: Database already has ${existingAdminCount} ADMIN user(s).\n` +
-        `   This prevents accidental duplicate admins.\n` +
-        `   If you truly intend to add another admin, set BOOTSTRAP_ADMIN_ALLOW_WHEN_ADMIN_EXISTS=YES.`
+        `   Set BOOTSTRAP_ADMIN_ALLOW_WHEN_ADMIN_EXISTS=YES in .env to allow adding another.`
       );
     }
+    console.log(`⚠️  Warning: ${existingAdminCount} ADMIN user(s) already exist in the DB.\n`);
   }
 
-  // --- Duplicate detection (fail-fast, no silent skipping) ---
+  // ── Collect inputs interactively ─────────────────────────────────────────
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
-  // 1. Find any user matching the provided email
+  const emailRaw = (await ask(rl, "📧 Admin email address        : ")).trim().toLowerCase();
+  if (!emailRaw || !emailRaw.includes("@")) {
+    rl.close();
+    throw new Error("❌ Invalid email address.");
+  }
+
+  rl.close(); // must close before raw-mode password prompt
+
+  const password = await askPassword("🔑 Password (hidden input)    : ");
+  if (password.length < 8) {
+    throw new Error("❌ Password must be at least 8 characters.");
+  }
+
+  const rl2 = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const nameRaw  = (await ask(rl2, "👤 Full name   (Enter to skip): ")).trim() || null;
+  const phoneRaw = (await ask(rl2, "📱 Phone +255…  (Enter to skip): ")).trim() || null;
+  rl2.close();
+
+  const email = emailRaw;
+  const name  = nameRaw;
+  const phone = phoneRaw;
+
+  // ── Review summary ───────────────────────────────────────────────────────
+  console.log("\n──────────────────────────────────────────────");
+  console.log("  Review before proceeding:");
+  console.log(`  Email : ${email}`);
+  console.log(`  Name  : ${name  ?? "(not set)"}`);
+  console.log(`  Phone : ${phone ?? "(not set)"}`);
+  console.log("──────────────────────────────────────────────");
+
+  const rl3 = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const confirm = (await ask(rl3, "\n  Type YES to confirm: ")).trim().replace(/[^A-Za-z]/g, "").toUpperCase();
+  rl3.close();
+
+  if (confirm !== "YES") {
+    console.log("Aborted — nothing was changed.");
+    return;
+  }
+
+  // ── Duplicate detection ──────────────────────────────────────────────────
   const byEmail = await (prisma.user as any).findUnique({
     where: { email },
     select: { id: true, role: true, email: true, phone: true, name: true },
   });
 
-  // 2. Find any user matching the provided phone (if supplied)
   const byPhone = phone
     ? await (prisma.user as any).findUnique({
         where: { phone },
@@ -98,56 +150,45 @@ async function main() {
       })
     : null;
 
-  // 3. If phone belongs to a DIFFERENT account than the email match → hard stop
   if (byPhone && byEmail && byPhone.id !== byEmail.id) {
     throw new Error(
-      `\n❌ CONFLICT DETECTED — Cannot continue safely:\n` +
-      `   Email  "${email}" belongs to userId=${byEmail.id} (${byEmail.role})\n` +
-      `   Phone  "${phone}" belongs to userId=${byPhone.id} (${byPhone.role}) — a DIFFERENT account\n\n` +
-      `   Fix options:\n` +
-      `   A) Use a different phone number that isn't already registered\n` +
-      `   B) Leave BOOTSTRAP_ADMIN_PHONE blank to skip phone assignment\n` +
-      `   C) Use the email that already owns that phone number`
+      `\n❌ CONFLICT: Email "${email}" is userId=${byEmail.id} but phone "${phone}" belongs to userId=${byPhone.id} — different accounts.\n` +
+      `   Use a different phone number or leave phone blank.`
     );
   }
 
-  // 4. If only a phone match exists (no email match) → that account owns this phone, must use its email
   if (byPhone && !byEmail) {
     throw new Error(
       `\n❌ PHONE ALREADY REGISTERED:\n` +
-      `   Phone "${phone}" is already used by userId=${byPhone.id} (role=${byPhone.role}, email=${byPhone.email ?? "none"})\n\n` +
-      `   Fix options:\n` +
-      `   A) Set BOOTSTRAP_ADMIN_EMAIL=${byPhone.email ?? "<their email>"} to promote that existing account\n` +
-      `   B) Use a different phone number\n` +
-      `   C) Leave BOOTSTRAP_ADMIN_PHONE blank`
+      `   Phone "${phone}" belongs to userId=${byPhone.id} (${byPhone.role}, email=${byPhone.email ?? "none"}).\n` +
+      `   Use a different phone number or leave phone blank.`
     );
   }
 
-  // --- From here: either byEmail matches (same account as byPhone), or neither exists ---
-
-  const existing = byEmail; // byPhone.id === byEmail.id if both set
+  const existing = byEmail;
   const passwordHash = await hashPassword(password);
   const now = new Date();
 
+  // ── Promote existing user ────────────────────────────────────────────────
   if (existing) {
     const currentRole = String(existing.role ?? "").toUpperCase();
 
     if (currentRole === "ADMIN") {
-      console.log(`\nℹ️  No changes made — userId=${existing.id} (${email}) is already an ADMIN.`);
+      console.log(`\nℹ️  No changes — userId=${existing.id} (${email}) is already an ADMIN.`);
       return;
     }
 
-    if (!allowPromoteExisting) {
+    const allowPromote = String(process.env.BOOTSTRAP_ADMIN_PROMOTE_EXISTING ?? "")
+      .trim().toUpperCase() === "YES";
+
+    if (!allowPromote) {
       throw new Error(
-        `\n❌ EMAIL ALREADY REGISTERED:\n` +
-        `   "${email}" exists as userId=${existing.id} with role=${currentRole}\n\n` +
-        `   This account will NOT be touched unless you explicitly allow promotion.\n` +
-        `   To promote this existing user to ADMIN, set BOOTSTRAP_ADMIN_PROMOTE_EXISTING=YES`
+        `\n❌ EMAIL ALREADY REGISTERED as userId=${existing.id} (role=${currentRole}).\n` +
+        `   To promote this existing user to ADMIN, set BOOTSTRAP_ADMIN_PROMOTE_EXISTING=YES in .env`
       );
     }
 
-    console.log(`\n⚠️  Existing account found: userId=${existing.id} | role=${currentRole} | email=${email}`);
-    console.log(`   Promoting to ADMIN as requested (BOOTSTRAP_ADMIN_PROMOTE_EXISTING=YES)...`);
+    console.log(`\n⚠️  Existing account userId=${existing.id} | role=${currentRole} — promoting to ADMIN...`);
 
     await prisma.user.update({
       where: { id: existing.id },
@@ -161,16 +202,13 @@ async function main() {
       } as any,
     });
 
-    console.log(`✅ Promoted userId=${existing.id} to ADMIN successfully.`);
-    await sendAdminNotifications(
-      { id: existing.id, email, name: name || null, phone: phone || null },
-      false
-    );
+    console.log(`✅ Promoted userId=${existing.id} to ADMIN.`);
+    await sendAdminNotifications({ id: existing.id, email, name, phone }, false);
     return;
   }
 
-  // --- No existing user — create fresh admin ---
-  console.log(`\n Creating new ADMIN account for ${email}...`);
+  // ── Create new admin ─────────────────────────────────────────────────────
+  console.log(`\n  Creating new ADMIN account...`);
 
   const created = await prisma.user.create({
     data: {
@@ -194,7 +232,7 @@ async function main() {
 
 main()
   .then(() => process.exit(0))
-  .catch((err) => {
-    console.error("❌ bootstrap-admin failed:", err?.message || err);
+  .catch(err => {
+    console.error("\n❌ bootstrap-admin failed:", err?.message || err);
     process.exit(1);
   });
