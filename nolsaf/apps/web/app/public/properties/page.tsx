@@ -50,6 +50,7 @@ import {
   UserCircle,
   SearchX,
   ArrowRight,
+  Clock,
 } from "lucide-react";
 import SectionSeparator from "../../../components/SectionSeparator";
 import { REGIONS } from "@/lib/tzRegions";
@@ -263,6 +264,36 @@ export default function PropertiesPage() {
   const [searchInput, setSearchInput] = useState(q);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Recent searches — persisted in localStorage (max 4)
+  const RECENT_KEY = "nolsaf_recent_searches";
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(RECENT_KEY);
+      if (stored) setRecentSearches(JSON.parse(stored));
+    } catch {}
+  }, []);
+  const addRecentSearch = useCallback((term: string) => {
+    const trimmed = term.trim();
+    if (!trimmed) return;
+    setRecentSearches((prev) => {
+      const next = [trimmed, ...prev.filter((s) => s.toLowerCase() !== trimmed.toLowerCase())].slice(0, 4);
+      try { localStorage.setItem(RECENT_KEY, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }, []);
+  const removeRecentSearch = useCallback((term: string) => {
+    setRecentSearches((prev) => {
+      const next = prev.filter((s) => s.toLowerCase() !== term.toLowerCase());
+      try { localStorage.setItem(RECENT_KEY, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }, []);
+  const clearRecentSearches = useCallback(() => {
+    setRecentSearches([]);
+    try { localStorage.removeItem(RECENT_KEY); } catch {}
+  }, []);
+
   // Sync local input when URL q changes externally (e.g. chip removal, clear filters)
   useEffect(() => { setSearchInput(q); }, [q]);
 
@@ -270,8 +301,9 @@ export default function PropertiesPage() {
     const next = new URLSearchParams(qp.toString());
     next.set("page", "1");
     setOrDelete(next, "q", value);
+    if (value.trim()) addRecentSearch(value.trim());
     router.push(`/public/properties?${next.toString()}`);
-  }, [qp, router]);
+  }, [qp, router, addRecentSearch]);
 
   const onSearchChange = useCallback((value: string) => {
     setSearchInput(value);
@@ -761,6 +793,50 @@ export default function PropertiesPage() {
               </div>
             )}
           </div>
+
+          {/* ── Recent Searches ── */}
+          {recentSearches.length > 0 && !loading && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-slate-400" />
+                  <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Recent searches</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={clearRecentSearches}
+                  className="text-[11px] font-medium text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  Clear all
+                </button>
+              </div>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+                {recentSearches.map((term) => (
+                  <button
+                    key={term}
+                    type="button"
+                    onClick={() => { setSearchInput(term); pushSearch(term); }}
+                    className="group relative flex items-center gap-2.5 rounded-xl border border-slate-100 bg-white hover:bg-emerald-50 hover:border-emerald-200 px-3.5 py-2.5 text-left transition-all duration-200 shadow-sm"
+                  >
+                    <Search className="w-3.5 h-3.5 text-slate-300 group-hover:text-emerald-500 flex-shrink-0 transition-colors" />
+                    <span className="flex-1 min-w-0 text-[12.5px] font-medium text-slate-700 group-hover:text-emerald-700 truncate">
+                      {term}
+                    </span>
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => { e.stopPropagation(); removeRecentSearch(term); }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); removeRecentSearch(term); } }}
+                      className="opacity-0 group-hover:opacity-100 flex-shrink-0 p-0.5 rounded-full hover:bg-slate-200 transition-all"
+                      aria-label={`Remove ${term}`}
+                    >
+                      <X className="w-3 h-3 text-slate-400" />
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {error && (
             <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-800 text-sm">
