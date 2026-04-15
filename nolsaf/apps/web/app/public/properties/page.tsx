@@ -264,33 +264,32 @@ export default function PropertiesPage() {
   const [searchInput, setSearchInput] = useState(q);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Recent searches — persisted in localStorage (max 4)
-  const RECENT_KEY = "nolsaf_recent_searches";
-  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  // Recently viewed properties — persisted in localStorage (max 4)
+  type RecentProperty = { title: string; slug: string; location: string; primaryImage: string | null; basePrice: number | null; currency: string | null; services?: any };
+  const RECENT_KEY = "nolsaf_recent_properties";
+  const [recentProperties, setRecentProperties] = useState<RecentProperty[]>([]);
   useEffect(() => {
     try {
       const stored = localStorage.getItem(RECENT_KEY);
-      if (stored) setRecentSearches(JSON.parse(stored));
+      if (stored) setRecentProperties(JSON.parse(stored));
     } catch {}
   }, []);
-  const addRecentSearch = useCallback((term: string) => {
-    const trimmed = term.trim();
-    if (!trimmed) return;
-    setRecentSearches((prev) => {
-      const next = [trimmed, ...prev.filter((s) => s.toLowerCase() !== trimmed.toLowerCase())].slice(0, 4);
+  const addRecentProperty = useCallback((prop: RecentProperty) => {
+    setRecentProperties((prev) => {
+      const next = [prop, ...prev.filter((p) => p.slug !== prop.slug)].slice(0, 4);
       try { localStorage.setItem(RECENT_KEY, JSON.stringify(next)); } catch {}
       return next;
     });
   }, []);
-  const removeRecentSearch = useCallback((term: string) => {
-    setRecentSearches((prev) => {
-      const next = prev.filter((s) => s.toLowerCase() !== term.toLowerCase());
+  const removeRecentProperty = useCallback((slug: string) => {
+    setRecentProperties((prev) => {
+      const next = prev.filter((p) => p.slug !== slug);
       try { localStorage.setItem(RECENT_KEY, JSON.stringify(next)); } catch {}
       return next;
     });
   }, []);
-  const clearRecentSearches = useCallback(() => {
-    setRecentSearches([]);
+  const clearRecentProperties = useCallback(() => {
+    setRecentProperties([]);
     try { localStorage.removeItem(RECENT_KEY); } catch {}
   }, []);
 
@@ -301,9 +300,8 @@ export default function PropertiesPage() {
     const next = new URLSearchParams(qp.toString());
     next.set("page", "1");
     setOrDelete(next, "q", value);
-    if (value.trim()) addRecentSearch(value.trim());
     router.push(`/public/properties?${next.toString()}`);
-  }, [qp, router, addRecentSearch]);
+  }, [qp, router]);
 
   const onSearchChange = useCallback((value: string) => {
     setSearchInput(value);
@@ -794,45 +792,35 @@ export default function PropertiesPage() {
             )}
           </div>
 
-          {/* ── Recent Searches ── */}
-          {recentSearches.length > 0 && !loading && (
+          {/* ── Recently Viewed Properties ── */}
+          {recentProperties.length > 0 && !loading && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
                   <Clock className="w-3.5 h-3.5 text-slate-400" />
-                  <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Recent searches</span>
+                  <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Recently viewed</span>
                 </div>
                 <button
                   type="button"
-                  onClick={clearRecentSearches}
+                  onClick={clearRecentProperties}
                   className="text-[11px] font-medium text-slate-400 hover:text-slate-600 transition-colors"
                 >
                   Clear all
                 </button>
               </div>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-                {recentSearches.map((term) => (
-                  <button
-                    key={term}
-                    type="button"
-                    onClick={() => { setSearchInput(term); pushSearch(term); }}
-                    className="group relative flex items-center gap-2.5 rounded-xl border border-slate-100 bg-white hover:bg-emerald-50 hover:border-emerald-200 px-3.5 py-2.5 text-left transition-all duration-200 shadow-sm"
-                  >
-                    <Search className="w-3.5 h-3.5 text-slate-300 group-hover:text-emerald-500 flex-shrink-0 transition-colors" />
-                    <span className="flex-1 min-w-0 text-[12.5px] font-medium text-slate-700 group-hover:text-emerald-700 truncate">
-                      {term}
-                    </span>
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      onClick={(e) => { e.stopPropagation(); removeRecentSearch(term); }}
-                      onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); removeRecentSearch(term); } }}
-                      className="opacity-0 group-hover:opacity-100 flex-shrink-0 p-0.5 rounded-full hover:bg-slate-200 transition-all"
-                      aria-label={`Remove ${term}`}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                {recentProperties.map((rp) => (
+                  <div key={rp.slug} className="relative">
+                    <PublicApprovedPropertyCard p={rp} systemCommission={systemCommission} />
+                    <button
+                      type="button"
+                      onClick={() => removeRecentProperty(rp.slug)}
+                      className="absolute top-2 right-2 z-10 p-1 rounded-full bg-white/80 backdrop-blur-sm border border-slate-200 shadow-sm hover:bg-red-50 hover:border-red-200 transition-all"
+                      aria-label={`Remove ${rp.title}`}
                     >
-                      <X className="w-3 h-3 text-slate-400" />
-                    </span>
-                  </button>
+                      <X className="w-3 h-3 text-slate-500 hover:text-red-500" />
+                    </button>
+                  </div>
                 ))}
               </div>
             </div>
@@ -1075,6 +1063,7 @@ export default function PropertiesPage() {
                               whileInView={{ opacity: 1, x: 0, scale: 1 }}
                               viewport={{ once: false, amount: 0.3, root: undefined }}
                               transition={{ duration: 0.35, delay: idx * 0.04, ease: [0.22, 0.8, 0.32, 1] }}
+                              onClick={() => addRecentProperty({ title: p.title, slug: p.slug, location: p.location, primaryImage: p.primaryImage, basePrice: p.basePrice, currency: p.currency, services: p.services })}
                             >
                               <PublicApprovedPropertyCard p={p} systemCommission={systemCommission} />
                             </motion.div>
@@ -1127,6 +1116,7 @@ export default function PropertiesPage() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.40, delay: Math.min(idx, 9) * 0.06, ease: [0.2, 0.8, 0.2, 1] }}
+                    onClick={() => addRecentProperty({ title: p.title, slug: p.slug, location: p.location, primaryImage: p.primaryImage, basePrice: p.basePrice, currency: p.currency, services: p.services })}
                   >
                     <PublicApprovedPropertyCard p={p} systemCommission={systemCommission} />
                   </motion.div>
