@@ -48,7 +48,6 @@ import {
   Headphones,
   Wallet,
   UserCircle,
-  Compass,
   SearchX,
   ArrowRight,
 } from "lucide-react";
@@ -799,12 +798,29 @@ export default function PropertiesPage() {
               {/* Suggestions */}
               <div className="px-5 pb-5">
                 <div className="grid grid-cols-2 gap-2.5">
-                  {[
-                    { label: "Clear all filters", sub: "Start fresh", action: () => clearFilters() },
-                    { label: "Try Zanzibar", sub: "Island getaways", action: () => { const n = new URLSearchParams(); n.set("city", "Zanzibar"); n.set("page", "1"); n.set("pageSize", "24"); router.push(`/public/properties?${n.toString()}`); } },
-                    { label: "Try Dar es Salaam", sub: "City stays", action: () => { const n = new URLSearchParams(); n.set("city", "Dar es Salaam"); n.set("page", "1"); n.set("pageSize", "24"); router.push(`/public/properties?${n.toString()}`); } },
-                    { label: "View all stays", sub: "No filters", action: () => router.push("/public/properties") },
-                  ].map((s) => (
+                  {(() => {
+                    const currentCity = getParam(qp, "city").toLowerCase();
+                    const cityOptions = [
+                      { city: "Zanzibar", sub: "Island getaways" },
+                      { city: "Dar es Salaam", sub: "City stays" },
+                      { city: "Arusha", sub: "Safari gateway" },
+                      { city: "Mwanza", sub: "Lakeside charm" },
+                      { city: "Dodoma", sub: "Capital hub" },
+                      { city: "Nairobi", sub: "Cross-border" },
+                    ].filter((c) => c.city.toLowerCase() !== currentCity);
+                    const suggestions: Array<{ label: string; sub: string; action: () => void }> = [
+                      { label: "Clear all filters", sub: "Start fresh", action: () => clearFilters() },
+                    ];
+                    cityOptions.slice(0, 2).forEach((c) => {
+                      suggestions.push({
+                        label: `Try ${c.city}`,
+                        sub: c.sub,
+                        action: () => { const n = new URLSearchParams(); n.set("city", c.city); n.set("page", "1"); n.set("pageSize", "24"); router.push(`/public/properties?${n.toString()}`); },
+                      });
+                    });
+                    suggestions.push({ label: "View all stays", sub: "No filters", action: () => router.push("/public/properties") });
+                    return suggestions;
+                  })().map((s) => (
                     <button
                       key={s.label}
                       type="button"
@@ -833,23 +849,23 @@ export default function PropertiesPage() {
               {/* Header */}
               <div className="text-center py-4">
                 <div className="mx-auto w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center mb-3">
-                  <Compass className="w-5 h-5 text-emerald-600" />
+                  <Globe className="w-5 h-5 text-emerald-600" />
                 </div>
-                <h3 className="text-base font-bold text-slate-900">Your journey starts here</h3>
+                <h3 className="text-base font-bold text-slate-900">We&apos;re building something big</h3>
                 <p className="text-[13px] text-slate-500 mt-1 max-w-md mx-auto leading-relaxed">
-                  NoLSAF is more than stays — it&apos;s accommodation, transport, payments, and local support, all in one platform built for the modern traveler.
+                  No approved stays yet- we&apos;re actively onboarding properties, partners, and drivers across Africa. Here&apos;s what NoLSAF brings to the table.
                 </p>
               </div>
 
               {/* Platform feature cards — 2 cols mobile, 3 cols desktop */}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {([
-                  { title: "Unique Stays", desc: "Hotels, villas, lodges & hidden gems across East Africa", Icon: Hotel },
-                  { title: "Solo-Friendly", desc: "Curated experiences for solo travelers exploring Africa", Icon: UserCircle },
+                  { title: "Unique Stays", desc: "Hotels, villas, lodges & hidden gems — from Dar to Nairobi and beyond", Icon: Hotel },
+                  { title: "Solo-Friendly", desc: "Curated experiences for independent travelers exploring Africa", Icon: UserCircle },
                   { title: "Seamless Transport", desc: "Airport pickups, city rides & inter-city travel on demand", Icon: Car },
-                  { title: "Mobile Payments", desc: "Pay with M-Pesa, Tigo Pesa, cards — all secure & instant", Icon: Wallet },
+                  { title: "Mobile Payments", desc: "M-Pesa, Tigo Pesa, Airtel Money, cards — secure & instant", Icon: Wallet },
                   { title: "24/7 Support", desc: "Real human support whenever you need it, wherever you are", Icon: Headphones },
-                  { title: "Multi-Destination", desc: "Tanzania, Kenya, Zanzibar & expanding across the continent", Icon: Globe },
+                  { title: "Pan-African Vision", desc: "Starting in East Africa, expanding across the entire continent", Icon: Globe },
                 ] as const).map((item, i) => (
                   <motion.div
                     key={item.title}
@@ -867,7 +883,7 @@ export default function PropertiesPage() {
                 ))}
               </div>
 
-              {/* Solo traveler callout */}
+              {/* Onboarding banner */}
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -878,14 +894,14 @@ export default function PropertiesPage() {
                   <MapPin className="w-4 h-4 text-emerald-600" />
                 </div>
                 <div>
-                  <p className="text-[12px] font-semibold text-slate-800">Traveling solo?</p>
+                  <p className="text-[12px] font-semibold text-slate-800">Properties are on the way</p>
                   <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">
-                    NoLSAF is designed for independent travelers who want authentic local experiences without the hassle. Book stays, arrange transport, and pay — all from one app.
+                    We&apos;re verifying and onboarding quality stays across Tanzania, Kenya, Zanzibar, and more. Be among the first — register as an owner or driver today.
                   </p>
                 </div>
               </motion.div>
 
-              {/* CTAs */}
+              {/* CTAs — Owner + Driver */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -893,18 +909,18 @@ export default function PropertiesPage() {
                 className="flex flex-col sm:flex-row items-center justify-center gap-2.5 pb-2"
               >
                 <a
-                  href="/account/register"
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm hover:shadow transition-all duration-200"
-                >
-                  <Compass className="w-3.5 h-3.5" />
-                  Start exploring
-                </a>
-                <a
                   href="/account/register?role=owner"
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-sm hover:shadow transition-all duration-200"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm hover:shadow transition-all duration-200 no-underline"
                 >
                   <Building2 className="w-3.5 h-3.5" />
-                  List your property
+                  Register as owner
+                </a>
+                <a
+                  href="/account/register?role=driver"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-sm hover:shadow transition-all duration-200 no-underline"
+                >
+                  <Car className="w-3.5 h-3.5" />
+                  Register as driver
                 </a>
               </motion.div>
             </motion.div>
