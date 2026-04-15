@@ -786,7 +786,7 @@ export default function FloatingChatWidget({ hiddenRoutes: _hiddenRoutes = [], p
                 </span>
                 <span className="flex items-center gap-1.5 text-[10.5px] font-medium text-white/65 tracking-wide uppercase">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/90 flex-shrink-0 shadow-sm" />
-                  AI Travel Assistant
+                  Travel Guide
                 </span>
               </div>
 
