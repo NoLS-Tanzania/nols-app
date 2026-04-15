@@ -152,7 +152,7 @@ function getEnglishResponse(input: string): { response: string; type: ResponseTy
   }
 
   // === BOOKING - HOW TO ===
-  if (/(how (can|do|to) (i )?(book|reserve|make a (booking|reservation))|booking process|steps to book|i want to book|book now|book a|make a booking|reserve|can i book|is it possible to book)/.test(input)) {
+  if (/(\bbooking|\bbookings|\bbook\b|\breserve|\breservation|how (can|do|to) (i )?(book|reserve|make a (booking|reservation))|booking process|steps to book|i want to book|book now|book a|make a booking|can i book|is it possible to book)/.test(input)) {
     return { response: "Booking on NoLSAF is simple! 🏨\n\n1️⃣ Browse properties: search by city, region, or property type\n2️⃣ Select your dates & number of guests\n3️⃣ Choose a room/unit and review pricing\n4️⃣ Pick your payment method (M-Pesa, card, bank transfer)\n5️⃣ Confirm & receive your booking reference\n\nYou'll get an email confirmation with all details. The property owner is also notified and can message you directly.\n\n💡 Tip: Filter by amenities, price range, and nearby services to find exactly what you need!", type: "other" };
   }
 

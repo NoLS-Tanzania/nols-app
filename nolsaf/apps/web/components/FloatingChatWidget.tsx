@@ -731,13 +731,16 @@ export default function FloatingChatWidget({ hiddenRoutes: _hiddenRoutes = [], p
             position: "fixed",
             ...positionStyles,
             height: isMinimized ? "56px" : "520px",
-            boxShadow: "0 16px_72px_rgba(0,0,0,0.22),0_4px_24px_rgba(2,102,94,0.18)",
+            boxShadow: "0 20px 60px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(10, 25, 41, 0.25)",
           }}
         >
           {/* ── Header ── */}
           <div
             className="relative flex-shrink-0 flex items-center justify-between px-4 py-3.5 cursor-move select-none touch-none overflow-hidden"
-            style={{ background: "linear-gradient(135deg,#0b1f5c 0%,#0a5c82 52%,#02665e 100%)" }}
+            style={{ 
+              background: "linear-gradient(135deg, #0a1929 0%, #0d3b52 45%, #0e7490 100%)",
+              borderBottom: "1px solid rgba(255,255,255,0.08)"
+            }}
             onMouseDown={handleMouseDown}
             onTouchStart={handleTouchStart}
             onClick={() => {
@@ -745,65 +748,70 @@ export default function FloatingChatWidget({ hiddenRoutes: _hiddenRoutes = [], p
               resetAutoCloseTimer();
             }}
           >
-            {/* Decorative glow */}
-            <div className="pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full opacity-25"
-              style={{ background: "radial-gradient(circle,#38bdf8,transparent 70%)" }} />
-            <div className="pointer-events-none absolute -left-4 bottom-0 h-12 w-12 rounded-full opacity-15"
-              style={{ background: "radial-gradient(circle,#34d399,transparent 70%)" }} />
+            {/* Decorative subtle glow overlay */}
+            <div className="pointer-events-none absolute inset-0 opacity-30"
+              style={{ background: "radial-gradient(ellipse at top right, rgba(6, 182, 212, 0.15), transparent 50%)" }} />
 
             {/* Left — avatar + name */}
-            <div className="relative flex items-center gap-3">
+            <div className="relative flex items-center gap-3 z-10">
               {/* Twiga avatar */}
               <div className="relative flex-shrink-0">
                 <div
-                  className="h-10 w-10 rounded-2xl flex items-center justify-center text-xl shadow-lg"
+                  className="h-11 w-11 rounded-2xl flex items-center justify-center text-2xl shadow-xl backdrop-blur-sm transition-transform hover:scale-105"
                   style={{
-                    background: "linear-gradient(145deg,rgba(251,191,36,0.22) 0%,rgba(52,211,153,0.18) 60%,rgba(14,116,144,0.22) 100%)",
-                    border: "1.5px solid rgba(255,255,255,0.22)",
-                    boxShadow: "0 2px 12px rgba(0,0,0,0.25),inset 0 1px 0 rgba(255,255,255,0.15)",
+                    background: "linear-gradient(135deg, rgba(6, 182, 212, 0.15), rgba(52, 211, 153, 0.12))",
+                    border: "1.5px solid rgba(255, 255, 255, 0.15)",
+                    boxShadow: "0 4px 20px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.1)",
                   }}
                 >
                   🦒
                 </div>
-                {/* Pulse online dot */}
-                <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3 items-center justify-center">
-                  <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-50 animate-ping" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400 border border-[#0a5c82]" />
+                {/* Online indicator - refined */}
+                <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center">
+                  <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-40 animate-ping" />
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-lg ring-2 ring-[#0a1929]" />
                 </span>
               </div>
 
               {/* Name + subtitle */}
-              <div className="flex flex-col leading-none gap-[5px]">
+              <div className="flex flex-col leading-tight gap-1">
                 <span
-                  className="text-[15px] font-extrabold tracking-[-0.01em] text-white"
-                  style={{ textShadow: "0 1px 8px rgba(0,0,0,0.25)" }}
+                  className="text-[16px] font-bold tracking-tight text-white"
+                  style={{ 
+                    textShadow: "0 2px 12px rgba(0, 0, 0, 0.4)",
+                    fontFamily: "system-ui, -apple-system, sans-serif"
+                  }}
                 >
                   Twiga
                 </span>
-                <span className="flex items-center gap-1.5 text-[10px] font-medium text-white/60 tracking-wide uppercase">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/80 flex-shrink-0" />
+                <span className="flex items-center gap-1.5 text-[10.5px] font-medium text-white/65 tracking-wide uppercase">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/90 flex-shrink-0 shadow-sm" />
                   AI Travel Assistant
                 </span>
               </div>
 
               {isMinimized && unreadCount > 0 && (
-                <span className="ml-1 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-rose-500 px-1.5 text-[10px] font-bold text-white shadow">
+                <span className="ml-2 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-gradient-to-br from-rose-500 to-rose-600 px-1.5 text-[10px] font-bold text-white shadow-lg ring-2 ring-white/20 animate-pulse">
                   {unreadCount > 9 ? "9+" : unreadCount}
                 </span>
               )}
             </div>
 
             {/* Right — controls */}
-            <div className="relative flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+            <div className="relative flex items-center gap-2 z-10" onClick={(e) => e.stopPropagation()}>
               {!isMinimized && (
                 <select
                   value={language}
                   onChange={(e) => handleLanguageChange(e.target.value as SupportedLanguage)}
-                  className="text-white text-[11px] px-2 py-1 rounded-lg focus:outline-none focus:ring-1 focus:ring-white/30"
-                  style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)" }}
+                  className="text-white text-[11px] font-medium px-2.5 py-1.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-400/40 transition-all cursor-pointer hover:bg-white/15"
+                  style={{ 
+                    background: "rgba(255, 255, 255, 0.1)", 
+                    border: "1px solid rgba(255, 255, 255, 0.15)",
+                    backdropFilter: "blur(8px)"
+                  }}
                 >
                   {LANGUAGES.map((lang) => (
-                    <option key={lang.code} value={lang.code} className="text-gray-900 bg-white">
+                    <option key={lang.code} value={lang.code} className="text-gray-900 bg-white font-normal">
                       {lang.flag} {lang.name}
                     </option>
                   ))}
@@ -815,19 +823,27 @@ export default function FloatingChatWidget({ hiddenRoutes: _hiddenRoutes = [], p
                   if (isMinimized) setUnreadCount(0);
                   resetAutoCloseTimer();
                 }}
-                className="h-7 w-7 rounded-lg flex items-center justify-center text-white transition-all hover:scale-110 active:scale-95"
-                style={{ background: "rgba(0,0,0,0.22)", border: "1px solid rgba(255,255,255,0.12)" }}
+                className="h-8 w-8 rounded-lg flex items-center justify-center text-white/80 transition-all hover:bg-white/15 hover:text-white hover:scale-105 active:scale-95"
+                style={{ 
+                  background: "rgba(255, 255, 255, 0.08)", 
+                  border: "1px solid rgba(255, 255, 255, 0.12)",
+                  backdropFilter: "blur(4px)"
+                }}
                 aria-label={isMinimized ? "Expand" : "Minimize"}
               >
                 <Minimize2 className="w-3.5 h-3.5" />
               </button>
               <button
                 onClick={() => setIsOpen(false)}
-                className="h-7 w-7 rounded-lg flex items-center justify-center text-white transition-all hover:scale-110 active:scale-95"
-                style={{ background: "rgba(0,0,0,0.22)", border: "1px solid rgba(255,255,255,0.12)" }}
+                className="h-8 w-8 rounded-lg flex items-center justify-center text-white/80 transition-all hover:bg-rose-500/20 hover:text-white hover:scale-105 active:scale-95"
+                style={{ 
+                  background: "rgba(255, 255, 255, 0.08)", 
+                  border: "1px solid rgba(255, 255, 255, 0.12)",
+                  backdropFilter: "blur(4px)"
+                }}
                 aria-label="Close"
               >
-                <X className="w-3.5 h-3.5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -1032,7 +1048,7 @@ export default function FloatingChatWidget({ hiddenRoutes: _hiddenRoutes = [], p
             resetAutoCloseTimer();
           }}
           aria-label="Open chat with Twiga"
-          className="nolsaf-chat-fab group relative rounded-full bg-transparent p-0 border-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-teal-400/60"
+          className="nolsaf-chat-fab group relative rounded-full bg-transparent p-0 border-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-cyan-400/60"
           style={{
             position: "fixed",
             ...(position === "bottom-left" ? { bottom: "20px", left: "20px" } : { bottom: "20px", right: "20px" }),
@@ -1040,20 +1056,20 @@ export default function FloatingChatWidget({ hiddenRoutes: _hiddenRoutes = [], p
         >
           {/* Pulse ring */}
           <span className="absolute inset-0 rounded-full animate-ping opacity-20"
-            style={{ background: "linear-gradient(135deg,#02b4f5,#02665e)" }} />
+            style={{ background: "linear-gradient(135deg, #0e7490, #0d3b52)" }} />
           {/* Outer glow */}
-          <span className="pointer-events-none absolute -inset-3 rounded-full blur-xl opacity-50 transition-opacity duration-300 group-hover:opacity-75"
-            style={{ background: "radial-gradient(circle,#02b4f5,#02665e,transparent 70%)" }} />
+          <span className="pointer-events-none absolute -inset-3 rounded-full blur-xl opacity-40 transition-opacity duration-300 group-hover:opacity-60"
+            style={{ background: "radial-gradient(circle, #0e7490, #0d3b52, transparent 70%)" }} />
           {/* Inner button */}
           <span
-            className="relative flex h-[52px] w-[52px] items-center justify-center rounded-full text-white shadow-[0_8px_32px_rgba(2,102,94,0.35)] transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-[0_16px_48px_rgba(2,102,94,0.45)] group-active:scale-95"
-            style={{ background: "linear-gradient(135deg,#0a5c82 0%,#02665e 60%,#059669 100%)" }}
+            className="relative flex h-[54px] w-[54px] items-center justify-center rounded-full text-white shadow-[0_12px_40px_rgba(10,25,41,0.4)] transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-[0_16px_56px_rgba(14,116,144,0.5)] group-active:scale-95"
+            style={{ background: "linear-gradient(135deg, #0a1929 0%, #0d3b52 50%, #0e7490 100%)" }}
           >
-            <MessageCircle className="w-5 h-5" />
+            <MessageCircle className="w-6 h-6" />
           </span>
           {/* Unread badge */}
           {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 z-10 h-5 min-w-[20px] rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white flex items-center justify-center shadow">
+            <span className="absolute -top-1 -right-1 z-10 h-5 min-w-[20px] rounded-full bg-gradient-to-br from-rose-500 to-rose-600 px-1 text-[10px] font-bold text-white flex items-center justify-center shadow-lg ring-2 ring-white animate-pulse">
               {unreadCount > 9 ? "9+" : unreadCount}
             </span>
           )}
