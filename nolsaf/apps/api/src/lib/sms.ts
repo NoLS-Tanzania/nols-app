@@ -10,9 +10,7 @@
  *   TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_PHONE_NUMBER
  */
 
-import { createRequire } from 'module';
 import { canReceiveNotifications } from './notificationEligibility.js';
-const _require = createRequire(import.meta.url);
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface ATRecipient {
@@ -63,8 +61,9 @@ async function sendViaAfricasTalking(to: string, message: string): Promise<SmsRe
     return { success: false, error: 'Africa\'s Talking credentials missing (AFRICASTALKING_USERNAME / AFRICASTALKING_API_KEY)' };
   }
 
-  // The package is CommonJS — use createRequire for ESM interop
-  const AfricasTalking = _require('africastalking') as
+  // The package is CommonJS
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const AfricasTalking = require('africastalking') as
     (cfg: { username: string; apiKey: string }) => {
       SMS: { send(opts: { to: string[]; message: string; from?: string }): Promise<ATSendResponse> };
     };

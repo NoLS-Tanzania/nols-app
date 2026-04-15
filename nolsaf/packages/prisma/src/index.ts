@@ -17,6 +17,14 @@ function createMariaDbAdapterFromDatabaseUrl(databaseUrl: string) {
     allowPublicKeyRetrievalParam !== 'false' &&
     allowPublicKeyRetrievalParam !== '0'
 
+  // Enable SSL if sslaccept param is present or if NODE_ENV is production
+  const sslAccept = url.searchParams.get('sslaccept')
+  const ssl = sslAccept
+    ? { rejectUnauthorized: sslAccept !== 'accept_invalid_certs' }
+    : process.env.NODE_ENV === 'production'
+      ? { rejectUnauthorized: false }
+      : undefined
+
   return new PrismaMariaDb({
     host: url.hostname,
     port: url.port ? Number(url.port) : 3306,
@@ -24,6 +32,7 @@ function createMariaDbAdapterFromDatabaseUrl(databaseUrl: string) {
     password: url.password ? decodeURIComponent(url.password) : undefined,
     database: database || undefined,
     allowPublicKeyRetrieval,
+    ssl,
     connectTimeout: 10000,   // 10s — Railway remote host needs more than 1s default
     socketTimeout:  60000,   // 60s — keep long-running queries alive
     connectionLimit: 10,

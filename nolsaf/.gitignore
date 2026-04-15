@@ -46,3 +46,29 @@ secrets/
 # OS
 .DS_Store
 Thumbs.db
+
+# Elastic Beanstalk Files
+.elasticbeanstalk/*
+!.elasticbeanstalk/*.cfg.yml
+!.elasticbeanstalk/*.global.yml
+.ebignore
+Procfile
+.platform/
+
+# AWS / Deployment guides with credentials
+API_DEPLOYMENT_GUIDE.md
+*DEPLOYMENT_GUIDE*.md
+
+# AWS scripts (contain RDS endpoints / sensitive params)
+scripts/create-rds-database.ps1
+scripts/deploy-api.ps1
+scripts/export-database-for-aws.ps1
+scripts/import-to-aws-rds.ps1
+scripts/reset-rds-database.ps1
+scripts/test-rds-connection.ps1
+
+# Database dumps & backups
+*.sql.gz
+*.dump
+remote-backup.sql
+backups/
