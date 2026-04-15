@@ -9,7 +9,7 @@ async function main() {
     select: { id: true, name: true, email: true, phone: true, role: true },
     orderBy: { id: 'asc' }
   });
-  users.forEach(u =>
+  users.forEach((u: { id: number; role: string; email: string | null; phone: string | null; name: string | null }) =>
     console.log(u.id + ' | ' + u.role.padEnd(8) + ' | ' + u.email + ' | ' + (u.phone ?? '-') + ' | ' + (u.name ?? '-'))
   );
   process.exit(0);

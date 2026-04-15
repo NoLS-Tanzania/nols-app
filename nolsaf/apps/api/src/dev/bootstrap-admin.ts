@@ -1,8 +1,11 @@
 import { config } from "dotenv";
 import { resolve } from "path";
 
-// Load .env from apps/api/ — works in both CJS (tsc) and tsx
-config({ path: resolve(process.cwd(), ".env") });
+// Resolve .env relative to THIS script file (src/dev/bootstrap-admin.ts → ../../.env = apps/api/.env)
+// __dirname is the CJS global for the current file's directory — always correct regardless of cwd.
+const envPath = resolve(__dirname, "../../.env");
+config({ path: envPath });
+console.log(`[bootstrap] Loading env from: ${envPath}`);
 
 import { prisma } from "@nolsaf/prisma";
 import { hashPassword } from "../lib/crypto.js";

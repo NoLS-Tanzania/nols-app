@@ -147,7 +147,7 @@ export default function DriverPayoutsPage() {
         <div class="watermark">NoLSAF Inc Limited</div>
         <div class="header">
           <div class="company">NoLSAF Inc Limited</div>
-          <div>PSSSF Tower Floor 23 | info@nolsapp.com | +255736766726</div>
+          <div>PSSSF Tower Floor 23 | info@nolsaf.com | +255736766726</div>
         </div>
         <div class="hr"></div>
 
@@ -229,7 +229,7 @@ export default function DriverPayoutsPage() {
           <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; color:#0f172a; padding:12mm; box-sizing:border-box; width:148mm; min-height:210mm; position:relative; font-size:12px;">
             <div style="text-align:center; font-size:12px;">
               <div style="font-weight:700; font-size:16px">NoLSAF Inc Limited</div>
-              <div style="font-size:11px;">PSSSF Tower Floor 23 | info@nolsapp.com | +255736766726</div>
+              <div style="font-size:11px;">PSSSF Tower Floor 23 | info@nolsaf.com | +255736766726</div>
             </div>
             <div style="border-top:1.5px solid #e6eef6; margin:10px 0 14px"></div>
 
