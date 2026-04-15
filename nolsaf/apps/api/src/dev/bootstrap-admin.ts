@@ -72,33 +72,79 @@ async function main() {
       .toUpperCase() === "YES";
     if (!allowWhenAdminExists) {
       throw new Error(
-        `Refusing to run: database already has ${existingAdminCount} ADMIN user(s). ` +
-          "If you really intend to add another admin via this bootstrap script, set BOOTSTRAP_ADMIN_ALLOW_WHEN_ADMIN_EXISTS=YES."
+        `\n❌ BLOCKED: Database already has ${existingAdminCount} ADMIN user(s).\n` +
+        `   This prevents accidental duplicate admins.\n` +
+        `   If you truly intend to add another admin, set BOOTSTRAP_ADMIN_ALLOW_WHEN_ADMIN_EXISTS=YES.`
       );
     }
   }
 
-  const existing = await prisma.user.findFirst({
-    where: { OR: [{ email }, ...(phone ? [{ phone }] : [])] },
-    select: { id: true, role: true, email: true },
+  // --- Duplicate detection (fail-fast, no silent skipping) ---
+
+  // 1. Find any user matching the provided email
+  const byEmail = await (prisma.user as any).findUnique({
+    where: { email },
+    select: { id: true, role: true, email: true, phone: true, name: true },
   });
 
+  // 2. Find any user matching the provided phone (if supplied)
+  const byPhone = phone
+    ? await (prisma.user as any).findUnique({
+        where: { phone },
+        select: { id: true, role: true, email: true, phone: true, name: true },
+      })
+    : null;
+
+  // 3. If phone belongs to a DIFFERENT account than the email match → hard stop
+  if (byPhone && byEmail && byPhone.id !== byEmail.id) {
+    throw new Error(
+      `\n❌ CONFLICT DETECTED — Cannot continue safely:\n` +
+      `   Email  "${email}" belongs to userId=${byEmail.id} (${byEmail.role})\n` +
+      `   Phone  "${phone}" belongs to userId=${byPhone.id} (${byPhone.role}) — a DIFFERENT account\n\n` +
+      `   Fix options:\n` +
+      `   A) Use a different phone number that isn't already registered\n` +
+      `   B) Leave BOOTSTRAP_ADMIN_PHONE blank to skip phone assignment\n` +
+      `   C) Use the email that already owns that phone number`
+    );
+  }
+
+  // 4. If only a phone match exists (no email match) → that account owns this phone, must use its email
+  if (byPhone && !byEmail) {
+    throw new Error(
+      `\n❌ PHONE ALREADY REGISTERED:\n` +
+      `   Phone "${phone}" is already used by userId=${byPhone.id} (role=${byPhone.role}, email=${byPhone.email ?? "none"})\n\n` +
+      `   Fix options:\n` +
+      `   A) Set BOOTSTRAP_ADMIN_EMAIL=${byPhone.email ?? "<their email>"} to promote that existing account\n` +
+      `   B) Use a different phone number\n` +
+      `   C) Leave BOOTSTRAP_ADMIN_PHONE blank`
+    );
+  }
+
+  // --- From here: either byEmail matches (same account as byPhone), or neither exists ---
+
+  const existing = byEmail; // byPhone.id === byEmail.id if both set
   const passwordHash = await hashPassword(password);
   const now = new Date();
 
   if (existing) {
     const currentRole = String(existing.role ?? "").toUpperCase();
+
     if (currentRole === "ADMIN") {
-      console.log(`✅ Admin already exists: userId=${existing.id} email=${email}`);
+      console.log(`\nℹ️  No changes made — userId=${existing.id} (${email}) is already an ADMIN.`);
       return;
     }
 
     if (!allowPromoteExisting) {
       throw new Error(
-        `User already exists (userId=${existing.id}, role=${currentRole}). ` +
-          "Refusing to promote automatically. Set BOOTSTRAP_ADMIN_PROMOTE_EXISTING=YES if you want to promote this existing user to ADMIN."
+        `\n❌ EMAIL ALREADY REGISTERED:\n` +
+        `   "${email}" exists as userId=${existing.id} with role=${currentRole}\n\n` +
+        `   This account will NOT be touched unless you explicitly allow promotion.\n` +
+        `   To promote this existing user to ADMIN, set BOOTSTRAP_ADMIN_PROMOTE_EXISTING=YES`
       );
     }
+
+    console.log(`\n⚠️  Existing account found: userId=${existing.id} | role=${currentRole} | email=${email}`);
+    console.log(`   Promoting to ADMIN as requested (BOOTSTRAP_ADMIN_PROMOTE_EXISTING=YES)...`);
 
     await prisma.user.update({
       where: { id: existing.id },
@@ -112,43 +158,31 @@ async function main() {
       } as any,
     });
 
-    console.log(`✅ Promoted existing user to ADMIN: userId=${existing.id} email=${email}`);
-    
-    // Send notifications
+    console.log(`✅ Promoted userId=${existing.id} to ADMIN successfully.`);
     await sendAdminNotifications(
       { id: existing.id, email, name: name || null, phone: phone || null },
       false
     );
-    
     return;
   }
 
-  // Check if phone is already taken by a different account (skip it on create to avoid unique conflict)
-  let phoneToUse = phone;
-  if (phone) {
-    const phoneOwner = await prisma.user.findUnique({ where: { phone }, select: { id: true } });
-    if (phoneOwner) {
-      console.warn(`⚠️  Phone ${phone} is already used by userId=${phoneOwner.id}. Skipping phone on new account.`);
-      phoneToUse = null;
-    }
-  }
+  // --- No existing user — create fresh admin ---
+  console.log(`\n Creating new ADMIN account for ${email}...`);
 
   const created = await prisma.user.create({
     data: {
       email,
       name,
-      phone: phoneToUse,
+      phone,
       role: "ADMIN" as any,
       passwordHash: passwordHash as any,
       emailVerifiedAt: now as any,
-      phoneVerifiedAt: phoneToUse ? (now as any) : (undefined as any),
+      phoneVerifiedAt: phone ? (now as any) : (undefined as any),
     } as any,
     select: { id: true, email: true, role: true, name: true, phone: true },
   });
 
-  console.log(`✅ Created ADMIN: userId=${created.id} email=${created.email}`);
-  
-  // Send notifications
+  console.log(`✅ Created ADMIN: userId=${created.id} | email=${created.email} | phone=${created.phone ?? "none"}`);
   await sendAdminNotifications(
     { id: created.id, email: created.email, name: created.name || name, phone: created.phone || phone },
     true
