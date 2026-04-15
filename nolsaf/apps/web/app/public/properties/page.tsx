@@ -933,8 +933,8 @@ export default function PropertiesPage() {
                 <div className="mx-auto w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center mb-3">
                   <Globe className="w-5 h-5 text-emerald-600" />
                 </div>
-                <h3 className="text-base font-bold text-slate-900">We&apos;re building something big</h3>
-                <p className="text-[13px] text-slate-500 mt-1 max-w-md mx-auto leading-relaxed">
+                <h3 className="text-lg sm:text-xl font-bold text-slate-900">We&apos;re building something big</h3>
+                <p className="text-sm text-slate-500 mt-1.5 max-w-lg mx-auto leading-relaxed">
                   No approved stays yet- we&apos;re actively onboarding properties, partners, and drivers across Africa. Here&apos;s what NoLSAF brings to the table.
                 </p>
               </div>
@@ -945,7 +945,7 @@ export default function PropertiesPage() {
                   { title: "Unique Stays", desc: "Hotels, villas, lodges & hidden gems — from Dar to Nairobi and beyond", Icon: Hotel },
                   { title: "Solo-Friendly", desc: "Curated experiences for independent travelers exploring Africa", Icon: UserCircle },
                   { title: "Seamless Transport", desc: "Airport pickups, city rides & inter-city travel on demand", Icon: Car },
-                  { title: "Mobile Payments", desc: "M-Pesa, Tigo Pesa, Airtel Money, cards — secure & instant", Icon: Wallet },
+                  { title: "Mobile Payments", desc: "M-Pesa, Tigo Pesa, Airtel Money, cards - secure & instant", Icon: Wallet },
                   { title: "24/7 Support", desc: "Real human support whenever you need it, wherever you are", Icon: Headphones },
                   { title: "Pan-African Vision", desc: "Starting in East Africa, expanding across the entire continent", Icon: Globe },
                 ] as const).map((item, i) => (
@@ -956,11 +956,11 @@ export default function PropertiesPage() {
                     transition={{ duration: 0.35, delay: 0.07 * i }}
                     className="group rounded-xl border border-slate-100 bg-white p-3.5 hover:shadow-md hover:border-emerald-100 transition-all duration-300"
                   >
-                    <div className="w-9 h-9 rounded-lg bg-emerald-50 flex items-center justify-center mb-2.5 group-hover:bg-emerald-100 transition-colors duration-300">
-                      <item.Icon className="w-4.5 h-4.5 text-emerald-600" strokeWidth={1.8} />
+                    <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center mb-3 group-hover:bg-emerald-100 transition-colors duration-300">
+                      <item.Icon className="w-5 h-5 text-emerald-600" strokeWidth={1.8} />
                     </div>
-                    <h4 className="text-[13px] font-semibold text-slate-800 leading-tight">{item.title}</h4>
-                    <p className="text-[10.5px] text-slate-400 mt-0.5 leading-snug">{item.desc}</p>
+                    <h4 className="text-sm font-semibold text-slate-800 leading-tight">{item.title}</h4>
+                    <p className="text-xs text-slate-400 mt-1 leading-snug">{item.desc}</p>
                   </motion.div>
                 ))}
               </div>
@@ -976,8 +976,8 @@ export default function PropertiesPage() {
                   <MapPin className="w-4 h-4 text-emerald-600" />
                 </div>
                 <div>
-                  <p className="text-[12px] font-semibold text-slate-800">Properties are on the way</p>
-                  <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">
+                  <p className="text-sm font-semibold text-slate-800">Properties are on the way</p>
+                  <p className="text-xs text-slate-500 leading-relaxed mt-0.5">
                     We&apos;re verifying and onboarding quality stays across Tanzania, Kenya, Zanzibar, and more. Be among the first — register as an owner or driver today.
                   </p>
                 </div>
@@ -992,16 +992,16 @@ export default function PropertiesPage() {
               >
                 <a
                   href="/account/register?role=owner"
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm hover:shadow transition-all duration-200 no-underline"
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold shadow-sm hover:shadow transition-all duration-200 no-underline"
                 >
-                  <Building2 className="w-3.5 h-3.5" />
+                  <Building2 className="w-4 h-4" />
                   Register as owner
                 </a>
                 <a
                   href="/account/register?role=driver"
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-sm hover:shadow transition-all duration-200 no-underline"
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-semibold shadow-sm hover:shadow transition-all duration-200 no-underline"
                 >
-                  <Car className="w-3.5 h-3.5" />
+                  <Car className="w-4 h-4" />
                   Register as driver
                 </a>
               </motion.div>
