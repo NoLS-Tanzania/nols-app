@@ -62,7 +62,6 @@ async function sendViaAfricasTalking(to: string, message: string): Promise<SmsRe
   }
 
   // The package is CommonJS
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const AfricasTalking = require('africastalking') as
     (cfg: { username: string; apiKey: string }) => {
       SMS: { send(opts: { to: string[]; message: string; from?: string }): Promise<ATSendResponse> };

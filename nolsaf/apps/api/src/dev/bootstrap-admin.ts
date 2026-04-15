@@ -1,4 +1,9 @@
-import "dotenv/config";
+import { config } from "dotenv";
+import { resolve } from "path";
+
+// Load .env from apps/api/ — works in both CJS (tsc) and tsx
+config({ path: resolve(process.cwd(), ".env") });
+
 import { prisma } from "@nolsaf/prisma";
 import { hashPassword } from "../lib/crypto.js";
 import { sendSms } from "../lib/sms.js";
@@ -41,7 +46,8 @@ async function sendAdminNotifications(user: { id: number; email: string; name: s
 
 async function main() {
   // Safety: require an explicit confirmation so this can't be run accidentally.
-  const confirm = String(process.env.BOOTSTRAP_ADMIN_CONFIRM ?? "").trim().toUpperCase();
+  // Strip non-alphabetic chars to handle any encoding artefacts (e.g. trailing \r or :)
+  const confirm = String(process.env.BOOTSTRAP_ADMIN_CONFIRM ?? "").replace(/[^A-Za-z]/g, "").toUpperCase();
   if (confirm !== "YES") {
     throw new Error(
       "Refusing to run. Set BOOTSTRAP_ADMIN_CONFIRM=YES to confirm you want to create/promote an admin account."
@@ -72,8 +78,8 @@ async function main() {
     }
   }
 
-  const existing = await prisma.user.findUnique({
-    where: { email },
+  const existing = await prisma.user.findFirst({
+    where: { OR: [{ email }, ...(phone ? [{ phone }] : [])] },
     select: { id: true, role: true, email: true },
   });
 
@@ -117,15 +123,25 @@ async function main() {
     return;
   }
 
+  // Check if phone is already taken by a different account (skip it on create to avoid unique conflict)
+  let phoneToUse = phone;
+  if (phone) {
+    const phoneOwner = await prisma.user.findUnique({ where: { phone }, select: { id: true } });
+    if (phoneOwner) {
+      console.warn(`⚠️  Phone ${phone} is already used by userId=${phoneOwner.id}. Skipping phone on new account.`);
+      phoneToUse = null;
+    }
+  }
+
   const created = await prisma.user.create({
     data: {
       email,
       name,
-      phone,
+      phone: phoneToUse,
       role: "ADMIN" as any,
       passwordHash: passwordHash as any,
       emailVerifiedAt: now as any,
-      phoneVerifiedAt: phone ? (now as any) : (undefined as any),
+      phoneVerifiedAt: phoneToUse ? (now as any) : (undefined as any),
     } as any,
     select: { id: true, email: true, role: true, name: true, phone: true },
   });
