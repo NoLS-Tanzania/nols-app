@@ -2,9 +2,20 @@ import { config } from "dotenv";
 import { resolve } from "path";
 import * as readline from "readline";
 
-// Load .env for provider keys (RESEND_API_KEY, etc.) and flags only — NOT for sensitive admin data.
+// Load base .env first, then optionally .env.production to override DATABASE_URL / RESEND_API_KEY.
+// Usage:  npm run bootstrap:admin              → uses local .env (local DB)
+//         npm run bootstrap:admin -- --production → also loads .env.production (prod DB + keys)
 const envPath = resolve(__dirname, "../../.env");
 config({ path: envPath, override: true });
+
+const isProd = process.argv.includes("--production");
+if (isProd) {
+  const prodEnvPath = resolve(__dirname, "../../.env.production");
+  config({ path: prodEnvPath, override: true });
+  console.log("[bootstrap] Mode: PRODUCTION (loaded .env.production)");
+} else {
+  console.log("[bootstrap] Mode: local dev  (tip: use --production flag to target prod DB)");
+}
 
 import { prisma } from "@nolsaf/prisma";
 import { hashPassword } from "../lib/crypto.js";

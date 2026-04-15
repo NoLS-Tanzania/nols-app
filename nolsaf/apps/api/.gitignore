@@ -1,4 +1,9 @@
 
+# Local env files (never commit secrets)
+.env
+.env.*
+!.env.example
+
 # Elastic Beanstalk Files
 .elasticbeanstalk/*
 !.elasticbeanstalk/*.cfg.yml
