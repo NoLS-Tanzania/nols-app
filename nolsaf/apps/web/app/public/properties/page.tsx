@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
@@ -258,6 +258,29 @@ export default function PropertiesPage() {
   const qp = useMemo(() => buildQuery(sp), [sp]);
   const q = qp.get("q")?.trim() || "";
   const page = Math.max(1, Number(qp.get("page") || "1"));
+
+  // Local search state — decoupled from URL so typing is free
+  const [searchInput, setSearchInput] = useState(q);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Sync local input when URL q changes externally (e.g. chip removal, clear filters)
+  useEffect(() => { setSearchInput(q); }, [q]);
+
+  const pushSearch = useCallback((value: string) => {
+    const next = new URLSearchParams(qp.toString());
+    next.set("page", "1");
+    setOrDelete(next, "q", value);
+    router.push(`/public/properties?${next.toString()}`);
+  }, [qp, router]);
+
+  const onSearchChange = useCallback((value: string) => {
+    setSearchInput(value);
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = setTimeout(() => pushSearch(value), 500);
+  }, [pushSearch]);
+
+  // Cleanup timer on unmount
+  useEffect(() => () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); }, []);
 
   const [data, setData] = useState<ListResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -638,30 +661,25 @@ export default function PropertiesPage() {
 
                   {/* Integrated search bar */}
                   <div
-                    className="relative z-10 mt-5 flex flex-row items-center gap-1.5 rounded-full p-1.5 transition-all focus-within:ring-1 focus-within:ring-white/20"
+                    className="relative z-10 mt-5 flex flex-row items-center gap-1 sm:gap-1.5 rounded-full p-1 sm:p-1.5 transition-all focus-within:ring-1 focus-within:ring-white/20"
                     style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)' }}
                   >
                     <div className="relative flex-1 min-w-0">
                       <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'rgba(255,255,255,0.4)' }} />
                       <input
-                        value={getParam(qp, "q")}
-                        onChange={(e) => {
-                          const next = new URLSearchParams(qp.toString());
-                          next.set("page", "1");
-                          setOrDelete(next, "q", e.target.value);
-                          router.push(`/public/properties?${next.toString()}`);
-                        }}
+                        value={searchInput}
+                        onChange={(e) => onSearchChange(e.target.value)}
                         placeholder="Search by region, district, city, title…"
-                        className="w-full min-w-0 rounded-full bg-transparent border border-transparent px-3 py-2.5 pl-10 text-sm text-white placeholder:text-white/40 focus:outline-none"
+                        className="w-full min-w-0 rounded-full bg-transparent border border-transparent px-3 py-2 sm:py-2.5 pl-9 sm:pl-10 text-[13px] sm:text-sm text-white placeholder:text-white/40 focus:outline-none"
                       />
                     </div>
-                    <div className="flex items-center gap-1 flex-none pl-1.5" style={{ borderLeft: '1px solid rgba(255,255,255,0.14)' }}>
+                    <div className="flex items-center gap-0.5 sm:gap-1 flex-none pl-1 sm:pl-1.5" style={{ borderLeft: '1px solid rgba(255,255,255,0.14)' }}>
                       <button
                         type="button"
                         onClick={openFilters}
                         aria-label="Filters"
                         title="Filters"
-                        className="relative flex-none h-10 w-10 rounded-full bg-transparent inline-flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 active:bg-white/15 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+                        className="relative flex-none h-9 w-9 sm:h-10 sm:w-10 rounded-full bg-transparent inline-flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 active:bg-white/15 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
                       >
                         <SlidersHorizontal className="w-4 h-4" />
                         {appliedChips.length > 0 && (
@@ -694,7 +712,7 @@ export default function PropertiesPage() {
                           <button
                             type="button"
                             onClick={() => setSort(nextSort(cur))}
-                            className="h-10 w-10 rounded-full bg-transparent flex items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+                            className="h-9 w-9 sm:h-10 sm:w-10 rounded-full bg-transparent flex items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
                             style={{ color: sortColor }}
                             onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.10)')}
                             onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
