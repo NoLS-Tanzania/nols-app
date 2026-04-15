@@ -25,7 +25,7 @@ const LANGUAGES: { code: SupportedLanguage; name: string; flag: string }[] = [
   { code: "zh", name: "中文", flag: "🇨🇳" },
 ];
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000";
+const API_BASE_URL = "";
 
 interface FloatingChatWidgetProps {
   /** Hide the widget on specific routes */
