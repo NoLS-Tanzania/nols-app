@@ -532,6 +532,26 @@ const getMe: RequestHandler = async (req, res) => {
 router.get("/me", getMe as unknown as RequestHandler);
 
 /**
+ * GET /account/referral
+ * Returns the authenticated user's referral code and link.
+ */
+const getReferral: RequestHandler = async (req, res) => {
+  const userId = getUserId(req as AuthedRequest);
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, referralCode: true },
+    });
+    if (!user) return sendError(res, 404, "User not found");
+    const code = user.referralCode || String(user.id);
+    sendSuccess(res, { code, link: `${process.env.CORS_ORIGIN || "https://www.nolsaf.com"}/r/${encodeURIComponent(code)}` });
+  } catch {
+    sendError(res, 500, "Failed to fetch referral info");
+  }
+};
+router.get("/referral", getReferral as unknown as RequestHandler);
+
+/**
  * PUT /account/documents
  * Upserts a document record for the authenticated user.
  * Used by web portals to attach required onboarding/KYC files.
