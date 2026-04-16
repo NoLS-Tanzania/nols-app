@@ -718,6 +718,27 @@ const topCities: RequestHandler = async (req, res) => {
 };
 
 router.get("/top-cities", topCities);
+
+/**
+ * GET /api/public/properties/:id/booking-count
+ * Returns total number of confirmed/paid bookings for a property.
+ */
+router.get("/:id/booking-count", (async (req, res) => {
+  const id = parseInt((req.params as any).id, 10);
+  if (isNaN(id)) return res.status(400).json({ error: "invalid_id" });
+  try {
+    const count = await prisma.booking.count({
+      where: {
+        propertyId: id,
+        status: { in: ["CONFIRMED", "CHECKED_IN", "CHECKED_OUT", "NEW"] },
+      },
+    });
+    return res.json({ count });
+  } catch (err: any) {
+    return res.status(500).json({ error: "failed" });
+  }
+}) as RequestHandler);
+
 router.get("/:idOrSlug", getPublicProperty);
 
 export default router;

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { MapPin, ImageIcon, CheckCircle2 } from "lucide-react";
+import { MapPin, ImageIcon } from "lucide-react";
 import { motion } from "framer-motion";
 
 import VerifiedIcon from "./VerifiedIcon";
@@ -32,11 +32,9 @@ function fmtMoney(amount: number | null | undefined, currency?: string | null) {
 export default function PublicApprovedPropertyCard({
   p,
   systemCommission = 0,
-  isBooked = false,
 }: {
   p: PublicApprovedPropertyCardData;
   systemCommission?: number;
-  isBooked?: boolean;
 }) {
   const href = `/public/properties/${p.slug}`;
 
@@ -89,13 +87,6 @@ export default function PublicApprovedPropertyCard({
               <PhotoPlaceholder />
             )}
 
-            {/* Your booking badge — top-left, authenticated users only */}
-            {isBooked && (
-              <div className="absolute top-2 left-2 z-10 inline-flex items-center gap-1 rounded-full bg-white/90 backdrop-blur-sm border border-emerald-300 px-2 py-0.5 text-[10px] font-bold text-emerald-700 shadow-sm" aria-label="You have a booking at this property">
-                <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" aria-hidden />
-                Your booking
-              </div>
-            )}
             {/* Verification badge — top-right */}
             <VerifiedIcon />
           </div>

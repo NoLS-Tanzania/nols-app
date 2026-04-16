@@ -233,7 +233,7 @@ router.get("/property-slugs", (async (req: AuthedRequest, res) => {
       where: {
         AND: [
           buildCustomerBookingWhere({ id: userId }, legacyBookingIds),
-          { status: { in: ["CONFIRMED", "CHECKED_IN", "CHECKED_OUT"] } },
+          { status: { in: ["NEW", "CONFIRMED", "CHECKED_IN", "CHECKED_OUT"] } },
         ],
       },
       select: {

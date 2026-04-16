@@ -1,0 +1,1 @@
+﻿ERROR: UnicodeEncodeError - 'charmap' codec can't encode character '\u2192' in position 11546: character maps to <undefined>
