@@ -59,9 +59,21 @@ function rewriteInFile(content, rewriteMap) {
 (async () => {
   const files = await walk(distDir);
 
+  // The compiled local db singleton — @nolsaf/prisma is replaced with this.
+  const dbJsPath = path.resolve(distDir, "src", "lib", "db.js");
+
   for (const file of files) {
     const fileDir = path.dirname(file);
-    const src = await fs.readFile(file, "utf8");
+    let src = await fs.readFile(file, "utf8");
+
+    // ── Rewrite @nolsaf/prisma → relative path to the local db.js ──────────
+    if (src.includes('"@nolsaf/prisma"') || src.includes("'@nolsaf/prisma'")) {
+      let rel = path.relative(fileDir, dbJsPath).replace(/\\/g, "/");
+      if (!rel.startsWith(".")) rel = "./" + rel;
+      src = src
+        .replaceAll('"@nolsaf/prisma"', `"${rel}"`)
+        .replaceAll("'@nolsaf/prisma'", `'${rel}'`);
+    }
 
     // Capture static import/export specifiers.
     // Examples:
@@ -87,10 +99,9 @@ function rewriteInFile(content, rewriteMap) {
       if (resolved) rewriteMap.set(spec, resolved);
     }
 
-    if (rewriteMap.size === 0) continue;
-
-    const out = rewriteInFile(src, rewriteMap);
-    if (out !== src) {
+    const out = rewriteMap.size > 0 ? rewriteInFile(src, rewriteMap) : src;
+    const original = await fs.readFile(file, "utf8");
+    if (out !== original) {
       await fs.writeFile(file, out, "utf8");
     }
   }

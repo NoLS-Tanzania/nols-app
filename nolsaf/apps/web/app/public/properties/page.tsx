@@ -340,6 +340,27 @@ export default function PropertiesPage() {
     };
   }, []);
 
+  // Booked property slugs — only for authenticated users
+  const [bookedSlugs, setBookedSlugs] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      try {
+        const meRes = await fetch("/api/account/me", { credentials: "include", cache: "no-store" });
+        if (!meRes.ok) return; // not logged in — skip silently
+        const slugsRes = await fetch("/api/customer/bookings/property-slugs", { credentials: "include", cache: "no-store" });
+        if (slugsRes.ok && mounted) {
+          const json = await slugsRes.json();
+          if (Array.isArray(json?.slugs)) setBookedSlugs(new Set(json.slugs));
+        }
+      } catch {
+        // Silently fail — badge is cosmetic, not critical
+      }
+    };
+    load();
+    return () => { mounted = false; };
+  }, []);
+
   // Filters UI state
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filtersShown, setFiltersShown] = useState(false);
@@ -794,16 +815,18 @@ export default function PropertiesPage() {
 
           {/* ── Recently Viewed Properties ── */}
           {recentProperties.length > 0 && !loading && (
-            <div className="space-y-2">
+            <div className="rounded-2xl border border-amber-100/80 bg-amber-50/40 p-3 sm:p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-slate-400" />
-                  <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Recently viewed</span>
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-lg bg-white border border-amber-200/70 shadow-sm">
+                    <Clock className="w-3 h-3 text-amber-500" />
+                  </span>
+                  <span className="text-[11px] font-bold text-amber-700/80 uppercase tracking-wider">Recently viewed</span>
                 </div>
                 <button
                   type="button"
                   onClick={clearRecentProperties}
-                  className="text-[11px] font-medium text-slate-400 hover:text-slate-600 transition-colors"
+                  className="text-[11px] font-medium text-slate-400 hover:text-rose-500 transition-colors"
                 >
                   Clear all
                 </button>
@@ -811,7 +834,7 @@ export default function PropertiesPage() {
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                 {recentProperties.map((rp) => (
                   <div key={rp.slug} className="relative">
-                    <PublicApprovedPropertyCard p={rp} systemCommission={systemCommission} />
+                    <PublicApprovedPropertyCard p={rp} systemCommission={systemCommission} isBooked={bookedSlugs.has(rp.slug)} />
                     <button
                       type="button"
                       onClick={() => removeRecentProperty(rp.slug)}
@@ -834,7 +857,7 @@ export default function PropertiesPage() {
 
           {loading && (
             <div className="relative">
-            <div className="flex sm:grid overflow-x-auto sm:overflow-visible snap-x snap-mandatory sm:snap-none scroll-smooth gap-3 sm:gap-5 pb-2 sm:pb-0 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="flex sm:grid overflow-x-auto sm:overflow-visible snap-x snap-mandatory sm:snap-none scroll-smooth gap-3 sm:gap-5 pb-2 sm:pb-0 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid-cols-2 lg:grid-cols-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {Array.from({ length: 10 }).map((_, i) => (
                 <div key={i} className="snap-start shrink-0 w-[calc(50vw-20px)] sm:w-auto rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-sm">
                   {/* Title bar above image */}
@@ -945,7 +968,7 @@ export default function PropertiesPage() {
                   { title: "Unique Stays", desc: "Hotels, villas, lodges & hidden gems — from Dar to Nairobi and beyond", Icon: Hotel },
                   { title: "Solo-Friendly", desc: "Curated experiences for independent travelers exploring Africa", Icon: UserCircle },
                   { title: "Seamless Transport", desc: "Airport pickups, city rides & inter-city travel on demand", Icon: Car },
-                  { title: "Mobile Payments", desc: "M-Pesa, Tigo Pesa, Airtel Money, cards - secure & instant", Icon: Wallet },
+                  { title: "Mobile Payments", desc: "M-Pesa, Mixx by Yas, Airtel Money, cards - secure & instant", Icon: Wallet },
                   { title: "24/7 Support", desc: "Real human support whenever you need it, wherever you are", Icon: Headphones },
                   { title: "Pan-African Vision", desc: "Starting in East Africa, expanding across the entire continent", Icon: Globe },
                 ] as const).map((item, i) => (
@@ -1065,7 +1088,7 @@ export default function PropertiesPage() {
                               transition={{ duration: 0.35, delay: idx * 0.04, ease: [0.22, 0.8, 0.32, 1] }}
                               onClick={() => addRecentProperty({ title: p.title, slug: p.slug, location: p.location, primaryImage: p.primaryImage, basePrice: p.basePrice, currency: p.currency, services: p.services })}
                             >
-                              <PublicApprovedPropertyCard p={p} systemCommission={systemCommission} />
+                              <PublicApprovedPropertyCard p={p} systemCommission={systemCommission} isBooked={bookedSlugs.has(p.slug)} />
                             </motion.div>
                           ))}
                         </div>
@@ -1109,7 +1132,26 @@ export default function PropertiesPage() {
               </div>
 
               {/* ── Desktop: full grid (all items) ── */}
-              <div className="hidden sm:grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-5">
+              <div className="hidden sm:flex items-center gap-2 mb-3">
+                <span className="inline-flex items-center justify-center w-6 h-6 rounded-lg bg-emerald-600 shadow-sm">
+                  <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" /></svg>
+                </span>
+                <span className="text-[13px] font-bold text-slate-800 tracking-tight">All properties</span>
+                <span className="ml-1 text-[11px] font-normal text-slate-400">{total} listed</span>
+              </div>
+              <div className="hidden sm:flex items-center justify-between gap-3 mb-1">
+                <div className="flex items-center gap-2">
+                  <span className="inline-block w-1 h-4 rounded-full" style={{ background: 'linear-gradient(to bottom, #10b981, #02665e)' }} />
+                  <span className="text-[11px] font-semibold text-slate-700 tracking-wide">
+                    {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)}
+                    <span className="font-normal text-slate-400"> of {total} properties</span>
+                  </span>
+                </div>
+                {totalPages > 1 && (
+                  <span className="text-[10px] font-medium text-slate-400 tracking-wider uppercase">Page {page}/{totalPages}</span>
+                )}
+              </div>
+              <div className="hidden sm:grid grid-cols-2 lg:grid-cols-5 gap-5">
                 {(data?.items ?? []).map((p, idx) => (
                   <motion.div
                     key={p.id}
@@ -1118,7 +1160,7 @@ export default function PropertiesPage() {
                     transition={{ duration: 0.40, delay: Math.min(idx, 9) * 0.06, ease: [0.2, 0.8, 0.2, 1] }}
                     onClick={() => addRecentProperty({ title: p.title, slug: p.slug, location: p.location, primaryImage: p.primaryImage, basePrice: p.basePrice, currency: p.currency, services: p.services })}
                   >
-                    <PublicApprovedPropertyCard p={p} systemCommission={systemCommission} />
+                    <PublicApprovedPropertyCard p={p} systemCommission={systemCommission} isBooked={bookedSlugs.has(p.slug)} />
                   </motion.div>
                 ))}
               </div>

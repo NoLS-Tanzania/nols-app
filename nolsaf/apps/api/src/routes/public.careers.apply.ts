@@ -4,7 +4,9 @@ import { prisma } from "@nolsaf/prisma";
 import multer from "multer";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { notifyAdmins } from "../lib/notifications.js";
-import { AFRICA_NATIONALITY_VALUES, AGENT_SPECIALIZATION_VALUES } from "@nolsaf/shared";
+// Inlined from @nolsaf/shared to avoid workspace dependency on EB
+const AFRICA_NATIONALITY_VALUES = new Set(["Tanzania","Kenya","Uganda","Rwanda","Burundi","Democratic Republic of the Congo","Djibouti","Eritrea","Ethiopia","Somalia","South Sudan","Angola","Botswana","Eswatini","Lesotho","Madagascar","Malawi","Mauritius","Mozambique","Namibia","South Africa","Zambia","Zimbabwe"]);
+const AGENT_SPECIALIZATION_VALUES = new Set(["Safari Tours","Beach Holidays","Cultural Tours","Mountain Trekking","City Tours","Group Travel","Honeymoon","Family Travel","Luxury Travel","Budget Travel","Corporate Travel","Adventure Travel"]);
 // Generate unique filename
 function generateUniqueId() {
   return Date.now().toString(36) + Math.random().toString(36).substring(2);

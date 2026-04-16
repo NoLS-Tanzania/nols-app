@@ -218,6 +218,49 @@ router.get("/", (async (req: AuthedRequest, res) => {
 }) as RequestHandler);
 
 /**
+ * GET /api/customer/bookings/property-slugs
+ * Returns the derived slugs of all properties the user has a confirmed/paid booking for.
+ * Used by the public listing to show a "Booked" badge on previously-booked properties.
+ */
+router.get("/property-slugs", (async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const userContact = await getUserContact(userId);
+    const tail9 = getTail9Digits(userContact.phone);
+    const legacyBookingIds = tail9 ? await findLegacyBookingIdsByPhoneTail(tail9) : [];
+
+    const bookings = await prisma.booking.findMany({
+      where: {
+        AND: [
+          buildCustomerBookingWhere({ id: userId }, legacyBookingIds),
+          { status: { in: ["CONFIRMED", "CHECKED_IN", "CHECKED_OUT"] } },
+        ],
+      },
+      select: {
+        property: { select: { id: true, title: true } },
+      },
+    });
+
+    // Derive slug the same way publicPropertyDto does: slugify(title) + "-" + id
+    function slugify(s: string) {
+      return String(s || "").toLowerCase().trim()
+        .replace(/[^a-z0-9]+/g, "-").replace(/-+/g, "-").replace(/(^-|-$)/g, "");
+    }
+    const slugs = Array.from(
+      new Set(bookings.map((b) => {
+        const base = slugify(b.property.title);
+        return base ? `${base}-${b.property.id}` : String(b.property.id);
+      }))
+    );
+
+    res.json({ slugs });
+  } catch (err) {
+    console.error("GET /api/customer/bookings/property-slugs error:", err);
+    res.status(500).json({ error: "Failed to load booked properties" });
+  }
+}) as RequestHandler);
+
+/**
  * GET /api/customer/bookings/:id
  * Get detailed booking information including full details
  */

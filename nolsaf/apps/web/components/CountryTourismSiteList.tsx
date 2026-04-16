@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ArrowLeft, TreePine } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import PublicApprovedPropertyCard from "./PublicApprovedPropertyCard";
@@ -81,6 +81,7 @@ export default function CountryTourismSiteList({
   }, [defaultOpenFirst, items.length]);
 
   const [systemCommission, setSystemCommission] = useState<number>(0);
+  const [bookedSlugs, setBookedSlugs] = useState<Set<string>>(new Set());
   const [propertiesBySiteSlug, setPropertiesBySiteSlug] = useState<Record<string, PublicPropertyCard[] | undefined>>({});
   const [loadingBySiteSlug, setLoadingBySiteSlug] = useState<Record<string, boolean | undefined>>({});
   const [errorBySiteSlug, setErrorBySiteSlug] = useState<Record<string, string | undefined>>({});
@@ -107,6 +108,26 @@ export default function CountryTourismSiteList({
     return () => {
       mounted = false;
     };
+  }, []);
+
+  // Booked property slugs — only for authenticated users
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      try {
+        const meRes = await fetch("/api/account/me", { credentials: "include", cache: "no-store" });
+        if (!meRes.ok) return;
+        const slugsRes = await fetch("/api/customer/bookings/property-slugs", { credentials: "include", cache: "no-store" });
+        if (slugsRes.ok && mounted) {
+          const json = await slugsRes.json();
+          if (Array.isArray(json?.slugs)) setBookedSlugs(new Set(json.slugs));
+        }
+      } catch {
+        // Silently fail — badge is cosmetic
+      }
+    };
+    load();
+    return () => { mounted = false; };
   }, []);
 
   const ensurePropertiesLoaded = useCallback(async (siteSlug: string) => {
@@ -221,45 +242,79 @@ export default function CountryTourismSiteList({
               ].join(" ")}
             >
               {isFocusedSingle ? (
-                <div className="px-4 sm:px-5 pt-4 flex justify-center">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!basePath) return;
-                      const qp = new URLSearchParams(sp?.toString() ?? "");
-                      qp.delete("site");
-                      const qs = qp.toString();
-                      router.push(qs ? `${basePath}?${qs}` : basePath, { scroll: false });
+                <div className="relative overflow-hidden rounded-t-2xl bg-white border border-emerald-200/80 shadow-sm">
+                  {/* Emerald dot-grid decoration */}
+                  <div
+                    className="absolute inset-0 pointer-events-none opacity-[0.15]"
+                    style={{
+                      backgroundImage: "radial-gradient(circle, #10b981 1.2px, transparent 1.2px)",
+                      backgroundSize: "20px 20px",
                     }}
-                    className={[
-                      "w-fit max-w-full inline-flex items-center gap-3",
-                      "rounded-full border-0 bg-gradient-to-r from-white/90 via-white/80 to-emerald-50/70 shadow-sm",
-                      "px-5 py-2.5 text-sm font-medium text-slate-900",
-                      "motion-safe:transition motion-safe:duration-200",
-                      "hover:bg-white/95",
-                      "active:scale-[0.99]",
-                      "focus:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200/60",
-                    ].join(" ")}
-                    aria-label={`Clear park filter: ${s.name}`}
-                  >
-                    <span className="min-w-0 truncate max-w-[70vw] sm:max-w-[520px]">{s.name}</span>
-                    {showCountBadge ? (
-                      <span
-                        className={[
-                          "shrink-0 inline-flex items-center justify-center",
-                          "min-w-8 h-6 rounded-full",
-                          loadedProps
-                            ? "bg-emerald-700/10 text-emerald-900 ring-1 ring-emerald-700/15"
-                            : "bg-white/70 text-slate-600 ring-1 ring-slate-200/70",
-                          "px-2 text-[11px] font-semibold tabular-nums",
-                          "motion-safe:transition-colors motion-safe:duration-200",
-                        ].join(" ")}
-                        aria-label={loadedProps ? `Approved properties: ${countLabel}` : "Loading approved properties"}
-                      >
-                        {countLabel}
-                      </span>
-                    ) : null}
-                  </button>
+                    aria-hidden
+                  />
+                  {/* Fade dots out from the left so text stays clean */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-white via-white/60 to-transparent pointer-events-none" aria-hidden />
+
+                  <div className="relative px-5 sm:px-6 pt-4 pb-5">
+                    {/* Back navigation — solid small button */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!basePath) return;
+                        const qp = new URLSearchParams(sp?.toString() ?? "");
+                        qp.delete("site");
+                        const qs = qp.toString();
+                        router.push(qs ? `${basePath}?${qs}` : basePath, { scroll: false });
+                      }}
+                      className="group/back inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                      aria-label="Back to all parks"
+                    >
+                      <ArrowLeft className="h-3 w-3 transition-transform duration-200 group-hover/back:-translate-x-0.5" aria-hidden />
+                      All parks
+                    </button>
+
+                    {/* Park name + status badge */}
+                    <div className="mt-3 flex items-end justify-between gap-4">
+                      <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight leading-tight">
+                        {s.name}
+                      </h2>
+                      {showCountBadge ? (
+                        <span
+                          className={[
+                            "shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 py-1 mb-0.5 text-[11px] font-semibold tabular-nums",
+                            isLoading
+                              ? "bg-slate-100 text-slate-400 animate-pulse"
+                              : loadedProps && loadedProps.length > 0
+                                ? "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200"
+                                : "bg-slate-100 text-slate-400",
+                          ].join(" ")}
+                          aria-label={isLoading ? "Loading properties" : `${countLabel} properties`}
+                        >
+                          {!isLoading && (
+                            <span
+                              className={["h-1.5 w-1.5 rounded-full", loadedProps && loadedProps.length > 0 ? "bg-emerald-500" : "bg-slate-300"].join(" ")}
+                              aria-hidden
+                            />
+                          )}
+                          {isLoading ? "loading…" : `${countLabel} listed`}
+                        </span>
+                      ) : null}
+                    </div>
+
+                    {/* Subtitle */}
+                    <p className="mt-1 text-sm text-slate-500 leading-relaxed">
+                      {s.note
+                        ? s.note
+                        : isLoading
+                          ? "Loading available properties…"
+                          : loadedProps && loadedProps.length > 0
+                            ? `${loadedProps.length} approved propert${loadedProps.length === 1 ? "y" : "ies"} available to book`
+                            : "No listed properties yet — check back soon"}
+                    </p>
+                  </div>
+
+                  {/* Bottom separator */}
+                  <div className="h-px bg-gradient-to-r from-emerald-200/80 via-emerald-100/50 to-transparent" aria-hidden />
                 </div>
               ) : (
                 <button
@@ -377,7 +432,7 @@ export default function CountryTourismSiteList({
                                 ].join(" ")}
                               >
                                 {insideProperties.map((p) => (
-                                  <PublicApprovedPropertyCard key={p.id ?? p.slug} p={p} systemCommission={systemCommission} />
+                                  <PublicApprovedPropertyCard key={p.id ?? p.slug} p={p} systemCommission={systemCommission} isBooked={bookedSlugs.has(p.slug)} />
                                 ))}
                               </div>
                             </div>
@@ -393,7 +448,7 @@ export default function CountryTourismSiteList({
                                 ].join(" ")}
                               >
                                 {nearbyProperties.map((p) => (
-                                  <PublicApprovedPropertyCard key={p.id ?? p.slug} p={p} systemCommission={systemCommission} />
+                                  <PublicApprovedPropertyCard key={p.id ?? p.slug} p={p} systemCommission={systemCommission} isBooked={bookedSlugs.has(p.slug)} />
                                 ))}
                               </div>
                             </div>
@@ -401,9 +456,16 @@ export default function CountryTourismSiteList({
                         </div>
                       </div>
                     ) : !isLoading && !loadError && loadedProps !== undefined ? (
-                      <div className="mt-4 py-5 text-center">
-                        <p className="text-sm font-medium text-slate-600">No approved properties at this park yet.</p>
-                        <p className="mt-1 text-xs text-slate-400">Check back soon — new properties are added regularly.</p>
+                      <div className="mt-4 rounded-2xl bg-emerald-50/60 border border-emerald-100/80 px-5 py-8 flex flex-col items-center text-center gap-3">
+                        <span className="inline-flex items-center justify-center w-11 h-11 rounded-full bg-emerald-100/80 text-emerald-700">
+                          <TreePine className="h-5 w-5" aria-hidden />
+                        </span>
+                        <div>
+                          <p className="text-sm font-semibold text-slate-700">No properties listed yet</p>
+                          <p className="mt-1 text-xs text-slate-500 max-w-[22rem] mx-auto leading-relaxed">
+                            We&apos;re building up listings for this park. Check back soon — properties are added regularly.
+                          </p>
+                        </div>
                       </div>
                     ) : null}
                   </div>
