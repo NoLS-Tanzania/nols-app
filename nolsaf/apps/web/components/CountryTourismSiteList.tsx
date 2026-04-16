@@ -84,6 +84,8 @@ export default function CountryTourismSiteList({
   const [propertiesBySiteSlug, setPropertiesBySiteSlug] = useState<Record<string, PublicPropertyCard[] | undefined>>({});
   const [loadingBySiteSlug, setLoadingBySiteSlug] = useState<Record<string, boolean | undefined>>({});
   const [errorBySiteSlug, setErrorBySiteSlug] = useState<Record<string, string | undefined>>({});
+  // Tracks slugs that have been fetched (or are in-flight) so we never loop on empty/error results
+  const fetchedSlugs = React.useRef<Set<string>>(new Set());
 
   useEffect(() => {
     let mounted = true;
@@ -109,8 +111,10 @@ export default function CountryTourismSiteList({
 
   const ensurePropertiesLoaded = useCallback(async (siteSlug: string) => {
     if (!siteSlug) return;
-    if (propertiesBySiteSlug[siteSlug] && !errorBySiteSlug[siteSlug]) return;
-    if (loadingBySiteSlug[siteSlug]) return;
+    // Use a ref-based guard so this never loops on empty/error results.
+    // [] is falsy, so a state-based check would re-fetch endlessly on empty results.
+    if (fetchedSlugs.current.has(siteSlug)) return;
+    fetchedSlugs.current.add(siteSlug);
 
     setLoadingBySiteSlug((prev) => ({ ...prev, [siteSlug]: true }));
     setErrorBySiteSlug((prev) => ({ ...prev, [siteSlug]: undefined }));
@@ -120,7 +124,7 @@ export default function CountryTourismSiteList({
         `/api/public/properties?tourismSiteSlug=${encodeURIComponent(siteSlug)}`,
         { method: "GET", cache: "no-store", credentials: "include", headers: { Accept: "application/json" } }
       );
-      if (!resp.ok) throw new Error(`Failed to load properties (${resp.status})`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
       const data = (await resp.json()) as { items?: PublicPropertyCard[] };
       const cards = Array.isArray(data?.items) ? data.items : [];
@@ -128,12 +132,26 @@ export default function CountryTourismSiteList({
       setPropertiesBySiteSlug((prev) => ({ ...prev, [siteSlug]: cards }));
     } catch (e: any) {
       console.error("Failed to load park properties", e);
-      setErrorBySiteSlug((prev) => ({ ...prev, [siteSlug]: String(e?.message || "Failed to load properties") }));
+      // Remove from fetched so the user can manually retry
+      fetchedSlugs.current.delete(siteSlug);
+      const msg = String(e?.message || "");
+      const friendly = msg.includes("502") || msg.includes("503") || msg.includes("504")
+        ? "Service temporarily unavailable"
+        : msg || "Failed to load";
+      setErrorBySiteSlug((prev) => ({ ...prev, [siteSlug]: friendly }));
       setPropertiesBySiteSlug((prev) => ({ ...prev, [siteSlug]: [] }));
     } finally {
       setLoadingBySiteSlug((prev) => ({ ...prev, [siteSlug]: false }));
     }
-  }, [errorBySiteSlug, loadingBySiteSlug, propertiesBySiteSlug]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Stable — fetchedSlugs ref used for deduplication
+
+  const retryLoad = useCallback((siteSlug: string) => {
+    setErrorBySiteSlug((prev) => { const n = { ...prev }; delete n[siteSlug]; return n; });
+    setPropertiesBySiteSlug((prev) => { const n = { ...prev }; delete n[siteSlug]; return n; });
+    setLoadingBySiteSlug((prev) => ({ ...prev, [siteSlug]: false }));
+    void ensurePropertiesLoaded(siteSlug);
+  }, [ensurePropertiesLoaded]);
 
   useEffect(() => {
     if (!defaultOpenFirst) return;
@@ -327,9 +345,22 @@ export default function CountryTourismSiteList({
 
                     <div className="mt-3">
                       {isLoading ? (
-                        <div className="text-sm text-slate-600">Loading approved properties…</div>
+                        <div className="space-y-3 animate-pulse">
+                          {[0, 1].map((i) => (
+                            <div key={i} className="h-[88px] rounded-2xl bg-slate-100/90" />
+                          ))}
+                        </div>
                       ) : loadError ? (
-                        <div className="text-sm text-rose-600">{loadError}</div>
+                        <div className="flex flex-col items-start gap-2 rounded-2xl bg-rose-50/70 px-4 py-3">
+                          <p className="text-sm text-rose-700">{loadError} — unable to load properties.</p>
+                          <button
+                            type="button"
+                            onClick={() => retryLoad(siteSlug)}
+                            className="text-xs font-semibold text-emerald-700 hover:underline underline-offset-2 focus:outline-none"
+                          >
+                            Try again
+                          </button>
+                        </div>
                       ) : null}
                     </div>
 
@@ -370,7 +401,10 @@ export default function CountryTourismSiteList({
                         </div>
                       </div>
                     ) : !isLoading && !loadError && loadedProps !== undefined ? (
-                      <div className="mt-3 text-sm text-slate-600">No approved properties yet.</div>
+                      <div className="mt-4 py-5 text-center">
+                        <p className="text-sm font-medium text-slate-600">No approved properties at this park yet.</p>
+                        <p className="mt-1 text-xs text-slate-400">Check back soon — new properties are added regularly.</p>
+                      </div>
                     ) : null}
                   </div>
                 </div>
