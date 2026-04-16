@@ -487,4 +487,35 @@ router.get("/:id/receipt.html", (async (req: AuthedRequest, res) => {
   }
 }) as RequestHandler);
 
+// Get authenticated user's booking count for a specific property
+router.get("/property/:propertyId/my-count", (async (req, res) => {
+  try {
+    const user = (req as AuthedRequest).user;
+    if (!user?.id) return res.status(401).json({ error: "unauthorized" });
+
+    const propertyId = parseInt(req.params.propertyId, 10);
+    if (isNaN(propertyId)) return res.status(400).json({ error: "invalid_property_id" });
+
+    const { phone, email } = await getUserContact(user.id);
+    const phoneVariants = buildPhoneVariants(phone);
+
+    const count = await prisma.booking.count({
+      where: {
+        propertyId,
+        status: { in: ["NEW", "CONFIRMED", "CHECKED_IN", "CHECKED_OUT"] },
+        OR: [
+          { userId: user.id },
+          ...(email ? [{ guestEmail: email }] : []),
+          ...(phoneVariants.length > 0 ? [{ guestPhone: { in: phoneVariants } }] : []),
+        ],
+      },
+    });
+
+    return res.json({ count });
+  } catch (error: any) {
+    console.error("GET /customer/bookings/property/:propertyId/my-count error:", error);
+    return res.status(500).json({ error: "server_error" });
+  }
+}) as RequestHandler);
+
 export default router;

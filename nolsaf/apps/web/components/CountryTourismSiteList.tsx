@@ -81,7 +81,6 @@ export default function CountryTourismSiteList({
   }, [defaultOpenFirst, items.length]);
 
   const [systemCommission, setSystemCommission] = useState<number>(0);
-  const [bookedSlugs, setBookedSlugs] = useState<Set<string>>(new Set());
   const [propertiesBySiteSlug, setPropertiesBySiteSlug] = useState<Record<string, PublicPropertyCard[] | undefined>>({});
   const [loadingBySiteSlug, setLoadingBySiteSlug] = useState<Record<string, boolean | undefined>>({});
   const [errorBySiteSlug, setErrorBySiteSlug] = useState<Record<string, string | undefined>>({});
@@ -103,24 +102,6 @@ export default function CountryTourismSiteList({
       } catch {
         // Silently fail - will use 0 as default
       }
-    };
-    load();
-    return () => { mounted = false; };
-  }, []);
-
-  // Booked slugs for authenticated users
-  useEffect(() => {
-    let mounted = true;
-    const load = async () => {
-      try {
-        const meRes = await fetch("/api/account/me", { credentials: "include", cache: "no-store" });
-        if (!meRes.ok) return;
-        const slugsRes = await fetch("/api/customer/bookings/property-slugs", { credentials: "include", cache: "no-store" });
-        if (slugsRes.ok && mounted) {
-          const json = await slugsRes.json();
-          if (Array.isArray(json?.slugs)) setBookedSlugs(new Set(json.slugs));
-        }
-      } catch {}
     };
     load();
     return () => { mounted = false; };
@@ -428,7 +409,7 @@ export default function CountryTourismSiteList({
                                 ].join(" ")}
                               >
                                 {insideProperties.map((p) => (
-                                  <PublicApprovedPropertyCard key={p.id ?? p.slug} p={p} systemCommission={systemCommission} isBooked={bookedSlugs.has(p.slug)} />
+                                  <PublicApprovedPropertyCard key={p.id ?? p.slug} p={p} systemCommission={systemCommission} />
                                 ))}
                               </div>
                             </div>
@@ -444,7 +425,7 @@ export default function CountryTourismSiteList({
                                 ].join(" ")}
                               >
                                 {nearbyProperties.map((p) => (
-                                  <PublicApprovedPropertyCard key={p.id ?? p.slug} p={p} systemCommission={systemCommission} isBooked={bookedSlugs.has(p.slug)} />
+                                  <PublicApprovedPropertyCard key={p.id ?? p.slug} p={p} systemCommission={systemCommission} />
                                 ))}
                               </div>
                             </div>

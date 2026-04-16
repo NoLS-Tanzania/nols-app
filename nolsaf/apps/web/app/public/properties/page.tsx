@@ -340,25 +340,6 @@ export default function PropertiesPage() {
     };
   }, []);
 
-  // Booked property slugs — only for authenticated users
-  const [bookedSlugs, setBookedSlugs] = useState<Set<string>>(new Set());
-  useEffect(() => {
-    let mounted = true;
-    const load = async () => {
-      try {
-        const meRes = await fetch("/api/account/me", { credentials: "include", cache: "no-store" });
-        if (!meRes.ok) return;
-        const slugsRes = await fetch("/api/customer/bookings/property-slugs", { credentials: "include", cache: "no-store" });
-        if (slugsRes.ok && mounted) {
-          const json = await slugsRes.json();
-          if (Array.isArray(json?.slugs)) setBookedSlugs(new Set(json.slugs));
-        }
-      } catch {}
-    };
-    load();
-    return () => { mounted = false; };
-  }, []);
-
   // Filters UI state
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filtersShown, setFiltersShown] = useState(false);
@@ -832,7 +813,7 @@ export default function PropertiesPage() {
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                 {recentProperties.map((rp) => (
                   <div key={rp.slug} className="relative">
-                    <PublicApprovedPropertyCard p={rp} systemCommission={systemCommission} isBooked={bookedSlugs.has(rp.slug)} />
+                    <PublicApprovedPropertyCard p={rp} systemCommission={systemCommission} />
                     <button
                       type="button"
                       onClick={() => removeRecentProperty(rp.slug)}
@@ -1086,7 +1067,7 @@ export default function PropertiesPage() {
                               transition={{ duration: 0.35, delay: idx * 0.04, ease: [0.22, 0.8, 0.32, 1] }}
                               onClick={() => addRecentProperty({ title: p.title, slug: p.slug, location: p.location, primaryImage: p.primaryImage, basePrice: p.basePrice, currency: p.currency, services: p.services })}
                             >
-                              <PublicApprovedPropertyCard p={p} systemCommission={systemCommission} isBooked={bookedSlugs.has(p.slug)} />
+                              <PublicApprovedPropertyCard p={p} systemCommission={systemCommission} />
                             </motion.div>
                           ))}
                         </div>
@@ -1158,7 +1139,7 @@ export default function PropertiesPage() {
                     transition={{ duration: 0.40, delay: Math.min(idx, 9) * 0.06, ease: [0.2, 0.8, 0.2, 1] }}
                     onClick={() => addRecentProperty({ title: p.title, slug: p.slug, location: p.location, primaryImage: p.primaryImage, basePrice: p.basePrice, currency: p.currency, services: p.services })}
                   >
-                    <PublicApprovedPropertyCard p={p} systemCommission={systemCommission} isBooked={bookedSlugs.has(p.slug)} />
+                    <PublicApprovedPropertyCard p={p} systemCommission={systemCommission} />
                   </motion.div>
                 ))}
               </div>
