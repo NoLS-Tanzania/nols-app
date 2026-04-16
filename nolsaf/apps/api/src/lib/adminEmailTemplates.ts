@@ -1,4 +1,4 @@
-﻿/**
+/**
  * adminEmailTemplates.ts
  * Admin-specific transactional email templates
  */
@@ -22,7 +22,7 @@ export function getAdminWelcomeEmail(data: {
 
   const body = `
     <p style="margin:0 0 18px;font-size:17px;font-weight:600;color:${ADMIN_BLUE};">
-      Jambo ${greetingName}! ðŸ‘‹
+      Jambo ${greetingName}! 👋
     </p>
     
     <p style="margin:0 0 16px;font-size:15px;color:${TEXT_MAIN};line-height:1.6;">
@@ -31,7 +31,7 @@ export function getAdminWelcomeEmail(data: {
 
     ${calloutBox(
       BRAND_TEAL,
-      "ðŸ›¡ï¸",
+      "🛡️",
       "Your Core Responsibilities",
       `
         <ul style="margin:8px 0 0;padding-left:20px;line-height:1.8;">
@@ -47,7 +47,7 @@ export function getAdminWelcomeEmail(data: {
 
     ${calloutBox(
       "#dc2626",
-      "âš ï¸",
+      "⚠️",
       "Critical Security & Compliance Policies",
       `
         <ul style="margin:8px 0 0;padding-left:20px;line-height:1.8;">
@@ -65,12 +65,12 @@ export function getAdminWelcomeEmail(data: {
       <tr>
         <td style="background:linear-gradient(135deg, ${ADMIN_BLUE} 0%, #1e3a8a 100%);border-radius:12px;padding:24px;text-align:center;">
           <p style="margin:0 0 12px;font-size:16px;font-weight:700;color:#ffffff;">
-            ðŸ“Š Access Your Admin Dashboard
+            📊 Access Your Admin Dashboard
           </p>
           <p style="margin:0 0 18px;font-size:14px;color:rgba(255,255,255,0.9);">
             Manage users, properties, bookings, and system settings
           </p>
-          ${ctaButton(adminDashboardUrl, "Go to Admin Dashboard â†’", "#ffffff")}
+          ${ctaButton(adminDashboardUrl, "Go to Admin Dashboard →", "#ffffff")}
         </td>
       </tr>
     </table>
@@ -79,7 +79,7 @@ export function getAdminWelcomeEmail(data: {
       style="background:#fef3c7;border-left:4px solid #f59e0b;border-radius:8px;margin:24px 0;">
       <tr><td>
         <p style="margin:0;font-size:14px;color:#92400e;">
-          <strong>âš¡ Action Required:</strong> Log in within 24 hours and enable Two-Factor Authentication (2FA) in your account security settings.
+          <strong>⚡ Action Required:</strong> Log in within 24 hours and enable Two-Factor Authentication (2FA) in your account security settings.
         </p>
       </td></tr>
     </table>
@@ -91,7 +91,7 @@ export function getAdminWelcomeEmail(data: {
     ])}
 
     <p style="margin:24px 0 0;font-size:14px;color:${TEXT_MUTED};line-height:1.7;">
-      Welcome to the team! Together, we're making Africa more accessible to travelers worldwide. ðŸŒ
+      Welcome to the team! Together, we're making Africa more accessible to travelers worldwide. 🌍
     </p>
 
     <p style="margin:20px 0 0;font-size:14px;color:${TEXT_MAIN};">
@@ -101,8 +101,8 @@ export function getAdminWelcomeEmail(data: {
   `;
 
   return {
-    subject: "ðŸŽ‰ Welcome to NoLSAF Admin Team â€“ Action Required",
-    html: baseEmail(ADMIN_BLUE, ADMIN_GRADIENT, "Admin Access Granted", "ðŸ”", body),
+    subject: "🎉 Welcome to NoLSAF Admin Team – Action Required",
+    html: baseEmail(ADMIN_BLUE, ADMIN_GRADIENT, "Admin Access Granted", "🔐", body),
   };
 }
 
@@ -116,44 +116,38 @@ export function getAdminWelcomeSms(data: {
   const action = data.isNewlyCreated ? "created as" : "promoted to";
   const greetingName = data.name || "Admin";
 
-  return `Jambo ${greetingName}! You have been ${action} ADMIN at NoLSAF ðŸŽ‰
+  return `Jambo ${greetingName}! You have been ${action} ADMIN at NoLSAF 🎉
 
 Your responsibilities:
-âœ“ Verify properties & drivers
-âœ“ Monitor platform security
-âœ“ Handle support escalations
-âœ“ Protect user data
+✓ Verify properties & drivers
+✓ Monitor platform security
+✓ Handle support escalations
+✓ Protect user data
 
 CRITICAL:
-â€¢ Enable 2FA immediately
-â€¢ Never share credentials
-â€¢ All actions are audited
-â€¢ Follow data protection laws
+• Enable 2FA immediately
+• Never share credentials
+• All actions are audited
+• Follow data protection laws
 
 Login: www.nolsaf.com/admin
 
-Karibu! ðŸŒ
+Karibu! 🌍
 - NoLSAF Admin Team`;
 }
 
 /**
- * Admin revocation email â€” sent when admin privileges are removed.
+ * Admin revocation email — sent when admin privileges are removed.
  * Formatted as a formal letter with: effects, possible reasons,
  * appeal/referral path, reference number, and wrong-recipient notice.
  */
 export function getAdminRevocationEmail(data: {
   name: string;
   email: string;
-  reason?: string;
-  revokedBy?: string;
-  effectiveDate?: string;
-  referenceCode?: string;
+  referenceCode: string;
 }): { subject: string; html: string } {
   const greetingName = data.name || "User";
-  const referenceCode = data.referenceCode ||
-    `ADM-RVK-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
-  const effectiveDate = data.effectiveDate ||
-    new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  const effectiveDate = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 
   const body = `
     <!-- Reference block (top of letter) -->
@@ -161,7 +155,7 @@ export function getAdminRevocationEmail(data: {
       <tr>
         <td style="border-left:4px solid #dc2626;padding:10px 16px;background:#fef2f2;border-radius:0 8px 8px 0;">
           <p style="margin:0;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#991b1b;font-weight:600;">Reference Number</p>
-          <p style="margin:4px 0 0;font-size:20px;font-weight:800;color:#7f1d1d;letter-spacing:2px;font-family:monospace;">${referenceCode}</p>
+          <p style="margin:4px 0 0;font-size:20px;font-weight:800;color:#7f1d1d;letter-spacing:2px;font-family:monospace;">${data.referenceCode}</p>
           <p style="margin:4px 0 0;font-size:11px;color:#b91c1c;">Please quote this reference in all correspondence and appeals.</p>
         </td>
       </tr>
@@ -175,7 +169,7 @@ export function getAdminRevocationEmail(data: {
 
     <!-- Subject line -->
     <p style="margin:0 0 20px;font-size:14px;font-weight:700;color:#7f1d1d;text-transform:uppercase;letter-spacing:0.5px;">
-      Re: Revocation of Administrative Access â€” NoLSAF Platform
+      Re: Revocation of Administrative Access — NoLSAF Platform
     </p>
 
     <!-- Opening -->
@@ -252,7 +246,7 @@ export function getAdminRevocationEmail(data: {
         </ul>
         <p style="margin:0;font-size:14px;color:#14532d;line-height:1.8;">
           <strong>When submitting any appeal or referral, you must cite your reference number
-          <span style="font-family:monospace;background:#dcfce7;padding:2px 6px;border-radius:4px;">${referenceCode}</span>
+          <span style="font-family:monospace;background:#dcfce7;padding:2px 6px;border-radius:4px;">${data.referenceCode}</span>
           in all written communications</strong> so that your case can be correctly identified and processed.
         </p>
       </td></tr>
@@ -262,7 +256,7 @@ export function getAdminRevocationEmail(data: {
     ${infoCard("#dc2626", [
       ["HR / Management", "Contact your direct line manager or HR representative"],
       ["Platform Support", `<a href="mailto:support@nolsaf.com" style="color:${BRAND_TEAL};text-decoration:none;">support@nolsaf.com</a>`],
-      ["Reference Number", `<span style="font-family:monospace;font-weight:700;color:#7f1d1d;">${referenceCode}</span>`],
+      ["Reference Number", `<span style="font-family:monospace;font-weight:700;color:#7f1d1d;">${data.referenceCode}</span>`],
       ["Effective Date", effectiveDate],
     ])}
 
@@ -293,8 +287,8 @@ export function getAdminRevocationEmail(data: {
   `;
 
   return {
-    subject: `Notice of Admin Access Revocation â€” Ref: ${referenceCode}`,
-    html: baseEmail("#dc2626", "#991b1b", "Admin Access Revoked", "ðŸ”’", body),
+    subject: `Notice of Admin Access Revocation — Ref: ${data.referenceCode}`,
+    html: baseEmail("#dc2626", "#991b1b", "Admin Access Revoked", "🔒", body),
   };
 }
 
@@ -303,13 +297,8 @@ export function getAdminRevocationEmail(data: {
  */
 export function getAdminRevocationSms(data: {
   name: string;
-  reason?: string;
-  referenceCode?: string;
+  referenceCode: string;
 }): string {
   const greetingName = data.name || "User";
-  const ref = data.referenceCode ||
-    `ADM-RVK-${Date.now().toString(36).toUpperCase()}`;
-  const reasonPart = data.reason ? ` Reason: ${data.reason}.` : "";
-  return `Dear ${greetingName}, your NoLSAF Admin access has been revoked effective today.${reasonPart} Ref: ${ref}. Your standard account remains active. To appeal, contact HR/Management quoting this reference. support@nolsaf.com`;
+  return `Dear ${greetingName}, your NoLSAF Admin access has been revoked effective today. Ref: ${data.referenceCode}. Your standard account remains active. To appeal or for more information, contact HR/Management quoting this reference. support@nolsaf.com`;
 }
-
