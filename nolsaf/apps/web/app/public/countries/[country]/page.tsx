@@ -146,7 +146,7 @@ export default async function CountryTourismPage({
   searchParams,
 }: {
   params: Promise<{ country: string }>;
-  searchParams?: Promise<SearchParams> | SearchParams;
+  searchParams?: Promise<SearchParams>;
 }) {
   const resolvedParams = await params;
   const resolvedSearchParams = await Promise.resolve(searchParams ?? {});

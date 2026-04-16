@@ -827,11 +827,12 @@ router.post(
     // Send revocation notifications
     const adminName = target.name || 'Admin';
     const effectiveDate = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    const referenceCode = `REV-${id}-${Date.now().toString(36).toUpperCase()}`;
 
     // Send SMS notification
     if (target.phone) {
       try {
-        const smsMessage = getAdminRevocationSms({ name: adminName, reason: reason || undefined });
+        const smsMessage = getAdminRevocationSms({ name: adminName, referenceCode });
         await sendSms(target.phone, smsMessage);
         console.log(`📱 Admin revocation SMS sent to ${target.phone}`);
       } catch (err) {
@@ -844,9 +845,7 @@ router.post(
       const { subject, html } = getAdminRevocationEmail({
         name: adminName,
         email: target.email,
-        reason: reason || undefined,
-        revokedBy,
-        effectiveDate,
+        referenceCode,
       });
       await sendMail(target.email, subject, html);
       console.log(`📧 Admin revocation email sent to ${target.email}`);

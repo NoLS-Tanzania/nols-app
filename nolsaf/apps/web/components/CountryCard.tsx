@@ -28,24 +28,20 @@ const paymentIconMap: Record<string, string> = {
 };
 
 // Map country id/name to bottom-rail class (used with article to show colored stripe)
-const countryRailClassMap: Record<string, string> = {
+const _countryRailClassMap: Record<string, string> = {
   'tanzania': 'flag-rail-tanzania',
   'kenya': 'flag-rail-kenya',
   'uganda': 'flag-rail-uganda',
 };
 
-const countryCtaFlagClassMap: Record<string, string> = {
-  tanzania: 'flag-cta-tanzania',
-  kenya: 'flag-cta-kenya',
-  uganda: 'flag-cta-uganda',
+// Top accent strip: flag colour sequence rendered as a slim gradient band
+const countryTopStripMap: Record<string, string> = {
+  tanzania: 'linear-gradient(90deg,#1eb53a 0%,#1eb53a 30%,#fcd116 30%,#fcd116 50%,#000000 50%,#000000 70%,#00a3dd 70%,#00a3dd 100%)',
+  kenya:    'linear-gradient(90deg,#006600 0%,#006600 25%,#cc0001 25%,#cc0001 50%,#000000 50%,#000000 75%,#ffffff 75%,#ffffff 100%)',
+  uganda:   'linear-gradient(90deg,#000000 0%,#000000 34%,#fcdc04 34%,#fcdc04 67%,#da121a 67%,#da121a 100%)',
 };
 
-const countryCtaClassMap: Record<string, string> = {
-  // Flag-inspired gradients (kept within Tailwind palette)
-  tanzania: 'from-emerald-700 via-cyan-700 to-teal-700 border-emerald-800/15 shadow-[0_10px_24px_rgba(2,102,94,0.22)] hover:shadow-[0_14px_34px_rgba(2,102,94,0.26)] focus:ring-emerald-200/60',
-  kenya: 'from-emerald-700 via-red-700 to-emerald-700 border-red-800/15 shadow-[0_10px_24px_rgba(185,28,28,0.20)] hover:shadow-[0_14px_34px_rgba(185,28,28,0.24)] focus:ring-red-200/60',
-  uganda: 'from-amber-700 via-red-700 to-amber-700 border-amber-800/15 shadow-[0_10px_24px_rgba(161,98,7,0.20)] hover:shadow-[0_14px_34px_rgba(161,98,7,0.24)] focus:ring-amber-200/60',
-};
+
 
 type Stats = { cities?: number; regions?: number; listings?: number; payments?: string[] };
 
@@ -66,163 +62,97 @@ type Props = {
   variant?: 'default' | 'compact';
 };
 
-export default function CountryCard({ id, name, flag = '', imageSrc, subtitle, blurb, href = '#', stats, accentClass = '', onHoverAction, onClickAction, highlighted = false, showPayments = false, variant = 'default' }: Props) {
+export default function CountryCard({ id, name, flag = '', imageSrc, subtitle, blurb, href = '#', stats, accentClass: _accentClass = '', onHoverAction, onClickAction, highlighted = false, showPayments = false, variant = 'default' }: Props) {
   const isCompact = variant === 'compact';
   const ctaKey = (id || name || '').toLowerCase();
-  const ctaStyle = countryCtaClassMap[ctaKey] ?? countryCtaClassMap.tanzania;
-  const ctaFlagClass = countryCtaFlagClassMap[ctaKey] ?? countryCtaFlagClassMap.tanzania;
+  const topStrip = countryTopStripMap[ctaKey] ?? countryTopStripMap.tanzania;
 
   return (
-    <article
+    <Link
+      href={href}
+      onClick={() => onClickAction?.(id)}
       onMouseEnter={() => onHoverAction?.(id)}
       onMouseLeave={() => onHoverAction?.(null)}
       onFocus={() => onHoverAction?.(id)}
       onBlur={() => onHoverAction?.(null)}
       aria-label={`${name} — ${subtitle ?? ''}`}
-      // overflow-visible so hover tooltips (payments) aren't clipped
-      className={`relative overflow-visible rounded-2xl card-raise ${highlighted ? 'ring-2 ring-emerald-300 shadow-[0_8px_30px_rgba(2,6,23,0.10)]' : 'ring-1 ring-slate-200/80 shadow-[0_4px_20px_rgba(2,6,23,0.06)]'} transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgba(2,6,23,0.10)] ${accentClass} ${countryRailClassMap[(id || name || '').toLowerCase()] ?? ''} country-card-article`}
+      className={[
+        'block relative overflow-hidden rounded-2xl country-card-article no-underline',
+        'bg-white group',
+        highlighted
+          ? 'ring-2 ring-emerald-300 shadow-[0_8px_30px_rgba(2,6,23,0.13)]'
+          : 'ring-1 ring-slate-200/80 shadow-[0_2px_12px_rgba(2,6,23,0.06)]',
+        'transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_28px_rgba(2,6,23,0.11)] active:translate-y-0 active:shadow-sm',
+        'cursor-pointer',
+      ].join(' ')}
     >
-      <div className="relative overflow-hidden rounded-[15px] bg-white border border-slate-100">
+      {/* Flag colour band — slides in on hover */}
+      <div className="h-0 group-hover:h-[4px] transition-all duration-200 w-full" style={{ background: topStrip }} aria-hidden />
 
-        <div className={['relative flex flex-col h-full', isCompact ? 'p-3 md:p-4' : 'p-4 md:p-5'].join(' ')}>
-          <div className={['flex items-start', isCompact ? 'gap-2.5' : 'gap-3'].join(' ')}>
-            <div className="flex-shrink-0">
-              <div
-                className={[
-                  'rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center',
-                  isCompact ? 'w-9 h-9 text-lg' : 'w-10 h-10 text-xl',
-                ].join(' ')}
-                aria-hidden
-              >
-                {flag || '🏳️'}
-              </div>
-            </div>
-            <div className="min-w-0">
-              <h3 className={[isCompact ? 'text-base' : 'text-lg', 'font-semibold leading-tight text-slate-900'].join(' ')}>{name}</h3>
-              {subtitle ? <div className={[isCompact ? 'text-xs' : 'text-sm', 'text-slate-600 mt-1'].join(' ')}>{subtitle}</div> : null}
-            </div>
-          </div>
+      {/* Card body */}
+      <div className={['flex flex-col', isCompact ? 'px-4 pt-3.5 pb-4' : 'px-4 pt-4 pb-5'].join(' ')}>
 
-          {blurb ? (
-            <p
-              className={[isCompact ? 'mt-2 text-[13px]' : 'mt-3 text-sm', 'text-slate-700 leading-relaxed'].join(' ')}
-              style={
-                isCompact
-                  ? {
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical' as const,
-                      overflow: 'hidden',
-                    }
-                  : undefined
-              }
-            >
-              {blurb}
-            </p>
-          ) : null}
-
+        {/* ── Header: flag + name + subtitle ── */}
+        <div className="flex items-center gap-3">
           <div
-            className={[
-              isCompact
-                ? 'mt-4 rounded-xl bg-slate-50 border border-slate-100 p-2.5'
-                : 'mt-4 pt-4 border-t border-slate-100 space-y-3',
-            ].join(' ')}
+            className="w-11 h-11 rounded-xl flex items-center justify-center text-2xl flex-shrink-0 bg-slate-50 ring-1 ring-slate-200/60"
+            aria-hidden
           >
-            <div
-              className={[
-                'flex flex-col gap-2 min-[360px]:flex-row min-[360px]:items-center min-[360px]:justify-between',
-                isCompact ? 'text-[13px]' : 'text-sm',
-              ].join(' ')}
-            >
-              <span className="text-slate-500 text-xs">Supported</span>
-              <span
-                className={[
-                  'inline-flex items-center rounded-full px-3 py-1 font-semibold text-xs',
-                  'bg-emerald-50 text-emerald-700',
-                  'ring-1 ring-emerald-200/60',
-                  'w-fit whitespace-nowrap',
-                ].join(' ')}
-              >
-                Parks &amp; recreation
-              </span>
-            </div>
-
-            {/* Payments row: optional (kept for future use) */}
-            {showPayments && stats?.payments ? (
-              <div className="flex items-center justify-between gap-3 pt-3 border-t border-slate-200/60">
-                <span className="text-slate-500 text-xs flex-shrink-0">Payments</span>
-                <div className="flex flex-wrap items-center justify-end gap-2">
-                  {stats.payments.map((p, i) => {
-                    const key = p.toLowerCase();
-                    const icon = paymentIconMap[key];
-                    const payHref = `/help/payments?method=${encodeURIComponent(p)}`;
-                    if (icon) {
-                      return (
-                        <Link
-                          key={i}
-                          href={payHref}
-                          title={p}
-                          aria-label={p}
-                          className="group relative inline-flex items-center focus:outline-none"
-                        >
-                          <span className="w-10 h-7 inline-flex items-center justify-center bg-white/70 backdrop-blur rounded-lg border border-slate-200/70 p-1 shadow-sm transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:shadow-md group-active:translate-y-0">
-                            <Image src={icon} alt={p} width={34} height={18} className="object-contain" style={{ width: 'auto', height: 'auto', maxWidth: '100%', maxHeight: '100%' }} />
-                          </span>
-                          <span className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-slate-900 text-white text-[11px] px-2 py-1 opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-opacity text-center shadow-lg">
-                            {p}
-                          </span>
-                        </Link>
-                      );
-                    }
-
-                    return (
-                      <Link key={i} href={payHref} title={p} aria-label={p} className="group relative inline-flex items-center">
-                        <span className="px-2 py-1 bg-white/65 backdrop-blur border border-slate-200/70 text-slate-800 text-[11px] rounded-lg font-medium">
-                          {p}
-                        </span>
-                        <span className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-slate-900 text-white text-[11px] px-2 py-1 opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-opacity text-center shadow-lg">
-                          {p}
-                        </span>
-                      </Link>
-                    );
-                  })}
-                </div>
-              </div>
+            {flag || '🏳️'}
+          </div>
+          <div className="min-w-0">
+            <h3 className="text-base font-bold leading-tight text-slate-900 tracking-tight">{name}</h3>
+            {subtitle ? (
+              <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>
             ) : null}
           </div>
+        </div>
 
+        {/* ── Blurb ── */}
+        {blurb ? (
+          <p className="mt-3 text-sm text-slate-600 leading-relaxed">{blurb}</p>
+        ) : null}
+
+        {/* ── Optional image ── */}
         {imageSrc && !isCompact ? (
-          <div className="mt-3 md:mt-4 relative w-full country-card-image">
-            <Image src={imageSrc} alt={`${name} preview`} fill className="rounded-md object-cover" sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw" />
+          <div className="mt-3 relative w-full h-32 rounded-xl overflow-hidden country-card-image">
+            <Image src={imageSrc} alt={`${name} preview`} fill className="object-cover" sizes="(max-width: 768px) 100vw, 50vw" />
           </div>
         ) : null}
 
-          {/* CTA pinned to bottom so all cards feel uniform */}
-          <div className={[isCompact ? 'pt-3 mt-auto' : 'pt-3 mt-auto border-t border-slate-100'].join(' ')}>
-            <Link
-              href={href}
-              onClick={() => onClickAction?.(id)}
-              className={[
-                "inline-flex items-center relative overflow-hidden isolate",
-                "justify-center",
-                isCompact
-                  ? "w-full max-w-[220px] mx-auto min-[420px]:w-auto min-[420px]:max-w-none"
-                  : "w-full sm:w-auto",
-                "rounded-full no-underline font-semibold btn-explore",
-                "bg-gradient-to-r text-white",
-                `border ${ctaStyle}`,
-                ctaFlagClass,
-                "focus:outline-none focus:ring-4",
-                "transition-all duration-300 hover:scale-[1.02]",
-                isCompact ? "px-5 py-2" : "px-5 py-2.5",
-              ].join(" ")}
-              aria-label={`View ${name}`}
-            >
-              <span className={['relative z-10 text-sm'].join(' ')}>Explore</span>
-            </Link>
-          </div>
+        {/* ── Footer row: tag + arrow ── */}
+        <div className="mt-4 flex items-center justify-between gap-2">
+          <span className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/60 whitespace-nowrap">
+            Parks &amp; recreation
+          </span>
+          <svg className="w-4 h-4 text-slate-400 flex-shrink-0" viewBox="0 0 16 16" fill="none" aria-hidden>
+            <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
         </div>
+
+        {/* ── Payments row: optional ── */}
+        {showPayments && stats?.payments ? (
+          <div className="flex items-center justify-between gap-3 mt-3 pt-3 border-t border-slate-100">
+            <span className="text-slate-400 text-xs flex-shrink-0">Payments</span>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {stats.payments.map((p, i) => {
+                const key = p.toLowerCase();
+                const icon = paymentIconMap[key];
+                if (icon) {
+                  return (
+                    <span key={i} className="w-10 h-7 inline-flex items-center justify-center bg-white rounded-lg border border-slate-200/70 p-1 shadow-sm">
+                      <Image src={icon} alt={p} width={34} height={18} className="object-contain" style={{ width: 'auto', height: 'auto', maxWidth: '100%', maxHeight: '100%' }} />
+                    </span>
+                  );
+                }
+                return (
+                  <span key={i} className="px-2 py-1 bg-white border border-slate-200/70 text-slate-600 text-[11px] rounded-lg font-medium">{p}</span>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
       </div>
-    </article>
+    </Link>
   );
 }
