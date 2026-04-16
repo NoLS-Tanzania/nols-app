@@ -4,7 +4,7 @@ import { prisma } from "@nolsaf/prisma";
 import { AuthedRequest, requireAuth, requireRole } from "../middleware/auth.js";
 import { audit } from "../lib/audit.js";
 import { z } from "zod";
-import { limitDriverTripClaim, limitDriverTripsList } from "../middleware/rateLimit.js";
+import { limitDriverTripAction, limitDriverTripClaim, limitDriverTripsList } from "../middleware/rateLimit.js";
 import { AUTO_DISPATCH_GRACE_MS, AUTO_DISPATCH_LOOKAHEAD_MS } from "../lib/transportPolicy.js";
 import { sendSms } from "../lib/sms.js";
 
@@ -844,6 +844,200 @@ router.get("/scheduled/assigned", limitDriverTripsList, (async (req: AuthedReque
   } catch (error: any) {
     console.error("GET /driver/trips/scheduled/assigned error:", error);
     res.status(500).json({ error: "Failed to fetch assigned trips" });
+  }
+}) as RequestHandler);
+
+/**
+ * POST /api/driver/trips/:id/accept
+ * Driver accepts a real-time offer pushed by the auto-dispatch worker.
+ * Atomically assigns the driver and marks the offer ACCEPTED.
+ */
+router.post("/:id/accept", limitDriverTripAction, (async (req: AuthedRequest, res: Response) => {
+  try {
+    const user = req.user!;
+    const parsed = idParamSchema.safeParse(req.params);
+    if (!parsed.success) return badRequest(res, "Invalid trip ID", parsed.error.flatten());
+    const tripId = parsed.data.id;
+    const now = new Date();
+
+    const result = await prisma.$transaction(async (tx) => {
+      const booking = await tx.transportBooking.findUnique({
+        where: { id: tripId },
+        select: {
+          id: true,
+          driverId: true,
+          status: true,
+          paymentStatus: true,
+          userId: true,
+          vehicleType: true,
+          scheduledDate: true,
+          pickupTime: true,
+          fromAddress: true,
+          fromLatitude: true,
+          fromLongitude: true,
+          toAddress: true,
+          toLatitude: true,
+          toLongitude: true,
+          amount: true,
+          currency: true,
+          tripCode: true,
+          user: { select: { id: true, name: true, phone: true, email: true } },
+        },
+      });
+
+      if (!booking) {
+        const err: any = new Error("Trip not found");
+        err.code = "NOT_FOUND";
+        throw err;
+      }
+      if (booking.driverId !== null) {
+        const err: any = new Error("Trip already accepted by another driver");
+        err.code = "ALREADY_ASSIGNED";
+        throw err;
+      }
+      if (String(booking.status ?? "") === "PENDING_ADMIN_ASSIGNMENT") {
+        const err: any = new Error("admin_takeover");
+        err.code = "admin_takeover";
+        throw err;
+      }
+      if (!["PENDING_ASSIGNMENT", "PENDING"].includes(String(booking.status ?? ""))) {
+        const err: any = new Error("Trip is not available for acceptance");
+        err.code = "UNAVAILABLE";
+        throw err;
+      }
+
+      // Verify the driver has a valid, non-expired offer (when offer model is available).
+      if ((prisma as any).transportBookingOffer) {
+        const offer = await (tx as any).transportBookingOffer.findFirst({
+          where: {
+            bookingId: tripId,
+            driverId: user.id,
+            status: "OFFERED",
+            expiresAt: { gt: now },
+          },
+          select: { id: true },
+        });
+        if (!offer) {
+          const err: any = new Error("Offer expired or you were not offered this trip");
+          err.code = "NO_VALID_OFFER";
+          throw err;
+        }
+      }
+
+      // Concurrency-safe update: only succeeds if still unassigned.
+      const updated = await (tx as any).transportBooking.update({
+        where: { id: tripId, driverId: null } as any,
+        data: { driverId: user.id, status: "CONFIRMED" },
+        include: { user: { select: { id: true, name: true, phone: true, email: true } } },
+      }).catch((e: any) => {
+        // P2025 = record not found (another driver grabbed it first)
+        if (e?.code === "P2025") {
+          const err: any = new Error("Trip already accepted by another driver");
+          err.code = "ALREADY_ASSIGNED";
+          throw err;
+        }
+        throw e;
+      });
+
+      // Mark this driver's offer ACCEPTED; expire all other open offers.
+      if ((prisma as any).transportBookingOffer) {
+        await Promise.all([
+          (tx as any).transportBookingOffer.updateMany({
+            where: { bookingId: tripId, driverId: user.id },
+            data: { status: "ACCEPTED", respondedAt: now },
+          }),
+          (tx as any).transportBookingOffer.updateMany({
+            where: { bookingId: tripId, driverId: { not: user.id }, status: "OFFERED" },
+            data: { status: "EXPIRED", respondedAt: now },
+          }),
+        ]);
+      }
+
+      return updated;
+    });
+
+    // Notify the passenger in real-time.
+    try {
+      const io = (req.app as any)?.get?.("io");
+      if (io) {
+        io.to(`user:${result.userId}`).emit("transport:booking:accepted", {
+          bookingId: tripId,
+          driverId: user.id,
+        });
+      }
+    } catch {
+      // ignore
+    }
+
+    const currency = String(result.currency ?? "TZS").toUpperCase();
+    const amountNum = Number(result.amount ?? 0);
+    const fare = Number.isFinite(amountNum) && amountNum > 0
+      ? `${currency} ${amountNum.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+      : undefined;
+
+    return res.json({
+      ok: true,
+      trip: {
+        id: result.id,
+        status: result.status,
+        tripCode: result.tripCode,
+        pickupAddress: result.fromAddress,
+        dropoffAddress: result.toAddress,
+        pickupLat: result.fromLatitude ? Number(result.fromLatitude) : null,
+        pickupLng: result.fromLongitude ? Number(result.fromLongitude) : null,
+        dropoffLat: result.toLatitude ? Number(result.toLatitude) : null,
+        dropoffLng: result.toLongitude ? Number(result.toLongitude) : null,
+        fare,
+        amount: amountNum,
+        currency: result.currency,
+        passengerName: (result as any).user?.name ?? "Passenger",
+        phoneNumber: (result as any).user?.phone ?? null,
+        passengerUserId: (result as any).user?.id ?? null,
+      },
+    });
+  } catch (error: any) {
+    console.error("POST /driver/trips/:id/accept error:", error);
+    const statusCode =
+      error?.code === "NOT_FOUND" ? 404 :
+      error?.code === "ALREADY_ASSIGNED" ? 409 :
+      error?.code === "admin_takeover" ? 409 :
+      error?.code === "NO_VALID_OFFER" ? 409 :
+      error?.code === "UNAVAILABLE" ? 409 :
+      500;
+    return res.status(statusCode).json({ error: error?.message || "Failed to accept trip" });
+  }
+}) as RequestHandler);
+
+/**
+ * POST /api/driver/trips/:id/decline
+ * Driver declines a real-time offer. Marks the offer DECLINED so the worker
+ * can issue offers to the next available driver.
+ */
+router.post("/:id/decline", limitDriverTripAction, (async (req: AuthedRequest, res: Response) => {
+  try {
+    const user = req.user!;
+    const parsed = idParamSchema.safeParse(req.params);
+    if (!parsed.success) return badRequest(res, "Invalid trip ID", parsed.error.flatten());
+    const tripId = parsed.data.id;
+    const now = new Date();
+
+    // Mark the offer DECLINED so the next dispatch round can offer it to another driver.
+    // Best-effort — decline is always acknowledged even if the offer model is unavailable.
+    try {
+      if ((prisma as any).transportBookingOffer) {
+        await (prisma as any).transportBookingOffer.updateMany({
+          where: { bookingId: tripId, driverId: user.id, status: "OFFERED" },
+          data: { status: "DECLINED", respondedAt: now },
+        });
+      }
+    } catch {
+      // ignore
+    }
+
+    return res.json({ ok: true });
+  } catch (error: any) {
+    console.error("POST /driver/trips/:id/decline error:", error);
+    return res.status(500).json({ error: "Failed to decline trip" });
   }
 }) as RequestHandler);
 

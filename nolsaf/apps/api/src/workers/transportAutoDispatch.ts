@@ -40,6 +40,17 @@ function kmToLatDelta(km: number): number {
   return km / 111;
 }
 
+/** Map raw driverProfile.vehicleType strings to the canonical booking vehicleType enum values. */
+function normalizeVehicleType(vehicleType?: string | null): string | null {
+  if (!vehicleType) return null;
+  const v = vehicleType.toLowerCase();
+  if (v.includes("motor") || v.includes("boda") || v.includes("bike")) return "BODA";
+  if (v.includes("tuktuk") || v.includes("bajaji") || v.includes("tuk")) return "BAJAJI";
+  if (v.includes("xl") || v.includes("van") || v.includes("hiace") || v.includes("minibus")) return "XL";
+  if (v.includes("car") || v.includes("sedan") || v.includes("suv") || v.includes("hatchback")) return "CAR";
+  return v.toUpperCase();
+}
+
 function kmToLngDelta(km: number, atLatDeg: number): number {
   const latRad = (atLatDeg * Math.PI) / 180;
   const denom = 111 * Math.cos(latRad);
@@ -119,10 +130,12 @@ async function findCandidatesWithinRadius({
   pickup,
   radiusKm,
   excludeDriverIds,
+  bookingVehicleType,
 }: {
   pickup: { lat: number; lng: number };
   radiusKm: number;
   excludeDriverIds: Set<number>;
+  bookingVehicleType?: string | null;
 }): Promise<Candidate[]> {
   if (!(prisma as any).driverLiveLocation) return [];
 
@@ -152,6 +165,8 @@ async function findCandidatesWithinRadius({
           isAvailable: true,
           isDisabled: true,
           suspendedAt: true,
+          vehicleType: true,
+          isVipDriver: true,
         },
       },
     },
@@ -172,6 +187,17 @@ async function findCandidatesWithinRadius({
 
     const distanceKm = haversineKm(pickup, { lat, lng });
     if (!Number.isFinite(distanceKm) || distanceKm > radiusKm) continue;
+
+    // Vehicle type matching: ensure the driver can serve this booking category.
+    if (bookingVehicleType) {
+      const bvt = String(bookingVehicleType).toUpperCase();
+      if (bvt === "PREMIUM") {
+        if (!driver?.isVipDriver) continue;
+      } else {
+        const dvt = normalizeVehicleType(driver?.vehicleType);
+        if (dvt !== bvt) continue;
+      }
+    }
 
     candidates.push({ driverId, lat, lng, distanceKm, driver });
   }
@@ -296,10 +322,12 @@ async function issueOffers({
   io,
   booking,
   pickup,
+  bookingVehicleType,
 }: {
   io?: Server;
   booking: any;
   pickup: { lat: number; lng: number };
+  bookingVehicleType?: string | null;
 }): Promise<boolean> {
   const bookingId = Number(booking.id);
   if (!Number.isFinite(bookingId)) return false;
@@ -318,14 +346,14 @@ async function issueOffers({
   let radiusKm = RADIUS_PRIMARY_KM;
   let candidates: Candidate[] = [];
   try {
-    candidates = await findCandidatesWithinRadius({ pickup, radiusKm, excludeDriverIds: excluded });
+    candidates = await findCandidatesWithinRadius({ pickup, radiusKm, excludeDriverIds: excluded, bookingVehicleType });
   } catch {
     candidates = [];
   }
   if (!candidates.length) {
     radiusKm = RADIUS_EXPANDED_KM;
     try {
-      candidates = await findCandidatesWithinRadius({ pickup, radiusKm, excludeDriverIds: excluded });
+      candidates = await findCandidatesWithinRadius({ pickup, radiusKm, excludeDriverIds: excluded, bookingVehicleType });
     } catch {
       candidates = [];
     }
@@ -432,6 +460,7 @@ async function tryAutoAssignOne(io?: Server): Promise<boolean> {
     io,
     booking: trip,
     pickup: { lat: pickupLat, lng: pickupLng },
+    bookingVehicleType: (trip as any).vehicleType ?? null,
   });
 }
 
