@@ -89,11 +89,11 @@ export default function PublicApprovedPropertyCard({
               <PhotoPlaceholder />
             )}
 
-            {/* Booked badge — top-left, auth users only */}
+            {/* Your booking badge — top-left, authenticated users only */}
             {isBooked && (
-              <div className="absolute top-2 left-2 z-10 inline-flex items-center gap-1 rounded-full bg-emerald-600/90 backdrop-blur-sm px-2 py-0.5 text-[10px] font-bold text-white shadow-sm ring-1 ring-white/20" aria-label="You have booked this property">
-                <CheckCircle2 className="w-2.5 h-2.5" aria-hidden />
-                Booked
+              <div className="absolute top-2 left-2 z-10 inline-flex items-center gap-1 rounded-full bg-white/90 backdrop-blur-sm border border-emerald-300 px-2 py-0.5 text-[10px] font-bold text-emerald-700 shadow-sm" aria-label="You have a booking at this property">
+                <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" aria-hidden />
+                Your booking
               </div>
             )}
             {/* Verification badge — top-right */}
