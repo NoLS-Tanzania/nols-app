@@ -29,6 +29,33 @@ function ask(rl: readline.Interface, question: string): Promise<string> {
   return new Promise(resolve => rl.question(question, resolve));
 }
 
+// ─── Password strength ───────────────────────────────────────────────────────
+
+interface PasswordCheck { label: string; pass: boolean; }
+
+function checkPasswordStrength(pw: string): PasswordCheck[] {
+  return [
+    { label: "At least 12 characters long",              pass: pw.length >= 12 },
+    { label: "Contains an uppercase letter (A–Z)",       pass: /[A-Z]/.test(pw) },
+    { label: "Contains a lowercase letter (a–z)",       pass: /[a-z]/.test(pw) },
+    { label: "Contains a digit (0–9)",                  pass: /[0-9]/.test(pw) },
+    { label: "Contains a special character (!@#$…)",    pass: /[^A-Za-z0-9]/.test(pw) },
+    { label: "Does not start or end with a space",      pass: pw === pw.trim() },
+  ];
+}
+
+function printPasswordRequirements(): void {
+  console.log("\n  Password requirements:");
+  console.log("  ──────────────────────────────────────────────");
+  console.log("  ✔  At least 12 characters long");
+  console.log("  ✔  At least one uppercase letter  (A–Z)");
+  console.log("  ✔  At least one lowercase letter  (a–z)");
+  console.log("  ✔  At least one digit             (0–9)");
+  console.log("  ✔  At least one special character (!@#$%^&*…)");
+  console.log("  ✔  Must not start or end with a space");
+  console.log("  ──────────────────────────────────────────────\n");
+}
+
 function askPassword(prompt: string): Promise<string> {
   return new Promise(resolve => {
     process.stdout.write(prompt);
@@ -117,10 +144,25 @@ async function main() {
 
   rl.close(); // must close before raw-mode password prompt
 
-  const password = await askPassword("🔑 Password (hidden input)    : ");
-  if (password.length < 8) {
-    throw new Error("❌ Password must be at least 8 characters.");
+  printPasswordRequirements();
+
+  // Re-prompt until password passes all checks
+  let password = "";
+  while (true) {
+    password = await askPassword("🔑 Password (hidden input)    : ");
+    const checks = checkPasswordStrength(password);
+    const failed = checks.filter(c => !c.pass);
+    if (failed.length === 0) break;
+    console.log("\n  ❌ Password does not meet the following requirements:");
+    for (const f of failed) console.log(`     • ${f.label}`);
+    console.log("  Please try again.\n");
   }
+
+  const confirm2 = await askPassword("🔑 Confirm password           : ");
+  if (confirm2 !== password) {
+    throw new Error("❌ Passwords do not match.");
+  }
+  console.log("  ✅ Password strength: OK\n");
 
   const rl2 = readline.createInterface({ input: process.stdin, output: process.stdout });
   const nameRaw  = (await ask(rl2, "👤 Full name   (Enter to skip): ")).trim() || null;

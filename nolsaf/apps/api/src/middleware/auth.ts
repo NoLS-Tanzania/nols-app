@@ -109,6 +109,21 @@ async function verifyToken(token: string): Promise<AuthedUser | null> {
       return null; // Return null to deny access
     }
 
+    // Check whether ALL sessions for this user have been revoked.
+    // This allows immediate forced logout when an admin is demoted or a user is removed.
+    // A zero count means either the user never had tracked sessions (legacy) or
+    // all were explicitly terminated, so we only block when at least one session
+    // exists and every one of them has been revoked.
+    const [totalSessions, activeSessions] = await Promise.all([
+      (prisma.session as any).count({ where: { userId } }),
+      (prisma.session as any).count({ where: { userId, revokedAt: null } }),
+    ]);
+    if (totalSessions > 0 && activeSessions === 0) {
+      const e: any = new Error("Session revoked");
+      e.code = "SESSION_REVOKED";
+      throw e;
+    }
+
     // Map database role to Role type (handle case where role might be different format)
     // Check raw database value before casting to handle CUSTOMER -> USER mapping
     const rawRole = (user.role?.toUpperCase() || 'USER');
@@ -177,6 +192,10 @@ export const requireAuth: RequestHandler = async (req, res, next) => {
         clearAuthCookie(res);
         return res.status(401).json({ error: 'Session expired', code: 'SESSION_EXPIRED' });
       }
+      if (err?.code === 'SESSION_REVOKED') {
+        clearAuthCookie(res);
+        return res.status(401).json({ error: 'Session revoked', code: 'SESSION_REVOKED' });
+      }
       // fallthrough to suspended/unauthorized logic
     }
     // Check if token is valid but user is suspended
@@ -235,6 +254,10 @@ export function requireRole(required?: Role) {
           if (err?.code === 'SESSION_EXPIRED') {
             clearAuthCookie(res);
             return res.status(401).json({ error: 'Session expired', code: 'SESSION_EXPIRED' });
+          }
+          if (err?.code === 'SESSION_REVOKED') {
+            clearAuthCookie(res);
+            return res.status(401).json({ error: 'Session revoked', code: 'SESSION_REVOKED' });
           }
           // Check if token is valid but user is suspended
           try {

@@ -8,6 +8,7 @@ import { limitTransportBooking } from "../middleware/rateLimit.js";
 import { audit } from "../lib/audit.js";
 import { calculateETA, validateCoordinates } from "../lib/mapbox.js";
 import { generateTransportTripCode } from "../lib/tripCode.js";
+import { computeTransportFare } from "../lib/transportPolicy.js";
 
 export const router = Router();
 
@@ -54,7 +55,7 @@ router.post("/", limitTransportBooking, async (req: Request, res: Response) => {
       toLatitude: z.number().min(-90).max(90), // Validate latitude range
       toLongitude: z.number().min(-180).max(180), // Validate longitude range
       toAddress: z.string().min(1).max(255),
-      amount: z.number().positive().max(10000000), // Max 10M TZS
+      // amount is intentionally NOT accepted from the client — server computes it from distance + vehicle type.
       arrivalType: z.enum(["FLIGHT", "BUS", "TRAIN", "FERRY", "OTHER"]).optional(),
       arrivalNumber: z.string().optional(),
       transportCompany: z.string().optional(),
@@ -98,7 +99,7 @@ router.post("/", limitTransportBooking, async (req: Request, res: Response) => {
       return;
     }
 
-    // Calculate ETA and distance for scheduled trips using traffic-aware routing
+    // Calculate ETA and distance — also used below to compute the authoritative fare.
     let estimatedDistance: number | null = null;
     let estimatedDuration: number | null = null;
     let estimatedDurationTypical: number | null = null;
@@ -121,6 +122,18 @@ router.post("/", limitTransportBooking, async (req: Request, res: Response) => {
       // Don't fail the booking if ETA calculation fails
     }
 
+    // ── Server-side fare computation ─────────────────────────────────────────
+    // Client-supplied amount is never trusted. The fare is derived exclusively
+    // from the Mapbox road distance (or haversine fallback) + vehicle rates.
+    const serverFare = computeTransportFare(
+      data.vehicleType,
+      estimatedDistance,
+      {
+        fromLat: data.fromLatitude, fromLon: data.fromLongitude,
+        toLat:   data.toLatitude,   toLon:   data.toLongitude,
+      },
+    );
+
     // Create transport booking (generate strong tripCode for reconciliation/invoicing)
     let booking: any = null;
 
@@ -141,7 +154,7 @@ router.post("/", limitTransportBooking, async (req: Request, res: Response) => {
             toLatitude: data.toLatitude,
             toLongitude: data.toLongitude,
             toAddress: sanitizeText(data.toAddress),
-            amount: data.amount,
+            amount: serverFare,
             currency: "TZS",
             arrivalType: data.arrivalType || null,
             arrivalNumber: data.arrivalNumber || null,
@@ -177,7 +190,7 @@ router.post("/", limitTransportBooking, async (req: Request, res: Response) => {
         bookingId: booking.id,
         vehicleType: booking.vehicleType,
         scheduledDate: booking.scheduledDate,
-        amount: booking.amount,
+        amount: serverFare,
         userId: booking.userId,
         guestName: data.guestName,
         guestPhone: data.guestPhone,
@@ -196,6 +209,8 @@ router.post("/", limitTransportBooking, async (req: Request, res: Response) => {
       status: booking.status,
       vehicleType: booking.vehicleType,
       scheduledDate: booking.scheduledDate,
+      amount: serverFare,
+      currency: "TZS",
       // Include calculated route data if available
       ...(estimatedDistance !== null && estimatedDuration !== null && {
         estimatedDistance: Math.round(estimatedDistance / 1000 * 100) / 100, // km, 2 decimals

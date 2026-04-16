@@ -59,10 +59,24 @@ async function verifyToken(token: string): Promise<{ id: number; role: string; e
     const userId = Number(decoded.sub);
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, role: true, email: true },
+      select: { id: true, role: true, email: true, suspendedAt: true },
     });
 
     if (!user) {
+      return null;
+    }
+
+    // Deny suspended users
+    if (user.suspendedAt) {
+      return null;
+    }
+
+    // Deny if all sessions have been explicitly revoked (e.g. admin demotion)
+    const [totalSessions, activeSessions] = await Promise.all([
+      (prisma.session as any).count({ where: { userId } }),
+      (prisma.session as any).count({ where: { userId, revokedAt: null } }),
+    ]);
+    if (totalSessions > 0 && activeSessions === 0) {
       return null;
     }
 

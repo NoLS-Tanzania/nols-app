@@ -852,9 +852,9 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
         // Security: never trust client pricing. Use server-computed fare.
         transportFare = computed;
       } else {
-        // Fallback: if property coords are missing, accept a client hint but enforce minimum.
-        const clientHint = Number(data.transportFare ?? 0);
-        transportFare = Math.max(cfg.baseFare, Number.isFinite(clientHint) ? clientHint : 0);
+        // Property coords are missing — compute from haversine origin→origin (0 km) which gives
+        // the base fare only. This is conservative but safe: never accept a client-supplied amount.
+        transportFare = cfg.baseFare;
       }
     }
     

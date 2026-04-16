@@ -396,9 +396,15 @@ async function markInvoicePaid(invId: number, method: string, paymentRef: string
   return updated;
 }
 
-/** Helper: number close enough */
-function near(a: number, b: number, eps = 1) {
-  return Math.abs(a - b) <= eps; // TZS is integer typically; allow ±1 TZS drift
+/** Helper: number close enough
+ * Allows up to 1% drift OR 10 TZS absolute (whichever is larger), but never more than 500 TZS.
+ * This catches legitimate rounding differences from payment gateways while blocking
+ * deliberate underpayment of meaningful amounts. */
+function near(a: number, b: number): boolean {
+  if (!Number.isFinite(a) || !Number.isFinite(b) || b <= 0) return false;
+  const percentTolerance = b * 0.01;          // 1% of expected
+  const absTolerance = Math.min(Math.max(percentTolerance, 10), 500); // clamp: 10–500 TZS
+  return Math.abs(a - b) <= absTolerance;
 }
 
 /**
@@ -444,7 +450,7 @@ router.post("/azampay", webhookLimiter, async (req: any, res) => {
     // Normalize AzamPay payload
     const eventId = payload.transactionId || payload.id || payload.externalId;
     const paymentRef = payload.externalId || payload.referenceId || payload.orderId;
-    const amount = Number(payload.amount || payload.transactionAmount || 0);
+    const amount = Math.round(Number(payload.amount || payload.transactionAmount || 0));
     const status = payload.status || payload.transactionStatus || "UNKNOWN";
     
     // Map AzamPay status to our status
@@ -509,14 +515,15 @@ router.post("/azampay", webhookLimiter, async (req: any, res) => {
 
     // If payment is successful, mark invoice as paid
     if (invoice && normalizedStatus === "SUCCESS") {
-      const want = Number(invoice.total || invoice.netPayable || 0);
+      // TZS has no cents — compare as rounded integers to match what was sent to AzamPay.
+      const want = Math.round(Number(invoice.total || invoice.netPayable || 0));
       
       // Extract phone number and provider from payment event payload or invoice
       const eventPayload = recorded.payload as any;
       const phoneNumber = eventPayload?.phoneNumber || eventPayload?.accountNumber || invoice.booking?.user?.phone || null;
       const provider = eventPayload?.provider || eventPayload?.paymentMethod || invoice.paymentMethod || "AZAMPAY";
       
-      // Verify amount matches (allow small drift)
+      // Verify amount matches within tolerance
       if (near(amount, want)) {
         const updatedInvoice = await markInvoicePaid(
           invoice.id,
@@ -609,7 +616,12 @@ router.post("/azampay", webhookLimiter, async (req: any, res) => {
           // Never block webhook response due to notification failure
         }
       } else {
-        console.warn(`Amount mismatch: expected ${want}, received ${amount}`);
+        // Suspicious underpayment — log with enough detail for admin investigation.
+        console.warn(
+          `[WEBHOOK] Amount mismatch on invoice ${invoice?.id ?? "?"}: ` +
+          `expected ${want} TZS, received ${amount} TZS ` +
+          `(diff ${Math.abs(amount - want)} TZS). Invoice NOT marked paid.`
+        );
       }
     }
 

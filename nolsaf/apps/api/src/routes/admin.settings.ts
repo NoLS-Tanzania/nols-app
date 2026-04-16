@@ -357,9 +357,25 @@ router.get("/users", async (req, res) => {
 
 router.post("/users/:id/role", async (req, res) => {
   const id = Number(req.params.id);
-  const role = req.body?.role as "OWNER" | "ADMIN";
+  if (!id) return res.status(400).json({ error: "Invalid user id" });
+
+  // Only allow non-privileged role changes via settings. ADMIN promotion
+  // must go through the dedicated /admin/users/:id/promote-admin endpoint
+  // which requires { confirm: true } and emits notifications + full audit.
+  const ALLOWED_ROLES = ["OWNER", "CUSTOMER", "DRIVER"] as const;
+  const role = String(req.body?.role ?? "").trim().toUpperCase();
+  if (!ALLOWED_ROLES.includes(role as any)) {
+    return res.status(403).json({
+      error: "role_not_allowed",
+      message: "Setting role to ADMIN via this endpoint is not permitted. Use POST /admin/users/:id/promote-admin instead.",
+      allowed: ALLOWED_ROLES,
+    });
+  }
+
   const before = await prisma.user.findUnique({ where: { id }, select: { role: true } });
-  const u = await prisma.user.update({ where: { id }, data: { role } });
+  if (!before) return res.status(404).json({ error: "User not found" });
+
+  const u = await prisma.user.update({ where: { id }, data: { role: role as any } });
   await audit(req as any, "ADMIN_USER_ROLE_CHANGE", `user:${id}`, before, { role });
   res.json({ ok: true });
 });

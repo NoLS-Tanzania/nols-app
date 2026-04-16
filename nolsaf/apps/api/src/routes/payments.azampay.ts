@@ -182,9 +182,10 @@ router.post("/initiate", requireAuth, paymentLimiter, async (req, res) => {
     });
 
     // 7. Build checkout payload (no secret material inside)
+    // TZS has no fractional cents — always send as a rounded integer string.
     const azampayBody = {
       accountNumber: normalizedPhone,
-      amount: amount.toString(),
+      amount: Math.round(amount).toString(),
       currency,
       externalId: paymentRef,
       provider,

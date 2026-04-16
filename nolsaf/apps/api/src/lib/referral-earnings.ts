@@ -81,6 +81,30 @@ export async function createReferralEarning(
       return null; // No amount to earn from
     }
 
+    // Only generate credits if the booking is meaningful in size.
+    // This blocks farm accounts making 1-TZS micro-bookings purely to generate credits.
+    const MIN_REFERRAL_BOOKING_TZS = 5_000;
+    if (earningAmount < MIN_REFERRAL_BOOKING_TZS) {
+      return null;
+    }
+
+    // Cap pending credits per driver to limit blast radius of a farming campaign.
+    // Admin must approve/pay out existing credits before new ones accrue beyond this cap.
+    const MAX_PENDING_CREDITS_TZS = 100_000;
+    try {
+      const pendingSum = await (prisma as any).referralEarning.aggregate({
+        where: { driverId, status: { in: ['PENDING', 'AVAILABLE_FOR_WITHDRAWAL'] } },
+        _sum: { amount: true },
+      });
+      const currentPending = Number(pendingSum?._sum?.amount ?? 0);
+      if (currentPending >= MAX_PENDING_CREDITS_TZS) {
+        console.warn(`[REFERRAL] Driver ${driverId} has ${currentPending} TZS pending — skipping new credit (cap: ${MAX_PENDING_CREDITS_TZS})`);
+        return null;
+      }
+    } catch (e) {
+      // Non-fatal — proceed if aggregate fails
+    }
+
     // Calculate 0.35% of the amount
     const referralAmount = Math.round(earningAmount * 0.0035);
 

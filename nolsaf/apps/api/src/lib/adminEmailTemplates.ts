@@ -137,122 +137,168 @@ Karibu! 🌍
 }
 
 /**
- * Admin revocation email - sent when admin privileges are removed
+ * Admin revocation email — sent when admin privileges are removed.
+ * Formatted as a formal letter with: effects, possible reasons,
+ * appeal/referral path, reference number, and wrong-recipient notice.
  */
 export function getAdminRevocationEmail(data: {
   name: string;
   email: string;
-  reason?: string;
-  revokedBy?: string;
-  effectiveDate?: string;
+  referenceCode: string;
 }): { subject: string; html: string } {
   const greetingName = data.name || "User";
-  const appUrl = process.env.WEB_ORIGIN || process.env.APP_ORIGIN || "https://www.nolsaf.com";
-  const loginUrl = `${appUrl}/login`;
-  const effectiveDate = data.effectiveDate || new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  const effectiveDate = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 
   const body = `
-    <p style="margin:0 0 18px;font-size:17px;font-weight:600;color:#dc2626;">
-      Important: Admin Access Revoked
+    <!-- Reference block (top of letter) -->
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 28px;">
+      <tr>
+        <td style="border-left:4px solid #dc2626;padding:10px 16px;background:#fef2f2;border-radius:0 8px 8px 0;">
+          <p style="margin:0;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#991b1b;font-weight:600;">Reference Number</p>
+          <p style="margin:4px 0 0;font-size:20px;font-weight:800;color:#7f1d1d;letter-spacing:2px;font-family:monospace;">${data.referenceCode}</p>
+          <p style="margin:4px 0 0;font-size:11px;color:#b91c1c;">Please quote this reference in all correspondence and appeals.</p>
+        </td>
+      </tr>
+    </table>
+
+    <!-- Salutation -->
+    <p style="margin:0 0 6px;font-size:13px;color:${TEXT_MUTED};">${effectiveDate}</p>
+    <p style="margin:0 0 20px;font-size:16px;color:${TEXT_MAIN};line-height:1.7;">
+      Dear <strong>${greetingName}</strong>,
     </p>
-    
-    <p style="margin:0 0 16px;font-size:15px;color:${TEXT_MAIN};line-height:1.6;">
-      Dear ${greetingName},
+
+    <!-- Subject line -->
+    <p style="margin:0 0 20px;font-size:14px;font-weight:700;color:#7f1d1d;text-transform:uppercase;letter-spacing:0.5px;">
+      Re: Revocation of Administrative Access — NoLSAF Platform
     </p>
 
-    <p style="margin:0 0 16px;font-size:15px;color:${TEXT_MAIN};line-height:1.6;">
-      Your Administrator privileges for the NoLSAF platform have been revoked effective <strong>${effectiveDate}</strong>.
+    <!-- Opening -->
+    <p style="margin:0 0 16px;font-size:15px;color:${TEXT_MAIN};line-height:1.8;">
+      We are writing to formally notify you that your administrative access to the
+      <strong>NoLSAF Platform</strong> has been <strong style="color:#dc2626;">revoked</strong> effective
+      <strong>${effectiveDate}</strong>. This action has been taken by the NoLSAF Management Team in
+      accordance with the platform's governance policies.
     </p>
 
-    ${data.reason ? calloutBox(
-      "#dc2626",
-      "📋",
-      "Reason for Revocation",
-      `<p style="margin:0;font-size:14px;color:${TEXT_MAIN};">${data.reason}</p>`
-    ) : ""}
-
-    ${infoCard("#dc2626", [
-      ["Effective Date", effectiveDate],
-      ["Your Account Status", "Active (Standard User)"],
-      ["Admin Access", "Revoked"],
-      ...(data.revokedBy ? [["Revoked By", data.revokedBy] as [string, string]] : [])
-    ])}
-
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="16" border="0"
-      style="background:#eff6ff;border-left:4px solid #3b82f6;border-radius:8px;margin:24px 0;">
+    <!-- What you can no longer do -->
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="20" border="0"
+      style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;margin:24px 0;">
       <tr><td>
-        <p style="margin:0 0 8px;font-size:14px;font-weight:700;color:#1e40af;">
-          ℹ️ What This Means for You
+        <p style="margin:0 0 12px;font-size:14px;font-weight:700;color:#991b1b;">
+          Immediate Effects of This Action
         </p>
-        <ul style="margin:8px 0 0;padding-left:20px;font-size:14px;color:${TEXT_MAIN};line-height:1.8;">
-          <li>You no longer have access to the admin dashboard</li>
-          <li>Your account remains active as a standard user</li>
-          <li>You can still use NoLSAF services normally</li>
-          <li>All bookings and account data are preserved</li>
-          <li>Previous admin actions remain in audit logs</li>
+        <p style="margin:0 0 10px;font-size:14px;color:#7f1d1d;line-height:1.8;">
+          As of the effective date above, the following access and privileges have been permanently disabled:
+        </p>
+        <ul style="margin:0;padding-left:20px;font-size:14px;color:#7f1d1d;line-height:2.0;">
+          <li>Login to the NoLSAF Admin Dashboard</li>
+          <li>Reviewing, approving, or rejecting property listings and driver KYC requests</li>
+          <li>Managing user accounts, suspensions, or platform configurations</li>
+          <li>Accessing financial reports, transaction logs, or payout controls</li>
+          <li>Viewing confidential platform data or audit logs</li>
+          <li>Acting in any official capacity as a NoLSAF Administrator</li>
+        </ul>
+        <p style="margin:12px 0 0;font-size:14px;color:#7f1d1d;line-height:1.8;">
+          Your standard NoLSAF customer account remains active and all personal data is preserved.
+        </p>
+      </td></tr>
+    </table>
+
+    <!-- Possible reasons -->
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="20" border="0"
+      style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;margin:24px 0;">
+      <tr><td>
+        <p style="margin:0 0 12px;font-size:14px;font-weight:700;color:#92400e;">
+          Possible Grounds for This Decision
+        </p>
+        <p style="margin:0 0 10px;font-size:14px;color:#78350f;line-height:1.8;">
+          Administrative access may be revoked for one or more of the following reasons.
+          Specific grounds applicable to your case will be communicated by HR or Management:
+        </p>
+        <ul style="margin:0;padding-left:20px;font-size:14px;color:#78350f;line-height:2.0;">
+          <li>Violation of the NoLSAF Administrator Code of Conduct or Acceptable Use Policy</li>
+          <li>Misconduct, negligence, or breach of professional standards</li>
+          <li>Unauthorised access to, or misuse of, platform data or systems</li>
+          <li>Ongoing internal investigation requiring precautionary access suspension</li>
+          <li>Performance concerns or failure to meet role responsibilities</li>
+          <li>Organisational restructuring or role discontinuation</li>
+          <li>Voluntary resignation or termination of employment/contract</li>
+          <li>A security or compliance requirement by the platform or a regulatory body</li>
         </ul>
       </td></tr>
     </table>
 
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="16" border="0"
-      style="background:#fef3c7;border-left:4px solid #f59e0b;border-radius:8px;margin:24px 0;">
+    <!-- Next steps / hope -->
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="20" border="0"
+      style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;margin:24px 0;">
       <tr><td>
-        <p style="margin:0 0 8px;font-size:14px;font-weight:700;color:#92400e;">
-          🔐 Important Security Notice
+        <p style="margin:0 0 12px;font-size:14px;font-weight:700;color:#166534;">
+          Next Steps &amp; Your Right to Appeal
         </p>
-        <p style="margin:0;font-size:14px;color:#92400e;line-height:1.6;">
-          If you still have access to any admin credentials, please destroy them immediately. Attempting to access admin features with a revoked account may result in account suspension.
+        <p style="margin:0 0 10px;font-size:14px;color:#14532d;line-height:1.8;">
+          If you believe this decision was made in error, or if you have been informed that this
+          is a precautionary measure pending an investigation, you have the right to:
+        </p>
+        <ul style="margin:0 0 12px;padding-left:20px;font-size:14px;color:#14532d;line-height:2.0;">
+          <li>Request a formal review by contacting the NoLSAF Human Resources or Management team</li>
+          <li>Submit a written appeal or referral outlining your position</li>
+          <li>Request clarification on the specific grounds applicable to your case</li>
+        </ul>
+        <p style="margin:0;font-size:14px;color:#14532d;line-height:1.8;">
+          <strong>When submitting any appeal or referral, you must cite your reference number
+          <span style="font-family:monospace;background:#dcfce7;padding:2px 6px;border-radius:4px;">${data.referenceCode}</span>
+          in all written communications</strong> so that your case can be correctly identified and processed.
         </p>
       </td></tr>
     </table>
 
-    <p style="margin:24px 0 12px;font-size:15px;color:${TEXT_MAIN};line-height:1.6;">
-      You can continue to access your account and use NoLSAF services:
+    <!-- Contact info card -->
+    ${infoCard("#dc2626", [
+      ["HR / Management", "Contact your direct line manager or HR representative"],
+      ["Platform Support", `<a href="mailto:support@nolsaf.com" style="color:${BRAND_TEAL};text-decoration:none;">support@nolsaf.com</a>`],
+      ["Reference Number", `<span style="font-family:monospace;font-weight:700;color:#7f1d1d;">${data.referenceCode}</span>`],
+      ["Effective Date", effectiveDate],
+    ])}
+
+    <!-- Wrong recipient notice -->
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="16" border="0"
+      style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;margin:28px 0 24px;">
+      <tr><td>
+        <p style="margin:0;font-size:13px;color:#64748b;line-height:1.8;">
+          <strong>Received this email by mistake?</strong> If you are not the intended recipient,
+          or if you believe this was sent due to a technical error, please disregard this message and
+          notify us immediately at
+          <a href="mailto:support@nolsaf.com" style="color:${BRAND_TEAL};text-decoration:none;">support@nolsaf.com</a>
+          so we can investigate and correct the issue. Do not act on the contents of this email.
+        </p>
+      </td></tr>
+    </table>
+
+    <!-- Closing -->
+    <p style="margin:0 0 6px;font-size:15px;color:${TEXT_MAIN};line-height:1.7;">
+      Yours sincerely,
     </p>
-
-    ${ctaButton(loginUrl, "Continue to Your Account", BRAND_TEAL)}
-
-    <p style="margin:28px 0 12px;font-size:14px;color:${TEXT_MUTED};line-height:1.7;">
-      If you believe this was done in error or have questions about this decision, please contact our support team at <a href="mailto:support@nolsaf.com" style="color:${BRAND_TEAL};text-decoration:none;">support@nolsaf.com</a>.
-    </p>
-
-    <p style="margin:24px 0 0;font-size:14px;color:${TEXT_MAIN};">
-      Regards,<br>
-      <strong style="color:${BRAND_DARK};">NoLSAF Admin Team</strong>
+    <p style="margin:0 0 4px;font-size:15px;font-weight:700;color:${BRAND_DARK};">NoLSAF Platform Team</p>
+    <p style="margin:0;font-size:13px;color:${TEXT_MUTED};">On behalf of NoLSAF Management</p>
+    <p style="margin:16px 0 0;font-size:12px;color:#9ca3af;font-style:italic;line-height:1.7;">
+      This is a system-generated official notification. Please do not reply directly to this email.
+      All enquiries must be submitted in writing with your reference number to the contact above.
     </p>
   `;
 
   return {
-    subject: "Admin Access Revoked – NoLSAF",
-    html: baseEmail("#dc2626", "#991b1b", "Access Revoked", "🔒", body),
+    subject: `Notice of Admin Access Revocation — Ref: ${data.referenceCode}`,
+    html: baseEmail("#dc2626", "#991b1b", "Admin Access Revoked", "🔒", body),
   };
 }
 
 /**
- * Get SMS message for admin revocation
+ * SMS for admin revocation
  */
 export function getAdminRevocationSms(data: {
   name: string;
-  reason?: string;
+  referenceCode: string;
 }): string {
   const greetingName = data.name || "User";
-
-  return `NoLSAF: Admin Access Revoked
-
-Dear ${greetingName},
-
-Your Administrator privileges have been revoked.
-
-${data.reason ? `Reason: ${data.reason}` : ""}
-
-What this means:
-• No admin dashboard access
-• Standard user account remains active
-• All bookings & data preserved
-
-Questions? Email support@nolsaf.com
-
-You can still use NoLSAF services normally at www.nolsaf.com
-
-- NoLSAF Admin Team`;
+  return `Dear ${greetingName}, your NoLSAF Admin access has been revoked effective today. Ref: ${data.referenceCode}. Your standard account remains active. To appeal or for more information, contact HR/Management quoting this reference. support@nolsaf.com`;
 }

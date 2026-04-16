@@ -37,16 +37,35 @@ function htmlToText(html: string): string {
     .trim();
 }
 
-// Initialize Resend if API key is provided
-const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+// Lazily initialized — checked at send time so dotenv overrides (e.g. from bootstrap --production)
+// are always picked up regardless of when this module was first imported.
+let _resend: InstanceType<typeof Resend> | null = null;
+let _resendKey: string | undefined;
+function getResend() {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) return null;
+  if (_resend && key === _resendKey) return _resend;
+  _resendKey = key;
+  _resend = new Resend(key);
+  return _resend;
+}
 
-// Initialize SMTP transporter as fallback
-const smtpTransporter = process.env.SMTP_HOST ? nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT || 587),
-  secure: false,
-  auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER!, pass: process.env.SMTP_PASS! } : undefined,
-}) : null;
+// SMTP transporter — also lazily initialized so env overrides are respected
+let _smtp: ReturnType<typeof nodemailer.createTransport> | null = null;
+let _smtpHost: string | undefined;
+function getSmtp() {
+  const host = process.env.SMTP_HOST;
+  if (!host) return null;
+  if (_smtp && host === _smtpHost) return _smtp;
+  _smtpHost = host;
+  _smtp = nodemailer.createTransport({
+    host,
+    port: Number(process.env.SMTP_PORT || 587),
+    secure: false,
+    auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER!, pass: process.env.SMTP_PASS! } : undefined,
+  });
+  return _smtp;
+}
 
 export interface MailAttachment {
   /** Filename shown to the recipient (e.g. "Booking-ABCD1234.pdf") */
@@ -100,7 +119,8 @@ export async function sendMail(
 
   // Try Resend (if configured) — if Resend key is set but send fails, throw immediately
   // rather than silently falling through; this surfaces domain-verification errors to callers
-  if (resend && process.env.RESEND_API_KEY) {
+  const resend = getResend();
+  if (resend) {
     console.log(`[Resend] Sending email from=${from} to=${to} subject="${subject}"`);
     const { data, error } = await resend.emails.send({
       from: from,
@@ -126,7 +146,8 @@ export async function sendMail(
   }
 
   // Fallback to SMTP only when Resend is not configured at all
-  if (smtpTransporter && process.env.SMTP_HOST) {
+  const smtpTransporter = getSmtp();
+  if (smtpTransporter) {
     try {
       const info = await smtpTransporter.sendMail({
         from,
