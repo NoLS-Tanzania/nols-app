@@ -76,21 +76,66 @@ function otpEntityKey(destinationType: "PHONE" | "EMAIL", destination: string, c
   return `OTP:${destinationType}:${destination}:${codeHash}`;
 }
 
+const PHONE_RULES: Record<string, { min: number; max: number }> = {
+  '+255': { min: 9, max: 9 },
+  '+254': { min: 9, max: 9 },
+  '+256': { min: 9, max: 9 },
+  '+250': { min: 9, max: 9 },
+  '+251': { min: 9, max: 9 },
+  '+257': { min: 8, max: 8 },
+  '+243': { min: 9, max: 9 },
+  '+252': { min: 8, max: 9 },
+  '+211': { min: 9, max: 9 },
+  '+265': { min: 9, max: 9 },
+  '+258': { min: 9, max: 9 },
+  '+260': { min: 9, max: 9 },
+  '+263': { min: 9, max: 9 },
+  '+27': { min: 9, max: 9 },
+  '+234': { min: 10, max: 10 },
+  '+233': { min: 9, max: 9 },
+  '+212': { min: 9, max: 9 },
+  '+20': { min: 10, max: 10 },
+  '+1': { min: 10, max: 10 },
+  '+44': { min: 10, max: 10 },
+  '+971': { min: 9, max: 9 },
+  '+91': { min: 10, max: 10 },
+  '+86': { min: 11, max: 11 },
+};
+
 function normalizePhoneForAuth(input: string): string {
   let cleaned = String(input || '').trim();
   if (!cleaned) return '';
   cleaned = cleaned.replace(/[^\d+]/g, '');
 
-  // Convert 00-prefixed international numbers to +
   if (cleaned.startsWith('00')) cleaned = `+${cleaned.slice(2)}`;
-
   if (cleaned.startsWith('+')) return cleaned;
 
-  // Default to Tanzania (+255) unless overridden
   const defaultCallingCode = String(process.env.DEFAULT_COUNTRY_CALLING_CODE || '255').replace(/\D/g, '') || '255';
   if (cleaned.startsWith(defaultCallingCode)) return `+${cleaned}`;
   if (cleaned.startsWith('0')) return `+${defaultCallingCode}${cleaned.slice(1)}`;
   return `+${defaultCallingCode}${cleaned}`;
+}
+
+function getPhoneRuleForNumber(phone: string): { code: string | null; min: number; max: number } {
+  const supportedCodes = Object.keys(PHONE_RULES).sort((a, b) => b.length - a.length);
+  const matchedCode = supportedCodes.find((code) => phone.startsWith(code)) || null;
+  if (!matchedCode) return { code: null, min: 6, max: 12 };
+  const rule = PHONE_RULES[matchedCode];
+  return { code: matchedCode, min: rule.min, max: rule.max };
+}
+
+function isPhoneValidForAuth(phone: string): boolean {
+  const normalized = normalizePhoneForAuth(phone);
+  if (!normalized) return false;
+  const { code, min, max } = getPhoneRuleForNumber(normalized);
+  const nationalDigits = (code ? normalized.slice(code.length) : normalized).replace(/\D/g, '');
+  return nationalDigits.length >= min && nationalDigits.length <= max;
+}
+
+function getPhoneValidationMessage(phone: string): string {
+  const normalized = normalizePhoneForAuth(phone);
+  const { min, max } = getPhoneRuleForNumber(normalized);
+  return min === max ? `Phone number must be exactly ${min} digits for that country code.` : `Phone number must be ${min}-${max} digits for that country code.`;
 }
 
 function normalizeSignupRole(input: any): 'CUSTOMER' | 'OWNER' | 'DRIVER' | 'RESET' | null {
@@ -174,6 +219,7 @@ router.post('/send-otp', limitOtpSend, async (req, res) => {
 
   const normalizedPhone = normalizePhoneForAuth(String(phone));
   if (!normalizedPhone) return res.status(400).json({ message: 'phone required' });
+  if (!isPhoneValidForAuth(normalizedPhone)) return res.status(400).json({ message: getPhoneValidationMessage(normalizedPhone) });
 
   const normalizedRole = normalizeSignupRole(role);
 
@@ -282,6 +328,7 @@ router.post('/verify-otp', limitOtpVerify, async (req, res) => {
 
   const normalizedPhone = normalizePhoneForAuth(String(phone));
   if (!normalizedPhone) return res.status(400).json({ message: 'phone and otp required' });
+  if (!isPhoneValidForAuth(normalizedPhone)) return res.status(400).json({ message: getPhoneValidationMessage(normalizedPhone) });
 
   const requestedRole = normalizeSignupRole(role);
 

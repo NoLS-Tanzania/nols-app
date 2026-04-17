@@ -37,6 +37,47 @@ const COUNTRY_CODES = [
   { code: '+86',  country: 'CN', flag: '🇨🇳', label: 'China' },
 ] as const;
 
+const PHONE_RULES: Record<string, { min: number; max: number; example: string }> = {
+  '+255': { min: 9, max: 9, example: '712345678' },
+  '+254': { min: 9, max: 9, example: '712345678' },
+  '+256': { min: 9, max: 9, example: '712345678' },
+  '+250': { min: 9, max: 9, example: '788123456' },
+  '+251': { min: 9, max: 9, example: '911234567' },
+  '+257': { min: 8, max: 8, example: '79123456' },
+  '+243': { min: 9, max: 9, example: '991234567' },
+  '+252': { min: 8, max: 9, example: '612345678' },
+  '+211': { min: 9, max: 9, example: '912345678' },
+  '+265': { min: 9, max: 9, example: '991234567' },
+  '+258': { min: 9, max: 9, example: '841234567' },
+  '+260': { min: 9, max: 9, example: '971234567' },
+  '+263': { min: 9, max: 9, example: '771234567' },
+  '+27': { min: 9, max: 9, example: '821234567' },
+  '+234': { min: 10, max: 10, example: '8012345678' },
+  '+233': { min: 9, max: 9, example: '241234567' },
+  '+212': { min: 9, max: 9, example: '612345678' },
+  '+20': { min: 10, max: 10, example: '1012345678' },
+  '+1': { min: 10, max: 10, example: '2015550123' },
+  '+44': { min: 10, max: 10, example: '7400123456' },
+  '+971': { min: 9, max: 9, example: '501234567' },
+  '+91': { min: 10, max: 10, example: '9876543210' },
+  '+86': { min: 11, max: 11, example: '13800138000' },
+};
+
+const getPhoneRule = (code: string) => PHONE_RULES[code] || { min: 6, max: 12, example: '123456789' };
+const getPhonePlaceholder = (code: string) => getPhoneRule(code).example;
+const getCountryLabel = (code: string) => COUNTRY_CODES.find((c) => c.code === code)?.label || 'selected country';
+const getPhoneMaxLength = (code: string) => getPhoneRule(code).max;
+const sanitizePhoneInput = (value: string, code: string) => value.replace(/[^0-9]/g, '').slice(0, getPhoneMaxLength(code));
+const isPhoneLengthValid = (value: string, code: string) => {
+  const digits = String(value || '').replace(/[^0-9]/g, '');
+  const { min, max } = getPhoneRule(code);
+  return digits.length >= min && digits.length <= max;
+};
+const getPhoneLengthHint = (code: string) => {
+  const { min, max } = getPhoneRule(code);
+  return min === max ? `Enter ${min} digits for ${getCountryLabel(code)}` : `Enter ${min}-${max} digits for ${getCountryLabel(code)}`;
+};
+
 function CountryCodePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -61,11 +102,11 @@ function CountryCodePicker({ value, onChange }: { value: string; onChange: (v: s
   }, [open, close]);
 
   return (
-    <div ref={ref} className="relative flex-shrink-0">
+    <div ref={ref} className="relative w-full flex-shrink-0 sm:w-auto">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl border-2 border-slate-800 bg-slate-900/50 text-slate-200 text-sm font-medium hover:border-slate-700 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] transition-all"
+        className="flex w-full items-center justify-between gap-1.5 rounded-xl border-2 border-slate-800 bg-slate-900/50 px-3 py-2.5 text-sm font-medium text-slate-200 transition-all hover:border-slate-700 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] sm:w-auto"
       >
         <span className="text-base leading-none">{selected.flag}</span>
         <span>{selected.code}</span>
@@ -129,6 +170,7 @@ export default function RegisterPage() {
   // Login state
   const [authMode, setAuthMode] = useState<'register' | 'login' | 'forgot'>('register');
   const [loginPhone, setLoginPhone] = useState<string>('');
+  const [loginCountryCode, setLoginCountryCode] = useState<string>('+255');
   const [loginIdentifier, setLoginIdentifier] = useState<string>('');
   const [loginPassword, setLoginPassword] = useState<string>('');
   const [loginOtp, setLoginOtp] = useState<string>('');
@@ -250,14 +292,12 @@ export default function RegisterPage() {
   const router = useRouter();
   const [visible, setVisible] = useState<boolean>(true);
 
-  const normalizeLoginPhone = (raw: string) => {
-    const v = String(raw || '').trim();
+  const normalizeLoginPhone = (raw: string, code: string = '+255') => {
+    const v = String(raw || '').trim().replace(/[^0-9]/g, '');
     if (!v) return '';
-    if (v.startsWith('+')) return v;
-    // Tanzania-friendly default for local numbers
-    if (v.startsWith('0')) return `+255${v.slice(1)}`;
-    if (/^\d+$/.test(v) && v.length <= 12) return `+255${v}`;
-    return v;
+    if (String(raw || '').trim().startsWith('+')) return String(raw || '').trim();
+    if (v.startsWith('0')) return `${code}${v.slice(1)}`;
+    return `${code}${v}`;
   };
 
   const isLockedOut = lockoutRemainingSeconds > 0;
@@ -340,8 +380,8 @@ export default function RegisterPage() {
 
   const sendOtp = async () => {
     setError(null);
-    if (!phone || phone.trim().length < 5) {
-      setError('Please enter a valid phone number');
+    if (!isPhoneLengthValid(phone, countryCode)) {
+      setError(getPhoneLengthHint(countryCode));
       return;
     }
     setLoading(true);
@@ -477,80 +517,91 @@ export default function RegisterPage() {
           <div className={`space-y-3 transition-opacity duration-300 ${visible ? 'opacity-100' : 'opacity-0'}`}>
             {step === 'phone' && (
               <>
-                <div className="space-y-2.5 min-w-0">
+                <div className="space-y-3 min-w-0">
                   <label className="block text-sm font-semibold text-slate-200">Phone Number</label>
-                  <div className="flex items-center gap-2 w-full max-w-full box-border">
-                    <CountryCodePicker value={countryCode} onChange={setCountryCode} />
-                    <input
-                      type="tel"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value.replace(/[^0-9]/g, ''))}
-                      placeholder="712345678"
-                      className="flex-1 min-w-0 px-4 py-2.5 text-sm font-medium bg-slate-950 text-slate-100 border-2 border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] transition-all duration-200 shadow-sm hover:shadow-md placeholder:text-slate-500 box-border"
-                    />
+                  <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-2.5">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center w-full max-w-full box-border">
+                      <CountryCodePicker value={countryCode} onChange={setCountryCode} />
+                      <input
+                        type="tel"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value.replace(/[^0-9]/g, ''))}
+                        placeholder={getPhonePlaceholder(countryCode)}
+                        className="flex-1 min-w-0 px-4 py-2.5 text-sm font-medium bg-slate-950 text-slate-100 border-2 border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] transition-all duration-200 shadow-sm hover:shadow-md placeholder:text-slate-500 box-border"
+                      />
+                    </div>
                   </div>
                   <p className="text-xs text-slate-400 flex items-center gap-1.5">
                     <span className="w-1 h-1 bg-slate-400 rounded-full flex-shrink-0" />
                     <span>We&apos;ll send you a verification code</span>
                   </p>
+                  <p className="text-[11px] text-slate-500">
+                    Example for {getCountryLabel(countryCode)}: <span className="font-semibold text-slate-300">{getPhonePlaceholder(countryCode)}</span>
+                  </p>
+                  {phone.length > 0 && !isPhoneLengthValid(phone, countryCode) ? (
+                    <p className="text-[11px] text-amber-300">{getPhoneLengthHint(countryCode)}</p>
+                  ) : null}
                 </div>
 
-                <div className="space-y-2.5">
+                <div className="space-y-3">
                   <label className="block text-sm font-medium text-slate-200">I am a</label>
-                  <div className="grid grid-cols-3 gap-2.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                     <button
                       type="button"
                       onClick={() => setRole('traveller')}
-                      className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/20 ${
+                      className={`p-3.5 rounded-2xl border-2 transition-all flex items-center sm:flex-col sm:items-center text-left sm:text-center gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/20 ${
                         role === 'traveller'
                           ? 'bg-blue-500/10 border-blue-500/30 text-blue-100'
                           : 'bg-slate-950 border-slate-800 text-slate-200 hover:border-slate-700'
                       }`}
                     >
-                      <User className={`w-5 h-5 mb-1.5 ${role === 'traveller' ? 'text-blue-300' : 'text-slate-400'}`} />
-                      <div className="text-xs font-semibold">Traveller</div>
-                      {role === 'traveller' && (
-                        <Check className="w-3.5 h-3.5 mt-1.5 text-blue-300" />
-                      )}
+                      <User className={`w-5 h-5 flex-shrink-0 ${role === 'traveller' ? 'text-blue-300' : 'text-slate-400'}`} />
+                      <div className="min-w-0 flex-1 sm:flex-none">
+                        <div className="text-sm font-semibold">Traveller</div>
+                        <div className="text-[11px] text-slate-400">Book stays</div>
+                      </div>
+                      {role === 'traveller' && <Check className="w-3.5 h-3.5 text-blue-300 sm:mt-1" />}
                     </button>
 
                     <button
                       type="button"
                       onClick={() => setRole('driver')}
-                      className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/20 ${
+                      className={`p-3.5 rounded-2xl border-2 transition-all flex items-center sm:flex-col sm:items-center text-left sm:text-center gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/20 ${
                         role === 'driver'
                           ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-100'
                           : 'bg-slate-950 border-slate-800 text-slate-200 hover:border-slate-700'
                       }`}
                     >
-                      <Truck className={`w-5 h-5 mb-1.5 ${role === 'driver' ? 'text-emerald-300' : 'text-slate-400'}`} />
-                      <div className="text-xs font-semibold">Driver</div>
-                      {role === 'driver' && (
-                        <Check className="w-3.5 h-3.5 mt-1.5 text-emerald-300" />
-                      )}
+                      <Truck className={`w-5 h-5 flex-shrink-0 ${role === 'driver' ? 'text-emerald-300' : 'text-slate-400'}`} />
+                      <div className="min-w-0 flex-1 sm:flex-none">
+                        <div className="text-sm font-semibold">Driver</div>
+                        <div className="text-[11px] text-slate-400">Drive and earn</div>
+                      </div>
+                      {role === 'driver' && <Check className="w-3.5 h-3.5 text-emerald-300 sm:mt-1" />}
                     </button>
 
                     <button
                       type="button"
                       onClick={() => setRole('owner')}
-                      className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/20 ${
+                      className={`p-3.5 rounded-2xl border-2 transition-all flex items-center sm:flex-col sm:items-center text-left sm:text-center gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/20 ${
                         role === 'owner'
                           ? 'bg-amber-500/10 border-amber-500/30 text-amber-100'
                           : 'bg-slate-950 border-slate-800 text-slate-200 hover:border-slate-700'
                       }`}
                     >
-                      <Building2 className={`w-5 h-5 mb-1.5 ${role === 'owner' ? 'text-amber-300' : 'text-slate-400'}`} />
-                      <div className="text-xs font-semibold">Owner</div>
-                      {role === 'owner' && (
-                        <Check className="w-3.5 h-3.5 mt-1.5 text-amber-300" />
-                      )}
+                      <Building2 className={`w-5 h-5 flex-shrink-0 ${role === 'owner' ? 'text-amber-300' : 'text-slate-400'}`} />
+                      <div className="min-w-0 flex-1 sm:flex-none">
+                        <div className="text-sm font-semibold">Owner</div>
+                        <div className="text-[11px] text-slate-400">List property</div>
+                      </div>
+                      {role === 'owner' && <Check className="w-3.5 h-3.5 text-amber-300 sm:mt-1" />}
                     </button>
                   </div>
                 </div>
 
                 <button
                   onClick={sendOtp}
-                  disabled={loading}
+                  disabled={loading || !isPhoneLengthValid(phone, countryCode)}
                   className="w-full mt-5 px-4 py-2.5 bg-[#02665e] text-white text-sm font-medium rounded-lg hover:bg-[#014e47] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {loading ? (
@@ -568,7 +619,7 @@ export default function RegisterPage() {
             {step === 'otp' && (
               <>
                 <div className="space-y-2 min-w-0">
-                  <label className="block text-sm font-semibold text-slate-200">Enter OTP</label>
+                  <label className="block text-sm font-semibold text-slate-100">Enter OTP</label>
                   <input
                     type="text"
                     inputMode="numeric"
@@ -577,11 +628,11 @@ export default function RegisterPage() {
                     ref={otpRef}
                     placeholder="123456"
                     maxLength={6}
-                    className="w-full max-w-full px-4 py-3 text-xl tracking-widest text-center font-mono bg-slate-950 text-slate-100 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] box-border"
+                    className="w-full max-w-full px-4 py-3 text-xl tracking-[0.35em] text-center font-mono bg-slate-950 text-slate-50 border-2 border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#02665e]/25 focus:border-[#14b8a6] box-border placeholder:text-slate-500 shadow-sm"
                   />
                 </div>
 
-                <div className="p-3 bg-slate-950 rounded-xl border-2 border-slate-800 hover:border-slate-700 transition-colors min-w-0">
+                <div className="p-3 bg-slate-950 rounded-xl border-2 border-slate-700 hover:border-slate-600 transition-colors min-w-0 shadow-sm">
                   <label className="flex items-center gap-3 cursor-pointer min-w-0 group">
                     <div className="relative flex-shrink-0">
                       <input
@@ -600,7 +651,7 @@ export default function RegisterPage() {
                         )}
                       </div>
                     </div>
-                    <span className="text-xs text-slate-300 leading-relaxed min-w-0 break-words flex-1">
+                    <span className="text-xs text-slate-200 leading-relaxed min-w-0 break-words flex-1">
                       I agree to the{' '}
                       <a 
                         href="/terms" 
@@ -616,7 +667,7 @@ export default function RegisterPage() {
                 </div>
 
                 <div className="flex items-center justify-between gap-3 min-w-0">
-                  <div className="text-xs text-slate-600 min-w-0 flex-shrink-0">
+                  <div className="text-xs text-slate-400 min-w-0 flex-shrink-0">
                     {countdown > 0 ? (
                       <span className="flex items-center gap-1.5">
                         <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-pulse flex-shrink-0" />
@@ -635,7 +686,7 @@ export default function RegisterPage() {
                   <button
                     onClick={verifyOtp}
                     disabled={loading || !agreed}
-                    className="px-4 py-2.5 bg-[#02665e] text-white text-sm font-medium rounded-lg hover:bg-[#014e47] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 box-border"
+                    className="px-4 py-2.5 bg-[#02665e] text-white text-sm font-semibold rounded-lg hover:bg-[#014e47] transition-colors shadow-[0_0_0_1px_rgba(20,184,166,0.18)] disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 box-border"
                   >
                     {loading ? 'Verifying...' : 'Continue'}
                   </button>
@@ -848,27 +899,39 @@ export default function RegisterPage() {
                   <>
                     <div className="space-y-2.5 min-w-0">
                       <label className="block text-sm font-semibold text-slate-200">Phone Number</label>
-                      <div className="relative w-full">
-                        <input
-                          type="tel"
-                          value={loginPhone}
-                          onChange={(e) => setLoginPhone(e.target.value.replace(/[^0-9]/g, ''))}
-                          placeholder="712345678"
-                          className="w-full max-w-full px-4 py-2.5 text-sm font-medium bg-slate-950 text-slate-100 border-2 border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] transition-all duration-200 shadow-sm hover:shadow-md placeholder:text-slate-500 box-border"
-                        />
+                      <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-2.5">
+                        <div className="flex flex-col gap-2 sm:flex-row min-w-0">
+                          <CountryCodePicker value={loginCountryCode} onChange={setLoginCountryCode} />
+                          <input
+                            type="tel"
+                            value={loginPhone}
+                            onChange={(e) => setLoginPhone(sanitizePhoneInput(e.target.value, loginCountryCode))}
+                            placeholder={getPhonePlaceholder(loginCountryCode)}
+                            maxLength={getPhoneMaxLength(loginCountryCode)}
+                            className="flex-1 min-w-0 px-4 py-2.5 text-sm font-medium bg-slate-950 text-slate-100 border-2 border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] transition-all duration-200 shadow-sm hover:shadow-md placeholder:text-slate-500 box-border"
+                          />
+                        </div>
                       </div>
                       <p className="text-xs text-slate-400 flex items-center gap-1.5">
                         <span className="w-1 h-1 bg-slate-400 rounded-full flex-shrink-0" />
                         <span>We&apos;ll send you a verification code</span>
                       </p>
+                      {loginPhone.length > 0 && !isPhoneLengthValid(loginPhone, loginCountryCode) ? (
+                        <p className="text-[11px] text-amber-300">{getPhoneLengthHint(loginCountryCode)}</p>
+                      ) : null}
                     </div>
 
                     <button
                       onClick={async () => {
                         setLoginLoading(true);
                         try {
+                          if (!isPhoneLengthValid(loginPhone, loginCountryCode)) {
+                            setError(getPhoneLengthHint(loginCountryCode));
+                            return;
+                          }
+
                           const response = await api.post('/api/auth/send-otp', {
-                            phone: normalizeLoginPhone(loginPhone),
+                            phone: normalizeLoginPhone(loginPhone, loginCountryCode),
                           });
                           if (response.status === 200) {
                             setSuccess('OTP sent to your phone. Please check and enter the code.');
@@ -880,7 +943,7 @@ export default function RegisterPage() {
                           setLoginLoading(false);
                         }
                       }}
-                      disabled={loginLoading}
+                      disabled={loginLoading || !isPhoneLengthValid(loginPhone, loginCountryCode)}
                       className="w-full px-4 py-2.5 bg-[#02665e] text-white text-sm font-medium rounded-lg hover:bg-[#014e47] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {loginLoading ? 'Sending...' : 'Send OTP'}
@@ -1074,7 +1137,7 @@ export default function RegisterPage() {
                         // Verify login OTP with API
                         try {
                           const response = await api.post('/api/auth/verify-otp', {
-                            phone: normalizeLoginPhone(loginPhone),
+                            phone: normalizeLoginPhone(loginPhone, loginCountryCode),
                             otp: loginOtp.trim(),
                           });
                           
@@ -1158,8 +1221,8 @@ export default function RegisterPage() {
   // Forgot Password Helper Functions
   const sendForgotOtp = async () => {
     setError(null);
-    if (!forgotPhone || forgotPhone.trim().length < 5) {
-      setError('Please enter a valid phone number');
+    if (!isPhoneLengthValid(forgotPhone, forgotCountryCode)) {
+      setError(getPhoneLengthHint(forgotCountryCode));
       return;
     }
     setForgotLoading(true);
@@ -1458,22 +1521,31 @@ export default function RegisterPage() {
                 </>
               ) : (
                 <>
-                  <div className="space-y-2 min-w-0">
+                  <div className="space-y-2.5 min-w-0">
                     <label className="block text-sm font-semibold text-slate-200">Phone Number</label>
-                    <div className="flex gap-2 min-w-0">
-                      <CountryCodePicker value={forgotCountryCode} onChange={setForgotCountryCode} />
-                      <input
-                        type="tel"
-                        value={forgotPhone}
-                        onChange={(e) => setForgotPhone(e.target.value.replace(/[^0-9]/g, ''))}
-                        placeholder="7XX XXX XXX"
-                        className="flex-1 min-w-0 px-4 py-2.5 text-sm font-medium bg-slate-950 text-slate-100 border-2 border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] shadow-sm hover:shadow-md placeholder:text-slate-500 box-border"
-                      />
+                    <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-2.5">
+                      <div className="flex flex-col gap-2 sm:flex-row min-w-0">
+                        <CountryCodePicker value={forgotCountryCode} onChange={setForgotCountryCode} />
+                        <input
+                          type="tel"
+                          value={forgotPhone}
+                          onChange={(e) => setForgotPhone(sanitizePhoneInput(e.target.value, forgotCountryCode))}
+                          placeholder={getPhonePlaceholder(forgotCountryCode)}
+                          maxLength={getPhoneMaxLength(forgotCountryCode)}
+                          className="flex-1 min-w-0 px-4 py-2.5 text-sm font-medium bg-slate-950 text-slate-100 border-2 border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] shadow-sm hover:shadow-md placeholder:text-slate-500 box-border"
+                        />
+                      </div>
                     </div>
+                    <p className="text-[11px] text-slate-500">
+                      Example for {getCountryLabel(forgotCountryCode)}: <span className="font-semibold text-slate-300">{getPhonePlaceholder(forgotCountryCode)}</span>
+                    </p>
+                    {forgotPhone.length > 0 && !isPhoneLengthValid(forgotPhone, forgotCountryCode) ? (
+                      <p className="text-[11px] text-amber-300">{getPhoneLengthHint(forgotCountryCode)}</p>
+                    ) : null}
                   </div>
                   <button
                     onClick={sendForgotOtp}
-                    disabled={forgotLoading || !forgotPhone || forgotPhone.length < 5}
+                    disabled={forgotLoading || !isPhoneLengthValid(forgotPhone, forgotCountryCode)}
                     className="w-full max-w-full px-4 py-2.5 bg-[#02665e] text-white text-sm font-medium rounded-lg hover:bg-[#014e47] transition-colors disabled:opacity-50 disabled:cursor-not-allowed box-border"
                   >
                     {forgotLoading ? 'Sending...' : 'Send OTP'}
