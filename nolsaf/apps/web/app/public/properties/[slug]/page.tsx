@@ -2094,16 +2094,12 @@ export default function PublicPropertyDetailPage() {
                       className="object-cover"
                       sizes="(min-width: 768px) 22vw, 50vw"
                     />
-                    {hasMorePhotos ? (
-                      <div className="absolute left-3 right-3 bottom-3 flex items-center justify-start">
-                        <div
-                          className="nls-blink inline-flex items-center gap-2 rounded-full bg-white/95 text-[#02665e] px-4 py-2 text-xs font-semibold shadow-sm ring-1 ring-black/5 whitespace-nowrap leading-none blink-animation"
-                        >
-                          <Eye className="w-4 h-4 flex-shrink-0 text-[#02665e]" aria-hidden />
-                          <span className="leading-none">View all photos</span>
-                          <span className="mx-1 h-3 w-px bg-[#02665e]/20" aria-hidden />
-                          <span className="text-[#02665e]/80">+{Math.max(0, images.length - 3)} more</span>
-            </div>
+                                        {hasMorePhotos ? (
+                      <div className="absolute right-3 bottom-3">
+                        <div className="inline-flex items-center gap-1.5 rounded-full bg-black/60 backdrop-blur-sm px-2.5 py-1.5 shadow-sm ring-1 ring-white/10">
+                          <Eye className="w-3.5 h-3.5 flex-shrink-0 text-white/90" aria-hidden />
+                          <span className="text-[11px] font-semibold text-white leading-none tabular-nums">{images.length}</span>
+                        </div>
                       </div>
                     ) : null}
                   </button>
@@ -2166,13 +2162,11 @@ export default function PublicPropertyDetailPage() {
                       <div className="absolute inset-0 flex items-center justify-center">
                         <ImageIcon className="w-6 h-6 text-slate-400" aria-hidden />
                       </div>
-                      {i === 1 ? (
-                        <div className="absolute left-3 right-3 bottom-3 flex items-center justify-start">
-                          <div
-                            className="nls-blink inline-flex items-center gap-2 rounded-full bg-white/95 text-[#02665e] px-4 py-2 text-xs font-semibold shadow-sm ring-1 ring-black/5 whitespace-nowrap leading-none blink-18"
-                          >
-                            <Eye className="w-4 h-4 flex-shrink-0 text-[#02665e]" aria-hidden />
-                            <span className="leading-none">View all photos</span>
+                                            {i === 1 ? (
+                        <div className="absolute right-3 bottom-3">
+                          <div className="inline-flex items-center gap-1.5 rounded-full bg-black/60 backdrop-blur-sm px-2.5 py-1.5 shadow-sm ring-1 ring-white/10">
+                            <Eye className="w-3.5 h-3.5 flex-shrink-0 text-white/90" aria-hidden />
+                            <span className="text-[11px] font-semibold text-white leading-none tabular-nums">0</span>
                           </div>
                         </div>
                       ) : null}
