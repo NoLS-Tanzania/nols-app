@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import axios from "axios";
@@ -17,7 +17,7 @@ const api = axios.create({ baseURL: "", withCredentials: true });
 
 
 
-// ─── Shared display components ──────────────────────────────────────────────
+// --- Shared display components ----------------------------------------------
 
 function InfoItem({
 
@@ -764,7 +764,7 @@ export default function OwnerProfile() {
             <span className="dot dot-yellow" />
             <span className="dot dot-green" />
           </div>
-          <p className="text-sm text-slate-500 mt-4">Loading profile…</p>
+          <p className="text-sm text-slate-500 mt-4">Loading profile—</p>
         </div>
       </div>
     );
@@ -823,11 +823,11 @@ export default function OwnerProfile() {
                   <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-slate-900 text-white text-xs rounded-lg shadow-lg z-50 min-w-[200px]">
                     <div className="font-semibold mb-1">Available providers:</div>
                     <div className="space-y-0.5">
-                      <div>• M-Pesa</div>
-                      <div>• Mix by yas</div>
-                      <div>• Airtel</div>
-                      <div>• Tigo Pesa</div>
-                      <div>• Halopesa</div>
+                      <div>— M-Pesa</div>
+                      <div>— Mix by yas</div>
+                      <div>— Airtel</div>
+                      <div>— Tigo Pesa</div>
+                      <div>— Halopesa</div>
                     </div>
                     <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
                       <div className="border-4 border-transparent border-t-slate-900"></div>
@@ -841,11 +841,11 @@ export default function OwnerProfile() {
                   <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-slate-900 text-white text-xs rounded-lg shadow-lg z-50 min-w-[200px]">
                     <div className="font-semibold mb-1">Sample bank names:</div>
                     <div className="space-y-0.5">
-                      <div>• CRDB BANK</div>
-                      <div>• NMB BANK</div>
-                      <div>• NBC BANK</div>
-                      <div>• EXIM BANK</div>
-                      <div>• DTB BANK</div>
+                      <div>— CRDB BANK</div>
+                      <div>— NMB BANK</div>
+                      <div>— NBC BANK</div>
+                      <div>— EXIM BANK</div>
+                      <div>— DTB BANK</div>
                     </div>
                     <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
                       <div className="border-4 border-transparent border-t-slate-900"></div>
@@ -865,11 +865,11 @@ export default function OwnerProfile() {
                   <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-slate-900 text-white text-xs rounded-lg shadow-lg z-50 min-w-[200px]">
                     <div className="font-semibold mb-1">Available providers:</div>
                     <div className="space-y-0.5">
-                      <div>• M-Pesa</div>
-                      <div>• Mix by yas</div>
-                      <div>• Airtel</div>
-                      <div>• Tigo Pesa</div>
-                      <div>• Halopesa</div>
+                      <div>— M-Pesa</div>
+                      <div>— Mix by yas</div>
+                      <div>— Airtel</div>
+                      <div>— Tigo Pesa</div>
+                      <div>— Halopesa</div>
                     </div>
                     <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
                       <div className="border-4 border-transparent border-t-slate-900"></div>
@@ -883,11 +883,11 @@ export default function OwnerProfile() {
                   <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-slate-900 text-white text-xs rounded-lg shadow-lg z-50 min-w-[200px]">
                     <div className="font-semibold mb-1">Sample bank names:</div>
                     <div className="space-y-0.5">
-                      <div>• CRDB BANK</div>
-                      <div>• NMB BANK</div>
-                      <div>• NBC BANK</div>
-                      <div>• EXIM BANK</div>
-                      <div>• DTB BANK</div>
+                      <div>— CRDB BANK</div>
+                      <div>— NMB BANK</div>
+                      <div>— NBC BANK</div>
+                      <div>— EXIM BANK</div>
+                      <div>— DTB BANK</div>
                     </div>
                     <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
                       <div className="border-4 border-transparent border-t-slate-900"></div>
@@ -1016,7 +1016,7 @@ export default function OwnerProfile() {
 
 
 
-      {/* ── Hero banner ─────────────────────────────────────────────────── */}
+      {/* -- Hero banner --------------------------------------------------- */}
 
       <div className="mb-6 relative rounded-3xl border border-[#02665e]/30 bg-[#040f0e] shadow-card overflow-hidden">
 
@@ -1043,7 +1043,7 @@ export default function OwnerProfile() {
 
             {/* Completion ring */}
 
-            <div className="absolute right-0 top-0 flex items-center gap-3 rounded-2xl border border-[#02665e]/30 bg-[#02665e]/10 px-3 py-2 backdrop-blur-sm">
+            <div className="absolute right-0 top-0 flex items-center gap-2 rounded-2xl border border-[#02665e]/30 bg-[#02665e]/10 px-2.5 py-2 backdrop-blur-sm">
 
               <div className="relative h-11 w-11">
 
@@ -1083,7 +1083,7 @@ export default function OwnerProfile() {
 
 
 
-            <div className="mx-auto w-full max-w-2xl px-12 sm:px-16 pt-0.5 text-center">
+            <div className="mx-auto flex min-h-[104px] w-full max-w-2xl flex-col items-center justify-center px-12 sm:px-16 lg:px-20 text-center">
 
               <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight leading-tight">My Profile</h1>
 
@@ -1099,7 +1099,7 @@ export default function OwnerProfile() {
 
 
 
-      {/* ── Save feedback ──────────────────────────────────────────────── */}
+      {/* -- Save feedback ------------------------------------------------ */}
 
       {(success || error) && (
 
@@ -1117,7 +1117,7 @@ export default function OwnerProfile() {
 
 
 
-        {/* ── Personal details ──────────────────────────────────────────── */}
+        {/* -- Personal details -------------------------------------------- */}
 
         <div className="lg:col-span-7 rounded-2xl border border-slate-200 bg-white shadow-card overflow-hidden">
 
@@ -1239,7 +1239,7 @@ export default function OwnerProfile() {
 
                     className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 disabled:opacity-50">
 
-                    <ShieldCheck className="h-3.5 w-3.5" />{verifyingEmail ? 'Sending…' : 'Verify email'}
+                    <ShieldCheck className="h-3.5 w-3.5" />{verifyingEmail ? 'Sending—' : 'Verify email'}
 
                   </button>
 
@@ -1255,7 +1255,7 @@ export default function OwnerProfile() {
 
 
 
-        {/* ── Payout preference ─────────────────────────────────────────── */}
+        {/* -- Payout preference ------------------------------------------- */}
 
         <div className="lg:col-span-5 rounded-2xl border border-slate-200 bg-white shadow-card overflow-hidden">
 
@@ -1267,7 +1267,7 @@ export default function OwnerProfile() {
 
           </div>
 
-          <div className="p-5 sm:p-6 grid grid-cols-1 gap-4">
+          <div className="p-5 sm:p-6 grid grid-cols-2 gap-4 sm:gap-5">
 
             <EditableInfoItem icon={<Building2 className="w-5 h-5" />} label="Bank name" value={form.bankName} fieldKey="bankName" {...editProps} />
 
@@ -1283,7 +1283,7 @@ export default function OwnerProfile() {
 
 
 
-        {/* ── Mobile money — dark card ──────────────────────────────────── */}
+        {/* -- Mobile money — dark card ------------------------------------ */}
 
         <div className="lg:col-span-6 relative rounded-2xl border border-white/10 bg-slate-950/70 shadow-card overflow-hidden backdrop-blur-xl">
 
@@ -1377,7 +1377,7 @@ export default function OwnerProfile() {
 
 
 
-        {/* ── Saved payout summary — dark card ─────────────────────────── */}
+        {/* -- Saved payout summary — dark card --------------------------- */}
 
         <div className="lg:col-span-6 relative rounded-2xl border border-white/10 bg-slate-950/70 shadow-card overflow-hidden backdrop-blur-xl">
 
@@ -1409,7 +1409,7 @@ export default function OwnerProfile() {
 
 
 
-        {/* ── Required documents ────────────────────────────────────────── */}
+        {/* -- Required documents ------------------------------------------ */}
 
         <div className="lg:col-span-12 rounded-2xl border border-slate-200 bg-white shadow-card overflow-hidden">
 
@@ -1459,7 +1459,7 @@ export default function OwnerProfile() {
 
                       className="mt-2 w-full h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30">
 
-                      <option value="">Select document…</option>
+                      <option value="">Select document—</option>
 
                       {actionableDocTypes.map((t) => <option key={t.type} value={t.type}>{t.label}</option>)}
 
@@ -1515,7 +1515,7 @@ export default function OwnerProfile() {
 
                         <div className="min-w-0">
 
-                          <div className="text-sm font-semibold text-slate-900">{docUploading ? "Uploading…" : !selectedDocType ? "Select a document type above" : "Drag & drop to upload"}</div>
+                          <div className="text-sm font-semibold text-slate-900">{docUploading ? "Uploading—" : !selectedDocType ? "Select a document type above" : "Drag & drop to upload"}</div>
 
                           <div className="text-xs font-semibold text-slate-600 mt-0.5">or click to browse</div>
 
@@ -1698,7 +1698,7 @@ export default function OwnerProfile() {
 
 
 
-        {/* ── Account actions ───────────────────────────────────────────── */}
+        {/* -- Account actions --------------------------------------------- */}
 
         <div className="lg:col-span-12 rounded-2xl border border-slate-200 bg-white shadow-card overflow-hidden">
 
@@ -1716,7 +1716,7 @@ export default function OwnerProfile() {
 
               className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#02665e] text-white text-sm font-semibold hover:bg-[#02665e]/90 shadow-card transition-colors disabled:opacity-60 disabled:cursor-wait">
 
-              <Save className="h-4 w-4" />{saving ? "Saving…" : "Save changes"}
+              <Save className="h-4 w-4" />{saving ? "Saving—" : "Save changes"}
 
             </button>
 
@@ -1762,7 +1762,7 @@ export default function OwnerProfile() {
 
 
 
-        {/* ── Audit / Change history ────────────────────────────────────── */}
+        {/* -- Audit / Change history -------------------------------------- */}
 
         <div className="lg:col-span-12 rounded-2xl border border-slate-200 bg-white shadow-card overflow-hidden">
 
@@ -1782,7 +1782,7 @@ export default function OwnerProfile() {
 
                 <div className="dot-spinner dot-sm" aria-hidden><span className="dot dot-blue" /><span className="dot dot-black" /><span className="dot dot-yellow" /><span className="dot dot-green" /></div>
 
-                <p className="text-sm text-slate-500">Loading history…</p>
+                <p className="text-sm text-slate-500">Loading history—</p>
 
               </div>
 
@@ -1937,3 +1937,4 @@ export default function OwnerProfile() {
   );
 
 }
+
