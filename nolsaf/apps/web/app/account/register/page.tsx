@@ -102,11 +102,11 @@ function CountryCodePicker({ value, onChange }: { value: string; onChange: (v: s
   }, [open, close]);
 
   return (
-    <div ref={ref} className="relative w-full flex-shrink-0 sm:w-auto">
+    <div ref={ref} className="relative w-[122px] min-w-[122px] flex-shrink-0">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between gap-1.5 rounded-xl border-2 border-slate-800 bg-slate-900/50 px-3 py-2.5 text-sm font-medium text-slate-200 transition-all hover:border-slate-700 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] sm:w-auto"
+        className="flex w-full items-center justify-between gap-1.5 rounded-xl border-2 border-slate-800 bg-slate-900/50 px-3 py-2.5 text-sm font-medium text-slate-200 transition-all hover:border-slate-700 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e]"
       >
         <span className="text-base leading-none">{selected.flag}</span>
         <span>{selected.code}</span>
@@ -520,13 +520,14 @@ export default function RegisterPage() {
                 <div className="space-y-3 min-w-0">
                   <label className="block text-sm font-semibold text-slate-200">Phone Number</label>
                   <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-2.5">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center w-full max-w-full box-border">
+                    <div className="flex items-center gap-2 w-full max-w-full box-border">
                       <CountryCodePicker value={countryCode} onChange={setCountryCode} />
                       <input
                         type="tel"
                         value={phone}
-                        onChange={(e) => setPhone(e.target.value.replace(/[^0-9]/g, ''))}
+                        onChange={(e) => setPhone(sanitizePhoneInput(e.target.value, countryCode))}
                         placeholder={getPhonePlaceholder(countryCode)}
+                        maxLength={getPhoneMaxLength(countryCode)}
                         className="flex-1 min-w-0 px-4 py-2.5 text-sm font-medium bg-slate-950 text-slate-100 border-2 border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] transition-all duration-200 shadow-sm hover:shadow-md placeholder:text-slate-500 box-border"
                       />
                     </div>
@@ -900,7 +901,7 @@ export default function RegisterPage() {
                     <div className="space-y-2.5 min-w-0">
                       <label className="block text-sm font-semibold text-slate-200">Phone Number</label>
                       <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-2.5">
-                        <div className="flex flex-col gap-2 sm:flex-row min-w-0">
+                        <div className="flex items-center gap-2 min-w-0">
                           <CountryCodePicker value={loginCountryCode} onChange={setLoginCountryCode} />
                           <input
                             type="tel"
@@ -1175,16 +1176,16 @@ export default function RegisterPage() {
   const renderModeToggleFooter = () => {
     if (authMode === 'register') {
       return (
-        <div className="shrink-0 px-6 py-3 border-t border-slate-800 bg-slate-950/90 backdrop-blur">
-          <div className="flex items-center justify-center gap-2 text-xs sm:text-sm text-slate-300">
-            <span className="whitespace-nowrap">Already have an account?</span>
+        <div className="shrink-0 border-t border-slate-800 bg-slate-950/95 px-6 py-4 backdrop-blur">
+          <div className="flex flex-wrap items-center justify-center gap-2 text-sm text-slate-100">
+            <span className="font-medium text-slate-200">Already have an account?</span>
             <button
               type="button"
               onClick={() => setAuthMode('login')}
-              className="whitespace-nowrap font-semibold text-[#02665e] hover:underline transition-colors inline-flex items-center gap-1"
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-600 bg-slate-800/90 px-3 py-1.5 font-semibold text-[#14b8a6] shadow-sm transition-colors hover:bg-slate-800"
             >
               <span>Sign in</span>
-              <LogIn className="w-3.5 h-3.5" />
+              <LogIn className="h-3.5 w-3.5" />
             </button>
           </div>
         </div>
@@ -1193,16 +1194,16 @@ export default function RegisterPage() {
 
     if (authMode === 'login') {
       return (
-        <div className="shrink-0 px-6 py-3 border-t border-slate-800 bg-slate-950/90 backdrop-blur">
-          <div className="flex items-center justify-center gap-2 text-xs sm:text-sm text-slate-300">
-            <span className="whitespace-nowrap">Don&apos;t have an account?</span>
+        <div className="shrink-0 border-t border-slate-800 bg-slate-950/95 px-6 py-4 backdrop-blur">
+          <div className="flex flex-wrap items-center justify-center gap-2 text-sm text-slate-100">
+            <span className="font-medium text-slate-200">Don&apos;t have an account?</span>
             <button
               type="button"
               onClick={() => setAuthMode('register')}
-              className="whitespace-nowrap font-semibold text-[#02665e] hover:underline transition-colors inline-flex items-center gap-1"
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-600 bg-slate-800/90 px-3 py-1.5 font-semibold text-[#14b8a6] shadow-sm transition-colors hover:bg-slate-800"
             >
               <span>Register</span>
-              <UserPlus className="w-3.5 h-3.5" />
+              <UserPlus className="h-3.5 w-3.5" />
             </button>
           </div>
         </div>
@@ -1524,7 +1525,7 @@ export default function RegisterPage() {
                   <div className="space-y-2.5 min-w-0">
                     <label className="block text-sm font-semibold text-slate-200">Phone Number</label>
                     <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-2.5">
-                      <div className="flex flex-col gap-2 sm:flex-row min-w-0">
+                      <div className="flex items-center gap-2 min-w-0">
                         <CountryCodePicker value={forgotCountryCode} onChange={setForgotCountryCode} />
                         <input
                           type="tel"
