@@ -11,11 +11,9 @@ import {
   Home,
   LifeBuoy,
   LogOut,
-  Moon,
   Plus,
   RefreshCw,
   Settings as SettingsIcon,
-  Sun,
   User,
   Building2,
   Calendar,
@@ -65,7 +63,6 @@ if (typeof document !== "undefined") {
 
 export default function OwnerSiteHeader({ unreadMessages = 0 }: { unreadMessages?: number }) {
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [theme, setTheme] = useState<"light" | "dark">("light");
 
   const [touchedIcon, setTouchedIcon] = useState<string | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -102,16 +99,6 @@ export default function OwnerSiteHeader({ unreadMessages = 0 }: { unreadMessages
     })();
 
     if (typeof window === "undefined") return;
-    try {
-      const saved = localStorage.getItem("theme");
-      const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
-      const initial = saved === "dark" || (saved === null && prefersDark) ? "dark" : "light";
-      setTheme(initial);
-      if (initial === "dark") document.documentElement.classList.add("dark");
-      else document.documentElement.classList.remove("dark");
-    } catch {
-      // ignore
-    }
 
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
@@ -139,18 +126,6 @@ export default function OwnerSiteHeader({ unreadMessages = 0 }: { unreadMessages
       window.removeEventListener("nolsaf:profile-updated", handleProfileUpdated as EventListener);
     };
   }, []);
-
-  const toggleTheme = () => {
-    const next = theme === "dark" ? "light" : "dark";
-    setTheme(next);
-    try {
-      localStorage.setItem("theme", next);
-      if (next === "dark") document.documentElement.classList.add("dark");
-      else document.documentElement.classList.remove("dark");
-    } catch {
-      // ignore
-    }
-  };
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -220,15 +195,8 @@ export default function OwnerSiteHeader({ unreadMessages = 0 }: { unreadMessages
               </svg>
             </button>
 
-            <Link href="/owner" className="hidden md:inline-flex items-center no-underline hover:opacity-90 transition-opacity" aria-label="Owner Dashboard">
+            <Link href="/owner" className="inline-flex items-center no-underline hover:opacity-90 transition-opacity" aria-label="Owner Dashboard">
               <Image src="/assets/NoLS2025-04.png" alt="NoLSAF" width={44} height={44} className="h-9 w-9 brightness-0 invert" />
-            </Link>
-          </div>
-
-          {/* Mobile-centered brand mark keeps the bar visually balanced on phones */}
-          <div className="pointer-events-none absolute inset-x-0 flex justify-center md:hidden">
-            <Link href="/owner" className="pointer-events-auto inline-flex items-center no-underline hover:opacity-90 transition-opacity" aria-label="Owner Dashboard">
-              <Image src="/assets/NoLS2025-04.png" alt="NoLSAF" width={40} height={40} className="h-8 w-8 brightness-0 invert sm:h-9 sm:w-9" />
             </Link>
           </div>
 
@@ -254,10 +222,6 @@ export default function OwnerSiteHeader({ unreadMessages = 0 }: { unreadMessages
               >
                 <Plus className="h-5 w-5 text-white" />
               </Link>
-
-              <button onClick={toggleTheme} className="hidden sm:inline-flex items-center justify-center rounded-md p-1.5 hover:bg-white/10" aria-label="Toggle theme">
-                {theme === "dark" ? <Sun className="h-5 w-5 text-white" /> : <Moon className="h-5 w-5 text-white" />}
-              </button>
 
               <Link
                 href="/owner/support"
@@ -381,7 +345,7 @@ export default function OwnerSiteHeader({ unreadMessages = 0 }: { unreadMessages
                         } catch {}
                         window.location.href = logoutRedirect;
                       }}
-                      className="group w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-all duration-200 no-underline rounded-lg mx-1"
+                      className="group flex w-full items-center gap-3 rounded-lg px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-all duration-200 no-underline"
                     >
                       <LogOut className="h-4 w-4 group-hover:scale-110 transition-all duration-200" />
                       <span className="font-semibold">Logout</span>
