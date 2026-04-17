@@ -463,7 +463,7 @@ function PolicyCard({
 }
 
 function fmtMoney(amount: number | null | undefined, currency?: string | null) {
-  if (amount == null || !Number.isFinite(Number(amount))) return "—";
+  if (amount == null || !Number.isFinite(Number(amount))) return "â€”";
   const cur = currency || "TZS";
   try {
     return new Intl.NumberFormat(undefined, { style: "currency", currency: cur, maximumFractionDigits: 0 }).format(Number(amount));
@@ -475,19 +475,19 @@ function fmtMoney(amount: number | null | undefined, currency?: string | null) {
 function capWords(s: string, maxChars: number) {
   const t = String(s || "").trim();
   if (t.length <= maxChars) return t;
-  return t.slice(0, maxChars - 1).trimEnd() + "…";
+  return t.slice(0, maxChars - 1).trimEnd() + "â€¦";
 }
 
 // Bed size dimensions reference
 const BED_DIMENSIONS: Record<string, string> = {
-  twin: "38\" × 75\" (96.5 × 190.5 cm)",
-  full: "54\" × 75\" (137 × 190.5 cm)",
-  queen: "60\" × 80\" (152.4 × 203.2 cm)",
-  king: "76\" × 80\" (193 × 203.2 cm)",
+  twin: "38\" Ã— 75\" (96.5 Ã— 190.5 cm)",
+  full: "54\" Ã— 75\" (137 Ã— 190.5 cm)",
+  queen: "60\" Ã— 80\" (152.4 Ã— 203.2 cm)",
+  king: "76\" Ã— 80\" (193 Ã— 203.2 cm)",
 };
 
 function bedsToSummary(beds: any): string {
-  if (!beds || typeof beds !== "object") return "—";
+  if (!beds || typeof beds !== "object") return "â€”";
   const entries: Array<{ key: string; label: string }> = [
     { key: "twin", label: "Twin" },
     { key: "full", label: "Full" },
@@ -501,11 +501,11 @@ function bedsToSummary(beds: any): string {
       return `${n} ${label}`;
     })
     .filter(Boolean) as string[];
-  return parts.length ? parts.join(", ") : "—";
+  return parts.length ? parts.join(", ") : "â€”";
 }
 
 function getBedDimensions(bedsSummary: string): string | null {
-  if (!bedsSummary || bedsSummary === "—") return null;
+  if (!bedsSummary || bedsSummary === "â€”") return null;
   
   // Extract bed types from summary (e.g., "2 Queen, 1 Twin")
   const bedTypes = bedsSummary.split(',').map(s => {
@@ -524,7 +524,7 @@ function getBedDimensions(bedsSummary: string): string | null {
     })
     .filter(Boolean) as string[];
   
-  return dimensions.length > 0 ? dimensions.join(" • ") : null;
+  return dimensions.length > 0 ? dimensions.join(" â€¢ ") : null;
 }
 
 function normalizeRoomSpec(
@@ -598,7 +598,7 @@ function normalizeRoomSpec(
     pricePerNight,
     discountLabel,
     payActionLabel: "Pay now",
-    policies: policies.length ? policies : [{ text: "—" }],
+    policies: policies.length ? policies : [{ text: "â€”" }],
   };
 }
 
@@ -635,7 +635,7 @@ function formatDateLabel(dateString: string) {
 }
 
 function formatTimeAgo(ms: number): string {
-  if (!ms || ms <= 0) return "—";
+  if (!ms || ms <= 0) return "â€”";
   const diff = Date.now() - ms;
   if (diff < 10 * 1000) return "just now";
   const minutes = Math.floor(diff / 60000);
@@ -807,7 +807,7 @@ function PropertyAvailabilityChecker({
         <div className="min-w-0">
           <h2 className="text-lg font-semibold text-slate-900">Availability Live Updates</h2>
           <div className="text-xs text-slate-500">
-            Select check-in and check-out dates to see live availability • Last updated: {formatTimeAgo(lastUpdatedAt)}
+            Select check-in and check-out dates to see live availability â€¢ Last updated: {formatTimeAgo(lastUpdatedAt)}
             <span className="text-slate-400"> (refreshes up to every 4 minutes)</span>
           </div>
         </div>
@@ -907,7 +907,7 @@ function PropertyAvailabilityChecker({
           </div>
         </div>
 
-        {/* Three-dot loading indicator — alternating green/blue like a car indicator */}
+        {/* Three-dot loading indicator â€” alternating green/blue like a car indicator */}
         <div className={`flex items-center justify-center gap-1.5 h-5 transition-opacity duration-300 ${loading ? 'opacity-100' : 'opacity-0'}`}>
           <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-bounce [animation-delay:-0.3s]" />
           <div className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-bounce [animation-delay:-0.15s]" />
@@ -939,7 +939,7 @@ function PropertyAvailabilityChecker({
                       </div>
                       <div className="mt-0.5 text-[12px] text-slate-700">
                         <span className="font-semibold text-slate-800">{formatDate(checkIn)} - {formatDate(checkOut)}</span>
-                        <span className="text-slate-400"> • </span>
+                        <span className="text-slate-400"> â€¢ </span>
                         <span className="text-slate-600">Updated {formatTimeAgo(lastUpdatedAt)}</span>
                       </div>
                     </div>
@@ -1013,7 +1013,7 @@ function PropertyAvailabilityChecker({
                                     </div>
                                     <div className="mt-1 flex md:hidden items-center gap-2 text-[11px] text-slate-500">
                                       <span className="font-semibold">{availableRooms}</span>/{totalRooms} rooms
-                                      <span className="text-slate-300">•</span>
+                                      <span className="text-slate-300">â€¢</span>
                                       <span className="font-semibold">{availableBeds}</span>/{totalBeds} beds
                                     </div>
                                   </div>
@@ -1469,7 +1469,7 @@ export default function PublicPropertyDetailPage() {
     return calculatePriceWithCommission(property.basePrice, commission);
   }, [property, systemCommission]);
   
-  const price = useMemo(() => (finalBasePrice ? fmtMoney(finalBasePrice, property?.currency) : "—"), [finalBasePrice, property?.currency]);
+  const price = useMemo(() => (finalBasePrice ? fmtMoney(finalBasePrice, property?.currency) : "â€”"), [finalBasePrice, property?.currency]);
 
   const about = useMemo(() => {
     const fallback = "No description provided yet.";
@@ -1477,7 +1477,7 @@ export default function PublicPropertyDetailPage() {
     const text = raw ? raw : fallback;
     const limit = 320;
     const hasMore = raw.length > limit;
-    const collapsed = hasMore ? raw.slice(0, limit).trimEnd() + "…" : text;
+    const collapsed = hasMore ? raw.slice(0, limit).trimEnd() + "â€¦" : text;
     return { raw, text, hasMore, collapsed };
   }, [property?.description]);
 
@@ -1578,7 +1578,7 @@ export default function PublicPropertyDetailPage() {
       const fmtWindow = (from: string, to: string) => {
         const f = String(from || "").trim();
         const t = String(to || "").trim();
-        if (f && t) return `${f} – ${t}`;
+        if (f && t) return `${f} â€“ ${t}`;
         if (f) return `From ${f}`;
         if (t) return `Until ${t}`;
         return "";
@@ -1748,7 +1748,7 @@ export default function PublicPropertyDetailPage() {
     <main className="min-h-screen bg-white text-slate-900 header-offset">
       <div className="public-container py-8">
 
-        {/* ── Property header card ── */}
+        {/* â”€â”€ Property header card â”€â”€ */}
         <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-white border border-slate-100 shadow-[0_4px_24px_rgba(2,102,94,0.10)]">
 
           <div className="relative px-5 sm:px-8 pt-5 sm:pt-6 pb-6 sm:pb-7">
@@ -1996,7 +1996,7 @@ export default function PublicPropertyDetailPage() {
                   <div className="min-w-0">
                     <p className="text-xs font-bold text-slate-800 leading-tight">Verified by NoLSAF</p>
                     <p className="text-[11px] mt-0.5 text-slate-500 leading-relaxed">
-                      Physical site visit · location &amp; documentation review
+                      Physical site visit Â· location &amp; documentation review
                     </p>
                   </div>
                 </div>
@@ -2038,9 +2038,6 @@ export default function PublicPropertyDetailPage() {
                   priority
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/0 to-black/0" />
-                <div className="absolute left-4 bottom-4 inline-flex items-center gap-2 rounded-full bg-white/90 border border-white/70 px-3 py-1 text-xs font-semibold text-slate-900">
-                  Approved photos • {images.length}
-              </div>
               </button>
               <div className="grid grid-cols-2 md:grid-cols-1 gap-3 bg-white p-3">
                 {/* Photo 2 */}
@@ -2139,9 +2136,6 @@ export default function PublicPropertyDetailPage() {
                     <div className="mt-3 text-sm font-semibold">Photo preview</div>
                     <div className="text-xs text-slate-500">Hero image will appear here</div>
                   </div>
-                  <div className="absolute left-4 bottom-4 inline-flex items-center gap-2 rounded-full bg-white/90 border border-white/70 px-3 py-1 text-xs font-semibold text-slate-900">
-                    Approved photos • 0
-                  </div>
                 </button>
                 <div className="grid grid-cols-2 md:grid-cols-1 gap-3 bg-white p-3">
                   {Array.from({ length: 2 }).map((_, i) => (
@@ -2184,9 +2178,9 @@ export default function PublicPropertyDetailPage() {
             {/* Facts */}
             <div className="rounded-2xl border border-slate-200 bg-white p-5">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-                <Fact icon={<Users className="w-6 h-6" />} label="Guests" value={property.maxGuests ?? "—"} />
-                <Fact icon={<BedDouble className="w-6 h-6" />} label="Bedrooms" value={property.totalBedrooms ?? "—"} />
-                <Fact icon={<Bath className="w-6 h-6" />} label="Bathrooms" value={property.totalBathrooms ?? "—"} />
+                <Fact icon={<Users className="w-6 h-6" />} label="Guests" value={property.maxGuests ?? "â€”"} />
+                <Fact icon={<BedDouble className="w-6 h-6" />} label="Bedrooms" value={property.totalBedrooms ?? "â€”"} />
+                <Fact icon={<Bath className="w-6 h-6" />} label="Bathrooms" value={property.totalBathrooms ?? "â€”"} />
                 <Fact icon={<ShieldCheck className="w-6 h-6" />} label="Status" value="Verified listing" />
               </div>
             </div>
@@ -2487,9 +2481,9 @@ export default function PublicPropertyDetailPage() {
                       <div className="mt-1 text-sm text-slate-600">
                         {getFloorName(roomQuickView.floor)} Floor
                         {selectedDates.checkIn && selectedDates.checkOut ? (
-                          <span className="text-slate-400"> · dates selected</span>
+                          <span className="text-slate-400"> Â· dates selected</span>
                         ) : (
-                          <span className="text-amber-700"> · select dates above to see live availability</span>
+                          <span className="text-amber-700"> Â· select dates above to see live availability</span>
                         )}
                       </div>
                     </div>
@@ -2674,7 +2668,7 @@ export default function PublicPropertyDetailPage() {
                                       <div className="flex items-start justify-between gap-4">
                                         <div className="min-w-0">
                                           <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Beds</div>
-                                          <div className="mt-1 text-sm font-semibold text-slate-900">{row?.bedsSummary || "—"}</div>
+                                          <div className="mt-1 text-sm font-semibold text-slate-900">{row?.bedsSummary || "â€”"}</div>
                                         </div>
                                         <div className="text-right">
                                           <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Price / night</div>
@@ -2840,11 +2834,11 @@ export default function PublicPropertyDetailPage() {
                                     <div className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Availability</div>
                                     <div className="mt-1 text-sm text-slate-700">
                                       {effectiveDates.checkIn && effectiveDates.checkOut
-                                        ? `${formatDateLabel(effectiveDates.checkIn)} → ${formatDateLabel(effectiveDates.checkOut)}`
+                                        ? `${formatDateLabel(effectiveDates.checkIn)} â†’ ${formatDateLabel(effectiveDates.checkOut)}`
                                         : "Select dates first"}
                                     </div>
                                     <div className="mt-1 text-[11px] text-slate-500">
-                                      Rooms: {modalRoomsQty} · Adults: {modalGuests.adults}
+                                      Rooms: {modalRoomsQty} Â· Adults: {modalGuests.adults}
                                     </div>
                                   </div>
                                   <button
@@ -2899,7 +2893,7 @@ export default function PublicPropertyDetailPage() {
                                   ) : null}
                                   {byCode && !availabilityMatchesDates && (modalDates.checkIn && modalDates.checkOut) ? (
                                     <div className="mt-1 text-[11px] text-amber-700">
-                                      Availability shown may be for different dates — tap “Check availability”.
+                                      Availability shown may be for different dates â€” tap â€œCheck availabilityâ€.
                                     </div>
                                   ) : null}
                                 </div>
@@ -2938,7 +2932,7 @@ export default function PublicPropertyDetailPage() {
                             <div className="flex items-start justify-between gap-4">
                               <div className="min-w-0">
                                 <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Beds</div>
-                                <div className="mt-1 text-sm font-semibold text-slate-900">{row?.bedsSummary || "—"}</div>
+                                <div className="mt-1 text-sm font-semibold text-slate-900">{row?.bedsSummary || "â€”"}</div>
                               </div>
                               <div className="text-right">
                                 <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Price / night</div>
@@ -3218,7 +3212,7 @@ export default function PublicPropertyDetailPage() {
                           ) : null}
                           {byCode && !availabilityMatchesDates && (modalDates.checkIn && modalDates.checkOut) ? (
                             <div className="mt-1 text-[11px] text-amber-700">
-                              Availability shown may be for different dates — tap “Check availability”.
+                              Availability shown may be for different dates â€” tap â€œCheck availabilityâ€.
                             </div>
                           ) : null}
 
@@ -3247,7 +3241,7 @@ export default function PublicPropertyDetailPage() {
 
                           {!selectedDates.checkIn || !selectedDates.checkOut ? (
                             <div className="mt-2 text-xs text-amber-700">
-                              Tip: select dates in “Check Availability”, then tap “Check Availability”.
+                              Tip: select dates in â€œCheck Availabilityâ€, then tap â€œCheck Availabilityâ€.
                             </div>
                           ) : null}
                         </div>
@@ -3426,7 +3420,7 @@ export default function PublicPropertyDetailPage() {
               {reviewsError}
             </div>
           ) : reviewsLoading ? (
-            <div className="mt-4 text-sm text-slate-600">Loading reviews…</div>
+            <div className="mt-4 text-sm text-slate-600">Loading reviewsâ€¦</div>
           ) : (
             <>
               <div className="flex items-center gap-3 mb-4">
@@ -3452,7 +3446,7 @@ export default function PublicPropertyDetailPage() {
                           {avgRating > 0 && (
                             <span className="font-medium">{getRatingLabel(avgRating)}</span>
                           )}
-                          <span className="text-slate-500">·</span>
+                          <span className="text-slate-500">Â·</span>
                           <span>{totalReviews} {totalReviews === 1 ? 'review' : 'reviews'}</span>
                         </div>
                         <div className="mt-2 h-2 bg-slate-200 rounded-full overflow-hidden">
@@ -3523,7 +3517,7 @@ export default function PublicPropertyDetailPage() {
           {!isOwner ? (
           <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5">
             <div className="text-sm font-semibold text-slate-900">Leave a review</div>
-            <div className="mt-1 text-xs text-slate-600">You can rate and comment. If you’re not logged in, we’ll ask you to log in first.</div>
+            <div className="mt-1 text-xs text-slate-600">You can rate and comment. If youâ€™re not logged in, weâ€™ll ask you to log in first.</div>
 
             <div className="space-y-4">
               <div>
@@ -3593,7 +3587,7 @@ export default function PublicPropertyDetailPage() {
                               }`}
                               aria-label={`${n} star for ${label}`}
                             >
-                              ★
+                              â˜…
                             </button>
                           ))}
                         </div>
@@ -3624,7 +3618,7 @@ export default function PublicPropertyDetailPage() {
                   setReviewSubmitMsg(null);
                   if (!property?.id) return;
                   if (!reviewRating) {
-                    setReviewSubmitMsg("Please select a rating (1–5).");
+                    setReviewSubmitMsg("Please select a rating (1â€“5).");
                     return;
                   }
                   setReviewSubmitting(true);
@@ -3676,7 +3670,7 @@ export default function PublicPropertyDetailPage() {
                 }}
                   className="w-full rounded-lg bg-[#02665e] text-white px-4 py-2.5 text-sm font-semibold hover:bg-[#014e47] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm hover:shadow"
               >
-                {reviewSubmitting ? "Submitting…" : "Submit review"}
+                {reviewSubmitting ? "Submittingâ€¦" : "Submit review"}
               </button>
             </div>
           </div>
@@ -4060,7 +4054,7 @@ export default function PublicPropertyDetailPage() {
                     </span>
                     <h2 className="text-lg font-semibold text-slate-900">Location</h2>
                   </div>
-                  <div className="text-sm text-slate-600">{location || "—"}</div>
+                  <div className="text-sm text-slate-600">{location || "â€”"}</div>
                 </div>
 
                 {/* Map */}
@@ -4284,7 +4278,7 @@ function ReviewCard({ review }: { review: PropertyReview }) {
                 </div>
                 {review.isVerified && (
                   <span className="inline-flex items-center rounded-full bg-emerald-50 border border-emerald-200/60 px-2.5 py-1 text-[10px] font-bold text-emerald-700 flex-shrink-0 tracking-wide">
-                    ✓ Verified
+                    âœ“ Verified
                   </span>
                 )}
               </div>
@@ -4292,7 +4286,7 @@ function ReviewCard({ review }: { review: PropertyReview }) {
                 <div className="flex items-center">
                   <StarRow value={review.rating} />
                 </div>
-                <span className="text-slate-300">•</span>
+                <span className="text-slate-300">â€¢</span>
                 <span className="font-medium">{new Date(review.createdAt).toLocaleDateString()}</span>
               </div>
             </div>
@@ -4407,7 +4401,7 @@ function ReviewModal({ review, onClose }: { review: PropertyReview; onClose: () 
             </div>
             <div className="flex items-center gap-3 text-sm text-white/90">
               <StarRow value={review.rating} />
-              <span>•</span>
+              <span>â€¢</span>
               <span>{new Date(review.createdAt).toLocaleDateString()}</span>
             </div>
           </div>
@@ -4466,7 +4460,7 @@ function StarRow({ value }: { value: number }) {
     <span className="inline-flex items-center gap-0.5">
       {Array.from({ length: 5 }).map((_, i) => (
         <span key={i} className={i < v ? "text-amber-500" : "text-slate-300"} aria-hidden>
-          ★
+          â˜…
         </span>
       ))}
       <span className="sr-only">{v} out of 5</span>
@@ -4494,7 +4488,7 @@ function StarPicker({ value, onChange }: { value: number; onChange: (n: number) 
             aria-label={`${n} star`}
             aria-pressed={active}
           >
-            ★
+            â˜…
           </button>
         );
       })}
