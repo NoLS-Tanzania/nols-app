@@ -72,11 +72,12 @@ function safeString(v: any): string | null {
 
 function isRenderablePublicImageUrl(url: string) {
   // Never expose browser-only blob URLs on the public site (they won't load for other users)
-  // Also exclude file:// style local paths if any.
+  // Also exclude file:// style local paths and base64 data URIs (next/image can't render them).
   const u = url.trim();
   if (!u) return false;
   if (u.startsWith("blob:")) return false;
   if (u.startsWith("file:")) return false;
+  if (u.startsWith("data:")) return false;
   return true;
 }
 

@@ -757,8 +757,10 @@ router.post("/", (async (req: AuthedRequest, res) => {
           if (p.startsWith("blob:") || p.startsWith("data:")) return;
           // Keep URLs within reasonable size to avoid DB driver length mismatches
           if (p.length > 2048) return;
-          const storageKey = p.split("/").pop() || p;
-          if (storageKey.length > 190) return;
+          const filename = p.split("/").pop() || p;
+          // Scope the key per property to prevent cross-property storageKey collisions
+          // (global @unique on storageKey means different properties with same filename would overwrite each other)
+          const storageKey = `${created.id}:${filename}`.slice(0, 190);
           await prisma.propertyImage.upsert({
             where: { storageKey },
             create: { propertyId: created.id, storageKey, url: p, status: "PENDING" },
@@ -902,8 +904,9 @@ router.put("/:id", (async (req: AuthedRequest, res) => {
           if (typeof p !== "string") return;
           if (p.startsWith("blob:") || p.startsWith("data:")) return;
           if (p.length > 2048) return;
-          const storageKey = p.split("/").pop() || p;
-          if (storageKey.length > 190) return;
+          const filename = p.split("/").pop() || p;
+          // Scope the key per property to prevent cross-property storageKey collisions
+          const storageKey = `${updated.id}:${filename}`.slice(0, 190);
           await prisma.propertyImage.upsert({
             where: { storageKey },
             create: { propertyId: updated.id, storageKey, url: p, status: "PENDING" },
