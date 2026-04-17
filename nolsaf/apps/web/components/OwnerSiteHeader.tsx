@@ -177,9 +177,25 @@ export default function OwnerSiteHeader({ unreadMessages = 0 }: { unreadMessages
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-white/10" aria-hidden />
 
       <div className="public-container h-16 flex items-center relative">
-        <div className="w-full h-14 rounded-3xl border border-white/10 backdrop-blur-xl shadow-[0_18px_70px_rgba(0,0,0,0.28),0_0_50px_rgba(2,102,94,0.18)] flex items-center justify-between px-5 md:px-6 relative bg-[#02665e]">
-          {/* Left: sidebar toggle + brand mark (kept inside the header bar; no floating layer) */}
-          <div className="inline-flex items-center gap-3">
+        <div className="relative flex h-14 w-full items-center rounded-3xl border border-white/10 bg-[#02665e] px-3 sm:px-4 md:px-6 backdrop-blur-xl shadow-[0_18px_70px_rgba(0,0,0,0.28),0_0_50px_rgba(2,102,94,0.18)]">
+          {/* Left: mobile burger + desktop sidebar toggle + desktop brand */}
+          <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+            <button
+              className="inline-flex md:hidden items-center justify-center h-10 w-10 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/15 hover:border-white/20 active:scale-95 transition-all duration-300 ease-out"
+              onClick={() => {
+                try {
+                  window.dispatchEvent(new CustomEvent("toggle-owner-sidebar", { detail: { source: "mobile-burger" } }));
+                } catch {
+                  // ignore
+                }
+              }}
+              aria-label="Toggle sidebar"
+            >
+              <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+
             <button
               onClick={() => {
                 try {
@@ -204,17 +220,24 @@ export default function OwnerSiteHeader({ unreadMessages = 0 }: { unreadMessages
               </svg>
             </button>
 
-            <Link href="/owner" className="inline-flex items-center no-underline hover:opacity-90 transition-opacity" aria-label="Owner Dashboard">
+            <Link href="/owner" className="hidden md:inline-flex items-center no-underline hover:opacity-90 transition-opacity" aria-label="Owner Dashboard">
               <Image src="/assets/NoLS2025-04.png" alt="NoLSAF" width={44} height={44} className="h-9 w-9 brightness-0 invert" />
             </Link>
           </div>
 
-          {/* Right: tools (always visible). On small screens the action icons scroll horizontally. */}
-          <div className="flex items-center gap-2 min-w-0 text-white">
-            <div className="flex items-center gap-1 min-w-0 overflow-x-auto scrollbar-hide pr-1 text-white">
+          {/* Mobile-centered brand mark keeps the bar visually balanced on phones */}
+          <div className="pointer-events-none absolute inset-x-0 flex justify-center md:hidden">
+            <Link href="/owner" className="pointer-events-auto inline-flex items-center no-underline hover:opacity-90 transition-opacity" aria-label="Owner Dashboard">
+              <Image src="/assets/NoLS2025-04.png" alt="NoLSAF" width={40} height={40} className="h-8 w-8 brightness-0 invert sm:h-9 sm:w-9" />
+            </Link>
+          </div>
+
+          {/* Right: compact mobile actions, full tools from small tablets upward */}
+          <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5 sm:gap-2 text-white">
+            <div className="flex items-center gap-0.5 sm:gap-1 text-white">
               <button
                 onClick={handleRefresh}
-                className={`inline-flex items-center justify-center rounded-md p-1.5 hover:bg-white/10 ${touchedIcon === "refresh" ? "bg-white/10" : ""}`}
+                className={`hidden sm:inline-flex items-center justify-center rounded-md p-1.5 hover:bg-white/10 ${touchedIcon === "refresh" ? "bg-white/10" : ""}`}
                 aria-label="Refresh"
                 title="Refresh"
                 onTouchStart={() => handleTouch("refresh")}
@@ -232,13 +255,13 @@ export default function OwnerSiteHeader({ unreadMessages = 0 }: { unreadMessages
                 <Plus className="h-5 w-5 text-white" />
               </Link>
 
-              <button onClick={toggleTheme} className="inline-flex items-center justify-center rounded-md p-1.5 hover:bg-white/10" aria-label="Toggle theme">
+              <button onClick={toggleTheme} className="hidden sm:inline-flex items-center justify-center rounded-md p-1.5 hover:bg-white/10" aria-label="Toggle theme">
                 {theme === "dark" ? <Sun className="h-5 w-5 text-white" /> : <Moon className="h-5 w-5 text-white" />}
               </button>
 
               <Link
                 href="/owner/support"
-                className={`inline-flex items-center justify-center rounded-md p-1.5 hover:bg-white/10 ${touchedIcon === "support" ? "bg-white/10" : ""}`}
+                className={`hidden sm:inline-flex items-center justify-center rounded-md p-1.5 hover:bg-white/10 ${touchedIcon === "support" ? "bg-white/10" : ""}`}
                 aria-label="Request assistance"
                 title="Request assistance"
                 onTouchStart={() => handleTouch("support")}
@@ -263,7 +286,7 @@ export default function OwnerSiteHeader({ unreadMessages = 0 }: { unreadMessages
 
               <Link
                 href="/owner/settings"
-                className={`inline-flex items-center justify-center rounded-md p-1.5 hover:bg-white/10 ${touchedIcon === "settings" ? "bg-white/10" : ""}`}
+                className={`hidden sm:inline-flex items-center justify-center rounded-md p-1.5 hover:bg-white/10 ${touchedIcon === "settings" ? "bg-white/10" : ""}`}
                 aria-label="Settings"
                 title="Settings"
                 onTouchStart={() => handleTouch("settings")}
@@ -274,10 +297,13 @@ export default function OwnerSiteHeader({ unreadMessages = 0 }: { unreadMessages
 
             <div className="hidden sm:block mx-1 h-5 w-px bg-white/20" />
 
-            <div ref={profileDropdownRef} className="relative flex-shrink-0">
+            <div ref={profileDropdownRef} className="relative z-[60] flex-shrink-0">
               <button
-                onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-                className="group inline-flex items-center justify-center gap-2 h-10 px-2 rounded-xl bg-transparent border-0 hover:bg-white/10 hover:backdrop-blur-sm hover:border hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setProfileDropdownOpen((v) => !v);
+                }}
+                className="group inline-flex items-center justify-center gap-1.5 h-10 px-2 rounded-xl bg-transparent border-0 hover:bg-white/10 hover:backdrop-blur-sm hover:border hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out"
                 aria-label="Profile menu"
                 aria-expanded={profileDropdownOpen}
                 onTouchStart={() => handleTouch("profile")}
@@ -364,20 +390,6 @@ export default function OwnerSiteHeader({ unreadMessages = 0 }: { unreadMessages
                 </div>
               )}
             </div>
-            {/* Mobile burger — fires same sidebar toggle as desktop */}
-            <button
-              className="md:hidden inline-flex items-center justify-center h-10 w-10 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/15 hover:border-white/20 active:scale-95 transition-all duration-300 ease-out"
-              onClick={() => {
-                try {
-                  window.dispatchEvent(new CustomEvent("toggle-owner-sidebar", { detail: { source: "mobile-burger" } }));
-                } catch { /* ignore */ }
-              }}
-              aria-label="Toggle sidebar"
-            >
-              <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
-                <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
           </div>
         </div>
       </div>

@@ -252,8 +252,8 @@ export default function OwnerPage() {
           <div className="flex-1 px-5 sm:px-8 lg:px-10 pt-7 pb-6 lg:pb-7">
 
             {/* chrome row */}
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-2">
+            <div className="mb-6 flex flex-col items-center gap-3 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
+              <div className="flex items-center justify-center gap-2 sm:justify-start">
                 <div className="h-[3px] w-5 rounded-full" style={{ background: "rgba(0,255,190,0.5)" }} />
                 <span className="text-[9px] font-black uppercase tracking-[0.26em]" style={{ color: "rgba(255,255,255,0.28)" }}>Owner Portal</span>
               </div>
@@ -266,16 +266,16 @@ export default function OwnerPage() {
             </div>
 
             {/* greeting + title */}
-            <div className="mb-7">
+            <div className="mb-7 text-center sm:text-left">
               {ownerName && (
-                <p className="text-[11px] font-semibold mb-2 tracking-widest uppercase" style={{ color: "rgba(0,255,190,0.5)" }}>
+                <p className="mb-2 text-[11px] font-semibold tracking-widest uppercase" style={{ color: "rgba(0,255,190,0.5)" }}>
                   Welcome back
                 </p>
               )}
               <h1 className="font-black text-white leading-[1.0] tracking-tight" style={{ fontSize: "clamp(2.1rem,5.5vw,3.2rem)", textShadow: "0 2px 30px rgba(0,0,0,0.5)" }}>
                 {ownerName ?? "Your workspace"}
               </h1>
-              <p className="mt-3 text-[12px] font-medium" style={{ color: "rgba(255,255,255,0.32)", maxWidth: 280 }}>
+              <p className="mx-auto mt-3 text-[12px] font-medium sm:mx-0" style={{ color: "rgba(255,255,255,0.32)", maxWidth: 320 }}>
                 Bookings, revenue & live insights all in one place.
               </p>
             </div>

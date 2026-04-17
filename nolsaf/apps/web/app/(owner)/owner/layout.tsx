@@ -4,6 +4,7 @@
 import "@/styles/globals.css";
 import { useState, useEffect } from "react";
 import type { ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import OwnerSiteHeader from "@/components/OwnerSiteHeader";
 import OwnerFooter from "@/components/OwnerFooter";
 import OwnerSidebar from "@/components/OwnerSidebar";
@@ -11,6 +12,7 @@ import LayoutFrame from "@/components/LayoutFrame";
 import MobileOwnerNav from "@/components/MobileOwnerNav";
 
 export default function OwnerLayout({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -45,6 +47,10 @@ export default function OwnerLayout({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('toggle-owner-sidebar', handler as EventListener);
   }, []);
 
+  useEffect(() => {
+    setMobileSidebarOpen(false);
+  }, [pathname]);
+
   return (
     <div className="h-screen overflow-hidden flex flex-col bg-neutral-50">
       <OwnerSiteHeader unreadMessages={unreadCount} />
@@ -74,7 +80,15 @@ export default function OwnerLayout({ children }: { children: ReactNode }) {
                 onClick={() => setMobileSidebarOpen(false)}
               />
               <aside className="absolute left-0 top-16 h-[calc(100%-4rem)] w-[min(20rem,calc(100vw-1rem))] p-3 nols-soft-popover">
-                <div className="h-full overflow-y-auto scroll-smooth rounded-3xl">
+                <div
+                  className="h-full overflow-y-auto scroll-smooth rounded-3xl"
+                  onClickCapture={(event) => {
+                    const target = event.target as HTMLElement | null;
+                    if (target?.closest("a[href]")) {
+                      setMobileSidebarOpen(false);
+                    }
+                  }}
+                >
                   <OwnerSidebar collapsed={false} />
                 </div>
               </aside>
