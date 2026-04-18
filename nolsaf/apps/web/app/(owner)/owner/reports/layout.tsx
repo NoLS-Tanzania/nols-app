@@ -20,11 +20,10 @@ export default function ReportsLayout({ children }: { children: React.ReactNode 
 
       {/* ── Hero ── */}
       <div className="relative overflow-hidden rounded-2xl bg-white border border-slate-200 shadow-xl shadow-slate-100/70">
-        <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-gradient-to-b from-slate-800 via-slate-400 to-transparent rounded-l-2xl" />
         <div className="pointer-events-none select-none absolute right-0 bottom-0 text-[80px] font-black text-slate-100/80 leading-none tracking-tighter pr-4 pb-1" aria-hidden>REPORTS</div>
         <div className="pointer-events-none absolute right-0 top-0 h-full w-1/2 opacity-[0.035]" style={{ backgroundImage: "radial-gradient(circle, #334155 1px, transparent 1px)", backgroundSize: "18px 18px" }} />
 
-        <div className="relative pl-8 pr-6 pt-6 pb-6 sm:pt-7 sm:pb-7 sm:pr-8 lg:pt-8 lg:pb-8 lg:pr-10 lg:pl-10">
+        <div className="relative px-5 pt-6 pb-6 sm:px-7 sm:pt-7 sm:pb-7 lg:px-10 lg:pt-8 lg:pb-8">
           {/* Top row: badge left / Revenue link right */}
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -56,7 +55,7 @@ export default function ReportsLayout({ children }: { children: React.ReactNode 
           <div className="mt-6 h-px bg-gradient-to-r from-slate-200 via-slate-100 to-transparent" />
 
           {/* Tabs */}
-          <div className="mt-5 flex flex-wrap gap-2">
+          <div className="mt-5 grid grid-cols-3 sm:grid-cols-6 gap-2">
             {tabs.map((t) => {
               const active = pathname === t.href || pathname?.startsWith(`${t.href}/`);
               return (
@@ -65,7 +64,7 @@ export default function ReportsLayout({ children }: { children: React.ReactNode 
                   href={t.href}
                   aria-current={active ? "page" : undefined}
                   className={
-                    `no-underline inline-flex items-center gap-2 h-9 px-4 rounded-xl text-xs font-bold border transition-all duration-150 active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 ${t.ring} ` +
+                    `no-underline inline-flex items-center justify-center gap-2 h-9 px-3 rounded-xl text-xs font-bold border transition-all duration-150 active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 ${t.ring} ` +
                     (active
                       ? `${t.pill} border-transparent text-white shadow-sm`
                       : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 shadow-sm")

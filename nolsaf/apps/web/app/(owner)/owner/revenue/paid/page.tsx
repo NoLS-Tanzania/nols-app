@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Loader2, FileText, Receipt, RotateCw, Search, X, ArrowUpRight, Hash } from "lucide-react";
+import { CheckCircle2, Loader2, FileText, Receipt, RotateCw, ArrowUpRight, Hash, SlidersHorizontal, RotateCcw } from "lucide-react";
 import axios from "axios";
 import Link from "next/link";
 import TableRow from "@/components/TableRow";
@@ -33,7 +33,7 @@ export default function Paid() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
+  const [sortKey, setSortKey] = useState("paidAt_desc");
   const [filters] = useState<RevenueFilters>({ status: "PAID" });
 
   const load = async (opts?: { silent?: boolean }) => {
@@ -92,16 +92,26 @@ export default function Paid() {
   };
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter((inv) => {
-      const property = String(inv.booking?.property?.title ?? "").toLowerCase();
-      const invoiceNo = String(inv.invoiceNumber ?? "").toLowerCase();
-      const receiptNo = String(inv.receiptNumber ?? "").toLowerCase();
-      const bookingId = String(inv.booking?.id ?? "").toLowerCase();
-      return property.includes(q) || invoiceNo.includes(q) || receiptNo.includes(q) || bookingId.includes(q);
+    const result = [...items];
+
+    const [field, dir] = sortKey.split("_");
+    const asc = dir === "asc";
+    result.sort((a, b) => {
+      if (field === "paidAt" || field === "issuedAt") {
+        const va = (a.paidAt || a.issuedAt) ?? "";
+        const vb = (b.paidAt || b.issuedAt) ?? "";
+        return asc ? va.localeCompare(vb) : vb.localeCompare(va);
+      }
+      if (field === "amount") {
+        const va = toNumber(a.netPayable) || toNumber(a.total);
+        const vb = toNumber(b.netPayable) || toNumber(b.total);
+        return asc ? va - vb : vb - va;
+      }
+      return 0;
     });
-  }, [items, search]);
+
+    return result;
+  }, [items, sortKey]);
 
   const stats = useMemo(() => {
     const totalCount = items.length;
@@ -333,28 +343,35 @@ export default function Paid() {
           </div>
 
           <div className="flex gap-2 items-center">
-            <div className="relative">
-              <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                <Search className="h-3.5 w-3.5 text-slate-400" aria-hidden />
-              </div>
-              {search ? (
-                <button
-                  type="button"
-                  onClick={() => setSearch("")}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 h-5 w-5 rounded-full inline-flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
-                  aria-label="Clear search"
-                >
-                  <X className="h-3.5 w-3.5" aria-hidden />
-                </button>
-              ) : null}
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search invoice, receipt, property…"
-                className="h-9 w-full sm:w-72 pl-9 pr-9 rounded-lg border border-slate-200 bg-slate-50 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-400 focus:bg-white transition-all duration-200"
-                aria-label="Search paid invoices"
-              />
+            {/* Sort */}
+            <div className="relative flex items-center">
+              <SlidersHorizontal className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" aria-hidden />
+              <select
+                value={sortKey}
+                onChange={(e) => setSortKey(e.target.value)}
+                className="appearance-none h-9 pl-8 pr-8 rounded-lg border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/30 focus:border-emerald-400 transition-all duration-200 cursor-pointer"
+                aria-label="Sort invoices"
+              >
+                <option value="paidAt_desc">Newest paid</option>
+                <option value="paidAt_asc">Oldest paid</option>
+                <option value="amount_desc">Amount (high)</option>
+                <option value="amount_asc">Amount (low)</option>
+              </select>
             </div>
+
+            {/* Reset — only when sort is non-default */}
+            {sortKey !== "paidAt_desc" ? (
+              <button
+                type="button"
+                onClick={() => setSortKey("paidAt_desc")}
+                className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-slate-200 bg-white text-slate-500 text-xs font-semibold hover:bg-slate-50 hover:text-slate-700 transition shadow-sm"
+                aria-label="Reset sort"
+                title="Reset sort"
+              >
+                <RotateCcw className="h-3.5 w-3.5" aria-hidden />
+                Reset
+              </button>
+            ) : null}
 
             <button
               type="button"

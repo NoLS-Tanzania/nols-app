@@ -1347,7 +1347,7 @@ function Kpi({ title, value, sub, loading, accent, borderColor }: { title: strin
           </div>
         ) : (
           <div>
-            <div className={("mt-1.5 text-2xl font-extrabold tracking-tight leading-none " + (accent || "text-gray-900"))}>{value}</div>
+            <div className={("mt-1.5 text-lg font-extrabold tracking-tight leading-none " + (accent || "text-gray-900"))}>{value}</div>
             {sub ? <div className="mt-1 text-xs text-gray-400 font-medium">{sub}</div> : null}
           </div>
         )}

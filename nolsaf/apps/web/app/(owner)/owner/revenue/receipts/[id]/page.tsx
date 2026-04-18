@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, Printer, MapPin, BadgeCheck, Building2, User, CalendarDays, Clock } from "lucide-react";
+import { ChevronLeft, Printer, MapPin, BadgeCheck, Building2, User, CalendarDays, Clock, Loader2 } from "lucide-react";
 const api = axios.create({ baseURL: "", withCredentials: true });
 
 export default function Receipt() {
@@ -266,8 +266,15 @@ export default function Receipt() {
 
   if (!data) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <div className="text-slate-600">Loading receipt…</div>
+      <div className="min-h-[60vh] flex flex-col items-center justify-center text-center px-4">
+        <div className="relative mb-6">
+          <span className="absolute inset-0 rounded-full bg-emerald-400/20 animate-ping" />
+          <div className="relative inline-flex items-center justify-center h-16 w-16 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/30">
+            <Loader2 className="h-7 w-7 animate-spin text-white" />
+          </div>
+        </div>
+        <p className="text-sm font-semibold text-slate-700 tracking-tight">Loading Receipt</p>
+        <p className="text-xs text-slate-400 mt-1">Please wait…</p>
       </div>
     );
   }
