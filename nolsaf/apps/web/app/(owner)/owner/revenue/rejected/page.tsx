@@ -1,6 +1,6 @@
 ﻿"use client";
 import { useEffect, useMemo, useState } from "react";
-import { XCircle, Loader2, FileText, RotateCw, Search, X, ArrowUpRight, Hash, TrendingDown } from "lucide-react";
+import { XCircle, Loader2, FileText, RotateCw, ArrowUpRight, Hash, TrendingDown } from "lucide-react";
 import axios from "axios";
 import Link from "next/link";
 import TableRow from "@/components/TableRow";
@@ -32,7 +32,6 @@ export default function Rejected() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
   const [filters] = useState<RevenueFilters>({ status: "REJECTED" });
 
   const toNumber = (v: any) => {
@@ -90,17 +89,7 @@ export default function Rejected() {
     }
   };
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter((inv) => {
-      const property = String(inv.booking?.property?.title ?? "").toLowerCase();
-      const invoiceNo = String(inv.invoiceNumber ?? "").toLowerCase();
-      const reason = String(inv.rejectedReason ?? "").toLowerCase();
-      const bookingId = String(inv.booking?.id ?? "").toLowerCase();
-      return property.includes(q) || invoiceNo.includes(q) || reason.includes(q) || bookingId.includes(q);
-    });
-  }, [items, search]);
+  const filtered = useMemo(() => items, [items]);
 
   const stats = useMemo(() => {
     const totalCount = items.length;
@@ -247,28 +236,6 @@ export default function Rejected() {
           </div>
 
           <div className="flex gap-2 items-center">
-            <div className="relative">
-              <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                <Search className="h-3.5 w-3.5 text-slate-400" aria-hidden />
-              </div>
-              {search ? (
-                <button
-                  type="button"
-                  onClick={() => setSearch("")}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center justify-center h-5 w-5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 active:scale-95 transition"
-                  aria-label="Clear search"
-                >
-                  <X className="h-3.5 w-3.5" aria-hidden />
-                </button>
-              ) : null}
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search invoice, property, reason…"
-                className="h-9 w-full sm:w-64 pl-9 pr-8 rounded-lg border border-slate-200 bg-white text-sm text-slate-900 placeholder:text-slate-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500/30 focus:border-red-400 transition"
-                aria-label="Search rejected invoices"
-              />
-            </div>
             <button
               type="button"
               onClick={() => load({ silent: true })}
