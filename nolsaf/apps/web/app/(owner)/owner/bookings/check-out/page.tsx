@@ -194,106 +194,105 @@ export default function OwnerCheckoutPage() {
     <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-10">
       {/* Confirm modal (rating required) */}
       {confirmOpen && confirmTarget ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px]">
-          <div className="w-full max-w-lg rounded-2xl bg-white border border-slate-200 shadow-2xl ring-1 ring-black/10 overflow-hidden">
-            <div className="p-4 sm:p-5 border-b border-slate-200 flex items-start justify-between gap-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-[3px]">
+          <div className="w-full max-w-sm rounded-2xl bg-white border border-slate-200 shadow-2xl ring-1 ring-black/8 overflow-hidden">
+
+            {/* Header */}
+            <div className="bg-gradient-to-r from-slate-800 to-slate-700 px-4 py-3 flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="text-xs font-bold uppercase tracking-wide text-slate-500">Confirm Check-out</div>
-                <div className="text-base sm:text-lg font-bold text-slate-900 truncate">{confirmTarget.property?.title ?? "—"}</div>
-                <div className="text-xs text-slate-600 mt-1">
-                  Guest: <span className="font-semibold text-slate-900">{confirmTarget.guestName ?? "—"}</span>
+                <div className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400">Confirm Check-out</div>
+                <div className="text-sm font-bold text-white truncate mt-0.5">{confirmTarget.property?.title ?? "—"}</div>
+                <div className="text-[11px] text-slate-300 mt-0.5">
+                  Guest: <span className="font-semibold text-white">{confirmTarget.guestName ?? "—"}</span>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => { setConfirmOpen(false); setConfirmTarget(null); setRating(0); setFeedback(""); setAgreeToTerms(false); }}
-                className="h-9 w-9 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 active:scale-[0.99] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 inline-flex items-center justify-center"
+                className="h-7 w-7 rounded-lg bg-white/10 hover:bg-white/20 text-white active:scale-[0.97] transition-all duration-150 focus:outline-none inline-flex items-center justify-center shrink-0 mt-0.5"
                 aria-label="Close confirm dialog"
                 title="Close"
               >
-                <X className="h-5 w-5" aria-hidden />
+                <X className="h-3.5 w-3.5" aria-hidden />
               </button>
             </div>
 
-            <div className="p-4 sm:p-5 space-y-3">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-4">
-                <div className="space-y-1">
-                  <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Rate this guest (required)</div>
-                  <div className="text-sm text-slate-600">Choose a rating first, then add an optional note if needed.</div>
-                </div>
+            {/* Body */}
+            <div className="px-4 py-3 space-y-2.5 min-w-0 overflow-hidden">
 
-                <div className="flex flex-wrap items-center gap-2">
+              {/* Rating */}
+              <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 space-y-2">
+                <div className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400">Rate this guest <span className="text-rose-400">*</span></div>
+                <div className="flex items-center gap-1">
                   {[1,2,3,4,5].map((v) => (
                     <button
                       key={v}
                       type="button"
                       onClick={() => setRating(v)}
-                      className={`h-9 w-9 rounded-xl border transition-all duration-200 inline-flex items-center justify-center ${
-                        rating >= v ? "bg-amber-50 border-amber-200" : "bg-white border-slate-200 hover:bg-slate-50"
+                      className={`h-7 w-7 rounded-md border transition-all duration-150 inline-flex items-center justify-center ${
+                        rating >= v
+                          ? "bg-amber-400 border-amber-400 shadow-sm"
+                          : "bg-white border-slate-200 hover:border-amber-300 hover:bg-amber-50"
                       }`}
                       aria-label={`Rate ${v} star`}
-                      title={`${v} star`}
                     >
-                      <Star className={`h-4 w-4 ${rating >= v ? "text-amber-500" : "text-slate-300"}`} aria-hidden />
+                      <Star className={`h-3 w-3 ${rating >= v ? "text-white fill-white" : "text-slate-300"}`} aria-hidden />
                     </button>
                   ))}
-                  <span className="ml-1 inline-flex items-center rounded-full bg-white px-3 py-1 text-sm font-semibold text-slate-700 border border-slate-200 shadow-sm">
-                    {rating ? `${rating}/5 selected` : "Select rating"}
+                  <span className="ml-2 text-xs font-semibold text-slate-500">
+                    {rating ? `${rating} / 5` : "tap to rate"}
                   </span>
                 </div>
-
-                <div className="rounded-2xl border border-slate-200 bg-white p-3">
-                  <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Optional feedback</div>
-                  <textarea
-                    value={feedback}
-                    onChange={(e) => setFeedback(e.target.value)}
-                    rows={3}
-                    className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 transition-all duration-200 resize-none"
-                    placeholder="Short note about the guest (optional)…"
-                    aria-label="Guest rating feedback"
-                  />
-                </div>
-
-                <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-700 transition-colors hover:border-slate-300">
-                  <input
-                    type="checkbox"
-                    checked={agreeToTerms}
-                    onChange={(e) => setAgreeToTerms(e.target.checked)}
-                    className="sr-only"
-                  />
-                  <span className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 shadow-sm transition-all duration-200 ${agreeToTerms ? "border-emerald-700 bg-emerald-700" : "border-slate-300 bg-slate-100"}`}>
-                    {agreeToTerms ? <Check className="h-3.5 w-3.5 text-white" aria-hidden /> : null}
-                  </span>
-                  <span className="leading-relaxed">
-                    I agree to the{" "}
-                    <Link href="/terms" target="_blank" className="font-semibold text-slate-900 underline hover:text-slate-700">
-                      Terms of Service
-                    </Link>
-                    .
-                  </span>
-                </label>
               </div>
 
-              <div className="flex flex-col-reverse sm:flex-row gap-2 sm:items-center sm:justify-between">
-                <button
-                  type="button"
-                  onClick={() => openAudit(confirmTarget)}
-                  className="h-10 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 hover:border-slate-300 active:scale-[0.99] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 inline-flex items-center gap-2 justify-center"
-                >
-                  <History className="h-4 w-4" aria-hidden />
-                  View Audit History
-                </button>
-                <button
-                  type="button"
-                  onClick={() => confirmCheckout(confirmTarget.id)}
-                  disabled={confirmingId === confirmTarget.id || !agreeToTerms}
-                  className="h-10 rounded-xl bg-indigo-700 text-white px-5 text-sm font-bold shadow-sm hover:bg-indigo-800 active:scale-[0.99] transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-indigo-500/30 inline-flex items-center gap-2 justify-center"
-                >
-                  {confirmingId === confirmTarget.id ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <CheckCircle2 className="h-4 w-4" aria-hidden />}
-                  Confirm Check-out
-                </button>
+              {/* Feedback */}
+              <div className="space-y-1">
+                <div className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400">Note (optional)</div>
+                <textarea
+                  value={feedback}
+                  onChange={(e) => setFeedback(e.target.value)}
+                  rows={2}
+                  className="w-full box-border rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 transition-all duration-200 resize-none"
+                  placeholder="Short note about the guest (optional)…"
+                  aria-label="Guest rating feedback"
+                />
               </div>
+
+              {/* Terms */}
+              <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 hover:border-emerald-200 hover:bg-emerald-50/30 transition-colors cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={agreeToTerms}
+                  onChange={(e) => setAgreeToTerms(e.target.checked)}
+                  className="h-4 w-4 shrink-0 rounded border-2 border-slate-400 accent-emerald-600 cursor-pointer"
+                />
+                <span>I agree to the{" "}
+                  <Link href="/terms" target="_blank" className="font-semibold text-slate-800 underline underline-offset-2 hover:text-emerald-700">Terms of Service</Link>.
+                </span>
+              </label>
             </div>
+
+            {/* Footer */}
+            <div className="px-4 pb-4 pt-1 flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => openAudit(confirmTarget)}
+                className="h-8 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:border-slate-300 active:scale-[0.98] transition-all duration-150 focus:outline-none inline-flex items-center gap-1.5"
+              >
+                <History className="h-3.5 w-3.5" aria-hidden />
+                Audit History
+              </button>
+              <button
+                type="button"
+                onClick={() => confirmCheckout(confirmTarget.id)}
+                disabled={confirmingId === confirmTarget.id || !agreeToTerms}
+                className="h-8 rounded-xl bg-emerald-700 text-white px-4 text-xs font-bold hover:bg-emerald-800 active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-emerald-500/30 inline-flex items-center gap-1.5"
+              >
+                {confirmingId === confirmTarget.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />}
+                Confirm Check-out
+              </button>
+            </div>
+
           </div>
         </div>
       ) : null}
@@ -445,27 +444,24 @@ export default function OwnerCheckoutPage() {
               <div className="text-xs text-gray-500 mt-0.5">Confirm check-out after the guest leaves.</div>
             </div>
 
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="flex items-center gap-2 flex-wrap">
               <div className="relative">
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                  <Search className="h-4 w-4 text-gray-400" aria-hidden />
-                </div>
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" aria-hidden />
                 {search ? (
                   <button
                     type="button"
                     onClick={() => setSearch("")}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center justify-center h-7 w-7 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-200/50 active:scale-95 transition"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center justify-center h-4 w-4 rounded text-slate-400 hover:text-slate-700 transition"
                     aria-label="Clear search"
-                    title="Clear"
                   >
-                    <X className="h-4 w-4" aria-hidden />
+                    <X className="h-3 w-3" aria-hidden />
                   </button>
                 ) : null}
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search guest, code, property…"
-                  className="h-10 w-full sm:w-72 pl-10 pr-10 rounded-md border border-gray-200 bg-white text-sm text-gray-900 placeholder:text-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                  placeholder="Search…"
+                  className="h-8 w-36 sm:w-48 pl-8 pr-6 rounded-lg border border-slate-200 bg-slate-50 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 focus:bg-white transition-all duration-200"
                   aria-label="Search check-out queue"
                 />
               </div>
@@ -475,29 +471,29 @@ export default function OwnerCheckoutPage() {
                   type="button"
                   onClick={() => load({ silent: true })}
                   disabled={refreshing}
-                  className="inline-flex items-center justify-center h-10 w-10 rounded-md border border-gray-200 bg-white text-gray-700 shadow-sm hover:bg-gray-50 active:scale-[0.99] transition disabled:opacity-60"
+                  className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 active:scale-[0.99] transition disabled:opacity-60"
                   aria-label="Refresh check-out list"
                   title="Refresh"
                 >
-                  <RotateCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} aria-hidden />
+                  <RotateCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} aria-hidden />
                 </button>
 
                 <Link
                   href="/owner/bookings/checked-in"
-                  className="no-underline inline-flex items-center justify-center h-10 w-10 rounded-md bg-emerald-700 text-white shadow-sm hover:bg-emerald-800 active:scale-[0.99] transition"
+                  className="no-underline inline-flex items-center justify-center h-8 w-8 rounded-lg bg-emerald-700 text-white hover:bg-emerald-800 active:scale-[0.99] transition"
                   aria-label="Checked-In"
                   title="Checked-In"
                 >
-                  <Calendar className="h-4 w-4" aria-hidden />
+                  <Calendar className="h-3.5 w-3.5" aria-hidden />
                 </Link>
 
                 <Link
                   href="/owner/bookings/checked-out"
-                  className="no-underline inline-flex items-center justify-center h-10 w-10 rounded-md bg-slate-900 text-white shadow-sm hover:bg-slate-800 active:scale-[0.99] transition"
+                  className="no-underline inline-flex items-center justify-center h-8 w-8 rounded-lg bg-slate-900 text-white hover:bg-slate-800 active:scale-[0.99] transition"
                   aria-label="Checked-Out"
                   title="Checked-Out"
                 >
-                  <CheckCircle2 className="h-4 w-4" aria-hidden />
+                  <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
                 </Link>
               </div>
             </div>

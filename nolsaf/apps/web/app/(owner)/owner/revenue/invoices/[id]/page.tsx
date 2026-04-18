@@ -135,7 +135,6 @@ export default function OwnerRevenueInvoiceView() {
 
       {/* ── Hero ── */}
       <div className="relative overflow-hidden rounded-2xl bg-white border border-slate-200 shadow-xl shadow-slate-100/70">
-        <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-gradient-to-b from-slate-800 via-slate-400 to-transparent rounded-l-2xl" />
         <div className="pointer-events-none select-none absolute right-0 bottom-0 text-[90px] font-black text-slate-100/80 leading-none tracking-tighter pr-4 pb-1" aria-hidden>INVOICE</div>
         <div className="pointer-events-none absolute right-0 top-0 h-full w-1/2 opacity-[0.035]" style={{ backgroundImage: "radial-gradient(circle, #334155 1px, transparent 1px)", backgroundSize: "18px 18px" }} />
 

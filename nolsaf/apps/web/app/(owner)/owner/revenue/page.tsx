@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import axios from "axios";
-import { DollarSign, Loader2, TrendingUp, FileText, CheckCircle, Check, Clock, XCircle, Search, X, RotateCcw, Calendar, Filter } from "lucide-react";
+import { DollarSign, Loader2, TrendingUp, FileText, CheckCircle, Check, Clock, XCircle, Search, X, RotateCcw, Calendar, Filter, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import DatePicker from "@/components/ui/DatePicker";
 
@@ -58,6 +58,19 @@ export default function OwnerRevenuePage() {
   const [nextBeforeId, setNextBeforeId] = useState<number | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const didInitialLoad = useRef(false);
+
+  // ── Draggable filter modal ──
+  const [filterOffset, setFilterOffset] = useState({ x: 0, y: 0 });
+  const filterCardRef = useRef<HTMLDivElement>(null);
+  const filterDragRef = useRef<{ active: boolean; startX: number; startY: number; originX: number; originY: number }>({
+    active: false, startX: 0, startY: 0, originX: 0, originY: 0,
+  });
+
+  // Reset position each time the modal closes
+  useEffect(() => {
+    if (!filtersOpen) setFilterOffset({ x: 0, y: 0 });
+  }, [filtersOpen]);
+
   const [stats, setStats] = useState<RevenueStats>({
     totalRevenue: 0,
     paidRevenue: 0,
@@ -309,30 +322,29 @@ export default function OwnerRevenuePage() {
 
       {/* Hero */}
       <div className="relative overflow-hidden rounded-2xl bg-white border border-slate-200 shadow-xl shadow-slate-100/70">
-        <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-gradient-to-b from-slate-800 via-slate-400 to-transparent rounded-l-2xl" />
         <div className="pointer-events-none select-none absolute right-0 bottom-0 text-[100px] font-black text-slate-100/80 leading-none tracking-tighter pr-4 pb-1" aria-hidden>PAYOUTS</div>
         <div className="pointer-events-none absolute right-0 top-0 h-full w-1/2 opacity-[0.035]" style={{ backgroundImage: "radial-gradient(circle, #334155 1px, transparent 1px)", backgroundSize: "18px 18px" }} />
-        <div className="relative pl-8 pr-6 pt-6 pb-6 sm:pt-7 sm:pb-7 sm:pr-8 lg:pt-8 lg:pb-8 lg:pr-10 lg:pl-10">
-          <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center h-10 w-10 rounded-xl bg-slate-100 border border-slate-200">
-                <DollarSign className="h-5 w-5 text-slate-700" aria-hidden />
+        <div className="relative px-6 pt-5 pb-5 sm:px-8 sm:pt-6 sm:pb-6">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2.5">
+              <div className="flex items-center justify-center h-9 w-9 rounded-xl bg-slate-100 border border-slate-200">
+                <DollarSign className="h-4 w-4 text-slate-700" aria-hidden />
               </div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-600">
+              <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
                 Revenue Overview
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Link href="/owner/revenue/paid" className="no-underline inline-flex items-center gap-1.5 h-8 px-3.5 rounded-lg bg-slate-900 hover:bg-slate-700 text-white text-xs font-bold transition-all duration-200 active:scale-[0.97] shadow-sm">Paid</Link>
-              <Link href="/owner/revenue/requested" className="no-underline inline-flex items-center gap-1.5 h-8 px-3.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all duration-200 active:scale-[0.97] shadow-sm">Requested</Link>
+            <div className="flex items-center gap-1.5">
+              <Link href="/owner/revenue/paid" className="no-underline inline-flex items-center gap-1.5 h-7 px-3 rounded-md bg-slate-900 hover:bg-slate-700 text-white text-[11px] font-semibold tracking-wide transition-all duration-200 active:scale-[0.97]">Paid</Link>
+              <Link href="/owner/revenue/requested" className="no-underline inline-flex items-center gap-1.5 h-7 px-3 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-[11px] font-semibold tracking-wide transition-all duration-200 active:scale-[0.97]">Requested</Link>
             </div>
           </div>
-          <div className="mt-5">
-            <h1 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight leading-none">My Payouts</h1>
-            <p className="mt-2.5 text-sm text-slate-500 max-w-md leading-relaxed">View and manage all your payouts from bookings, bonuses, and referrals in one place.</p>
+          <div className="mt-4">
+            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight leading-tight">My Payouts</h1>
+            <p className="mt-1.5 text-sm text-slate-500 max-w-md leading-relaxed">View and manage all your payouts from bookings, bonuses, and referrals in one place.</p>
           </div>
-          <div className="mt-6 h-px bg-gradient-to-r from-slate-200 via-slate-100 to-transparent" />
+          <div className="mt-5 h-px bg-gradient-to-r from-slate-200 via-slate-100 to-transparent" />
         </div>
       </div>
 
@@ -377,111 +389,143 @@ export default function OwnerRevenuePage() {
 
       {/* Invoices List */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="p-4 sm:p-5 border-b border-slate-100">
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between gap-3">
-              <div className="text-sm font-bold text-slate-900 tracking-tight">Invoices</div>
-              <div className="text-xs text-slate-400 font-medium">
-                {filteredSorted.length} {filteredSorted.length === 1 ? 'invoice' : 'invoices'}
-              </div>
-            </div>
+        <div className="px-4 sm:px-5 py-3 border-b border-slate-100 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <div className="text-sm font-bold text-slate-900 tracking-tight">Invoices</div>
+            <span className="inline-flex items-center justify-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">
+              {filteredSorted.length}
+            </span>
+          </div>
 
-            {/* Search + Filter fused bar */}
-            <div className="relative flex items-center rounded-xl border border-slate-200 bg-white shadow-sm overflow-visible">
-              <Search className="absolute left-3.5 h-4 w-4 text-slate-400 pointer-events-none flex-shrink-0" aria-hidden />
+          {/* Search + Filter */}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 h-8 rounded-lg border border-slate-200 bg-slate-50 px-2.5 focus-within:border-emerald-400 focus-within:ring-2 focus-within:ring-emerald-100 focus-within:bg-white transition-all duration-200">
+              <Search className="h-3.5 w-3.5 text-slate-400 pointer-events-none flex-shrink-0" aria-hidden />
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Invoice, property, receipt…"
-                className="h-10 w-full bg-transparent pl-10 pr-4 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
+                placeholder="Search…"
+                className="w-28 sm:w-44 bg-transparent text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none"
                 aria-label="Search invoices"
               />
               {search ? (
                 <button
                   type="button"
                   onClick={() => setSearch("")}
-                  className="flex-shrink-0 inline-flex h-6 w-6 items-center justify-center rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all duration-150 mr-1"
+                  className="flex-shrink-0 inline-flex h-4 w-4 items-center justify-center rounded text-slate-400 hover:text-slate-700 transition"
                   aria-label="Clear search"
                 >
-                  <X className="h-3.5 w-3.5" aria-hidden />
+                  <X className="h-3 w-3" aria-hidden />
                 </button>
               ) : null}
+            </div>
 
-              {/* Divider */}
-              <div className="h-5 w-px bg-slate-200 flex-shrink-0" />
+            {/* Filter button */}
+            <div className="relative flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setFiltersOpen((v) => !v)}
+                className={`relative h-8 w-8 inline-flex items-center justify-center rounded-lg border transition-all duration-150 focus:outline-none active:scale-[0.97] ${filtersOpen ? "border-emerald-400 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-700"}`}
+                aria-label="Open filters"
+                aria-expanded={filtersOpen}
+                title="Filters"
+              >
+                <Filter className="h-3.5 w-3.5" aria-hidden />
+              </button>
 
-              {/* Filter button */}
-              <div className="relative flex-shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setFiltersOpen((v) => !v)}
-                  className={`h-10 w-11 inline-flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-slate-50 active:scale-[0.97] transition-all duration-150 focus:outline-none rounded-r-xl ${filtersOpen ? "bg-slate-50 text-slate-900" : ""}`}
-                  aria-label="Open filters"
-                  aria-expanded={filtersOpen}
-                  title="Filters"
-                >
-                  <Filter className="h-4 w-4" aria-hidden />
-                </button>
-
-                {activePanelFiltersCount > 0 ? (
-                  <span className="pointer-events-none absolute -top-1.5 -right-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-900 px-1.5 text-[10px] font-extrabold text-white shadow ring-2 ring-white z-10">
-                    {activePanelFiltersCount}
-                  </span>
-                ) : null}
+              {activePanelFiltersCount > 0 ? (
+                <span className="pointer-events-none absolute -top-1.5 -right-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-600 px-1 text-[9px] font-extrabold text-white ring-2 ring-white z-10">
+                  {activePanelFiltersCount}
+                </span>
+              ) : null}
 
                 {filtersOpen ? (
                   <>
-                    <div className="fixed inset-0 z-[44] nols-soft-overlay" onClick={() => setFiltersOpen(false)} />
-                    <div className="absolute right-0 top-full mt-2 z-[45] w-[min(560px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white shadow-xl ring-1 ring-black/5 p-4 sm:p-5 nols-soft-popover">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
+                    {/* Backdrop — flex centers the card; click outside to close */}
+                    <div
+                      className="fixed inset-0 z-[44] flex items-center justify-center"
+                      onClick={() => setFiltersOpen(false)}
+                    >
+                      {/* Draggable card */}
+                      <div
+                        ref={filterCardRef}
+                        className="relative w-[calc(100vw-2rem)] max-w-sm rounded-2xl border border-slate-200 bg-white shadow-2xl ring-1 ring-black/5 p-4 nols-soft-popover select-none"
+                        style={{ transform: `translate(${filterOffset.x}px, ${filterOffset.y}px)` }}
+                        onClick={(e) => e.stopPropagation()}
+                        onPointerMove={(e) => {
+                          if (!filterDragRef.current.active) return;
+                          setFilterOffset({
+                            x: filterDragRef.current.originX + e.clientX - filterDragRef.current.startX,
+                            y: filterDragRef.current.originY + e.clientY - filterDragRef.current.startY,
+                          });
+                        }}
+                        onPointerUp={() => { filterDragRef.current.active = false; }}
+                        onPointerCancel={() => { filterDragRef.current.active = false; }}
+                      >
+                      {/* Drag handle — grab starts here, captured to card so fast drags stay live */}
+                      <div
+                        className="flex items-center justify-between gap-3 mb-4 cursor-grab active:cursor-grabbing touch-none"
+                        onPointerDown={(e) => {
+                          e.preventDefault();
+                          filterCardRef.current?.setPointerCapture(e.pointerId);
+                          filterDragRef.current = { active: true, startX: e.clientX, startY: e.clientY, originX: filterOffset.x, originY: filterOffset.y };
+                        }}
+                      >
+                        <div className="min-w-0 pointer-events-none">
                           <div className="text-sm font-bold text-slate-900">Filters</div>
-                          <div className="text-xs text-slate-500 mt-0.5">Refine payouts by status, date range, and sorting.</div>
+                          <div className="text-xs text-slate-500 mt-0.5">Refine by status, date range, and sort.</div>
                         </div>
                         <button
                             type="button"
                             onClick={() => setFiltersOpen(false)}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            className="flex-shrink-0 pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition cursor-pointer"
                             aria-label="Close filters"
                           >
-                            <X className="h-4 w-4" aria-hidden />
+                            <X className="h-3.5 w-3.5" aria-hidden />
                           </button>
                         </div>
 
-                        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 items-end">
+                        <div className="grid grid-cols-2 gap-3 items-end">
                           <div className="min-w-0">
                             <div className="text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-1.5">Status</div>
-                            <select
-                              value={statusFilter}
-                              onChange={(e) => setStatusFilter(e.target.value)}
-                              className="h-10 w-full rounded-lg border border-slate-200 bg-white px-4 pr-10 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-400/20 focus:border-slate-300 transition-all duration-200"
-                              aria-label="Filter by status"
-                            >
-                              <option value="">All statuses</option>
-                              <option value="REQUESTED">Requested</option>
-                              <option value="VERIFIED">Verified</option>
-                              <option value="APPROVED">Approved</option>
-                              <option value="PROCESSING">Processing</option>
-                              <option value="PAID">Paid</option>
-                              <option value="REJECTED">Rejected</option>
-                            </select>
+                            <div className="relative">
+                              <select
+                                value={statusFilter}
+                                onChange={(e) => setStatusFilter(e.target.value)}
+                                className="appearance-none h-10 w-full rounded-lg border border-slate-200 bg-white pl-3.5 pr-9 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/30 focus:border-emerald-400 transition-all duration-200 cursor-pointer"
+                                aria-label="Filter by status"
+                              >
+                                <option value="">All statuses</option>
+                                <option value="REQUESTED">Requested</option>
+                                <option value="VERIFIED">Verified</option>
+                                <option value="APPROVED">Approved</option>
+                                <option value="PROCESSING">Processing</option>
+                                <option value="PAID">Paid</option>
+                                <option value="REJECTED">Rejected</option>
+                              </select>
+                              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" aria-hidden />
+                            </div>
                           </div>
 
                           <div className="min-w-0">
                             <div className="text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-1.5">Sort</div>
-                            <select
-                              value={sortKey}
-                              onChange={(e) => setSortKey(e.target.value)}
-                              className="h-10 w-full rounded-lg border border-slate-200 bg-white px-4 pr-10 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-400/20 focus:border-slate-300 transition-all duration-200"
-                              aria-label="Sort invoices"
-                            >
-                              <option value="issuedAt_desc">Newest</option>
-                              <option value="issuedAt_asc">Oldest</option>
-                              <option value="amount_desc">Amount (high)</option>
-                              <option value="amount_asc">Amount (low)</option>
-                              <option value="status_asc">Status (A→Z)</option>
-                              <option value="invoiceNumber_asc">Invoice # (A→Z)</option>
-                            </select>
+                            <div className="relative">
+                              <select
+                                value={sortKey}
+                                onChange={(e) => setSortKey(e.target.value)}
+                                className="appearance-none h-10 w-full rounded-lg border border-slate-200 bg-white pl-3.5 pr-9 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/30 focus:border-emerald-400 transition-all duration-200 cursor-pointer"
+                                aria-label="Sort invoices"
+                              >
+                                <option value="issuedAt_desc">Newest</option>
+                                <option value="issuedAt_asc">Oldest</option>
+                                <option value="amount_desc">Amount (high)</option>
+                                <option value="amount_asc">Amount (low)</option>
+                                <option value="status_asc">Status (A→Z)</option>
+                                <option value="invoiceNumber_asc">Invoice # (A→Z)</option>
+                              </select>
+                              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" aria-hidden />
+                            </div>
                           </div>
 
                           <div className="min-w-0">
@@ -624,30 +668,31 @@ export default function OwnerRevenuePage() {
                                 setToPickerOpen(false);
                               }}
                               disabled={!statusFilter && !dateFrom && !dateTo && sortKey === "issuedAt_desc"}
-                              className="h-9 w-9 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50 hover:border-slate-300 active:scale-[0.99] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-slate-400/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-slate-200 bg-white text-slate-600 text-xs font-semibold shadow-sm hover:bg-slate-50 hover:border-slate-300 active:scale-[0.99] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-slate-400/20 disabled:opacity-40 disabled:cursor-not-allowed"
                               aria-label="Reset filters"
                               title="Reset"
                             >
-                              <RotateCcw className="h-4 w-4" aria-hidden />
+                              <RotateCcw className="h-3.5 w-3.5" aria-hidden />
+                              Reset
                             </button>
                             <button
                               type="button"
                               onClick={() => setFiltersOpen(false)}
-                              className="h-9 w-9 inline-flex items-center justify-center rounded-lg bg-slate-900 text-white shadow-sm hover:bg-slate-700 active:scale-[0.99] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-slate-500/25"
+                              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-slate-900 text-white text-xs font-semibold shadow-sm hover:bg-slate-700 active:scale-[0.99] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-slate-500/25"
                               aria-label="Apply filters"
-                              title="Apply"
                             >
-                              <Check className="h-5 w-5" aria-hidden />
+                              <Check className="h-3.5 w-3.5" aria-hidden />
+                              Apply
                             </button>
                           </div>
                         </div>
                       </div>
-                    </>
-                  ) : null}
+                    </div>
+                  </>
+                ) : null}
                 </div>
               </div>
             </div>
-          </div>
         
         {filteredSorted.length === 0 ? (
           <div className="py-16 flex flex-col items-center justify-center text-center gap-4">

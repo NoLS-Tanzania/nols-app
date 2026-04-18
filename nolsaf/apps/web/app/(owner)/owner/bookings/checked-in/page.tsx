@@ -188,7 +188,6 @@ export default function CheckedIn() {
 
         {/* ── Hero card ── */}
         <div className="relative overflow-hidden rounded-2xl bg-white border border-slate-200 shadow-xl shadow-slate-100/70">
-          <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-gradient-to-b from-emerald-600 via-emerald-300 to-transparent rounded-l-2xl" />
           <div className="pointer-events-none select-none absolute right-0 bottom-0 text-[72px] font-black text-slate-100/80 leading-none tracking-tighter pr-4 pb-1" aria-hidden>CHECKED-IN</div>
           <div className="pointer-events-none absolute right-0 top-0 h-full w-1/2 opacity-[0.035]" style={{ backgroundImage: "radial-gradient(circle, #334155 1px, transparent 1px)", backgroundSize: "18px 18px" }} />
 
@@ -216,32 +215,28 @@ export default function CheckedIn() {
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
 
           {/* ── Filter toolbar ── */}
-          <div className="relative overflow-hidden border-b border-slate-100">
-            {/* subtle dot-grid texture */}
-            <div className="pointer-events-none absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "radial-gradient(circle, #334155 1px, transparent 1px)", backgroundSize: "16px 16px" }} />
-            {/* emerald left accent */}
-            <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-gradient-to-b from-emerald-500 via-emerald-300 to-transparent" />
-
-            <div className="pl-6 pr-4 sm:pl-8 sm:pr-6 py-4">
+          <div className="border-b border-slate-100 bg-slate-50/50">
+            <div className="px-4 sm:px-6 py-4">
               {/* header row */}
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Filters</span>
+              <div className="flex items-center gap-2 mb-3">
+                <div className="h-5 w-5 rounded bg-emerald-100 flex items-center justify-center">
+                  <span className="text-emerald-600 text-[10px]">⊟</span>
                 </div>
+                <span className="text-[11px] font-bold uppercase tracking-[0.15em] text-slate-500">Filters</span>
               </div>
 
               {/* controls — stacks on mobile, row on sm+ */}
-              <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex flex-col sm:flex-row gap-2.5">
 
                 {/* Nights */}
                 <div className="w-full sm:w-[170px] flex-shrink-0">
-                  <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-400 mb-1.5">Nights</div>
+                  <div className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400 mb-1">Nights</div>
                   <div className="relative group">
                     <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors" aria-hidden />
                     <select
                       value={nightsFilter}
                       onChange={(e) => setNightsFilter(e.target.value)}
-                      className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-3.5 pr-8 text-sm font-medium text-slate-700 shadow-sm hover:border-slate-300 focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 appearance-none transition cursor-pointer"
+                      className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-3.5 pr-8 text-sm font-medium text-slate-700 hover:border-emerald-300 focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 appearance-none transition cursor-pointer"
                       aria-label="Filter by nights"
                     >
                       <option value="">All nights</option>
@@ -254,27 +249,20 @@ export default function CheckedIn() {
 
                 {/* Sort */}
                 <div className="w-full sm:w-[200px] flex-shrink-0">
-                  <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-400 mb-1.5">Sort</div>
+                  <div className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400 mb-1">Sort</div>
                   <div className="relative group">
                     <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors" aria-hidden />
                     <select
                       value={sortKey}
                       onChange={(e) => setSortKey(e.target.value)}
-                      className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-3.5 pr-8 text-sm font-medium text-slate-700 shadow-sm hover:border-slate-300 focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 appearance-none transition cursor-pointer"
+                      className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-3.5 pr-8 text-sm font-medium text-slate-700 hover:border-emerald-300 focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 appearance-none transition cursor-pointer"
                       aria-label="Sort checked-in guests"
                     >
                       <option value="checkIn_desc">Latest check-in</option>
-                      <option value="checkIn_asc">Earliest check-in</option>
                       <option value="checkOut_asc">Earliest check-out</option>
-                      <option value="checkOut_desc">Latest check-out</option>
-                      <option value="validatedAt_desc">Validated (latest)</option>
-                      <option value="validatedAt_asc">Validated (earliest)</option>
-                      <option value="nights_desc">Nights (high → low)</option>
-                      <option value="nights_asc">Nights (low → high)</option>
+                      <option value="nights_desc">Most nights</option>
                       <option value="name_asc">Name (A → Z)</option>
-                      <option value="name_desc">Name (Z → A)</option>
                       <option value="amount_desc">Amount (high → low)</option>
-                      <option value="amount_asc">Amount (low → high)</option>
                     </select>
                   </div>
                 </div>

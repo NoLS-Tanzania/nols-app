@@ -249,7 +249,6 @@ export default function OwnerCheckedOutPage() {
 
       {/* Hero */}
       <div className="relative overflow-hidden rounded-2xl bg-white border border-slate-200 shadow-xl shadow-slate-100/70">
-        <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-gradient-to-b from-slate-800 via-slate-400 to-transparent rounded-l-2xl" />
         <div className="pointer-events-none select-none absolute right-0 bottom-0 text-[100px] font-black text-slate-100/80 leading-none tracking-tighter pr-4 pb-1" aria-hidden>HISTORY</div>
         <div className="pointer-events-none absolute right-0 top-0 h-full w-1/2 opacity-[0.035]" style={{ backgroundImage: "radial-gradient(circle, #334155 1px, transparent 1px)", backgroundSize: "18px 18px" }} />
         <div className="relative pl-8 pr-6 pt-6 pb-6 sm:pt-7 sm:pb-7 sm:pr-8 lg:pt-8 lg:pb-8 lg:pr-10 lg:pl-10">
@@ -351,12 +350,12 @@ export default function OwnerCheckedOutPage() {
             <div className="text-sm font-bold text-slate-900 tracking-tight">
               Checked-out <span className="ml-1 text-xs font-medium text-slate-400">{filtered.length}</span>
             </div>
-            <div className="flex items-center rounded-xl border border-slate-200 bg-white shadow-sm">
-              <Search className="ml-3 h-4 w-4 text-slate-400 pointer-events-none flex-shrink-0" aria-hidden />
-              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Guest, code, property..." className="h-9 w-44 sm:w-60 bg-transparent px-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none" aria-label="Search checked-out history" />
+            <div className="flex items-center gap-1.5 h-8 rounded-lg border border-slate-200 bg-slate-50 px-2.5 focus-within:border-emerald-400 focus-within:ring-2 focus-within:ring-emerald-100 focus-within:bg-white transition-all duration-200">
+              <Search className="h-3.5 w-3.5 text-slate-400 pointer-events-none flex-shrink-0" aria-hidden />
+              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search…" className="w-36 sm:w-52 bg-transparent text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none" aria-label="Search checked-out history" />
               {search ? (
-                <button type="button" onClick={() => setSearch("")} className="flex-shrink-0 inline-flex h-6 w-6 items-center justify-center rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition mr-1" aria-label="Clear search">
-                  <X className="h-3.5 w-3.5" aria-hidden />
+                <button type="button" onClick={() => setSearch("")} className="flex-shrink-0 inline-flex h-4 w-4 items-center justify-center rounded text-slate-400 hover:text-slate-700 transition" aria-label="Clear search">
+                  <X className="h-3 w-3" aria-hidden />
                 </button>
               ) : null}
             </div>

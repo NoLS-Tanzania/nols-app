@@ -132,8 +132,6 @@ export default function Paid() {
 
       {/* ─── Hero Header ─────────────────────────────────────── */}
       <div className="relative overflow-hidden rounded-2xl bg-white border border-slate-200 shadow-xl shadow-slate-100/70">
-        {/* Left accent strip */}
-        <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-gradient-to-b from-slate-800 via-slate-400 to-transparent rounded-l-2xl" />
         {/* Faint watermark */}
         <div className="pointer-events-none select-none absolute right-0 bottom-0 text-[120px] font-black text-slate-100/80 leading-none tracking-tighter pr-4 pb-1" aria-hidden>
           PAID
@@ -144,7 +142,7 @@ export default function Paid() {
           style={{ backgroundImage: "radial-gradient(circle, #334155 1px, transparent 1px)", backgroundSize: "18px 18px" }}
         />
 
-        <div className="relative pl-8 pr-6 pt-6 pb-6 sm:pt-7 sm:pb-7 sm:pr-8 lg:pt-8 lg:pb-8 lg:pr-10 lg:pl-10">
+        <div className="relative px-5 pt-6 pb-6 sm:px-7 sm:pt-7 sm:pb-7 lg:px-10 lg:pt-8 lg:pb-8">
           {/* Top row */}
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-3">

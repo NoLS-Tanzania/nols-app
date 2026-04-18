@@ -295,9 +295,16 @@ body {
 }
 
 /* Prevent horizontal page movement: keep layout responsive but disallow left-right scrolling.
-   This ensures the UI adapts to viewport width without enabling unintended horizontal pan. */
-html, body, #__next {
+   This ensures the UI adapts to viewport width without enabling unintended horizontal pan.
+   NOTE: overflow-x: hidden is intentionally NOT set on #__next — doing so on the Next.js
+   root div creates a new scroll container on iOS Safari, which breaks position:fixed on the
+   site header (it scrolls with the page instead of staying fixed at the top). */
+html, body {
   overflow-x: hidden;
+}
+#__next {
+  overflow-x: clip; /* clips without creating a scroll container — preserves position:fixed */
+  max-width: 100%;
 }
 
 /* Admin UI refinements */

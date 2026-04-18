@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Camera, FileCheck2, Loader2, Wifi, WifiOff, X } from "lucide-react";
+import { Camera, FileCheck2, X } from "lucide-react";
 import Support from "@/components/Support";
 import axios from "axios";
 import { useRouter } from "next/navigation";
@@ -430,375 +430,308 @@ export default function CheckinValidation() {
   };
 
   return (
-    <div className="w-full overflow-x-hidden">
-      <div className="relative mx-auto w-full max-w-6xl box-border bg-transparent pl-2 pr-4 py-3 nols-entrance sm:rounded-[28px] sm:border sm:border-slate-200/70 sm:bg-gradient-to-br sm:from-white sm:via-emerald-50/25 sm:to-slate-50 sm:p-6 lg:p-7 sm:shadow-sm sm:ring-1 sm:ring-black/5">
-        <div className="w-full min-w-0 space-y-4 sm:space-y-6">
-          {/* Header */}
-          <div className="nols-entrance nols-delay-1">
-            <div className="flex flex-col items-center text-center gap-2">
-              <div className="h-12 w-12 rounded-3xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center shadow-sm ring-1 ring-black/10">
-                <FileCheck2 className="h-6 w-6 text-white" aria-hidden />
+    <div className="w-full box-border overflow-hidden">
+
+      {/* ── Hero Banner ── */}
+      <div className="w-full bg-white border-b border-slate-100 nols-entrance">
+        <div className="flex flex-col items-center text-center px-4 pt-7 pb-6 gap-3">
+          <div className="h-14 w-14 rounded-2xl bg-[#02665e] flex items-center justify-center shadow-lg">
+            <FileCheck2 className="h-7 w-7 text-white" aria-hidden />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Check-in Validation</h1>
+            <p className="mt-1.5 text-sm text-slate-600 max-w-[280px] mx-auto leading-relaxed">
+              Scan the receipt QR or enter the booking code to validate a guest check-in.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap justify-center">
+            <span className="inline-flex items-center rounded-full border border-slate-300 bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-700 shadow-sm">
+              Owner tool
+            </span>
+            <span className="inline-flex items-center rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700 shadow-sm">
+              Secure
+            </span>
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold border shadow-sm ${
+                isConnected
+                  ? "border-emerald-400 bg-[#02665e] text-white"
+                  : isConnected === false
+                    ? "border-slate-300 bg-slate-100 text-slate-500"
+                    : "border-slate-200 bg-slate-50 text-slate-400"
+              }`}
+              aria-live="polite"
+              title={isConnected ? "API reachable" : isConnected === false ? "API not reachable" : "Checking API"}
+            >
+              <span className={`relative flex h-2 w-2 flex-shrink-0`}>
+                {isConnected && (
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75" />
+                )}
+                <span className={`relative inline-flex rounded-full h-2 w-2 ${
+                  isConnected ? "bg-emerald-300" : isConnected === false ? "bg-slate-400" : "bg-slate-300 animate-pulse"
+                }`} />
+              </span>
+              {isConnected ? "Online" : isConnected === false ? "Offline" : "Connecting…"}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Main content — no extra px, public-container already provides padding ── */}
+      <div className="w-full box-border py-4 nols-entrance nols-delay-1" style={{maxWidth:'100%',overflowX:'hidden'}}>
+        <div style={{display:'grid',gridTemplateColumns:'1fr',gap:'1rem',width:'100%',maxWidth:'100%',boxSizing:'border-box'}}
+             className="lg:grid-cols-2 lg:gap-6 lg:items-start">
+
+          {/* ── Validate Card ── */}
+          <div className="w-full overflow-hidden bg-white rounded-2xl border border-slate-200">
+
+            {/* Card header strip */}
+            <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/60 flex items-center justify-center">
+              <div className="text-center">
+                <p className="text-sm font-bold text-slate-900">Validate guest</p>
+                <p className="text-xs text-slate-500 mt-0.5">Paste code, type it, or scan QR</p>
               </div>
-              <div className="min-w-0">
-                <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight text-slate-900">
-                  Check-in Validation
-                </h1>
-                <p className="mt-1 text-slate-600 text-sm sm:text-base">
-                  Scan the receipt QR or enter the booking code to validate a guest check-in.
-                </p>
+            </div>
+
+            <div className="p-4 space-y-4">
+
+              {/* Code input */}
+              <div className="space-y-2">
+                <label htmlFor="checkin-input" className="block text-sm font-semibold text-slate-800">
+                  Check-in Code
+                </label>
+                <div className="flex items-stretch gap-2">
+                  <input
+                    id="checkin-input"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    onPaste={(e) => {
+                      if (isLocked) return;
+                      const pasted = e.clipboardData?.getData("text") ?? "";
+                      if (pasted) {
+                        const normalized = normalizeScanValue(pasted);
+                        setCode(normalized);
+                        const t = String(normalized || "").trim();
+                        const isQrPayload = t.startsWith("{") && t.includes("bookingId");
+                        if (isQrPayload || t.length === 8) {
+                          validate(normalized);
+                        }
+                      }
+                    }}
+                    disabled={isLocked}
+                    className="flex-1 min-w-0 px-4 py-3 text-base font-mono tracking-widest uppercase border border-slate-200 rounded-xl bg-white text-center outline-none placeholder:text-slate-300 placeholder:tracking-normal focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed transition-all"
+                    placeholder="XXXXXXXX"
+                    autoFocus
+                    maxLength={8}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => { setScanOpen(true); setScanError(null); }}
+                    disabled={isLocked}
+                    className="shrink-0 h-12 w-12 flex items-center justify-center rounded-xl bg-[#02665e] text-white hover:bg-[#024d47] active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                    aria-label="Scan QR code"
+                    title="Scan QR code"
+                  >
+                    <Camera className="h-5 w-5" aria-hidden />
+                  </button>
+                </div>
+                <p className="text-xs text-slate-500">QR scan requires Chrome or Edge on mobile.</p>
               </div>
-              <div className="mt-2 flex items-center justify-center gap-2">
-                <span className="inline-flex items-center rounded-full border border-slate-200/80 bg-white/70 px-3 py-1 text-[11px] font-semibold text-slate-700 shadow-sm ring-1 ring-black/5">
-                  Owner tool
-                </span>
-                <span className="inline-flex items-center rounded-full border border-emerald-200/80 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700 ring-1 ring-black/5">
-                  Secure
-                </span>
-              </div>
+
+              {/* Lock countdown */}
+              {isLocked && lockCountdown ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="status" aria-live="polite">
+                  Too many invalid attempts. Try again in <strong className="font-semibold">{lockCountdown}</strong>.
+                </div>
+              ) : null}
+
+              {/* Remaining attempts */}
+              {!isLocked && typeof remainingAttempts === "number" ? (
+                <div className="text-xs text-slate-500" aria-live="polite">
+                  Attempts remaining: <span className="font-semibold text-slate-700">{remainingAttempts}</span>
+                </div>
+              ) : null}
+
+              {/* Loading */}
+              {loading && (
+                <div className="flex items-center gap-2.5 py-1">
+                  <div className="flex gap-1">
+                    <div className="h-2 w-2 rounded-full bg-emerald-500 animate-bounce [animation-delay:-0.3s]" />
+                    <div className="h-2 w-2 rounded-full bg-emerald-500 animate-bounce [animation-delay:-0.15s]" />
+                    <div className="h-2 w-2 rounded-full bg-emerald-500 animate-bounce" />
+                  </div>
+                  <span className="text-sm text-slate-600">{searching ? "Still searching…" : attempting ? "Checking…" : "Validating…"}</span>
+                </div>
+              )}
+
+              {/* Long wait */}
+              {contactSuggest && !loading && (
+                <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                  This is taking unusually long. If it still does not return a result, please contact support below.
+                </div>
+              )}
+
+              {/* Error message */}
+              {resultMsg && !preview && !isLocked && (
+                <div className="w-full" role="alert" aria-live="polite">
+                  <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+                    <div className="flex items-start gap-2">
+                      <span className="inline-flex h-2 w-2 rounded-full bg-red-500 mt-1.5 flex-shrink-0" />
+                      <p className="text-sm text-red-700">
+                        {resultMsg.includes("Network error")
+                          ? "Check your internet connection or contact the NoLSAF team for assistance."
+                          : resultMsg}
+                      </p>
+                    </div>
+
+                    {resultMsg.includes("Network error") && (
+                      <div className="mt-3 pt-3 border-t border-red-200">
+                        <p className="text-xs font-medium text-red-600 mb-2">Get Help:</p>
+                        <div className="flex flex-col gap-2">
+                          <a
+                            href={`mailto:${supportEmail}`}
+                            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-red-200 bg-white text-sm text-red-700 hover:bg-red-50 transition-colors"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                            </svg>
+                            {supportEmail}
+                          </a>
+                          <a
+                            href={`tel:${supportPhone.replace(/\s+/g, "")}`}
+                            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-red-200 bg-white text-sm text-red-700 hover:bg-red-50 transition-colors"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                            </svg>
+                            {supportPhone}
+                          </a>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {contactSuggest && (
+                <div className="space-y-3">
+                  <Support compact />
+                  <button
+                    onClick={() => validate(code)}
+                    disabled={isLocked}
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold transition-colors"
+                  >
+                    Retry Validation
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Main layout: Validate (left) + Result (right) */}
-          <div className="grid min-w-0 grid-cols-1 lg:grid-cols-2 gap-y-5 sm:gap-y-6 gap-x-5 sm:gap-x-6 lg:gap-x-10 xl:gap-x-12 nols-entrance nols-delay-2">
-            {/* Validation */}
-            <div className="min-w-0">
-              <div className="bg-gradient-to-br from-white via-slate-50/70 to-emerald-50/30 backdrop-blur border border-slate-300/70 rounded-2xl sm:rounded-3xl shadow-md ring-1 ring-black/5 p-3 sm:p-5 w-full space-y-3 sm:space-y-4 transition-all duration-300 hover:shadow-lg">
-                <div className="flex flex-col items-center text-center gap-3">
-                  <div>
-                    <div className="text-sm font-semibold tracking-tight text-slate-900">Validate guest</div>
-                    <div className="text-xs text-slate-500 mt-0.5">Paste code, type it, or scan QR</div>
-                  </div>
-                  <div
-                    className={
-                      isConnected
-                        ? "inline-flex items-center gap-2 rounded-xl sm:rounded-2xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50 to-white px-2.5 py-1.5 sm:px-3 sm:py-2 text-emerald-800 shadow-sm ring-1 ring-emerald-500/10"
-                        : isConnected === false
-                          ? "inline-flex items-center gap-2 rounded-xl sm:rounded-2xl border border-slate-200/80 bg-gradient-to-br from-slate-50 to-white px-2.5 py-1.5 sm:px-3 sm:py-2 text-slate-700 shadow-sm ring-1 ring-black/5"
-                          : "inline-flex items-center gap-2 rounded-xl sm:rounded-2xl border border-slate-200/80 bg-gradient-to-br from-slate-50 to-white px-2.5 py-1.5 sm:px-3 sm:py-2 text-slate-700 shadow-sm ring-1 ring-black/5"
-                    }
-                    aria-live="polite"
-                    title={isConnected ? "API reachable" : isConnected === false ? "API not reachable" : "Checking API"}
-                  >
-                    <span
-                      className={
-                        isConnected
-                          ? "inline-flex h-6 w-6 sm:h-7 sm:w-7 items-center justify-center rounded-xl bg-white ring-1 ring-emerald-500/10"
-                          : "inline-flex h-6 w-6 sm:h-7 sm:w-7 items-center justify-center rounded-xl bg-white ring-1 ring-black/5"
-                      }
-                      aria-hidden
-                    >
-                      {isConnected ? (
-                        <Wifi className="h-4 w-4 text-emerald-700" />
-                      ) : isConnected === false ? (
-                        <WifiOff className="h-4 w-4 text-slate-600" />
-                      ) : (
-                        <Loader2 className="h-4 w-4 text-slate-600 animate-spin" />
-                      )}
-                    </span>
-                    <div className="leading-tight text-left">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={
-                            isConnected
-                              ? "h-1.5 w-1.5 rounded-full bg-emerald-500"
-                              : isConnected === false
-                                ? "h-1.5 w-1.5 rounded-full bg-slate-400"
-                                : "h-1.5 w-1.5 rounded-full bg-slate-300"
-                          }
-                        />
-                        <span className="text-[11px] font-semibold">
-                          {isConnected ? "Online" : isConnected === false ? "Offline" : "Checking"}
-                        </span>
-                      </div>
-                      <div className={isConnected ? "text-[10px] text-emerald-700/80" : "text-[10px] text-slate-500"}>
-                        {isConnected ? "Live connection" : isConnected === false ? "No server link" : "Verifying"}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Code input */}
-                <div className="w-full space-y-2">
-                  <label className="block text-sm font-semibold text-slate-800">
-                    Check-in Code
-                  </label>
-                  <div className="w-full min-w-0 flex items-center rounded-xl sm:rounded-2xl border border-slate-300/90 bg-white/95 shadow-sm ring-1 ring-black/5 overflow-hidden transition-all duration-200 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20">
-                    <input
-                      value={code}
-                      onChange={(e) => setCode(e.target.value)}
-                      onPaste={(e) => {
-                        if (isLocked) return;
-                        const pasted = e.clipboardData?.getData("text") ?? "";
-                        if (pasted) {
-                          const normalized = normalizeScanValue(pasted);
-                          setCode(normalized);
-                          const t = String(normalized || "").trim();
-                          const isQrPayload = t.startsWith("{") && t.includes("bookingId");
-                          if (isQrPayload || t.length === 8) {
-                            validate(normalized);
-                          }
-                        }
-                      }}
-                      disabled={isLocked}
-                      className="min-w-0 flex-1 px-3 py-2 text-sm sm:text-base font-mono tracking-[0.15em] sm:tracking-[0.18em] uppercase border-0 rounded-none bg-transparent text-center outline-none placeholder:text-slate-400 disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed"
-                      placeholder="Enter check-in code"
-                      autoFocus
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setScanOpen(true);
-                        setScanError(null);
-                      }}
-                      disabled={isLocked}
-                      className="shrink-0 inline-flex h-9 w-10 sm:h-10 sm:w-11 items-center justify-center border-l border-slate-200 bg-gradient-to-b from-slate-50 to-slate-100/80 hover:from-slate-100 hover:to-slate-200/70 transition-colors disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:from-slate-50 disabled:hover:to-slate-100/80"
-                      aria-label="Scan QR code"
-                      title="Scan QR code"
-                    >
-                      <Camera className="h-5 w-5 text-slate-700" aria-hidden />
-                    </button>
-                  </div>
-                  <div className="text-[11px] sm:text-[12px] text-slate-600">
-                    Tip: QR scanning may require a supported browser (Chrome/Edge mobile).
-                  </div>
-
-                  {isLocked && lockCountdown ? (
-                    <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="status" aria-live="polite">
-                      Too many invalid attempts. Try again in <strong className="font-semibold">{lockCountdown}</strong>.
-                    </div>
-                  ) : null}
-
-                  {!isLocked && typeof remainingAttempts === "number" ? (
-                    <div className="text-xs text-slate-600" aria-live="polite">
-                      Attempts remaining: <span className="font-semibold">{remainingAttempts}</span>
-                    </div>
-                  ) : null}
-                </div>
-
-                {/* Loading and status indicators */}
-                <div className="flex items-center justify-center min-h-[2rem]">
-                  {loading && (
-                    <div className="flex items-center gap-2 text-sm text-slate-600">
-                      <div className="flex gap-1.5">
-                        <div className="h-2 w-2 rounded-full bg-emerald-500 animate-bounce [animation-delay:-0.3s]" />
-                        <div className="h-2 w-2 rounded-full bg-emerald-500 animate-bounce [animation-delay:-0.15s]" />
-                        <div className="h-2 w-2 rounded-full bg-emerald-500 animate-bounce" />
-                      </div>
-                      <span>{searching ? "Still searching…" : attempting ? "Checking…" : "Validating…"}</span>
-                    </div>
-                  )}
-
-                  {contactSuggest && !loading && (
-                    <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
-                      This is taking unusually long. If it still does not return a result, please contact support below.
-                    </div>
-                  )}
-                </div>
-
-                {/* Error message */}
-                {resultMsg && !preview && !isLocked && (
-                  <div className="w-full" role="alert" aria-live="polite">
-                    <div className="rounded-2xl border border-red-200 bg-red-50 p-4 ring-1 ring-black/5">
-                      <div className="flex items-start gap-2">
-                        <span className="inline-flex h-2 w-2 rounded-full bg-red-500 mt-1.5 flex-shrink-0" />
-                        <p className="text-sm text-red-700">
-                          {resultMsg.includes("Network error")
-                            ? "Check your internet connection or contact the NoLSAF team for assistance."
-                            : resultMsg}
-                        </p>
-                      </div>
-
-                      {resultMsg.includes("Network error") && (
-                        <div className="mt-3 pt-3 border-t border-red-200">
-                          <p className="text-xs font-medium text-red-600 mb-2">Get Help:</p>
-                          <div className="flex flex-col gap-2">
-                            <a
-                              href={`mailto:${supportEmail}`}
-                              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-red-200 bg-white text-sm text-red-700 hover:bg-red-50 transition-colors"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                                />
-                              </svg>
-                              {supportEmail}
-                            </a>
-                            <a
-                              href={`tel:${supportPhone.replace(/\s+/g, "")}`}
-                              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-red-200 bg-white text-sm text-red-700 hover:bg-red-50 transition-colors"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
-                                />
-                              </svg>
-                              {supportPhone}
-                            </a>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {contactSuggest && (
-                  <div className="space-y-3">
-                    <Support compact />
-                    <button
-                      onClick={() => validate(code)}
-                      disabled={isLocked}
-                      className="w-full px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold transition-colors ring-1 ring-black/5"
-                    >
-                      Retry Validation
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-
             {/* Result / Preview (shown only after a successful validation) */}
             {preview ? (
-              <div className="min-w-0">
-                <div className="2xl:sticky 2xl:top-6 min-w-0 space-y-3">
+              <div style={{width:'100%',maxWidth:'100%',minWidth:0,boxSizing:'border-box',overflowX:'hidden'}}>
+                <div className="space-y-3" style={{width:'100%',maxWidth:'100%',boxSizing:'border-box'}}>
 
                   {/* ── Guest hero card ── */}
-                  <div className="relative overflow-hidden rounded-3xl shadow-lg">
-                    {/* Teal gradient bg */}
-                    <div className="absolute inset-0 bg-[#02665e]" />
-                    {/* dot texture */}
-                    <div className="pointer-events-none absolute inset-0 opacity-[0.07]"
-                      style={{ backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
-                    {/* glow */}
-                    <div className="pointer-events-none absolute -top-20 -right-20 h-64 w-64 rounded-full bg-white/5 blur-3xl" />
-
-                    <div className="relative px-5 py-5 flex items-center gap-4">
-                      {/* Initials avatar */}
-                      <div className="h-16 w-16 rounded-2xl bg-white/15 border border-white/25 flex items-center justify-center flex-shrink-0 shadow-lg">
-                        <span className="text-2xl font-black text-white tracking-tight select-none">
-                          {preview.personal.fullName.trim().split(/\s+/).map((w: string) => w[0]).slice(0, 2).join('').toUpperCase()}
+                  <div style={{width:'100%',maxWidth:'100%',boxSizing:'border-box',overflow:'hidden',borderRadius:'1rem',border:'1px solid rgba(2,102,94,0.3)'}}>
+                    <div className="relative bg-[#02665e]" style={{padding:'1rem'}}>
+                      <div className="pointer-events-none absolute inset-0 opacity-[0.06]"
+                        style={{ backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)', backgroundSize: '18px 18px' }} />
+                      <div className="relative" style={{display:'flex',alignItems:'center',gap:'0.75rem',width:'100%',minWidth:0}}>
+                        <div style={{height:'3rem',width:'3rem',borderRadius:'0.75rem',background:'rgba(255,255,255,0.15)',border:'1px solid rgba(255,255,255,0.2)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                          <span style={{fontSize:'1.125rem',fontWeight:900,color:'white',userSelect:'none'}}>
+                            {preview.personal.fullName.trim().split(/\s+/).map((w: string) => w[0]).slice(0, 2).join('').toUpperCase()}
+                          </span>
+                        </div>
+                        <div style={{flex:1,minWidth:0,overflow:'hidden'}}>
+                          <div style={{fontSize:'0.625rem',fontWeight:600,color:'rgba(255,255,255,0.5)',textTransform:'uppercase',letterSpacing:'0.1em'}}>Validated guest</div>
+                          <div style={{fontSize:'1rem',fontWeight:800,color:'white',lineHeight:1.2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{preview.personal.fullName}</div>
+                          <div style={{fontSize:'0.75rem',color:'rgba(255,255,255,0.65)',marginTop:'2px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{preview.property.title} · {preview.property.type}</div>
+                        </div>
+                        <span style={{flexShrink:0,maxWidth:'5rem',display:'inline-flex',alignItems:'center',borderRadius:'9999px',padding:'0.25rem 0.625rem',fontSize:'0.625rem',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.05em',border:'1px solid',background: preview.booking.status === 'CHECKED_IN' ? 'rgba(52,211,153,0.2)' : 'rgba(255,255,255,0.15)', borderColor: preview.booking.status === 'CHECKED_IN' ? 'rgba(110,231,183,0.4)' : 'rgba(255,255,255,0.25)', color: preview.booking.status === 'CHECKED_IN' ? 'rgb(209,250,229)' : 'white', overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                          {preview.booking.status.replace('_', ' ')}
                         </span>
                       </div>
-                      {/* Name block */}
-                      <div className="flex-1 min-w-0">
-                        <div className="text-[11px] font-semibold text-white/50 uppercase tracking-widest mb-0.5">Validated guest</div>
-                        <div className="text-xl sm:text-2xl font-extrabold text-white leading-tight truncate">{preview.personal.fullName}</div>
-                        <div className="mt-1 text-sm text-white/70 truncate">{preview.property.title} · {preview.property.type}</div>
-                      </div>
-                      {/* Status pill */}
-                      <span className={`flex-shrink-0 inline-flex items-center rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide border ${
-                        preview.booking.status === 'CHECKED_IN'
-                          ? 'bg-emerald-400/20 border-emerald-300/40 text-emerald-100'
-                          : 'bg-white/15 border-white/25 text-white'
-                      }`}>
-                        {preview.booking.status.replace('_', ' ')}
-                      </span>
                     </div>
-
-                    {/* ID strip */}
-                    <div className="relative border-t border-white/10 px-5 py-3 flex items-center gap-6">
+                    <div style={{background:'#024d47',padding:'0.625rem 1rem',display:'flex',alignItems:'center',gap:'1.25rem'}}>
                       <div>
-                        <div className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">Booking ID</div>
-                        <div className="text-sm font-bold text-white mt-0.5">#{preview.bookingId}</div>
+                        <div style={{fontSize:'0.5625rem',fontWeight:600,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:'0.05em'}}>Booking ID</div>
+                        <div style={{fontSize:'0.875rem',fontWeight:700,color:'white'}}>#{preview.bookingId}</div>
                       </div>
-                      <div className="h-6 w-px bg-white/15" />
+                      <div style={{height:'1.25rem',width:'1px',background:'rgba(255,255,255,0.15)'}} />
                       <div>
-                        <div className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">Property ID</div>
-                        <div className="text-sm font-bold text-white mt-0.5">#{preview.property.id}</div>
+                        <div style={{fontSize:'0.5625rem',fontWeight:600,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:'0.05em'}}>Property ID</div>
+                        <div style={{fontSize:'0.875rem',fontWeight:700,color:'white'}}>#{preview.property.id}</div>
                       </div>
                     </div>
                   </div>
 
                   {/* ── Details card ── */}
-                  <div className="rounded-3xl border border-slate-200/80 bg-white shadow-md overflow-hidden">
-
-                    {/* Personal details */}
-                    <div className="px-5 pt-4 pb-1">
-                      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Personal Details</div>
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-                        <DataRow label="Full Name"    value={preview.personal.fullName} />
-                        <DataRow label="Phone"        value={preview.personal.phone} />
-                        <DataRow label="Nationality"  value={preview.personal.nationality} />
-                        <DataRow label="Sex"          value={preview.personal.sex} />
-                        <DataRow label="Age Group"    value={preview.personal.ageGroup} span />
+                  <div style={{width:'100%',maxWidth:'100%',boxSizing:'border-box',overflow:'hidden',borderRadius:'1rem',border:'1px solid #e2e8f0',background:'white'}}>
+                    <div style={{padding:'1rem 1rem 0.75rem'}}>
+                      <div style={{fontSize:'0.625rem',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em',color:'#94a3b8',marginBottom:'0.75rem'}}>Personal Details</div>
+                      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.75rem',width:'100%',boxSizing:'border-box'}}>
+                        <div style={{gridColumn:'1 / -1'}}><DataRow label="Full Name" value={preview.personal.fullName} /></div>
+                        <DataRow label="Phone"       value={preview.personal.phone} />
+                        <DataRow label="Nationality" value={preview.personal.nationality} />
+                        <DataRow label="Sex"         value={preview.personal.sex} />
+                        <DataRow label="Age Group"   value={preview.personal.ageGroup} />
                       </div>
                     </div>
-
-                    <div className="mx-5 my-3 h-px bg-slate-100" />
-
-                    {/* Booking details */}
-                    <div className="px-5 pb-1">
-                      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Booking Details</div>
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-                        <DataRow label="Room Type"    value={preview.booking.roomType} />
-                        <DataRow label="Rooms"        value={String(preview.booking.rooms)} />
-                        <DataRow label="Nights"       value={String(preview.booking.nights)} />
-                        <DataRow label="Amount"       value={formatTZS(preview.booking.ownerBaseAmount ?? preview.booking.totalAmount)} highlight />
+                    <div style={{margin:'0 1rem',height:'1px',background:'#f1f5f9'}} />
+                    <div style={{padding:'0.75rem 1rem'}}>
+                      <div style={{fontSize:'0.625rem',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em',color:'#94a3b8',marginBottom:'0.75rem'}}>Booking Details</div>
+                      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.75rem',width:'100%',boxSizing:'border-box'}}>
+                        <div style={{gridColumn:'1 / -1'}}><DataRow label="Room Type" value={preview.booking.roomType} /></div>
+                        <DataRow label="Rooms"  value={String(preview.booking.rooms)} />
+                        <DataRow label="Nights" value={String(preview.booking.nights)} />
+                        <div style={{gridColumn:'1 / -1'}}><DataRow label="Amount" value={formatTZS(preview.booking.ownerBaseAmount ?? preview.booking.totalAmount)} highlight /></div>
                       </div>
                     </div>
-
-                    <div className="mx-5 my-3 h-px bg-slate-100" />
-
-                    {/* Check-in / Check-out row */}
-                    <div className="px-5 pb-4">
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="rounded-2xl bg-emerald-50 border border-emerald-100 px-3.5 py-3">
-                          <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-600 mb-1">Check-in</div>
-                          <div className="text-[13px] font-bold text-emerald-900 leading-snug">{formatDateTime(preview.booking.checkIn)}</div>
-                        </div>
-                        <div className="rounded-2xl bg-sky-50 border border-sky-100 px-3.5 py-3">
-                          <div className="text-[10px] font-bold uppercase tracking-widest text-sky-600 mb-1">Check-out</div>
-                          <div className="text-[13px] font-bold text-sky-900 leading-snug">{formatDateTime(preview.booking.checkOut)}</div>
-                        </div>
+                    <div style={{margin:'0 1rem',height:'1px',background:'#f1f5f9'}} />
+                    <div style={{padding:'0.75rem 1rem 1rem',display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.5rem',width:'100%',boxSizing:'border-box'}}>
+                      <div style={{borderRadius:'0.75rem',background:'#f0fdf4',border:'1px solid #d1fae5',padding:'0.625rem 0.75rem',boxSizing:'border-box',overflow:'hidden'}}>
+                        <div style={{fontSize:'0.5625rem',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em',color:'#059669',marginBottom:'0.25rem'}}>Check-in</div>
+                        <div style={{fontSize:'0.75rem',fontWeight:700,color:'#064e3b',lineHeight:1.3}}>{formatDateTime(preview.booking.checkIn)}</div>
+                      </div>
+                      <div style={{borderRadius:'0.75rem',background:'#f0f9ff',border:'1px solid #bae6fd',padding:'0.625rem 0.75rem',boxSizing:'border-box',overflow:'hidden'}}>
+                        <div style={{fontSize:'0.5625rem',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em',color:'#0284c7',marginBottom:'0.25rem'}}>Check-out</div>
+                        <div style={{fontSize:'0.75rem',fontWeight:700,color:'#0c4a6e',lineHeight:1.3}}>{formatDateTime(preview.booking.checkOut)}</div>
                       </div>
                     </div>
                   </div>
 
                   {/* ── Action card ── */}
-                  <div className="rounded-3xl border border-slate-200/80 bg-white shadow-md p-4">
+                  <div style={{position:'relative',width:'100%',maxWidth:'100%',boxSizing:'border-box',borderRadius:'1rem',border:'1px solid #e2e8f0',background:'white',padding:'1rem'}}>
+                    <button
+                      onClick={() => { setPreview(null); setCode(""); setResultMsg(null); setEligibility(null); }}
+                      style={{position:'absolute',top:'0.75rem',right:'0.75rem',height:'2rem',width:'2rem',display:'flex',alignItems:'center',justifyContent:'center',borderRadius:'0.625rem',border:'1px solid #fca5a5',background:'#fef2f2',color:'#ef4444',cursor:'pointer'}}
+                      aria-label="Clear result"
+                    >
+                      <X className="h-4 w-4" aria-hidden />
+                    </button>
                     {!eligibility?.canValidate && eligibility?.reason ? (
-                      <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                      <div style={{marginBottom:'0.75rem',paddingRight:'2rem',borderRadius:'0.75rem',border:'1px solid #fde68a',background:'#fffbeb',padding:'0.625rem 0.75rem',fontSize:'0.875rem',color:'#92400e',boxSizing:'border-box'}}>
                         {eligibility.reason}
                       </div>
                     ) : null}
-                    <div className="flex gap-3">
-                      <button
-                        onClick={() => {
-                          setConfirmOpen(true);
-                          setAgreeTerms(false);
-                          setAgreeDisbursement(false);
-                        }}
-                        disabled={loading || (eligibility ? !eligibility.canValidate : false)}
-                        className="flex-1 px-4 py-3 rounded-2xl bg-[#02665e] text-white text-sm font-bold shadow-lg shadow-[#02665e]/25 hover:bg-[#024d47] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 active:scale-[0.98]"
-                      >
-                        ✓ Confirm Check-in
-                      </button>
-                      <button
-                        onClick={() => {
-                          setPreview(null);
-                          setCode("");
-                          setResultMsg(null);
-                          setEligibility(null);
-                        }}
-                        className="px-4 py-3 rounded-2xl border border-slate-200 bg-slate-50 text-slate-600 text-sm font-semibold hover:bg-slate-100 transition-all duration-200 active:scale-[0.98]"
-                      >
-                        Clear
-                      </button>
-                    </div>
-                    <div className="mt-2.5 text-[11px] text-slate-400 text-center">
-                      This will mark the code as <strong className="text-slate-500">USED</strong> and move the guest to <strong className="text-slate-500">Checked‑In</strong>.
-                    </div>
+                    <button
+                      onClick={() => { setConfirmOpen(true); setAgreeTerms(false); setAgreeDisbursement(false); }}
+                      disabled={loading || (eligibility ? !eligibility.canValidate : false)}
+                      style={{width:'100%',padding:'0.75rem 1rem',borderRadius:'0.75rem',background:'#02665e',color:'white',fontSize:'0.875rem',fontWeight:700,border:'none',cursor:'pointer',boxSizing:'border-box',opacity: (loading || (eligibility ? !eligibility.canValidate : false)) ? 0.5 : 1}}
+                    >
+                      ✓ Confirm Check-in
+                    </button>
+                    <p style={{marginTop:'0.625rem',fontSize:'0.6875rem',color:'#94a3b8',textAlign:'center'}}>
+                      Marks code as <strong style={{color:'#64748b'}}>USED</strong> · moves guest to <strong style={{color:'#64748b'}}>Checked-In</strong>
+                    </p>
                   </div>
 
                 </div>
               </div>
             ) : null}
-          </div>
+          </div>{/* end grid */}
+        </div>{/* end py-4 */}
 
         {/* QR Scan Modal */}
         {scanOpen && (
@@ -950,8 +883,6 @@ export default function CheckinValidation() {
             </div>
           </div>
         )}
-      </div>
-      </div>
     </div>
   );
 }

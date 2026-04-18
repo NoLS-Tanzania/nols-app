@@ -131,8 +131,6 @@ export default function Requested() {
 
       {/* ─── Hero Header ─────────────────────────────────────── */}
       <div className="relative overflow-hidden rounded-2xl bg-white border border-slate-200 shadow-xl shadow-slate-100/70">
-        {/* Left accent strip */}
-        <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-gradient-to-b from-slate-800 via-slate-400 to-transparent rounded-l-2xl" />
         {/* Faint watermark */}
         <div className="pointer-events-none select-none absolute right-0 bottom-0 text-[120px] font-black text-slate-100/80 leading-none tracking-tighter pr-4 pb-1" aria-hidden>
           AWAIT
@@ -143,14 +141,14 @@ export default function Requested() {
           style={{ backgroundImage: "radial-gradient(circle, #334155 1px, transparent 1px)", backgroundSize: "18px 18px" }}
         />
 
-        <div className="relative pl-8 pr-6 pt-6 pb-6 sm:pt-7 sm:pb-7 sm:pr-8 lg:pt-8 lg:pb-8 lg:pr-10 lg:pl-10">
+        <div className="relative px-6 pt-5 pb-5 sm:px-8 sm:pt-6 sm:pb-6">
           {/* Top row */}
-          <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center h-10 w-10 rounded-xl bg-slate-100 border border-slate-200">
-                <Hourglass className="h-5 w-5 text-slate-700" aria-hidden />
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2.5">
+              <div className="flex items-center justify-center h-9 w-9 rounded-xl bg-slate-100 border border-slate-200">
+                <Hourglass className="h-4 w-4 text-slate-700" aria-hidden />
               </div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-600">
+              <div className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">
                 <span className="h-1.5 w-1.5 rounded-full bg-amber-400 flex-shrink-0" />
                 Awaiting Review
               </div>
@@ -158,45 +156,45 @@ export default function Requested() {
             <div className="flex items-center gap-2">
               <Link
                 href="/owner/revenue/paid"
-                className="no-underline inline-flex items-center gap-1.5 h-8 px-3.5 rounded-lg bg-slate-900 hover:bg-slate-700 text-white text-xs font-bold transition-all duration-200 active:scale-[0.97] shadow-sm"
+                className="no-underline inline-flex items-center gap-1.5 h-7 px-3 rounded-md bg-slate-900 hover:bg-slate-700 text-white text-[11px] font-semibold tracking-wide transition-all duration-200 active:scale-[0.97]"
                 aria-label="Go to paid invoices"
               >
                 Paid
-                <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
+                <ArrowUpRight className="h-3 w-3 opacity-70" aria-hidden />
               </Link>
               <Link
                 href="/owner/revenue/rejected"
-                className="no-underline inline-flex items-center gap-1.5 h-8 px-3.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all duration-200 active:scale-[0.97] shadow-sm"
+                className="no-underline inline-flex items-center gap-1.5 h-7 px-3 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-[11px] font-semibold tracking-wide transition-all duration-200 active:scale-[0.97]"
                 aria-label="Go to rejected invoices"
               >
                 Rejected
-                <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
+                <ArrowUpRight className="h-3 w-3 opacity-50" aria-hidden />
               </Link>
               <button
                 type="button"
                 onClick={() => load({ silent: true })}
                 disabled={refreshing}
-                className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 transition-all duration-200 active:scale-95 disabled:opacity-50 shadow-sm"
+                className="inline-flex items-center justify-center h-7 w-7 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-slate-400 transition-all duration-200 active:scale-95 disabled:opacity-50"
                 aria-label="Refresh"
                 title="Refresh"
               >
-                <RotateCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} aria-hidden />
+                <RotateCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} aria-hidden />
               </button>
             </div>
           </div>
 
           {/* Title block */}
-          <div className="mt-5">
-            <h1 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight leading-none">
+          <div className="mt-4">
+            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight leading-tight">
               Requested Invoices
             </h1>
-            <p className="mt-2.5 text-sm text-slate-500 max-w-md leading-relaxed">
+            <p className="mt-1.5 text-sm text-slate-500 max-w-md leading-relaxed">
               Invoices submitted to NoLSAF awaiting verification and approval.
             </p>
           </div>
 
           {/* Separator */}
-          <div className="mt-6 h-px bg-gradient-to-r from-slate-200 via-slate-100 to-transparent" />
+          <div className="mt-5 h-px bg-gradient-to-r from-slate-200 via-slate-100 to-transparent" />
         </div>
       </div>
 
@@ -268,7 +266,7 @@ export default function Requested() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search invoice, property…"
-                className="h-9 w-full sm:w-72 pl-9 pr-9 rounded-lg border border-slate-200 bg-slate-50 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-400 focus:bg-white transition-all duration-200"
+                className="h-8 w-full sm:w-48 pl-8 pr-8 rounded-lg border border-slate-200 bg-slate-50 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400 focus:bg-white transition-all duration-200"
                 aria-label="Search requested invoices"
               />
             </div>
@@ -276,7 +274,7 @@ export default function Requested() {
               type="button"
               onClick={() => load({ silent: true })}
               disabled={refreshing}
-              className="inline-flex items-center justify-center h-9 w-9 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 transition-all active:scale-95 disabled:opacity-50 shadow-sm"
+              className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-500 transition-all active:scale-95 disabled:opacity-50"
               aria-label="Refresh list"
               title="Refresh"
             >

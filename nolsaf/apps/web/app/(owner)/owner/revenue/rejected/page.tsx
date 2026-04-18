@@ -130,53 +130,51 @@ export default function Rejected() {
     <div className="space-y-5 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
 
       {/* ─── Hero Header ─────────────────────────────────────── */}
-      <div className="relative overflow-hidden rounded-2xl bg-white border border-slate-200 shadow-xl shadow-slate-100/70">
-        {/* Left accent strip */}
-        <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-gradient-to-b from-red-600 via-rose-400 to-transparent rounded-l-2xl" />
+      <div className="relative overflow-hidden rounded-2xl bg-white border border-slate-200 shadow-sm">
+
         {/* Faint watermark */}
-        <div className="pointer-events-none select-none absolute right-0 bottom-0 text-[120px] font-black text-red-50/80 leading-none tracking-tighter pr-4 pb-1" aria-hidden>
+        <div className="pointer-events-none select-none absolute right-2 bottom-0 text-[96px] font-black text-red-100/60 leading-none tracking-tighter pb-1" aria-hidden>
           DENY
         </div>
-        {/* Subtle dot grid */}
+        {/* Dot grid */}
         <div
           className="pointer-events-none absolute right-0 top-0 h-full w-1/2 opacity-[0.03]"
           style={{ backgroundImage: "radial-gradient(circle, #334155 1px, transparent 1px)", backgroundSize: "18px 18px" }}
         />
 
-        <div className="relative pl-8 pr-6 pt-6 pb-6 sm:pt-7 sm:pb-7 sm:pr-8 lg:pt-8 lg:pb-8 lg:pr-10 lg:pl-10">
-          {/* Top row */}
-          <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center h-10 w-10 rounded-xl bg-red-50 border border-red-200">
-                <XCircle className="h-5 w-5 text-red-500" aria-hidden />
+        <div className="relative px-5 pt-5 pb-5 sm:px-6 sm:pt-6 sm:pb-6">
+          {/* Top row: icon+badge LEFT, nav buttons RIGHT */}
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2.5">
+              <div className="flex items-center justify-center h-9 w-9 rounded-xl bg-red-50 border border-red-200 flex-shrink-0">
+                <XCircle className="h-4.5 w-4.5 text-red-500" aria-hidden />
               </div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-bold text-red-600">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-2.5 py-0.5 text-[11px] font-bold text-red-600">
                 <span className="h-1.5 w-1.5 rounded-full bg-red-500 flex-shrink-0" />
                 Rejected
-              </div>
+              </span>
             </div>
-            <div className="flex items-center gap-2">
+
+            <div className="flex items-center gap-1.5">
               <Link
                 href="/owner/revenue/requested"
-                className="no-underline inline-flex items-center gap-1.5 h-8 px-3.5 rounded-lg bg-slate-900 hover:bg-slate-700 text-white text-xs font-bold transition-all duration-200 active:scale-[0.97] shadow-sm"
-                aria-label="Go to requested invoices"
+                className="no-underline inline-flex items-center gap-1 h-7 px-3 rounded-md bg-slate-900 hover:bg-slate-700 text-white text-[11px] font-semibold tracking-wide transition-all duration-200 active:scale-[0.97]"
               >
                 Requested
-                <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
+                <ArrowUpRight className="h-3 w-3" aria-hidden />
               </Link>
               <Link
                 href="/owner/revenue/paid"
-                className="no-underline inline-flex items-center gap-1.5 h-8 px-3.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all duration-200 active:scale-[0.97] shadow-sm"
-                aria-label="Go to paid invoices"
+                className="no-underline inline-flex items-center gap-1 h-7 px-3 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-[11px] font-semibold tracking-wide transition-all duration-200 active:scale-[0.97]"
               >
                 Paid
-                <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
+                <ArrowUpRight className="h-3 w-3" aria-hidden />
               </Link>
               <button
                 type="button"
                 onClick={() => load({ silent: true })}
                 disabled={refreshing}
-                className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 transition-all duration-200 active:scale-95 disabled:opacity-50 shadow-sm"
+                className="inline-flex items-center justify-center h-7 w-7 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 transition-all duration-200 active:scale-95 disabled:opacity-50"
                 aria-label="Refresh"
                 title="Refresh"
               >
@@ -185,18 +183,18 @@ export default function Rejected() {
             </div>
           </div>
 
-          {/* Title block */}
-          <div className="mt-5">
-            <h1 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight leading-none">
+          {/* Title + description */}
+          <div className="mt-4">
+            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight leading-none">
               Rejected Invoices
             </h1>
-            <p className="mt-2.5 text-sm text-slate-500 max-w-md leading-relaxed">
-              Invoices that were rejected by NoLSAF. Review the rejection reason and take necessary action.
+            <p className="mt-2 text-sm text-slate-500 max-w-sm leading-relaxed">
+              Invoices rejected by NoLSAF. Review the rejection reason and take necessary action.
             </p>
           </div>
 
           {/* Separator */}
-          <div className="mt-6 h-px bg-gradient-to-r from-red-200 via-slate-100 to-transparent" />
+          <div className="mt-5 h-px bg-gradient-to-r from-red-200 via-slate-100 to-transparent" />
         </div>
       </div>
 
