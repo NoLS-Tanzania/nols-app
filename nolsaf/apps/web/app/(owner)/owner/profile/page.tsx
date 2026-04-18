@@ -1,4 +1,5 @@
 "use client";
+import { createPortal } from "react-dom";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import axios from "axios";
@@ -187,6 +188,10 @@ export default function OwnerProfile() {
   const docInputRef = useRef<HTMLInputElement>(null);
   const [selectedDocType, setSelectedDocType] = useState<string>("");
   const [businessLicenceExpiresOn, setBusinessLicenceExpiresOn] = useState<string>("");
+
+  const [deleteStep, setDeleteStep] = useState<null | 'confirm' | 'verify'>(null);
+  const [deleteNameInput, setDeleteNameInput] = useState("");
+  const [deleting, setDeleting] = useState(false);
 
   const requiredDocTypes = useMemo(
     () =>
@@ -1736,21 +1741,7 @@ export default function OwnerProfile() {
 
             </button>
 
-            <button onClick={async () => {
-
-              if (!confirm("Delete your account? This is irreversible.")) return;
-
-              try {
-
-                await api.delete("/api/account");
-
-                try { await fetch("/api/auth/logout", { method: "POST", credentials: "include" }); } catch {}
-
-                alert("Account deleted."); window.location.href = "/";
-
-              } catch (err: any) { alert("Could not delete account: " + String(err?.message ?? err)); }
-
-            }} className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-rose-600 text-white text-sm font-semibold hover:bg-rose-700 shadow-card transition-colors">
+            <button onClick={() => setDeleteStep('confirm')} className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-rose-600 text-white text-sm font-semibold hover:bg-rose-700 shadow-card transition-colors">
 
               <Trash2 className="h-4 w-4" />Delete account
 
@@ -1931,6 +1922,106 @@ export default function OwnerProfile() {
         </div>
 
       )}
+
+    {/* Delete account modal */}
+    {deleteStep !== null && createPortal(
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Delete account"
+        className="fixed inset-0 z-[9999] flex items-center justify-center px-4 py-16 md:p-8"
+        onClick={(e) => { if (e.target === e.currentTarget) { setDeleteStep(null); setDeleteNameInput(""); } }}
+      >
+        <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" aria-hidden />
+        <div className="relative w-full min-w-0 max-w-md mx-auto rounded-3xl bg-white shadow-[0_32px_80px_rgba(0,0,0,0.22)] overflow-hidden">
+          <div className="h-1.5 w-full bg-gradient-to-r from-rose-500 via-rose-600 to-rose-500" />
+
+          {deleteStep === 'confirm' && (
+            <div className="p-5">
+              <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-50 border border-rose-100">
+                <Trash2 className="h-5 w-5 text-rose-600" />
+              </div>
+              <h2 className="text-center text-base font-bold text-slate-900">Delete your account?</h2>
+              <p className="mt-1.5 text-center text-xs text-slate-500">
+                This action is <span className="font-semibold text-rose-600">permanent and irreversible</span>. Before you continue, understand what will be lost:
+              </p>
+              <ul className="mt-4 space-y-2 rounded-2xl border border-rose-100 bg-rose-50/60 px-3.5 py-3">
+                {[
+                  "Your owner profile, listings, and booking history will be permanently deleted.",
+                  "Any active bookings linked to your account will be cancelled.",
+                  "You will lose access immediately \u2014 no recovery is possible.",
+                ].map((item) => (
+                  <li key={item} className="flex items-start gap-2 text-xs text-rose-800">
+                    <AlertTriangle className="mt-px h-3.5 w-3.5 flex-shrink-0 text-rose-500" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-4 flex gap-2.5">
+                <button
+                  onClick={() => { setDeleteStep(null); setDeleteNameInput(""); }}
+                  className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
+                  No, keep my account
+                </button>
+                <button
+                  onClick={() => setDeleteStep('verify')}
+                  className="flex-1 rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 transition-colors">
+                  Yes, continue
+                </button>
+              </div>
+            </div>
+          )}
+
+          {deleteStep === 'verify' && (
+            <div className="p-5 w-full min-w-0">
+              <button
+                onClick={() => setDeleteStep('confirm')}
+                className="mb-4 flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-700 transition-colors">
+                <ArrowLeft className="h-3.5 w-3.5" /> Back
+              </button>
+              <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-50 border border-rose-100">
+                <ShieldCheck className="h-5 w-5 text-rose-600" />
+              </div>
+              <h2 className="text-center text-base font-bold text-slate-900">Final confirmation</h2>
+              <p className="mt-1.5 text-center text-xs text-slate-500">
+                Type your full name exactly as registered to confirm deletion.
+              </p>
+              <p className="mt-2.5 text-center text-xs font-mono font-semibold tracking-wide text-slate-700 bg-slate-100 rounded-lg py-1.5 px-3">
+                {form.fullName || "\u2014"}
+              </p>
+              <input
+                type="text"
+                autoFocus
+                autoComplete="off"
+                placeholder={"Type your full name\u2026"}
+                value={deleteNameInput}
+                onChange={(e) => setDeleteNameInput(e.target.value)}
+                className="mt-3 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-400/25"
+              />
+              <button
+                disabled={deleteNameInput.trim() !== (form.fullName ?? "").trim() || deleting}
+                onClick={async () => {
+                  setDeleting(true);
+                  try {
+                    await api.delete("/api/account");
+                    try { await fetch("/api/auth/logout", { method: "POST", credentials: "include" }); } catch {}
+                    window.location.href = "/";
+                  } catch (err: any) {
+                    setDeleting(false);
+                    setDeleteStep(null);
+                    setDeleteNameInput("");
+                    alert("Could not delete account: " + String(err?.message ?? err));
+                  }
+                }}
+                className="mt-3 w-full rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-40">
+                {deleting ? "Deleting\u2026" : "Permanently delete my account"}
+              </button>
+              <p className="mt-3 text-center text-xs text-slate-400">This cannot be undone.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    , document.body)}
 
     </div>
 
