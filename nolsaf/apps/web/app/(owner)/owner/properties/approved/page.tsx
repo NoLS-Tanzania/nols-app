@@ -224,13 +224,49 @@ export default function ApprovedProps() {
 
   if (list.length === 0) {
     return (
-      <div className="min-h-[260px] flex flex-col items-center justify-center text-center">
-        <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-emerald-100 mb-4">
-          <CheckCircle className="h-8 w-8 text-emerald-600" />
+      <div className="flex flex-col gap-6">
+        {/* Page heading */}
+        <div className="flex flex-col items-center justify-center text-center pt-2">
+          <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-emerald-100 mb-4">
+            <CheckCircle className="h-8 w-8 text-emerald-600" />
+          </div>
+          <h1 className="text-3xl font-bold text-slate-900">Approved Properties</h1>
+          <p className="text-sm text-slate-500 mt-2 max-w-sm">
+            Properties approved by our team will be listed here and visible to guests.
+          </p>
         </div>
-        <h1 className="text-3xl font-bold text-slate-900">Approved Properties</h1>
-        <p className="text-sm text-slate-600 mt-2 max-w-2xl">No approved properties yet.</p>
-        <p className="text-xs text-slate-500 mt-1 max-w-2xl">Once your properties are approved, they will appear here.</p>
+
+        {/* Empty-state card */}
+        <div className="mx-auto w-full max-w-md rounded-3xl border border-dashed border-slate-300 bg-white px-8 py-10 flex flex-col items-center text-center shadow-sm">
+          <div className="h-20 w-20 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-100 flex items-center justify-center mb-5 shadow-inner">
+            <svg className="h-10 w-10 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 9.75L12 4l9 5.75V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.75z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 21V12h6v9" />
+            </svg>
+          </div>
+          <h2 className="text-lg font-bold text-slate-800 mb-1.5">No approved properties yet</h2>
+          <p className="text-sm text-slate-500 leading-relaxed mb-1">
+            You haven&apos;t had a property approved yet. Submit your first listing and our team will review it — approvals typically take 1–2 business days.
+          </p>
+          <p className="text-xs text-slate-400 mb-6">
+            Need help? Check the <span className="font-semibold text-slate-500">Pending</span> tab to see the status of your submissions.
+          </p>
+          <Link
+            href="/owner/properties/add"
+            className="inline-flex items-center gap-2 rounded-xl bg-[#02665e] px-6 py-2.5 text-sm font-semibold text-white shadow-md shadow-emerald-900/10 transition-all hover:bg-[#02665e]/90 hover:shadow-lg active:scale-95"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+            Add your property now
+          </Link>
+          <Link
+            href="/owner/properties/pending"
+            className="mt-3 text-xs font-medium text-slate-400 hover:text-slate-600 underline underline-offset-2 transition-colors"
+          >
+            View pending submissions
+          </Link>
+        </div>
       </div>
     );
   }
