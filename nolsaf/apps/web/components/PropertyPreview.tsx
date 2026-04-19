@@ -332,7 +332,7 @@ export default function PropertyPreview({
       const endpoint = mode === "admin" 
         ? `/api/admin/properties/${propertyId}`
         : mode === "owner"
-        ? `/owner/properties/${propertyId}`
+        ? `/api/owner/properties/${propertyId}`
         : `/public/properties/${propertyId}`;
       
       // Add cache-busting parameter to ensure fresh data
@@ -716,8 +716,13 @@ export default function PropertyPreview({
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
-          <LogoSpinner size="md" className="mx-auto mb-4" ariaLabel="Loading property" />
-          <p className="text-gray-600">Loading property...</p>
+          <div className="mx-auto mb-4 h-14 w-14 rounded-2xl bg-gradient-to-br from-[#02665e] to-emerald-600 flex items-center justify-center shadow-lg animate-pulse">
+            <svg className="w-6 h-6 text-white animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+          </div>
+          <p className="text-sm font-medium text-slate-600">Loading property...</p>
         </div>
       </div>
     );

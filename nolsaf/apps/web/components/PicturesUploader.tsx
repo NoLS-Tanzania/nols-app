@@ -62,7 +62,7 @@ export default function PicturesUploader({
 						)}
 						{/* Use Next/Image for http(s); for blob/data, fallback to plain img and suppress linter for LCP warning since it's a small thumbnail */}
 						{/^https?:\/\//i.test(u) ? (
-							<Image src={u} alt={`${title} ${i + 1}`} width={192} height={192} className="w-full h-full object-cover" />
+							<Image src={u} alt={`${title} ${i + 1}`} width={192} height={192} className="w-full h-full object-cover" style={{ width: "100%", height: "100%" }} />
 						) : (
 							// eslint-disable-next-line @next/next/no-img-element
 							<img src={u} alt={`${title} ${i + 1}`} className="w-full h-full object-cover" />

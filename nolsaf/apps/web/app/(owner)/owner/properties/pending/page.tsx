@@ -18,6 +18,14 @@ import {
   Circle,
   Clock,
   Trash2,
+  ChevronLeft,
+  BookOpen,
+  Shield as ShieldIcon,
+  Star,
+  Camera,
+  MessageSquare,
+  TrendingUp,
+  FileCheck,
 } from "lucide-react";
 
 const api = axios.create({ baseURL: "", withCredentials: true, responseType: "json" });
@@ -97,14 +105,20 @@ function LocationRow({ p }: { p: any }) {
   );
 }
 
-function SectionHeader({ title }: { title: string }) {
+function SectionHeader({ title, icon: Icon, accent = "teal" }: { title: string; icon?: any; accent?: "teal" | "amber" | "red" }) {
+  const colors = {
+    teal: "from-[#02665e] to-emerald-600 text-white",
+    amber: "from-amber-500 to-orange-500 text-white",
+    red: "from-red-500 to-rose-600 text-white",
+  };
   return (
     <div className="flex items-center gap-3">
-      <div className="h-px flex-1 bg-slate-200" />
-      <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-widest whitespace-nowrap">
+      <div className="h-px flex-1 bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
+      <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r ${colors[accent]} text-[11px] font-bold uppercase tracking-widest shadow-sm`}>
+        {Icon && <Icon className="w-3.5 h-3.5" />}
         {title}
-      </h2>
-      <div className="h-px flex-1 bg-slate-200" />
+      </div>
+      <div className="h-px flex-1 bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
     </div>
   );
 }
@@ -431,6 +445,7 @@ export default function PendingProps() {
   const [loading, setLoading] = useState(true);
   const [minWaitElapsed, setMinWaitElapsed] = useState(false);
   const [selectedPropertyId, setSelectedPropertyId] = useState<number | null>(null);
+  const [selectedPendingProperty, setSelectedPendingProperty] = useState<any | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -482,15 +497,17 @@ export default function PendingProps() {
   // ── Loading
   if (loading && !minWaitElapsed) {
     return (
-      <div className="min-h-[260px] flex flex-col items-center justify-center text-center">
-        <span aria-hidden className="dot-spinner mb-2" aria-live="polite">
-          <span className="dot dot-blue" />
-          <span className="dot dot-black" />
-          <span className="dot dot-yellow" />
-          <span className="dot dot-green" />
-        </span>
-        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-slate-900">My Listings</h1>
-        <div className="text-sm text-slate-600 mt-2">Loading your properties…</div>
+      <div className="min-h-[320px] flex flex-col items-center justify-center text-center">
+        <div className="mb-4 h-14 w-14 rounded-2xl bg-gradient-to-br from-[#02665e] to-emerald-600 flex items-center justify-center shadow-lg">
+          <span aria-hidden className="dot-spinner" aria-live="polite">
+            <span className="dot dot-blue" />
+            <span className="dot dot-black" />
+            <span className="dot dot-yellow" />
+            <span className="dot dot-green" />
+          </span>
+        </div>
+        <h1 className="text-2xl font-bold text-slate-900">My Listings</h1>
+        <div className="text-sm text-slate-500 mt-1">Loading your properties…</div>
       </div>
     );
   }
@@ -521,17 +538,237 @@ export default function PendingProps() {
   // ── Empty
   if (total === 0) {
     return (
-      <div className="min-h-[260px] flex flex-col items-center justify-center text-center">
-        <div className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white/70 shadow-sm ring-1 ring-black/5">
-          <Hourglass className="h-6 w-6 text-emerald-600" />
+      <div className="min-h-[320px] flex flex-col items-center justify-center text-center">
+        <div className="mb-4 h-14 w-14 rounded-2xl bg-gradient-to-br from-[#02665e] to-emerald-600 flex items-center justify-center shadow-lg">
+          <Hourglass className="h-6 w-6 text-white" />
         </div>
-        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-slate-900">My Listings</h1>
-        <p className="text-sm text-slate-600 mt-2">No drafts, pending reviews, or suspended properties right now.</p>
+        <h1 className="text-2xl font-bold text-slate-900">My Listings</h1>
+        <p className="text-sm text-slate-500 mt-1">No drafts, pending reviews, or suspended properties right now.</p>
       </div>
     );
   }
 
-  // ── Preview modal
+  // ── Pending property instructions view
+  if (selectedPendingProperty) {
+    const sp = selectedPendingProperty;
+    const primaryImg = Array.isArray(sp.photos) && sp.photos.length > 0 ? sp.photos[0] : null;
+    return (
+      <div className="max-w-2xl mx-auto space-y-6 pb-8">
+        {/* Header card */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#02665e] via-[#037a70] to-emerald-600 shadow-lg">
+          <div className="absolute top-0 right-0 w-40 h-40 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
+          <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
+          <div className="relative px-6 py-6">
+            <div className="flex items-start gap-4">
+              {primaryImg ? (
+                <div className="relative w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 ring-2 ring-white/30 shadow-md">
+                  <Image src={primaryImg} alt="" fill className="object-cover" sizes="64px" />
+                </div>
+              ) : (
+                <div className="w-16 h-16 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
+                  <ImageIcon className="w-6 h-6 text-white/70" />
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <h1 className="text-lg font-bold text-white truncate">{sp.title || "Your Property"}</h1>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400/20 text-amber-200 border border-amber-400/30">
+                    <Hourglass className="w-2.5 h-2.5" />
+                    UNDER REVIEW
+                  </span>
+                  {sp.type && <span className="text-xs text-white/60">{sp.type}</span>}
+                </div>
+                {sp.lastSubmittedAt && (
+                  <p className="text-xs text-white/50 mt-1">
+                    Submitted {new Date(sp.lastSubmittedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Review status card */}
+        <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-3">
+            <div className="h-10 w-10 rounded-lg bg-amber-100 flex items-center justify-center">
+              <Clock className="w-5 h-5 text-amber-700" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-slate-900">Review In Progress</h2>
+              <p className="text-sm text-slate-500">Typically takes 3–5 business days</p>
+            </div>
+          </div>
+          <div className="px-5 py-5 space-y-3">
+            <div className="flex items-start gap-3">
+              <FileCheck className="w-5 h-5 text-[#02665e] mt-0.5 flex-shrink-0" />
+              <p className="text-sm text-slate-700 leading-relaxed">Our team is verifying your property details, photos, and pricing to ensure they meet our quality standards.</p>
+            </div>
+            <div className="flex items-start gap-3">
+              <Bell className="w-5 h-5 text-[#02665e] mt-0.5 flex-shrink-0" />
+              <p className="text-sm text-slate-700 leading-relaxed">You will receive an email and in-app notification once the review is complete — whether approved or if changes are needed.</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Prepare for Approval */}
+        <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-3">
+            <div className="h-10 w-10 rounded-lg bg-[#02665e]/10 flex items-center justify-center">
+              <BookOpen className="w-5 h-5 text-[#02665e]" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-slate-900">Prepare While You Wait</h2>
+              <p className="text-sm text-slate-500">Get ready for your first guests</p>
+            </div>
+          </div>
+          <div className="px-5 py-5 space-y-4">
+            {[
+              { icon: Camera, title: "Add more high-quality photos", desc: "Properties with 10+ clear photos of rooms, bathrooms, views, and surroundings receive up to 40% more bookings." },
+              { icon: Star, title: "Set competitive pricing", desc: "Research similar properties in your area. Competitive starting rates help attract your first guests and build reviews." },
+              { icon: MessageSquare, title: "Prepare a welcome message", desc: "A personal greeting for guests creates a great first impression and leads to better reviews." },
+              { icon: ShieldIcon, title: "Review your house rules", desc: "Clear and fair house rules help set guest expectations and prevent misunderstandings during their stay." },
+            ].map(({ icon: Icon, title, desc }, i) => (
+              <div key={i} className="flex items-start gap-3.5 p-4 rounded-xl bg-slate-50 border border-slate-100">
+                <div className="h-9 w-9 rounded-lg bg-[#02665e]/10 flex items-center justify-center flex-shrink-0">
+                  <Icon className="w-4 h-4 text-[#02665e]" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-slate-800">{title}</p>
+                  <p className="text-sm text-slate-500 leading-relaxed mt-0.5">{desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Once Approved */}
+        <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-3">
+            <div className="h-10 w-10 rounded-lg bg-emerald-100 flex items-center justify-center">
+              <TrendingUp className="w-5 h-5 text-emerald-700" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-slate-900">Once Approved</h2>
+              <p className="text-sm text-slate-500">What happens next</p>
+            </div>
+          </div>
+          <div className="px-5 py-5 space-y-3">
+            {[
+              "Your property will appear in public search results and be available for booking by guests.",
+              "Guests can browse your listing, photos, amenities, room types, and pricing details.",
+              "You will receive booking requests via email and in-app notifications — respond within 24 hours.",
+              "You can update photos, pricing, and room availability anytime from your owner dashboard.",
+              "Maintain a high response rate and quality standards to rank higher in search results.",
+            ].map((text, i) => (
+              <div key={i} className="flex items-start gap-3">
+                <CheckCircle className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+                <p className="text-sm text-slate-700 leading-relaxed">{text}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Disbursement & Payment Policy */}
+        <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-3">
+            <div className="h-10 w-10 rounded-lg bg-blue-100 flex items-center justify-center">
+              <TrendingUp className="w-5 h-5 text-blue-700" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-slate-900">Disbursement & Payment Policy</h2>
+              <p className="text-sm text-slate-500">How you get paid</p>
+            </div>
+          </div>
+          <div className="px-5 py-5 space-y-4">
+            <div className="p-4 rounded-xl bg-blue-50 border border-blue-100">
+              <h3 className="text-sm font-bold text-blue-900 mb-2">Payment Flow</h3>
+              <p className="text-sm text-blue-800 leading-relaxed">All guest payments are collected by NoLSAF first. Your earnings are then disbursed to you after the booking is confirmed and the guest checks in with a valid booking code.</p>
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-start gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-lg">💰</span>
+                <div>
+                  <p className="text-sm font-bold text-slate-800">Your Earnings</p>
+                  <p className="text-sm text-slate-600 leading-relaxed">You receive your full base price. The platform commission is added on top of your price and paid by the guest — it does not reduce your earnings.</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-lg">⏱️</span>
+                <div>
+                  <p className="text-sm font-bold text-slate-800">Payout Timing</p>
+                  <p className="text-sm text-slate-600 leading-relaxed">Payouts are processed on a flexible on-demand basis. Once eligible, you can claim your payout anytime. Processing takes 30 minutes to 24 hours for mobile money, or 1–5 business days for bank transfers.</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-lg">🎁</span>
+                <div>
+                  <p className="text-sm font-bold text-slate-800">Discounts & Bonuses</p>
+                  <p className="text-sm text-slate-600 leading-relaxed">Any promotional discounts offered to guests are absorbed by NoLSAF — your base price remains unaffected. Bonuses may also be provided at NoLSAF&apos;s discretion.</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-lg">🔄</span>
+                <div>
+                  <p className="text-sm font-bold text-slate-800">Cancellation & Refunds</p>
+                  <p className="text-sm text-slate-600 leading-relaxed">If a guest cancels during the free cancellation period, the full amount is refunded. For cancellations 4+ days before check-in, you retain 50%. Non-refundable bookings and no-shows: you keep 100%.</p>
+                </div>
+              </div>
+            </div>
+            <a
+              href="/owner/property-owner-disbursement-policy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-4 p-4 rounded-xl bg-gradient-to-r from-[#02665e] to-emerald-600 no-underline hover:from-[#025550] hover:to-emerald-700 transition-all shadow-md hover:shadow-lg group mt-2"
+            >
+              <div className="h-10 w-10 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0 group-hover:bg-white/30 transition">
+                <FileCheck className="w-5 h-5 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-white">Read the Full Disbursement Policy</p>
+                <p className="text-xs text-white/70">Understand your earnings, payouts, and refund obligations</p>
+              </div>
+              <ArrowRight className="w-5 h-5 text-white/60 group-hover:text-white group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+            </a>
+          </div>
+        </div>
+
+        {/* Platform Guidelines */}
+        <div className="rounded-2xl bg-gradient-to-br from-[#02665e] to-emerald-600 shadow-lg overflow-hidden">
+          <div className="px-6 py-5">
+            <div className="flex items-center gap-3 mb-4">
+              <ShieldIcon className="w-5 h-5 text-white/90" />
+              <h2 className="text-base font-bold text-white">Platform Guidelines</h2>
+            </div>
+            <div className="space-y-3">
+              {[
+                "Ensure your payout details (bank account or mobile money) are set up correctly in your profile before your first booking.",
+                "Keep your calendar and room availability up to date to avoid double bookings and cancellations.",
+                "Respond to booking requests within 24 hours. Slow responses may lower your listing visibility.",
+                "Maintain accurate property descriptions. Misrepresentation may lead to suspension.",
+                "Review the full Disbursement Policy to understand your payout schedule, commission structure, and refund obligations.",
+              ].map((text, i) => (
+                <div key={i} className="flex items-start gap-3">
+                  <div className="w-1.5 h-1.5 rounded-full bg-white/50 mt-2 flex-shrink-0" />
+                  <p className="text-sm text-white/85 leading-relaxed">{text}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom back button */}
+        <button
+          onClick={() => setSelectedPendingProperty(null)}
+          className="w-full h-12 rounded-xl bg-[#02665e] text-sm font-bold text-white hover:bg-[#025550] transition shadow-sm"
+        >
+          Back to My Listings
+        </button>
+      </div>
+    );
+  }
+
+  // ── Preview modal (drafts / action-required)
   if (selectedPropertyId) {
     return (
       <PropertyPreview
@@ -552,22 +789,26 @@ export default function PendingProps() {
   return (
     <div className="space-y-8">
       {/* Page header */}
-      <div className="flex flex-col items-center justify-center text-center">
-        <div className="mb-2 inline-flex items-center justify-center gap-3">
-          <div className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white/70 shadow-sm ring-1 ring-black/5">
-            <Hourglass className="h-5 w-5 text-emerald-600" />
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#02665e] via-[#037a70] to-emerald-600 px-6 py-6 shadow-lg">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
+        <div className="absolute bottom-0 left-0 w-20 h-20 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
+        <div className="relative flex items-center gap-4">
+          <div className="h-12 w-12 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0 shadow-sm">
+            <Hourglass className="h-6 w-6 text-white" />
           </div>
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-slate-900">My Listings</h1>
+          <div>
+            <h1 className="text-xl font-bold text-white">My Listings</h1>
+            {summaryParts.length > 0 && (
+              <p className="text-sm text-white/70 mt-0.5">{summaryParts.join(" · ")}</p>
+            )}
+          </div>
         </div>
-        {summaryParts.length > 0 && (
-          <p className="text-sm text-slate-600">{summaryParts.join(" · ")}</p>
-        )}
       </div>
 
       {/* ── Incomplete Drafts */}
       {drafts.length > 0 && (
         <section>
-          <SectionHeader title="Incomplete Drafts" />
+          <SectionHeader title="Incomplete Drafts" icon={PenLine} accent="amber" />
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {drafts.map((p) => (
               <DraftCard
@@ -584,10 +825,14 @@ export default function PendingProps() {
       {/* ── Submitted — Under Review */}
       {pendingClean.length > 0 && (
         <section>
-          <SectionHeader title="Submitted — Under Review" />
+          <SectionHeader title="Under Review" icon={Clock} accent="teal" />
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {pendingClean.map((p) => (
-              <PendingCard key={p.id} p={p} onPreview={setSelectedPropertyId} />
+              <PendingCard key={p.id} p={p} onPreview={(id) => {
+                const prop = pendingClean.find(x => x.id === id);
+                if (prop) setSelectedPendingProperty(prop);
+                else setSelectedPropertyId(id);
+              }} />
             ))}
           </div>
         </section>
@@ -596,7 +841,7 @@ export default function PendingProps() {
       {/* ── Needs Attention */}
       {allNeedsAttention.length > 0 && (
         <section>
-          <SectionHeader title="Needs Attention" />
+          <SectionHeader title="Needs Attention" icon={AlertCircle} accent="red" />
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {allNeedsAttention.map((p) => (
               <ActionRequiredCard key={p.id} p={p} onPreview={setSelectedPropertyId} />

@@ -12,6 +12,12 @@ cloudinary.config({
 });
 
 export const router = Router();
+router.use((req, _res, next) => {
+  const hasCookie = !!req.headers.cookie;
+  const cookieKeys = hasCookie ? req.headers.cookie!.split(";").map(c => c.trim().split("=")[0]) : [];
+  console.log(`[UPLOAD_DEBUG] ${req.method} ${req.path} | cookie header present: ${hasCookie} | cookie keys: [${cookieKeys.join(", ")}] | auth header: ${!!req.headers.authorization}`);
+  next();
+});
 router.use(requireAuth);
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
 

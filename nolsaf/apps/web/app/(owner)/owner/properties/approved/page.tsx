@@ -12,7 +12,8 @@ import {
   CheckCircle, 
   Eye,
   MessageSquare,
-  ImageIcon
+  ImageIcon,
+  ArrowRight
 } from "lucide-react";
 import { 
   getPropertyCommission, 
@@ -33,6 +34,7 @@ type Property = {
   district?: string | null;
   city?: string | null;
   ward?: string | null;
+  country?: string | null;
   basePrice?: number | null;
   currency?: string;
   hotelStar?: string | null;
@@ -212,12 +214,18 @@ export default function ApprovedProps() {
 
   if (loading) {
     return (
-      <div className="min-h-[260px] flex flex-col items-center justify-center text-center">
-        <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-emerald-100 mb-4">
-          <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+      <div className="space-y-6">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#02665e] via-[#037a70] to-emerald-600 shadow-lg">
+          <div className="absolute top-0 right-0 w-40 h-40 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
+          <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
+          <div className="relative px-6 py-8 flex flex-col items-center text-center">
+            <div className="h-14 w-14 rounded-xl bg-white/20 flex items-center justify-center mb-4 shadow-inner">
+              <Loader2 className="h-7 w-7 animate-spin text-white" />
+            </div>
+            <h1 className="text-2xl font-bold text-white">Approved Properties</h1>
+            <p className="text-sm text-white/70 mt-2">Loading your approved properties…</p>
+          </div>
         </div>
-        <h1 className="text-3xl font-bold text-slate-900">Approved Properties</h1>
-        <p className="text-sm text-slate-600 mt-2 max-w-2xl">Loading your approved properties…</p>
       </div>
     );
   }
@@ -263,14 +271,24 @@ export default function ApprovedProps() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col items-center justify-center text-center">
-        <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-emerald-100 mb-4">
-          <CheckCircle className="h-8 w-8 text-emerald-600" />
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#02665e] via-[#037a70] to-emerald-600 shadow-lg">
+        <div className="absolute top-0 right-0 w-40 h-40 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
+        <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
+        <div className="relative px-6 py-8 flex flex-col items-center text-center">
+          <div className="h-14 w-14 rounded-xl bg-white/20 flex items-center justify-center mb-4 shadow-inner">
+            <CheckCircle className="h-7 w-7 text-white" />
+          </div>
+          <h1 className="text-2xl font-bold text-white">Approved Properties</h1>
+          <p className="text-sm text-white/70 mt-2 max-w-md">
+            View and manage your approved properties. See reviews and interactions from guests.
+          </p>
+          <div className="flex items-center gap-4 mt-4">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/15 text-xs font-semibold text-white">
+              <CheckCircle className="h-3.5 w-3.5" />
+              {list.length} {list.length === 1 ? "Property" : "Properties"}
+            </div>
+          </div>
         </div>
-        <h1 className="text-3xl font-bold text-slate-900">Approved Properties</h1>
-        <p className="text-sm text-slate-600 mt-2 max-w-2xl">
-          View and manage your approved properties. See reviews and interactions from guests.
-        </p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
@@ -280,6 +298,7 @@ export default function ApprovedProps() {
             property.ward,
             property.district,
             property.regionName,
+            property.country,
           ].filter(Boolean);
           const location = locationParts.join(", ") || "—";
           
@@ -304,18 +323,19 @@ export default function ApprovedProps() {
             ? calculatePriceWithCommission(property.basePrice, getPropertyCommission(property, systemCommission))
             : null;
           const price = fmtMoney(finalPrice, property.currency);
+          const basePriceFormatted = property.basePrice ? fmtMoney(property.basePrice, property.currency) : null;
 
           return (
             <div
               key={property.id}
-              className="group bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all duration-200"
+              className="group bg-white rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 border border-slate-100"
             >
               {/* Title (above image) */}
               <div className="px-4 pt-4">
                 <div className="text-base font-bold text-slate-900 truncate">{property.title}</div>
               </div>
 
-              {/* Image */}
+              {/* Image with padding and rounded corners */}
               <div className="px-4 mt-3">
                 <div className="relative aspect-square bg-slate-100 rounded-2xl overflow-hidden">
                   {primaryImage ? (
@@ -324,119 +344,98 @@ export default function ApprovedProps() {
                       alt=""
                       fill
                       sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
-                      className="object-cover group-hover:scale-105 transition-transform duration-200"
+                      className="object-cover group-hover:scale-105 transition-transform duration-500"
                     />
                   ) : (
                     <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200">
                       <ImageIcon className="w-8 h-8 text-slate-400" />
                     </div>
                   )}
-                  
+
                   {/* Verification badge */}
                   <div className="absolute top-2 right-2">
                     <VerifiedIcon />
                   </div>
 
-                  {/* Status badge overlay */}
-                  <div className="absolute bottom-2 left-2">
-                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                      <CheckCircle className="w-3 h-3 mr-1" />
-                      APPROVED
-                    </span>
-                  </div>
+
                 </div>
               </div>
 
-              {/* Below image: location, type/status, price, reviews, and action */}
-              <div className="p-4">
-                <div className="flex flex-col gap-3">
-                  {/* Location */}
-                  <div className="flex items-center gap-1.5 text-xs text-slate-600">
-                    <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
-                    <span className="truncate">{location}</span>
-          </div>
+              {/* Content */}
+              <div className="p-4 space-y-3">
 
-                  {/* Park / Tourism Site */}
-                  {property.tourismSite?.name ? (
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="text-xs text-slate-600 truncate">
-                        <span className="font-medium text-slate-700">Park:</span> {property.tourismSite.name}
-                      </div>
-                      {property.parkPlacement ? (
-                        <span className="shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border border-slate-200 bg-slate-50 text-slate-700">
-                          {property.parkPlacement === "INSIDE" ? "Inside" : "Nearby"}
-                        </span>
-                      ) : null}
+                {/* Location */}
+                <div className="flex items-start gap-1.5 text-xs text-slate-500">
+                  <MapPin className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-[#02665e]" />
+                  <span className="line-clamp-2">{location}</span>
+                </div>
+
+                {/* Park / Tourism Site */}
+                {property.tourismSite?.name ? (
+                  <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-slate-50">
+                    <div className="text-xs text-slate-600 truncate">
+                      <span className="font-semibold text-slate-700">Park:</span> {property.tourismSite.name}
                     </div>
-                  ) : null}
-
-                  {/* Type and Star Rating */}
-                  <div className="flex items-center justify-between gap-2">
-                    {starLabel && property.type === "HOTEL" ? (
-                      <div className="flex items-center gap-0.5">
-                        {starLabel.split("").map((char, i) => (
-                          <Star
-                            key={i}
-                            className={`w-3.5 h-3.5 ${
-                              char === "★" ? "fill-amber-400 text-amber-400" : "text-slate-400"
-                            }`}
-                          />
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-xs font-medium text-slate-500 uppercase">
-                        {property.type || "Property"}
+                    {property.parkPlacement ? (
+                      <span className="shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border border-[#02665e]/20 bg-[#02665e]/5 text-[#02665e]">
+                        {property.parkPlacement === "INSIDE" ? "Inside" : "Nearby"}
                       </span>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {/* Reviews */}
+                {hasReviews && (
+                  <div className="flex items-center gap-2 text-xs">
+                    <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-amber-50">
+                      <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                      <span className="font-bold text-slate-900">{reviews.averageRating.toFixed(1)}</span>
+                    </div>
+                    <span className="text-slate-500">
+                      {reviews.totalReviews} {reviews.totalReviews === 1 ? 'review' : 'reviews'}
+                    </span>
+                    {reviews.reviews && reviews.reviews.length > 0 && (
+                      <div className="flex items-center gap-1 text-slate-400 ml-auto">
+                        <MessageSquare className="w-3 h-3" />
+                        <span>{reviews.reviews.length}</span>
+                      </div>
                     )}
                   </div>
+                )}
 
-                  {/* Reviews */}
-                  {hasReviews && (
-                    <div className="flex items-center gap-2 text-xs">
-                      <div className="flex items-center gap-1">
-                        <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                        <span className="font-semibold text-slate-900">{reviews.averageRating.toFixed(1)}</span>
-                      </div>
-                      <span className="text-slate-600">
-                        ({reviews.totalReviews} {reviews.totalReviews === 1 ? 'review' : 'reviews'})
-                      </span>
-                      {reviews.reviews && reviews.reviews.length > 0 && (
-                        <div className="flex items-center gap-1 text-slate-500 ml-auto">
-                          <MessageSquare className="w-3.5 h-3.5" />
-                          <span>{reviews.reviews.length} {reviews.reviews.length === 1 ? 'comment' : 'comments'}</span>
-                        </div>
-                      )}
+                {/* Pricing breakdown */}
+                {property.basePrice ? (
+                  <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-gradient-to-r from-[#02665e]/5 to-emerald-50 border border-[#02665e]/10">
+                    <div>
+                      <div className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Base Price / per night</div>
+                      <div className="text-sm font-bold text-[#02665e]">{basePriceFormatted}</div>
                     </div>
-                  )}
-
-                  {/* Price */}
-                  {property.basePrice && (
-                    <div className="flex items-baseline gap-1">
-                      <div className="text-sm font-bold text-[#02665e]">
-                        {price}
-                      </div>
-                      <div className="text-[11px] text-slate-500">per night</div>
+                    <div className="text-right">
+                      <div className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Total Bookings</div>
+                      <div className="text-sm font-bold text-[#02665e]">{property._count?.bookings ?? 0}</div>
                     </div>
-                  )}
+                  </div>
+                ) : null}
 
-                  {/* View Full Preview Button */}
+                {/* Actions */}
+                <div className="pt-1 space-y-2">
                   <button
                     onClick={() => setSelectedPropertyId(property.id)}
-                    className="mt-2 inline-flex items-center justify-center gap-2 w-full rounded-xl bg-[#02665e] text-white py-2.5 text-sm font-semibold transition-colors hover:bg-[#014e47] group-hover:bg-[#014e47]"
+                    className="inline-flex items-center justify-center gap-2 w-full rounded-xl bg-[#02665e] text-white py-2.5 text-sm font-semibold transition-all hover:bg-[#014e47] active:scale-[0.98] shadow-sm hover:shadow-md"
                   >
                     <Eye className="h-4 w-4" />
-                    <span>View Full Preview</span>
+                    View Full Preview
                   </button>
 
-                  {/* Public View Link */}
                   {property.slug && (
                     <Link
                       href={`/public/properties/${property.slug}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs text-center text-[#02665e] hover:text-[#014e47] no-underline"
+                      className="flex items-center justify-center gap-1.5 text-xs font-medium text-slate-400 hover:text-[#02665e] transition-colors no-underline py-1"
                     >
-                      View as public sees it →
+                      View as public sees it
+                      <ArrowRight className="w-3 h-3" />
                     </Link>
                   )}
                 </div>

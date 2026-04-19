@@ -110,165 +110,156 @@ export function ServicesStep({
       as="section"
       sectionRef={sectionRef}
       isVisible={isVisible}
-      className="rounded-[32px] border border-slate-200/85 bg-[radial-gradient(circle_at_top_left,_rgba(2,102,94,0.08),_transparent_24%),linear-gradient(180deg,_rgba(255,255,255,0.99),_rgba(246,250,249,0.97))] p-4 shadow-[0_24px_60px_-32px_rgba(15,23,42,0.28)] backdrop-blur sm:p-6"
+      className="add-property-section-premium rounded-[32px] p-4 sm:p-6"
     >
       {isVisible && (
         <div className="w-full">
-          <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full border border-[#02665e]/25 bg-[#02665e]/10 text-xs font-semibold text-[#02665e]">
+          {/* ── Premium Header Card ── */}
+          <div className="relative overflow-hidden rounded-[28px] border border-white/10 bg-gradient-to-br from-[#013d38] via-[#014e47] to-[#02665e] p-6 sm:p-8 shadow-2xl shadow-black/20">
+            {/* Decorative dot grid */}
+            <div className="pointer-events-none absolute inset-0 opacity-[0.06]" style={{ backgroundImage: "radial-gradient(circle, white 1px, transparent 1px)", backgroundSize: "16px 16px" }} />
+            {/* Decorative gradient orb */}
+            <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-sky-400/10 blur-3xl" />
+            <div className="pointer-events-none absolute -left-12 -bottom-12 h-36 w-36 rounded-full bg-emerald-400/10 blur-3xl" />
+
+            <div className="relative z-10">
+              {/* Step badge row */}
+              <div className="flex items-center gap-3 mb-4">
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white font-bold text-[#02665e] text-sm shadow-lg shadow-black/15">
                   3
+                </div>
+                <div className="h-px flex-1 bg-gradient-to-r from-white/25 via-sky-300/20 to-transparent" />
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-300/25 bg-sky-400/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-sky-200">
+                  <span className="h-1.5 w-1.5 rounded-full bg-sky-300 animate-pulse" />
+                  Step 3 of 5
                 </span>
-                <h2 className="truncate text-base font-semibold text-slate-900 sm:text-lg">Services & facilities</h2>
               </div>
-              <p className="mt-1 text-sm text-slate-600">
-                Select services and amenities available at your property and nearby facilities.
-              </p>
+
+              {/* Title */}
+              <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white mb-2">
+                Services & <span className="text-transparent bg-clip-text bg-gradient-to-r from-sky-300 to-emerald-300">Facilities</span>
+              </h2>
+
+              {/* Description with accent border */}
+              <div className="flex items-start gap-3 mt-3">
+                <div className="mt-1 h-10 w-1 flex-shrink-0 rounded-full bg-gradient-to-b from-sky-400 to-emerald-400" />
+                <p className="text-sm leading-relaxed text-white/70">
+                  Select the services and amenities available at your property. Highlight what makes your place special for guests — from parking to dining, wellness to safety.
+                </p>
+              </div>
             </div>
           </div>
           <div className="space-y-6 pt-4">
             {/* Completion Status Indicator - Modern Card Design */}
-            <div className="relative overflow-hidden rounded-[26px] border border-[#02665e]/12 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(238,248,246,0.92))] px-4 py-4 shadow-[0_18px_40px_-24px_rgba(2,102,94,0.35)] ring-1 ring-white/70 sm:px-5">
-              <div
-                className="pointer-events-none absolute inset-0 opacity-40"
-                style={{ backgroundImage: "radial-gradient(circle at 1px 1px, rgba(2,102,94,0.12) 1px, transparent 0)", backgroundSize: "20px 20px" }}
-              />
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            {/* ── Status Bar ── */}
+            <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-r from-[#013d38] to-[#014e47] px-5 py-4 shadow-md">
+              <div className="pointer-events-none absolute inset-0 opacity-[0.05]" style={{ backgroundImage: "radial-gradient(circle, white 1px, transparent 1px)", backgroundSize: "20px 20px" }} />
+              <div className="relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">
-                  <div className={`relative z-10 flex h-11 w-11 items-center justify-center rounded-2xl font-bold text-base transition-all duration-300 ${
+                  <div className={`flex h-11 w-11 items-center justify-center rounded-xl text-lg font-bold transition-all duration-300 ${
                     servicesCompleted
-                      ? "bg-[#02665e] text-white shadow-[0_12px_24px_-12px_rgba(2,102,94,0.8)]"
-                      : "bg-[#f6e7b8] text-amber-800 shadow-[0_12px_24px_-14px_rgba(180,83,9,0.45)]"
+                      ? "bg-white text-[#02665e] shadow-lg shadow-black/15"
+                      : "bg-white/15 text-white/70"
                   }`}>
                     {selectedServicesCount}
                   </div>
-                  <div className="relative z-10 text-sm text-slate-700">
-                    <span className="font-semibold text-slate-900">Services selected</span>
-                    <span className="mx-1 text-slate-400">·</span>
-                    <span className="text-slate-600">
+                  <div>
+                    <span className="block text-sm font-bold text-white">Services selected</span>
+                    <span className="text-xs text-gray-500">
                       {servicesCompleted ? (
-                        <span className="flex items-center gap-1 font-bold text-[#02665e]">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Step complete
+                        <span className="flex items-center gap-1 font-semibold text-emerald-300">
+                          <CheckCircle2 className="w-3 h-3" /> All set — looking great
                         </span>
                       ) : (
-                        <span className="flex items-center gap-1 font-bold text-amber-700">
-                          <AlertCircle className="w-3.5 h-3.5" /> Select at least one service
+                        <span className="flex items-center gap-1 font-medium text-white/40">
+                          <AlertCircle className="w-3 h-3 text-amber-400" /> Select at least one service
                         </span>
                       )}
                     </span>
                   </div>
                 </div>
-                <div className={`relative z-10 flex items-center gap-2 rounded-full border px-3.5 py-1.5 ${
+                <div className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-bold ${
                   servicesCompleted
-                    ? "border-[#02665e]/18 bg-white/88"
-                    : "border-amber-200/70 bg-[#fff9eb]"
+                    ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-300"
+                    : "border-amber-400/30 bg-amber-400/10 text-amber-300"
                 }`}>
                   {servicesCompleted ? (
-                    <CheckCircle2 className="w-4 h-4 text-[#02665e]" />
+                    <><CheckCircle2 className="w-3.5 h-3.5" /> Ready</>
                   ) : (
-                    <AlertCircle className="w-4 h-4 text-amber-600" />
+                    <><AlertCircle className="w-3.5 h-3.5" /> Optional</>
                   )}
-                  <div className={`text-xs font-semibold ${
-                    servicesCompleted ? "text-[#02665e]" : "text-amber-700"
-                  }`}>
-                    {servicesCompleted ? "Ready" : "Optional"}
-                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="rounded-[24px] border border-slate-200/75 bg-white/80 px-5 py-5 shadow-[0_16px_30px_-24px_rgba(15,23,42,0.24)] ring-1 ring-white/70 backdrop-blur">
-              <div className="mb-2 inline-flex items-center rounded-full border border-[#02665e]/14 bg-[#edf7f6] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#02665e]">
-                Guest Comfort Layer
-              </div>
-              <h2 className="mb-1 text-xl font-semibold text-slate-900">
-                Services & Facilities Available
-              </h2>
-              <p className="text-sm text-slate-500">Select the services and amenities available at your property.</p>
-            </div>
+
 
           <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
-              {/* Transportation & Parking - Grouped */}
-              <div className="lg:col-span-2 rounded-[26px] border border-sky-200/75 bg-[linear-gradient(135deg,rgba(239,246,255,0.88),rgba(255,255,255,0.98))] p-5 shadow-[0_18px_36px_-24px_rgba(37,99,235,0.28)] ring-1 ring-white/75 sm:p-6">
+              {/* ── Transportation & Parking ── */}
+              <div className="lg:col-span-2 relative overflow-hidden rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-200 sm:p-6">
+                <div className="pointer-events-none absolute inset-x-0 top-0 h-1 rounded-t-2xl bg-gradient-to-r from-[#02665e] to-[#02665e]/70" />
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white shadow-[0_12px_24px_-18px_rgba(37,99,235,0.5)] ring-1 ring-sky-100">
-                    <Car className="w-5 h-5 text-blue-600" />
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#02665e]/10">
+                    <Car className="w-4.5 h-4.5 text-[#02665e]" />
                   </div>
-                  <div className="flex-1">
-                    <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-                      Transportation & Parking
-                      <div className="group relative">
-                        <HelpCircle className="w-4 h-4 text-gray-400 cursor-help" />
-                        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-48 p-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                          {SERVICE_TOOLTIPS.parking}
-                          <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
-                        </div>
-                      </div>
-                    </h3>
-                    <p className="text-xs text-gray-500">Parking availability and options</p>
-                  </div>
+                  <h3 className="text-sm font-bold text-gray-900">Transportation & Parking</h3>
                 </div>
-                <div className="grid grid-cols-3 gap-2.5">
-                  {(["no", "free", "paid"] as const).map((v) => (
-                    <label
-                      key={v}
-                      className={`group relative flex items-center justify-center h-11 w-full rounded-xl border-2 text-xs font-semibold cursor-pointer transition-all duration-300 ${
-                        services.parking === v
-                          ? "border-emerald-500 bg-gradient-to-br from-emerald-50 to-emerald-100/50 text-emerald-700 shadow-md shadow-emerald-500/20"
-                          : "border-gray-200 bg-white text-gray-700 hover:border-emerald-300 hover:bg-emerald-50/30 hover:shadow-sm"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="parking"
-                        checked={services.parking === v}
-                        onChange={() => setServices((s: any) => ({ ...s, parking: v }))}
-                        className="sr-only"
-                      />
-                      <Car className={`w-3.5 h-3.5 mr-1.5 transition-colors duration-300 ${
-                        services.parking === v ? "text-emerald-600" : "text-gray-500"
-                      }`} />
-                      <span>{v === "no" ? "No" : v === "free" ? "Free" : "Paid"}</span>
-                      {services.parking === v && (
-                        <div className="absolute top-1 right-1 w-2 h-2 bg-emerald-500 rounded-full animate-pulse border border-white" />
-                      )}
-                    </label>
-                  ))}
+                <div className="grid grid-cols-3 gap-3">
+                  {([
+                    { v: "no" as const, label: "No Parking", icon: "🚫" },
+                    { v: "free" as const, label: "Free Parking", icon: "🅿️" },
+                    { v: "paid" as const, label: "Paid Parking", icon: "💳" },
+                  ]).map(({ v, label, icon }) => {
+                    const sel = services.parking === v;
+                    return (
+                      <label
+                        key={v}
+                        className={`group relative flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
+                          sel
+                            ? "border-[#02665e] bg-[#02665e]/5 shadow-sm"
+                            : "border-gray-300 bg-gray-50 hover:border-[#02665e]/40 hover:bg-[#02665e]/[0.03]"
+                        }`}
+                      >
+                        <input type="radio" name="parking" checked={sel} onChange={() => setServices((s: any) => ({ ...s, parking: v }))} className="sr-only" />
+                        <span className="text-lg flex-shrink-0">{icon}</span>
+                        <span className={`text-xs font-semibold ${sel ? "text-[#02665e]" : "text-gray-700"}`}>{label}</span>
+                        {sel && <div className="absolute top-2 right-2 w-2 h-2 bg-[#02665e] rounded-full" />}
+                      </label>
+                    );
+                  })}
                 </div>
                 <div
                   className={`overflow-hidden transition-all duration-300 ease-in-out ${
-                    services.parking === "paid" ? "max-h-24 opacity-100 mt-4" : "max-h-0 opacity-0"
+                    services.parking === "paid" ? "max-h-28 opacity-100 mt-4" : "max-h-0 opacity-0"
                   }`}
                 >
-                  <label className="block text-xs font-semibold text-gray-700 mb-2">Daily Price (TZS)</label>
-                  <input
-                    value={services.parkingPrice as any}
-                    onChange={(e) => setServices((s: any) => ({ ...s, parkingPrice: numOrEmpty(e.target.value) }))}
-                    type="number"
-                    step="1"
-                    min="0"
-                    className="w-full h-12 rounded-xl border-2 border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-200 hover:border-gray-400"
-                    placeholder="e.g. 5000"
-                  />
+                  <div className="flex items-center gap-3 p-3 rounded-xl border border-blue-200 bg-blue-50/50">
+                    <label className="text-xs font-semibold text-gray-700 whitespace-nowrap">Daily Price (TZS)</label>
+                    <input
+                      value={services.parkingPrice as any}
+                      onChange={(e) => setServices((s: any) => ({ ...s, parkingPrice: numOrEmpty(e.target.value) }))}
+                      type="number"
+                      step="1"
+                      min="0"
+                      className="flex-1 h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e]"
+                      placeholder="e.g. 5000"
+                    />
+                  </div>
                 </div>
               </div>
 
-              {/* Dining & Food Services - Grouped */}
-              <div className="lg:col-span-2 rounded-[26px] border border-orange-200/75 bg-[linear-gradient(135deg,rgba(255,247,237,0.9),rgba(255,255,255,0.98))] p-5 shadow-[0_18px_36px_-24px_rgba(234,88,12,0.24)] ring-1 ring-white/75 sm:p-6">
+              {/* ── Dining & Food ── */}
+              <div className="lg:col-span-2 relative overflow-hidden rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-200 sm:p-6">
+                <div className="pointer-events-none absolute inset-x-0 top-0 h-1 rounded-t-2xl bg-gradient-to-r from-blue-500 to-blue-400" />
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white shadow-[0_12px_24px_-18px_rgba(234,88,12,0.45)] ring-1 ring-orange-100">
-                    <Coffee className="w-5 h-5 text-orange-600" />
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50">
+                    <Coffee className="w-4.5 h-4.5 text-blue-600" />
                   </div>
-                  <div className="flex-1">
-                    <h3 className="text-sm font-semibold text-gray-900">Dining & Food Services</h3>
-                    <p className="text-xs text-gray-500">Breakfast, restaurant, and bar options</p>
-                  </div>
+                  <h3 className="text-sm font-bold text-gray-900">Dining & Food</h3>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Breakfast */}
-                  <div className="rounded-2xl border border-orange-100/90 bg-white/95 p-4 shadow-[0_14px_28px_-24px_rgba(15,23,42,0.32)]">
-                    <h4 className="text-xs font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-3.5">
+                    <h4 className="text-xs font-bold text-gray-600 mb-2.5 flex items-center gap-2">
                       Breakfast
                       <div className="group relative">
                         <HelpCircle className="w-3.5 h-3.5 text-gray-400 cursor-help" />
@@ -280,235 +271,150 @@ export function ServicesStep({
                     </h4>
                     <div className="grid grid-cols-2 gap-2.5">
                       <label
-                        className={`group relative flex items-center justify-center h-11 w-full rounded-xl border-2 text-xs font-semibold cursor-pointer transition-all duration-300 ${
-                          services.breakfastIncluded
-                            ? "border-emerald-500 bg-gradient-to-br from-emerald-50 to-emerald-100/50 text-emerald-700 shadow-md shadow-emerald-500/20"
-                            : "border-gray-200 bg-white text-gray-700 hover:border-emerald-300 hover:bg-emerald-50/30 hover:shadow-sm"
+                        className={`group relative flex items-center gap-2.5 p-2.5 rounded-lg border-2 cursor-pointer transition-all duration-200 ${
+                          services.breakfastIncluded ? "border-[#02665e] bg-[#02665e]/5" : "border-gray-300 bg-gray-50 hover:border-[#02665e]/40 hover:bg-[#02665e]/[0.03]"
                         }`}
                         title={SERVICE_TOOLTIPS.breakfastIncluded}
                       >
-                        <input
-                          type="checkbox"
-                          checked={services.breakfastIncluded}
-                          onChange={(e) => setServices((s: any) => ({ ...s, breakfastIncluded: e.target.checked }))}
-                          className="sr-only"
-                        />
-                        <Coffee className={`w-3.5 h-3.5 mr-1.5 transition-colors duration-300 ${
-                          services.breakfastIncluded ? "text-emerald-600" : "text-gray-500"
-                        }`} />
-                        <span>Included</span>
-                        {services.breakfastIncluded && (
-                          <div className="absolute top-1 right-1 w-2 h-2 bg-emerald-500 rounded-full animate-pulse border border-white" />
-                        )}
+                        <input type="checkbox" checked={services.breakfastIncluded} onChange={(e) => setServices((s: any) => ({ ...s, breakfastIncluded: e.target.checked }))} className="sr-only" />
+                        <span className="text-base">🍳</span>
+                        <span className={`text-xs font-semibold ${services.breakfastIncluded ? "text-[#02665e]" : "text-gray-600"}`}>Included</span>
+                        {services.breakfastIncluded && <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-[#02665e] rounded-full" />}
                       </label>
                       <label
-                        className={`group relative flex items-center justify-center h-11 w-full rounded-xl border-2 text-xs font-semibold cursor-pointer transition-all duration-300 ${
-                          services.breakfastAvailable
-                            ? "border-emerald-500 bg-gradient-to-br from-emerald-50 to-emerald-100/50 text-emerald-700 shadow-md shadow-emerald-500/20"
-                            : "border-gray-200 bg-white text-gray-700 hover:border-emerald-300 hover:bg-emerald-50/30 hover:shadow-sm"
+                        className={`group relative flex items-center gap-2.5 p-2.5 rounded-lg border-2 cursor-pointer transition-all duration-200 ${
+                          services.breakfastAvailable ? "border-[#02665e] bg-[#02665e]/5" : "border-gray-300 bg-gray-50 hover:border-[#02665e]/40 hover:bg-[#02665e]/[0.03]"
                         }`}
                         title={SERVICE_TOOLTIPS.breakfastAvailable}
                       >
-                        <input
-                          type="checkbox"
-                          checked={services.breakfastAvailable}
-                          onChange={(e) => setServices((s: any) => ({ ...s, breakfastAvailable: e.target.checked }))}
-                          className="sr-only"
-                        />
-                        <Coffee className={`w-3.5 h-3.5 mr-1.5 transition-colors duration-300 ${
-                          services.breakfastAvailable ? "text-emerald-600" : "text-gray-500"
-                        }`} />
-                        <span>Extra</span>
-                        {services.breakfastAvailable && (
-                          <div className="absolute top-1 right-1 w-2 h-2 bg-emerald-500 rounded-full animate-pulse border border-white" />
-                        )}
+                        <input type="checkbox" checked={services.breakfastAvailable} onChange={(e) => setServices((s: any) => ({ ...s, breakfastAvailable: e.target.checked }))} className="sr-only" />
+                        <span className="text-base">💰</span>
+                        <span className={`text-xs font-semibold ${services.breakfastAvailable ? "text-[#02665e]" : "text-gray-600"}`}>Extra charge</span>
+                        {services.breakfastAvailable && <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-[#02665e] rounded-full" />}
                       </label>
                     </div>
                   </div>
-                  {/* Restaurant & Bar */}
-                  <div className="rounded-2xl border border-orange-100/90 bg-white/95 p-4 shadow-[0_14px_28px_-24px_rgba(15,23,42,0.32)]">
-                    <h4 className="text-xs font-semibold text-gray-900 mb-3">Restaurant & Bar</h4>
+                  <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-3.5">
+                    <h4 className="text-xs font-bold text-gray-600 mb-2.5">Restaurant & Bar</h4>
                     <div className="grid grid-cols-2 gap-2.5">
                       <label
-                        className={`group relative flex items-center justify-center h-11 w-full rounded-xl border-2 text-xs font-semibold cursor-pointer transition-all duration-300 ${
-                          services.restaurant
-                            ? "border-emerald-500 bg-gradient-to-br from-emerald-50 to-emerald-100/50 text-emerald-700 shadow-md shadow-emerald-500/20"
-                            : "border-gray-200 bg-white text-gray-700 hover:border-emerald-300 hover:bg-emerald-50/30 hover:shadow-sm"
+                        className={`group relative flex items-center gap-2.5 p-2.5 rounded-lg border-2 cursor-pointer transition-all duration-200 ${
+                          services.restaurant ? "border-[#02665e] bg-[#02665e]/5" : "border-gray-300 bg-gray-50 hover:border-[#02665e]/40 hover:bg-[#02665e]/[0.03]"
                         }`}
                         title={SERVICE_TOOLTIPS.restaurant}
                       >
-                        <input
-                          type="checkbox"
-                          checked={services.restaurant}
-                          onChange={(e) => setServices((s: any) => ({ ...s, restaurant: e.target.checked }))}
-                          className="sr-only"
-                        />
-                        <Coffee className={`w-3.5 h-3.5 mr-1.5 transition-colors duration-300 ${
-                          services.restaurant ? "text-emerald-600" : "text-gray-500"
-                        }`} />
-                        <span>Restaurant</span>
-                        {services.restaurant && (
-                          <div className="absolute top-1 right-1 w-2 h-2 bg-emerald-500 rounded-full animate-pulse border border-white" />
-                        )}
+                        <input type="checkbox" checked={services.restaurant} onChange={(e) => setServices((s: any) => ({ ...s, restaurant: e.target.checked }))} className="sr-only" />
+                        <span className="text-base">🍽️</span>
+                        <span className={`text-xs font-semibold ${services.restaurant ? "text-[#02665e]" : "text-gray-600"}`}>Restaurant</span>
+                        {services.restaurant && <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-[#02665e] rounded-full" />}
                       </label>
                       <label
-                        className={`group relative flex items-center justify-center h-11 w-full rounded-xl border-2 text-xs font-semibold cursor-pointer transition-all duration-300 ${
-                          services.bar
-                            ? "border-emerald-500 bg-gradient-to-br from-emerald-50 to-emerald-100/50 text-emerald-700 shadow-md shadow-emerald-500/20"
-                            : "border-gray-200 bg-white text-gray-700 hover:border-emerald-300 hover:bg-emerald-50/30 hover:shadow-sm"
+                        className={`group relative flex items-center gap-2.5 p-2.5 rounded-lg border-2 cursor-pointer transition-all duration-200 ${
+                          services.bar ? "border-[#02665e] bg-[#02665e]/5" : "border-gray-300 bg-gray-50 hover:border-[#02665e]/40 hover:bg-[#02665e]/[0.03]"
                         }`}
                         title={SERVICE_TOOLTIPS.bar}
                       >
-                        <input
-                          type="checkbox"
-                          checked={services.bar}
-                          onChange={(e) => setServices((s: any) => ({ ...s, bar: e.target.checked }))}
-                          className="sr-only"
-                        />
-                        <Beer className={`w-3.5 h-3.5 mr-1.5 transition-colors duration-300 ${
-                          services.bar ? "text-emerald-600" : "text-gray-500"
-                        }`} />
-                        <span>Bar</span>
-                        {services.bar && (
-                          <div className="absolute top-1 right-1 w-2 h-2 bg-emerald-500 rounded-full animate-pulse border border-white" />
-                        )}
+                        <input type="checkbox" checked={services.bar} onChange={(e) => setServices((s: any) => ({ ...s, bar: e.target.checked }))} className="sr-only" />
+                        <span className="text-base">🍸</span>
+                        <span className={`text-xs font-semibold ${services.bar ? "text-[#02665e]" : "text-gray-600"}`}>Bar</span>
+                        {services.bar && <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-[#02665e] rounded-full" />}
                       </label>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Wellness & Leisure - Modern Card Design */}
-              <div className="rounded-[24px] border border-cyan-200/70 bg-[linear-gradient(135deg,rgba(236,254,255,0.88),rgba(255,255,255,0.98))] p-5 shadow-[0_18px_36px_-26px_rgba(8,145,178,0.3)] ring-1 ring-white/75 transition-all duration-300 hover:shadow-[0_20px_40px_-24px_rgba(8,145,178,0.26)] sm:p-6">
+              {/* ── Wellness & Leisure ── */}
+              <div className="relative overflow-hidden rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-200 sm:p-6">
+                <div className="pointer-events-none absolute inset-x-0 top-0 h-1 rounded-t-2xl bg-[#02665e]" />
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white shadow-[0_12px_24px_-18px_rgba(8,145,178,0.45)] ring-1 ring-cyan-100">
-                    <Waves className="w-5 h-5 text-cyan-600" />
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#02665e]/10">
+                    <Waves className="w-4.5 h-4.5 text-[#02665e]" />
                   </div>
-                  <div className="flex-1">
-                    <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-                      Wellness & Leisure
-                      <div className="group relative">
-                        <HelpCircle className="w-4 h-4 text-gray-400 cursor-help" />
-                        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-48 p-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                          Relaxation and recreational facilities for guests
-                          <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
-                        </div>
-                      </div>
-                    </h3>
-                  </div>
+                  <h3 className="text-sm font-bold text-gray-900">Wellness & Leisure</h3>
                 </div>
                 <div className="grid grid-cols-2 gap-2.5">
                   <label
-                    className={`group relative flex items-center justify-center h-11 w-full rounded-xl border-2 text-xs font-semibold cursor-pointer transition-all duration-300 ${
-                      services.pool
-                        ? "border-emerald-500 bg-gradient-to-br from-emerald-50 to-emerald-100/50 text-emerald-700 shadow-md shadow-emerald-500/20"
-                        : "border-gray-200 bg-white text-gray-700 hover:border-emerald-300 hover:bg-emerald-50/30 hover:shadow-sm"
+                    className={`group relative flex items-center gap-2.5 p-3 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
+                      services.pool ? "border-[#02665e] bg-[#02665e]/5" : "border-gray-300 bg-gray-50 hover:border-[#02665e]/40 hover:bg-[#02665e]/[0.03]"
                     }`}
                     title={SERVICE_TOOLTIPS.pool}
                   >
                     <input type="checkbox" checked={services.pool} onChange={(e) => setServices((s: any) => ({ ...s, pool: e.target.checked }))} className="sr-only" />
-                    <Waves className={`w-3.5 h-3.5 mr-1.5 transition-colors duration-300 ${
-                      services.pool ? "text-emerald-600" : "text-gray-500"
-                    }`} />
-                    <span>Pool</span>
-                    {services.pool && (
-                      <div className="absolute top-1 right-1 w-2 h-2 bg-emerald-500 rounded-full animate-pulse border border-white" />
-                    )}
+                    <span className="text-lg">🏊</span>
+                    <span className={`text-xs font-semibold ${services.pool ? "text-[#02665e]" : "text-gray-700"}`}>Swimming Pool</span>
+                    {services.pool && <div className="absolute top-2 right-2 w-2 h-2 bg-[#02665e] rounded-full" />}
                   </label>
                   <label
-                    className={`group relative flex items-center justify-center h-11 w-full rounded-xl border-2 text-xs font-semibold cursor-pointer transition-all duration-300 ${
-                      services.sauna
-                        ? "border-emerald-500 bg-gradient-to-br from-emerald-50 to-emerald-100/50 text-emerald-700 shadow-md shadow-emerald-500/20"
-                        : "border-gray-200 bg-white text-gray-700 hover:border-emerald-300 hover:bg-emerald-50/30 hover:shadow-sm"
+                    className={`group relative flex items-center gap-2.5 p-3 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
+                      services.sauna ? "border-[#02665e] bg-[#02665e]/5" : "border-gray-300 bg-gray-50 hover:border-[#02665e]/40 hover:bg-[#02665e]/[0.03]"
                     }`}
                     title={SERVICE_TOOLTIPS.sauna}
                   >
                     <input type="checkbox" checked={services.sauna} onChange={(e) => setServices((s: any) => ({ ...s, sauna: e.target.checked }))} className="sr-only" />
-                    <Thermometer className={`w-3.5 h-3.5 mr-1.5 transition-colors duration-300 ${
-                      services.sauna ? "text-emerald-600" : "text-gray-500"
-                    }`} />
-                    <span>Sauna</span>
-                    {services.sauna && (
-                      <div className="absolute top-1 right-1 w-2 h-2 bg-emerald-500 rounded-full animate-pulse border border-white" />
-                    )}
+                    <span className="text-lg">🧖</span>
+                    <span className={`text-xs font-semibold ${services.sauna ? "text-[#02665e]" : "text-gray-700"}`}>Sauna / Spa</span>
+                    {services.sauna && <div className="absolute top-2 right-2 w-2 h-2 bg-[#02665e] rounded-full" />}
                   </label>
                 </div>
               </div>
 
-              {/* Housekeeping & Services - Modern Card Design */}
-              <div className="rounded-[24px] border border-purple-200/70 bg-[linear-gradient(135deg,rgba(250,245,255,0.9),rgba(255,255,255,0.98))] p-5 shadow-[0_18px_36px_-26px_rgba(147,51,234,0.24)] ring-1 ring-white/75 transition-all duration-300 hover:shadow-[0_20px_40px_-24px_rgba(147,51,234,0.22)] sm:p-6">
+              {/* ── Housekeeping ── */}
+              <div className="relative overflow-hidden rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-200 sm:p-6">
+                <div className="pointer-events-none absolute inset-x-0 top-0 h-1 rounded-t-2xl bg-blue-500" />
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white shadow-[0_12px_24px_-18px_rgba(147,51,234,0.4)] ring-1 ring-purple-100">
-                    <WashingMachine className="w-5 h-5 text-purple-600" />
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50">
+                    <WashingMachine className="w-4.5 h-4.5 text-blue-600" />
                   </div>
-                  <div className="flex-1">
-                    <h3 className="text-sm font-semibold text-gray-900">Housekeeping & Services</h3>
-                    <p className="text-xs text-gray-500">Laundry and room service options</p>
-                  </div>
+                  <h3 className="text-sm font-bold text-gray-900">Housekeeping</h3>
                 </div>
                 <div className="grid grid-cols-2 gap-2.5">
                   <label
-                    className={`group relative flex items-center justify-center h-11 w-full rounded-xl border-2 text-xs font-semibold cursor-pointer transition-all duration-300 ${
-                      services.laundry
-                        ? "border-emerald-500 bg-gradient-to-br from-emerald-50 to-emerald-100/50 text-emerald-700 shadow-md shadow-emerald-500/20"
-                        : "border-gray-200 bg-white text-gray-700 hover:border-emerald-300 hover:bg-emerald-50/30 hover:shadow-sm"
+                    className={`group relative flex items-center gap-2.5 p-3 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
+                      services.laundry ? "border-[#02665e] bg-[#02665e]/5" : "border-gray-300 bg-gray-50 hover:border-[#02665e]/40 hover:bg-[#02665e]/[0.03]"
                     }`}
                     title={SERVICE_TOOLTIPS.laundry}
                   >
                     <input type="checkbox" checked={services.laundry} onChange={(e) => setServices((s: any) => ({ ...s, laundry: e.target.checked }))} className="sr-only" />
-                    <IconOr Icon={WashingMachine} className={`w-3.5 h-3.5 mr-1.5 transition-colors duration-300 ${
-                      services.laundry ? "text-emerald-600" : "text-gray-500"
-                    }`} />
-                    <span>Laundry</span>
-                    {services.laundry && (
-                      <div className="absolute top-1 right-1 w-2 h-2 bg-emerald-500 rounded-full animate-pulse border border-white" />
-                    )}
+                    <span className="text-lg">👔</span>
+                    <span className={`text-xs font-semibold ${services.laundry ? "text-[#02665e]" : "text-gray-700"}`}>Laundry</span>
+                    {services.laundry && <div className="absolute top-2 right-2 w-2 h-2 bg-[#02665e] rounded-full" />}
                   </label>
                   <label
-                    className={`group relative flex items-center justify-center h-11 w-full rounded-xl border-2 text-xs font-semibold cursor-pointer transition-all duration-300 ${
-                      services.roomService
-                        ? "border-emerald-500 bg-gradient-to-br from-emerald-50 to-emerald-100/50 text-emerald-700 shadow-md shadow-emerald-500/20"
-                        : "border-gray-200 bg-white text-gray-700 hover:border-emerald-300 hover:bg-emerald-50/30 hover:shadow-sm"
+                    className={`group relative flex items-center gap-2.5 p-3 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
+                      services.roomService ? "border-[#02665e] bg-[#02665e]/5" : "border-gray-300 bg-gray-50 hover:border-[#02665e]/40 hover:bg-[#02665e]/[0.03]"
                     }`}
                     title={SERVICE_TOOLTIPS.roomService}
                   >
                     <input type="checkbox" checked={services.roomService} onChange={(e) => setServices((s: any) => ({ ...s, roomService: e.target.checked }))} className="sr-only" />
-                    <IconOr Icon={Package} className={`w-3.5 h-3.5 mr-1.5 transition-colors duration-300 ${
-                      services.roomService ? "text-emerald-600" : "text-gray-500"
-                    }`} />
-                    <span>Room Service</span>
-                    {services.roomService && (
-                      <div className="absolute top-1 right-1 w-2 h-2 bg-emerald-500 rounded-full animate-pulse border border-white" />
-                    )}
+                    <span className="text-lg">🛎️</span>
+                    <span className={`text-xs font-semibold ${services.roomService ? "text-[#02665e]" : "text-gray-700"}`}>Room Service</span>
+                    {services.roomService && <div className="absolute top-2 right-2 w-2 h-2 bg-[#02665e] rounded-full" />}
                   </label>
                 </div>
               </div>
 
-              {/* Safety & Security - Modern Card Design */}
-              <div className="rounded-[24px] border border-rose-200/70 bg-[linear-gradient(135deg,rgba(255,241,242,0.9),rgba(255,255,255,0.98))] p-5 shadow-[0_18px_36px_-26px_rgba(225,29,72,0.22)] ring-1 ring-white/75 transition-all duration-300 hover:shadow-[0_20px_40px_-24px_rgba(225,29,72,0.2)] sm:p-6">
+              {/* ── Safety & Security ── */}
+              <div className="relative overflow-hidden rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-200 sm:p-6">
+                <div className="pointer-events-none absolute inset-x-0 top-0 h-1 rounded-t-2xl bg-gradient-to-r from-[#02665e] to-blue-500" />
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white shadow-[0_12px_24px_-18px_rgba(225,29,72,0.38)] ring-1 ring-rose-100">
-                    <Shield className="w-5 h-5 text-red-600" />
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#02665e]/10">
+                    <Shield className="w-4.5 h-4.5 text-[#02665e]" />
                   </div>
-                  <div className="flex-1">
-                    <h3 className="text-sm font-semibold text-gray-900">Safety & Security</h3>
-                    <p className="text-xs text-gray-500">Security and safety equipment</p>
-                  </div>
+                  <h3 className="text-sm font-bold text-gray-900">Safety & Security</h3>
                 </div>
                 <div className="grid grid-cols-3 gap-2.5">
                   {[
-                    { key: "security24", label: "Security", Icon: Shield },
-                    { key: "firstAid", label: "First Aid", Icon: Bandage },
-                    { key: "fireExtinguisher", label: "Fire Ext.", Icon: FireExtinguisher },
-                  ].map(({ key, label, Icon }) => {
+                    { key: "security24", label: "24h Guard", emoji: "🛡️" },
+                    { key: "firstAid", label: "First Aid", emoji: "🩹" },
+                    { key: "fireExtinguisher", label: "Fire Ext.", emoji: "🧯" },
+                  ].map(({ key, label, emoji }) => {
                     const sel = !!services[key];
                     return (
                       <label
                         key={key}
-                        className={`group relative flex flex-col items-center justify-center h-16 w-full rounded-xl border-2 text-[10px] font-semibold cursor-pointer transition-all duration-300 ${
-                          sel
-                            ? "border-emerald-500 bg-gradient-to-br from-emerald-50 to-emerald-100/50 text-emerald-700 shadow-md shadow-emerald-500/20"
-                            : "border-gray-200 bg-white text-gray-700 hover:border-emerald-300 hover:bg-emerald-50/30 hover:shadow-sm"
+                        className={`group relative flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
+                          sel ? "border-[#02665e] bg-[#02665e]/5" : "border-gray-300 bg-gray-50 hover:border-[#02665e]/40 hover:bg-[#02665e]/[0.03]"
                         }`}
                         title={SERVICE_TOOLTIPS[key] || `${label} available`}
                       >
@@ -516,7 +422,6 @@ export function ServicesStep({
                           type="checkbox"
                           checked={sel}
                           onChange={(e) => {
-                            // Security: Validate key is from allowed list
                             const allowedKeys = ["security24", "firstAid", "fireExtinguisher"];
                             if (allowedKeys.includes(key)) {
                               setServices((s: any) => ({ ...s, [key]: e.target.checked }));
@@ -524,187 +429,135 @@ export function ServicesStep({
                           }}
                           className="sr-only"
                         />
-                        <IconOr Icon={Icon} className={`w-4 h-4 mb-1 transition-colors duration-300 ${
-                          sel ? "text-emerald-600" : "text-gray-500"
-                        }`} />
-                        <span className="text-center leading-tight">{label}</span>
-                        {sel && (
-                          <div className="absolute top-1 right-1 w-2 h-2 bg-emerald-500 rounded-full animate-pulse border border-white" />
-                        )}
+                        <span className="text-lg">{emoji}</span>
+                        <span className={`text-[11px] font-semibold text-center ${sel ? "text-[#02665e]" : "text-gray-700"}`}>{label}</span>
+                        {sel && <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-[#02665e] rounded-full" />}
                       </label>
                     );
                   })}
                 </div>
               </div>
 
-              {/* Shopping & Retail - Modern Card Design */}
-              <div className="rounded-[24px] border border-pink-200/70 bg-[linear-gradient(135deg,rgba(253,242,248,0.92),rgba(255,255,255,0.98))] p-5 shadow-[0_18px_36px_-26px_rgba(219,39,119,0.22)] ring-1 ring-white/75 transition-all duration-300 hover:shadow-[0_20px_40px_-24px_rgba(219,39,119,0.2)] sm:p-6">
+              {/* ── Shopping ── */}
+              <div className="relative overflow-hidden rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-200 sm:p-6">
+                <div className="pointer-events-none absolute inset-x-0 top-0 h-1 rounded-t-2xl bg-blue-400" />
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white shadow-[0_12px_24px_-18px_rgba(219,39,119,0.38)] ring-1 ring-pink-100">
-                    <ShoppingBag className="w-5 h-5 text-pink-600" />
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50">
+                    <ShoppingBag className="w-4.5 h-4.5 text-blue-600" />
                   </div>
-                  <div className="flex-1">
-                    <h3 className="text-sm font-semibold text-gray-900">Shopping & Retail</h3>
-                    <p className="text-xs text-gray-500">On-site or nearby shopping options</p>
-                  </div>
+                  <h3 className="text-sm font-bold text-gray-900">Shopping</h3>
                 </div>
                 <div className="grid grid-cols-2 gap-2.5">
                   <label
-                    className={`group relative flex items-center justify-center h-11 w-full rounded-xl border-2 text-xs font-semibold cursor-pointer transition-all duration-300 ${
-                      services.onSiteShop
-                        ? "border-emerald-500 bg-gradient-to-br from-emerald-50 to-emerald-100/50 text-emerald-700 shadow-md shadow-emerald-500/20"
-                        : "border-gray-200 bg-white text-gray-700 hover:border-emerald-300 hover:bg-emerald-50/30 hover:shadow-sm"
+                    className={`group relative flex items-center gap-2.5 p-3 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
+                      services.onSiteShop ? "border-[#02665e] bg-[#02665e]/5" : "border-gray-300 bg-gray-50 hover:border-[#02665e]/40 hover:bg-[#02665e]/[0.03]"
                     }`}
                     title={SERVICE_TOOLTIPS.onSiteShop}
                   >
                     <input type="checkbox" checked={services.onSiteShop} onChange={(e) => setServices((s: any) => ({ ...s, onSiteShop: e.target.checked }))} className="sr-only" />
-                    <IconOr Icon={ShoppingBag} className={`w-3.5 h-3.5 mr-1.5 transition-colors duration-300 ${
-                      services.onSiteShop ? "text-emerald-600" : "text-gray-500"
-                    }`} />
-                    <span>On-site</span>
-                    {services.onSiteShop && (
-                      <div className="absolute top-1 right-1 w-2 h-2 bg-emerald-500 rounded-full animate-pulse border border-white" />
-                    )}
+                    <span className="text-lg">🛍️</span>
+                    <span className={`text-xs font-semibold ${services.onSiteShop ? "text-[#02665e]" : "text-gray-700"}`}>On-site Shop</span>
+                    {services.onSiteShop && <div className="absolute top-2 right-2 w-2 h-2 bg-[#02665e] rounded-full" />}
                   </label>
                   <label
-                    className={`group relative flex items-center justify-center h-11 w-full rounded-xl border-2 text-xs font-semibold cursor-pointer transition-all duration-300 ${
-                      services.nearbyMall
-                        ? "border-emerald-500 bg-gradient-to-br from-emerald-50 to-emerald-100/50 text-emerald-700 shadow-md shadow-emerald-500/20"
-                        : "border-gray-200 bg-white text-gray-700 hover:border-emerald-300 hover:bg-emerald-50/30 hover:shadow-sm"
+                    className={`group relative flex items-center gap-2.5 p-3 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
+                      services.nearbyMall ? "border-[#02665e] bg-[#02665e]/5" : "border-gray-300 bg-gray-50 hover:border-[#02665e]/40 hover:bg-[#02665e]/[0.03]"
                     }`}
                     title={SERVICE_TOOLTIPS.nearbyMall}
                   >
                     <input type="checkbox" checked={services.nearbyMall} onChange={(e) => setServices((s: any) => ({ ...s, nearbyMall: e.target.checked }))} className="sr-only" />
-                    <IconOr Icon={Store} className={`w-3.5 h-3.5 mr-1.5 transition-colors duration-300 ${
-                      services.nearbyMall ? "text-emerald-600" : "text-gray-500"
-                    }`} />
-                    <span>Mall</span>
-                    {services.nearbyMall && (
-                      <div className="absolute top-1 right-1 w-2 h-2 bg-emerald-500 rounded-full animate-pulse border border-white" />
-                    )}
+                    <span className="text-lg">🏬</span>
+                    <span className={`text-xs font-semibold ${services.nearbyMall ? "text-[#02665e]" : "text-gray-700"}`}>Nearby Mall</span>
+                    {services.nearbyMall && <div className="absolute top-2 right-2 w-2 h-2 bg-[#02665e] rounded-full" />}
                   </label>
                 </div>
               </div>
 
-              {/* Events & Recreation - Modern Card Design */}
-              <div className="rounded-[24px] border border-yellow-200/70 bg-[linear-gradient(135deg,rgba(254,252,232,0.92),rgba(255,255,255,0.98))] p-5 shadow-[0_18px_36px_-26px_rgba(202,138,4,0.22)] ring-1 ring-white/75 transition-all duration-300 hover:shadow-[0_20px_40px_-24px_rgba(202,138,4,0.2)] sm:p-6">
+              {/* ── Events & Recreation ── */}
+              <div className="relative overflow-hidden rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-200 sm:p-6">
+                <div className="pointer-events-none absolute inset-x-0 top-0 h-1 rounded-t-2xl bg-[#02665e]/80" />
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white shadow-[0_12px_24px_-18px_rgba(202,138,4,0.38)] ring-1 ring-yellow-100">
-                    <PartyPopper className="w-5 h-5 text-yellow-600" />
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#02665e]/10">
+                    <PartyPopper className="w-4.5 h-4.5 text-[#02665e]" />
                   </div>
-                  <div className="flex-1">
-                    <h3 className="text-sm font-semibold text-gray-900">Events & Recreation</h3>
-                    <p className="text-xs text-gray-500">Event spaces and recreational activities</p>
-                  </div>
+                  <h3 className="text-sm font-bold text-gray-900">Events & Recreation</h3>
                 </div>
                 <div className="grid grid-cols-2 gap-2.5">
                   <label
-                    className={`group relative flex items-center justify-center h-11 w-full rounded-xl border-2 text-xs font-semibold cursor-pointer transition-all duration-300 ${
-                      services.socialHall
-                        ? "border-emerald-500 bg-gradient-to-br from-emerald-50 to-emerald-100/50 text-emerald-700 shadow-md shadow-emerald-500/20"
-                        : "border-gray-200 bg-white text-gray-700 hover:border-emerald-300 hover:bg-emerald-50/30 hover:shadow-sm"
+                    className={`group relative flex items-center gap-2.5 p-3 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
+                      services.socialHall ? "border-[#02665e] bg-[#02665e]/5" : "border-gray-300 bg-gray-50 hover:border-[#02665e]/40 hover:bg-[#02665e]/[0.03]"
                     }`}
                     title={SERVICE_TOOLTIPS.socialHall}
                   >
                     <input type="checkbox" checked={services.socialHall} onChange={(e) => setServices((s: any) => ({ ...s, socialHall: e.target.checked }))} className="sr-only" />
-                    <IconOr Icon={PartyPopper} className={`w-3.5 h-3.5 mr-1.5 transition-colors duration-300 ${
-                      services.socialHall ? "text-emerald-600" : "text-gray-500"
-                    }`} />
-                    <span>Social Hall</span>
-                    {services.socialHall && (
-                      <div className="absolute top-1 right-1 w-2 h-2 bg-emerald-500 rounded-full animate-pulse border border-white" />
-                    )}
+                    <span className="text-lg">🎉</span>
+                    <span className={`text-xs font-semibold ${services.socialHall ? "text-[#02665e]" : "text-gray-700"}`}>Social Hall</span>
+                    {services.socialHall && <div className="absolute top-2 right-2 w-2 h-2 bg-[#02665e] rounded-full" />}
                   </label>
                   <label
-                    className={`group relative flex items-center justify-center h-11 w-full rounded-xl border-2 text-xs font-semibold cursor-pointer transition-all duration-300 ${
-                      services.sportsGames
-                        ? "border-emerald-500 bg-gradient-to-br from-emerald-50 to-emerald-100/50 text-emerald-700 shadow-md shadow-emerald-500/20"
-                        : "border-gray-200 bg-white text-gray-700 hover:border-emerald-300 hover:bg-emerald-50/30 hover:shadow-sm"
+                    className={`group relative flex items-center gap-2.5 p-3 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
+                      services.sportsGames ? "border-[#02665e] bg-[#02665e]/5" : "border-gray-300 bg-gray-50 hover:border-[#02665e]/40 hover:bg-[#02665e]/[0.03]"
                     }`}
                     title={SERVICE_TOOLTIPS.sportsGames}
                   >
                     <input type="checkbox" checked={services.sportsGames} onChange={(e) => setServices((s: any) => ({ ...s, sportsGames: e.target.checked }))} className="sr-only" />
-                    <IconOr Icon={Gamepad} className={`w-3.5 h-3.5 mr-1.5 transition-colors duration-300 ${
-                      services.sportsGames ? "text-emerald-600" : "text-gray-500"
-                    }`} />
-                    <span>Sports</span>
-                    {services.sportsGames && (
-                      <div className="absolute top-1 right-1 w-2 h-2 bg-emerald-500 rounded-full animate-pulse border border-white" />
-                    )}
+                    <span className="text-lg">⚽</span>
+                    <span className={`text-xs font-semibold ${services.sportsGames ? "text-[#02665e]" : "text-gray-700"}`}>Sports</span>
+                    {services.sportsGames && <div className="absolute top-2 right-2 w-2 h-2 bg-[#02665e] rounded-full" />}
                   </label>
                 </div>
               </div>
 
-              {/* Fitness & Wellness - Modern Card Design */}
-              <div className="rounded-[24px] border border-indigo-200/70 bg-[linear-gradient(135deg,rgba(238,242,255,0.92),rgba(255,255,255,0.98))] p-5 shadow-[0_18px_36px_-26px_rgba(79,70,229,0.22)] ring-1 ring-white/75 transition-all duration-300 hover:shadow-[0_20px_40px_-24px_rgba(79,70,229,0.2)] sm:p-6">
+              {/* ── Fitness ── */}
+              <div className="relative overflow-hidden rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-200 sm:p-6">
+                <div className="pointer-events-none absolute inset-x-0 top-0 h-1 rounded-t-2xl bg-blue-500" />
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white shadow-[0_12px_24px_-18px_rgba(79,70,229,0.38)] ring-1 ring-indigo-100">
-                    <Dumbbell className="w-5 h-5 text-indigo-600" />
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50">
+                    <Dumbbell className="w-4.5 h-4.5 text-blue-600" />
                   </div>
-                  <div className="flex-1">
-                    <h3 className="text-sm font-semibold text-gray-900">Fitness & Wellness</h3>
-                    <p className="text-xs text-gray-500">Gym and fitness facilities</p>
+                  <h3 className="text-sm font-bold text-gray-900">Fitness</h3>
+                </div>
+                <label
+                  className={`group relative flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
+                    services.gym ? "border-[#02665e] bg-[#02665e]/5" : "border-gray-300 bg-gray-50 hover:border-[#02665e]/40 hover:bg-[#02665e]/[0.03]"
+                  }`}
+                  title={SERVICE_TOOLTIPS.gym}
+                >
+                  <input type="checkbox" checked={services.gym} onChange={(e) => setServices((s: any) => ({ ...s, gym: e.target.checked }))} className="sr-only" />
+                  <span className="text-lg">🏋️</span>
+                  <div>
+                    <span className={`text-xs font-semibold ${services.gym ? "text-[#02665e]" : "text-gray-700"}`}>Gym / Fitness Center</span>
+                    <p className="text-[10px] text-gray-400 mt-0.5">Weights, cardio & workout equipment</p>
                   </div>
-                </div>
-                <div className="grid grid-cols-1 gap-2.5">
-                  <label
-                    className={`group relative flex items-center justify-center h-11 w-full rounded-xl border-2 text-xs font-semibold cursor-pointer transition-all duration-300 ${
-                      services.gym
-                        ? "border-emerald-500 bg-gradient-to-br from-emerald-50 to-emerald-100/50 text-emerald-700 shadow-md shadow-emerald-500/20"
-                        : "border-gray-200 bg-white text-gray-700 hover:border-emerald-300 hover:bg-emerald-50/30 hover:shadow-sm"
-                    }`}
-                    title={SERVICE_TOOLTIPS.gym}
-                  >
-                    <input type="checkbox" checked={services.gym} onChange={(e) => setServices((s: any) => ({ ...s, gym: e.target.checked }))} className="sr-only" />
-                    <IconOr Icon={Dumbbell} className={`w-3.5 h-3.5 mr-1.5 transition-colors duration-300 ${
-                      services.gym ? "text-emerald-600" : "text-gray-500"
-                    }`} />
-                    <span>Gym / Fitness Center</span>
-                    {services.gym && (
-                      <div className="absolute top-1 right-1 w-2 h-2 bg-emerald-500 rounded-full animate-pulse border border-white" />
-                    )}
-                  </label>
-                </div>
+                  {services.gym && <div className="absolute top-2 right-2 w-2 h-2 bg-[#02665e] rounded-full" />}
+                </label>
               </div>
 
-              {/* Line Separator */}
-              <div className="lg:col-span-2 my-8">
-                <div className="h-px bg-gradient-to-r from-transparent via-[#02665e]/25 to-transparent"></div>
-              </div>
-
-              {/* Nearby Services - Modern Card Design with Distinct Styling */}
-              <div className="lg:col-span-2 rounded-[28px] border border-teal-200/80 bg-[linear-gradient(135deg,rgba(240,253,250,0.92),rgba(255,255,255,0.99))] p-5 shadow-[0_22px_44px_-26px_rgba(13,148,136,0.28)] ring-1 ring-white/80 transition-all duration-300 hover:shadow-[0_24px_48px_-24px_rgba(13,148,136,0.24)] sm:p-6">
-                <div className="flex items-center gap-3 mb-5">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-[0_14px_28px_-18px_rgba(13,148,136,0.45)] ring-1 ring-teal-100">
-                    <Building2 className="w-6 h-6 text-teal-600" />
+              {/* ── Nearby Services ── */}
+              <div className="lg:col-span-2 relative overflow-hidden rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-200 sm:p-6">
+                <div className="pointer-events-none absolute inset-x-0 top-0 h-1 rounded-t-2xl bg-gradient-to-r from-[#02665e] to-blue-500" />
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#02665e]/10">
+                    <Building2 className="w-4.5 h-4.5 text-[#02665e]" />
                   </div>
                   <div>
-                    <h3 className="text-base font-bold text-gray-900">Nearby Services</h3>
-                    <p className="text-xs text-gray-500 mt-0.5">Add facilities and services near your property</p>
+                    <h3 className="text-sm font-bold text-gray-900">Nearby Services</h3>
+                    <p className="text-[11px] text-gray-500 mt-0.5">Add facilities and services near your property</p>
                   </div>
                 </div>
 
-                {/* Inline add form */}
                 <AddFacilityInline 
                   onAdd={(f: any) => setNearbyFacilities((list) => [...list, f])} 
                   existingFacilities={nearbyFacilities}
                 />
 
-                {/* List */}
-                <div className="mt-5 space-y-3">
+                <div className="mt-4 space-y-2.5">
                   {nearbyFacilities.length === 0 && (
-                    <div className="py-8 px-6 text-center bg-gradient-to-br from-slate-50 to-white rounded-xl border-2 border-dashed border-slate-200">
-                      <div className="flex flex-col items-center gap-3">
-                        <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center">
-                          <MapPin className="w-6 h-6 text-slate-400" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-semibold text-slate-700 mb-1">No nearby facilities added yet</p>
-                          <p className="text-xs text-slate-500 max-w-md">
-                            Help guests discover nearby services like hospitals, airports, or bus stations. 
-                            Select a facility type above to get started.
-                          </p>
-                        </div>
+                    <div className="py-6 px-4 text-center bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
+                      <div className="flex flex-col items-center gap-2">
+                        <MapPin className="w-5 h-5 text-gray-400" />
+                        <p className="text-xs font-medium text-gray-500">No nearby facilities added yet</p>
+                        <p className="text-[10px] text-gray-400">Select a facility type above to get started</p>
                       </div>
                     </div>
                   )}

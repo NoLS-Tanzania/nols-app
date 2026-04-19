@@ -2,7 +2,7 @@
 
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import { Building2, CheckCircle2, ChevronDown, HelpCircle, Home, Landmark, LayoutGrid, MapPin, AlertCircle, Pencil, X } from "lucide-react";
-import { PropertyLocationMap } from "./PropertyLocationMap";
+import { PropertyLocationMap, type PropertyLocationDetectionMeta } from "./PropertyLocationMap";
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AddPropertySection } from "./AddPropertySection";
@@ -381,9 +381,12 @@ const handleSectionRef = useCallback(
     return [...PROPERTY_TYPES];
   }, [PROPERTY_TYPES, collapseTypes, type]);
 
-  const handleLocationDetected = useCallback((lat: number, lng: number) => {
+  const [locationAccuracy, setLocationAccuracy] = useState<number | null>(null);
+
+  const handleLocationDetected = useCallback((lat: number, lng: number, meta?: PropertyLocationDetectionMeta) => {
     setLatitude(lat);
     setLongitude(lng);
+    setLocationAccuracy(meta?.accuracy ?? null);
   }, [setLatitude, setLongitude]);
 
   return (
@@ -1123,58 +1126,88 @@ const handleSectionRef = useCallback(
 
               </div>
 
-              {/* Location — drag-to-pin map (Google Maps business listing style) */}
-              <div className="mt-6">
-                <PropertyLocationMap
-                  latitude={typeof latitude === "number" && Number.isFinite(latitude) ? latitude : NaN}
-                  longitude={typeof longitude === "number" && Number.isFinite(longitude) ? longitude : NaN}
-                  onLocationDetected={handleLocationDetected}
-                />
+              {/* Location — drag-to-pin map */}
+              {(() => {
+                const locationDetected = typeof latitude === "number" && Number.isFinite(latitude) && typeof longitude === "number" && Number.isFinite(longitude) && locationAccuracy !== null && locationAccuracy <= 100;
+                return (
+                  <div className="mt-6">
+                    <PropertyLocationMap
+                      latitude={typeof latitude === "number" && Number.isFinite(latitude) ? latitude : NaN}
+                      longitude={typeof longitude === "number" && Number.isFinite(longitude) ? longitude : NaN}
+                      onLocationDetected={handleLocationDetected}
+                    />
 
-                {/* Advanced: manual coordinate inputs */}
-                <details className="mt-4 group">
-                  <summary className="cursor-pointer select-none list-none text-xs font-medium text-slate-500 hover:text-slate-700 flex items-center gap-1">
-                    <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
-                    Edit coordinates manually
-                  </summary>
-                  <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="flex flex-col space-y-1.5">
-                      <label htmlFor="latitude" className="block text-xs font-medium text-slate-700">Latitude</label>
-                      <input
-                        id="latitude"
-                        type="number"
-                        step="any"
-                        value={latitude as any}
-                        onChange={(e) => {
-                          const raw = e.target.value;
-                          if (raw === "") return setLatitude("");
-                          const n = e.target.valueAsNumber;
-                          setLatitude(Number.isFinite(n) ? n : "");
-                        }}
-                        className="w-full h-11 px-3 text-sm rounded-xl border border-slate-200 bg-white text-slate-900 placeholder-slate-400 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                        placeholder="e.g. -6.827000"
-                      />
-                    </div>
-                    <div className="flex flex-col space-y-1.5">
-                      <label htmlFor="longitude" className="block text-xs font-medium text-slate-700">Longitude</label>
-                      <input
-                        id="longitude"
-                        type="number"
-                        step="any"
-                        value={longitude as any}
-                        onChange={(e) => {
-                          const raw = e.target.value;
-                          if (raw === "") return setLongitude("");
-                          const n = e.target.valueAsNumber;
-                          setLongitude(Number.isFinite(n) ? n : "");
-                        }}
-                        className="w-full h-11 px-3 text-sm rounded-xl border border-slate-200 bg-white text-slate-900 placeholder-slate-400 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                        placeholder="e.g. 39.267500"
-                      />
-                    </div>
+                    {locationDetected ? (
+                      <div className="mt-3 rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-[13px] font-semibold text-emerald-800">Location locked</p>
+                            <p className="text-[11px] text-emerald-600 truncate">
+                              {typeof latitude === "number" ? latitude.toFixed(6) : ""}, {typeof longitude === "number" ? longitude.toFixed(6) : ""}
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLatitude("");
+                            setLongitude("");
+                            setLocationAccuracy(null);
+                          }}
+                          className="shrink-0 rounded-lg border border-emerald-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-emerald-700 transition hover:bg-emerald-50 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                        >
+                          Reset
+                        </button>
+                      </div>
+                    ) : (
+                      <details className="mt-4 group">
+                        <summary className="cursor-pointer select-none list-none text-xs font-medium text-slate-500 hover:text-slate-700 flex items-center gap-1">
+                          <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
+                          Edit coordinates manually
+                        </summary>
+                        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="flex flex-col space-y-1.5">
+                            <label htmlFor="latitude" className="block text-xs font-medium text-slate-700">Latitude</label>
+                            <input
+                              id="latitude"
+                              type="number"
+                              step="any"
+                              value={latitude as any}
+                              onChange={(e) => {
+                                const raw = e.target.value;
+                                if (raw === "") return setLatitude("");
+                                const n = e.target.valueAsNumber;
+                                setLatitude(Number.isFinite(n) ? n : "");
+                              }}
+                              className="w-full h-11 px-3 text-sm rounded-xl border border-slate-200 bg-white text-slate-900 placeholder-slate-400 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                              placeholder="e.g. -6.827000"
+                            />
+                          </div>
+                          <div className="flex flex-col space-y-1.5">
+                            <label htmlFor="longitude" className="block text-xs font-medium text-slate-700">Longitude</label>
+                            <input
+                              id="longitude"
+                              type="number"
+                              step="any"
+                              value={longitude as any}
+                              onChange={(e) => {
+                                const raw = e.target.value;
+                                if (raw === "") return setLongitude("");
+                                const n = e.target.valueAsNumber;
+                                setLongitude(Number.isFinite(n) ? n : "");
+                              }}
+                              className="w-full h-11 px-3 text-sm rounded-xl border border-slate-200 bg-white text-slate-900 placeholder-slate-400 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                              placeholder="e.g. 39.267500"
+                            />
+                          </div>
+                        </div>
+                      </details>
+                    )}
                   </div>
-                </details>
-              </div>
+                );
+              })()}
+
 
 
             </div>

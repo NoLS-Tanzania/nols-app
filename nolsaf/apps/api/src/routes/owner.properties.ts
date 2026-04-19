@@ -384,13 +384,16 @@ router.get("/mine", (async (req: AuthedRequest, res) => {
       district: true,
       ward: true,
       city: true,
+      country: true,
       basePrice: true,
       currency: true,
+      hotelStar: true,
       services: true,
       rejectionReasons: true,
       lastSubmittedAt: true,
       createdAt: true,
       updatedAt: true,
+      _count: { select: { bookings: true } },
     };
 
     // Availability UI needs these fields to render real counts (otherwise it shows 0 rooms/floors).

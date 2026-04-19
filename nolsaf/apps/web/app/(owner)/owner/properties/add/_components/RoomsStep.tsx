@@ -226,19 +226,19 @@ export function RoomsStep({
       as="section"
       sectionRef={sectionRef}
       isVisible={isVisible}
-      className="rounded-[32px] border border-slate-200/85 bg-[radial-gradient(circle_at_top_left,_rgba(2,102,94,0.07),_transparent_22%),linear-gradient(180deg,_rgba(255,255,255,0.99),_rgba(248,250,252,0.98))] p-4 shadow-[0_24px_60px_-32px_rgba(15,23,42,0.32)] backdrop-blur sm:p-6"
+      className="add-property-section-premium"
     >
       {isVisible && (
         <div className="min-w-0 w-full">
-          <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
+          <div className="flex items-start justify-between gap-4 border-b border-white/15 pb-4">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full border border-[#02665e]/25 bg-[#02665e]/10 text-xs font-semibold text-[#02665e]">
+                <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full border border-white/20 bg-white/15 text-xs font-semibold text-white">
                   2
                 </span>
-                <h2 className="truncate text-base font-semibold text-slate-900 sm:text-lg">Room types</h2>
+                <h2 className="truncate text-base font-semibold text-white sm:text-lg">Room types</h2>
               </div>
-              <p className="mt-1 text-sm text-slate-600">
+              <p className="mt-1 text-sm text-white/60">
                 Define each room type, the beds per room, how many rooms you have, and upload room photos.
               </p>
             </div>
@@ -279,20 +279,20 @@ export function RoomsStep({
             </div>
 
             {/* ── Room Setup Card ──────────────────────────────────────── */}
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <div className="flex items-center gap-2 border-b border-[#02665e]/20 bg-[#02665e]/5 px-5 py-3">
-                <div className="h-4 w-1 rounded-full bg-[#02665e]" />
-                <span className="text-sm font-semibold text-[#02665e]">Room setup</span>
-                <span className="ml-1 text-xs text-slate-500">· Pick type, set beds &amp; room count</span>
+            <div className="overflow-hidden rounded-2xl border border-white/15 bg-white/10 shadow-sm">
+              <div className="flex items-center gap-2 border-b border-white/15 px-5 py-3">
+                <div className="h-4 w-1 rounded-full bg-emerald-400" />
+                <span className="text-sm font-semibold text-white">Room setup</span>
+                <span className="ml-1 text-xs text-white/50">· Pick type, set beds &amp; room count</span>
               </div>
-              <div className="min-w-0 space-y-6 bg-white p-5 sm:p-6">
+              <div className="min-w-0 space-y-6 p-5 sm:p-6">
 
                 {/* Room Type Selection */}
                 <div>
-                  <label className="mb-1 block text-sm font-semibold text-slate-800">
-                    What type of room is this? <span className="text-red-500">*</span>
+                  <label className="mb-1 block text-sm font-semibold text-white">
+                    What type of room is this? <span className="text-red-300">*</span>
                   </label>
-                  <p className="mb-4 text-xs text-slate-500">Select the category that best fits.</p>
+                  <p className="mb-4 text-xs text-white/50">Select the category that best fits.</p>
                   <div
                     role="radiogroup"
                     aria-labelledby="roomTypeLabel"
@@ -302,7 +302,7 @@ export function RoomsStep({
                     { rt: "Single",  emoji: "🛏️", desc: "One guest",        idleGrad: "from-sky-50 to-blue-50/60",      selGrad: "from-sky-100 to-blue-100/70",      idleBorder: "border-sky-200",     selBorder: "border-sky-500",     iconBg: "bg-sky-100",    iconColor: "text-sky-700",    nameSel: "text-sky-800",   dot: "bg-sky-500",    shadow: "shadow-sky-300/40"   },
                     { rt: "Double",  emoji: "🛌", desc: "Two guests",        idleGrad: "from-rose-50 to-pink-50/60",     selGrad: "from-rose-100 to-pink-100/70",     idleBorder: "border-rose-200",    selBorder: "border-rose-500",    iconBg: "bg-rose-100",   iconColor: "text-rose-700",   nameSel: "text-rose-800",  dot: "bg-rose-500",   shadow: "shadow-rose-300/40"  },
                     { rt: "Studio",  emoji: "🏠", desc: "Open-plan space",   idleGrad: "from-violet-50 to-purple-50/60", selGrad: "from-violet-100 to-purple-100/70", idleBorder: "border-violet-200",  selBorder: "border-violet-500",  iconBg: "bg-violet-100", iconColor: "text-violet-700", nameSel: "text-violet-800",dot: "bg-violet-500", shadow: "shadow-violet-300/40"},
-                    { rt: "Suite",   emoji: "✨", desc: "Premium room",      idleGrad: "from-amber-50 to-yellow-50/60",  selGrad: "from-amber-100 to-yellow-100/70",  idleBorder: "border-amber-200",   selBorder: "border-amber-500",   iconBg: "bg-amber-100",  iconColor: "text-amber-700",  nameSel: "text-amber-800", dot: "bg-amber-500",  shadow: "shadow-amber-300/40" },
+                    { rt: "Suite",   emoji: "✨", desc: "Premium room",      idleGrad: "from-amber-50 to-yellow-50/60",  selGrad: "from-amber-100 to-yellow-100/70",  idleBorder: "border-amber-200",   selBorder: "border-amber-500",   iconBg: "bg-amber-100",  iconColor: "text-amber-300",  nameSel: "text-amber-300", dot: "bg-amber-500",  shadow: "shadow-amber-300/40" },
                     { rt: "Family",  emoji: "👨‍👩‍👧", desc: "Multiple guests",  idleGrad: "from-emerald-50 to-teal-50/60",  selGrad: "from-emerald-100 to-teal-100/70",  idleBorder: "border-emerald-200", selBorder: "border-emerald-500", iconBg: "bg-emerald-100",iconColor: "text-emerald-700",nameSel: "text-emerald-800",dot: "bg-emerald-500",shadow: "shadow-emerald-300/40"},
                     { rt: "Other",   emoji: "🏷️", desc: "Custom type",       idleGrad: "from-slate-50 to-gray-50/60",    selGrad: "from-slate-100 to-gray-100/70",    idleBorder: "border-slate-200",   selBorder: "border-slate-500",   iconBg: "bg-slate-100",  iconColor: "text-slate-700",  nameSel: "text-slate-800", dot: "bg-slate-500",  shadow: "shadow-slate-300/40" },
                   ].map(({ rt, emoji, desc }) => {
@@ -316,16 +316,16 @@ export function RoomsStep({
                           selected
                             ? "border-[#02665e] bg-[#02665e] shadow-lg shadow-[#02665e]/20"
                             : isCompleted
-                            ? "border-amber-400/70 bg-amber-50/60 hover:border-amber-400 hover:shadow-sm"
-                            : "border-slate-200 bg-white hover:border-[#02665e]/40 hover:shadow-sm"
+                            ? "border-amber-400/50 bg-amber-500/15 hover:border-amber-400/70 hover:shadow-sm"
+                            : "border-white/15 bg-white/10 hover:border-white/25 hover:shadow-sm"
                         }`}
                       >
                         <input type="radio" name="roomType" value={rt} checked={selected} onChange={(e) => setRoomType(e.target.value)} className="sr-only" />
                         <div className="flex items-center gap-2">
                           <span className="text-xl leading-none">{emoji}</span>
                           <div>
-                            <div className={`text-sm font-bold leading-tight ${selected ? "text-white" : "text-slate-900"}`}>{rt}</div>
-                            <div className={`mt-0.5 text-[11px] ${selected ? "text-[#6ee7b7]" : "text-slate-400"}`}>{desc}</div>
+                            <div className={`text-sm font-bold leading-tight ${selected ? "text-white" : "text-white"}`}>{rt}</div>
+                            <div className={`mt-0.5 text-[11px] ${selected ? "text-[#6ee7b7]" : "text-white/50"}`}>{desc}</div>
                           </div>
                         </div>
                         {selected && !isCompleted && (
@@ -346,7 +346,7 @@ export function RoomsStep({
                   })}
                 </div>
                 {definedRooms.length > 0 && (
-                  <p className="mt-3 flex items-center gap-1 text-xs text-slate-500">
+                  <p className="mt-3 flex items-center gap-1 text-xs text-white/50">
                     <Lock className="h-3 w-3" />
                     Completed types are marked. Click to edit an existing room type.
                   </p>
@@ -357,14 +357,14 @@ export function RoomsStep({
               <div>
                 <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                   <div>
-                    <label className="mb-0.5 block text-sm font-semibold text-slate-800">
-                      Beds per room <span className="text-slate-400 font-normal">(each room has these beds)</span>
+                    <label className="mb-0.5 block text-sm font-semibold text-white">
+                      Beds per room <span className="text-white/50 font-normal">(each room has these beds)</span>
                     </label>
-                    <p className="text-xs text-slate-500">Use + / − to set beds inside each room.</p>
+                    <p className="text-xs text-white/50">Use + / − to set beds inside each room.</p>
                   </div>
-                  <div className="rounded-xl border border-[#02665e]/20 bg-[#02665e]/5 px-4 py-2.5">
-                    <div className="text-xs font-bold text-[#02665e]">{bedsPerRoom} beds / room</div>
-                    <div className="mt-0.5 text-xs text-[#02665e]/70">
+                  <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-2.5">
+                    <div className="text-xs font-bold text-white">{bedsPerRoom} beds / room</div>
+                    <div className="mt-0.5 text-xs text-white/50">
                       {roomCountNum ? `${bedsPerRoom} × ${roomCountNum} = ${totalBeds} total` : "Set room count to see total"}
                     </div>
                   </div>
@@ -376,17 +376,17 @@ export function RoomsStep({
                     return (
                       <div
                         key={k}
-                        className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 transition-all hover:border-[#02665e]/30 hover:shadow-sm"
+                        className="flex items-center justify-between rounded-xl border border-white/15 bg-white/10 p-4 transition-all hover:border-white/25 hover:shadow-sm"
                       >
                         <div className="flex items-center gap-3">
                           {BedIcon && (
-                            <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-[#02665e]/15 bg-[#02665e]/10">
-                              <BedIcon className="h-5 w-5 text-[#02665e]" />
+                            <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/15 bg-white/15">
+                              <BedIcon className="h-5 w-5 text-white" />
                             </div>
                           )}
                           <div>
-                            <div className="text-sm font-semibold capitalize text-slate-800">{k} bed</div>
-                            <div className="text-xs text-slate-400">per room</div>
+                            <div className="text-sm font-semibold capitalize text-white">{k} bed</div>
+                            <div className="text-xs text-white/50">per room</div>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
@@ -395,12 +395,12 @@ export function RoomsStep({
                             aria-label={`Remove one ${k} bed`}
                             onClick={() => changeBed(k, -1)}
                             disabled={bedCount === 0}
-                            className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-all hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 active:scale-95"
+                            className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/20 bg-white/10 text-white transition-all hover:border-white/30 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-40 active:scale-95"
                           >
                             <Minus className="h-4 w-4" />
                           </button>
                           <div className={`flex h-9 w-12 items-center justify-center rounded-lg text-sm font-bold transition-all ${
-                            bedCount > 0 ? "border border-[#02665e]/30 bg-[#02665e]/10 text-[#02665e]" : "border border-slate-200 bg-slate-50 text-slate-400"
+                            bedCount > 0 ? "border border-white/25 bg-white/15 text-white" : "border border-white/10 bg-white/[0.06] text-white/40"
                           }`}>
                             {bedCount}
                           </div>
@@ -408,7 +408,7 @@ export function RoomsStep({
                             type="button"
                             aria-label={`Add one ${k} bed`}
                             onClick={() => changeBed(k, 1)}
-                            className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#02665e] text-white transition-all hover:bg-[#014e47] active:scale-95"
+                            className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-400/80 text-white transition-all hover:bg-emerald-400 active:scale-95"
                           >
                             <Plus className="h-4 w-4" />
                           </button>
@@ -418,13 +418,13 @@ export function RoomsStep({
                   })}
                 </div>
                 {roomCountNum > 0 && bedsPerRoom === 0 && (
-                  <div className="mt-3 flex items-center gap-2 rounded-lg border border-amber-200/70 bg-amber-50 p-3 text-xs text-amber-700">
+                  <div className="mt-3 flex items-center gap-2 rounded-lg border border-amber-400/30 bg-amber-500/15 p-3 text-xs text-amber-300">
                     <span>⚠️</span>
                     <span>Room count set but no beds — add at least 1 bed type.</span>
                   </div>
                 )}
                 {roomCountNum === 0 && bedsPerRoom > 0 && (
-                  <div className="mt-3 flex items-center gap-2 rounded-lg border border-amber-200/70 bg-amber-50 p-3 text-xs text-amber-700">
+                  <div className="mt-3 flex items-center gap-2 rounded-lg border border-amber-400/30 bg-amber-500/15 p-3 text-xs text-amber-300">
                     <span>⚠️</span>
                     <span>Beds set but room count is empty — enter the number of rooms.</span>
                   </div>
@@ -435,8 +435,8 @@ export function RoomsStep({
               {/* Room count + Smoking */}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-800">
-                    Number of rooms <span className="text-red-500">*</span>
+                  <label className="mb-2 block text-sm font-semibold text-white">
+                    Number of rooms <span className="text-red-300">*</span>
                   </label>
                   <input
                     value={roomsCount as any}
@@ -444,38 +444,33 @@ export function RoomsStep({
                     type="number"
                     min={1}
                     placeholder="e.g. 3"
-                    className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-slate-900 placeholder-slate-400 transition-all hover:border-slate-300 focus:border-[#02665e] focus:outline-none focus:ring-2 focus:ring-[#02665e]/15"
+                    className="h-12 w-full rounded-2xl border border-white/25 bg-white/95 px-4 text-slate-900 placeholder-slate-400 transition-all hover:border-slate-300 focus:border-[#02665e] focus:outline-none focus:ring-2 focus:ring-[#02665e]/15"
                   />
                 </div>
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-800">Smoking allowed?</label>
-                  <div className="flex overflow-hidden rounded-xl border border-slate-200">
-                    <button
-                      type="button"
-                      onClick={() => setSmoking("yes")}
-                      className={`flex-1 py-3 text-sm font-semibold transition-colors ${smoking === "yes" ? "bg-[#02665e] text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}
-                    >
-                      Yes
-                    </button>
-                    <div className="w-px bg-slate-200" />
-                    <button
-                      type="button"
-                      onClick={() => setSmoking("no")}
-                      className={`flex-1 py-3 text-sm font-semibold transition-colors ${smoking === "no" ? "bg-[#02665e] text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}
-                    >
-                      No
-                    </button>
-                  </div>
+                  <label className="mb-2 block text-sm font-semibold text-white">Smoking allowed?</label>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={smoking === "yes"}
+                    onClick={() => setSmoking(smoking === "yes" ? "no" : "yes")}
+                    className="group flex h-12 items-center gap-3 rounded-2xl border border-white/20 bg-white/10 px-4 transition-all hover:bg-white/15"
+                  >
+                    <div className={`relative h-6 w-11 flex-shrink-0 rounded-full transition-colors duration-200 ${smoking === "yes" ? "bg-emerald-400" : "bg-white/20"}`}>
+                      <div className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${smoking === "yes" ? "translate-x-[22px]" : "translate-x-0.5"}`} />
+                    </div>
+                    <span className="text-sm font-semibold text-white">{smoking === "yes" ? "Yes" : "No"}</span>
+                  </button>
                 </div>
               </div>
 
               {/* Floor distribution (multi-storey) */}
               {isMultiStorey ? (
-                <div className="rounded-xl border border-[#02665e]/20 bg-[#edf7f6] p-4">
+                <div className="rounded-xl border border-white/15 bg-white/[0.06] p-4">
                   <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <div className="text-sm font-semibold text-slate-800">Room location</div>
-                      <p className="mt-0.5 text-xs text-slate-500">Select floors and distribute rooms across them.</p>
+                      <div className="text-sm font-semibold text-white">Room location</div>
+                      <p className="mt-0.5 text-xs text-white/50">Select floors and distribute rooms across them.</p>
                     </div>
                     {floorOptions.length > 0 && (
                       <button
@@ -489,14 +484,14 @@ export function RoomsStep({
                           setRoomFloorDistribution(next);
                         }}
                         disabled={!isMultiStorey || roomFloors.length === 0 || roomCountNum <= 0}
-                        className="rounded-lg border border-[#02665e]/30 bg-white px-4 py-2 text-xs font-semibold text-[#02665e] transition-all hover:border-[#02665e]/50 hover:bg-[#02665e]/5 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="rounded-lg border border-white/20 bg-white/10 px-4 py-2 text-xs font-semibold text-white transition-all hover:border-white/30 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         Auto distribute
                       </button>
                     )}
                   </div>
                   {floorOptions.length === 0 ? (
-                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
+                    <div className="rounded-lg border border-amber-400/30 bg-amber-500/15 p-3 text-xs text-amber-300">
                       Please set <span className="font-semibold">Total floors</span> in Step 1 (Basics) to enable floor selection.
                     </div>
                   ) : (
@@ -527,8 +522,8 @@ export function RoomsStep({
                               aria-pressed={selected}
                               className={`rounded-lg border px-4 py-2 text-sm font-semibold transition-all duration-200 ${
                                 selected
-                                  ? "border-[#02665e] bg-[#02665e] text-white shadow-sm"
-                                  : "border-slate-200 bg-white text-slate-700 hover:border-[#02665e]/40 hover:bg-[#02665e]/5"
+                                  ? "border-emerald-400 bg-emerald-400/80 text-white shadow-sm"
+                                  : "border-white/15 bg-white/10 text-white/70 hover:border-white/25 hover:bg-white/15"
                               }`}
                             >
                               {floorLabel(f)}
@@ -537,34 +532,34 @@ export function RoomsStep({
                         })}
                       </div>
                       {roomFloors.length === 0 && (
-                        <div className="mt-3 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+                        <div className="mt-3 flex items-center gap-2 rounded-lg border border-red-400/30 bg-red-500/15 p-3 text-xs text-red-300">
                           <span>⚠️</span>
                           <span>Select at least one floor for this room type.</span>
                         </div>
                       )}
                       {roomFloors.length > 0 && (
-                        <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+                        <div className="mt-4 rounded-xl border border-white/15 bg-white/[0.08] p-4">
                           <div className="mb-4 flex items-center justify-between gap-3">
-                            <div className="text-xs text-slate-600">
-                              Distribute <span className="font-bold text-slate-900">{roomCountNum || 0}</span> rooms across{" "}
-                              <span className="font-bold text-slate-900">{roomFloors.length}</span> floor{roomFloors.length !== 1 ? "s" : ""}
+                            <div className="text-xs text-white/60">
+                              Distribute <span className="font-bold text-white">{roomCountNum || 0}</span> rooms across{" "}
+                              <span className="font-bold text-white">{roomFloors.length}</span> floor{roomFloors.length !== 1 ? "s" : ""}
                             </div>
                             <div className={`rounded-lg border px-3 py-1 text-xs font-bold ${
                               floorDistSum === (roomCountNum || 0)
                                 ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                                : "border-amber-200 bg-amber-50 text-amber-700"
+                                : "border-amber-400/30 bg-amber-500/15 text-amber-300"
                             }`}>
                               {floorDistSum}/{roomCountNum || 0}
                             </div>
                           </div>
                           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             {roomFloors.map((f) => (
-                              <div key={f} className="flex items-center justify-between rounded-lg border border-[#02665e]/10 bg-[#edf7f6] p-3">
+                              <div key={f} className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.06] p-3">
                                 <div className="flex items-center gap-2">
-                                  <div className="flex h-7 w-7 items-center justify-center rounded-md bg-[#02665e]/10 text-xs font-bold text-[#02665e]">
+                                  <div className="flex h-7 w-7 items-center justify-center rounded-md bg-white/15 text-xs font-bold text-white">
                                     {f === 0 ? "G" : f}
                                   </div>
-                                  <span className="text-sm font-medium text-slate-700">{floorLabel(f)} floor</span>
+                                  <span className="text-sm font-medium text-white/70">{floorLabel(f)} floor</span>
                                 </div>
                                 <input
                                   type="number"
@@ -574,14 +569,14 @@ export function RoomsStep({
                                     const v = e.target.value ? parseInt(e.target.value, 10) : 0;
                                     setRoomFloorDistribution((prev) => ({ ...prev, [f]: Number.isFinite(v) ? Math.max(0, v) : 0 }));
                                   }}
-                                  className="h-9 w-20 rounded-lg border border-slate-200 bg-white text-center text-sm font-semibold text-slate-900 focus:border-[#02665e] focus:outline-none focus:ring-1 focus:ring-[#02665e]/20"
+                                  className="h-9 w-20 rounded-lg border border-white/20 bg-white/90 text-center text-sm font-semibold text-slate-900 focus:border-[#02665e] focus:outline-none focus:ring-1 focus:ring-[#02665e]/20"
                                   aria-label={`Rooms on ${floorLabel(f)} floor`}
                                 />
                               </div>
                             ))}
                           </div>
                           {roomCountNum > 0 && floorDistSum !== roomCountNum && (
-                            <div className="mt-3 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
+                            <div className="mt-3 flex items-center gap-2 rounded-lg border border-amber-400/30 bg-amber-500/15 p-3 text-xs text-amber-300">
                               <span>⚠️</span>
                               <span>Distribution ({floorDistSum}) does not match total rooms ({roomCountNum}).</span>
                             </div>
@@ -592,7 +587,7 @@ export function RoomsStep({
                   )}
                 </div>
               ) : (
-                <div className="flex items-start gap-3 rounded-xl border border-[#02665e]/15 bg-[#edf7f6] p-4 text-xs text-slate-500">
+                <div className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[0.06] p-4 text-xs text-white/50">
                   <span className="mt-0.5 text-base">🏠</span>
                   <span>
                     {buildingType === "single_storey"
@@ -608,52 +603,47 @@ export function RoomsStep({
             </div>
 
             {/* ── Bathroom & Amenities Card ────────────────────────────── */}
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <div className="flex items-center gap-2 border-b border-[#02665e]/20 bg-[#02665e]/5 px-5 py-3">
-                <div className="h-4 w-1 rounded-full bg-[#02665e]" />
-                <span className="text-sm font-semibold text-[#02665e]">Bathroom &amp; amenities</span>
-                <span className="ml-1 text-xs text-slate-500">· Privacy, items &amp; extras</span>
+            <div className="overflow-hidden rounded-2xl border border-white/15 bg-white/10 shadow-sm">
+              <div className="flex items-center gap-2 border-b border-white/15 px-5 py-3">
+                <div className="h-4 w-1 rounded-full bg-emerald-400" />
+                <span className="text-sm font-semibold text-white">Bathroom &amp; amenities</span>
+                <span className="ml-1 text-xs text-white/50">· Privacy, items &amp; extras</span>
               </div>
-              <div className="space-y-6 bg-white p-5 sm:p-6">
+              <div className="space-y-6 p-5 sm:p-6">
 
                 <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                   {/* Left: bath privacy + towel */}
                   <div className="space-y-5">
                     <div>
-                      <label className="mb-2 block text-sm font-semibold text-slate-800">Is the bathroom private?</label>
-                      <div className="flex overflow-hidden rounded-xl border border-slate-200">
-                        <button
-                          type="button"
-                          onClick={() => setBathPrivate("yes")}
-                          className={`flex-1 py-3 text-sm font-semibold transition-colors ${bathPrivate === "yes" ? "bg-[#02665e] text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}
-                        >
-                          Yes
-                        </button>
-                        <div className="w-px bg-slate-200" />
-                        <button
-                          type="button"
-                          onClick={() => setBathPrivate("no")}
-                          className={`flex-1 py-3 text-sm font-semibold transition-colors ${bathPrivate === "no" ? "bg-[#02665e] text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}
-                        >
-                          No, shared
-                        </button>
-                      </div>
+                      <label className="mb-2 block text-sm font-semibold text-white">Is the bathroom private?</label>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={bathPrivate === "yes"}
+                        onClick={() => setBathPrivate(bathPrivate === "yes" ? "no" : "yes")}
+                        className="group flex h-12 items-center gap-3 rounded-2xl border border-white/20 bg-white/10 px-4 transition-all hover:bg-white/15"
+                      >
+                        <div className={`relative h-6 w-11 flex-shrink-0 rounded-full transition-colors duration-200 ${bathPrivate === "yes" ? "bg-emerald-400" : "bg-white/20"}`}>
+                          <div className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${bathPrivate === "yes" ? "translate-x-[22px]" : "translate-x-0.5"}`} />
+                        </div>
+                        <span className="text-sm font-semibold text-white">{bathPrivate === "yes" ? "Private" : "Shared"}</span>
+                      </button>
                     </div>
                     <div>
-                      <label className="mb-2 block text-sm font-semibold text-slate-800">
-                        Towel color <span className="text-slate-400 font-normal">(optional)</span>
+                      <label className="mb-2 block text-sm font-semibold text-white">
+                        Towel color <span className="text-white/40 font-normal">(optional)</span>
                       </label>
                       <input
                         value={towelColor}
                         onChange={(e) => setTowelColor(e.target.value)}
-                        className="block h-12 min-w-0 w-full max-w-full box-border rounded-2xl border border-slate-200 bg-white px-4 text-slate-900 placeholder-slate-400 transition-all hover:border-slate-300 focus:border-[#02665e] focus:outline-none focus:ring-2 focus:ring-[#02665e]/15"
+                        className="block h-12 min-w-0 w-full max-w-full box-border rounded-2xl border border-white/25 bg-white/95 px-4 text-slate-900 placeholder-slate-400 transition-all hover:border-slate-300 focus:border-[#02665e] focus:outline-none focus:ring-2 focus:ring-[#02665e]/15"
                         placeholder="e.g. white"
                       />
                     </div>
                   </div>
                   {/* Right: bathroom items */}
                   <div>
-                    <label className="mb-3 block text-sm font-semibold text-slate-800">Bathroom items</label>
+                    <label className="mb-3 block text-sm font-semibold text-white">Bathroom items</label>
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                       {(() => {
                         const iconColors: Record<string, { bg: string; text: string }> = {
@@ -679,17 +669,17 @@ export function RoomsStep({
                             <label
                               key={i}
                               className={`relative flex cursor-pointer items-center gap-2 rounded-xl border p-2.5 transition-all ${
-                                isChecked ? "border-[#02665e] bg-[#02665e]/5" : "border-slate-200 bg-white hover:border-[#02665e]/30"
+                                isChecked ? "border-emerald-400/60 bg-emerald-400/15" : "border-white/15 bg-white/10 hover:border-white/25"
                               }`}
                             >
                               <input type="checkbox" className="sr-only" checked={isChecked} onChange={() => toggleStr(bathItems, setBathItems, i)} />
                               {Icon && (
-                                <div className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg ${isChecked ? "bg-[#02665e]/10" : colors.bg}`}>
-                                  <Icon className={`h-3.5 w-3.5 ${isChecked ? "text-[#02665e]" : colors.text}`} />
+                                <div className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg ${isChecked ? "bg-emerald-400/20" : colors.bg}`}>
+                                  <Icon className={`h-3.5 w-3.5 ${isChecked ? "text-emerald-300" : colors.text}`} />
                                 </div>
                               )}
-                              <span className={`text-xs font-medium leading-tight ${isChecked ? "text-[#02665e]" : "text-slate-700"}`}>{i}</span>
-                              {isChecked && <div className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-[#02665e]" />}
+                              <span className={`text-xs font-medium leading-tight ${isChecked ? "text-emerald-300" : "text-white/70"}`}>{i}</span>
+                              {isChecked && <div className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-emerald-400" />}
                             </label>
                           );
                         });
@@ -700,7 +690,7 @@ export function RoomsStep({
 
                 {/* Other room amenities */}
                 <div>
-                  <label className="mb-3 block text-sm font-semibold text-slate-800">Other room amenities</label>
+                  <label className="mb-3 block text-sm font-semibold text-white">Other room amenities</label>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
                     {(() => {
                       const iconColors: Record<string, { bg: string; text: string }> = {
@@ -733,30 +723,30 @@ export function RoomsStep({
                           <label
                             key={i}
                             className={`relative flex cursor-pointer items-center gap-2 rounded-xl border p-2.5 transition-all ${
-                              isChecked ? "border-[#02665e] bg-[#02665e]/5" : "border-slate-200 bg-white hover:border-[#02665e]/30"
+                              isChecked ? "border-emerald-400/60 bg-emerald-400/15" : "border-white/15 bg-white/10 hover:border-white/25"
                             }`}
                           >
                             <input type="checkbox" className="sr-only" checked={isChecked} onChange={() => toggleStr(otherAmenities, setOtherAmenities, i)} />
                             {Icon && (
-                              <div className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg ${isChecked ? "bg-[#02665e]/10" : colors.bg}`}>
-                                <Icon className={`h-3.5 w-3.5 ${isChecked ? "text-[#02665e]" : colors.text}`} />
+                              <div className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg ${isChecked ? "bg-emerald-400/20" : colors.bg}`}>
+                                <Icon className={`h-3.5 w-3.5 ${isChecked ? "text-emerald-300" : colors.text}`} />
                               </div>
                             )}
-                            <span className={`text-xs font-medium leading-tight ${isChecked ? "text-[#02665e]" : "text-slate-700"}`}>{i}</span>
-                            {isChecked && <div className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-[#02665e]" />}
+                            <span className={`text-xs font-medium leading-tight ${isChecked ? "text-emerald-300" : "text-white/70"}`}>{i}</span>
+                            {isChecked && <div className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-emerald-400" />}
                           </label>
                         );
                       });
                     })()}
                   </div>
                   <div className="mt-4">
-                    <label className="mb-2 block text-sm font-semibold text-slate-800">
-                      Additional amenities <span className="text-slate-400 font-normal">(comma separated)</span>
+                    <label className="mb-2 block text-sm font-semibold text-white">
+                      Additional amenities <span className="text-white/40 font-normal">(comma separated)</span>
                     </label>
                     <input
                       value={otherAmenitiesText}
                       onChange={(e) => setOtherAmenitiesText(e.target.value)}
-                      className="block h-12 min-w-0 w-full max-w-full box-border rounded-2xl border border-slate-200 bg-white px-4 text-slate-900 placeholder-slate-400 transition-all hover:border-slate-300 focus:border-[#02665e] focus:outline-none focus:ring-2 focus:ring-[#02665e]/15"
+                      className="block h-12 min-w-0 w-full max-w-full box-border rounded-2xl border border-white/25 bg-white/95 px-4 text-slate-900 placeholder-slate-400 transition-all hover:border-slate-300 focus:border-[#02665e] focus:outline-none focus:ring-2 focus:ring-[#02665e]/15"
                       placeholder="e.g. minibar, balcony"
                     />
                   </div>
@@ -766,19 +756,19 @@ export function RoomsStep({
             </div>
 
             {/* ── Photos & Pricing Card ────────────────────────────────── */}
-            <div className="overflow-hidden rounded-2xl border border-[#02665e]/15 bg-white shadow-[0_4px_24px_rgba(2,102,94,0.12)] ring-1 ring-[#02665e]/5">
-              <div className="flex items-center gap-2 border-b border-[#02665e]/20 bg-[#02665e]/10 px-5 py-3">
-                <div className="h-4 w-1 rounded-full bg-[#02665e]" />
-                <span className="text-sm font-semibold text-[#02665e]">Photos &amp; pricing</span>
-                <span className="ml-1 text-xs text-slate-500">· Upload photos, describe &amp; set price</span>
+            <div className="overflow-hidden rounded-2xl border border-white/15 bg-white/10 shadow-sm">
+              <div className="flex items-center gap-2 border-b border-white/15 px-5 py-3">
+                <div className="h-4 w-1 rounded-full bg-emerald-400" />
+                <span className="text-sm font-semibold text-white">Photos &amp; pricing</span>
+                <span className="ml-1 text-xs text-white/50">· Upload photos, describe &amp; set price</span>
               </div>
-              <div className="space-y-5 bg-white p-5 sm:p-6">
+              <div className="space-y-5 p-5 sm:p-6">
 
                 {/* Room photos */}
-                <div className="rounded-xl border border-[#02665e]/15 bg-[#edf7f6]/70 p-4">
-                  <label className="mb-3 block text-sm font-semibold text-slate-800">
-                    Room photos <span className="text-red-500">*</span>
-                    <span className="ml-2 text-xs font-normal text-slate-400">(min. 3 required)</span>
+                <div className="rounded-xl border border-white/10 bg-white/[0.06] p-4">
+                  <label className="mb-3 block text-sm font-semibold text-white">
+                    Room photos <span className="text-red-300">*</span>
+                    <span className="ml-2 text-xs font-normal text-white/40">(min. 3 required)</span>
                   </label>
                   <PicturesUploader
                     title="Room images"
@@ -797,7 +787,7 @@ export function RoomsStep({
                     uploading={roomImageUploading}
                   />
                   {!roomImagesOk && (
-                    <div className="mt-3 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
+                    <div className="mt-3 flex items-center gap-2 rounded-lg border border-amber-400/30 bg-amber-500/15 p-3 text-xs text-amber-300">
                       <span>⚠️</span>
                       <span>Upload at least 3 room photos.</span>
                     </div>
@@ -805,58 +795,74 @@ export function RoomsStep({
                 </div>
 
                   {/* Room Description */}
-                  <div className="rounded-xl border border-[#02665e]/15 bg-[#edf7f6]/70 p-4">
-                    <label className="mb-2 block text-sm font-semibold text-slate-800">
-                      Room description <span className="text-slate-400 font-normal">(optional)</span>
+                  <div className="rounded-xl border border-white/10 bg-white/[0.06] p-4">
+                    <label className="mb-2 block text-sm font-semibold text-white">
+                      Room description <span className="text-white/40 font-normal">(optional)</span>
                     </label>
                     <textarea
                       value={roomDescription}
                       onChange={(e) => setRoomDescription(e.target.value)}
                       rows={4}
-                      className="block min-w-0 w-full max-w-full box-border resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder-slate-400 transition-all hover:border-slate-300 focus:border-[#02665e] focus:outline-none focus:ring-2 focus:ring-[#02665e]/15"
+                      className="block min-w-0 w-full max-w-full box-border resize-none rounded-2xl border border-white/25 bg-white/95 px-4 py-3 text-slate-900 placeholder-slate-400 transition-all hover:border-slate-300 focus:border-[#02665e] focus:outline-none focus:ring-2 focus:ring-[#02665e]/15"
                       placeholder="Short description for this room type"
                     />
                   </div>
 
                   {/* Price per night */}
-                  <div className="min-w-0 overflow-hidden rounded-xl border border-[#02665e]/15 bg-[#edf7f6]/70 p-4">
-                    <label className="mb-2 block text-sm font-semibold text-slate-800">
-                      Price per night <span className="text-red-500">*</span>
-                      <span className="ml-2 text-xs font-normal text-slate-400">(min. 5,000 TZS)</span>
+                  <div className="min-w-0 overflow-hidden rounded-xl border border-white/10 bg-white/[0.06] p-4">
+                    <label className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
+                      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-400/20 text-emerald-300 text-xs font-bold">₸</span>
+                      Price per night <span className="text-red-300">*</span>
                     </label>
-                    <div className="flex min-w-0 max-w-full items-stretch overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                    <div className="relative flex min-w-0 max-w-full items-stretch overflow-hidden rounded-xl border-2 border-emerald-400/30 bg-gradient-to-r from-slate-900 to-slate-800 shadow-lg shadow-black/20 transition-all focus-within:border-emerald-400/60 focus-within:shadow-emerald-500/10">
+                      <span className="pointer-events-none flex h-14 flex-shrink-0 items-center border-r border-emerald-400/20 bg-emerald-400/10 px-4">
+                        <span className="text-sm font-bold tracking-wide text-emerald-300">TZS</span>
+                      </span>
                       <input
-                        value={pricePerNight as any}
+                        value={pricePerNight === "" ? "" : Number(pricePerNight).toLocaleString("en-US")}
                         onChange={(e) => {
-                          const val = numOrEmpty(e.target.value);
+                          const raw = e.target.value.replace(/,/g, "");
+                          const val = numOrEmpty(raw);
                           setPricePerNight(val);
                         }}
                         type="text"
                         inputMode="numeric"
-                        pattern="[0-9]*"
-                        placeholder="e.g. 50000"
-                        className="block h-12 min-w-0 flex-1 appearance-none border-0 bg-transparent px-5 text-slate-900 placeholder-slate-400 outline-none ring-0 focus:outline-none focus:ring-0"
+                        placeholder="50,000"
+                        className="block h-14 min-w-0 flex-1 appearance-none border-0 bg-transparent px-4 text-xl font-semibold tracking-wide text-white placeholder-white/20 outline-none ring-0 focus:outline-none focus:ring-0"
                       />
-                      <span className="pointer-events-none flex h-12 flex-shrink-0 items-center whitespace-nowrap border-l border-slate-200 bg-slate-50 px-5 text-xs font-semibold text-slate-400">
-                        TZS / night
+                      <span className="pointer-events-none flex h-14 flex-shrink-0 items-center whitespace-nowrap border-l border-white/10 bg-white/[0.04] px-4 text-[11px] font-medium text-white/40">
+                        per night
                       </span>
                     </div>
+                    {pricePerNight !== "" && (
+                      <div className="mt-2 text-right text-xs text-white/30">
+                        {Number(pricePerNight) >= 5000
+                          ? `≈ USD ${(Number(pricePerNight) / 2650).toFixed(2)}`
+                          : ""}
+                      </div>
+                    )}
                     {!priceOk && pricePerNight !== "" && (
-                      <div className="mt-3 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
+                      <div className="mt-2 flex items-center gap-2 rounded-lg border border-amber-400/30 bg-amber-500/15 p-3 text-xs text-amber-300">
                         <span>⚠️</span>
                         <span>Minimum price is 5,000 TZS per night.</span>
+                      </div>
+                    )}
+                    {priceOk && (
+                      <div className="mt-2 flex items-center gap-2 rounded-lg border border-emerald-400/20 bg-emerald-400/10 p-3 text-xs text-emerald-300">
+                        <span>✓</span>
+                        <span>Price looks good!</span>
                       </div>
                     )}
                   </div>
 
                 {/* Validation warnings */}
                 {(!floorsOk || !bedsOk || !roomsCountOk) && (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-                    <p className="mb-2 flex items-center gap-2 text-xs font-semibold text-amber-900">
+                  <div className="rounded-xl border border-amber-400/30 bg-amber-500/15 p-4">
+                    <p className="mb-2 flex items-center gap-2 text-xs font-semibold text-amber-200">
                       <span>⚠️</span>
                       <span>Complete these to save this room type:</span>
                     </p>
-                    <ul className="space-y-1.5 text-xs text-amber-800">
+                    <ul className="space-y-1.5 text-xs text-amber-300">
                       {!floorsOk && (
                         <li className="flex items-center gap-2">
                           <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
@@ -895,23 +901,23 @@ export function RoomsStep({
             </div>
 
             {/* ── Saved Room Types Card ────────────────────────────────── */}
-            <div className="overflow-hidden rounded-2xl border border-[#02665e]/15 bg-white shadow-[0_4px_24px_rgba(2,102,94,0.12)] ring-1 ring-[#02665e]/5">
-              <div className="flex items-center justify-between gap-4 border-b border-[#02665e]/20 bg-[#02665e]/10 px-5 py-3">
+            <div className="overflow-hidden rounded-2xl border border-white/15 bg-white/10 shadow-sm">
+              <div className="flex items-center justify-between gap-4 border-b border-white/15 px-5 py-3">
                 <div className="flex items-center gap-2">
-                  <div className="h-4 w-1 rounded-full bg-[#02665e]" />
-                  <span className="text-sm font-semibold text-[#02665e]">Saved room types</span>
+                  <div className="h-4 w-1 rounded-full bg-emerald-400" />
+                  <span className="text-sm font-semibold text-white">Saved room types</span>
                 </div>
                 {definedRooms.length > 0 && (
-                  <div className="rounded-full border border-[#02665e]/20 bg-[#02665e]/10 px-3 py-1 text-xs font-bold text-[#02665e]">
+                  <div className="rounded-full border border-white/20 bg-white/15 px-3 py-1 text-xs font-bold text-white">
                     {definedRooms.length} {definedRooms.length === 1 ? "type" : "types"}
                   </div>
                 )}
               </div>
-              <div className="space-y-3 bg-white p-4 sm:p-5">
+              <div className="space-y-3 p-4 sm:p-5">
                 {definedRooms.length === 0 ? (
-                  <div className="rounded-xl border-2 border-dashed border-[#02665e]/20 bg-[#edf7f6] p-8 text-center">
-                    <div className="text-sm font-medium text-[#02665e]/70">No room types saved yet</div>
-                    <div className="mt-1 text-xs text-[#02665e]/50">Add your first room type above</div>
+                  <div className="rounded-xl border-2 border-dashed border-white/15 bg-white/[0.06] p-8 text-center">
+                    <div className="text-sm font-medium text-white/50">No room types saved yet</div>
+                    <div className="mt-1 text-xs text-white/30">Add your first room type above</div>
                   </div>
                 ) : (
                   definedRooms.map((r, idx) => {
@@ -929,44 +935,44 @@ export function RoomsStep({
                       <div
                         key={idx}
                         className={`overflow-hidden rounded-xl border-2 transition-all duration-200 ${
-                          isCollapsed ? "border-slate-200" : "border-[#02665e]/30 shadow-sm"
+                          isCollapsed ? "border-white/15" : "border-emerald-400/30 shadow-sm"
                         }`}
                       >
                         <button
                           type="button"
                           onClick={() => toggleCollapsed(idx)}
                           className={`w-full flex items-start justify-between gap-4 p-4 text-left transition-colors ${
-                            isCollapsed ? "bg-white hover:bg-slate-50" : "bg-[#02665e]/5 hover:bg-[#02665e]/10"
+                            isCollapsed ? "bg-white/[0.06] hover:bg-white/10" : "bg-white/10 hover:bg-white/15"
                           }`}
                           aria-expanded={!isCollapsed}
                       >
                         <div className="flex flex-1 min-w-0 items-start gap-3">
                           <div className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl text-lg font-bold transition-all ${
-                            isCollapsed ? "bg-slate-100 text-slate-600" : "bg-[#02665e]/10 text-[#02665e]"
+                            isCollapsed ? "bg-white/10 text-white/60" : "bg-emerald-400/20 text-emerald-300"
                           }`}>
                             {r.roomType.charAt(0)}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="mb-1.5 flex flex-wrap items-center gap-2">
-                              <span className="text-sm font-bold text-slate-900">{r.roomType}</span>
+                              <span className="text-sm font-bold text-white">{r.roomType}</span>
                               <span className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${
-                                isCollapsed ? "border-slate-200 bg-slate-100 text-slate-600" : "border-[#02665e]/20 bg-[#02665e]/10 text-[#02665e]"
+                                isCollapsed ? "border-white/15 bg-white/10 text-white/60" : "border-emerald-400/30 bg-emerald-400/15 text-emerald-300"
                               }`}>
                                 {r.roomsCount} {r.roomsCount === 1 ? "room" : "rooms"}
                               </span>
                             </div>
                             <div className="flex flex-wrap gap-2">
-                              <div className="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600">
+                              <div className="rounded-md bg-white/10 px-2 py-1 text-xs text-white/60">
                                 <span className="font-medium">Beds:</span> T{r.beds?.twin ?? 0}/F{r.beds?.full ?? 0}/Q{r.beds?.queen ?? 0}/K{r.beds?.king ?? 0}
                               </div>
-                              <div className="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600">
+                              <div className="rounded-md bg-white/10 px-2 py-1 text-xs text-white/60">
                                 <span className="font-medium">Smoke:</span> {r.smoking === "yes" ? "Yes" : "No"}
                               </div>
-                              <div className="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600">
+                              <div className="rounded-md bg-white/10 px-2 py-1 text-xs text-white/60">
                                 <span className="font-medium">Bath:</span> {r.bathPrivate === "yes" ? "Private" : "Shared"}
                               </div>
                               {distLabel && (
-                                <div className="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600">
+                                <div className="rounded-md bg-white/10 px-2 py-1 text-xs text-white/60">
                                   <span className="font-medium">Floors:</span> {distLabel}
                                 </div>
                               )}
@@ -974,21 +980,21 @@ export function RoomsStep({
                           </div>
                         </div>
                         <div className="flex flex-shrink-0 items-center gap-1.5 pt-0.5">
-                          <span className={`text-xs font-medium ${isCollapsed ? "text-slate-400" : "text-[#02665e]"}`}>
+                          <span className={`text-xs font-medium ${isCollapsed ? "text-white/40" : "text-emerald-300"}`}>
                             {isCollapsed ? "Show" : "Hide"}
                           </span>
-                          <ChevronDown className={`h-4 w-4 transition-transform duration-300 ${isCollapsed ? "" : "rotate-180"} ${isCollapsed ? "text-slate-400" : "text-[#02665e]"}`} />
+                          <ChevronDown className={`h-4 w-4 transition-transform duration-300 ${isCollapsed ? "" : "rotate-180"} ${isCollapsed ? "text-white/40" : "text-emerald-300"}`} />
                         </div>
                       </button>
 
                       {!isCollapsed && (
-                        <div className="border-t border-[#02665e]/15 bg-white px-4 pb-4 pt-4 sm:px-5">
+                        <div className="border-t border-white/15 px-4 pb-4 pt-4 sm:px-5">
                           {Array.isArray(r.roomImages) && r.roomImages.length > 0 ? (
                             <div>
-                              <div className="mb-2 text-xs font-semibold text-slate-600">Room Images</div>
+                              <div className="mb-2 text-xs font-semibold text-white/60">Room Images</div>
                               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                                 {r.roomImages.slice(0, 3).map((u: string, i: number) => (
-                                  <div key={i} className="relative aspect-square overflow-hidden rounded-xl border border-slate-200 shadow-sm">
+                                  <div key={i} className="relative aspect-square overflow-hidden rounded-xl border border-white/15 shadow-sm">
                                     {/^https?:\/\//i.test(u) ? (
                                       <Image
                                         src={u}
@@ -1010,8 +1016,8 @@ export function RoomsStep({
                               </div>
                             </div>
                           ) : (
-                            <div className="rounded-xl border-2 border-dashed border-[#02665e]/20 bg-[#edf7f6] p-4 text-center">
-                              <div className="text-xs text-[#02665e]/50">No images for this room type</div>
+                            <div className="rounded-xl border-2 border-dashed border-white/15 bg-white/[0.06] p-4 text-center">
+                              <div className="text-xs text-white/30">No images for this room type</div>
                             </div>
                           )}
                         </div>

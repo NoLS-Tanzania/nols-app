@@ -2,7 +2,8 @@
 import type { ReactNode } from "react";
 import { useMemo, useRef, useState, useEffect, useCallback } from "react";
 import { twMerge } from "tailwind-merge";
-import { Plus, Eye, Home, Building, Building2, TreePine, Hotel, HelpCircle, Car, Shield, Bus, Bed, BedDouble, BedSingle, CheckCircle2, AlertCircle, MapPin, Users, X, ArrowRight, ImageIcon, Loader2, Hospital, Pill, Plane, Fuel, Route, Building as BuildingIcon, Lock, ExternalLink, Edit2, Clock, Bell } from "lucide-react";
+import { Plus, Eye, Home, Building, Building2, TreePine, Hotel, HelpCircle, Car, Shield, Bus, Bed, BedDouble, BedSingle, CheckCircle2, AlertCircle, MapPin,
+  Navigation, Crosshair, Users, X, ArrowRight, ImageIcon, Loader2, Hospital, Pill, Plane, Fuel, Route, Building as BuildingIcon, Lock, ExternalLink, Edit2, Clock, Bell } from "lucide-react";
 import axios from "axios";
 import { REGIONS, REGION_BY_ID } from "@/lib/tzRegions";
 import { REGIONS_FULL_DATA } from "@/lib/tzRegionsFull";
@@ -243,9 +244,11 @@ function FacilityRow({
       return { Icon: Shield, color: "text-indigo-600", bgColor: "bg-indigo-50" };
     }
     if (t.includes("conference") || t.includes("center") || t.includes("centre")) {
-      return { Icon: MapPin, color: "text-emerald-600", bgColor: "bg-emerald-50" };
+      return { Icon: MapPin,
+  Navigation, color: "text-emerald-600", bgColor: "bg-emerald-50" };
     }
-    return { Icon: MapPin, color: "text-[#02665e]", bgColor: "bg-[#02665e]/10" };
+    return { Icon: MapPin,
+  Navigation, color: "text-[#02665e]", bgColor: "bg-[#02665e]/10" };
   };
   
   const facilityIcon = getFacilityIcon(facility.type || "");
@@ -1069,6 +1072,9 @@ export default function AddProperty() {
   // pin/region consistency
   const [pinRegionMismatch, setPinRegionMismatch] = useState<string | null>(null);
   const [checkingPinLocation, setCheckingPinLocation] = useState(false);
+  const [showMismatchModal, setShowMismatchModal] = useState(false);
+  const [manualLat, setManualLat] = useState("");
+  const [manualLng, setManualLng] = useState("");
   const [freeCancellation, setFreeCancellation] = useState<boolean>(false);
   const [paymentModes, setPaymentModes] = useState<string[]>([]);
 
@@ -1241,7 +1247,13 @@ export default function AddProperty() {
           longitude: typeof longitude === 'number' ? longitude : '',
           desc, totalBedrooms, totalBathrooms, maxGuests,
           houseRules,
-          photos, definedRooms, services, nearbyFacilities,
+          photos: (photos || []).map((p: any) => {
+            if (typeof p === 'string' && p.startsWith('data:')) return ''; // strip base64
+            const { preview, ...rest } = p || {};
+            if (typeof preview === 'string' && preview.startsWith('data:')) return rest;
+            return p;
+          }).filter(Boolean),
+          definedRooms, services, nearbyFacilities,
           roomType, beds, roomsCount, smoking, bathPrivate,
           roomFloors,
           roomFloorDistribution,
@@ -1587,17 +1599,25 @@ export default function AddProperty() {
   };
 
   async function uploadToCloudinary(file: File, folder: string) {
-    // Use relative path in browser to leverage Next.js rewrites and avoid CORS
-    const sig = await api.get(`/uploads/cloudinary/sign?folder=${encodeURIComponent(folder)}`);
+    authify();
+    // Step 1: Get a signed upload token from our API (uses cookie auth via GET)
+    const signRes = await api.get(`/api/uploads/cloudinary/sign`, { params: { folder } });
+    const { cloudName, apiKey, timestamp, signature } = signRes.data as {
+      cloudName: string; apiKey: string; timestamp: number; folder: string; signature: string;
+    };
+    // Step 2: Upload directly to Cloudinary (no server auth needed)
     const fd = new FormData();
     fd.append("file", file);
-    const sigData = sig.data as CloudinarySig;
-    fd.append("timestamp", String(sigData.timestamp));
-    fd.append("api_key", sigData.apiKey);
-    fd.append("signature", sigData.signature);
-    fd.append("folder", sigData.folder);
-    const resp = await axios.post(`https://api.cloudinary.com/v1_1/${sigData.cloudName}/auto/upload`, fd);
-    return (resp.data as { secure_url: string }).secure_url;
+    fd.append("folder", folder);
+    fd.append("api_key", apiKey);
+    fd.append("timestamp", String(timestamp));
+    fd.append("signature", signature);
+    fd.append("overwrite", "true");
+    const cloudRes = await axios.post(
+      `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+      fd,
+    );
+    return (cloudRes.data as { secure_url: string }).secure_url;
   }
 
   // PhotosStep handles file uploads internally, so pickPropertyPhotos is not needed
@@ -1629,6 +1649,15 @@ export default function AddProperty() {
         });
       }).catch(err => {
         console.error("Room image upload failed", err);
+        // Remove the failed blob and clear its uploading state
+        setRoomImages(prev => prev.filter(u => u !== blobUrl));
+        setRoomImageSaved(prev => { const idx = roomImagesRef.current.indexOf(blobUrl); return idx === -1 ? prev : prev.filter((_, j) => j !== idx); });
+        setRoomImageUploading(prev => { const idx = roomImagesRef.current.indexOf(blobUrl); return idx === -1 ? prev : prev.filter((_, j) => j !== idx); });
+        if (err?.response?.status === 401) {
+          alert("Session expired. Please log in again to upload photos.");
+        } else {
+          alert("Room image upload failed. Please try again.");
+        }
       }).finally(() => {
         try { URL.revokeObjectURL(blobUrl); } catch {}
       });
@@ -1878,12 +1907,9 @@ export default function AddProperty() {
       return;
     }
     if (pinRegionMismatch && typeof latitude === "number" && typeof longitude === "number") {
-      alert(
-        "Your map pin does not match the selected region.\n\n" +
-        pinRegionMismatch + "\n\n" +
-        "Please move the pin to your property's exact location before submitting."
-      );
-      scrollToStep(0);
+      setManualLat(String(latitude));
+      setManualLng(String(longitude));
+      setShowMismatchModal(true);
       return;
     }
     setShowSubmitConfirm(true);
@@ -2415,115 +2441,222 @@ export default function AddProperty() {
       {/* Submission Success Modal */}
       {showSubmissionSuccess && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setShowSubmissionSuccess(false);
-              // Add a small delay to ensure the database update is complete, then navigate with cache-busting
               setTimeout(() => {
                 window.location.href = `/owner/properties/pending?refresh=${Date.now()}`;
               }, 300);
             }
           }}
         >
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 sm:p-8 animate-in fade-in zoom-in-95 duration-300">
-            {/* Success Icon */}
-            <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 rounded-full bg-emerald-100">
-              <CheckCircle2 className="w-10 h-10 text-emerald-600" />
+          <div className="bg-[#02665e] rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
+            {/* Header */}
+            <div className="px-5 pt-5 pb-4 text-center">
+              <div className="flex items-center justify-center w-12 h-12 mx-auto mb-3 rounded-xl bg-white/20">
+                <CheckCircle2 className="w-6 h-6 text-white" />
+              </div>
+              <h2 className="text-base font-bold text-white">Submitted for Review!</h2>
             </div>
 
-            {/* Title */}
-            <h2 className="text-2xl font-bold text-gray-900 text-center mb-2">
-              Submitted for Review!
-            </h2>
-
-            {/* Message */}
-            <div className="space-y-4 mt-6">
-              <div className="flex items-start gap-3 p-4 rounded-xl bg-emerald-50 border border-emerald-200">
-                <Clock className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+            {/* Review Timeline */}
+            <div className="mx-5 rounded-lg bg-white/10 border border-white/20 p-3 mb-2">
+              <div className="flex items-start gap-2.5">
+                <Clock className="w-4 h-4 text-white/70 flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
-                  <p className="text-sm font-semibold text-emerald-900 mb-1">Review Timeline</p>
-                  <p className="text-sm text-emerald-700">
-                    Your property will be reviewed by our team within <strong>3-5 business days</strong>. You&apos;ll receive a notification once the review is complete.
+                  <p className="text-xs font-bold text-white mb-0.5">Review Timeline</p>
+                  <p className="text-[11px] text-white/80 leading-relaxed">
+                    Your property will be reviewed within <strong className="text-white">3-5 business days</strong>. You&apos;ll receive a notification once complete.
                   </p>
                 </div>
               </div>
+            </div>
 
-              <div className="flex items-start gap-3 p-4 rounded-xl bg-blue-50 border border-blue-200">
-                <Bell className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+            {/* What Happens Next */}
+            <div className="mx-5 rounded-lg bg-white/10 border border-white/20 p-3 mb-2">
+              <div className="flex items-start gap-2.5">
+                <Bell className="w-4 h-4 text-white/70 flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
-                  <p className="text-sm font-semibold text-blue-900 mb-1">What Happens Next?</p>
-                  <ul className="text-sm text-blue-700 space-y-1 list-disc list-inside">
+                  <p className="text-xs font-bold text-white mb-1">What Happens Next?</p>
+                  <ul className="text-[11px] text-white/80 space-y-0.5 list-disc list-inside">
                     <li>Our team will verify all property details</li>
-                    <li>We&apos;ll check photos and room specifications</li>
+                    <li>We&apos;ll check photos and room specs</li>
                     <li>You&apos;ll be notified via email when approved</li>
                   </ul>
                 </div>
               </div>
+            </div>
 
-              <div className="p-4 rounded-xl bg-gray-50 border border-gray-200">
-                <p className="text-xs text-gray-600 text-center">
-                  You can view your property status in the <strong>Pending Properties</strong> section.
-                </p>
-              </div>
+            {/* Status note */}
+            <div className="mx-5 rounded-lg bg-white/5 border border-white/10 p-2.5 mb-4">
+              <p className="text-[10px] text-white/60 text-center">
+                View your property status in the <strong className="text-white/80">Pending Properties</strong> section.
+              </p>
             </div>
 
             {/* Action Button */}
-            <button
-              onClick={() => {
-                setShowSubmissionSuccess(false);
-                // Add a small delay to ensure the database update is complete, then navigate with cache-busting
-                setTimeout(() => {
-                  window.location.href = `/owner/properties/pending?refresh=${Date.now()}`;
-                }, 300);
-              }}
-              className="w-full mt-6 px-6 py-3 bg-[#02665e] text-white font-semibold rounded-xl hover:bg-[#014e47] transition-colors shadow-sm hover:shadow-md"
-            >
-              View Pending Properties
-            </button>
+            <div className="px-5 pb-5">
+              <button
+                onClick={() => {
+                  setShowSubmissionSuccess(false);
+                  setTimeout(() => {
+                    window.location.href = `/owner/properties/pending?refresh=${Date.now()}`;
+                  }, 300);
+                }}
+                className="w-full h-10 rounded-lg bg-white text-sm font-bold text-[#02665e] shadow-sm hover:bg-white/90 transition"
+              >
+                View Pending Properties
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Region Mismatch Modal ── */}
+      {showMismatchModal && (
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-6 animate-in fade-in duration-200"
+          onClick={() => setShowMismatchModal(false)}
+        >
+          <div
+            className="bg-[#02665e] rounded-2xl shadow-2xl max-w-sm w-full p-5 animate-in zoom-in-95 slide-in-from-bottom-4 duration-300"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Location mismatch"
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="h-8 w-8 rounded-lg bg-white/20 flex items-center justify-center">
+                  <MapPin className="h-4 w-4 text-white" />
+                </div>
+                <h3 className="text-sm font-bold text-white">Location Mismatch</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowMismatchModal(false)}
+                className="p-1 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Mismatch details */}
+            <div className="rounded-lg bg-white/10 border border-white/20 p-3 mb-3">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-3.5 h-3.5 text-amber-300 mt-0.5 flex-shrink-0" />
+                <p className="text-xs text-white/90 leading-relaxed">{pinRegionMismatch}</p>
+              </div>
+            </div>
+
+            {/* Manual coordinate entry */}
+            <div className="rounded-lg bg-white/10 border border-white/20 p-3 mb-3">
+              <h4 className="text-[11px] font-bold text-white mb-2 flex items-center gap-1.5">
+                <Crosshair className="w-3 h-3 text-white/70" />
+                Enter Coordinates Manually
+              </h4>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-semibold text-white/60 uppercase tracking-wide mb-1">Lat</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={manualLat}
+                    onChange={(e) => setManualLat(e.target.value)}
+                    className="w-full h-8 rounded-lg border border-white/30 bg-white/10 px-2.5 text-xs text-white placeholder-white/40 focus:outline-none focus:ring-1 focus:ring-white/50 focus:border-white/50"
+                    placeholder="-6.7924"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-white/60 uppercase tracking-wide mb-1">Lng</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={manualLng}
+                    onChange={(e) => setManualLng(e.target.value)}
+                    className="w-full h-8 rounded-lg border border-white/30 bg-white/10 px-2.5 text-xs text-white placeholder-white/40 focus:outline-none focus:ring-1 focus:ring-white/50 focus:border-white/50"
+                    placeholder="39.2083"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMismatchModal(false);
+                  scrollToStep(0);
+                }}
+                className="flex-1 h-9 rounded-lg border border-white/30 bg-white/10 text-xs font-semibold text-white hover:bg-white/20 transition"
+              >
+                Move Pin on Map
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const lat = parseFloat(manualLat);
+                  const lng = parseFloat(manualLng);
+                  if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+                    setLatitude(lat);
+                    setLongitude(lng);
+                    setPinRegionMismatch(null);
+                    setShowMismatchModal(false);
+                  } else {
+                    alert("Please enter valid coordinates (Lat: -90 to 90, Lng: -180 to 180).");
+                  }
+                }}
+                className="flex-1 h-9 rounded-lg bg-white text-xs font-semibold text-[#02665e] hover:bg-white/90 transition shadow-sm"
+              >
+                Apply Coordinates
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {/* Custom submission confirmation modal */}
       {showSubmitConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowSubmitConfirm(false)} />
-          <div className="relative w-full max-w-sm rounded-2xl bg-white shadow-2xl ring-1 ring-black/10 overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowSubmitConfirm(false)} />
+          <div
+            className="relative w-full max-w-sm rounded-2xl bg-[#02665e] shadow-2xl overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 duration-300"
+          >
             {/* Header */}
-            <div className="bg-gradient-to-r from-[#02665e] to-emerald-600 px-6 pt-6 pb-5 text-white">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 mb-3">
-                <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
-                </svg>
+            <div className="px-5 pt-5 pb-4">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 mb-3">
+                <CheckCircle2 className="h-4 w-4 text-white" />
               </div>
-              <h2 className="text-base font-bold leading-tight">Submit for review?</h2>
-              <p className="mt-1 text-sm text-emerald-100">You won&apos;t be able to edit while it&apos;s pending approval.</p>
+              <h2 className="text-sm font-bold text-white leading-tight">Submit for review?</h2>
+              <p className="mt-1 text-xs text-white/70">You won&apos;t be able to edit while it&apos;s pending approval.</p>
             </div>
             {/* Body */}
-            <div className="px-6 py-4 text-sm text-slate-600 space-y-2">
+            <div className="mx-5 rounded-lg bg-white/10 border border-white/20 p-3 mb-4 space-y-2">
               <div className="flex items-start gap-2">
-                <svg className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
-                <span>Our team will verify your property details</span>
+                <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-300" />
+                <span className="text-xs text-white/90">Our team will verify your property details</span>
               </div>
               <div className="flex items-start gap-2">
-                <svg className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
-                <span>You&apos;ll be notified by email once approved</span>
+                <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-300" />
+                <span className="text-xs text-white/90">You&apos;ll be notified by email once approved</span>
               </div>
             </div>
             {/* Actions */}
-            <div className="flex gap-3 px-6 pb-6">
+            <div className="flex gap-2 px-5 pb-5">
               <button
                 type="button"
                 onClick={() => setShowSubmitConfirm(false)}
-                className="flex-1 rounded-xl border border-slate-200 bg-white py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                className="flex-1 h-9 rounded-lg border border-white/30 bg-white/10 text-xs font-semibold text-white hover:bg-white/20 transition"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={executeSubmit}
-                className="flex-1 rounded-xl bg-[#02665e] py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#014e47]"
+                className="flex-1 h-9 rounded-lg bg-white text-xs font-bold text-[#02665e] shadow-sm hover:bg-white/90 transition"
               >
                 Yes, submit
               </button>
