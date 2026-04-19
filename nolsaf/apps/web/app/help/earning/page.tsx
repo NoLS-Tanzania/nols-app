@@ -23,7 +23,7 @@ const PAY_METHODS = [
     color: "#f59e0b",
     bg: "bg-amber-50",
     border: "border-amber-200",
-    items: ["M-Pesa", "Airtel Money", "Tigo Pesa", "Halopesa", "T-Pesa"],
+    items: ["M-Pesa", "Airtel Money", "Mixx by Yas", "HaloPesa", "T-Pesa"],
     note: "Most popular. Funds arrive within minutes of payout.",
   },
   {

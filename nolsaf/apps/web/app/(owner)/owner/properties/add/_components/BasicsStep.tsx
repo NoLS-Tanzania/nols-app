@@ -1086,8 +1086,8 @@ const nameOk = title.trim().length >= 3;
                     <Landmark className="h-4 w-4 text-[#02665e]" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-semibold leading-tight text-slate-900">Park / Tourism Site</h3>
-                    <p className="text-xs text-slate-500">Optional link a nearby destination if relevant.</p>
+                    <h3 className="text-sm font-semibold leading-tight" style={{ color: "#e6edf3" }}>Park / Tourism Site</h3>
+                    <p className="text-xs" style={{ color: "#8b949e" }}>Is your property inside or near a national park or reserve? If not, leave it blank.</p>
                   </div>
                 </div>
 
@@ -1097,7 +1097,7 @@ const nameOk = title.trim().length >= 3;
                       "add-property-field-card",
                       selectedTourismSite ? "add-property-field-card-valid" : !tourismCountry ? "add-property-field-card-disabled" : "",
                     ].join(" ")}>
-                      <label className="mb-2 block text-xs font-semibold text-slate-500">Tourism site / Park</label>
+                      <label className="mb-2 block text-xs font-semibold" style={{ color: "#8b949e" }}>Tourism site / Park</label>
 
                       {parkIsLocked ? (
                         <div className="add-property-field-shell add-property-field-shell-valid w-full h-12 px-4 text-sm inline-flex items-center justify-between gap-3">
@@ -1159,7 +1159,7 @@ const nameOk = title.trim().length >= 3;
                               !tourismCountry
                                 ? "Set your location first"
                                 : tourismSitesLoading
-                                  ? "Loading…"
+                                  ? "Loading\u2026"
                                   : "Search or skip"
                             }
                             className="add-property-field-control h-12 pl-4 pr-24 disabled:text-slate-400 disabled:cursor-not-allowed"
@@ -1220,7 +1220,7 @@ const nameOk = title.trim().length >= 3;
                                 </button>
 
                                 {tourismSitesLoading ? (
-                                  <div className="px-3 py-2 text-sm text-slate-500">Loading parks…</div>
+                                  <div className="px-3 py-2 text-sm text-slate-500">Loading parks\u2026</div>
                                 ) : null}
 
                                 {!tourismSitesLoading && filteredTourismSites.length === 0 ? (
@@ -1285,13 +1285,13 @@ const nameOk = title.trim().length >= 3;
                       "add-property-field-card",
                       effectiveTourismSiteIdValue === "" ? "add-property-field-card-disabled" : effectiveParkPlacementValue ? "add-property-field-card-valid" : "",
                     ].join(" ")}>
-                      <label className="mb-2 block text-xs font-semibold text-slate-500">Placement</label>
+                      <label className="mb-2 block text-xs font-semibold" style={{ color: "#8b949e" }}>Placement</label>
 
                       {placementIsLocked ? (
                         <div className="add-property-field-shell add-property-field-shell-valid w-full h-10 px-3 text-sm inline-flex items-center justify-between gap-2 font-semibold">
                           <span className="inline-flex items-center justify-center gap-2">
                             <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                            {effectiveParkPlacementValue === "INSIDE" ? "Inside" : "Nearby"}
+                            {effectiveParkPlacementValue === "INSIDE" ? "Inside the park" : "Nearby the park"}
                           </span>
                           <button
                             type="button"
@@ -1320,16 +1320,14 @@ const nameOk = title.trim().length >= 3;
                             }}
                             disabled={effectiveTourismSiteIdValue === ""}
                             className={[
-                              "add-property-field-control h-10 px-3 text-sm font-semibold",
+                              "add-property-field-control h-10 px-3 text-sm font-semibold appearance-none",
                               effectiveTourismSiteIdValue === "" ? "cursor-not-allowed" : "",
                             ].join(" ")}
                             aria-label="Park placement"
                           >
-                            <option value="" disabled>
-                              Select placement
-                            </option>
-                            <option value="INSIDE">Inside</option>
-                            <option value="NEARBY">Nearby</option>
+                            <option value="" disabled>Select placement</option>
+                            <option value="INSIDE">Inside the park</option>
+                            <option value="NEARBY">Nearby the park</option>
                           </select>
                         </div>
                       )}

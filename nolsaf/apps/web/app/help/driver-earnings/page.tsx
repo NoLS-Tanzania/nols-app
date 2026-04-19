@@ -58,7 +58,7 @@ const PAYMENT_METHODS = [
   {
     icon: Smartphone,
     label: "Mobile Money",
-    sub: "M-Pesa · Airtel Money · Tigo Pesa · HaloPesa",
+    sub: "M-Pesa · Airtel Money · Mixx by Yas · HaloPesa",
     time: "30 min – 3 days",
     timeLabel: "Fastest",
     color: "#02665e",

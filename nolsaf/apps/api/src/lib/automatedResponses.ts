@@ -133,7 +133,7 @@ function getEnglishResponse(input: string): { response: string; type: ResponseTy
 
   // === ABOUT NOLSAF ===
   if (/(what is nolsaf|what'?s nolsaf|about nolsaf|nolsaf is|tell me about nolsaf|who is nolsaf|who are you|what do you do|what is this platform|explain nolsaf|nolsaf mean|meaning of nolsaf)/.test(input)) {
-    return { response: "NoLSAF connects your entire African journey in one unified platform 🌍\n\nBook verified accommodation, get transport to and from your stay, discover destinations, and pay with local methods, all seamlessly linked.\n\nPlanning a Serengeti safari? Book your lodge, add transport to get there and around, arrange game drives, and pay with M-Pesa. No app switching, no friction.\n\n🏨 Verified Stays: hotels, lodges, villas, apartments across East Africa\n🚗 Integrated Transport: rides to/from your accommodation, city tours, inter-city travel\n🧭 Destination Discovery: safaris, cultural experiences, local guides\n💳 Local Payments: M-Pesa, Tigo Pesa, Airtel Money, cards accepted\n👥 Group Bookings: families, corporates, events\n🎯 Custom Trip Planning: end-to-end itineraries by local experts\n\nAccommodation and tourism access, unified. Operating across Tanzania 🇹🇿, Kenya 🇰🇪, and expanding pan-Africa. What would you like to know more about?", type: "other" };
+    return { response: "NoLSAF connects your entire African journey in one unified platform 🌍\n\nBook verified accommodation, get transport to and from your stay, discover destinations, and pay with local methods, all seamlessly linked.\n\nPlanning a Serengeti safari? Book your lodge, add transport to get there and around, arrange game drives, and pay with M-Pesa. No app switching, no friction.\n\n🏨 Verified Stays: hotels, lodges, villas, apartments across East Africa\n🚗 Integrated Transport: rides to/from your accommodation, city tours, inter-city travel\n🧭 Destination Discovery: safaris, cultural experiences, local guides\n💳 Local Payments: M-Pesa, Mixx by Yas, Airtel Money, cards accepted\n👥 Group Bookings: families, corporates, events\n🎯 Custom Trip Planning: end-to-end itineraries by local experts\n\nAccommodation and tourism access, unified. Operating across Tanzania 🇹🇿, Kenya 🇰🇪, and expanding pan-Africa. What would you like to know more about?", type: "other" };
   }
 
   // === NOLSAF NAME / BRAND ===
@@ -217,7 +217,7 @@ function getEnglishResponse(input: string): { response: string; type: ResponseTy
   }
 
   // === PAYMENT METHODS (DETAILED) ===
-  if (/(payment|pay|paying|how (can|do) i pay|payment method|mpesa|m-pesa|airtel money|tigo pesa|bank transfer|credit card|debit card|visa|mastercard|mobile money|azampay|ways to pay)/.test(input)) {
+  if (/(payment|pay|paying|how (can|do) i pay|payment method|mpesa|m-pesa|airtel money|mixx by yas|haloPesa|bank transfer|credit card|debit card|visa|mastercard|mobile money|azampay|ways to pay)/.test(input)) {
     return { response: "NoLSAF supports multiple payment methods 💳\n\n📱 Mobile Money:\n• M-Pesa \n• Mixx by Yas\n• Airtel Money\n• HaloPesa \n Instant processing, no extra fees\n\n💳 Card Payments:\n• Visa & Mastercard (debit & credit)\n→ Processed securely via Stripe\n\n🏦 Bank Transfer:\n• Available for larger bookings\n\nAll payments are encrypted and secure 🔐. You choose your preferred method at checkout. Mobile money is the fastest option in Tanzania!\n\nHaving payment issues? Make sure your account has sufficient balance and try again.", type: "other" };
   }
 

@@ -28,7 +28,7 @@ import HelpBackLink from "../HelpBackLink";
 const LOCAL_METHODS = [
   { name: "M-Pesa",       network: "Vodacom", color: "#e31837", bg: "#e318170f" },
   { name: "Airtel Money", network: "Airtel",  color: "#f4282d", bg: "#f4282d0f" },
-  { name: "Tigo Pesa",    network: "Tigo",    color: "#00a0e3", bg: "#00a0e30f" },
+  { name: "Mixx by Yas",  network: "Yas",    color: "#00a0e3", bg: "#00a0e30f" },
   { name: "HaloPesa",     network: "Halotel", color: "#f59e0b", bg: "#f59e0b0f" },
 ];
 

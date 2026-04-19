@@ -92,7 +92,7 @@ const EXCEPTIONAL = [
 const REFUND_TIMING = [
   { method: "M-Pesa", timing: "2–5 business days", note: "Reversed to your registered Vodacom number" },
   { method: "Airtel Money", timing: "2–5 business days", note: "Reversed to your Airtel wallet" },
-  { method: "Tigo Pesa / HaloPesa", timing: "2–5 business days", note: "Reversed to the originating wallet" },
+  { method: "Mixx by Yas / HaloPesa", timing: "2–5 business days", note: "Reversed to the originating wallet" },
   { method: "Visa / Mastercard", timing: "5–10 business days", note: "Processing time varies by issuing bank" },
   { method: "PayPal / Stripe", timing: "5–10 business days", note: "Refunded to your PayPal or Stripe account" },
 ];

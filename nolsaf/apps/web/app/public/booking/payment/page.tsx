@@ -15,7 +15,7 @@ import {
 import LogoSpinner from "@/components/LogoSpinner";
 
 type PaymentMethod = {
-  id: "Airtel" | "Tigo" | "M-Pesa" | "Halopesa";
+  id: "Airtel" | "Mixx" | "M-Pesa" | "Halopesa";
   name: string;
   icon: string;
   description: string;
@@ -35,10 +35,10 @@ const PAYMENT_METHODS: PaymentMethod[] = [
     description: "Pay with M-Pesa",
   },
   {
-    id: "Tigo",
-    name: "Tigo Pesa",
+    id: "Mixx",
+    name: "Mixx by Yas",
     icon: "/assets/mix%20by%20yas.png",
-    description: "Pay with Tigo Pesa",
+    description: "Pay with Mixx by Yas",
   },
   {
     id: "Halopesa",

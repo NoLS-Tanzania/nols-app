@@ -125,7 +125,7 @@ export const PROPERTY_OWNER_DISBURSEMENT_POLICY_SECTIONS: TermsSection[] = [
           All disbursements to Property Owners are processed exclusively through digital payment methods. NoLSAF supports the following digital payment methods for disbursements:
         </p>
         <p>
-          <strong>4.2.1 Mobile Money Services:</strong> M-Pesa, Airtel Money, Tigo Pesa, HaloPesa, and other supported mobile money platforms. Property Owners must provide valid, active mobile money numbers registered in their name.
+          <strong>4.2.1 Mobile Money Services:</strong> M-Pesa, Airtel Money, Mixx by Yas, HaloPesa, and other supported mobile money platforms. Property Owners must provide valid, active mobile money numbers registered in their name.
         </p>
         <p>
           <strong>4.2.2 Bank Transfers:</strong> Direct bank transfers to verified bank accounts. Property Owners must provide accurate bank account details including account number, bank name, branch, and account holder name matching their registered identity.
@@ -899,7 +899,7 @@ export const PROPERTY_OWNER_DISBURSEMENT_POLICY_SECTIONS: TermsSection[] = [
           <strong>Listing Agreement:</strong> The agreement established between NoLSAF and a Property Owner during the listing process, which includes base price, commission rates, and terms for pricing adjustments to accommodate bonuses and discounts.
         </p>
         <p>
-          <strong>Mobile Money:</strong> Digital payment services such as M-Pesa, Airtel Money, Tigo Pesa, and HaloPesa that allow money transfers through mobile devices. Mobile money is one of the supported digital payment methods for disbursements.
+          <strong>Mobile Money:</strong> Digital payment services such as M-Pesa, Airtel Money, Mixx by Yas, and HaloPesa that allow money transfers through mobile devices. Mobile money is one of the supported digital payment methods for disbursements.
         </p>
         <p>
           <strong>Net Earnings:</strong> The amount remaining after all deductions (commissions, fees, refunds, chargebacks, penalties, tax withholdings) are subtracted from gross earnings. Net earnings represent the actual amount disbursed to Property Owners.

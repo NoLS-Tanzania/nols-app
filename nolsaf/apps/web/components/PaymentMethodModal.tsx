@@ -36,10 +36,10 @@ const PAYMENT_PROVIDERS: PaymentProvider[] = [
     supported: true,
   },
   {
-    id: "Tigo",
-    name: "Tigo Pesa",
+    id: "Mixx",
+    name: "Mixx by Yas",
     icon: Wallet,
-    description: "Pay using your Tigo Pesa account",
+    description: "Pay using your Mixx by Yas account",
     supported: true,
   },
   {
@@ -50,7 +50,7 @@ const PAYMENT_PROVIDERS: PaymentProvider[] = [
     supported: true,
   },
   {
-    id: "Halopesa",
+    id: "HaloPesa",
     name: "HaloPesa",
     icon: Wallet,
     description: "Pay using your HaloPesa account",

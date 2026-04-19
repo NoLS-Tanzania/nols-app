@@ -1,4 +1,5 @@
-﻿.add-property-view {
+﻿/* v2 */
+.add-property-view {
   /* This page is rendered inside `OwnerLayout`'s max-w-6xl frame.
      Avoid adding extra global padding/max-width here so it aligns with `LayoutFrame`.
      Also avoid `min-h-screen` to prevent nested scroll/overflow inside the layout. */
@@ -858,7 +859,7 @@ button:active:not(:disabled) {
 
 /* ─── Location ────────────────────────────────────────────────── */
 .add-property-location-module    { background: #161b22 !important; border-color: #30363d !important; box-shadow: 0 2px 20px rgba(0,0,0,0.4) !important; }
-.add-property-location-submodule { background: #0c1017 !important; border-color: #21262d !important; }
+.add-property-location-submodule { background: #0c1017 !important; border-color: #21262d !important; position: relative !important; z-index: 2 !important; }
 .add-property-location-hero      { background: #0c1017 !important; border-color: #30363d !important; }
 .add-property-location-stat      { background: #1c2128 !important; border-color: #30363d !important; }
 
@@ -891,10 +892,11 @@ button:active:not(:disabled) {
 .add-property-field-note              { color: #8b949e !important; }
 .add-property-field-note-success      { color: #3fb950 !important; }
 .add-property-field-note-warning      { color: #d29922 !important; }
-.add-property-field-card              { background: #1c2128 !important; border-color: #30363d !important; }
-.add-property-field-card-valid        { border-color: rgba(2,102,94,0.5) !important; background: rgba(2,102,94,0.06) !important; }
-.add-property-field-card-disabled     { background: #0c1017 !important; border-color: #21262d !important; }
-.add-property-field-card-error        { border-color: rgba(248,81,73,0.5) !important; background: rgba(248,81,73,0.06) !important; }
+.add-property-field-card              { background: #1c2128 !important; border-color: #30363d !important; box-shadow: none !important; }
+.add-property-field-card:hover        { box-shadow: none !important; transform: none !important; border-color: #6e7681 !important; }
+.add-property-field-card-valid        { border-color: rgba(2,102,94,0.5) !important; background: rgba(2,102,94,0.06) !important; box-shadow: none !important; }
+.add-property-field-card-disabled     { background: #0c1017 !important; border-color: #21262d !important; box-shadow: none !important; }
+.add-property-field-card-error        { border-color: rgba(248,81,73,0.5) !important; background: rgba(248,81,73,0.06) !important; box-shadow: none !important; }
 .add-property-field-card-label        { color: #8b949e !important; }
 .add-property-field-card-value        { color: #e6edf3 !important; }
 .add-property-field-badge-valid       { border-color: rgba(2,102,94,0.4) !important; background: rgba(2,102,94,0.12) !important; color: #3fb950 !important; }
@@ -1022,9 +1024,29 @@ button:active:not(:disabled) {
 }
 
 .add-property-location-submodule .add-property-park-dropdown {
-  background-color: #0c1017 !important;
+  background-color: #161b22 !important;
   border-color: #30363d !important;
-  box-shadow: 0 10px 28px rgba(0,0,0,0.55) !important;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.65) !important;
+}
+
+/* Dark-theme every row inside the dropdown */
+.add-property-location-submodule .add-property-park-dropdown button {
+  color: #e6edf3 !important;
+  background-color: transparent !important;
+}
+.add-property-location-submodule .add-property-park-dropdown button:hover {
+  background-color: #21262d !important;
+}
+.add-property-location-submodule .add-property-park-dropdown button[aria-selected="true"] {
+  background-color: rgba(2,102,94,0.14) !important;
+}
+/* Subdued country / secondary text inside each row */
+.add-property-location-submodule .add-property-park-dropdown button div.truncate:last-child {
+  color: #8b949e !important;
+}
+/* "Loading" / "No parks" helper text */
+.add-property-location-submodule .add-property-park-dropdown div {
+  color: #8b949e !important;
 }
 
 /* ─── Property-type card overrides ──────────────────────────── */

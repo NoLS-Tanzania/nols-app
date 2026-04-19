@@ -94,12 +94,12 @@ export function getAutomatedResponse(userInput: string): string {
 
   // === PRICING / COST / BUDGET ===
   if (/(price|cost|budget|affordable|cheap|expensive|how much|pricing|fee|fees|payment method|discount|promotion|special offer)/.test(input)) {
-    return "NoLSAF offers accommodation options for all budgets! 💰 Property prices vary by type and location (budget 💵 to luxury ⭐). All prices are clearly displayed during booking ✅. Payment methods: 📱 Mobile money (M-Pesa, Airtel Money, Tigo Pesa), 🏦 Bank transfers, 💳 Credit/debit cards (Visa, Mastercard) - supporting both local and international payments! Group Stay bookings may qualify for discounts 💰. Use our filters 🔍 to find options within your budget. Need help finding the perfect stay for your budget? I can guide you! 😊";
+    return "NoLSAF offers accommodation options for all budgets! 💰 Property prices vary by type and location (budget 💵 to luxury ⭐). All prices are clearly displayed during booking ✅. Payment methods: 📱 Mobile money (M-Pesa, Airtel Money, Mixx by Yas), 🏦 Bank transfers, 💳 Credit/debit cards (Visa, Mastercard) - supporting both local and international payments! Group Stay bookings may qualify for discounts 💰. Use our filters 🔍 to find options within your budget. Need help finding the perfect stay for your budget? I can guide you! 😊";
   }
 
   // === PAYMENT METHODS DETAILED ===
-  if (/(mobile money|mpesa|airtel money|tigo pesa|bank transfer|credit card|debit card|paypal|cash|payment option)/.test(input)) {
-    return "NoLSAF supports multiple payment methods for your convenience! 💳 Options include: 📱 Mobile money (M-Pesa, Airtel Money, Tigo Pesa), 🏦 Bank transfers, 💳 Credit/debit cards (Visa, Mastercard), and secure online payments 🔒. All transactions are processed securely. Payment options are displayed during checkout. Need help with a specific payment method? Our support team can assist! 😊";
+  if (/(mobile money|mpesa|airtel money|mixx by yas|bank transfer|credit card|debit card|paypal|cash|payment option)/.test(input)) {
+    return "NoLSAF supports multiple payment methods for your convenience! 💳 Options include: 📱 Mobile money (M-Pesa, Airtel Money, Mixx by Yas), 🏦 Bank transfers, 💳 Credit/debit cards (Visa, Mastercard), and secure online payments 🔒. All transactions are processed securely. Payment options are displayed during checkout. Need help with a specific payment method? Our support team can assist! 😊";
   }
 
   // === STATUS / TRACKING / CHECK ===

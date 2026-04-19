@@ -11,7 +11,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 
-// â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// helpers // adapted from various sources, with retry/backoff logic to handle tanzaniapostcode.com's aggressive rate-limiting
 
 function get(url) {
   return new Promise((resolve, reject) => {
@@ -143,7 +143,7 @@ const ZANZIBAR_REGIONS = [
   },
 ];
 
-// â”€â”€ Scraper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  Scraper functions for each level of the hierarchy, with retry/backoff logic to handle rate-limiting. Each returns structured data for that level, and the main function assembles it all together.
 
 async function scrapeRegion(region) {
   const BASE = 'https://www.tanzaniapostcode.com';
@@ -199,7 +199,7 @@ async function scrapeRegion(region) {
   return { name: region.name, code: region.code, districts: builtDistricts };
 }
 
-// â”€â”€ Main â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  Main function to orchestrate the scraping of all regions, handle partial results, and write the final data into tzRegionsFull.ts.
 
 (async () => {
   const rawOut = path.join(__dirname, '_zanzibar-raw.json');

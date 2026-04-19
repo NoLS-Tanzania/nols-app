@@ -66,7 +66,7 @@ const DEFAULT_FAQS = [
   // Payment Category
   {
     question: "What payment methods are accepted?",
-    answer: "We accept various payment methods including M-Pesa, Airtel Money, Tigo Pesa, and VISA cards. Payment options may vary by property.",
+    answer: "We accept various payment methods including M-Pesa, Airtel Money, Mixx by Yas, HaloPesa, and VISA cards. Payment options may vary by property.",
     category: "Payment"
   },
   {

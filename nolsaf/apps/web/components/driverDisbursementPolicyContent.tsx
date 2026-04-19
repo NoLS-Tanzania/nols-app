@@ -125,7 +125,7 @@ export const DRIVER_DISBURSEMENT_POLICY_SECTIONS: TermsSection[] = [
           All disbursements to Drivers are processed exclusively through digital payment methods. NoLSAF supports the following digital payment methods for disbursements:
         </p>
         <p>
-          <strong>4.2.1 Mobile Money Services:</strong> M-Pesa, Airtel Money, Tigo Pesa, HaloPesa, and other supported mobile money platforms. Drivers must provide valid, active mobile money numbers registered in their name.
+          <strong>4.2.1 Mobile Money Services:</strong> M-Pesa, Airtel Money, Mixx by Yas, HaloPesa, and other supported mobile money platforms. Drivers must provide valid, active mobile money numbers registered in their name.
         </p>
         <p>
           <strong>4.2.2 Bank Transfers:</strong> Direct bank transfers to verified bank accounts. Drivers must provide accurate bank account details including account number, bank name, branch, and account holder name matching their registered identity.
@@ -557,7 +557,7 @@ export const DRIVER_DISBURSEMENT_POLICY_SECTIONS: TermsSection[] = [
           <strong>Gross Earnings:</strong> The total amount earned by Drivers from completed trips, before any deductions for commissions, fees, or other adjustments.
         </p>
         <p>
-          <strong>Mobile Money:</strong> Digital payment services such as M-Pesa, Airtel Money, Tigo Pesa, and HaloPesa that allow money transfers through mobile devices. Mobile money is one of the supported digital payment methods for disbursements.
+          <strong>Mobile Money:</strong> Digital payment services such as M-Pesa, Airtel Money, Mixx by Yas, and HaloPesa that allow money transfers through mobile devices. Mobile money is one of the supported digital payment methods for disbursements.
         </p>
         <p>
           <strong>Net Earnings:</strong> The amount remaining after all deductions (commissions, fees, penalties, tax withholdings) are subtracted from gross earnings. Net earnings represent the actual amount disbursed to Drivers.

@@ -87,7 +87,7 @@ export const TERMS_SECTIONS: TermsSection[] = [
           Payment options include;<br />
           i. Credit/Debit Cards; VISA cards and similar credit/debit cards.<br />
           ii. Online Payment Platforms; PayPal and Stripe.<br />
-          iii. Local Payment Methods; Such as M-Pesa, AzamPay, Tigo Pesa, Airtel Money, and HaloPesa. Users should select the method that
+          iii. Local Payment Methods; Such as M-Pesa, AzamPay, Mixx by Yas, Airtel Money, and HaloPesa. Users should select the method that
           best accommodates their needs and ensure that they possess the requisite means to complete the transaction.<br />
           1.3.3 Payout<br />
           All payments made by Users shall be directed to NoLSAF accounts. Subsequently, NoLSAF shall disburse the appropriate amounts to

@@ -446,7 +446,7 @@ export const CANCELLATION_POLICY_SECTIONS: TermsSection[] = [
       <div className="space-y-4">
         <p>
           <strong>8.1 Refund Timeline</strong><br />
-          Eligible refunds will be processed to the original payment method within 5-10 business days after the cancellation is confirmed. The actual time for funds to appear in the User&apos;s account may vary depending on the payment provider, including M-Pesa, Airtel Money, Tigo Pesa, or credit card issuers. Users should contact their payment provider if refunds are not received within the expected timeframe. For group stays, refer to section 4.9 (Group Stay Refund Processing) for extended processing timelines.
+          Eligible refunds will be processed to the original payment method within 5-10 business days after the cancellation is confirmed. The actual time for funds to appear in the User&apos;s account may vary depending on the payment provider, including M-Pesa, Airtel Money, Mixx by Yas, or credit card issuers. Users should contact their payment provider if refunds are not received within the expected timeframe. For group stays, refer to section 4.9 (Group Stay Refund Processing) for extended processing timelines.
         </p>
         <p>
           <strong>8.2 Refund Amount</strong><br />

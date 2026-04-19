@@ -58,7 +58,7 @@ export const PRIVACY_SECTIONS: TermsSection[] = [
           c. Operating permits and licenses for short-term rentals<br />
           d. Tax compliance documentation<br />
           e. Bank account details for payouts (account name, bank name, account number, branch)<br />
-          f. Mobile money provider and number for payouts (M-Pesa, Tigo Pesa, Airtel Money, etc.)<br />
+          f. Mobile money provider and number for payouts (M-Pesa, Mixx by Yas, Airtel Money, etc.)<br />
           g. Payout preferences<br />
           <em>Example: To process your earnings from bookings, we need your bank account or mobile money details. This information is encrypted and only used for payment processing.</em>
         </p>
@@ -234,7 +234,7 @@ export const PRIVACY_SECTIONS: TermsSection[] = [
         <p>
           <strong>4.1 Service Providers</strong><br />
           We share information with trusted third-party service providers who assist us in operating our platform, including;<br />
-          a. Payment processors (Stripe, AzamPay, M-Pesa, Tigo Pesa, Airtel Money, HaloPesa) - to process payments<br />
+          a. Payment processors (Stripe, AzamPay, M-Pesa, Mixx by Yas, Airtel Money, HaloPesa) - to process payments<br />
           b. Cloud hosting providers - to store and manage data<br />
           c. Email service providers - to send communications<br />
           d. SMS service providers - to send text messages and OTP codes<br />
@@ -356,7 +356,7 @@ export const PRIVACY_SECTIONS: TermsSection[] = [
           a. We do not store full credit card numbers or complete payment details on our servers<br />
           b. Payment processing is handled by secure, certified payment processors<br />
           c. All payment transactions are encrypted during transmission<br />
-          d. For local payment methods (M-Pesa, Tigo Pesa, Airtel Money, HaloPesa, AzamPay), payment details are entered through secure popup windows provided by the payment provider<br />
+          d. For local payment methods (M-Pesa, Mixx by Yas, Airtel Money, HaloPesa, AzamPay), payment details are entered through secure popup windows provided by the payment provider<br />
           e. We only store transaction references and payment status information necessary for booking confirmation and record-keeping<br />
           <em>Example: When you make a booking, you'll be prompted to enter your payment details through a secure popup window. For local mobile money payments, this popup is provided by your payment service (like M-Pesa or AzamPay). Your payment information is processed securely and we only store the transaction reference number to confirm your payment was successful. For each new booking, you'll enter your payment details again, ensuring maximum security.</em>
         </p>
