@@ -281,7 +281,8 @@
 }
 
 .add-property-section-premium {
-  @apply rounded-[32px] border border-slate-200/85 bg-[radial-gradient(circle_at_top_left,_rgba(2,102,94,0.07),_transparent_22%),linear-gradient(180deg,_rgba(255,255,255,0.99),_rgba(248,250,252,0.98))] p-4 shadow-[0_24px_60px_-32px_rgba(15,23,42,0.32)] backdrop-blur sm:p-6;
+  @apply rounded-[32px] border border-emerald-700/30 p-4 shadow-[0_24px_60px_-32px_rgba(2,102,94,0.35)] backdrop-blur sm:p-6;
+  background-color: #02665e !important;
 }
 
 .add-property-stage-header {
@@ -342,43 +343,45 @@
 }
 
 .add-property-location-module {
-  @apply rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_18px_40px_-30px_rgba(15,23,42,0.28)] ring-1 ring-black/5 sm:p-6;
+  @apply rounded-[28px] border border-white/10 p-5 shadow-lg sm:p-6;
+  background: radial-gradient(circle, rgba(255,255,255,0.12) 1px, transparent 1px), #02665e;
+  background-size: 18px 18px;
 }
 
 .add-property-location-submodule {
-  @apply rounded-[24px] border border-slate-200/85 bg-slate-50/65 p-5 shadow-sm shadow-slate-200/30 ring-1 ring-black/5 sm:p-6;
+  @apply rounded-[22px] border border-white/15 bg-white/10 p-5 sm:p-6;
 }
 
 .add-property-location-hero {
-  @apply mb-6 rounded-[24px] border border-slate-200 bg-slate-50 p-6 shadow-sm shadow-slate-200/30 sm:p-7;
+  @apply mb-6 rounded-[22px] border border-white/15 bg-white/10 p-6 backdrop-blur-sm sm:p-7;
 }
 
 .add-property-address-group {
-  @apply rounded-[22px] border border-slate-200 bg-slate-50 p-3 sm:p-5;
+  @apply rounded-xl border border-white/15 bg-white/10 p-2.5 sm:p-3;
 }
 
 .add-property-address-group-header {
-  @apply mb-3 flex flex-col gap-2 border-b border-slate-200 pb-3 sm:mb-4 sm:flex-row sm:items-end sm:justify-between sm:gap-3 sm:pb-4;
+  @apply mb-2 flex flex-col gap-1.5 border-b border-white/15 pb-2 sm:mb-3 sm:flex-row sm:items-end sm:justify-between sm:gap-2 sm:pb-3;
 }
 
 .add-property-address-group-kicker {
-  @apply text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500;
+  @apply text-[11px] font-semibold uppercase tracking-[0.22em] text-white/60;
 }
 
 .add-property-address-group-title {
-  @apply mt-1 text-sm font-semibold text-slate-900 sm:text-base;
+  @apply mt-1 text-sm font-semibold text-white sm:text-base;
 }
 
 .add-property-address-group-copy {
-  @apply mt-1 text-xs leading-relaxed text-slate-600 sm:text-sm;
+  @apply mt-1 text-xs leading-relaxed text-white/60 sm:text-sm;
 }
 
 .add-property-address-group-meta {
-  @apply inline-flex items-center rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 shadow-sm shadow-slate-200/20;
+  @apply inline-flex items-center rounded-full border border-white/20 bg-white/15 px-2.5 py-1 text-[11px] font-semibold text-white/80 shadow-sm;
 }
 
 .add-property-address-grid {
-  @apply grid gap-3 sm:gap-4;
+  @apply grid gap-2 sm:gap-2.5;
 }
 
 .add-property-address-grid-admin {
@@ -390,27 +393,27 @@
 }
 
 .add-property-address-card {
-  @apply relative rounded-[20px] border border-slate-200 bg-white p-3 shadow-sm shadow-slate-200/20 transition-colors duration-200 sm:p-4;
+  @apply relative rounded-xl border border-white/20 bg-white/95 p-2.5 shadow-sm transition-colors duration-200 sm:p-3;
 }
 
 .add-property-address-card-active {
-  @apply border-slate-300 shadow-sm shadow-slate-300/20;
+  @apply border-white/30 shadow-md;
 }
 
 .add-property-address-card-done {
-  @apply border-emerald-200 bg-emerald-50;
+  @apply border-emerald-300/60 bg-emerald-50;
 }
 
 .add-property-address-card-locked {
-  @apply border-slate-200 bg-slate-100;
+  @apply border-white/10 bg-white/60;
 }
 
 .add-property-address-card-error {
-  @apply border-rose-300 bg-rose-50;
+  @apply border-rose-300/60 bg-rose-50;
 }
 
 .add-property-address-card-head {
-  @apply flex items-start justify-between gap-2.5 sm:gap-3;
+  @apply flex items-start justify-between gap-2;
 }
 
 .add-property-address-card-step {
@@ -422,7 +425,7 @@
 }
 
 .add-property-address-card-label {
-  @apply text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500 sm:text-[11px];
+  @apply text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500 sm:text-[10px];
 }
 
 .add-property-address-card-hint {
@@ -450,11 +453,11 @@
 }
 
 .add-property-address-card-control {
-  @apply mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5;
+  @apply mt-2 rounded-lg border border-slate-200/60 bg-slate-50/80 px-0 py-0;
 }
 
 .add-property-address-card-control-readonly {
-  @apply bg-emerald-50 border-emerald-100;
+  @apply bg-emerald-50/80 border-emerald-200/60;
 }
 
 .add-property-address-card-note {
@@ -462,11 +465,11 @@
 }
 
 .add-property-field-shell {
-  @apply relative rounded-2xl border border-slate-200 bg-white/90 shadow-sm shadow-slate-200/30 transition-all duration-200;
+  @apply relative rounded-xl border border-white/20 bg-white/95 shadow-sm transition-all duration-200;
 }
 
 .add-property-field-shell:hover {
-  @apply border-slate-300 shadow-md;
+  @apply border-white/40 shadow-md;
 }
 
 .add-property-field-shell-valid {
@@ -805,256 +808,5 @@ button:active:not(:disabled) {
   background-size: 1000px 100%;
 }
 
-/* ══════════════════════════════════════════════════════════════
-   DARK CANVAS — Add Property Form
-   Palette: GitHub-dark tones + brand teal #02665e
-   ══════════════════════════════════════════════════════════════ */
 
-/* ─── Section wrapper ────────────────────────────────────────── */
-.add-property-section-premium {
-  background: #0c1017 !important;
-  border-color: #21262d !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-  /* Bleed past the page's p-4 sm:p-6 md:p-8 wrapper so it fills edge-to-edge */
-  margin-left: -1rem !important;
-  margin-right: -1rem !important;
-  padding-left: 1rem !important;
-  padding-right: 1rem !important;
-}
-
-@media (min-width: 640px) {
-  .add-property-section-premium {
-    margin-left: -1.5rem !important;
-    margin-right: -1.5rem !important;
-    padding-left: 1.5rem !important;
-    padding-right: 1.5rem !important;
-  }
-}
-
-@media (min-width: 768px) {
-  .add-property-section-premium {
-    margin-left: -2rem !important;
-    margin-right: -2rem !important;
-    padding-left: 2rem !important;
-    padding-right: 2rem !important;
-  }
-}
-
-/* ─── Panels / cards ─────────────────────────────────────────── */
-.add-property-panel-premium,
-.add-property-panel-premium-strong {
-  background: #161b22 !important;
-  border-color: #30363d !important;
-  box-shadow: 0 1px 12px rgba(0,0,0,0.35) !important;
-}
-.add-property-workblock-header { border-color: #30363d !important; }
-
-/* ─── Stage / hero panels ────────────────────────────────────── */
-.add-property-stage-header   { background: #161b22 !important; border-color: #30363d !important; }
-.add-property-stage-summary  { background: #0c1017 !important; border-color: #21262d !important; }
-.add-property-stage-pill     { background: #1c2128 !important; border-color: #30363d !important; color: #e6edf3 !important; }
-.add-property-section-hero   { background: #161b22 !important; border-color: #30363d !important; }
-.add-property-status-premium { background: #161b22 !important; border-color: #30363d !important; }
-
-/* ─── Location ────────────────────────────────────────────────── */
-.add-property-location-module    { background: #161b22 !important; border-color: #30363d !important; box-shadow: 0 2px 20px rgba(0,0,0,0.4) !important; }
-.add-property-location-submodule { background: #0c1017 !important; border-color: #21262d !important; position: relative !important; z-index: 2 !important; }
-.add-property-location-hero      { background: #0c1017 !important; border-color: #30363d !important; }
-.add-property-location-stat      { background: #1c2128 !important; border-color: #30363d !important; }
-
-/* ─── Address ─────────────────────────────────────────────────── */
-.add-property-address-group          { background: #0c1017 !important; border-color: #30363d !important; }
-.add-property-address-group-header   { border-color: #30363d !important; }
-.add-property-address-group-kicker   { color: #8b949e !important; }
-.add-property-address-group-title    { color: #e6edf3 !important; }
-.add-property-address-group-copy     { color: #8b949e !important; }
-.add-property-address-group-meta     { background: #1c2128 !important; border-color: #30363d !important; color: #8b949e !important; }
-.add-property-address-card           { background: #161b22 !important; border-color: #30363d !important; }
-.add-property-address-card-active    { border-color: rgba(2,102,94,0.7) !important; }
-.add-property-address-card-done      { border-color: rgba(2,102,94,0.5) !important; background: rgba(2,102,94,0.08) !important; }
-.add-property-address-card-locked    { background: #0c1017 !important; border-color: #21262d !important; }
-.add-property-address-card-error     { border-color: rgba(248,81,73,0.5) !important; background: rgba(248,81,73,0.07) !important; }
-.add-property-address-card-head      { border-color: #21262d !important; }
-.add-property-address-card-label     { color: #8b949e !important; }
-.add-property-address-card-value     { color: #e6edf3 !important; }
-.add-property-address-card-note      { color: #6e7681 !important; }
-.add-property-address-card-control   { background: #1c2128 !important; border-color: #30363d !important; }
-.add-property-address-card-control-readonly { background: rgba(2,102,94,0.08) !important; border-color: rgba(2,102,94,0.3) !important; }
-
-/* ─── Field shells & controls ────────────────────────────────── */
-.add-property-field-shell             { background: #1c2128 !important; border-color: #30363d !important; }
-.add-property-field-shell:hover       { border-color: #6e7681 !important; }
-.add-property-field-shell-valid       { border-color: rgba(2,102,94,0.6) !important; background: rgba(2,102,94,0.06) !important; }
-.add-property-field-shell-disabled    { background: #0c1017 !important; border-color: #21262d !important; }
-.add-property-field-shell-error       { border-color: rgba(248,81,73,0.5) !important; background: rgba(248,81,73,0.06) !important; }
-.add-property-field-control           { color: #e6edf3 !important; }
-.add-property-field-note              { color: #8b949e !important; }
-.add-property-field-note-success      { color: #3fb950 !important; }
-.add-property-field-note-warning      { color: #d29922 !important; }
-.add-property-field-card              { background: #1c2128 !important; border-color: #30363d !important; box-shadow: none !important; }
-.add-property-field-card:hover        { box-shadow: none !important; transform: none !important; border-color: #6e7681 !important; }
-.add-property-field-card-valid        { border-color: rgba(2,102,94,0.5) !important; background: rgba(2,102,94,0.06) !important; box-shadow: none !important; }
-.add-property-field-card-disabled     { background: #0c1017 !important; border-color: #21262d !important; box-shadow: none !important; }
-.add-property-field-card-error        { border-color: rgba(248,81,73,0.5) !important; background: rgba(248,81,73,0.06) !important; box-shadow: none !important; }
-.add-property-field-card-label        { color: #8b949e !important; }
-.add-property-field-card-value        { color: #e6edf3 !important; }
-.add-property-field-badge-valid       { border-color: rgba(2,102,94,0.4) !important; background: rgba(2,102,94,0.12) !important; color: #3fb950 !important; }
-.add-property-field-badge-disabled    { border-color: #30363d !important; background: #1c2128 !important; color: #6e7681 !important; }
-.add-property-field-badge-error       { border-color: rgba(248,81,73,0.4) !important; background: rgba(248,81,73,0.1) !important; color: #f85149 !important; }
-
-/* ─── Review / snapshot cards ────────────────────────────────── */
-.add-property-snapshot            { background: #161b22 !important; border-color: #30363d !important; }
-.add-property-snapshot-stat       { background: #1c2128 !important; border-color: #30363d !important; }
-.add-property-photo-progress      { background: #1c2128 !important; border-color: #30363d !important; }
-.add-property-review-card         { background: #161b22 !important; border-color: #30363d !important; }
-.add-property-review-warning      { background: rgba(210,153,34,0.09) !important; border-color: rgba(210,153,34,0.3) !important; }
-.add-property-review-success      { background: rgba(2,102,94,0.09) !important; border-color: rgba(2,102,94,0.3) !important; }
-.add-property-preview-panel       { background: #161b22 !important; border-color: #30363d !important; }
-
-/* ─── Sidebar ─────────────────────────────────────────────────── */
-.add-property-sidebar-card        { background: #161b22 !important; border-color: #30363d !important; }
-.add-property-sidebar-pill        { background: #1c2128 !important; border-color: #30363d !important; }
-
-/* ─── Progress / kicker / chip ──────────────────────────────── */
-.add-property-progress-track      { background: #1c2128 !important; }
-.add-property-kicker              { background: rgba(2,102,94,0.14) !important; border-color: rgba(2,102,94,0.35) !important; color: #3fb950 !important; }
-.add-property-metric-chip         { background: #1c2128 !important; border-color: #30363d !important; color: #e6edf3 !important; }
-.add-property-help-banner         { background: linear-gradient(135deg, rgba(2,102,94,0.12), rgba(14,116,144,0.08)) !important; border-color: rgba(2,102,94,0.28) !important; color: #8b949e !important; }
-
-/* ─── Toggles ────────────────────────────────────────────────── */
-.clean-toggle-option                                { background: #1c2128 !important; border-color: #30363d !important; color: #e6edf3 !important; }
-.clean-toggle-option:hover:not(.clean-toggle-active){ background: #21262d !important; border-color: #6e7681 !important; color: #e6edf3 !important; }
-
-/* ─── Modal ──────────────────────────────────────────────────── */
-.add-property-modal-card    { background: #161b22 !important; }
-.add-property-modal-body    { background: #0c1017 !important; }
-
-/* ══════════════════════════════════════════════════════════════
-   Global text / bg / border overrides inside the dark module
-   ══════════════════════════════════════════════════════════════ */
-
-/* Typography defaults (avoid targeting Tailwind utility class names) */
-.add-property-section-premium,
-.add-property-panel-premium,
-.add-property-location-module,
-.add-property-address-group,
-.add-property-address-card {
-  color: #e6edf3 !important;
-}
-
-.add-property-section-premium p,
-.add-property-panel-premium p,
-.add-property-location-module p,
-.add-property-address-group p,
-.add-property-address-card p {
-  color: #8b949e !important;
-}
-
-.add-property-section-premium label,
-.add-property-panel-premium label,
-.add-property-location-module label,
-.add-property-address-group label,
-.add-property-address-card label,
-.add-property-section-premium h2,
-.add-property-panel-premium h2,
-.add-property-location-module h2,
-.add-property-address-group h2,
-.add-property-address-card h2,
-.add-property-section-premium h3,
-.add-property-panel-premium h3,
-.add-property-location-module h3,
-.add-property-address-group h3,
-.add-property-address-card h3 {
-  color: #e6edf3 !important;
-}
-
-/* ─── Inputs, selects, textareas ─────────────────────────────── */
-.add-property-section-premium input:not([type="radio"]):not([type="checkbox"]):not([type="range"]):not([type="file"]):not(.sr-only),
-.add-property-section-premium textarea,
-.add-property-section-premium select,
-.add-property-panel-premium   input:not([type="radio"]):not([type="checkbox"]):not([type="range"]):not([type="file"]):not(.sr-only),
-.add-property-panel-premium   textarea,
-.add-property-panel-premium   select,
-.add-property-location-module input:not([type="radio"]):not([type="checkbox"]):not([type="range"]):not([type="file"]):not(.sr-only),
-.add-property-location-module textarea,
-.add-property-location-module select,
-.add-property-location-submodule input:not([type="radio"]):not([type="checkbox"]):not([type="range"]):not([type="file"]):not(.sr-only),
-.add-property-location-submodule textarea,
-.add-property-location-submodule select,
-.add-property-address-group   input:not([type="radio"]):not([type="checkbox"]):not([type="range"]):not([type="file"]):not(.sr-only),
-.add-property-address-group   select {
-  background-color: #21262d !important;
-  border-color: #30363d !important;
-  color: #e6edf3 !important;
-}
-.add-property-section-premium input:hover:not([type="radio"]):not([type="checkbox"]):not([type="range"]):not(.sr-only),
-.add-property-panel-premium   input:hover:not([type="radio"]):not([type="checkbox"]):not([type="range"]):not(.sr-only),
-.add-property-location-submodule input:hover:not([type="radio"]):not([type="checkbox"]):not([type="range"]):not(.sr-only),
-.add-property-section-premium select:hover,
-.add-property-panel-premium   select:hover,
-.add-property-location-submodule select:hover {
-  border-color: #484f58 !important;
-}
-.add-property-section-premium input:focus,
-.add-property-panel-premium   input:focus,
-.add-property-location-submodule input:focus,
-.add-property-section-premium select:focus,
-.add-property-panel-premium   select:focus,
-.add-property-location-submodule select:focus {
-  border-color: #02665e !important;
-  background-color: #21262d !important;
-}
-.add-property-section-premium input::placeholder,
-.add-property-panel-premium   input::placeholder,
-.add-property-location-module input::placeholder,
-.add-property-location-submodule input::placeholder { color: #6e7681 !important; }
-
-/* Park / placement polish (avoid the "floating white box" look) */
-.add-property-location-submodule select { box-shadow: none !important; }
-.add-property-location-submodule button[aria-label="Clear park"] {
-  background-color: #1c2128 !important;
-  border-color: #30363d !important;
-  color: #8b949e !important;
-  box-shadow: none !important;
-}
-.add-property-location-submodule button[aria-label="Clear park"]:hover {
-  background-color: #21262d !important;
-  color: #e6edf3 !important;
-}
-
-.add-property-location-submodule .add-property-park-dropdown {
-  background-color: #161b22 !important;
-  border-color: #30363d !important;
-  box-shadow: 0 12px 32px rgba(0,0,0,0.65) !important;
-}
-
-/* Dark-theme every row inside the dropdown */
-.add-property-location-submodule .add-property-park-dropdown button {
-  color: #e6edf3 !important;
-  background-color: transparent !important;
-}
-.add-property-location-submodule .add-property-park-dropdown button:hover {
-  background-color: #21262d !important;
-}
-.add-property-location-submodule .add-property-park-dropdown button[aria-selected="true"] {
-  background-color: rgba(2,102,94,0.14) !important;
-}
-/* Subdued country / secondary text inside each row */
-.add-property-location-submodule .add-property-park-dropdown button div.truncate:last-child {
-  color: #8b949e !important;
-}
-/* "Loading" / "No parks" helper text */
-.add-property-location-submodule .add-property-park-dropdown div {
-  color: #8b949e !important;
-}
-
-/* ─── Property-type card overrides ──────────────────────────── */
-.add-property-panel-premium label.group {
-  background-color: #1c2128 !important;
-  border-color: #30363d !important;
-}
-.add-property-panel-premium label.group:hover {
-  border-color: #484f58 !important;
-  background-color: #21262d !important;
-}
+/* end of add-property styles */

@@ -2194,7 +2194,7 @@ export default function AddProperty() {
                   </nav>
                 </div>
               </header>
-              <div className="p-4 sm:p-6 md:p-8">
+              <div className="px-4 pb-4 pt-2 sm:px-6 sm:pb-6 sm:pt-3">
                 {showReview && (
                   <div className="rounded-xl border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 to-white px-5 py-4 shadow-sm mb-6">
                     <div className="flex items-start gap-3">

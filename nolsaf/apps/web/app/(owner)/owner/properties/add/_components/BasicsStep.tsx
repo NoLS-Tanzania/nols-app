@@ -373,10 +373,9 @@ const handleSectionRef = useCallback(
   [forwardedRef]
 );
 
-const nameOk = title.trim().length >= 3;
   const typeOk = !!type;
   const showTypeExtras = type === "Other" || type === "Hotel";
-  const collapseTypes = typeOk && nameOk && !typePickerOpen;
+  const collapseTypes = typeOk && !typePickerOpen;
   const visibleTypes = useMemo(() => {
     if (collapseTypes) return [type];
     return [...PROPERTY_TYPES];
@@ -404,54 +403,51 @@ const nameOk = title.trim().length >= 3;
           <div className="pt-4">
 
           <div className="space-y-6 w-full">
-            <div className="add-property-panel-premium">
-              <div className="add-property-workblock-header">
+            <div className="relative">
+              {/* Header */}
+              <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-900" id="propertyTypeLabel">
-                    Property Type <span className="text-red-500">*</span>
+                  <label className="block text-sm font-semibold text-white" id="propertyTypeLabel">
+                    Property Type <span className="text-red-300">*</span>
                   </label>
-                  <p className="mt-1 text-sm text-gray-500">Select the category that best matches the guest experience you want to present.</p>
+                  <p className="mt-1 text-[13px] text-white/60">Select the category that best matches the guest experience you want to present.</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                {typeOk ? (
-                  <div className="hidden sm:inline-flex items-center rounded-full border border-[#30363d] bg-[#1c2128] px-3 py-1.5 text-xs font-semibold text-[#e6edf3]">
-                    Selected: <span className="ml-1 text-emerald-400">{type}</span>
-                  </div>
-                ) : null}
-                {collapseTypes ? (
-                  <button
-                    type="button"
-                    onClick={() => setTypePickerOpen(true)}
-                    className="rounded-xl border border-[#30363d] bg-[#1c2128] px-4 py-2 text-sm font-semibold text-emerald-400 transition hover:border-emerald-500/50 hover:bg-[rgba(2,102,94,0.12)]"
-                  >
-                    Change
-                  </button>
-                ) : null}
+                  {typeOk ? (
+                    <div className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white">
+                      Selected: <span className="ml-1 text-emerald-300">{type}</span>
+                    </div>
+                  ) : null}
+                  {collapseTypes ? (
+                    <button
+                      type="button"
+                      onClick={() => setTypePickerOpen(true)}
+                      className="rounded-lg border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/20"
+                    >
+                      Change
+                    </button>
+                  ) : null}
                 </div>
               </div>
 
+              {/* Type cards */}
               <div
                 role="radiogroup"
                 aria-labelledby="propertyTypeLabel"
-                className={`grid gap-3 w-full ${collapseTypes ? "grid-cols-1 sm:grid-cols-1 md:grid-cols-1 max-w-sm" : "grid-cols-2 sm:grid-cols-2 md:grid-cols-4"}`}
+                className={`grid gap-3 w-full ${collapseTypes ? "grid-cols-1 max-w-xs" : "grid-cols-2 md:grid-cols-4"}`}
               >
                 {visibleTypes.map((pt) => {
                   const selected = type === pt;
                   const labelText = pt === "Other" ? "Specify if none of the above" : `Typical ${pt.toLowerCase()}`;
                   const IconComponent = PROPERTY_TYPE_ICONS[pt] || HelpCircle;
-                  const tone = PROPERTY_TYPE_STYLES[pt] || PROPERTY_TYPE_STYLES.Other || {
-                    border: "border-slate-400",
-                    text: "text-slate-700",
-                    bg: "from-white to-slate-50",
-                  };
 
                   return (
                     <label
                       key={pt}
-                      className={`group relative overflow-hidden rounded-2xl border cursor-pointer transition-all duration-300 ${
+                      className={`group relative overflow-hidden rounded-xl border cursor-pointer transition-all duration-200 ${
                         selected
-                          ? `${tone.border} bg-gradient-to-br ${tone.bg} shadow-lg shadow-black/40 ring-1 ring-white/10`
-                          : "border-[#30363d] bg-[#1c2128] shadow-md shadow-black/30 hover:-translate-y-1 hover:border-[#484f58] hover:shadow-xl"
+                          ? "border-emerald-300 bg-white shadow-lg"
+                          : "border-white/15 bg-white/10 hover:bg-white/15 hover:border-white/25"
                       }`}
                     >
                       <input
@@ -460,7 +456,6 @@ const nameOk = title.trim().length >= 3;
                         value={pt}
                         checked={selected}
                         onChange={() => {
-                          // Security: Sanitize input - only allow values from PROPERTY_TYPES
                           if (PROPERTY_TYPES.includes(pt)) {
                             setType(pt);
                             setTypePickerOpen(false);
@@ -469,33 +464,24 @@ const nameOk = title.trim().length >= 3;
                         }}
                         className="sr-only"
                       />
-                      <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${selected ? "from-[#02665e] via-emerald-400 to-transparent" : "from-[#30363d] via-[#262c36] to-transparent"}`} />
-                      <div className="flex h-full flex-col justify-between gap-4 p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className={`flex h-12 w-12 items-center justify-center rounded-2xl transition-all duration-300 ${
-                          selected
-                            ? `bg-white/80 ${tone.text} shadow-sm shadow-white/60`
-                            : "bg-[#21262d] text-[#8b949e] group-hover:bg-[#262c36]"
-                        }`}>
-                          <IconComponent
-                            className={`h-5 w-5 transition-colors duration-300 ${
-                              selected ? tone.text : "text-[#8b949e]"
-                            }`}
-                          />
-                        </div>
-                          <div className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] transition-all ${
+                      <div className="flex flex-col gap-3 p-3.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className={`flex h-10 w-10 items-center justify-center rounded-xl transition-all duration-200 ${
                             selected
-                              ? "border-white/25 bg-white/15 text-white"
-                              : "border-[#30363d] bg-[#161b22] text-[#6e7681]"
+                              ? "bg-emerald-50 text-emerald-700"
+                              : "bg-white/15 text-white/70 group-hover:bg-white/20"
                           }`}>
-                            {selected ? "Selected" : "Type"}
+                            <IconComponent className="h-5 w-5" />
                           </div>
+                          {selected ? (
+                            <span className="rounded-full bg-emerald-100 border border-emerald-200 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-emerald-700">Selected</span>
+                          ) : null}
                         </div>
                         <div>
-                          <div className={`text-[15px] font-semibold transition-colors duration-300 ${selected ? tone.text : "text-[#e6edf3]"}`}>
+                          <div className={`text-[13px] font-semibold ${selected ? "text-slate-900" : "text-white"}`}>
                             {pt}
                           </div>
-                          <div className={`mt-1 text-xs leading-relaxed transition-colors line-clamp-2 ${selected ? "text-[#c9d1d9]" : "text-[#8b949e]"}`}>
+                          <div className={`mt-0.5 text-[11px] leading-relaxed line-clamp-2 ${selected ? "text-slate-500" : "text-white/50"}`}>
                             {labelText}
                           </div>
                         </div>
@@ -506,27 +492,34 @@ const nameOk = title.trim().length >= 3;
               </div>
 
               {touchedBasics.type && !type && (
-                <div id="typeError" className="text-xs text-red-600 mt-3 flex items-center gap-1">
+                <div id="typeError" className="text-xs text-red-300 mt-3 flex items-center gap-1">
                   <AlertCircle className="w-3.5 h-3.5" />
                   Please select a property type.
                 </div>
               )}
             </div>
 
+
               {/* Property name appears AFTER type is selected */}
               {typeOk ? (
                 <div className="space-y-6 w-full max-w-4xl">
-                  <div className="add-property-panel-premium">
-                    <div className="mb-4">
-                      <h3 className="text-sm font-semibold text-gray-900 mb-1">Property Information</h3>
-                      <p className="text-xs text-gray-500">Enter your property name and any additional details</p>
+                  <div className="relative rounded-2xl border border-white/10 p-6 shadow-lg" style={{ background: "radial-gradient(circle, rgba(255,255,255,0.12) 1px, transparent 1px), #02665e", backgroundSize: "18px 18px" }}>
+                    <div className="mb-6 flex items-center gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/20">
+                        <Pencil className="h-[18px] w-[18px] text-white" />
+                      </div>
+                      <div>
+                        <h3 className="text-[15px] font-semibold text-white leading-tight">Property Information</h3>
+                        <p className="text-[13px] text-white/70 mt-0.5">Enter your property name and any additional details</p>
+                      </div>
                     </div>
+                    <div className="h-px bg-white/15 -mx-6 mb-6" />
                     {/* Name + related type fields */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 w-full">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 w-full">
                       <div className={showTypeExtras ? "w-full" : "w-full lg:col-span-2"}>
                         <div className="flex flex-col space-y-2">
-                          <label htmlFor="propertyName" className="block text-sm font-semibold text-gray-900">
-                            Property Name <span className="text-red-500">*</span>
+                          <label htmlFor="propertyName" className="block text-[13px] font-medium text-white/90">
+                            Property Name <span className="text-red-300">*</span>
                           </label>
                           <input
                             id="propertyName"
@@ -541,15 +534,15 @@ const nameOk = title.trim().length >= 3;
                             type="text"
                             placeholder='e.g. "Serena Hotel"'
                             maxLength={200}
-                            className={`w-full h-11 px-4 text-sm rounded-xl border-2 transition-all duration-200 focus:outline-none focus:ring-2 ${
+                            className={`w-full h-12 px-4 text-sm rounded-xl border transition-all duration-150 focus:outline-none focus:ring-2 ${
                               touchedBasics.title && title.trim().length < 3
-                                ? "border-red-400 bg-red-50 text-gray-900 focus:ring-red-200 focus:border-red-500"
-                                : "border-gray-300 bg-white text-gray-900 placeholder-gray-400 hover:border-gray-400 focus:ring-emerald-500/20 focus:border-emerald-500"
+                                ? "border-red-400/60 bg-white text-slate-900 focus:ring-red-200/30 focus:border-red-400"
+                                : "border-white/20 bg-white/95 text-slate-900 placeholder-slate-400 hover:border-white/40 focus:ring-white/20 focus:border-white/50"
                             }`}
                             aria-required={true}
                           />
                           {touchedBasics.title && title.trim().length < 3 && (
-                            <p id="nameError" className="text-xs text-red-600 mt-1.5 flex items-center gap-1">
+                            <p id="nameError" className="text-xs text-red-300 mt-1.5 flex items-center gap-1">
                               <AlertCircle className="w-3.5 h-3.5" />
                               Please enter at least 3 characters
                             </p>
@@ -561,8 +554,8 @@ const nameOk = title.trim().length >= 3;
                         <div className="w-full">
                           {type === "Other" && (
                             <div className="w-full">
-                              <label className="block text-sm font-semibold text-gray-900 mb-2">
-                                Specify property type <span className="text-red-500">*</span>
+                              <label className="block text-[13px] font-medium text-white/90 mb-2">
+                                Specify property type <span className="text-red-300">*</span>
                               </label>
                               <input
                                 value={otherType}
@@ -572,7 +565,7 @@ const nameOk = title.trim().length >= 3;
                                   setOtherType(sanitized);
                                 }}
                                 maxLength={100}
-                                className="w-full h-11 px-4 text-sm text-gray-900 placeholder-gray-400 bg-white border-2 border-gray-300 rounded-xl transition-all duration-200 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                                className="w-full h-12 px-4 text-sm text-slate-900 placeholder-slate-400 bg-white/95 border border-white/20 rounded-xl transition-all duration-150 hover:border-white/40 focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/50"
                                 placeholder="Please specify"
                               />
                             </div>
@@ -580,8 +573,8 @@ const nameOk = title.trim().length >= 3;
 
                           {type === "Hotel" && (
                             <div className="flex flex-col space-y-2 w-full">
-                              <label htmlFor="hotelStarRating" className="text-sm font-semibold text-gray-900">
-                                Hotel Star Rating <span className="text-red-500">*</span>
+                              <label htmlFor="hotelStarRating" className="text-[13px] font-medium text-white/90">
+                                Hotel Star Rating <span className="text-red-300">*</span>
                               </label>
                               <div className="relative">
                                 <select
@@ -594,7 +587,7 @@ const nameOk = title.trim().length >= 3;
                                     const validValue = HOTEL_STAR_OPTIONS.find(o => o.value === e.target.value)?.value || "";
                                     if (validValue) setHotelStar(validValue);
                                   }}
-                                  className="w-full h-11 pl-4 pr-10 text-sm text-gray-900 bg-white border-2 border-gray-300 rounded-xl transition-all duration-200 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 appearance-none cursor-pointer"
+                                  className="w-full h-12 pl-4 pr-10 text-sm text-slate-900 bg-white/95 border border-white/20 rounded-xl transition-all duration-150 hover:border-white/40 focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/50 appearance-none cursor-pointer"
                                 >
                                   {HOTEL_STAR_OPTIONS.map((o) => (
                                     <option key={o.value} value={o.value}>
@@ -602,7 +595,7 @@ const nameOk = title.trim().length >= 3;
                                     </option>
                                   ))}
                                 </select>
-                                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
+                                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
                                   <ChevronDown className="h-4 w-4" />
                                 </div>
                               </div>
@@ -613,20 +606,26 @@ const nameOk = title.trim().length >= 3;
                     </div>
                   </div>
 
-                  <div className="add-property-panel-premium">
-                    <div className="mb-4">
-                      <label className="block text-sm font-semibold text-gray-900" id="buildingLayoutLabel">
-                        Building Layout <span className="text-red-500">*</span>
-                      </label>
-                      <p className="mt-1 text-xs text-gray-500">
-                        This helps us visualize where rooms are located (floors / separate units).
-                      </p>
+                  <div className="relative rounded-2xl border border-white/10 p-6 shadow-lg" style={{ background: "radial-gradient(circle, rgba(255,255,255,0.12) 1px, transparent 1px), #02665e", backgroundSize: "18px 18px" }}>
+                    <div className="mb-6 flex items-center gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/20">
+                        <Building2 className="h-[18px] w-[18px] text-white" />
+                      </div>
+                      <div>
+                        <label className="block text-[15px] font-semibold text-white leading-tight" id="buildingLayoutLabel">
+                          Building Layout <span className="text-red-300">*</span>
+                        </label>
+                        <p className="text-[13px] text-white/70 mt-0.5">
+                          This helps us visualize where rooms are located (floors / separate units).
+                        </p>
+                      </div>
                     </div>
+                    <div className="h-px bg-white/15 -mx-6 mb-6" />
 
                     <div
                       role="radiogroup"
                       aria-labelledby="buildingLayoutLabel"
-                      className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full"
+                      className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 w-full"
                     >
                       {[
                         {
@@ -682,10 +681,10 @@ const nameOk = title.trim().length >= 3;
                         return (
                           <label
                             key={value}
-                            className={`group relative bg-gradient-to-br ${selected ? selectedGradient : gradient} p-4 rounded-2xl border-2 cursor-pointer transition-all duration-300 hover:-translate-y-0.5 ${
+                            className={`group relative bg-gradient-to-br ${selected ? selectedGradient : gradient} p-4 rounded-xl border cursor-pointer transition-all duration-200 ${
                               selected
-                                ? `${selectedBorder} shadow-md ${shadow}`
-                                : `${border} hover:shadow-md hover:${shadow}`
+                                ? `${selectedBorder} shadow-sm ring-1 ring-offset-0 ${shadow}`
+                                : `${border} hover:shadow-sm hover:${shadow}`
                             }`}
                           >
                             <input
@@ -706,16 +705,16 @@ const nameOk = title.trim().length >= 3;
                               className="sr-only"
                             />
                             <div className="flex items-start gap-3">
-                              <div className={`mt-0.5 w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 ${iconBg} ${iconBgHover} group-hover:scale-110`}>
-                                <Icon className={`w-5 h-5 ${iconColor}`} />
+                              <div className={`mt-0.5 w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-200 ${iconBg} ${iconBgHover}`}>
+                                <Icon className={`w-4.5 h-4.5 ${iconColor}`} />
                               </div>
                               <div className="min-w-0 flex-1">
-                                <div className={`font-semibold text-sm ${selected ? titleColor : "text-gray-900"} transition-colors duration-200`}>{t}</div>
-                                <div className="text-xs text-gray-500 mt-0.5 leading-relaxed">{d}</div>
+                                <div className={`font-semibold text-[13px] ${selected ? titleColor : "text-slate-800"} transition-colors duration-200`}>{t}</div>
+                                <div className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">{d}</div>
                               </div>
                             </div>
                             {selected && (
-                              <div className={`absolute top-2.5 right-2.5 w-2 h-2 ${dot} rounded-full border-2 border-white shadow-sm`} />
+                              <div className={`absolute top-3 right-3 w-2.5 h-2.5 ${dot} rounded-full ring-2 ring-white shadow-sm`} />
                             )}
                           </label>
                         );
@@ -723,17 +722,15 @@ const nameOk = title.trim().length >= 3;
                     </div>
 
                     {touchedBasics.buildingType && !buildingType ? (
-                      <p className="text-xs text-red-600 mt-3 flex items-center gap-1">
+                      <p className="text-xs text-red-300 mt-3 flex items-center gap-1">
                         <AlertCircle className="w-3.5 h-3.5" />
                         Please select a building layout.
                       </p>
                     ) : null}
 
                     {buildingType === "multi_storey" ? (
-                      <div className="mt-4 max-w-sm">
-                        <label htmlFor="totalFloors" className="block text-sm font-semibold text-gray-900 mb-2">
-                          Total Floors <span className="text-red-500">*</span>
-                        </label>
+                      <div className="mt-3 flex items-center gap-3">
+                        <span className="text-xs font-medium text-gray-500">Floors</span>
                         <input
                           id="totalFloors"
                           type="number"
@@ -741,30 +738,21 @@ const nameOk = title.trim().length >= 3;
                           max={100}
                           value={totalFloors as any}
                           onChange={(e) => {
-                            // Security: Validate and sanitize numeric input
                             const val = e.target.value;
-                            if (val === "") {
-                              setTotalFloors("");
-                              return;
-                            }
+                            if (val === "") { setTotalFloors(""); return; }
                             const num = parseInt(val, 10);
-                            if (!isNaN(num) && num >= 2 && num <= 100) {
-                              setTotalFloors(num);
-                            }
+                            if (!isNaN(num) && num >= 2 && num <= 100) setTotalFloors(num);
                           }}
                           onBlur={() => setTouchedBasics((tb) => ({ ...tb, totalFloors: true }))}
-                          placeholder="e.g. 5"
-                          className={`w-full h-11 px-4 text-sm rounded-xl border-2 transition-all duration-200 focus:outline-none focus:ring-2 ${
+                          placeholder="2"
+                          className={`w-16 h-8 px-2 text-xs text-center rounded-md border transition-all focus:outline-none focus:ring-1 ${
                             touchedBasics.totalFloors && (!Number(totalFloors) || Number(totalFloors) < 2)
-                              ? "border-red-400 bg-red-50 text-gray-900 focus:ring-red-200 focus:border-red-500"
-                              : "border-gray-300 bg-white text-gray-900 placeholder-gray-400 hover:border-gray-400 focus:ring-emerald-500/20 focus:border-emerald-500"
+                              ? "border-red-400 bg-red-50 text-gray-900 focus:ring-red-300"
+                              : "border-gray-300 bg-white text-gray-900 hover:border-gray-400 focus:ring-emerald-500/30 focus:border-emerald-500"
                           }`}
                         />
                         {touchedBasics.totalFloors && (!Number(totalFloors) || Number(totalFloors) < 2) ? (
-                          <p className="text-xs text-red-600 mt-1.5 flex items-center gap-1">
-                            <AlertCircle className="w-3.5 h-3.5" />
-                            Please enter at least 2 floors.
-                          </p>
+                          <span className="text-[10px] text-red-500">min 2</span>
                         ) : null}
                       </div>
                     ) : null}
@@ -777,401 +765,255 @@ const nameOk = title.trim().length >= 3;
             <div className="add-property-location-module">
               <div className="add-property-location-hero">
                 <div className="flex items-start gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-sm shadow-slate-200/30">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/20 bg-white/15 text-white shadow-sm">
                     <MapPin className="h-5 w-5" />
                   </div>
                   <div>
-                    <span className="add-property-kicker">Address foundation</span>
-                    <h2 className="mt-3 text-xl font-semibold text-slate-900 mb-1">
-                      Property Location <span className="text-rose-600">*</span>
+                    <span className="inline-flex items-center rounded-full border border-white/25 bg-white/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/80">Address foundation</span>
+                    <h2 className="mt-3 text-xl font-semibold text-white mb-1">
+                      Property Location <span className="text-red-300">*</span>
                     </h2>
-                    <p className="text-sm text-slate-600">Enter the address details for this property.</p>
+                    <p className="text-sm text-white/70">Enter the address details for this property.</p>
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-5">
-                <div className="add-property-address-group">
-                  <div className="add-property-address-group-header">
-                    <div className="min-w-0">
-                      <div className="add-property-address-group-kicker">Administrative path</div>
-                      <h3 className="add-property-address-group-title md:hidden">Choose region, district, ward, and street</h3>
-                      <h3 className="add-property-address-group-title hidden md:block">Choose region, district, and ward</h3>
+              <div className="space-y-4">
+                {/* Region / District / Ward / Street */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-white/70">Region <span className="text-red-300">*</span></label>
+                    <div className="relative">
+                      <select
+                        title="Region"
+                        value={regionId}
+                        onChange={(e) => { setRegionId(e.target.value); setDistrict(""); setWard(""); }}
+                        className={`w-full h-10 pl-3 pr-8 text-[13px] rounded-lg border appearance-none cursor-pointer transition-all duration-150 focus:outline-none focus:ring-2 ${
+                          regionId
+                            ? "bg-white text-slate-900 border-emerald-300 focus:ring-emerald-200"
+                            : "bg-white/95 text-slate-900 border-white/25 hover:border-white/40 focus:ring-white/20"
+                        }`}
+                        aria-required={true}
+                      >
+                        <option value="">Select</option>
+                        {REGIONS.map((r: { id: string; name: string }) => (
+                          <option key={r.id} value={r.id}>{r.name}</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none text-slate-400" />
                     </div>
                   </div>
 
-                  <div className="add-property-address-grid add-property-address-grid-admin">
-                    <div className={["add-property-address-card", regionId ? "add-property-address-card-done" : "add-property-address-card-active"].join(" ")}>
-                      <div className="add-property-address-card-head">
-                        <div className="min-w-0">
-                          <div className="add-property-address-card-label">Region <span className="text-rose-600">*</span></div>
-                        </div>
-                      </div>
-                      <div className="add-property-address-card-control relative">
-                        <select
-                          title="Region"
-                          value={regionId}
-                          onChange={(e) => {
-                            setRegionId(e.target.value);
-                            setDistrict("");
-                            setWard("");
-                          }}
-                          className="add-property-field-control h-12 cursor-pointer appearance-none px-4 pr-10"
-                          aria-required={true}
-                        >
-                          <option value="">Select region</option>
-                          {REGIONS.map((r: { id: string; name: string }) => (
-                            <option key={r.id} value={r.id}>
-                              {r.name}
-                            </option>
-                          ))}
-                        </select>
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                          <ChevronDown className="h-5 w-5" />
-                        </div>
-                      </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-white/70">District <span className="text-red-300">*</span></label>
+                    <div className="relative">
+                      <select
+                        title="District"
+                        value={district}
+                        onChange={(e) => { setDistrict(e.target.value); setWard(""); setStreet(""); setZip(""); }}
+                        onBlur={() => setTouchedBasics((t) => ({ ...t, district: true }))}
+                        disabled={!regionId}
+                        className={`w-full h-10 pl-3 pr-8 text-[13px] rounded-lg border appearance-none transition-all duration-150 focus:outline-none focus:ring-2 ${
+                          !regionId ? "bg-white/50 text-slate-400 border-white/10 cursor-not-allowed"
+                            : district ? "bg-white text-slate-900 border-emerald-300 cursor-pointer focus:ring-emerald-200"
+                            : "bg-white/95 text-slate-900 border-white/25 cursor-pointer hover:border-white/40 focus:ring-white/20"
+                        }`}
+                        aria-required={true}
+                        aria-describedby={touchedBasics.district && !district ? "districtError" : undefined}
+                      >
+                        <option value="">{regionId ? "Select" : "\u2014"}</option>
+                        {districts.map((d: string) => (
+                          <option key={d} value={d}>{d}</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none text-slate-400" />
                     </div>
+                    {touchedBasics.district && !district ? <p id="districtError" className="text-[10px] text-red-300 mt-1">Required</p> : null}
+                  </div>
 
-                    <div className={[
-                      "add-property-address-card",
-                      touchedBasics.district && !district
-                        ? "add-property-address-card-error"
-                        : !regionId
-                          ? "add-property-address-card-locked"
-                          : district
-                            ? "add-property-address-card-done"
-                            : "add-property-address-card-active",
-                    ].join(" ")}>
-                      <div className="add-property-address-card-head">
-                        <div className="min-w-0">
-                          <div className="add-property-address-card-label">District <span className="text-rose-600">*</span></div>
-                        </div>
-                      </div>
-                      <div className="add-property-address-card-control relative">
-                        <select
-                          title="District"
-                          value={district}
-                          onChange={(e) => {
-                            setDistrict(e.target.value);
-                            setWard("");
-                            setStreet("");
-                            setZip("");
-                          }}
-                          onBlur={() => setTouchedBasics((t) => ({ ...t, district: true }))}
-                          disabled={!regionId}
-                          className={`add-property-field-control appearance-none h-12 cursor-pointer px-4 pr-10 ${
-                            !regionId ? "text-slate-400 cursor-not-allowed" : "text-slate-900"
-                          }`}
-                          aria-required={true}
-                          aria-describedby={touchedBasics.district && !district ? "districtError" : undefined}
-                        >
-                          <option value="">{regionId ? "Select district" : "Select region first"}</option>
-                          {districts.map((d: string) => (
-                            <option key={d} value={d}>
-                              {d}
-                            </option>
-                          ))}
-                        </select>
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                          <ChevronDown className="h-5 w-5" />
-                        </div>
-                      </div>
-                      {touchedBasics.district && !district ? <p id="districtError" className="add-property-address-card-note text-rose-600">Choose a district to continue.</p> : null}
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-white/70">Ward <span className="text-red-300">*</span></label>
+                    <div className="relative">
+                      <select
+                        title="Ward"
+                        value={ward}
+                        onChange={(e) => { setWard(e.target.value); setStreet(""); setZip(""); }}
+                        onBlur={() => setTouchedBasics((t) => ({ ...t, ward: true }))}
+                        disabled={!district}
+                        className={`w-full h-10 pl-3 pr-8 text-[13px] rounded-lg border appearance-none transition-all duration-150 focus:outline-none focus:ring-2 ${
+                          !district ? "bg-white/50 text-slate-400 border-white/10 cursor-not-allowed"
+                            : ward ? "bg-white text-slate-900 border-emerald-300 cursor-pointer focus:ring-emerald-200"
+                            : "bg-white/95 text-slate-900 border-white/25 cursor-pointer hover:border-white/40 focus:ring-white/20"
+                        }`}
+                        aria-required={true}
+                        aria-describedby={touchedBasics.ward && !ward ? "wardError" : undefined}
+                      >
+                        <option value="">{district ? "Select" : "\u2014"}</option>
+                        {wards.map((w: string) => (
+                          <option key={w} value={w}>{w}</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none text-slate-400" />
                     </div>
+                    {touchedBasics.ward && !ward ? <p id="wardError" className="text-[10px] text-red-300 mt-1">Required</p> : null}
+                  </div>
 
-                    <div className={[
-                      "add-property-address-card",
-                      touchedBasics.ward && !ward
-                        ? "add-property-address-card-error"
-                        : !district
-                          ? "add-property-address-card-locked"
-                          : ward
-                            ? "add-property-address-card-done"
-                            : "add-property-address-card-active",
-                    ].join(" ")}>
-                      <div className="add-property-address-card-head">
-                        <div className="min-w-0">
-                          <div className="add-property-address-card-label">Ward <span className="text-rose-600">*</span></div>
-                        </div>
-                      </div>
-                      <div className="add-property-address-card-control relative">
-                        <select
-                          title="Ward"
-                          value={ward}
-                          onChange={(e) => {
-                            setWard(e.target.value);
-                            setStreet("");
-                            setZip("");
-                          }}
-                          onBlur={() => setTouchedBasics((t) => ({ ...t, ward: true }))}
-                          disabled={!district}
-                          className={`add-property-field-control appearance-none h-12 cursor-pointer px-4 pr-10 ${
-                            !district ? "text-slate-400 cursor-not-allowed" : "text-slate-900"
-                          }`}
-                          aria-required={true}
-                          aria-describedby={touchedBasics.ward && !ward ? "wardError" : undefined}
-                        >
-                          <option value="">{district ? "Select ward" : "Select district first"}</option>
-                          {wards.map((w: string) => (
-                            <option key={w} value={w}>
-                              {w}
-                            </option>
-                          ))}
-                        </select>
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                          <ChevronDown className="h-5 w-5" />
-                        </div>
-                      </div>
-                      {touchedBasics.ward && !ward ? <p id="wardError" className="add-property-address-card-note text-rose-600">Choose a ward to continue.</p> : null}
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-white/70">Street <span className="text-red-300">*</span></label>
+                    <div className="relative">
+                      <select
+                        title="Street"
+                        value={street}
+                        onChange={(e) => setStreet(e.target.value)}
+                        onBlur={() => setTouchedBasics((t) => ({ ...t, street: true }))}
+                        disabled={!ward}
+                        className={`w-full h-10 pl-3 pr-8 text-[13px] rounded-lg border appearance-none transition-all duration-150 focus:outline-none focus:ring-2 ${
+                          !ward ? "bg-white/50 text-slate-400 border-white/10 cursor-not-allowed"
+                            : street ? "bg-white text-slate-900 border-emerald-300 cursor-pointer focus:ring-emerald-200"
+                            : "bg-white/95 text-slate-900 border-white/25 cursor-pointer hover:border-white/40 focus:ring-white/20"
+                        }`}
+                        aria-required={true}
+                      >
+                        <option value="">{ward ? "Select" : "\u2014"}</option>
+                        {streets.map((s: string) => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none text-slate-400" />
                     </div>
-
-                    {/* Small screens: keep Street alongside Ward */}
-                    <div
-                      className={[
-                        "add-property-address-card md:hidden",
-                        touchedBasics.street && !street
-                          ? "add-property-address-card-error"
-                          : !ward
-                            ? "add-property-address-card-locked"
-                            : street
-                              ? "add-property-address-card-done"
-                              : "add-property-address-card-active",
-                      ].join(" ")}
-                    >
-                      <div className="add-property-address-card-head">
-                        <div className="min-w-0">
-                          <div className="add-property-address-card-label">Street address <span className="text-rose-600">*</span></div>
-                        </div>
-                      </div>
-                      <div className="add-property-address-card-control relative">
-                        <select
-                          title="Street"
-                          value={street}
-                          onChange={(e) => setStreet(e.target.value)}
-                          onBlur={() => setTouchedBasics((t) => ({ ...t, street: true }))}
-                          disabled={!ward}
-                          className={`add-property-field-control min-w-0 appearance-none h-12 cursor-pointer px-4 pr-10 ${
-                            !ward ? "text-slate-400 cursor-not-allowed" : "text-slate-900"
-                          }`}
-                          aria-required={true}
-                          aria-describedby={touchedBasics.street && !street ? "streetErrorAdmin" : undefined}
-                        >
-                          <option value="">{ward ? "Select street" : "Select ward first"}</option>
-                          {streets.map((s: string) => (
-                            <option key={s} value={s}>
-                              {s}
-                            </option>
-                          ))}
-                        </select>
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                          <ChevronDown className="h-5 w-5" />
-                        </div>
-                      </div>
-                      {touchedBasics.street && !street ? <p id="streetErrorAdmin" className="add-property-address-card-note text-rose-600">Choose a street before continuing.</p> : null}
-                    </div>
+                    {touchedBasics.street && !street ? <p id="streetErrorAdmin" className="text-[10px] text-red-300 mt-1">Required</p> : null}
                   </div>
                 </div>
 
-                <div className="add-property-address-group">
-                  <div className="add-property-address-group-header">
-                    <div className="min-w-0">
-                      <div className="add-property-address-group-kicker">Street details</div>
-                      <h3 className="add-property-address-group-title md:hidden">Add city and postcode</h3>
-                      <h3 className="add-property-address-group-title hidden md:block">Add street, city, and postcode</h3>
-                    </div>
+                {/* City + Zip */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-white/70">City <span className="text-white/40 normal-case tracking-normal text-[10px]">optional</span></label>
+                    <input
+                      id="city"
+                      type="text"
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
+                      className={`w-full h-10 px-3 text-[13px] rounded-lg border transition-all duration-150 focus:outline-none focus:ring-2 ${
+                        city.trim()
+                          ? "bg-white text-slate-900 border-emerald-300 focus:ring-emerald-200"
+                          : "bg-white/95 text-slate-900 border-white/25 placeholder-slate-400 hover:border-white/40 focus:ring-white/20"
+                      }`}
+                      placeholder="Enter city"
+                    />
                   </div>
 
-                  <div className="add-property-address-grid add-property-address-grid-detail">
-                    {/* Desktop/tablet: original layout keeps Street in this section */}
-                    <div
-                      className={[
-                        "add-property-address-card hidden md:block",
-                        touchedBasics.street && !street
-                          ? "add-property-address-card-error"
-                          : !ward
-                            ? "add-property-address-card-locked"
-                            : street
-                              ? "add-property-address-card-done"
-                              : "add-property-address-card-active",
-                      ].join(" ")}
-                    >
-                      <div className="add-property-address-card-head">
-                        <div className="min-w-0">
-                          <div className="add-property-address-card-label">Street address <span className="text-rose-600">*</span></div>
-                        </div>
-                      </div>
-                      <div className="add-property-address-card-control relative">
-                        <select
-                          title="Street"
-                          value={street}
-                          onChange={(e) => setStreet(e.target.value)}
-                          onBlur={() => setTouchedBasics((t) => ({ ...t, street: true }))}
-                          disabled={!ward}
-                          className={`add-property-field-control min-w-0 appearance-none h-12 cursor-pointer px-4 pr-10 ${
-                            !ward ? "text-slate-400 cursor-not-allowed" : "text-slate-900"
-                          }`}
-                          aria-required={true}
-                          aria-describedby={touchedBasics.street && !street ? "streetErrorDetail" : undefined}
-                        >
-                          <option value="">{ward ? "Select street" : "Select ward first"}</option>
-                          {streets.map((s: string) => (
-                            <option key={s} value={s}>
-                              {s}
-                            </option>
-                          ))}
-                        </select>
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                          <ChevronDown className="h-5 w-5" />
-                        </div>
-                      </div>
-                      {touchedBasics.street && !street ? <p id="streetErrorDetail" className="add-property-address-card-note text-rose-600">Choose a street before continuing.</p> : null}
-                    </div>
-
-                    <div className={["add-property-address-card", city.trim() ? "add-property-address-card-done" : "add-property-address-card-active"].join(" ")}>
-                      <div className="add-property-address-card-head">
-                        <div className="min-w-0">
-                          <div className="add-property-address-card-label">City <span className="text-slate-400 normal-case tracking-normal">optional</span></div>
-                        </div>
-                      </div>
-                      <div className="add-property-address-card-control relative">
-                        <input
-                          id="city"
-                          type="text"
-                          value={city}
-                          onChange={(e) => setCity(e.target.value)}
-                          className="add-property-field-control h-12 px-4 placeholder-slate-400"
-                          placeholder="Enter city"
-                        />
-                      </div>
-                    </div>
-
-                    <div className={[
-                      "add-property-address-card",
-                      touchedBasics.zip && selectedWardPostcode && (!zip || zip.trim().length === 0)
-                        ? "add-property-address-card-error"
-                        : (selectedWardPostcode || zip.trim())
-                          ? "add-property-address-card-done"
-                          : "add-property-address-card-active",
-                    ].join(" ")}>
-                      <div className="add-property-address-card-head">
-                        <div className="min-w-0">
-                          <div className="add-property-address-card-label">Zip code {selectedWardPostcode ? <span className="text-rose-600">*</span> : <span className="text-slate-400 normal-case tracking-normal">optional</span>}</div>
-                        </div>
-                      </div>
-                      <div className={["add-property-address-card-control", selectedWardPostcode ? "add-property-address-card-control-readonly" : ""].join(" ")}>
-                        <input
-                          id="zip"
-                          type="text"
-                          value={zip}
-                          onChange={(e) => setZip(e.target.value)}
-                          onBlur={() => setTouchedBasics((t) => ({ ...t, zip: true }))}
-                          readOnly={!!selectedWardPostcode}
-                          className={`add-property-field-control min-w-0 h-12 px-4 ${selectedWardPostcode ? "text-slate-700 cursor-not-allowed" : "text-slate-900 placeholder-slate-400"}`}
-                          placeholder={selectedWardPostcode ? "Auto-filled from ward" : "Enter postcode"}
-                          aria-required={!!selectedWardPostcode}
-                          aria-describedby={touchedBasics.zip && selectedWardPostcode && (!zip || zip.trim().length === 0) ? "zipError" : undefined}
-                        />
-                      </div>
-                      {touchedBasics.zip && selectedWardPostcode && (!zip || zip.trim().length === 0) ? <p id="zipError" className="add-property-address-card-note text-rose-600">Zip code is required here.</p> : null}
-                      {selectedWardPostcode && zip ? <p className="add-property-address-card-note text-emerald-700">Auto-filled from the selected ward.</p> : null}
-                      {!selectedWardPostcode && ward ? <p className="add-property-address-card-note text-amber-700">No postcode was supplied by the ward, so enter it manually.</p> : null}
-                    </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-white/70">Zip {selectedWardPostcode ? <span className="text-red-300">*</span> : <span className="text-white/40 normal-case tracking-normal text-[10px]">optional</span>}</label>
+                    <input
+                      id="zip"
+                      type="text"
+                      value={zip}
+                      onChange={(e) => setZip(e.target.value)}
+                      onBlur={() => setTouchedBasics((t) => ({ ...t, zip: true }))}
+                      readOnly={!!selectedWardPostcode}
+                      className={`w-full h-10 px-3 text-[13px] rounded-lg border transition-all duration-150 focus:outline-none focus:ring-2 ${
+                        selectedWardPostcode
+                          ? "bg-emerald-50 text-slate-700 border-emerald-300 cursor-not-allowed"
+                          : zip.trim()
+                            ? "bg-white text-slate-900 border-emerald-300 focus:ring-emerald-200"
+                            : "bg-white/95 text-slate-900 border-white/25 placeholder-slate-400 hover:border-white/40 focus:ring-white/20"
+                      }`}
+                      placeholder={selectedWardPostcode ? "Auto-filled" : "Enter postcode"}
+                      aria-required={!!selectedWardPostcode}
+                    />
+                    {touchedBasics.zip && selectedWardPostcode && (!zip || zip.trim().length === 0) ? <p id="zipError" className="text-[10px] text-red-300 mt-1">Required</p> : null}
+                    {selectedWardPostcode && zip ? <p className="text-[10px] text-emerald-300 mt-1">Auto-filled from ward</p> : null}
                   </div>
                 </div>
               </div>
+
 
               <div className="mt-6 add-property-location-submodule">
                 <div className="mb-4 flex items-center gap-3">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#02665e]/10">
-                    <Landmark className="h-4 w-4 text-[#02665e]" />
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/15">
+                    <Landmark className="h-4 w-4 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-semibold leading-tight" style={{ color: "#e6edf3" }}>Park / Tourism Site</h3>
-                    <p className="text-xs" style={{ color: "#8b949e" }}>Is your property inside or near a national park or reserve? If not, leave it blank.</p>
+                    <h3 className="text-sm font-semibold leading-tight text-white">Park / Tourism Site</h3>
+                    <p className="text-xs text-white/60">Is your property inside or near a national park or reserve? If not, leave it blank.</p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="flex flex-col space-y-2">
-                    <div className={[
-                      "add-property-field-card",
-                      selectedTourismSite ? "add-property-field-card-valid" : !tourismCountry ? "add-property-field-card-disabled" : "",
-                    ].join(" ")}>
-                      <label className="mb-2 block text-xs font-semibold" style={{ color: "#8b949e" }}>Tourism site / Park</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Tourism site / Park */}
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-white/70">Tourism site / Park</label>
+                    <div ref={parkPickerRef} className="relative">
+                      <input
+                        ref={parkInputRef}
+                        value={parkPickerOpen ? parkQuery : selectedTourismSite?.name ?? ""}
+                        onFocus={() => {
+                          if (tourismSitesLoading || !tourismCountry) return;
+                          setParkPickerOpen(true);
+                          setParkQuery(selectedTourismSite?.name ?? "");
+                        }}
+                        onChange={(e) => {
+                          setParkQuery(e.target.value);
+                          if (!tourismSitesLoading && tourismCountry) setParkPickerOpen(true);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Escape") {
+                            setParkPickerOpen(false);
+                            setParkQuery("");
+                          }
+                        }}
+                        placeholder={
+                          !tourismCountry
+                            ? "Set location first"
+                            : tourismSitesLoading
+                              ? "Loading\u2026"
+                              : "Search or skip"
+                        }
+                        className={`w-full h-10 pl-3 pr-16 text-[13px] rounded-lg border transition-all duration-150 focus:outline-none focus:ring-2 ${
+                          !tourismCountry || tourismSitesLoading
+                            ? "bg-white/50 text-slate-400 border-white/10 cursor-not-allowed"
+                            : selectedTourismSite
+                              ? "bg-white text-slate-900 border-emerald-300 focus:ring-emerald-200"
+                              : "bg-white/95 text-slate-900 border-white/25 placeholder-slate-400 hover:border-white/40 focus:ring-white/20"
+                        }`}
+                        role="combobox"
+                        aria-haspopup="listbox"
+                        aria-expanded={parkPickerOpen}
+                        aria-controls="parkListbox"
+                        disabled={tourismSitesLoading || !tourismCountry}
+                        title="Tourism site"
+                      />
 
-                      {parkIsLocked ? (
-                        <div className="add-property-field-shell add-property-field-shell-valid w-full h-12 px-4 text-sm inline-flex items-center justify-between gap-3">
-                          <div className="min-w-0 truncate font-semibold text-slate-100 inline-flex items-center gap-2">
-                            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                            <span className="truncate">
-                              {selectedTourismSite?.name}
-                              {selectedTourismSite?.country ? (
-                                <span className="ml-2 font-medium text-slate-400">({selectedTourismSite.country})</span>
-                              ) : null}
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsEditingPark(true);
-                              setIsEditingPlacement(true);
-                              window.setTimeout(() => {
-                                if (tourismSitesLoading || !tourismCountry) return;
-                                setParkPickerOpen(true);
-                                setParkQuery(selectedTourismSite?.name ?? "");
-                                parkInputRef.current?.focus();
-                              }, 0);
-                            }}
-                            className="shrink-0 inline-flex items-center justify-center h-9 w-9 rounded-xl border border-transparent bg-transparent text-emerald-600 transition-colors hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                            aria-label="Edit park"
-                            title="Edit"
-                          >
-                              <Pencil className="h-4 w-4 text-emerald-600" />
-                          </button>
-                        </div>
-                      ) : (
-                        <div
-                          ref={parkPickerRef}
-                          className={[
-                            "add-property-field-shell w-full",
-                            tourismSitesLoading || !tourismCountry ? "add-property-field-shell-disabled" : "",
-                          ].join(" ")}
+                      {selectedTourismSite ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTourismSiteIdValue("");
+                            setLocalTourismSiteId("");
+                            setParkPlacementValue("");
+                            setLocalParkPlacement("");
+                            setParkPickerOpen(false);
+                            setParkQuery("");
+                            setIsEditingPark(false);
+                            setIsEditingPlacement(false);
+                            window.setTimeout(() => parkInputRef.current?.focus(), 0);
+                          }}
+                          className="absolute right-8 top-1/2 -translate-y-1/2 inline-flex items-center justify-center h-6 w-6 rounded-md border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                          title="Clear park"
+                          aria-label="Clear park"
                         >
-                          <input
-                            ref={parkInputRef}
-                            value={parkPickerOpen ? parkQuery : selectedTourismSite?.name ?? ""}
-                            onFocus={() => {
-                              if (tourismSitesLoading || !tourismCountry) return;
-                              setParkPickerOpen(true);
-                              setParkQuery(selectedTourismSite?.name ?? "");
-                            }}
-                            onChange={(e) => {
-                              setParkQuery(e.target.value);
-                              if (!tourismSitesLoading && tourismCountry) setParkPickerOpen(true);
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === "Escape") {
-                                setParkPickerOpen(false);
-                                setParkQuery("");
-                              }
-                            }}
-                            placeholder={
-                              !tourismCountry
-                                ? "Set your location first"
-                                : tourismSitesLoading
-                                  ? "Loading\u2026"
-                                  : "Search or skip"
-                            }
-                            className="add-property-field-control h-12 pl-4 pr-24 disabled:text-slate-400 disabled:cursor-not-allowed"
-                            role="combobox"
-                            aria-haspopup="listbox"
-                            aria-expanded={parkPickerOpen}
-                            aria-controls="parkListbox"
-                            disabled={tourismSitesLoading || !tourismCountry}
-                            title="Tourism site"
-                          />
+                          <X className="h-3 w-3" />
+                        </button>
+                      ) : null}
 
-                          {selectedTourismSite ? (
+                      <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 z-10">
+                        <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${parkPickerOpen ? "rotate-180" : ""}`} />
+                      </div>
+
+                      {parkPickerOpen ? (
+                        <div className="absolute z-30 mt-1 w-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl shadow-slate-200/50 ring-1 ring-black/5">
+                          <div id="parkListbox" role="listbox" className="max-h-60 overflow-auto py-1">
                             <button
                               type="button"
                               onClick={() => {
@@ -1183,157 +1025,102 @@ const nameOk = title.trim().length >= 3;
                                 setParkQuery("");
                                 setIsEditingPark(false);
                                 setIsEditingPlacement(false);
-                                window.setTimeout(() => parkInputRef.current?.focus(), 0);
                               }}
-                              className="absolute right-10 top-1/2 -translate-y-1/2 inline-flex items-center justify-center h-8 w-8 rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                              title="Clear park"
-                              aria-label="Clear park"
+                              className="w-full text-left px-3 py-2 text-[13px] text-slate-700 hover:bg-slate-50"
+                              role="option"
+                              aria-selected={effectiveTourismSiteIdValue === ""}
                             >
-                              <X className="h-4 w-4" />
+                              Not linked to a park
                             </button>
-                          ) : null}
 
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 z-10">
-                          <ChevronDown className={["h-5 w-5 transition-transform duration-200", parkPickerOpen ? "rotate-180" : ""].join(" ")} />
-                        </div>
+                            {tourismSitesLoading ? (
+                              <div className="px-3 py-2 text-[13px] text-slate-500">Loading parks{"\u2026"}</div>
+                            ) : null}
 
-                          {parkPickerOpen ? (
-                            <div className="add-property-park-dropdown absolute z-30 mt-2 w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/50 ring-1 ring-black/5">
-                              <div id="parkListbox" role="listbox" className="max-h-72 overflow-auto py-1">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setTourismSiteIdValue("");
-                                    setLocalTourismSiteId("");
-                                    setParkPlacementValue("");
-                                    setLocalParkPlacement("");
-                                    setParkPickerOpen(false);
-                                    setParkQuery("");
-                                    setIsEditingPark(false);
-                                    setIsEditingPlacement(false);
-                                  }}
-                                  className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                                  role="option"
-                                  aria-selected={effectiveTourismSiteIdValue === ""}
-                                >
-                                  Not linked to a park
-                                </button>
+                            {!tourismSitesLoading && filteredTourismSites.length === 0 ? (
+                              <div className="px-3 py-2 text-[13px] text-slate-500">No parks found.</div>
+                            ) : null}
 
-                                {tourismSitesLoading ? (
-                                  <div className="px-3 py-2 text-sm text-slate-500">Loading parks\u2026</div>
-                                ) : null}
-
-                                {!tourismSitesLoading && filteredTourismSites.length === 0 ? (
-                                  <div className="px-3 py-2 text-sm text-slate-500">No parks found.</div>
-                                ) : null}
-
-                                {!tourismSitesLoading
-                                  ? filteredTourismSites.map((s) => {
-                                      const selected =
-                                        effectiveTourismSiteIdValue !== "" &&
-                                        Number(effectiveTourismSiteIdValue) === Number(s.id);
-                                      const isMajor = MAJOR_TOURISM_SLUGS.has(s.slug);
-                                      return (
-                                        <button
-                                          key={s.id}
-                                          type="button"
-                                          onClick={() => {
-                                            const nextId = Number(s.id);
-                                            setLocalTourismSiteId(nextId);
-                                            setTourismSiteIdValue(nextId);
-                                            setParkPickerOpen(false);
-                                            setParkQuery("");
-                                            setIsEditingPark(false);
-                                            setIsEditingPlacement(false);
-                                          }}
-                                          className={[
-                                            "w-full text-left px-3 py-2 text-sm transition-colors hover:bg-slate-50",
-                                            selected ? "bg-emerald-50" : "",
-                                          ].join(" ")}
-                                          role="option"
-                                          aria-selected={selected}
-                                        >
-                                          <div className="flex items-center justify-between gap-2">
-                                            <div className="min-w-0">
-                                              <div className="truncate text-slate-900">
-                                                {s.name}{" "}
-                                                {isMajor ? (
-                                                  <span className="ml-1 text-[11px] font-semibold text-emerald-700">Major</span>
-                                                ) : null}
-                                              </div>
-                                              <div className="truncate text-[11px] text-slate-500">{s.country}</div>
-                                            </div>
-                                            {selected ? (
-                                              <span className="text-[11px] font-semibold text-emerald-700">Selected</span>
+                            {!tourismSitesLoading
+                              ? filteredTourismSites.map((s) => {
+                                  const selected =
+                                    effectiveTourismSiteIdValue !== "" &&
+                                    Number(effectiveTourismSiteIdValue) === Number(s.id);
+                                  const isMajor = MAJOR_TOURISM_SLUGS.has(s.slug);
+                                  return (
+                                    <button
+                                      key={s.id}
+                                      type="button"
+                                      onClick={() => {
+                                        const nextId = Number(s.id);
+                                        setLocalTourismSiteId(nextId);
+                                        setTourismSiteIdValue(nextId);
+                                        setParkPickerOpen(false);
+                                        setParkQuery("");
+                                        setIsEditingPark(false);
+                                        setIsEditingPlacement(false);
+                                      }}
+                                      className={`w-full text-left px-3 py-2 text-[13px] transition-colors hover:bg-slate-50 ${selected ? "bg-emerald-50" : ""}`}
+                                      role="option"
+                                      aria-selected={selected}
+                                    >
+                                      <div className="flex items-center justify-between gap-2">
+                                        <div className="min-w-0">
+                                          <div className="truncate text-slate-900">
+                                            {s.name}{" "}
+                                            {isMajor ? (
+                                              <span className="ml-1 text-[10px] font-semibold text-emerald-700">Major</span>
                                             ) : null}
                                           </div>
-                                        </button>
-                                      );
-                                    })
-                                  : null}
-                              </div>
-                            </div>
-                          ) : null}
+                                          <div className="truncate text-[10px] text-slate-500">{s.country}</div>
+                                        </div>
+                                        {selected ? (
+                                          <span className="text-[10px] font-semibold text-emerald-700">Selected</span>
+                                        ) : null}
+                                      </div>
+                                    </button>
+                                  );
+                                })
+                              : null}
+                          </div>
                         </div>
-                      )}
-                      {tourismSitesError ? <p className="text-xs text-rose-600">{tourismSitesError}</p> : null}
+                      ) : null}
                     </div>
+                    {tourismSitesError ? <p className="text-[10px] text-red-300 mt-1">{tourismSitesError}</p> : null}
                   </div>
 
-                  <div className="flex flex-col space-y-2">
-                    <div className={[
-                      "add-property-field-card",
-                      effectiveTourismSiteIdValue === "" ? "add-property-field-card-disabled" : effectiveParkPlacementValue ? "add-property-field-card-valid" : "",
-                    ].join(" ")}>
-                      <label className="mb-2 block text-xs font-semibold" style={{ color: "#8b949e" }}>Placement</label>
-
-                      {placementIsLocked ? (
-                        <div className="add-property-field-shell add-property-field-shell-valid w-full h-10 px-3 text-sm inline-flex items-center justify-between gap-2 font-semibold">
-                          <span className="inline-flex items-center justify-center gap-2">
-                            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                            {effectiveParkPlacementValue === "INSIDE" ? "Inside the park" : "Nearby the park"}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => setIsEditingPlacement(true)}
-                            className="shrink-0 inline-flex items-center justify-center h-8 w-8 rounded-xl border border-transparent bg-transparent text-emerald-600 transition-colors hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                            aria-label="Edit placement"
-                            title="Edit"
-                          >
-                            <Pencil className="h-4 w-4 text-emerald-600" />
-                          </button>
-                        </div>
-                      ) : (
-                        <div
-                          className={[
-                            "add-property-field-shell w-full",
-                            effectiveTourismSiteIdValue === "" ? "add-property-field-shell-disabled" : "",
-                          ].join(" ")}
-                        >
-                          <select
-                            value={effectiveParkPlacementValue}
-                            onChange={(e) => {
-                              const next = String(e.target.value || "") as "" | "INSIDE" | "NEARBY";
-                              setLocalParkPlacement(next);
-                              setParkPlacementValue(next);
-                              if (effectiveTourismSiteIdValue !== "" && next) setIsEditingPlacement(false);
-                            }}
-                            disabled={effectiveTourismSiteIdValue === ""}
-                            className={[
-                              "add-property-field-control h-10 px-3 text-sm font-semibold appearance-none",
-                              effectiveTourismSiteIdValue === "" ? "cursor-not-allowed" : "",
-                            ].join(" ")}
-                            aria-label="Park placement"
-                          >
-                            <option value="" disabled>Select placement</option>
-                            <option value="INSIDE">Inside the park</option>
-                            <option value="NEARBY">Nearby the park</option>
-                          </select>
-                        </div>
-                      )}
+                  {/* Placement */}
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-white/70">Placement</label>
+                    <div className="relative">
+                      <select
+                        value={effectiveParkPlacementValue}
+                        onChange={(e) => {
+                          const next = String(e.target.value || "") as "" | "INSIDE" | "NEARBY";
+                          setLocalParkPlacement(next);
+                          setParkPlacementValue(next);
+                          if (effectiveTourismSiteIdValue !== "" && next) setIsEditingPlacement(false);
+                        }}
+                        disabled={effectiveTourismSiteIdValue === ""}
+                        className={`w-full h-10 pl-3 pr-8 text-[13px] rounded-lg border appearance-none transition-all duration-150 focus:outline-none focus:ring-2 ${
+                          effectiveTourismSiteIdValue === ""
+                            ? "bg-white/50 text-slate-400 border-white/10 cursor-not-allowed"
+                            : effectiveParkPlacementValue
+                              ? "bg-white text-slate-900 border-emerald-300 cursor-pointer focus:ring-emerald-200"
+                              : "bg-white/95 text-slate-900 border-white/25 cursor-pointer hover:border-white/40 focus:ring-white/20"
+                        }`}
+                        aria-label="Park placement"
+                      >
+                        <option value="" disabled>Select placement</option>
+                        <option value="INSIDE">Inside the park</option>
+                        <option value="NEARBY">Nearby the park</option>
+                      </select>
+                      <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none text-slate-400" />
                     </div>
                   </div>
                 </div>
+
+
               </div>
 
               {/* Location — drag-to-pin map (Google Maps business listing style) */}
