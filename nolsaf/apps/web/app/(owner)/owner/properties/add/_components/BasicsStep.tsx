@@ -382,6 +382,11 @@ const nameOk = title.trim().length >= 3;
     return [...PROPERTY_TYPES];
   }, [PROPERTY_TYPES, collapseTypes, type]);
 
+  const handleLocationDetected = useCallback((lat: number, lng: number) => {
+    setLatitude(lat);
+    setLongitude(lng);
+  }, [setLatitude, setLongitude]);
+
   return (
     <AddPropertySection
       as="section"
@@ -1335,25 +1340,10 @@ const nameOk = title.trim().length >= 3;
 
               {/* Location — drag-to-pin map (Google Maps business listing style) */}
               <div className="mt-6">
-                <div className="mb-3">
-                  <p className="text-sm font-semibold text-slate-800 flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-[#02665e]" />
-                    Pin your property on the map
-                  </p>
-                  <p className="mt-1 text-xs leading-relaxed text-slate-500">
-                    Tap{" "}
-                    <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-slate-100 text-[10px] font-bold text-slate-600">™</span>{" "}
-                    to fly to your area, then drag the map to place the pin on your entrance.
-                  </p>
-                </div>
-
                 <PropertyLocationMap
-                  latitude={typeof latitude === "number" && Number.isFinite(latitude) ? latitude : 0}
-                  longitude={typeof longitude === "number" && Number.isFinite(longitude) ? longitude : 0}
-                  onLocationDetected={(lat, lng) => {
-                    setLatitude(lat);
-                    setLongitude(lng);
-                  }}
+                  latitude={typeof latitude === "number" && Number.isFinite(latitude) ? latitude : NaN}
+                  longitude={typeof longitude === "number" && Number.isFinite(longitude) ? longitude : NaN}
+                  onLocationDetected={handleLocationDetected}
                 />
 
                 {/* Advanced: manual coordinate inputs */}

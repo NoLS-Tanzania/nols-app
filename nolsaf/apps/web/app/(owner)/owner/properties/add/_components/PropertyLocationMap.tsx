@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, CheckCircle2, MapPin, Navigation2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, LocateFixed, LocateOff, MapPin, X } from "lucide-react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 
 export type PropertyLocationDetectionMeta = {
@@ -16,6 +16,7 @@ type PropertyLocationMapProps = {
 
 const COORD_EPSILON = 0.000001;
 const MOBILE_BREAKPOINT = 768;
+const DEFAULT_CENTER = { lat: -6.7924, lng: 39.2083 };
 
 function readImmediateToken(): string {
   if (typeof window === "undefined") return "";
@@ -32,6 +33,10 @@ function coordsEqual(a: { lat: number; lng: number } | null, b: { lat: number; l
   return Math.abs(a.lat - b.lat) < COORD_EPSILON && Math.abs(a.lng - b.lng) < COORD_EPSILON;
 }
 
+function hasValidCoordinates(lat: number, lng: number): boolean {
+  return Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+}
+
 function shouldDeferInteractiveMap(): boolean {
   if (typeof window === "undefined") return false;
   const isNarrow = window.innerWidth < MOBILE_BREAKPOINT;
@@ -46,104 +51,88 @@ export const PropertyLocationMap = memo(function PropertyLocationMap({
 }: PropertyLocationMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any | null>(null);
-  const mapLoadedRef = useRef(false);
-  const centerMarkerRef = useRef<HTMLDivElement | null>(null);
-  const initStartedRef = useRef(false);
-  const isDetectingLocationRef = useRef(false);
+  const onLocationDetectedRef = useRef(onLocationDetected);
   const lastAppliedCenterRef = useRef<{ lat: number; lng: number } | null>(null);
   const lastEmittedCoordsRef = useRef<{ lat: number; lng: number } | null>(null);
-  const onLocationDetectedRef = useRef(onLocationDetected);
 
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
-  const [mapToken, setMapToken] = useState<string>("");
+  const [locationDenied, setLocationDenied] = useState(false);
+  const [mapToken, setMapToken] = useState("");
   const [tokenResolved, setTokenResolved] = useState(false);
   const [isInteractive, setIsInteractive] = useState(() => !shouldDeferInteractiveMap());
   const [mapReady, setMapReady] = useState(false);
   const [mapInitError, setMapInitError] = useState<string | null>(null);
 
-  const requestRuntimeToken = useCallback(() => {
-    let cancelled = false;
-    const immediateToken = readImmediateToken();
-    if (immediateToken) {
-      setMapToken(immediateToken);
-      setTokenResolved(true);
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    setTokenResolved(false);
-    fetch("/config/map-token", { cache: "no-store" })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((data) => {
-        if (cancelled) return;
-        setMapToken(String(data?.token || ""));
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setMapToken("");
-      })
-      .finally(() => {
-        if (!cancelled) setTokenResolved(true);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   useEffect(() => {
     onLocationDetectedRef.current = onLocationDetected;
   }, [onLocationDetected]);
 
-  useEffect(() => {
-    isDetectingLocationRef.current = isDetectingLocation;
-  }, [isDetectingLocation]);
-
-  const pulseCenterPin = useCallback(() => {
-    const el = centerMarkerRef.current;
-    if (!el || typeof (el as any).animate !== "function") return;
-    try {
-      (el as any).animate(
-        [
-          { transform: "translate(-50%, -100%) scale(1)", filter: "drop-shadow(0 6px 14px rgba(2,102,94,0.10))" },
-          { transform: "translate(-50%, -100%) scale(1.08)", filter: "drop-shadow(0 10px 22px rgba(2,102,94,0.20))" },
-          { transform: "translate(-50%, -100%) scale(1)", filter: "drop-shadow(0 6px 14px rgba(2,102,94,0.10))" },
-        ],
-        { duration: 520, iterations: 2, easing: "cubic-bezier(.2,.8,.2,1)" }
-      );
-    } catch {
-      // ignore
-    }
-  }, []);
-
   const emitLocation = useCallback((lat: number, lng: number, meta?: PropertyLocationDetectionMeta) => {
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
     const next = {
-      lat: parseFloat(lat.toFixed(6)),
-      lng: parseFloat(lng.toFixed(6)),
+      lat: Number(lat.toFixed(6)),
+      lng: Number(lng.toFixed(6)),
     };
     if (coordsEqual(lastEmittedCoordsRef.current, next)) return;
     lastEmittedCoordsRef.current = next;
     onLocationDetectedRef.current?.(next.lat, next.lng, meta);
   }, []);
 
+  const requestRuntimeToken = useCallback(() => {
+    let disposed = false;
+    const controller = new AbortController();
+
+    const immediateToken = readImmediateToken();
+    if (immediateToken) {
+      setMapToken(immediateToken);
+      setTokenResolved(true);
+      return () => {
+        disposed = true;
+        controller.abort();
+      };
+    }
+
+    setTokenResolved(false);
+    fetch("/config/map-token", { cache: "no-store", signal: controller.signal })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (disposed) return;
+        setMapToken(String(data?.token || ""));
+      })
+      .catch((error) => {
+        if (disposed || error?.name === "AbortError") return;
+        setMapToken("");
+      })
+      .finally(() => {
+        if (!disposed) setTokenResolved(true);
+      });
+
+    return () => {
+      disposed = true;
+      controller.abort();
+    };
+  }, []);
+
   const detectLocation = useCallback(() => {
-    if (!navigator.geolocation) {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
       setLocationError("Geolocation is not supported by your browser.");
       return;
     }
 
-    if (isDetectingLocationRef.current) return;
+    // If previously denied, tell the user how to re-enable instead of silently failing
+    if (locationDenied) {
+      setLocationError("Location access is blocked. Please enable it in your browser settings, then try again.");
+      return;
+    }
 
     setIsDetectingLocation(true);
     setLocationError(null);
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        const lat = parseFloat(position.coords.latitude.toFixed(6));
-        const lng = parseFloat(position.coords.longitude.toFixed(6));
+        const lat = Number(position.coords.latitude.toFixed(6));
+        const lng = Number(position.coords.longitude.toFixed(6));
 
         emitLocation(lat, lng, {
           source: "gps",
@@ -151,36 +140,43 @@ export const PropertyLocationMap = memo(function PropertyLocationMap({
         });
 
         if (mapRef.current) {
-          mapRef.current.flyTo({
+          mapRef.current.easeTo({
             center: [lng, lat],
             zoom: 17,
-            duration: 1500,
+            duration: 800,
             essential: true,
           });
-          setTimeout(() => pulseCenterPin(), 250);
         }
 
+        setLocationDenied(false);
         setIsDetectingLocation(false);
       },
       (error) => {
-        setIsDetectingLocation(false);
-        let errorMsg = "Failed to get your location.";
         if (error.code === error.PERMISSION_DENIED) {
-          errorMsg = "Location access denied. Please enable location permissions.";
+          setLocationDenied(true);
+          setLocationError("Location access was denied. Open your browser site settings and allow location, then tap the button again.");
         } else if (error.code === error.POSITION_UNAVAILABLE) {
-          errorMsg = "Location information unavailable.";
+          setLocationError("Your location is currently unavailable. Try moving to an open area.");
         } else if (error.code === error.TIMEOUT) {
-          errorMsg = "Location request timed out.";
+          setLocationError("Location request timed out. Tap again to retry.");
+        } else {
+          setLocationError("Could not get your location. Please try again.");
         }
-        setLocationError(errorMsg);
+        setIsDetectingLocation(false);
       },
       {
         enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0,
+        timeout: 8000,
+        maximumAge: 30000,
       }
     );
-  }, [emitLocation, pulseCenterPin]);
+  }, [emitLocation, locationDenied]);
+
+  // Preload mapbox-gl in background while map is still closed, so the dynamic
+  // import is already resolved by the time the user clicks "Open map".
+  useEffect(() => {
+    import("mapbox-gl").catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!isInteractive) return;
@@ -188,303 +184,162 @@ export const PropertyLocationMap = memo(function PropertyLocationMap({
   }, [isInteractive, requestRuntimeToken]);
 
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapLoadedRef.current) return;
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
-    if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) return;
-
-    const next = { lat: Number(latitude), lng: Number(longitude) };
-    const current = map.getCenter();
-    if (Math.abs(current.lat - next.lat) < COORD_EPSILON && Math.abs(current.lng - next.lng) < COORD_EPSILON) return;
-    if (coordsEqual(lastAppliedCenterRef.current, next)) return;
-
-    lastAppliedCenterRef.current = next;
-    map.easeTo({ center: [next.lng, next.lat], duration: 700 });
-  }, [latitude, longitude]);
-
-  useEffect(() => {
-    if (!isInteractive) return;
-    const map = mapRef.current;
-    if (!map || !mapLoadedRef.current) return;
-
-    const resizeMap = () => {
-      try {
-        map.resize();
-      } catch {
-        // ignore
-      }
-    };
-
-    resizeMap();
-    const frame = window.requestAnimationFrame(resizeMap);
-    const timeoutId = window.setTimeout(resizeMap, 180);
-    window.addEventListener("resize", resizeMap);
-
-    return () => {
-      window.cancelAnimationFrame(frame);
-      window.clearTimeout(timeoutId);
-      window.removeEventListener("resize", resizeMap);
-    };
-  }, [isInteractive, mapReady]);
-
-  useEffect(() => {
-    if (!isInteractive) return;
+    if (!isInteractive || !tokenResolved || !mapToken) return;
     if (typeof window === "undefined") return;
-    const containerEl = containerRef.current;
-    if (!containerEl || !mapToken) return;
-    if (mapRef.current || initStartedRef.current) return;
 
-    let cancelled = false;
+    const containerEl = containerRef.current;
+    if (!containerEl || mapRef.current) return;
+
+    let disposed = false;
     let map: any = null;
-    initStartedRef.current = true;
+    let handleLoad: (() => void) | null = null;
+    let handleMoveEnd: (() => void) | null = null;
+    let handleError: ((event: any) => void) | null = null;
+
     setMapInitError(null);
     setMapReady(false);
-    mapLoadedRef.current = false;
+
+    try {
+      containerEl.innerHTML = "";
+    } catch {
+      // ignore
+    }
 
     (async () => {
       try {
         const mod = await import("mapbox-gl");
-        if (cancelled) return;
+        if (disposed || !containerEl.isConnected) return;
+
         const mapboxgl = (mod as any).default ?? mod;
         mapboxgl.accessToken = mapToken;
 
-        const latNum = Number(latitude);
-        const lngNum = Number(longitude);
-        const hasValidCoords =
-          Number.isFinite(latNum) &&
-          Number.isFinite(lngNum) &&
-          latNum >= -90 &&
-          latNum <= 90 &&
-          lngNum >= -180 &&
-          lngNum <= 180;
-        const isDefaultCoords =
-          !hasValidCoords ||
-          (latNum === 0 && lngNum === 0) ||
-          (Math.abs(latNum) < 0.001 && Math.abs(lngNum) < 0.001);
-
-        const fallbackLat = -6.7924;
-        const fallbackLng = 39.2083;
-        const exactLng = isDefaultCoords ? fallbackLng : lngNum;
-        const exactLat = isDefaultCoords ? fallbackLat : latNum;
-
-        if (!containerEl.isConnected) return;
+        const initial = hasValidCoordinates(latitude, longitude)
+          ? { lat: Number(latitude), lng: Number(longitude) }
+          : DEFAULT_CENTER;
 
         map = new mapboxgl.Map({
           container: containerEl,
-          style: "mapbox://styles/mapbox/streets-v12",
-          center: [exactLng, exactLat],
-          zoom: isDefaultCoords ? 12 : 17,
-          interactive: true,
+          style: "mapbox://styles/mapbox/streets-v11",
+          center: [initial.lng, initial.lat],
+          zoom: hasValidCoordinates(latitude, longitude) ? 16 : 12,
           attributionControl: false,
           antialias: false,
           fadeDuration: 0,
           maxTileCacheSize: 20,
-          devicePixelRatio: Math.min(typeof window !== "undefined" ? (window.devicePixelRatio ?? 1) : 1, 1.5),
+          trackResize: false,
         });
 
         try {
           map.dragRotate?.disable?.();
           map.touchZoomRotate?.disableRotation?.();
+          map.addControl(new mapboxgl.NavigationControl({ showCompass: false, visualizePitch: false }), "top-right");
         } catch {
           // ignore
         }
 
-        mapRef.current = map;
-
-        map.on("error", (event: any) => {
-          const message = event?.error?.message || "Unable to load the interactive map.";
-          setMapInitError(message);
-        });
-
-        map.on("load", () => {
-          mapLoadedRef.current = true;
+        // Fire ready as soon as the first frame is painted — tiles may still
+        // be streaming in but the map is already visible and interactive.
+        handleLoad = () => {
+          if (disposed) return;
           setMapReady(true);
           setMapInitError(null);
-          try {
-            map.resize();
-            window.requestAnimationFrame(() => map.resize());
-            window.setTimeout(() => map.resize(), 200);
-          } catch {
-            // ignore
+          try { map.resize(); } catch { /* ignore */ }
+
+          if (!hasValidCoordinates(latitude, longitude)) {
+            if (typeof navigator !== "undefined" && navigator.geolocation) {
+              navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                  if (disposed || !map) return;
+                  const lat = Number(pos.coords.latitude.toFixed(6));
+                  const lng = Number(pos.coords.longitude.toFixed(6));
+                  map.easeTo({ center: [lng, lat], zoom: 16, duration: 600, essential: true });
+                  emitLocation(lat, lng, { source: "gps", accuracy: pos.coords.accuracy });
+                },
+                () => { emitLocation(initial.lat, initial.lng, { source: "pin" }); },
+                { enableHighAccuracy: true, timeout: 6000, maximumAge: 120000 }
+              );
+            } else {
+              emitLocation(initial.lat, initial.lng, { source: "pin" });
+            }
           }
+        };
 
-          map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
+        handleMoveEnd = () => {
+          if (!map) return;
+          const center = map.getCenter();
+          emitLocation(center.lat, center.lng, { source: "pin" });
+        };
 
-          const locateButton = document.createElement("button");
-          locateButton.className = "mapboxgl-ctrl-icon mapboxgl-ctrl-locate";
-          locateButton.type = "button";
-          locateButton.setAttribute("aria-label", "Locate me");
-          locateButton.setAttribute("title", "Locate me");
-          locateButton.style.cssText = `
-            width: 30px;
-            height: 30px;
-            background-color: #fff;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 0 0 2px rgba(0,0,0,0.1);
-            transition: all 0.2s;
-          `;
+        handleError = (event: any) => {
+          if (disposed) return;
+          setMapInitError(event?.error?.message || "Unable to initialize the map.");
+        };
 
-          const locateIcon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-          locateIcon.setAttribute("width", "18");
-          locateIcon.setAttribute("height", "18");
-          locateIcon.setAttribute("viewBox", "0 0 24 24");
-          locateIcon.setAttribute("fill", "none");
-          locateIcon.setAttribute("stroke", "#02665e");
-          locateIcon.setAttribute("stroke-width", "2");
-          locateIcon.setAttribute("stroke-linecap", "round");
-          locateIcon.setAttribute("stroke-linejoin", "round");
-
-          const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-          circle.setAttribute("cx", "12");
-          circle.setAttribute("cy", "12");
-          circle.setAttribute("r", "10");
-
-          const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-          dot.setAttribute("cx", "12");
-          dot.setAttribute("cy", "12");
-          dot.setAttribute("r", "3");
-
-          locateIcon.appendChild(circle);
-          locateIcon.appendChild(dot);
-          locateButton.appendChild(locateIcon);
-
-          locateButton.addEventListener("click", (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            detectLocation();
-          });
-
-          locateButton.addEventListener("mouseenter", () => {
-            locateButton.style.backgroundColor = "#f0f9ff";
-            locateButton.style.boxShadow = "0 0 0 2px rgba(2,102,94,0.2)";
-          });
-
-          locateButton.addEventListener("mouseleave", () => {
-            locateButton.style.backgroundColor = "#fff";
-            locateButton.style.boxShadow = "0 0 0 2px rgba(0,0,0,0.1)";
-          });
-
-          const locateControl = document.createElement("div");
-          locateControl.className = "mapboxgl-ctrl mapboxgl-ctrl-group";
-          locateControl.style.cssText = "margin: 10px;";
-          locateControl.appendChild(locateButton);
-
-          const topRight = map.getContainer().querySelector(".mapboxgl-ctrl-top-right");
-          if (topRight) topRight.appendChild(locateControl);
-
-          // Custom attribution info button (bottom-right)
-          const attrBtn = document.createElement("button");
-          attrBtn.type = "button";
-          attrBtn.title = "Map attribution";
-          attrBtn.style.cssText = "width:24px;height:24px;border:none;background:rgba(255,255,255,0.85);cursor:pointer;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#555;line-height:1;padding:0;";
-          attrBtn.textContent = "ⓘ";
-
-          const attrPopup = document.createElement("div");
-          attrPopup.style.cssText = "display:none;position:absolute;bottom:30px;right:0;background:rgba(255,255,255,0.95);border:1px solid #ddd;border-radius:6px;padding:6px 10px;font-size:11px;color:#333;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.15);";
-          attrPopup.innerHTML = '© <a href="https://www.mapbox.com/about/maps/" target="_blank" rel="noreferrer" style="color:#02665e">Mapbox</a> © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" style="color:#02665e">OpenStreetMap</a>';
-
-          attrBtn.addEventListener("click", (e) => {
-            e.stopPropagation();
-            attrPopup.style.display = attrPopup.style.display === "none" ? "block" : "none";
-          });
-
-          map.getContainer().addEventListener("click", () => {
-            attrPopup.style.display = "none";
-          });
-
-          const attrWrapper = document.createElement("div");
-          attrWrapper.style.cssText = "position:absolute;bottom:8px;right:8px;z-index:1000;";
-          attrWrapper.appendChild(attrPopup);
-          attrWrapper.appendChild(attrBtn);
-          map.getContainer().appendChild(attrWrapper);
-
-          const centerMarkerContainer = document.createElement("div");
-          centerMarkerContainer.style.cssText = `
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -100%);
-            z-index: 1000;
-            pointer-events: none;
-            width: 40px;
-            height: 50px;
-            display: flex;
-            align-items: flex-end;
-            justify-content: center;
-          `;
-
-          const centerPin = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-          centerPin.setAttribute("width", "40");
-          centerPin.setAttribute("height", "50");
-          centerPin.setAttribute("viewBox", "0 0 24 24");
-          centerPin.setAttribute("fill", "none");
-          centerPin.style.display = "block";
-
-          const pinPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
-          pinPath.setAttribute("d", "M20 10c0 4.418-8 12-8 12s-8-7.582-8-12a8 8 0 1 1 16 0z");
-          pinPath.setAttribute("fill", "#ef4444");
-          pinPath.setAttribute("stroke", "#fff");
-          pinPath.setAttribute("stroke-width", "1.5");
-
-          const whiteCircle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-          whiteCircle.setAttribute("cx", "12");
-          whiteCircle.setAttribute("cy", "10");
-          whiteCircle.setAttribute("r", "4");
-          whiteCircle.setAttribute("fill", "#fff");
-
-          centerPin.appendChild(pinPath);
-          centerPin.appendChild(whiteCircle);
-          centerMarkerContainer.appendChild(centerPin);
-
-          const mapContainer = map.getContainer();
-          mapContainer.style.position = "relative";
-          mapContainer.appendChild(centerMarkerContainer);
-          centerMarkerRef.current = centerMarkerContainer;
-
-          const updateCenterCoordinates = () => {
-            if (!map) return;
-            const center = map.getCenter();
-            emitLocation(center.lat, center.lng, { source: "pin" });
-          };
-
-          map.on("moveend", updateCenterCoordinates);
-
-          setTimeout(() => pulseCenterPin(), 350);
-        });
+        // Use 'render' (first painted frame) instead of 'load' (all tiles fetched)
+        // so the overlay disappears the moment the map surface appears.
+        map.once("render", handleLoad);
+        map.on("moveend", handleMoveEnd);
+        map.on("error", handleError);
+        mapRef.current = map;
       } catch (error) {
-        console.error("Error initializing map:", error);
+        if (disposed) return;
         setMapInitError(error instanceof Error ? error.message : "Unable to initialize the map.");
         setMapReady(false);
-        mapLoadedRef.current = false;
-        initStartedRef.current = false;
       }
     })();
 
     return () => {
-      cancelled = true;
-      if (!mapRef.current) initStartedRef.current = false;
-    };
-  // latitude and longitude are intentionally excluded from deps.
-  // Init runs once when the token + container are ready.
-  // Coordinate updates after init are handled by the separate easeTo effect.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [detectLocation, emitLocation, isInteractive, mapToken, pulseCenterPin]);
-
-  useEffect(() => {
-    return () => {
-      if (centerMarkerRef.current) {
+      disposed = true;
+      if (map) {
         try {
-          centerMarkerRef.current.remove();
+          if (handleLoad) map.off("render", handleLoad);
+          if (handleMoveEnd) map.off("moveend", handleMoveEnd);
+          if (handleError) map.off("error", handleError);
+          map.remove();
         } catch {
           // ignore
         }
-        centerMarkerRef.current = null;
       }
+      if (mapRef.current === map) mapRef.current = null;
+      setMapReady(false);
+    };
+  }, [emitLocation, isInteractive, latitude, longitude, mapToken, tokenResolved]);
+
+  useEffect(() => {
+    if (!isInteractive || !mapReady || !mapRef.current) return;
+    if (!hasValidCoordinates(latitude, longitude)) return;
+
+    const map = mapRef.current;
+    const next = { lat: Number(latitude), lng: Number(longitude) };
+    const current = map.getCenter();
+
+    if (coordsEqual(lastAppliedCenterRef.current, next)) return;
+    if (Math.abs(current.lat - next.lat) < COORD_EPSILON && Math.abs(current.lng - next.lng) < COORD_EPSILON) return;
+
+    lastAppliedCenterRef.current = next;
+    map.easeTo({ center: [next.lng, next.lat], duration: 500, essential: true });
+  }, [isInteractive, latitude, longitude, mapReady]);
+
+  useEffect(() => {
+    if (!isInteractive || !mapReady || !mapRef.current) return;
+
+    const map = mapRef.current;
+    const handleResize = () => {
+      window.requestAnimationFrame(() => {
+        try {
+          map.resize();
+        } catch {
+          // ignore
+        }
+      });
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [isInteractive, mapReady]);
+
+  useEffect(() => {
+    return () => {
       if (mapRef.current) {
         try {
           mapRef.current.remove();
@@ -493,137 +348,216 @@ export const PropertyLocationMap = memo(function PropertyLocationMap({
         }
         mapRef.current = null;
       }
-      mapLoadedRef.current = false;
-      setMapReady(false);
     };
   }, []);
 
-  const hasCoords = Number.isFinite(latitude) && Number.isFinite(longitude);
+  const hasCoords = hasValidCoordinates(latitude, longitude);
 
   return (
     <div className="w-full">
       {!isInteractive ? (
-        <div className="rounded-[24px] border border-slate-200/80 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.10),_transparent_24%),linear-gradient(180deg,_rgba(255,255,255,0.98),_rgba(248,250,252,0.94))] p-5 shadow-md shadow-slate-200/35">
-          <div className="flex items-start gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700 shadow-sm shadow-emerald-200/50">
-              <Navigation2 className="h-5 w-5" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-base font-semibold text-slate-900">Open the live map when you are ready to pin</div>
-              <p className="mt-1 text-sm leading-relaxed text-slate-600">
-                On smaller devices the interactive canvas is deferred to keep the page fast. Open it only when you want to place the exact building pin.
-              </p>
-              <div className="mt-4 rounded-2xl border border-slate-200/80 bg-white px-4 py-3 text-xs text-slate-600 shadow-sm shadow-slate-200/30">
-                <div className="font-semibold uppercase tracking-[0.18em] text-slate-500">Current coordinates</div>
-                <div className="mt-1 font-mono text-[13px] text-slate-900">
-                  {hasCoords ? `${Number(latitude).toFixed(6)}, ${Number(longitude).toFixed(6)}` : "Not set"}
-                </div>
+        <div className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm">
+          {/* Top accent bar */}
+          <div className="h-1 w-full bg-gradient-to-r from-emerald-400 via-teal-500 to-emerald-600" />
+
+          <div className="p-4">
+            {/* Header row */}
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100">
+                <LocateFixed className="h-4 w-4" />
               </div>
+              <div>
+                <div className="text-sm font-semibold text-slate-900">Property location</div>
+                <div className="text-[11px] text-slate-400">Drag the pin or detect via GPS</div>
+              </div>
+              {/* Coordinate badge */}
+              {hasCoords ? (
+                <div className="ml-auto shrink-0 flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 ring-1 ring-emerald-100">
+                  <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+                  <span className="font-mono text-[10px] font-semibold text-emerald-700 tabular-nums">
+                    {Number(latitude).toFixed(4)}, {Number(longitude).toFixed(4)}
+                  </span>
+                </div>
+              ) : (
+                <div className="ml-auto shrink-0 rounded-full bg-slate-100 px-2.5 py-1">
+                  <span className="text-[10px] font-medium text-slate-400">No pin set</span>
+                </div>
+              )}
+            </div>
+
+            {/* Action buttons */}
+            <div className="mt-3 grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => setIsInteractive(true)}
-                className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-[#02665e] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#014f49]"
+                className="flex items-center justify-center gap-2 rounded-xl bg-[#02665e] py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#014f49] active:scale-[0.98]"
               >
-                <MapPin className="h-4 w-4" />
-                Open interactive map
+                <MapPin className="h-3.5 w-3.5" />
+                Open map
+              </button>
+              <button
+                type="button"
+                onClick={detectLocation}
+                disabled={isDetectingLocation}
+                className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 py-2.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 active:scale-[0.98] disabled:opacity-50"
+              >
+                <LocateFixed className={`h-3.5 w-3.5 ${isDetectingLocation ? "animate-spin text-emerald-600" : ""}`} />
+                {isDetectingLocation ? "Locating…" : "My location"}
               </button>
             </div>
           </div>
         </div>
       ) : (
-        <div className="relative">
-          {!mapReady ? (
-            <div className="absolute inset-0 z-[1] flex flex-col items-center justify-center gap-3 rounded-[24px] bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.12),_transparent_28%),linear-gradient(180deg,_rgba(248,250,252,0.98),_rgba(241,245,249,0.95))] px-6 text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700 shadow-sm shadow-emerald-200/60">
-                <Navigation2 className="h-5 w-5" />
-              </div>
-              <div>
-                <div className="text-sm font-semibold text-slate-900">Preparing interactive map</div>
-                <p className="mt-1 text-xs leading-relaxed text-slate-600">
-                  {mapInitError
-                    ? "The live map could not finish loading. Retry below or keep using the detected coordinates."
-                    : "Loading map tiles and controls for exact pin placement."}
-                </p>
-              </div>
-              {mapInitError ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMapInitError(null);
-                    setMapToken("");
-                    setTokenResolved(false);
-                    setMapReady(false);
-                    if (mapRef.current) {
-                      try {
-                        mapRef.current.remove();
-                      } catch {
-                        // ignore
-                      }
-                      mapRef.current = null;
-                    }
-                    mapLoadedRef.current = false;
-                    initStartedRef.current = false;
-                    requestRuntimeToken();
-                  }}
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
-                >
-                  Retry map
-                </button>
-              ) : (
-                <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-600" />
-              )}
-            </div>
-          ) : null}
+        <div className="space-y-2">
+          {/* Header — outside and above the map */}
+          <div className="flex items-center gap-2 px-1">
+            <LocateFixed className="h-4 w-4 shrink-0 text-emerald-600" />
+            <p className="text-[12px] font-medium text-slate-600">
+              Move the map so the blue pin sits exactly on your property entrance, then close.
+            </p>
+          </div>
+
+        <div className="relative overflow-hidden rounded-[24px] border border-slate-200/70 shadow-sm ring-1 ring-black/5">
           <div
             ref={containerRef}
-            className="w-full h-[380px] sm:h-[460px] min-h-[320px] rounded-[24px] overflow-hidden border border-slate-200/70 shadow-sm ring-1 ring-black/5 bg-slate-100"
+            className="h-[380px] min-h-[320px] w-full bg-slate-100 sm:h-[460px]"
           />
-          <div className="absolute left-4 bottom-4 z-10 rounded-2xl border border-white/70 bg-white/88 backdrop-blur px-3.5 py-2.5 shadow-sm ring-1 ring-black/5">
-            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Selected pin</div>
-            <div className="mt-0.5 text-[12px] font-semibold text-slate-900 tabular-nums">
-              {hasCoords ? `${Number(latitude).toFixed(6)}, ${Number(longitude).toFixed(6)}` : "Not set"}
+
+          {/* Blue transparent location circle — sits at exact map center */}
+          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+            <div className="relative flex items-center justify-center">
+              {/* Outer pulse ring */}
+              <div className="absolute h-16 w-16 animate-ping rounded-full bg-blue-400/20" />
+              {/* Mid translucent circle */}
+              <div className="absolute h-12 w-12 rounded-full bg-blue-400/25 ring-2 ring-blue-400/40" />
+              {/* Inner solid dot */}
+              <div className="relative h-4 w-4 rounded-full bg-blue-500 shadow-md ring-2 ring-white/90" />
             </div>
-            <div className="mt-1 text-[10px] text-slate-500">Drag the map to move the pin.</div>
           </div>
-          {isDetectingLocation && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[24px] bg-white/72 backdrop-blur-sm">
-              <div className="flex flex-col items-center gap-2">
-                <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#02665e] border-t-transparent" />
-                <span className="text-sm font-medium text-[#02665e]">Detecting your location...</span>
+
+          {/* Detecting location overlay */}
+          {isDetectingLocation ? (
+            <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/30 backdrop-blur-[3px]">
+              <div className="flex flex-col items-center gap-3 rounded-2xl bg-white px-10 py-7 shadow-2xl">
+                {/* Fast spinning arc ring */}
+                <div className="relative h-12 w-12">
+                  <svg className="absolute inset-0 animate-spin" style={{ animationDuration: "0.7s" }} viewBox="0 0 48 48" fill="none">
+                    <circle cx="24" cy="24" r="20" stroke="#e2f5ef" strokeWidth="4" />
+                    <path d="M24 4 a20 20 0 0 1 20 20" stroke="#10b981" strokeWidth="4" strokeLinecap="round" />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <LocateFixed className="h-5 w-5 text-emerald-600" />
+                  </div>
+                </div>
+                <div className="text-center">
+                  <p className="text-[13px] font-semibold tracking-tight text-slate-900">Detecting location</p>
+                  <p className="mt-0.5 text-[11px] text-slate-400">Pinpointing your exact position…</p>
+                </div>
+                {/* Fast running bar */}
+                <div className="h-0.5 w-24 overflow-hidden rounded-full bg-slate-100">
+                  <div className="h-full w-8 animate-[shimmer_0.9s_ease-in-out_infinite] rounded-full bg-emerald-500" />
+                </div>
               </div>
             </div>
-          )}
+          ) : null}
+
+          <div className="absolute left-3 top-3 z-10 flex gap-2">
+            <button
+              type="button"
+              onClick={detectLocation}
+              disabled={isDetectingLocation}
+              title={locationDenied ? "Location blocked — tap for instructions" : "Use my current location"}
+              aria-label="Use current location"
+              className={[
+                "inline-flex items-center gap-1.5 rounded-full py-1.5 pl-2 pr-3 text-[11px] font-semibold shadow backdrop-blur-sm transition hover:shadow-md disabled:opacity-50",
+                locationDenied
+                  ? "border border-amber-200 bg-white/90 text-amber-700 hover:bg-white"
+                  : "border border-emerald-100 bg-white/90 text-emerald-700 hover:bg-white",
+              ].join(" ")}
+            >
+              {locationDenied
+                ? <LocateOff className="h-3.5 w-3.5 shrink-0" />
+                : <LocateFixed className={`h-3.5 w-3.5 shrink-0 ${isDetectingLocation ? "animate-spin" : ""}`} />}
+              {isDetectingLocation ? "Locating…" : locationDenied ? "Enable location" : "My location"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsInteractive(false)}
+              title="Close map"
+              aria-label="Close map"
+              className="inline-flex items-center gap-1.5 rounded-full border border-rose-100 bg-white/90 py-1.5 pl-2 pr-3 text-[11px] font-semibold text-rose-600 shadow backdrop-blur-sm transition hover:bg-white hover:shadow-md"
+            >
+              <X className="h-3.5 w-3.5 shrink-0" />
+              Close
+            </button>
+          </div>
+
+          <div className="absolute bottom-3 left-3 right-12 z-10">
+            {hasCoords ? (
+              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200/80 bg-white/95 py-1.5 pl-2 pr-4 shadow-md backdrop-blur">
+                <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white">
+                  <CheckCircle2 className="h-3 w-3" />
+                </div>
+                <span className="font-mono text-[11px] font-semibold text-slate-800 tabular-nums">
+                  {Number(latitude).toFixed(5)}, {Number(longitude).toFixed(5)}
+                </span>
+              </div>
+            ) : (
+              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-white/95 py-1.5 pl-2 pr-4 shadow-md backdrop-blur">
+                <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-200 text-slate-500">
+                  <MapPin className="h-3 w-3" />
+                </div>
+                <span className="text-[11px] text-slate-500">Drag map or tap <span className="font-semibold text-emerald-600">My location</span></span>
+              </div>
+            )}
+          </div>
+
+          {/* Compact attribution icon — always visible, expands on hover */}
+          <div className="group absolute bottom-2 right-2 z-10">
+            <button
+              type="button"
+              aria-label="Map attribution"
+              className="flex h-5 w-5 items-center justify-center rounded-full bg-white/90 text-[10px] font-bold text-slate-500 shadow-sm ring-1 ring-black/10 backdrop-blur transition hover:bg-white hover:text-slate-800"
+            >
+              ©
+            </button>
+            <div className="pointer-events-none absolute bottom-6 right-0 min-w-max rounded-xl border border-slate-200 bg-white px-3 py-2 text-[10px] leading-snug text-slate-600 opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100">
+              © <a href="https://www.mapbox.com/about/maps/" target="_blank" rel="noreferrer" className="underline hover:text-slate-900">Mapbox</a>
+              {" · "}
+              © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" className="underline hover:text-slate-900">OpenStreetMap</a>
+              {" · "}
+              <a href="https://www.mapbox.com/map-feedback/" target="_blank" rel="noreferrer" className="underline hover:text-slate-900">Improve this map</a>
+            </div>
+          </div>
+
+          {!mapReady && !mapInitError ? (
+            <div className="pointer-events-none absolute inset-x-0 top-0 z-[11] h-1 overflow-hidden bg-slate-100">
+              <div className="h-full w-1/2 animate-pulse rounded-full bg-emerald-400 opacity-80" />
+            </div>
+          ) : null}
+          {mapInitError ? (
+            <div className="absolute inset-0 z-[11] flex flex-col items-center justify-center gap-2 bg-white/80 px-6 text-center backdrop-blur-sm">
+              <AlertCircle className="h-6 w-6 text-rose-500" />
+              <p className="text-xs text-slate-600">{mapInitError}</p>
+            </div>
+          ) : null}
+        </div>
         </div>
       )}
 
+      {/* Below-map summary — location error or token warning only */}
       <div className="mt-2 space-y-1">
-        <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
-          <MapPin className="h-3.5 w-3.5 text-[#02665e]" />
-          <span>
-            {hasCoords
-              ? `Selected: ${Number(latitude).toFixed(6)}, ${Number(longitude).toFixed(6)}`
-              : 'No location set. Open the map and use "Locate Me" or drag to your property.'}
-          </span>
-        </div>
-
         {locationError ? (
-          <div className="flex items-center gap-1 text-xs text-rose-600">
-            <AlertCircle className="h-3.5 w-3.5" />
+          <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
             <span>{locationError}</span>
-          </div>
-        ) : null}
-
-        {!isDetectingLocation && hasCoords && mapReady ? (
-          <div className="flex items-center gap-1 text-xs text-emerald-600">
-            <CheckCircle2 className="h-3.5 w-3.5" />
-            <span>Map ready for exact pin placement</span>
           </div>
         ) : null}
 
         {isInteractive && tokenResolved && !mapToken ? (
           <div className="flex items-center gap-1 text-xs text-amber-700">
             <AlertCircle className="h-3.5 w-3.5" />
-            <span>Map token is not configured, so exact map pinning is unavailable right now.</span>
+            <span>Map token is not configured, so live pinning is unavailable right now.</span>
           </div>
         ) : null}
       </div>

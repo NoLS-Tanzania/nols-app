@@ -37,7 +37,7 @@ export default {
         card: "0 1px 2px rgba(0,0,0,.05), 0 4px 10px rgba(0,0,0,.06)",
       },
       keyframes: {
-        shimmer: { "0%": { backgroundPosition: "-480px 0" }, "100%": { backgroundPosition: "480px 0" } },
+        shimmer: { "0%": { transform: "translateX(-100%)" }, "100%": { transform: "translateX(400%)" } },
         "spin-slow": { "0%": { transform: "rotate(0deg)" }, "100%": { transform: "rotate(360deg)" } },
         "rotate-clock": { "0%": { transform: "rotate(0deg)" }, "100%": { transform: "rotate(360deg)" } },
         "rotate-minute": { "0%": { transform: "rotate(0deg)" }, "100%": { transform: "rotate(360deg)" } },
