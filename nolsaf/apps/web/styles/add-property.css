@@ -813,8 +813,31 @@ button:active:not(:disabled) {
 .add-property-section-premium {
   background: #0c1017 !important;
   border-color: #21262d !important;
-  border-radius: 1.25rem !important;
+  border-radius: 0 !important;
   box-shadow: none !important;
+  /* Bleed past the page's p-4 sm:p-6 md:p-8 wrapper so it fills edge-to-edge */
+  margin-left: -1rem !important;
+  margin-right: -1rem !important;
+  padding-left: 1rem !important;
+  padding-right: 1rem !important;
+}
+
+@media (min-width: 640px) {
+  .add-property-section-premium {
+    margin-left: -1.5rem !important;
+    margin-right: -1.5rem !important;
+    padding-left: 1.5rem !important;
+    padding-right: 1.5rem !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .add-property-section-premium {
+    margin-left: -2rem !important;
+    margin-right: -2rem !important;
+    padding-left: 2rem !important;
+    padding-right: 2rem !important;
+  }
 }
 
 /* ─── Panels / cards ─────────────────────────────────────────── */
