@@ -13,7 +13,8 @@ import {
   Eye,
   MessageSquare,
   ImageIcon,
-  ArrowRight
+  ArrowRight,
+  Pencil
 } from "lucide-react";
 import { 
   getPropertyCommission, 
@@ -37,6 +38,7 @@ type Property = {
   country?: string | null;
   basePrice?: number | null;
   currency?: string;
+  roomsSpec?: any[];
   hotelStar?: string | null;
   services?: any;
   slug?: string;
@@ -319,11 +321,15 @@ export default function ApprovedProps() {
           const hasReviews = reviews.totalReviews > 0;
 
           // Calculate final price with commission
-          const finalPrice = property.basePrice 
-            ? calculatePriceWithCommission(property.basePrice, getPropertyCommission(property, systemCommission))
+          const bp = Number(property.basePrice) || 0;
+          const roomPrices = Array.isArray(property.roomsSpec) ? (property.roomsSpec as any[]).map((r: any) => Number(r.pricePerNight) || 0).filter((v: number) => v > 0) : [];
+          const effectiveBase = bp > 0 ? bp : (roomPrices.length > 0 ? Math.min(...roomPrices) : 0);
+          const isFromRoom = bp <= 0 && roomPrices.length > 0;
+          const finalPrice = effectiveBase > 0
+            ? calculatePriceWithCommission(effectiveBase, getPropertyCommission(property, systemCommission))
             : null;
           const price = fmtMoney(finalPrice, property.currency);
-          const basePriceFormatted = property.basePrice ? fmtMoney(property.basePrice, property.currency) : null;
+          const basePriceFormatted = effectiveBase > 0 ? fmtMoney(effectiveBase, property.currency) : null;
 
           return (
             <div
@@ -404,10 +410,10 @@ export default function ApprovedProps() {
                 )}
 
                 {/* Pricing breakdown */}
-                {property.basePrice ? (
+                {effectiveBase > 0 ? (
                   <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-gradient-to-r from-[#02665e]/5 to-emerald-50 border border-[#02665e]/10">
                     <div>
-                      <div className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Base Price / per night</div>
+                      <div className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{isFromRoom ? "From" : "Base Price"} / per night</div>
                       <div className="text-sm font-bold text-[#02665e]">{basePriceFormatted}</div>
                     </div>
                     <div className="text-right">
@@ -419,13 +425,22 @@ export default function ApprovedProps() {
 
                 {/* Actions */}
                 <div className="pt-1 space-y-2">
-                  <button
-                    onClick={() => setSelectedPropertyId(property.id)}
-                    className="inline-flex items-center justify-center gap-2 w-full rounded-xl bg-[#02665e] text-white py-2.5 text-sm font-semibold transition-all hover:bg-[#014e47] active:scale-[0.98] shadow-sm hover:shadow-md"
-                  >
-                    <Eye className="h-4 w-4" />
-                    View Full Preview
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setSelectedPropertyId(property.id)}
+                      className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-[#02665e] text-white py-2.5 text-sm font-semibold transition-all hover:bg-[#014e47] active:scale-[0.98] shadow-sm hover:shadow-md"
+                    >
+                      <Eye className="h-4 w-4" />
+                      Preview
+                    </button>
+                    <Link
+                      href={`/owner/properties/add?id=${property.id}`}
+                      className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-white text-[#02665e] border border-[#02665e]/30 transition-all hover:bg-[#02665e]/5 active:scale-[0.98] no-underline flex-shrink-0"
+                      title="Edit property"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Link>
+                  </div>
 
                   {property.slug && (
                     <Link

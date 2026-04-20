@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, FileText, Download, Loader2 } from "lucide-react";
+import { ArrowLeft, FileText, Download, Loader2, User, Building2, Phone, MapPin } from "lucide-react";
 
 // Use same-origin calls + secure httpOnly cookie session.
 const api = axios.create({ baseURL: "", withCredentials: true });
@@ -134,26 +134,26 @@ export default function OwnerRevenueInvoiceView() {
     <div className="space-y-5 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
 
       {/* ── Hero ── */}
-      <div className="relative overflow-hidden rounded-2xl bg-white border border-slate-200 shadow-xl shadow-slate-100/70">
-        <div className="pointer-events-none select-none absolute right-0 bottom-0 text-[90px] font-black text-slate-100/80 leading-none tracking-tighter pr-4 pb-1" aria-hidden>INVOICE</div>
-        <div className="pointer-events-none absolute right-0 top-0 h-full w-1/2 opacity-[0.035]" style={{ backgroundImage: "radial-gradient(circle, #334155 1px, transparent 1px)", backgroundSize: "18px 18px" }} />
-
-        <div className="relative pl-8 pr-6 pt-6 pb-6 sm:pt-7 sm:pb-7 sm:pr-8 lg:pt-8 lg:pb-8 lg:pr-10 lg:pl-10">
-          <div className="flex items-start justify-between gap-4 flex-wrap">
+      <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
+        {/* Teal header band */}
+        <div className="relative bg-gradient-to-r from-[#02665e] to-[#034e47] px-5 sm:px-6 lg:px-8 py-4 sm:py-5">
+          {/* Dot pattern */}
+          <div className="absolute inset-0 opacity-[0.08]" style={{ backgroundImage: 'radial-gradient(circle, #fff 1.5px, transparent 1.5px)', backgroundSize: '18px 18px' }} />
+          <div className="relative flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center h-10 w-10 rounded-xl bg-emerald-600 shadow-sm">
-                <FileText className="h-5 w-5 text-white" aria-hidden />
+              <div className="h-9 w-9 rounded-lg bg-white/15 backdrop-blur-sm flex items-center justify-center">
+                <FileText className="h-4.5 w-4.5 text-white" aria-hidden />
               </div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-600">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
-                Accommodation Invoice
+              <div>
+                <div className="text-white/60 text-[10px] font-bold uppercase tracking-widest">Invoice</div>
+                <div className="text-white text-sm font-bold">{invoiceNumber}</div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <a
                 href={`/api/owner/revenue/invoices/${idParam}/download`}
                 download
-                className="no-underline inline-flex items-center justify-center h-8 w-8 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 active:scale-[0.97] transition-all duration-150 shadow-sm"
+                className="no-underline inline-flex items-center justify-center h-8 w-8 rounded-lg bg-white/10 text-white/80 hover:bg-white/20 hover:text-white active:scale-[0.97] transition-all"
                 aria-label="Download invoice"
                 title="Download"
               >
@@ -161,7 +161,7 @@ export default function OwnerRevenueInvoiceView() {
               </a>
               <Link
                 href="/owner/revenue"
-                className="no-underline inline-flex items-center justify-center h-8 w-8 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 active:scale-[0.97] transition-all duration-150 shadow-sm"
+                className="no-underline inline-flex items-center justify-center h-8 w-8 rounded-lg bg-white/10 text-white/80 hover:bg-white/20 hover:text-white active:scale-[0.97] transition-all"
                 aria-label="Back to Revenue"
                 title="Back"
               >
@@ -169,61 +169,103 @@ export default function OwnerRevenueInvoiceView() {
               </Link>
             </div>
           </div>
+        </div>
 
-          <div className="mt-5">
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight leading-none">{invoiceNumber}</h1>
-            <p className="mt-2 text-sm text-slate-500">{propertyTitle} — Accommodation Invoice</p>
+        {/* White body */}
+        <div className="bg-white px-5 sm:px-6 lg:px-8 py-5 sm:py-6">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">{invoiceNumber}</h1>
+              <p className="mt-0.5 text-sm text-slate-500 truncate">{propertyTitle}</p>
+            </div>
+            <span className={`inline-flex items-center rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-widest flex-shrink-0 ${statusStyle}`}>
+              {status}
+            </span>
           </div>
-          <div className="mt-6 h-px bg-gradient-to-r from-slate-200 via-slate-100 to-transparent" />
+
+          <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="rounded-xl bg-[#02665e]/5 border border-[#02665e]/10 px-3.5 py-3">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Amount</div>
+              <div className="mt-1 text-lg font-extrabold text-[#02665e]">{formattedTotal}</div>
+            </div>
+            {inv?.createdAt && (
+              <div className="rounded-xl bg-slate-50 border border-slate-100 px-3.5 py-3">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Issued</div>
+                <div className="mt-1 text-sm font-bold text-slate-800">{new Date(inv.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</div>
+              </div>
+            )}
+            <div className="rounded-xl bg-slate-50 border border-slate-100 px-3.5 py-3 col-span-2 sm:col-span-1">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Property</div>
+              <div className="mt-1 text-sm font-bold text-slate-800 truncate">{propertyTitle}</div>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* ── Invoice Details ── */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-
-        {/* Section header */}
-        <div className="px-5 sm:px-6 py-3.5 border-b border-slate-100 flex items-center justify-between gap-3">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Invoice Details</span>
-          <span className={`inline-flex items-center rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-widest ${statusStyle}`}>
-            {status}
-          </span>
-        </div>
+      <div className="relative rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        {/* Cross-hatch background */}
+        <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'repeating-linear-gradient(45deg, #02665e 0, #02665e 1px, transparent 0, transparent 50%), repeating-linear-gradient(-45deg, #02665e 0, #02665e 1px, transparent 0, transparent 50%)', backgroundSize: '20px 20px' }} />
 
         {/* Sender / Receiver */}
-        <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-100">
-          <div className="p-5 sm:p-6">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Sender (Owner)</div>
-            <div className="font-black text-slate-900 text-base leading-snug">{senderName}</div>
+        <div className="relative grid grid-cols-1 sm:grid-cols-2 bg-white/80">
+          <div className="p-5 sm:p-6 sm:border-r border-b sm:border-b-0 border-slate-100/80">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="h-7 w-7 rounded-lg bg-[#02665e]/10 flex items-center justify-center">
+                <User className="h-3.5 w-3.5 text-[#02665e]" aria-hidden />
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[#02665e]/60">From</span>
+            </div>
+            <div className="font-bold text-slate-900 text-base leading-snug">{senderName}</div>
             {senderPhone && senderPhone !== "—" ? (
-              <div className="text-sm text-slate-600 mt-1">{senderPhone}</div>
+              <div className="text-[13px] text-slate-500 mt-1.5 flex items-center gap-1.5"><Phone className="h-3 w-3 text-slate-400 flex-shrink-0" aria-hidden />{senderPhone}</div>
             ) : null}
             {senderCity ? (
-              <div className="text-sm text-slate-500 mt-0.5">{senderAddress}</div>
+              <div className="text-[13px] text-slate-500 mt-1 flex items-center gap-1.5"><MapPin className="h-3 w-3 text-slate-400 flex-shrink-0" aria-hidden />{senderAddress}</div>
             ) : null}
           </div>
           <div className="p-5 sm:p-6">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Receiver (NoLSAF)</div>
-            <div className="font-black text-slate-900 text-base leading-snug">NoLSAF</div>
-            <div className="text-sm text-slate-600 mt-1">+255</div>
-            <div className="text-sm text-slate-500 mt-0.5">Dar es Salaam, Tanzania</div>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="h-7 w-7 rounded-lg bg-[#02665e]/10 flex items-center justify-center">
+                <Building2 className="h-3.5 w-3.5 text-[#02665e]" aria-hidden />
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[#02665e]/60">To</span>
+            </div>
+            <div className="font-bold text-slate-900 text-base leading-snug">NoLSAF</div>
+            <div className="text-[13px] text-slate-500 mt-1.5 flex items-center gap-1.5"><Phone className="h-3 w-3 text-slate-400 flex-shrink-0" aria-hidden />+255</div>
+            <div className="text-[13px] text-slate-500 mt-1 flex items-center gap-1.5"><MapPin className="h-3 w-3 text-slate-400 flex-shrink-0" aria-hidden />Dar es Salaam, Tanzania</div>
           </div>
+        </div>
+
+        {/* Perforated tear line */}
+        <div className="relative h-5 bg-white/40 flex items-center">
+          <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 h-5 w-5 rounded-full bg-slate-100 border border-slate-200" />
+          <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 h-5 w-5 rounded-full bg-slate-100 border border-slate-200" />
+          <div className="w-full border-t-2 border-dashed border-slate-200/80" />
         </div>
 
         {/* Booking rows */}
-        <div className="border-t border-slate-100 divide-y divide-slate-100">
+        <div className="relative bg-white/60 divide-y divide-slate-100/60">
           <InfoRow label="Property" value={propertyTitle} />
           <InfoRow label="NoLSAF Code" value={codeVisible} mono />
           <InfoRow label="Issued" value={issuedAt} />
           {paidAt ? <InfoRow label="Paid" value={paidAt} /> : null}
         </div>
 
-        {/* Payout total */}
-        <div className="border-t border-slate-200 bg-slate-50 px-5 sm:px-6 py-4 flex items-center justify-between gap-4">
-          <div>
-            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Owner Payout</div>
-            <div className="text-xs text-slate-400 mt-0.5">Amount to be released</div>
+        {/* Payout total footer */}
+        <div className="relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-[#02665e] via-[#034e47] to-[#023a35]" />
+          <div className="absolute inset-0 opacity-[0.07]" style={{ backgroundImage: 'repeating-linear-gradient(45deg, #fff 0, #fff 1px, transparent 0, transparent 50%), repeating-linear-gradient(-45deg, #fff 0, #fff 1px, transparent 0, transparent 50%)', backgroundSize: '16px 16px' }} />
+          <div className="relative px-5 sm:px-6 py-5 sm:py-6 flex items-center justify-between gap-4">
+            <div>
+              <div className="text-[11px] font-bold uppercase tracking-widest text-white/60">Owner Payout</div>
+              <div className="text-[11px] text-white/40 mt-0.5">Amount to be released</div>
+            </div>
+            <div className="text-right">
+              <div className="text-2xl sm:text-3xl font-black text-white tracking-tight">{formattedTotal}</div>
+              <span className={`mt-1 inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${status.toUpperCase() === 'PAID' ? 'bg-emerald-400/20 text-emerald-200' : 'bg-white/15 text-white/70'}`}>{status}</span>
+            </div>
           </div>
-          <div className="text-2xl font-black text-slate-900">{formattedTotal}</div>
         </div>
       </div>
 

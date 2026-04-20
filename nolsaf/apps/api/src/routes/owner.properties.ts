@@ -805,7 +805,7 @@ router.put("/:id", (async (req: AuthedRequest, res) => {
 
     const exists = await prisma.property.findFirst({
       where: { id, ownerId },
-      select: { id: true, tourismSiteId: true, parkPlacement: true },
+      select: { id: true, tourismSiteId: true, parkPlacement: true, status: true },
     });
     if (!exists) return res.status(404).json({ error: "Property not found" });
 
@@ -886,6 +886,11 @@ router.put("/:id", (async (req: AuthedRequest, res) => {
             : undefined,
       };
 
+    // If the property was APPROVED or REJECTED, reset to PENDING so admin reviews the changes
+    if (exists.status === "APPROVED" || exists.status === "REJECTED") {
+      updateData.status = "PENDING";
+    }
+
     let updated: any;
     try {
       updated = await prisma.property.update({ where: { id }, data: updateData });
@@ -932,7 +937,7 @@ router.put("/:id", (async (req: AuthedRequest, res) => {
       invalidateCache('properties:list:*'),
     ]).catch(() => {}); // Don't fail the request if cache invalidation fails
 
-    res.json({ id: updated.id });
+    res.json({ id: updated.id, status: updated.status, statusChanged: updated.status !== exists.status });
   } catch (e: any) {
     console.error("Error in PUT /api/owner/properties/:id:", e);
     console.error("Error details:", {
@@ -1139,5 +1144,48 @@ router.delete("/:id", (async (req: AuthedRequest, res) => {
   } catch (error: any) {
     console.error("Error in DELETE /:id:", error);
     res.status(500).json({ error: "Internal Server Error", message: error?.message });
+  }
+}) as RequestHandler);
+
+// ---------- OWNER AUDIT HISTORY ----------
+router.get("/:id/audit-history", (async (req: AuthedRequest, res) => {
+  try {
+    const ownerId = req.user!.id;
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid id" });
+
+    // Verify ownership
+    const exists = await prisma.property.findFirst({
+      where: { id, ownerId },
+      select: { id: true },
+    });
+    if (!exists) return res.status(404).json({ error: "Property not found" });
+
+    const audits = await prisma.auditLog.findMany({
+      where: { entity: "PROPERTY", entityId: id },
+      orderBy: { id: "desc" },
+      take: 50,
+      select: {
+        id: true,
+        actorRole: true,
+        action: true,
+        createdAt: true,
+        actor: { select: { name: true } },
+      },
+    });
+
+    // Return simplified audit data (no sensitive admin details / IPs)
+    const result = audits.map((a) => ({
+      id: Number(a.id),
+      action: a.action,
+      actorRole: a.actorRole,
+      actorName: a.actorRole === "ADMIN" ? "Admin" : (a.actor?.name || "Owner"),
+      createdAt: a.createdAt,
+    }));
+
+    res.json(result);
+  } catch (e: any) {
+    console.error("Error in GET /:id/audit-history:", e);
+    res.status(500).json({ error: "Failed to load audit history" });
   }
 }) as RequestHandler);

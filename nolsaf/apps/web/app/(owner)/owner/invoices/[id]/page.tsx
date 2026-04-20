@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, FileText, Send, CheckCircle2, Download, Clock, Loader2 } from "lucide-react";
+import { ArrowLeft, FileText, Send, CheckCircle2, Download, Clock, Loader2, User, Building2, Phone, MapPin } from "lucide-react";
 
 // Use same-origin calls + secure httpOnly cookie session.
 const api = axios.create({ baseURL: "", withCredentials: true });
@@ -199,7 +199,17 @@ export default function InvoiceView() {
       // Give images/fonts a moment to finish painting.
       await new Promise((r) => setTimeout(r, 500));
 
+      // Wait for QR code to render (generated async via useEffect)
       const receiptDoc = iframe.contentDocument;
+      const qrStart = Date.now();
+      while (Date.now() - qrStart < 8000) {
+        const qrImg = receiptDoc?.querySelector('.qr-box img, [alt="Receipt QR"]') as HTMLImageElement | null;
+        if (qrImg?.src && qrImg.complete && qrImg.naturalWidth > 0) break;
+        await new Promise((r) => setTimeout(r, 300));
+      }
+      // Extra settle time after QR loads
+      await new Promise((r) => setTimeout(r, 300));
+
       const receiptCard = receiptDoc?.getElementById("receipt-card") || receiptDoc?.body;
       if (!receiptCard) throw new Error("Receipt content not available");
 
@@ -256,105 +266,160 @@ export default function InvoiceView() {
     <div className="space-y-5 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
 
       {/* ── Hero ── */}
-      <div className="relative overflow-hidden rounded-2xl bg-white border border-slate-200 shadow-xl shadow-slate-100/70">
-        <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-gradient-to-b from-slate-800 via-slate-400 to-transparent rounded-l-2xl" />
-        <div className="pointer-events-none select-none absolute right-0 bottom-0 text-[90px] font-black text-slate-100/80 leading-none tracking-tighter pr-4 pb-1" aria-hidden>INVOICE</div>
-        <div className="pointer-events-none absolute right-0 top-0 h-full w-1/2 opacity-[0.035]" style={{ backgroundImage: "radial-gradient(circle, #334155 1px, transparent 1px)", backgroundSize: "18px 18px" }} />
-        <div className="relative pl-8 pr-6 pt-6 pb-6 sm:pt-7 sm:pb-7 sm:pr-8 lg:pt-8 lg:pb-8 lg:pr-10 lg:pl-10">
-          <div className="flex items-start justify-between gap-4 flex-wrap">
+      <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
+        {/* Teal header band */}
+        <div className="relative bg-gradient-to-r from-[#02665e] to-[#034e47] px-5 sm:px-6 lg:px-8 py-4 sm:py-5">
+          {/* Dot pattern */}
+          <div className="absolute inset-0 opacity-[0.08]" style={{ backgroundImage: 'radial-gradient(circle, #fff 1.5px, transparent 1.5px)', backgroundSize: '18px 18px' }} />
+          <div className="relative flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center h-10 w-10 rounded-xl bg-emerald-600 shadow-sm">
-                <FileText className="h-5 w-5 text-white" aria-hidden />
+              <div className="h-9 w-9 rounded-lg bg-white/15 backdrop-blur-sm flex items-center justify-center">
+                <FileText className="h-4.5 w-4.5 text-white" aria-hidden />
               </div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-600">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
-                Accommodation Invoice
+              <div>
+                <div className="text-white/60 text-[10px] font-bold uppercase tracking-widest">Invoice</div>
+                <div className="text-white text-sm font-bold">{inv.invoiceNumber}</div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <button type="button" onClick={downloadPDF} disabled={pdfBusy} className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 active:scale-[0.97] transition-all duration-150 shadow-sm disabled:opacity-60" aria-label={hasReceipt ? "Download receipt PDF" : "Download PDF"} title={hasReceipt ? "Download receipt PDF" : "Download PDF"}>
+            <div className="flex items-center gap-1.5">
+              <button type="button" onClick={downloadPDF} disabled={pdfBusy} className="inline-flex items-center justify-center h-8 w-8 rounded-lg bg-white/10 text-white/80 hover:bg-white/20 hover:text-white active:scale-[0.97] transition-all disabled:opacity-60" aria-label={hasReceipt ? "Download receipt PDF" : "Download PDF"} title={hasReceipt ? "Download receipt PDF" : "Download PDF"}>
                 <Download className="h-4 w-4" aria-hidden />
               </button>
-              <Link href="/owner/revenue/requested" className="no-underline inline-flex items-center justify-center h-8 w-8 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 active:scale-[0.97] transition-all duration-150 shadow-sm" aria-label="Back" title="Back">
+              <Link href="/owner/revenue/requested" className="no-underline inline-flex items-center justify-center h-8 w-8 rounded-lg bg-white/10 text-white/80 hover:bg-white/20 hover:text-white active:scale-[0.97] transition-all" aria-label="Back" title="Back">
                 <ArrowLeft className="h-4 w-4" aria-hidden />
               </Link>
             </div>
           </div>
-          <div className="mt-5">
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight leading-none">{inv.invoiceNumber}</h1>
-            <p className="mt-2 text-sm text-slate-500">{inv.title}</p>
+        </div>
+
+        {/* White body */}
+        <div className="bg-white px-5 sm:px-6 lg:px-8 py-5 sm:py-6">
+          {/* Title + status */}
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">{inv.invoiceNumber}</h1>
+              <p className="mt-0.5 text-sm text-slate-500 truncate">{inv.title}</p>
+            </div>
+            <span className={`inline-flex items-center rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-widest flex-shrink-0 ${statusStyle}`}>{inv.status}</span>
           </div>
-          <div className="mt-6 h-px bg-gradient-to-r from-slate-200 via-slate-100 to-transparent" />
+
+          {/* Stats grid */}
+          <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {inv.total != null && (
+              <div className="rounded-xl bg-[#02665e]/5 border border-[#02665e]/10 px-3.5 py-3">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Amount</div>
+                <div className="mt-1 text-lg font-extrabold text-[#02665e]">{(() => { const n = Number(inv.total); return Number.isFinite(n) ? new Intl.NumberFormat("en-TZ", { style: "currency", currency: "TZS", maximumFractionDigits: 0 }).format(n) : "—"; })()}</div>
+              </div>
+            )}
+            {inv.createdAt && (
+              <div className="rounded-xl bg-slate-50 border border-slate-100 px-3.5 py-3">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Issued</div>
+                <div className="mt-1 text-sm font-bold text-slate-800">{new Date(inv.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</div>
+              </div>
+            )}
+            {inv.booking?.property?.title && (
+              <div className="rounded-xl bg-slate-50 border border-slate-100 px-3.5 py-3 col-span-2 sm:col-span-1">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Property</div>
+                <div className="mt-1 text-sm font-bold text-slate-800 truncate">{inv.booking.property.title}</div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       {/* ── Invoice Details (PDF target) ── */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden" id="owner-invoice-pdf">
+      <div className="relative rounded-2xl border border-slate-200 shadow-sm overflow-hidden" id="owner-invoice-pdf">
+        {/* Cross-hatch background for the entire card */}
+        <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'repeating-linear-gradient(45deg, #02665e 0, #02665e 1px, transparent 0, transparent 50%), repeating-linear-gradient(-45deg, #02665e 0, #02665e 1px, transparent 0, transparent 50%)', backgroundSize: '20px 20px' }} />
 
-        {/* Section header */}
-        <div className="px-5 sm:px-6 py-3.5 border-b border-slate-100 flex items-center justify-between gap-3">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Invoice Details</span>
-          <span className={`inline-flex items-center rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-widest ${statusStyle}`}>{inv.status}</span>
-        </div>
-
-        {/* Sender / Receiver */}
-        <div className="grid grid-cols-2 divide-x divide-slate-100">
-          <div className="p-5 sm:p-6">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Sender (Owner)</div>
-            <div className="font-black text-slate-900 text-base leading-snug">{inv.senderName}</div>
-            {inv.senderPhone ? <div className="text-sm text-slate-600 mt-1">{inv.senderPhone}</div> : null}
-            {inv.senderAddress ? <div className="text-sm text-slate-500 mt-0.5">{inv.senderAddress}</div> : null}
+        {/* ── Sender / Receiver ── */}
+        <div className="relative grid grid-cols-1 sm:grid-cols-2 bg-white/80">
+          <div className="p-5 sm:p-6 sm:border-r border-b sm:border-b-0 border-slate-100/80">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="h-7 w-7 rounded-lg bg-[#02665e]/10 flex items-center justify-center">
+                <User className="h-3.5 w-3.5 text-[#02665e]" aria-hidden />
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[#02665e]/60">From</span>
+            </div>
+            <div className="font-bold text-slate-900 text-base leading-snug">{inv.senderName}</div>
+            {inv.senderPhone ? <div className="text-[13px] text-slate-500 mt-1.5 flex items-center gap-1.5"><Phone className="h-3 w-3 text-slate-400 flex-shrink-0" aria-hidden />{inv.senderPhone}</div> : null}
+            {inv.senderAddress ? <div className="text-[13px] text-slate-500 mt-1 flex items-center gap-1.5"><MapPin className="h-3 w-3 text-slate-400 flex-shrink-0" aria-hidden />{inv.senderAddress}</div> : null}
           </div>
           <div className="p-5 sm:p-6">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Receiver (NoLSAF)</div>
-            <div className="font-black text-slate-900 text-base leading-snug">{inv.receiverName}</div>
-            {inv.receiverPhone ? <div className="text-sm text-slate-600 mt-1">{inv.receiverPhone}</div> : null}
-            {inv.receiverAddress ? <div className="text-sm text-slate-500 mt-0.5">{inv.receiverAddress}</div> : null}
+            <div className="flex items-center gap-2 mb-3">
+              <div className="h-7 w-7 rounded-lg bg-[#02665e]/10 flex items-center justify-center">
+                <Building2 className="h-3.5 w-3.5 text-[#02665e]" aria-hidden />
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[#02665e]/60">To</span>
+            </div>
+            <div className="font-bold text-slate-900 text-base leading-snug">{inv.receiverName}</div>
+            {inv.receiverPhone ? <div className="text-[13px] text-slate-500 mt-1.5 flex items-center gap-1.5"><Phone className="h-3 w-3 text-slate-400 flex-shrink-0" aria-hidden />{inv.receiverPhone}</div> : null}
+            {inv.receiverAddress ? <div className="text-[13px] text-slate-500 mt-1 flex items-center gap-1.5"><MapPin className="h-3 w-3 text-slate-400 flex-shrink-0" aria-hidden />{inv.receiverAddress}</div> : null}
           </div>
         </div>
 
-        {/* Line items */}
-        <div className="border-t border-slate-100 overflow-x-auto">
+        {/* ── Perforated tear line ── */}
+        <div className="relative h-5 bg-white/40 flex items-center">
+          <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 h-5 w-5 rounded-full bg-slate-100 border border-slate-200" />
+          <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 h-5 w-5 rounded-full bg-slate-100 border border-slate-200" />
+          <div className="w-full border-t-2 border-dashed border-slate-200/80" />
+        </div>
+
+        {/* ── Line items ── */}
+        <div className="relative bg-white/60 overflow-x-auto">
           <table className="min-w-full text-sm">
-            <thead className="bg-slate-50 border-b border-slate-100">
+            <thead>
               <tr>
-                <th className="px-5 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-slate-500">Description</th>
-                <th className="px-5 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-slate-500">Qty</th>
-                <th className="px-5 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-slate-500">Unit</th>
-                <th className="px-5 py-3 text-right text-[10px] font-bold uppercase tracking-widest text-slate-500">Amount</th>
+                <th className="px-5 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-[#02665e]/70 bg-[#02665e]/[0.04]">Description</th>
+                <th className="px-5 py-3 text-center text-[10px] font-bold uppercase tracking-widest text-[#02665e]/70 bg-[#02665e]/[0.04]">Qty</th>
+                <th className="px-5 py-3 text-right text-[10px] font-bold uppercase tracking-widest text-[#02665e]/70 bg-[#02665e]/[0.04]">Unit Price</th>
+                <th className="px-5 py-3 text-right text-[10px] font-bold uppercase tracking-widest text-[#02665e]/70 bg-[#02665e]/[0.04]">Amount</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
-              {inv.items.map((it: any) => (
-                <tr key={it.id} className="hover:bg-slate-50/60 transition-colors">
-                  <td className="px-5 py-3.5 font-semibold text-slate-900">{it.description}</td>
-                  <td className="px-5 py-3.5 text-slate-600">x{it.quantity}</td>
-                  <td className="px-5 py-3.5 text-slate-600">TZS {it.unitPrice}</td>
-                  <td className="px-5 py-3.5 text-right font-bold text-slate-900">TZS {it.amount}</td>
+            <tbody>
+              {inv.items.map((it: any, idx: number) => (
+                <tr key={it.id} className={`${idx % 2 === 0 ? '' : 'bg-slate-50/50'} border-b border-slate-100/60`}>
+                  <td className="px-5 py-4">
+                    <div className="font-semibold text-slate-800">{it.description}</div>
+                  </td>
+                  <td className="px-5 py-4 text-center">
+                    <span className="inline-flex items-center justify-center h-6 min-w-[1.75rem] px-2 rounded-full bg-[#02665e]/10 text-[11px] font-bold text-[#02665e]">{it.quantity}</span>
+                  </td>
+                  <td className="px-5 py-4 text-right text-slate-500 font-medium">TZS {Number(it.unitPrice).toLocaleString()}</td>
+                  <td className="px-5 py-4 text-right font-bold text-slate-900">TZS {Number(it.amount).toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
 
-        {/* Totals */}
-        <div className="border-t border-slate-100 divide-y divide-slate-100">
-          <div className="px-5 sm:px-6 py-3 flex items-center justify-between gap-4">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Subtotal</span>
-            <span className="text-sm font-semibold text-slate-700">TZS {subtotal}</span>
+        {/* ── Totals ── */}
+        <div className="relative bg-white/70">
+          <div className="px-5 sm:px-6 py-3 flex items-center justify-between gap-4 border-b border-slate-100/60">
+            <span className="text-xs font-semibold text-slate-400">Subtotal</span>
+            <span className="text-sm font-bold text-slate-600">TZS {Number(subtotal).toLocaleString()}</span>
           </div>
           {taxAmount > 0 ? (
-            <div className="px-5 sm:px-6 py-3 flex items-center justify-between gap-4">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Tax ({taxPercent}%)</span>
-              <span className="text-sm font-semibold text-slate-700">TZS {taxAmount}</span>
+            <div className="px-5 sm:px-6 py-3 flex items-center justify-between gap-4 border-b border-slate-100/60">
+              <span className="text-xs font-semibold text-slate-400">Tax ({taxPercent}%)</span>
+              <span className="text-sm font-bold text-slate-600">TZS {Number(taxAmount).toLocaleString()}</span>
             </div>
           ) : null}
-          <div className="px-5 sm:px-6 py-4 bg-slate-50 flex items-center justify-between gap-4">
+        </div>
+
+        {/* ── Total payout footer ── */}
+        <div className="relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-[#02665e] via-[#034e47] to-[#023a35]" />
+          <div className="absolute inset-0 opacity-[0.07]" style={{ backgroundImage: 'repeating-linear-gradient(45deg, #fff 0, #fff 1px, transparent 0, transparent 50%), repeating-linear-gradient(-45deg, #fff 0, #fff 1px, transparent 0, transparent 50%)', backgroundSize: '16px 16px' }} />
+          <div className="relative px-5 sm:px-6 py-5 sm:py-6 flex items-center justify-between gap-4">
             <div>
-              <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Total Payout</div>
-              <div className="text-xs text-slate-400 mt-0.5">Amount to be released</div>
+              <div className="text-[11px] font-bold uppercase tracking-widest text-white/60">Total Payout</div>
+              <div className="text-[11px] text-white/40 mt-0.5">Amount to be released</div>
             </div>
-            <div className="text-2xl font-black text-slate-900">TZS {inv.total}</div>
+            <div className="text-right">
+              <div className="text-2xl sm:text-3xl font-black text-white tracking-tight">TZS {Number(inv.total).toLocaleString()}</div>
+              <span className={`mt-1 inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${inv.status === 'PAID' ? 'bg-emerald-400/20 text-emerald-200' : 'bg-white/15 text-white/70'}`}>{inv.status}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -401,58 +466,160 @@ export default function InvoiceView() {
 
       {/* ── Receipt (paid) ── */}
       {hasReceipt ? (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="px-5 sm:px-6 py-3.5 border-b border-slate-100 flex items-center justify-between gap-3">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Receipt</span>
-            {inv.receiptNumber ? <span className="text-xs font-mono font-bold tracking-widest text-slate-700">{inv.receiptNumber}</span> : null}
+        <div className="relative rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          {/* Cross-hatch background */}
+          <div className="absolute inset-0 opacity-[0.025]" style={{ backgroundImage: 'repeating-linear-gradient(45deg, #02665e 0, #02665e 1px, transparent 0, transparent 50%), repeating-linear-gradient(-45deg, #02665e 0, #02665e 1px, transparent 0, transparent 50%)', backgroundSize: '20px 20px' }} />
+
+          {/* Perforated top edge */}
+          <div className="relative w-full" style={{ height: '5px', backgroundImage: 'radial-gradient(circle, #02665e 1.5px, transparent 1.5px)', backgroundSize: '10px 5px', backgroundRepeat: 'repeat-x', backgroundPosition: 'center' }} />
+
+          {/* Header */}
+          <div className="relative px-5 sm:px-6 pt-5 pb-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="h-8 w-8 rounded-lg bg-[#02665e]/10 flex items-center justify-center">
+                  <CheckCircle2 className="h-4 w-4 text-[#02665e]" aria-hidden />
+                </div>
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-[#02665e]/50">Payment Receipt</div>
+                  <div className="text-sm font-extrabold text-slate-900">{inv.receiptNumber || '—'}</div>
+                </div>
+              </div>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-700">Paid</span>
+              </span>
+            </div>
           </div>
-          <div className="p-5 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div className="divide-y divide-slate-100">
+
+          {/* Tear line */}
+          <div className="relative h-5 bg-white/40 flex items-center">
+            <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 h-5 w-5 rounded-full bg-slate-100 border border-slate-200" />
+            <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 h-5 w-5 rounded-full bg-slate-100 border border-slate-200" />
+            <div className="w-full border-t-2 border-dashed border-slate-200/80" />
+          </div>
+
+          {/* Body: details + QR */}
+          <div className="relative px-5 sm:px-6 py-5 grid grid-cols-1 sm:grid-cols-[1fr,auto] gap-5 items-center">
+            {/* Left: detail rows */}
+            <div className="space-y-3.5">
               {inv.receiptNumber ? (
-                <div className="pb-3 flex items-center justify-between gap-3">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Receipt #</span>
-                  <span className="font-mono font-bold text-xs tracking-widest text-slate-900">{inv.receiptNumber}</span>
+                <div className="flex items-center gap-3">
+                  <div className="h-8 w-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center flex-shrink-0">
+                    <FileText className="h-3.5 w-3.5 text-slate-400" aria-hidden />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Receipt #</div>
+                    <div className="text-sm font-bold font-mono tracking-wide text-slate-900 truncate">{inv.receiptNumber}</div>
+                  </div>
                 </div>
               ) : null}
               {inv.paymentRef ? (
-                <div className="py-3 flex items-center justify-between gap-3">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Payment Ref</span>
-                  <span className="font-mono font-bold text-xs text-slate-900 break-all text-right max-w-[60%]">{inv.paymentRef}</span>
+                <div className="flex items-center gap-3">
+                  <div className="h-8 w-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center flex-shrink-0">
+                    <ArrowLeft className="h-3.5 w-3.5 text-slate-400 rotate-180" aria-hidden />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Payment Ref</div>
+                    <div className="text-sm font-bold font-mono text-slate-900 break-all">{inv.paymentRef}</div>
+                  </div>
                 </div>
               ) : null}
               {inv.paidAt ? (
-                <div className="pt-3 flex items-center justify-between gap-3">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Paid On</span>
-                  <span className="text-sm font-semibold text-slate-900">{new Date(inv.paidAt).toLocaleString()}</span>
+                <div className="flex items-center gap-3">
+                  <div className="h-8 w-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center flex-shrink-0">
+                    <Clock className="h-3.5 w-3.5 text-slate-400" aria-hidden />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Paid On</div>
+                    <div className="text-sm font-bold text-slate-900">{new Date(inv.paidAt).toLocaleString("en-GB", { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+                  </div>
                 </div>
               ) : null}
             </div>
-            <div className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl bg-slate-50 border border-slate-100">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={`/api/owner/revenue/invoices/${inv.id}/receipt/qr.png`} alt="Receipt QR" className="w-36 h-36 rounded-xl border border-slate-200 bg-white" />
-              <p className="text-xs text-slate-500 text-center">Scan to verify receipt</p>
+
+            {/* Right: QR code */}
+            <div className="flex flex-col items-center gap-2.5 sm:pl-5 sm:border-l sm:border-dashed sm:border-slate-200">
+              <div className="p-2 bg-white rounded-xl border border-slate-200 shadow-sm">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={`/api/owner/revenue/invoices/${inv.id}/receipt/qr.png`} alt="Receipt QR" className="w-28 h-28 sm:w-32 sm:h-32 rounded-lg" />
+              </div>
+              <p className="text-[10px] font-semibold text-slate-400 tracking-wide">Scan to verify receipt</p>
             </div>
           </div>
+
+          {/* Perforated bottom edge */}
+          <div className="relative w-full" style={{ height: '5px', backgroundImage: 'radial-gradient(circle, #02665e 1.5px, transparent 1.5px)', backgroundSize: '10px 5px', backgroundRepeat: 'repeat-x', backgroundPosition: 'center' }} />
         </div>
       ) : null}
 
       {/* ── Process Timeline ── */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="px-5 sm:px-6 py-3.5 border-b border-slate-100 flex items-center gap-2">
-          <Clock className="h-4 w-4 text-slate-400" aria-hidden />
-          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Process Timeline</span>
-        </div>
-        <div className="p-5 sm:p-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <TimelineItem label="Issued" value={inv.issuedAt ? new Date(inv.issuedAt).toLocaleString() : "—"} />
-          <TimelineItem label="Verified" value={inv.verifiedAt ? new Date(inv.verifiedAt).toLocaleString() : "—"} />
-          <TimelineItem label="Approved" value={inv.approvedAt ? new Date(inv.approvedAt).toLocaleString() : "—"} />
-          <TimelineItem label="Paid" value={inv.paidAt ? new Date(inv.paidAt).toLocaleString() : "—"} />
-        </div>
-        <div className="px-5 sm:px-6 pb-4">
-          <span className="text-xs text-slate-500">Current status: </span>
-          <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-black uppercase tracking-widest ${statusStyle}`}>{inv.status}</span>
-        </div>
-      </div>
+      {(() => {
+        const steps = [
+          { key: 'issued', label: 'Issued', date: inv.issuedAt, color: '#0284c7', bg: 'rgba(2,132,199,0.08)' },
+          { key: 'verified', label: 'Verified', date: inv.verifiedAt, color: '#d97706', bg: 'rgba(217,119,6,0.08)' },
+          { key: 'approved', label: 'Approved', date: inv.approvedAt, color: '#059669', bg: 'rgba(5,150,105,0.08)' },
+          { key: 'paid', label: 'Paid', date: inv.paidAt, color: '#7c3aed', bg: 'rgba(124,58,237,0.08)' },
+        ];
+        const lastDoneIdx = steps.reduce((acc, s, i) => (s.date ? i : acc), -1);
+        return (
+          <div className="relative rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            {/* Cross-hatch bg */}
+            <div className="absolute inset-0 opacity-[0.02]" style={{ backgroundImage: 'repeating-linear-gradient(45deg, #02665e 0, #02665e 1px, transparent 0, transparent 50%), repeating-linear-gradient(-45deg, #02665e 0, #02665e 1px, transparent 0, transparent 50%)', backgroundSize: '20px 20px' }} />
+
+            <div className="relative bg-white/80 px-5 sm:px-6 py-5 sm:py-6">
+              {/* Title row */}
+              <div className="flex items-center gap-2 mb-5">
+                <div className="h-7 w-7 rounded-lg bg-[#02665e]/10 flex items-center justify-center">
+                  <Clock className="h-3.5 w-3.5 text-[#02665e]" aria-hidden />
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-[#02665e]/60">Process Timeline</span>
+                <div className="flex-1" />
+                <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-black uppercase tracking-widest ${statusStyle}`}>{inv.status}</span>
+              </div>
+
+              {/* Connected stepper */}
+              <div className="relative">
+                {/* Connector line */}
+                <div className="absolute top-4 left-4 right-4 h-0.5 bg-slate-100 hidden sm:block" />
+                {lastDoneIdx >= 0 && (
+                  <div className="absolute top-4 left-4 h-0.5 hidden sm:block" style={{ width: `${(lastDoneIdx / (steps.length - 1)) * 100}%`, maxWidth: 'calc(100% - 2rem)', background: 'linear-gradient(90deg, #0284c7, #d97706, #059669, #7c3aed)' }} />
+                )}
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-0">
+                  {steps.map((s, i) => {
+                    const done = !!s.date;
+                    const isCurrent = i === lastDoneIdx;
+                    return (
+                      <div key={s.key} className="relative flex flex-col items-center text-center">
+                        {/* Node */}
+                        <div className={`relative z-10 h-8 w-8 rounded-full flex items-center justify-center transition-all duration-300 ${done ? 'shadow-sm' : ''}`}
+                          style={done ? { background: s.bg, border: `2px solid ${s.color}` } : { background: '#f8fafc', border: '2px solid #e2e8f0' }}>
+                          {done ? (
+                            <CheckCircle2 className="h-4 w-4" style={{ color: s.color }} />
+                          ) : (
+                            <div className="h-2 w-2 rounded-full bg-slate-300" />
+                          )}
+                          {isCurrent && <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full animate-ping" style={{ background: s.color, opacity: 0.4 }} />}
+                        </div>
+                        {/* Label */}
+                        <div className={`mt-2.5 text-[10px] font-bold uppercase tracking-widest ${done ? '' : 'text-slate-400'}`} style={done ? { color: s.color } : undefined}>{s.label}</div>
+                        {/* Date */}
+                        <div className={`mt-1 text-[11px] leading-snug font-semibold ${done ? 'text-slate-700' : 'text-slate-300'}`}>
+                          {done ? new Date(s.date).toLocaleDateString("en-GB", { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                        </div>
+                        {done && s.date && (
+                          <div className="text-[10px] text-slate-400 font-medium">{new Date(s.date).toLocaleTimeString("en-GB", { hour: '2-digit', minute: '2-digit' })}</div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Submit / Status ── */}
       {inv.status === "DRAFT" ? (
@@ -518,25 +685,4 @@ export default function InvoiceView() {
   );
 }
 
-function TimelineItem({ label, value }: { label: string; value: string }) {
-  const key = label.trim().toLowerCase();
-  const isDone = value !== "—";
-  const accent =
-    key === "issued" ? "text-sky-600" :
-    key === "verified" ? "text-amber-600" :
-    key === "approved" ? "text-emerald-600" :
-    key === "paid" ? "text-violet-600" : "text-slate-500";
 
-  return (
-    <div className={`rounded-xl border p-3 transition-colors duration-200 ${
-      isDone ? "border-slate-200 bg-white" : "border-slate-100 bg-slate-50/50"
-    }`}>
-      <div className={`text-[10px] font-bold uppercase tracking-widest ${
-        isDone ? accent : "text-slate-400"
-      }`}>{label}</div>
-      <div className={`mt-1 text-xs font-semibold leading-snug ${
-        isDone ? "text-slate-900" : "text-slate-400"
-      }`}>{value}</div>
-    </div>
-  );
-}

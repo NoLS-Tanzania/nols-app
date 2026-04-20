@@ -307,12 +307,20 @@ function PendingCard({ p, onPreview }: { p: any; onPreview: (id: number) => void
         {p.type && (
           <span className="text-xs font-medium text-slate-500 uppercase">{p.type}</span>
         )}
-        {p.basePrice && (
-          <div className="flex items-baseline gap-1">
-            <div className="text-sm font-bold text-[#02665e]">{fmtMoney(p.basePrice, p.currency)}</div>
-            <div className="text-[11px] text-slate-500">per night</div>
-          </div>
-        )}
+        {(() => {
+          const bp = Number(p.basePrice) || 0;
+          const roomPrices = Array.isArray(p.roomsSpec) ? p.roomsSpec.map((r: any) => Number(r.pricePerNight) || 0).filter((v: number) => v > 0) : [];
+          const price = bp > 0 ? bp : (roomPrices.length > 0 ? Math.min(...roomPrices) : 0);
+          const isFrom = bp <= 0 && roomPrices.length > 0;
+          if (price <= 0) return null;
+          return (
+            <div className="flex items-baseline gap-1">
+              {isFrom && <div className="text-[11px] text-slate-500">from</div>}
+              <div className="text-sm font-bold text-[#02665e]">{fmtMoney(price, p.currency)}</div>
+              <div className="text-[11px] text-slate-500">per night</div>
+            </div>
+          );
+        })()}
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 flex items-start gap-2">
           <Clock className="w-3.5 h-3.5 text-amber-600 flex-shrink-0 mt-0.5" />
           <p className="text-xs text-amber-800 leading-snug">
@@ -370,12 +378,20 @@ function ActionRequiredCard({ p, onPreview }: { p: any; onPreview: (id: number) 
           {p.type && (
             <span className="text-xs font-medium text-slate-500 uppercase">{p.type}</span>
           )}
-          {p.basePrice && (
-            <div className="flex items-baseline gap-1">
-              <div className="text-sm font-bold text-[#02665e]">{fmtMoney(p.basePrice, p.currency)}</div>
-              <div className="text-[11px] text-slate-500">per night</div>
-            </div>
-          )}
+          {(() => {
+            const bp = Number(p.basePrice) || 0;
+            const roomPrices = Array.isArray(p.roomsSpec) ? p.roomsSpec.map((r: any) => Number(r.pricePerNight) || 0).filter((v: number) => v > 0) : [];
+            const price = bp > 0 ? bp : (roomPrices.length > 0 ? Math.min(...roomPrices) : 0);
+            const isFrom = bp <= 0 && roomPrices.length > 0;
+            if (price <= 0) return null;
+            return (
+              <div className="flex items-baseline gap-1">
+                {isFrom && <div className="text-[11px] text-slate-500">from</div>}
+                <div className="text-sm font-bold text-[#02665e]">{fmtMoney(price, p.currency)}</div>
+                <div className="text-[11px] text-slate-500">per night</div>
+              </div>
+            );
+          })()}
 
           {/* Rejection / fix reasons */}
           {rejectionReasons.length > 0 && (

@@ -253,6 +253,12 @@ export default function PropertyPreview({
   const [systemCommission, setSystemCommission] = useState<number>(0);
   const [auditHistory, setAuditHistory] = useState<AuditHistoryItem[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
+  const [editingRoomIdx, setEditingRoomIdx] = useState<number | null>(null);
+  const [roomPriceInput, setRoomPriceInput] = useState("");
+  const [roomDiscountInput, setRoomDiscountInput] = useState("");
+  const [savingPrice, setSavingPrice] = useState(false);
+  const [ownerAuditHistory, setOwnerAuditHistory] = useState<any[]>([]);
+  const [ownerAuditLoading, setOwnerAuditLoading] = useState(false);
 
   // Parse houseRules - can be a JSON string or object
   const houseRules = useMemo(() => {
@@ -369,6 +375,9 @@ export default function PropertyPreview({
     }
     if (property && mode === "admin") {
       loadAuditHistory();
+    }
+    if (property && mode === "owner") {
+      loadOwnerAuditHistory();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [property, mode]);
@@ -502,6 +511,57 @@ export default function PropertyPreview({
       alert(err?.response?.data?.error || "Failed to update property");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleOwnerSaveRoomPrice(roomIdx: number) {
+    if (!property) return;
+    const newPrice = Number(roomPriceInput);
+    if (!Number.isFinite(newPrice) || newPrice <= 0) return;
+    const newDiscount = Number(roomDiscountInput);
+    try {
+      setSavingPrice(true);
+      const roomsSpec = Array.isArray((property as any).roomsSpec) ? [...(property as any).roomsSpec] : [];
+      if (roomIdx >= 0 && roomIdx < roomsSpec.length) {
+        roomsSpec[roomIdx] = {
+          ...roomsSpec[roomIdx],
+          pricePerNight: newPrice,
+          discountPercent: Number.isFinite(newDiscount) && newDiscount > 0 ? newDiscount : null,
+        };
+      }
+      const body: any = {
+        title: property.title,
+        type: property.type,
+        description: property.description ?? "",
+        totalBedrooms: property.totalBedrooms ?? 0,
+        totalBathrooms: property.totalBathrooms ?? 0,
+        maxGuests: property.maxGuests ?? 1,
+        photos: property.photos ?? [],
+        roomsSpec,
+        services: property.services ?? [],
+        basePrice: Number(property.basePrice) || 0,
+        currency: property.currency || "TZS",
+      };
+      await api.put(`/api/owner/properties/${propertyId}`, body);
+      await loadProperty();
+      setEditingRoomIdx(null);
+      onUpdated?.();
+    } catch (err: any) {
+      alert(err?.response?.data?.error || "Failed to update room price");
+    } finally {
+      setSavingPrice(false);
+    }
+  }
+
+  async function loadOwnerAuditHistory() {
+    try {
+      setOwnerAuditLoading(true);
+      const response = await api.get(`/api/owner/properties/${propertyId}/audit-history`);
+      setOwnerAuditHistory(response.data || []);
+    } catch {
+      setOwnerAuditHistory([]);
+    } finally {
+      setOwnerAuditLoading(false);
     }
   }
 
@@ -1695,6 +1755,99 @@ export default function PropertyPreview({
                                   ))}
                                 </ul>
                             </div>
+
+                              {/* Owner: mobile edit price */}
+                              {mode === "owner" && (
+                                <div className="mt-3">
+                                  {editingRoomIdx === idx ? (
+                                    <div className="rounded-lg border border-[#02665e]/15 bg-[#02665e]/[0.02] p-3 space-y-2">
+                                      {/* Price */}
+                                      <div>
+                                        <div className="text-[10px] font-medium text-slate-500 mb-1">Price/night</div>
+                                        <div className="relative">
+                                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">{property.currency || "TZS"}</span>
+                                          <input
+                                            type="number"
+                                            value={roomPriceInput}
+                                            onChange={(e) => setRoomPriceInput(e.target.value)}
+                                            className="w-full h-9 pl-9 pr-3 text-sm font-bold text-[#02665e] rounded-lg bg-white border border-[#02665e]/20 focus:outline-none focus:border-[#02665e] focus:ring-1 focus:ring-[#02665e]/15 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                            min={1}
+                                            autoFocus
+                                          />
+                                        </div>
+                                      </div>
+                                      {/* Discount */}
+                                      <div>
+                                        <div className="text-[10px] font-medium text-slate-500 mb-1">Discount</div>
+                                        <div className="relative">
+                                          <input
+                                            type="number"
+                                            value={roomDiscountInput}
+                                            onChange={(e) => setRoomDiscountInput(e.target.value)}
+                                            className="w-full h-9 pl-3 pr-8 text-sm rounded-lg bg-white border border-slate-200 focus:outline-none focus:border-[#02665e] focus:ring-1 focus:ring-[#02665e]/15 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                            min={0}
+                                            max={100}
+                                            placeholder="0"
+                                          />
+                                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 pointer-events-none">%</span>
+                                        </div>
+                                      </div>
+
+                                      {/* Compact live preview */}
+                                      {(() => {
+                                        const p = Number(roomPriceInput);
+                                        const d = Number(roomDiscountInput);
+                                        if (p > 0 && d > 0 && d <= 100) {
+                                          const discounted = Math.round(p - (p * d / 100));
+                                          return (
+                                            <div className="flex items-center gap-2 text-xs">
+                                              <span className="text-slate-400 line-through">{fmtMoney(p, property.currency)}</span>
+                                              <span className="font-bold text-[#02665e]">{fmtMoney(discounted, property.currency)}</span>
+                                              <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">{d}% off</span>
+                                            </div>
+                                          );
+                                        }
+                                        return null;
+                                      })()}
+
+                                      {/* Actions row */}
+                                      <div className="flex items-center gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleOwnerSaveRoomPrice(idx)}
+                                          disabled={savingPrice}
+                                          className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#02665e] text-white text-xs font-semibold hover:bg-[#014e47] disabled:opacity-50 transition-colors"
+                                        >
+                                          <Save className="w-3 h-3" />
+                                          {savingPrice ? "…" : "Save"}
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => setEditingRoomIdx(null)}
+                                          className="h-8 px-2.5 rounded-lg text-slate-500 text-xs hover:bg-slate-100 transition-colors"
+                                        >
+                                          Cancel
+                                        </button>
+                                        <span className="ml-auto text-[10px] text-amber-600">Needs re-approval</span>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingRoomIdx(idx);
+                                        setRoomPriceInput(String(r.pricePerNight ?? ""));
+                                        const rawRoom = rooms[idx] as any;
+                                        setRoomDiscountInput(String(rawRoom?.discountPercent ?? ""));
+                                      }}
+                                      className="w-full rounded-lg bg-[#02665e] text-white px-3 py-2 text-xs font-semibold hover:bg-[#014e47] transition-colors flex items-center justify-center gap-1.5"
+                                    >
+                                      <Edit className="w-3.5 h-3.5" />
+                                      Edit pricing
+                                    </button>
+                                  )}
+                                </div>
+                              )}
                             </div>
                                 ))}
                               </div>
@@ -1717,7 +1870,12 @@ export default function PropertyPreview({
                                   <th className="text-left text-sm font-semibold px-3 py-3 border-b border-r border-slate-200 w-[14%]">
                                     Price &amp; Discounts
                                   </th>
-                                  <th className="text-left text-sm font-semibold px-3 py-3 border-b border-r border-slate-200 w-[11%]">Pay Now</th>
+                                  {mode !== "owner" && (
+                                    <th className="text-left text-sm font-semibold px-3 py-3 border-b border-r border-slate-200 w-[11%]">Pay Now</th>
+                                  )}
+                                  {mode === "owner" && (
+                                    <th className="text-left text-sm font-semibold px-3 py-3 border-b border-r border-slate-200 w-[11%]">Actions</th>
+                                  )}
                                   <th className="text-left text-sm font-semibold px-3 py-3 border-b border-slate-200 w-[23%] min-w-[160px]">
                                     Policies
                                   </th>
@@ -1836,33 +1994,114 @@ export default function PropertyPreview({
                                       ) : null}
                                     </td>
                                     <td className="align-top px-3 py-4 border-t border-slate-200">
-                                      <div>
-                                        <div className="text-base font-bold text-[#02665e]">{fmtMoney(r.pricePerNight, property.currency)}</div>
-                                        <div className="text-xs text-slate-500">per night</div>
-                            </div>
-                                      {r.discountLabel ? (
-                                        <div className="mt-1 inline-flex items-center rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-xs font-semibold text-emerald-800">
-                                          {r.discountLabel}
+                                      {mode === "owner" && editingRoomIdx === idx ? (
+                                        <div className="space-y-2">
+                                          <div>
+                                            <label className="text-[10px] font-semibold text-slate-500 uppercase">Price/night</label>
+                                            <input
+                                              type="number"
+                                              value={roomPriceInput}
+                                              onChange={(e) => setRoomPriceInput(e.target.value)}
+                                              className="w-full h-9 px-2 text-sm font-bold text-[#02665e] rounded-lg border border-[#02665e]/30 focus:outline-none focus:border-[#02665e] focus:ring-1 focus:ring-[#02665e]/20"
+                                              min={1}
+                                              autoFocus
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="text-[10px] font-semibold text-slate-500 uppercase">Discount %</label>
+                                            <input
+                                              type="number"
+                                              value={roomDiscountInput}
+                                              onChange={(e) => setRoomDiscountInput(e.target.value)}
+                                              className="w-full h-9 px-2 text-sm rounded-lg border border-slate-200 focus:outline-none focus:border-[#02665e] focus:ring-1 focus:ring-[#02665e]/20"
+                                              min={0}
+                                              max={100}
+                                              placeholder="0"
+                                            />
+                                          </div>
+                                          {(() => {
+                                            const p = Number(roomPriceInput);
+                                            const d = Number(roomDiscountInput);
+                                            if (p > 0 && d > 0 && d <= 100) {
+                                              const discounted = Math.round(p - (p * d / 100));
+                                              return (
+                                                <div className="rounded-md bg-emerald-50 border border-emerald-200 px-2 py-1.5">
+                                                  <div className="flex items-center justify-between text-[11px]">
+                                                    <span className="text-slate-500 line-through">{fmtMoney(p, property.currency)}</span>
+                                                    <span className="font-bold text-emerald-700">{fmtMoney(discounted, property.currency)}</span>
+                                                  </div>
+                                                  <div className="text-[10px] text-emerald-600 mt-0.5">{d}% off</div>
+                                                </div>
+                                              );
+                                            }
+                                            return null;
+                                          })()}
+                                          <div className="flex gap-1.5">
+                                            <button
+                                              type="button"
+                                              onClick={() => handleOwnerSaveRoomPrice(idx)}
+                                              disabled={savingPrice}
+                                              className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 rounded-md bg-[#02665e] text-white text-xs font-semibold hover:bg-[#014e47] disabled:opacity-50"
+                                            >
+                                              <Save className="w-3 h-3" />
+                                              {savingPrice ? "…" : "Save"}
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => setEditingRoomIdx(null)}
+                                              className="px-2 py-1.5 rounded-md text-slate-600 text-xs font-medium hover:bg-slate-100"
+                                            >
+                                              <X className="w-3 h-3" />
+                                            </button>
+                                          </div>
                                         </div>
                                       ) : (
-                                        <div className="mt-1 text-xs text-slate-500">No discounts</div>
+                                        <div>
+                                          <div className="text-base font-bold text-[#02665e]">{fmtMoney(r.pricePerNight, property.currency)}</div>
+                                          <div className="text-xs text-slate-500">per night</div>
+                                          {r.discountLabel ? (
+                                            <div className="mt-1 inline-flex items-center rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-xs font-semibold text-emerald-800">
+                                              {r.discountLabel}
+                                            </div>
+                                          ) : (
+                                            <div className="mt-1 text-xs text-slate-500">No discounts</div>
+                                          )}
+                                        </div>
                                       )}
                                     </td>
                                     <td className="align-top px-3 py-4 border-t border-slate-200">
-                            <button
-                                        type="button"
-                                        onClick={() => alert("Pay Now / Booking flow is coming next (Phase 2).")}
-                                        className={[
-                                          "w-full rounded-md bg-[#02665e] text-white px-2.5 py-1.5 text-sm font-medium",
-                                          "hover:bg-[#014e47]",
-                                          "motion-safe:transition-all motion-safe:duration-200",
-                                          "shadow-sm hover:shadow",
-                                          "active:scale-[0.98]",
-                                        ].join(" ")}
-                                      >
-                                        Pay now
-                            </button>
-                                      <div className="mt-2 text-xs text-slate-500">Secure checkout (coming soon)</div>
+                                      {mode === "owner" ? (
+                                        editingRoomIdx === idx ? (
+                                          <div className="rounded-lg bg-amber-50 border border-amber-200 px-2 py-2 text-[10px] text-amber-800 leading-tight">
+                                            Saving triggers re-approval
+                                          </div>
+                                        ) : (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setEditingRoomIdx(idx);
+                                              setRoomPriceInput(String(r.pricePerNight ?? ""));
+                                              const rawRoom = rooms[idx] as any;
+                                              setRoomDiscountInput(String(rawRoom?.discountPercent ?? ""));
+                                            }}
+                                            className="w-full rounded-md bg-white text-[#02665e] border border-[#02665e]/30 px-2.5 py-1.5 text-sm font-medium hover:bg-[#02665e]/5 transition-colors"
+                                          >
+                                            <Edit className="w-3.5 h-3.5 inline mr-1" />
+                                            Edit price
+                                          </button>
+                                        )
+                                      ) : (
+                                        <>
+                                          <button
+                                            type="button"
+                                            onClick={() => alert("Pay Now / Booking flow is coming next (Phase 2).")}
+                                            className="w-full rounded-md bg-[#02665e] text-white px-2.5 py-1.5 text-sm font-medium hover:bg-[#014e47] shadow-sm hover:shadow active:scale-[0.98] motion-safe:transition-all motion-safe:duration-200"
+                                          >
+                                            Pay now
+                                          </button>
+                                          <div className="mt-2 text-xs text-slate-500">Secure checkout (coming soon)</div>
+                                        </>
+                                      )}
                                     </td>
                                     <td className="align-top px-3 py-4 border-t border-slate-200">
                                       <ul className="space-y-1.5 text-sm text-slate-800">
@@ -1897,7 +2136,20 @@ export default function PropertyPreview({
                   {mode === "owner" && (
                     <div className="pb-6 border-b border-slate-200/60">
                       <div className="text-sm sm:text-base font-semibold text-slate-900 mb-4">Quick Actions</div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <Link
+                          href={`/owner/properties/add?id=${propertyId}`}
+                          className="group flex items-center gap-3 p-4 rounded-xl bg-white border border-slate-200 hover:border-[#02665e]/30 hover:shadow-md transition-all duration-200 no-underline"
+                        >
+                          <div className="w-10 h-10 rounded-lg bg-[#02665e] flex items-center justify-center group-hover:scale-110 transition-transform">
+                            <Edit className="w-5 h-5 text-white" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-semibold text-slate-900">Edit Property</div>
+                            <div className="text-xs text-slate-500">Update details & pricing</div>
+                          </div>
+                          <ChevronRight className="w-5 h-5 text-[#02665e] group-hover:translate-x-1 transition-transform" />
+                        </Link>
                         <Link
                           href={`/owner/properties/${propertyId}/availability/manage`}
                           className="group flex items-center gap-3 p-4 rounded-xl bg-white border border-slate-200 hover:border-[#02665e]/30 hover:shadow-md transition-all duration-200 no-underline"
@@ -2414,6 +2666,66 @@ export default function PropertyPreview({
                           </div>
                         );
                       })}
+                    </div>
+                  )}
+                </div>
+              </section>
+            )}
+
+            {/* Owner Audit Trail */}
+            {mode === "owner" && (
+              <section className="border-b border-gray-200 pb-6">
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
+                  <div className="flex items-center gap-2 mb-5">
+                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#02665e]/10 text-[#02665e]">
+                      <FileText className="w-5 h-5" aria-hidden />
+                    </span>
+                    <h2 className="text-lg sm:text-xl font-semibold text-slate-900">Activity Log</h2>
+                  </div>
+                  {ownerAuditLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <LogoSpinner size="sm" ariaLabel="Loading activity" />
+                      <span className="ml-2 text-sm text-gray-600">Loading…</span>
+                    </div>
+                  ) : ownerAuditHistory.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <FileText className="h-10 w-10 mx-auto mb-2 opacity-40" />
+                      <p className="text-sm">No activity recorded yet</p>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      {/* Timeline line */}
+                      <div className="absolute left-4 top-0 bottom-0 w-px bg-slate-200" />
+                      <div className="space-y-0">
+                        {ownerAuditHistory.map((a: any, i: number) => {
+                          const actionMap: Record<string, { label: string; color: string; bg: string }> = {
+                            PROPERTY_APPROVE: { label: "Approved", color: "text-emerald-700", bg: "bg-emerald-100" },
+                            PROPERTY_REJECT: { label: "Rejected", color: "text-red-700", bg: "bg-red-100" },
+                            PROPERTY_SUSPEND: { label: "Suspended", color: "text-orange-700", bg: "bg-orange-100" },
+                            PROPERTY_UNSUSPEND: { label: "Reactivated", color: "text-blue-700", bg: "bg-blue-100" },
+                            PROPERTY_UPDATE: { label: "Updated", color: "text-slate-700", bg: "bg-slate-100" },
+                            PROPERTY_SUBMIT: { label: "Submitted", color: "text-violet-700", bg: "bg-violet-100" },
+                          };
+                          const info = actionMap[a.action] || { label: a.action.replace(/PROPERTY_/g, "").replace(/_/g, " "), color: "text-slate-700", bg: "bg-slate-100" };
+                          const dateStr = new Date(a.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+                          const timeStr = new Date(a.createdAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+
+                          return (
+                            <div key={a.id || i} className="relative flex items-start gap-4 pl-1 py-3">
+                              <div className={`relative z-10 w-7 h-7 rounded-full ${info.bg} flex items-center justify-center flex-shrink-0`}>
+                                <div className={`w-2.5 h-2.5 rounded-full ${info.bg.replace("100", "500")}`} />
+                              </div>
+                              <div className="flex-1 min-w-0 -mt-0.5">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className={`text-sm font-semibold ${info.color}`}>{info.label}</span>
+                                  <span className="text-xs text-slate-400">by {a.actorRole === "ADMIN" ? "Admin" : "You"}</span>
+                                </div>
+                                <div className="text-xs text-slate-400 mt-0.5">{dateStr} at {timeStr}</div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
                 </div>

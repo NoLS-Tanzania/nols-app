@@ -185,9 +185,15 @@ export default function ReportsFilter({
   const moreRanges = rangePresets.slice(3) as unknown as Array<(typeof rangePresets)[number] & { key: MoreRangeKey }>;
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-      <div className="px-4 sm:px-5 py-3 border-b border-slate-100">
-        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Filters</span>
+    <div className="relative rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      {/* Subtle cross-hatch bg */}
+      <div className="absolute inset-0 opacity-[0.015]" style={{ backgroundImage: 'repeating-linear-gradient(45deg, #02665e 0, #02665e 1px, transparent 0, transparent 50%), repeating-linear-gradient(-45deg, #02665e 0, #02665e 1px, transparent 0, transparent 50%)', backgroundSize: '20px 20px' }} />
+      <div className="relative bg-white/95">
+      <div className="px-4 sm:px-5 py-3 border-b border-slate-100 flex items-center gap-2">
+        <div className="h-6 w-6 rounded-md bg-[#02665e]/10 flex items-center justify-center">
+          <Sliders className="h-3 w-3 text-[#02665e]" />
+        </div>
+        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Filters</span>
       </div>
       <div className="px-4 sm:px-5 py-3.5">
         <div className="flex items-end gap-3 overflow-x-auto flex-nowrap pb-1 -mb-1">
@@ -222,7 +228,7 @@ export default function ReportsFilter({
               <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" aria-hidden />
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" aria-hidden />
               <select
-                className="h-10 w-full pl-9 pr-9 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300/50 appearance-none"
+                className="h-10 w-full pl-9 pr-9 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e]/30 appearance-none"
                 title="Property"
                 aria-label="Property"
                 value={filters.propertyId ?? ""}
@@ -268,7 +274,7 @@ export default function ReportsFilter({
             <div className="shrink-0">
               <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Export</div>
               <a
-                className="no-underline inline-flex items-center justify-center h-10 px-3.5 rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50 hover:text-slate-900 active:scale-[0.97] transition text-xs font-bold gap-1.5"
+                className="no-underline inline-flex items-center justify-center h-10 px-3.5 rounded-xl border border-[#02665e]/20 bg-[#02665e]/5 text-[#02665e] shadow-sm hover:bg-[#02665e]/10 active:scale-[0.97] transition text-xs font-bold gap-1.5"
                 href={effectiveExportHref}
                 target="_blank"
                 rel="noreferrer"
@@ -281,6 +287,7 @@ export default function ReportsFilter({
             </div>
           ) : null}
         </div>
+      </div>
       </div>
     </div>
   );
@@ -396,7 +403,7 @@ function MoreOptionsPopover({
                               onClick={() => { onSelectGroupBy(g.key); close(); }}
                               className={
                                 "h-9 rounded-xl text-xs font-bold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300/50 " +
-                                (active ? "bg-slate-900 text-white shadow-sm" : "bg-slate-50 text-slate-600 hover:bg-slate-100")
+                                (active ? "bg-[#02665e] text-white shadow-sm" : "bg-slate-50 text-slate-600 hover:bg-[#02665e]/5 hover:text-[#02665e]")
                               }
                               aria-pressed={active}
                             >
@@ -440,10 +447,10 @@ function RangePill({
       onClick={onClick}
       aria-label={hint}
       className={
-        "group relative h-10 px-3.5 rounded-xl border text-xs font-bold shadow-sm transition-all duration-150 active:scale-[0.97] focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300/50 " +
+        "group relative h-10 px-3.5 rounded-xl border text-xs font-bold shadow-sm transition-all duration-150 active:scale-[0.97] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30 " +
         (active
-          ? "bg-slate-900 border-transparent text-white"
-          : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900")
+          ? "bg-[#02665e] border-transparent text-white shadow-[#02665e]/20"
+          : "bg-white border-slate-200 text-slate-600 hover:bg-[#02665e]/5 hover:text-[#02665e] hover:border-[#02665e]/20")
       }
     >
       <span className="inline-flex items-center gap-1.5">

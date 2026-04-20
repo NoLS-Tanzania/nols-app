@@ -433,31 +433,47 @@ export default function CheckinValidation() {
     <div className="w-full box-border overflow-hidden">
 
       {/* ── Hero Banner ── */}
-      <div className="w-full bg-white border-b border-slate-100 nols-entrance">
-        <div className="flex flex-col items-center text-center px-4 pt-7 pb-6 gap-3">
-          <div className="h-14 w-14 rounded-2xl bg-[#02665e] flex items-center justify-center shadow-lg">
-            <FileCheck2 className="h-7 w-7 text-white" aria-hidden />
+      <div className="w-full relative overflow-hidden nols-entrance">
+        {/* Teal gradient background */}
+        <div className="absolute inset-0 bg-gradient-to-br from-[#02665e] via-[#034e47] to-[#023a35]" />
+        {/* Animated cross-hatch pattern */}
+        <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: 'repeating-linear-gradient(45deg, #fff 0, #fff 1px, transparent 0, transparent 50%), repeating-linear-gradient(-45deg, #fff 0, #fff 1px, transparent 0, transparent 50%)', backgroundSize: '18px 18px' }} />
+        {/* Floating orbs */}
+        <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-white/[0.04] pointer-events-none" />
+        <div className="absolute -bottom-12 -left-6 w-36 h-36 rounded-full bg-white/[0.03] pointer-events-none" />
+        <div className="absolute top-6 right-1/4 w-16 h-16 rounded-full bg-white/[0.03] pointer-events-none animate-pulse" />
+
+        <div className="relative flex flex-col items-center text-center px-4 pt-8 pb-7 gap-4">
+          {/* Animated icon ring */}
+          <div className="relative">
+            <div className="absolute -inset-2 rounded-2xl border border-white/20 animate-[ping_3s_ease-in-out_infinite]" />
+            <div className="absolute -inset-1 rounded-xl bg-white/10 animate-pulse" />
+            <div className="relative h-14 w-14 rounded-xl bg-white/15 backdrop-blur-sm border border-white/20 flex items-center justify-center shadow-lg">
+              <FileCheck2 className="h-7 w-7 text-white drop-shadow" aria-hidden />
+            </div>
           </div>
+
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Check-in Validation</h1>
-            <p className="mt-1.5 text-sm text-slate-600 max-w-[280px] mx-auto leading-relaxed">
+            <h1 className="text-2xl font-extrabold tracking-tight text-white drop-shadow-sm">Check-in Validation</h1>
+            <p className="mt-1.5 text-sm text-white/60 max-w-[280px] mx-auto leading-relaxed">
               Scan the receipt QR or enter the booking code to validate a guest check-in.
             </p>
           </div>
+
           <div className="flex items-center gap-2 flex-wrap justify-center">
-            <span className="inline-flex items-center rounded-full border border-slate-300 bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-700 shadow-sm">
+            <span className="inline-flex items-center rounded-full border border-white/20 bg-white/10 backdrop-blur-sm px-3 py-1 text-[11px] font-semibold text-white/80">
               Owner tool
             </span>
-            <span className="inline-flex items-center rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700 shadow-sm">
+            <span className="inline-flex items-center rounded-full border border-emerald-300/30 bg-emerald-400/15 backdrop-blur-sm px-3 py-1 text-[11px] font-semibold text-emerald-200">
               Secure
             </span>
             <span
-              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold border shadow-sm ${
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold border backdrop-blur-sm ${
                 isConnected
-                  ? "border-emerald-400 bg-[#02665e] text-white"
+                  ? "border-emerald-300/30 bg-emerald-400/20 text-emerald-200"
                   : isConnected === false
-                    ? "border-slate-300 bg-slate-100 text-slate-500"
-                    : "border-slate-200 bg-slate-50 text-slate-400"
+                    ? "border-white/15 bg-white/10 text-white/50"
+                    : "border-white/10 bg-white/5 text-white/40"
               }`}
               aria-live="polite"
               title={isConnected ? "API reachable" : isConnected === false ? "API not reachable" : "Checking API"}
@@ -467,7 +483,7 @@ export default function CheckinValidation() {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75" />
                 )}
                 <span className={`relative inline-flex rounded-full h-2 w-2 ${
-                  isConnected ? "bg-emerald-300" : isConnected === false ? "bg-slate-400" : "bg-slate-300 animate-pulse"
+                  isConnected ? "bg-emerald-300" : isConnected === false ? "bg-white/40" : "bg-white/30 animate-pulse"
                 }`} />
               </span>
               {isConnected ? "Online" : isConnected === false ? "Offline" : "Connecting…"}

@@ -258,17 +258,27 @@ export default function OwnerCheckoutPage() {
                 />
               </div>
 
-              {/* Terms */}
-              <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 hover:border-emerald-200 hover:bg-emerald-50/30 transition-colors cursor-pointer">
+              {/* Terms – toggle switch */}
+              <label className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs text-slate-600 cursor-pointer select-none transition-colors hover:border-[#02665e]/20">
+                <span>I agree to the{" "}
+                  <Link href="/terms" target="_blank" className="font-semibold text-[#02665e] underline underline-offset-2 hover:text-[#034e47]">Terms of Service</Link>.
+                </span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={agreeToTerms}
+                  onClick={() => setAgreeToTerms(!agreeToTerms)}
+                  className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30 ${agreeToTerms ? 'bg-[#02665e]' : 'bg-slate-300'}`}
+                >
+                  <span className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${agreeToTerms ? 'translate-x-[22px]' : 'translate-x-[3px]'}`} />
+                </button>
                 <input
                   type="checkbox"
                   checked={agreeToTerms}
                   onChange={(e) => setAgreeToTerms(e.target.checked)}
-                  className="h-4 w-4 shrink-0 rounded border-2 border-slate-400 accent-emerald-600 cursor-pointer"
+                  className="sr-only"
+                  aria-hidden="true"
                 />
-                <span>I agree to the{" "}
-                  <Link href="/terms" target="_blank" className="font-semibold text-slate-800 underline underline-offset-2 hover:text-emerald-700">Terms of Service</Link>.
-                </span>
               </label>
             </div>
 
