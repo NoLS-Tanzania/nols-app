@@ -412,7 +412,7 @@ export default function ApprovedProps() {
                     </div>
                     <div className="text-right">
                       <div className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Total Bookings</div>
-                      <div className="text-sm font-bold text-[#02665e]">{property._count?.bookings ?? 0}</div>
+                      <div className="text-sm font-bold text-[#02665e]">{(property as any)._count?.bookings ?? 0}</div>
                     </div>
                   </div>
                 ) : null}

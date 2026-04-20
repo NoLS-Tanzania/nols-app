@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import Image from "next/image";
 import Link from "next/link";
 import { 
@@ -590,6 +591,7 @@ export default function PropertyPreview({
       if (!v) return false;
       if (v.startsWith("/")) return true;
       if (v.startsWith("http://") || v.startsWith("https://")) return true;
+      if (v.startsWith("data:image/")) return true;
       return false;
     };
 
@@ -742,7 +744,20 @@ export default function PropertyPreview({
   const photos = allImages;
   const rooms: RoomSpec[] = property.roomsSpec || [];
   const servicesRaw = property.services;
-  const location = property.location || {};
+  const location = property.location && Object.keys(property.location).length > 0
+    ? property.location
+    : {
+        street: (property as any).street || '',
+        apartment: (property as any).apartment || '',
+        ward: (property as any).ward || '',
+        district: (property as any).district || '',
+        regionName: (property as any).regionName || '',
+        city: (property as any).city || '',
+        country: (property as any).country || '',
+        zip: (property as any).zip || '',
+        latitude: (property as any).latitude || null,
+        longitude: (property as any).longitude || null,
+      };
   const status = property.status;
   const totalBedrooms = property.totalBedrooms;
   const totalBathrooms = property.totalBathrooms;
@@ -1467,55 +1482,6 @@ export default function PropertyPreview({
               </section>
             )}
 
-            {/* Policies & Payments (derived from services tags) - Admin/Owner Only */}
-            {(mode === "admin" || mode === "owner") && (() => {
-              const tags: string[] = Array.isArray((normalizedServicesObj as any)?.tags)
-                ? (normalizedServicesObj as any).tags.filter((t: any) => typeof t === "string")
-                : [];
-              const freeCancellation = tags.some((t) => t.toLowerCase() === "free cancellation");
-              const groupStay = tags.some((t) => t.toLowerCase() === "group stay");
-              const paymentModes = tags
-                .filter((t) => /^payment:/i.test(t))
-                .map((t) => t.replace(/^payment:\s*/i, "").trim())
-                .filter(Boolean);
-
-              if (!freeCancellation && !groupStay && paymentModes.length === 0) return null;
-
-              return (
-                <section className="border-b border-gray-200 pb-6">
-                  <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
-                    <div className="flex items-center gap-2 mb-4">
-                      <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#02665e]/10 text-[#02665e]">
-                        <Shield className="w-5 h-5" aria-hidden />
-                      </span>
-                      <h2 className="text-lg font-semibold text-slate-900">Policies & Payments</h2>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      {freeCancellation && (
-                        <span className="inline-flex items-center rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 px-3 py-1 text-xs font-semibold">
-                          Free cancellation
-                        </span>
-                      )}
-                      {groupStay && (
-                        <span className="inline-flex items-center rounded-full bg-indigo-50 text-indigo-800 border border-indigo-200 px-3 py-1 text-xs font-semibold">
-                          Group stay accepted
-                        </span>
-                      )}
-                      {paymentModes.map((m) => (
-                        <span
-                          key={m}
-                          className="inline-flex items-center rounded-full bg-slate-50 text-slate-800 border border-slate-200 px-3 py-1 text-xs font-semibold"
-                        >
-                          Payment: {m}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </section>
-              );
-            })()}
-
             {/* Building Structure Information - Admin/Owner Only */}
             {(mode === "admin" || mode === "owner") && (effectiveBuildingType || effectiveTotalFloors) && (
               <section className="border-b border-gray-200 pb-6">
@@ -1934,29 +1900,29 @@ export default function PropertyPreview({
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <Link
                           href={`/owner/properties/${propertyId}/availability/manage`}
-                          className="group flex items-center gap-3 p-4 rounded-xl bg-gradient-to-br from-emerald-50 to-emerald-100/50 border-2 border-emerald-200 hover:border-emerald-300 hover:shadow-md transition-all duration-200"
+                          className="group flex items-center gap-3 p-4 rounded-xl bg-white border border-slate-200 hover:border-[#02665e]/30 hover:shadow-md transition-all duration-200 no-underline"
                         >
-                          <div className="w-10 h-10 rounded-lg bg-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                          <div className="w-10 h-10 rounded-lg bg-[#02665e] flex items-center justify-center group-hover:scale-110 transition-transform">
                             <Calendar className="w-5 h-5 text-white" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="text-sm font-semibold text-emerald-900">Manage Availability</div>
-                            <div className="text-xs text-emerald-700 opacity-80">Update room availability calendar</div>
+                            <div className="text-sm font-semibold text-slate-900">Manage Availability</div>
+                            <div className="text-xs text-slate-500">Update room availability calendar</div>
                           </div>
-                          <ChevronRight className="w-5 h-5 text-emerald-600 group-hover:translate-x-1 transition-transform" />
+                          <ChevronRight className="w-5 h-5 text-[#02665e] group-hover:translate-x-1 transition-transform" />
                         </Link>
                         <Link
                           href={`/owner/bookings`}
-                          className="group flex items-center gap-3 p-4 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100/50 border-2 border-blue-200 hover:border-blue-300 hover:shadow-md transition-all duration-200"
+                          className="group flex items-center gap-3 p-4 rounded-xl bg-white border border-slate-200 hover:border-[#02665e]/30 hover:shadow-md transition-all duration-200 no-underline"
                         >
-                          <div className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                          <div className="w-10 h-10 rounded-lg bg-[#02665e] flex items-center justify-center group-hover:scale-110 transition-transform">
                             <BedDouble className="w-5 h-5 text-white" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="text-sm font-semibold text-blue-900">View Bookings</div>
-                            <div className="text-xs text-blue-700 opacity-80">Manage all bookings</div>
+                            <div className="text-sm font-semibold text-slate-900">View Bookings</div>
+                            <div className="text-xs text-slate-500">Manage all bookings</div>
                           </div>
-                          <ChevronRight className="w-5 h-5 text-blue-600 group-hover:translate-x-1 transition-transform" />
+                          <ChevronRight className="w-5 h-5 text-[#02665e] group-hover:translate-x-1 transition-transform" />
                         </Link>
                       </div>
                     </div>
@@ -1984,53 +1950,53 @@ export default function PropertyPreview({
                     <div className="pt-6 border-t border-slate-200/60 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:duration-500 motion-safe:delay-100">
                       <div className="text-sm sm:text-base font-semibold text-slate-900 mb-4">Owner Information</div>
                       
-                      {/* Owner Profile Card */}
-                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 sm:p-5 motion-safe:transition-all motion-safe:duration-300 hover:bg-white hover:border-[#02665e]/20 hover:shadow-md cursor-default">
-                        <div className="flex items-center gap-3 sm:gap-4 mb-4">
-                          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-[#02665e]/10 flex items-center justify-center flex-shrink-0 motion-safe:transition-all motion-safe:duration-300 hover:bg-[#02665e]/20 hover:scale-110">
-                            <Users className="h-6 w-6 sm:h-7 sm:w-7 text-[#02665e] motion-safe:transition-transform motion-safe:duration-300" />
-                      </div>
-                          <div className="flex-1 min-w-0">
-                            {property.owner.name && (
-                              <div className="font-semibold text-sm sm:text-base text-slate-900 truncate mb-1.5">{property.owner.name}</div>
-                            )}
-                            <div className="flex items-center gap-1.5 motion-safe:transition-all motion-safe:duration-200">
-                              <BadgeCheck className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-[#02665e] flex-shrink-0" />
-                              <span className="text-xs sm:text-sm text-[#02665e] font-medium">Verified Host</span>
+                      {/* Owner Profile Card - Modern 2026 */}
+                      <div className="relative rounded-2xl overflow-hidden shadow-lg">
+                        {/* Background with dot pattern */}
+                        <div className="absolute inset-0 bg-gradient-to-br from-[#02665e] via-[#02665e] to-[#014a44]" />
+                        <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.12) 1px, transparent 1px)', backgroundSize: '16px 16px' }} />
+                        
+                        {/* Content */}
+                        <div className="relative p-5 sm:p-6">
+                          {/* Top row: avatar + name */}
+                          <div className="flex items-center gap-4 mb-5">
+                            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white/15 backdrop-blur-sm flex items-center justify-center flex-shrink-0 border border-white/20">
+                              <Users className="h-7 w-7 sm:h-8 sm:w-8 text-white" />
                             </div>
+                            <div className="flex-1 min-w-0">
+                              {property.owner.name && (
+                                <div className="font-bold text-base sm:text-lg text-white truncate">{property.owner.name}</div>
+                              )}
+                              <div className="flex items-center gap-1.5 mt-1">
+                                <BadgeCheck className="h-4 w-4 text-emerald-300 flex-shrink-0" />
+                                <span className="text-xs sm:text-sm text-emerald-200 font-medium">Verified Host</span>
                               </div>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-600 pt-3 border-t border-slate-200/50">
-                          <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0 text-slate-500" />
-                          <span>Response time: Usually within 2 hours</span>
+                            </div>
+                          </div>
+
+                          {/* Contact pills inside the card */}
+                          <div className="space-y-2">
+                            {property.owner.email && (
+                              <a
+                                href={`mailto:${property.owner.email}`}
+                                className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-white/10 backdrop-blur-sm border border-white/15 hover:bg-white/20 transition-colors no-underline"
+                              >
+                                <Mail className="h-4 w-4 text-white/80 flex-shrink-0" />
+                                <span className="text-sm text-white font-medium truncate">{property.owner.email}</span>
+                              </a>
+                            )}
+                            {property.owner.phone && (
+                              <a
+                                href={`tel:${property.owner.phone}`}
+                                className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-white/10 backdrop-blur-sm border border-white/15 hover:bg-white/20 transition-colors no-underline"
+                              >
+                                <Phone className="h-4 w-4 text-white/80 flex-shrink-0" />
+                                <span className="text-sm text-white font-medium">{property.owner.phone}</span>
+                              </a>
+                            )}
+                          </div>
                         </div>
                       </div>
-
-                      {/* Contact Information */}
-                      <div className="mt-4 space-y-2">
-                        {property.owner.email && (
-                          <a
-                            href={`mailto:${property.owner.email}`}
-                            className="group flex items-center gap-3 text-sm sm:text-base p-3 rounded-lg bg-white border border-slate-200 motion-safe:transition-all motion-safe:duration-200 hover:bg-slate-50 hover:border-[#02665e]/30 hover:shadow-sm no-underline"
-                          >
-                            <Mail className="h-4 w-4 sm:h-5 sm:w-5 text-slate-400 flex-shrink-0 motion-safe:transition-all motion-safe:duration-200 group-hover:text-[#02665e]" />
-                            <span className="text-[#02665e] group-hover:text-[#014e47] truncate motion-safe:transition-colors motion-safe:duration-200 font-medium no-underline">
-                              {property.owner.email}
-                            </span>
-                          </a>
-                        )}
-                        {property.owner.phone && (
-                          <a
-                            href={`tel:${property.owner.phone}`}
-                            className="group flex items-center gap-3 text-sm sm:text-base p-3 rounded-lg bg-white border border-slate-200 motion-safe:transition-all motion-safe:duration-200 hover:bg-slate-50 hover:border-[#02665e]/30 hover:shadow-sm no-underline"
-                          >
-                            <Phone className="h-4 w-4 sm:h-5 sm:w-5 text-slate-400 flex-shrink-0 motion-safe:transition-all motion-safe:duration-200 group-hover:text-[#02665e]" />
-                            <span className="text-[#02665e] group-hover:text-[#014e47] motion-safe:transition-colors motion-safe:duration-200 font-medium no-underline">
-                              {property.owner.phone}
-                            </span>
-                          </a>
-                      )}
-                    </div>
                 </div>
             )}
 
@@ -2048,130 +2014,72 @@ export default function PropertyPreview({
 
             {/* House Rules Section */}
             {houseRules && (
-              <section className="border-b border-gray-200 pb-10">
-                <h2 className="text-2xl font-bold text-gray-900 mb-6">House Rules</h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {/* Column 1: Check-in & Check-out */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Clock className="w-5 h-5 text-[#02665e]" />
-                      <h3 className="text-sm font-semibold text-slate-900">Check-in & Check-out</h3>
+              <section className="pb-10">
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-5">House Rules</h2>
+                
+                {/* Compact inline rules */}
+                <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+                  {/* Top: Check-in, Check-out, Pets, Smoking as a row */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y sm:divide-y-0 divide-slate-100">
+                    {/* Check-in */}
+                    <div className="p-4">
+                      <div className="text-[10px] font-bold text-[#02665e] uppercase tracking-widest mb-1">Check-in</div>
+                      <div className="text-sm font-semibold text-slate-900">
+                        {formatTimeRange(houseRules.checkInFrom, houseRules.checkInTo) || "Not set"}
+                      </div>
                     </div>
-                    <div className="space-y-3">
-                      {(() => {
-                        const checkInStr = formatTimeRange(houseRules.checkInFrom, houseRules.checkInTo);
-                        return checkInStr ? (
-                          <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3 transition-all duration-200 hover:shadow-sm">
-                            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Check-in</div>
-                            <div className="text-sm font-medium text-slate-900">{checkInStr}</div>
-                          </div>
-                        ) : (
-                          <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3 opacity-60">
-                            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Check-in</div>
-                            <div className="text-sm text-slate-400">Not specified</div>
-                          </div>
-                        );
-                      })()}
-                      {(() => {
-                        const checkOutStr = formatTimeRange(houseRules.checkOutFrom, houseRules.checkOutTo);
-                        return checkOutStr ? (
-                          <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3 transition-all duration-200 hover:shadow-sm">
-                            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Check-out</div>
-                            <div className="text-sm font-medium text-slate-900">{checkOutStr}</div>
-                          </div>
-                        ) : (
-                          <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3 opacity-60">
-                            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Check-out</div>
-                            <div className="text-sm text-slate-400">Not specified</div>
-                          </div>
-                        );
-                      })()}
+                    {/* Check-out */}
+                    <div className="p-4">
+                      <div className="text-[10px] font-bold text-[#02665e] uppercase tracking-widest mb-1">Check-out</div>
+                      <div className="text-sm font-semibold text-slate-900">
+                        {formatTimeRange(houseRules.checkOutFrom, houseRules.checkOutTo) || "Not set"}
+                      </div>
                     </div>
-                  </div>
-
-                  {/* Column 2: Pets & Smoking */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Users className="w-5 h-5 text-[#02665e]" />
-                      <h3 className="text-sm font-semibold text-slate-900">Pets & Smoking</h3>
+                    {/* Pets */}
+                    <div className="p-4">
+                      <div className="text-[10px] font-bold text-[#02665e] uppercase tracking-widest mb-1">Pets</div>
+                      <div className={`text-sm font-semibold ${
+                        houseRules.petsAllowed === true ? "text-emerald-700" : houseRules.petsAllowed === false ? "text-rose-700" : "text-slate-900"
+                      }`}>
+                        {houseRules.petsAllowed === undefined ? "Not set" : houseRules.petsAllowed ? "Allowed" : "Not allowed"}
+                      </div>
                     </div>
-                    <div className="space-y-3">
-                      {houseRules.petsAllowed !== undefined ? (
-                        <div className={`rounded-lg border p-3 transition-all duration-200 hover:shadow-sm ${
-                          houseRules.petsAllowed 
-                            ? "border-emerald-200 bg-gradient-to-br from-emerald-50 to-white" 
-                            : "border-rose-200 bg-gradient-to-br from-rose-50 to-white"
-                        }`}>
-                          <div className="flex items-center gap-2 mb-2">
-                            {houseRules.petsAllowed ? (
-                              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                            ) : (
-                              <XCircleIcon className="w-4 h-4 text-rose-600" />
-                            )}
-                            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                              {houseRules.petsAllowed ? "Allowed" : "Not Allowed"}
-                            </div>
-                          </div>
-                          {houseRules.petsNote && (
-                            <div className="text-sm text-slate-700 mt-2">{houseRules.petsNote}</div>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3 opacity-60">
-                          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Pets</div>
-                          <div className="text-sm text-slate-400">Not specified</div>
-                        </div>
-                      )}
-                      {houseRules.smokingNotAllowed !== undefined && (
-                        <div className={`rounded-lg border p-3 transition-all duration-200 hover:shadow-sm ${
-                          !houseRules.smokingNotAllowed 
-                            ? "border-emerald-200 bg-gradient-to-br from-emerald-50 to-white" 
-                            : "border-rose-200 bg-gradient-to-br from-rose-50 to-white"
-                        }`}>
-                          <div className="flex items-center gap-2 mb-2">
-                            {houseRules.smokingNotAllowed ? (
-                              <CigaretteOff className="w-4 h-4 text-rose-600" />
-                            ) : (
-                              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                            )}
-                            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                              Smoking {houseRules.smokingNotAllowed ? "Not Allowed" : "Allowed"}
-                            </div>
-                          </div>
-                        </div>
-                      )}
+                    {/* Smoking */}
+                    <div className="p-4">
+                      <div className="text-[10px] font-bold text-[#02665e] uppercase tracking-widest mb-1">Smoking</div>
+                      <div className={`text-sm font-semibold ${
+                        houseRules.smokingNotAllowed === true ? "text-rose-700" : houseRules.smokingNotAllowed === false ? "text-emerald-700" : "text-slate-900"
+                      }`}>
+                        {houseRules.smokingNotAllowed === undefined ? "Not set" : houseRules.smokingNotAllowed ? "Not allowed" : "Allowed"}
+                      </div>
                     </div>
                   </div>
 
-                  {/* Column 3: Other Rules */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Shield className="w-5 h-5 text-[#02665e]" />
-                      <h3 className="text-sm font-semibold text-slate-900">Other Rules</h3>
-                    </div>
-                    <div className="space-y-2">
+                  {/* Divider */}
+                  <div className="border-t border-slate-100" />
+
+                  {/* Bottom: Guidelines */}
+                  <div className="p-4 sm:p-5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
                       {[
                         "Keep the property clean and well-maintained",
                         "Return all keys and access cards upon checkout",
                         "Report any incidents or damages immediately",
                         "Respect quiet hours and neighbors",
                         "Follow all posted safety guidelines"
-                      ].map((measure, idx) => (
-                        <div 
-                          key={idx}
-                          className="flex items-start gap-2 rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3 transition-all duration-200 hover:shadow-sm hover:border-[#02665e]/30"
-                        >
+                      ].map((rule, idx) => (
+                        <div key={idx} className="flex items-start gap-2 py-1.5">
                           <CheckCircle2 className="w-4 h-4 text-[#02665e] flex-shrink-0 mt-0.5" />
-                          <span className="text-sm text-slate-700 leading-relaxed">{measure}</span>
+                          <span className="text-sm text-slate-600">{rule}</span>
                         </div>
                       ))}
-                      {houseRules.other && houseRules.other.trim() && (
-                        <div className="rounded-lg border border-[#02665e]/20 bg-gradient-to-br from-[#02665e]/5 to-white p-3 transition-all duration-200 hover:shadow-sm hover:border-[#02665e]/40">
-                          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Additional Rules</div>
-                          <div className="text-sm text-slate-700 leading-relaxed">{houseRules.other}</div>
-                        </div>
-                      )}
                     </div>
+                    {houseRules.other && houseRules.other.trim() && (
+                      <div className="mt-3 pt-3 border-t border-slate-100">
+                        <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Additional</div>
+                        <div className="text-sm text-slate-600">{houseRules.other}</div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </section>
@@ -2183,104 +2091,107 @@ export default function PropertyPreview({
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5 }}
-                className="border-b border-gray-200 pb-6"
+                className="pb-8"
               >
+                {/* Header with rating badge */}
                 <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-2xl font-bold text-gray-900">Guest Reviews</h2>
+                  <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Guest Reviews</h2>
                   {reviews.stats && (
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-1">
-                        <Star className="h-5 w-5 fill-amber-400 text-amber-400" />
-                        <span className="text-xl font-bold text-gray-900">
-                          {reviews.stats.averageRating.toFixed(1)}
-                        </span>
-                      </div>
-                      <span className="text-gray-600">
-                        ({reviews.stats.totalReviews} {reviews.stats.totalReviews === 1 ? "review" : "reviews"})
+                    <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-amber-50 border border-amber-200">
+                      <Star className="h-5 w-5 fill-amber-400 text-amber-400" />
+                      <span className="text-lg font-bold text-gray-900">
+                        {reviews.stats.averageRating.toFixed(1)}
+                      </span>
+                      <span className="text-sm text-gray-500">
+                        ({reviews.stats.totalReviews})
                       </span>
                     </div>
                   )}
                 </div>
 
+                {/* Rating distribution - horizontal bars */}
                 {reviews.stats && (
-                  <div className="mb-6 grid grid-cols-2 md:grid-cols-5 gap-4">
-                    {[5, 4, 3, 2, 1].map((rating) => (
-                      <div key={rating} className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-gray-700">{rating}</span>
-                        <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
-                        <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-                          <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${(reviews.stats.ratingDistribution[rating] / reviews.stats.totalReviews) * 100}%` }}
-                            transition={{ duration: 0.5, delay: rating * 0.1 }}
-                            className="h-full bg-amber-400"
-                          />
+                  <div className="mb-6 space-y-2">
+                    {[5, 4, 3, 2, 1].map((rating) => {
+                      const count = reviews.stats.ratingDistribution[rating] || 0;
+                      const pct = reviews.stats.totalReviews > 0 ? (count / reviews.stats.totalReviews) * 100 : 0;
+                      return (
+                        <div key={rating} className="flex items-center gap-3">
+                          <div className="flex items-center gap-1 w-8 justify-end flex-shrink-0">
+                            <span className="text-sm font-semibold text-slate-700">{rating}</span>
+                            <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                          </div>
+                          <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                            <motion.div
+                              initial={{ width: 0 }}
+                              animate={{ width: `${pct}%` }}
+                              transition={{ duration: 0.5, delay: (5 - rating) * 0.08 }}
+                              className="h-full bg-amber-400 rounded-full"
+                            />
+                          </div>
+                          <span className="text-xs font-medium text-slate-400 w-6 text-right flex-shrink-0">{count}</span>
                         </div>
-                        <span className="text-xs text-gray-600 w-8 text-right">
-                          {reviews.stats.ratingDistribution[rating]}
-                        </span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
 
-                <div className="space-y-6">
+                {/* Review cards */}
+                <div className="space-y-4">
                   {reviews.reviews.slice(0, 5).map((review: Review, idx: number) => (
                     <motion.div
                       key={review.id}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.4, delay: idx * 0.1 }}
-                      className="border-b border-gray-100 pb-6 last:border-0"
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.4, delay: idx * 0.08 }}
+                      className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5 hover:shadow-md transition-shadow duration-200"
                     >
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
-                            <span className="text-emerald-600 font-semibold">
-                              {review.user?.name?.charAt(0) || "G"}
-                            </span>
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-10 h-10 rounded-xl bg-[#02665e]/10 flex items-center justify-center flex-shrink-0">
+                          <span className="text-[#02665e] font-bold text-sm">
+                            {review.user?.name?.charAt(0) || "G"}
+                          </span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-sm text-slate-900 truncate">
+                            {review.user?.name || "Anonymous Guest"}
                           </div>
-                          <div>
-                            <div className="font-semibold text-gray-900">
-                              {review.user?.name || "Anonymous Guest"}
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <div className="flex items-center">
+                              {Array.from({ length: 5 }).map((_, i) => (
+                                <Star
+                                  key={i}
+                                  className={`h-3.5 w-3.5 ${
+                                    i < review.rating
+                                      ? "fill-amber-400 text-amber-400"
+                                      : "text-slate-200"
+                                  }`}
+                                />
+                              ))}
                             </div>
-                            <div className="flex items-center gap-2 text-sm text-gray-600">
-                              <div className="flex items-center">
-                                {Array.from({ length: 5 }).map((_, i) => (
-                                  <Star
-                                    key={i}
-                                    className={`h-4 w-4 ${
-                                      i < review.rating
-                                        ? "fill-amber-400 text-amber-400"
-                                        : "text-gray-300"
-                                    }`}
-                                  />
-                                ))}
-                              </div>
-                              {review.isVerified && (
-                                <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded text-xs font-medium">
-                                  Verified Stay
-                                </span>
-                              )}
-                              <span className="text-gray-500">
-                                {review.createdAt ? new Date(review.createdAt).toLocaleDateString() : 'N/A'}
+                            {review.isVerified && (
+                              <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded text-[10px] font-semibold uppercase tracking-wide">
+                                Verified
                               </span>
-                            </div>
+                            )}
                           </div>
                         </div>
+                        <span className="text-xs text-slate-400 flex-shrink-0">
+                          {review.createdAt ? new Date(review.createdAt).toLocaleDateString() : 'N/A'}
+                        </span>
                       </div>
                       {review.title && (
-                        <h4 className="font-semibold text-gray-900 mb-2">{review.title}</h4>
+                        <h4 className="font-semibold text-sm text-slate-900 mb-1.5">{review.title}</h4>
                       )}
                       {review.comment && (
-                        <p className="text-gray-700 leading-relaxed mb-3">{review.comment}</p>
+                        <p className="text-sm text-slate-600 leading-relaxed">{review.comment}</p>
                       )}
                       {review.ownerResponse && (
-                        <div className="mt-4 p-4 bg-gray-50 rounded-lg border-l-4 border-emerald-500">
-                          <div className="font-semibold text-gray-900 mb-1">Owner Response</div>
-                          <p className="text-gray-700 text-sm">{review.ownerResponse}</p>
+                        <div className="mt-3 p-3 bg-[#02665e]/5 rounded-lg border-l-3 border-[#02665e]">
+                          <div className="text-xs font-bold text-[#02665e] uppercase tracking-wide mb-1">Owner Response</div>
+                          <p className="text-sm text-slate-700">{review.ownerResponse}</p>
                           {review.ownerResponseAt && (
-                            <div className="text-xs text-gray-500 mt-2">
+                            <div className="text-[10px] text-slate-400 mt-1.5">
                               {new Date(review.ownerResponseAt).toLocaleDateString()}
                             </div>
                           )}
@@ -2298,118 +2209,62 @@ export default function PropertyPreview({
             )}
 
             {/* Location Details - Modern Style */}
-            <section className="border-b border-gray-200 pb-6">
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
-                <div className="flex items-center gap-2 mb-6">
-                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#02665e]/10 text-[#02665e]">
-                    <MapPin className="w-5 h-5" aria-hidden />
-                  </span>
-                  <h2 className="text-lg sm:text-xl font-semibold text-slate-900">Where you&apos;ll be</h2>
+            <section className="pb-8">
+              {/* Header */}
+              <div className="flex items-center gap-2.5 mb-5">
+                <div className="w-9 h-9 rounded-xl bg-[#02665e] flex items-center justify-center">
+                  <MapPin className="w-4.5 h-4.5 text-white" aria-hidden />
                 </div>
-                <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                {location.street && (
-                    <div className="flex flex-col p-3 rounded-lg bg-slate-50 border border-slate-200 motion-safe:transition-all motion-safe:duration-200 hover:bg-white hover:border-[#02665e]/20 hover:shadow-sm">
-                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Street Address</span>
-                      <span className="text-sm sm:text-base font-medium text-slate-900">{location.street}</span>
-                  </div>
-                )}
-                {location.apartment && (
-                    <div className="flex flex-col p-3 rounded-lg bg-slate-50 border border-slate-200 motion-safe:transition-all motion-safe:duration-200 hover:bg-white hover:border-[#02665e]/20 hover:shadow-sm">
-                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Apartment/Building</span>
-                      <span className="text-sm sm:text-base font-medium text-slate-900">{location.apartment}</span>
-                  </div>
-                )}
-                {location.ward && (
-                    <div className="flex flex-col p-3 rounded-lg bg-slate-50 border border-slate-200 motion-safe:transition-all motion-safe:duration-200 hover:bg-white hover:border-[#02665e]/20 hover:shadow-sm">
-                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Ward</span>
-                      <span className="text-sm sm:text-base font-medium text-slate-900">{location.ward}</span>
-                  </div>
-                )}
-                {location.district && (
-                    <div className="flex flex-col p-3 rounded-lg bg-slate-50 border border-slate-200 motion-safe:transition-all motion-safe:duration-200 hover:bg-white hover:border-[#02665e]/20 hover:shadow-sm">
-                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">District</span>
-                      <span className="text-sm sm:text-base font-medium text-slate-900">{location.district}</span>
-                  </div>
-                )}
-                {location.regionName && (
-                    <div className="flex flex-col p-3 rounded-lg bg-slate-50 border border-slate-200 motion-safe:transition-all motion-safe:duration-200 hover:bg-white hover:border-[#02665e]/20 hover:shadow-sm">
-                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Region</span>
-                      <span className="text-sm sm:text-base font-medium text-slate-900">{location.regionName}</span>
-                  </div>
-                )}
-                {location.city && (
-                    <div className="flex flex-col p-3 rounded-lg bg-slate-50 border border-slate-200 motion-safe:transition-all motion-safe:duration-200 hover:bg-white hover:border-[#02665e]/20 hover:shadow-sm">
-                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">City</span>
-                      <span className="text-sm sm:text-base font-medium text-slate-900">{location.city}</span>
-                  </div>
-                )}
-                {location.zip && (
-                    <div className="flex flex-col p-3 rounded-lg bg-slate-50 border border-slate-200 motion-safe:transition-all motion-safe:duration-200 hover:bg-white hover:border-[#02665e]/20 hover:shadow-sm">
-                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Zip Code</span>
-                      <span className="text-sm sm:text-base font-medium text-slate-900">{location.zip}</span>
-                  </div>
-                )}
-                {location.country && (
-                    <div className="flex flex-col p-3 rounded-lg bg-slate-50 border border-slate-200 motion-safe:transition-all motion-safe:duration-200 hover:bg-white hover:border-[#02665e]/20 hover:shadow-sm">
-                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Country</span>
-                      <span className="text-sm sm:text-base font-medium text-slate-900">{location.country}</span>
-                  </div>
-                )}
-                </div>
-
-                {/* Map Card - Mapbox */}
-                  <div className="mt-6">
-                  <div className="mb-3">
-                    <h3 className="text-sm font-semibold text-slate-700">Property Location</h3>
-                    <p className="text-xs text-slate-500 mt-0.5">Exact location on map</p>
-                  </div>
-                  {((property.latitude && property.longitude) || (location.lat && location.lng) || (location.latitude && location.longitude)) ? (
-                    <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
-                      <div className="relative aspect-[16/9] bg-slate-100">
-                        {(() => {
-                          const lat = property.latitude || location.lat || location.latitude;
-                          const lng = property.longitude || location.lng || location.longitude;
-                          const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
-                          return (
-                            <>
-                      {mapboxToken ? (
-                                              <Image
-                                                src={`https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/pin-s+10b981(${lng},${lat})/${lng},${lat},15,0/900x420?access_token=${encodeURIComponent(mapboxToken)}`}
-                                                alt="Property location map"
-                                                fill
-                                                className="absolute inset-0 w-full h-full object-cover"
-                                                unoptimized
-                                              />
-                                            ) : (
-                                <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200">
-                          <div className="text-center">
-                                    <Map className="h-8 w-8 text-slate-400 mx-auto mb-2" />
-                                    <p className="text-sm text-slate-600 font-medium">Map view</p>
-                                    <p className="text-xs text-slate-500 mt-1">
-                                      {lat}, {lng}
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                              <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent pointer-events-none" />
-                            </>
-                          );
-                        })()}
-                    </div>
-                  </div>
-                  ) : (
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 overflow-hidden">
-                      <div className="relative aspect-[16/9] flex items-center justify-center">
-                        <div className="text-center">
-                          <MapPin className="h-10 w-10 text-slate-400 mx-auto mb-3" />
-                          <p className="text-sm text-slate-600 font-medium">Location coordinates not available</p>
-                          <p className="text-xs text-slate-500 mt-1">Please add latitude and longitude to show the map</p>
+                <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Where you&apos;ll be</h2>
               </div>
-          </div>
-                </div>
-              )}
+
+              {/* Map Card */}
+              <div className="rounded-2xl overflow-hidden shadow-lg border border-slate-200/80">
+                {(() => {
+                  const lat = Number(property.latitude) || Number((property as any).latitude) || Number((location as any).lat) || Number(location.latitude) || 0;
+                  const lng = Number(property.longitude) || Number((property as any).longitude) || Number((location as any).lng) || Number(location.longitude) || 0;
+                  const hasCoords = lat !== 0 && lng !== 0;
+                  const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
+
+                  if (hasCoords && mapboxToken) {
+                    return (
+                      <div className="relative aspect-[2/1] sm:aspect-[16/9] bg-slate-100">
+                        <Image
+                          src={`https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/pin-l+02665e(${lng},${lat})/${lng},${lat},14,0/900x450@2x?access_token=${encodeURIComponent(mapboxToken)}`}
+                          alt=""
+                          fill
+                          className="object-cover"
+                          unoptimized
+                        />
+                      </div>
+                    );
+                  }
+
+                  if (hasCoords) {
+                    return (
+                      <div className="relative aspect-[2/1] sm:aspect-[16/9] bg-slate-50 flex items-center justify-center">
+                        <div className="text-center">
+                          <div className="w-14 h-14 rounded-2xl bg-[#02665e]/10 flex items-center justify-center mx-auto mb-3">
+                            <MapPin className="h-7 w-7 text-[#02665e]" />
+                          </div>
+                          <p className="text-xs text-slate-400">{lat.toFixed(4)}, {lng.toFixed(4)}</p>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="relative aspect-[2/1] sm:aspect-[16/9] bg-slate-50 flex items-center justify-center">
+                      <div className="text-center">
+                        <div className="w-14 h-14 rounded-2xl bg-[#02665e]/10 flex items-center justify-center mx-auto mb-3">
+                          <MapPin className="h-7 w-7 text-[#02665e]/40" />
+                        </div>
+                        <p className="text-sm text-slate-400">No coordinates available</p>
                       </div>
                     </div>
+                  );
+                })()}
+              </div>
             </section>
 
             {/* Audit History Section - Admin Only */}
@@ -2569,9 +2424,9 @@ export default function PropertyPreview({
                       </div>
 
       {/* Lightbox - Match Public View */}
-      {showLightbox && photos.length > 0 ? (
+      {showLightbox && photos.length > 0 ? createPortal(
         <div
-          className="fixed inset-0 z-[200] bg-black/70 backdrop-blur-sm"
+          className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
           aria-label="Photo gallery"
@@ -2659,7 +2514,8 @@ export default function PropertyPreview({
           </div>
         </div>
           </div>
-        </div>
+        </div>,
+        document.body
       ) : null}
 
       {/* Approve Dialog */}
