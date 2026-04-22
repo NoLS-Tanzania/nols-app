@@ -43,9 +43,15 @@ const paymentLimiter = rateLimit({
 
 // ── Input schema ──────────────────────────────────────────────────────────────
 
+// Tanzania phone: +255 or 0, then network digit (6=Airtel, 7=Vodacom/Tigo/Halo, 2=TTCL), then 8 digits
+const TZ_PHONE_RE = /^(\+255|0)(6|7|2)\d{8}$/;
+
 const initiateSchema = z.object({
   invoiceId:      z.number().int().positive(),
-  phoneNumber:    z.string().min(9).max(20).regex(/^[\d+\s\-()]+$/, "Invalid phone number format"),
+  phoneNumber:    z.string().min(9).max(15).regex(
+    /^[\d+]+$/,
+    "Phone number must contain only digits and an optional leading +"
+  ),
   provider:       z.enum(["Airtel", "Tigo", "M-Pesa", "Halopesa"]).default("Airtel"),
   idempotencyKey: z.string().min(8).max(128).optional(),
 });
@@ -83,15 +89,33 @@ async function idemSet(key: string, result: object): Promise<void> {
   }
 }
 
-// ── Phone normalisation (Tanzania) ───────────────────────────────────────────
+// ── Phone normalisation & validation (Tanzania only) ────────────────────────
 
-function normalizePhone(raw: string): string {
-  let n = raw.replace(/[^\d+]/g, "");
-  if (!n.startsWith("+")) {
-    if (n.startsWith("255"))     n = `+${n}`;
-    else if (n.startsWith("0")) n = `+255${n.slice(1)}`;
-    else                        n = `+255${n}`;
+/**
+ * Normalise a raw phone string to E.164 (+255XXXXXXXXX).
+ * Accepts: +255XXXXXXXXX | 255XXXXXXXXX | 0XXXXXXXXX
+ * Returns null if the result fails the Tanzania format check.
+ */
+function normalizePhone(raw: string): string | null {
+  // Strip whitespace, dashes, parens
+  let n = raw.replace(/[\s\-()]/g, "");
+  // Keep only the leading + (if any) then strip any other + signs
+  const hasLeadingPlus = n.startsWith("+");
+  n = (hasLeadingPlus ? "+" : "") + n.replace(/\+/g, "");
+
+  if (n.startsWith("+255")) {
+    // already E.164 — keep as-is
+  } else if (n.startsWith("255") && n.length === 12) {
+    n = `+${n}`;
+  } else if (n.startsWith("0") && n.length === 10) {
+    n = `+255${n.slice(1)}`;
+  } else {
+    // Unknown format — refuse rather than silently add a wrong country code
+    return null;
   }
+
+  // Final validation: must match Tanzanian E.164 pattern
+  if (!TZ_PHONE_RE.test(n)) return null;
   return n;
 }
 
@@ -131,7 +155,19 @@ router.post("/initiate", requireAuth, paymentLimiter, async (req, res) => {
       });
     }
     const { invoiceId, phoneNumber, provider, idempotencyKey } = parsed.data;
-    const idemKey = idempotencyKey ?? `azp-${invoiceId}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+    // Normalise & validate phone before anything else (fast-fail)
+    const normalizedPhone = normalizePhone(phoneNumber);
+    if (!normalizedPhone) {
+      return res.status(400).json({
+        error: "validation_error",
+        message: "Invalid phone number. Please enter a valid Tanzanian number (e.g. +255712345678 or 0712345678).",
+      });
+    }
+
+    // Deterministic idempotency key: same invoice + same phone always reuses the same key,
+    // preventing double-charges when the client retries without supplying its own key.
+    const idemKey = idempotencyKey ?? `azp-${invoiceId}-${normalizedPhone.replace(/\+/g, "")}`;
 
     // 2. Idempotency check
     const hit = await idemGet(idemKey);
@@ -167,9 +203,8 @@ router.post("/initiate", requireAuth, paymentLimiter, async (req, res) => {
     if (!Number.isFinite(amount) || amount <= 0)
       return res.status(400).json({ error: "invalid_amount", message: "Invoice has no payable amount" });
 
-    // 5. Payment ref
+    // 5. Payment ref (normalizedPhone already computed and validated above)
     const paymentRef = invoice.paymentRef ?? `INV-${invoice.id}-${Date.now()}`;
-    const normalizedPhone = normalizePhone(phoneNumber);
 
     // 6. Mark invoice as PROCESSING
     await prisma.invoice.update({

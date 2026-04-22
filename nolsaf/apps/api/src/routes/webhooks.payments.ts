@@ -1,6 +1,20 @@
 // apps/api/src/routes/webhooks.payments.ts
 import { Router } from "express";
 import { prisma } from "@nolsaf/prisma";
+
+/** Read the global referral credit rate from SystemSetting (default 0.35%). */
+async function getReferralCreditRate(): Promise<number> {
+  try {
+    const s = await prisma.systemSetting.findUnique({
+      where: { id: 1 },
+      select: { referralCreditPercent: true },
+    });
+    const v = Number(s?.referralCreditPercent ?? NaN);
+    // Stored as decimal (e.g. 0.0035 = 0.35%) — use directly as rate
+    if (Number.isFinite(v) && v > 0 && v <= 1) return v;
+  } catch { /* fallback */ }
+  return 0.0035; // 0.35% fallback only when DB is unavailable
+}
 import { makeQR } from "../lib/qr.js";
 import bodyParser from "body-parser"; // for raw parser here
 import { invalidateOwnerReports } from "../lib/cache.js";
@@ -365,11 +379,9 @@ async function markInvoicePaid(invId: number, method: string, paymentRef: string
           // Only emit for CUSTOMER/USER roles (they earn credits)
           if (user.role === 'CUSTOMER' || user.role === 'USER') {
             const bookingAmount = Number(updated.total || updated.netPayable || 0);
-            const creditsEarned = Math.round(bookingAmount * 0.0035); // 0.35% of booking
-            
-            // Emit credit notification to referring driver
-            io.to(`driver:${user.referredBy}`).emit('referral-notification', {
-              type: 'credits_earned',
+            const creditRate = await getReferralCreditRate();
+            const creditsEarned = Math.round(bookingAmount * creditRate);
+            io.to(`user:${booking.userId}`).emit('credits-earned', {
               message: `You earned ${creditsEarned.toLocaleString()} TZS credits from a booking!`,
               referralData: {
                 userId: booking.userId,
@@ -546,6 +558,7 @@ router.post("/azampay", webhookLimiter, async (req: any, res) => {
         // Send guest payment confirmation: email with PDF receipts + SMS.
         // Uses the AzamPay-confirmed `amount` — the exact value the guest paid via M-Pesa.
         // This fires ONLY here (after payment success) — never at booking creation.
+        let _notifContext = { refCode: "?", guestEmail: false, guestPhone: false };
         try {
           const bookingId = invoice.booking.id;
           // Email from linked account; phone from booking record or linked account.
@@ -564,6 +577,7 @@ router.post("/azampay", webhookLimiter, async (req: any, res) => {
           });
           const bookingCode = checkinCode?.code;
           const refCode = bookingCode ?? `BK-${bookingId}`;
+          _notifContext = { refCode, guestEmail: !!guestEmail, guestPhone: !!guestPhone };
 
           const pdfData = {
             guestName,
@@ -612,8 +626,14 @@ router.post("/azampay", webhookLimiter, async (req: any, res) => {
             await sendSms(guestPhone, smsText);
           }
         } catch (confirmErr) {
-          console.warn("[PAYMENT_CONFIRMED] Guest confirmation email/SMS failed:", confirmErr);
-          // Never block webhook response due to notification failure
+          // Log with enough detail for ops to investigate and manually resend if needed.
+          // We intentionally do NOT block the webhook response — payment is confirmed regardless.
+          console.error(
+            `[PAYMENT_CONFIRMED] Guest notification FAILED for booking ${invoice.booking?.id ?? "?"} ` +
+            `(invoiceId=${invoice.id}, refCode=${_notifContext.refCode}). ` +
+            `guestEmail=${_notifContext.guestEmail ? "set" : "none"}, guestPhone=${_notifContext.guestPhone ? "set" : "none"}. ` +
+            `Error: ${(confirmErr as any)?.message ?? String(confirmErr)}`
+          );
         }
       } else {
         // Suspicious underpayment — log with enough detail for admin investigation.

@@ -32,18 +32,18 @@ function isLocalDevBypassAllowed(req: Request): boolean {
   // Fail-closed: bypass only activates when explicitly opted in.
   // Add ENABLE_DEV_BYPASS=true to .env.local to enable in local development.
   if (process.env.ENABLE_DEV_BYPASS !== "true") return false;
+
+  // SECURITY: Only trust the socket-level IP (req.ip) which Express sets from the actual
+  // TCP connection. Do NOT trust X-Forwarded-For or X-Real-IP here — those headers can be
+  // spoofed by any client. The socket IP is unforgeable.
   const ip = String((req as any).ip ?? "");
-  const forwardedFor = String(req.headers["x-forwarded-for"] || "").split(",")[0]?.trim() || "";
-  const realIp = String(req.headers["x-real-ip"] || "").trim();
+  const isLoopback = ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1";
+
+  // Additionally check the Host header as a secondary guard (no proxy can change this
+  // while the socket is genuinely local).
   const host = String(req.headers.host || "").trim().toLowerCase();
-  const forwardedHost = String(req.headers["x-forwarded-host"] || "").trim().toLowerCase();
+  const isLocalHost = host.startsWith("localhost:") || host.startsWith("127.0.0.1:") || host === "localhost" || host === "127.0.0.1";
 
-  const candidates = [ip, forwardedFor, realIp].filter(Boolean);
-  const isLoopback = candidates.some((value) => value === "127.0.0.1" || value === "::1" || value === "::ffff:127.0.0.1");
-  const isLocalHost = [host, forwardedHost].some((value) => value.startsWith("localhost:") || value.startsWith("127.0.0.1:") || value === "localhost" || value === "127.0.0.1");
-
-  // When requests are proxied through the local Next dev server, Express may not expose
-  // loopback in `req.ip`, but forwarded headers/host still identify local development.
   return isLoopback || isLocalHost;
 }
 

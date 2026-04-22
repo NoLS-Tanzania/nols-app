@@ -61,11 +61,17 @@ function extractCommissionFromAccommodation(
 const router = Router();
 
 // Public endpoints: rate limit to reduce abuse/DoS.
+// Key by IP + bookingId (from body) so each booking can only be invoiced
+// a limited number of times per window, not just per IP.
 const publicInvoiceLimiter = rateLimit({
   windowMs: 60_000,
-  limit: 30,
+  limit: 10,
   standardHeaders: "draft-7",
   legacyHeaders: false,
+  keyGenerator: (req: any) => {
+    const bookingId = String(req.body?.bookingId || "");
+    return `${req.ip || "anon"}:${bookingId}`;
+  },
   message: { ok: false, error: "Too many requests" },
 });
 
@@ -605,31 +611,23 @@ router.post("/from-booking", publicInvoiceLimiter, async (req: Request, res: Res
       },
     });
   } catch (error: any) {
-    console.error("POST /api/public/invoices/from-booking error:", error);
-    console.error("Error details:", {
+    // Log full details server-side for debugging
+    console.error("POST /api/public/invoices/from-booking error:", {
       message: error?.message,
       code: error?.code,
-      stack: error?.stack,
     });
 
-    // Handle Prisma errors
     if (error?.code === "P2002") {
-      return res.status(409).json({ 
+      return res.status(409).json({
         error: "Invoice conflict detected",
         message: "An invoice with similar details already exists",
       });
     }
 
-    // Generic error response (include message in development for debugging)
+    // Never leak stack traces or internal details to the client in production
     return res.status(500).json({
       error: "Failed to create invoice",
       message: process.env.NODE_ENV === "development" ? error?.message : "An unexpected error occurred. Please try again.",
-      ...(process.env.NODE_ENV === "development" && { 
-        details: {
-          code: error?.code,
-          name: error?.name,
-        }
-      }),
     });
   }
 });

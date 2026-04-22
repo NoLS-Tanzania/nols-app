@@ -66,6 +66,10 @@ scripts/export-database-for-aws.ps1
 scripts/import-to-aws-rds.ps1
 scripts/reset-rds-database.ps1
 scripts/test-rds-connection.ps1
+# Migration scripts that may contain local DB credentials
+scripts/migrate-database.ps1
+scripts/migrate-database.sh
+scripts/migrate-base64-photos-to-cloudinary.mjs
 
 # Database dumps & backups
 *.sql.gz
