@@ -326,6 +326,12 @@ async function findOwnerPropertyById(ownerId: number, id: number) {
         phone: true,
       },
     },
+    // Include PropertyImage records so the owner edit page can show existing photos
+    images: {
+      where: { status: { not: "REJECTED" }, url: { not: null } },
+      select: { id: true, url: true, thumbnailUrl: true, status: true },
+      orderBy: { createdAt: "asc" },
+    },
   };
 
   // First try: include tourism fields (works once DB migration is applied)

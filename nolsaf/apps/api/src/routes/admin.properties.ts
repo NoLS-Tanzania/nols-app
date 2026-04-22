@@ -1127,6 +1127,40 @@ router.post("/:id/approve", (async (req: AuthedRequest, res) => {
     select: { id: true, status: true },
   });
 
+  // Ensure PropertyImage records exist for every photo URL.
+  // Properties submitted before the PropertyImage system was active (or where the initial
+  // upsert silently failed) only have URLs in the `photos` JSON field.
+  // Backfill them here so the public page can show photos immediately after approval.
+  try {
+    const existingCount = await prisma.propertyImage.count({ where: { propertyId: id } });
+    if (existingCount === 0) {
+      const propData = await prisma.property.findUnique({ where: { id }, select: { photos: true } });
+      let photosArr: any[] = [];
+      const rawPhotos = propData?.photos;
+      if (Array.isArray(rawPhotos)) {
+        photosArr = rawPhotos;
+      } else if (typeof rawPhotos === "string") {
+        try { photosArr = JSON.parse(rawPhotos); } catch { photosArr = []; }
+      }
+      await Promise.all(
+        photosArr.map(async (url: any) => {
+          if (typeof url !== "string" || !url.startsWith("http")) return;
+          if (url.length > 2048) return;
+          const filename = url.split("/").pop() || url;
+          const storageKey = `${id}:${filename}`.slice(0, 190);
+          await prisma.propertyImage.upsert({
+            where: { storageKey },
+            create: { propertyId: id, storageKey, url, status: "PENDING" },
+            update: { url },
+          });
+        })
+      );
+      console.log(`[admin.approve] Backfilled PropertyImage records for property ${id} from photos JSON`);
+    }
+  } catch (backfillErr) {
+    console.warn(`[admin.approve] PropertyImage backfill failed for property ${id}:`, backfillErr);
+  }
+
   // Invalidate cache for this property and property lists
   await Promise.all([
     invalidateCache(cacheKeys.property(id)),
@@ -1135,14 +1169,12 @@ router.post("/:id/approve", (async (req: AuthedRequest, res) => {
   ]).catch(() => {}); // Don't fail the request if cache invalidation fails
 
   const payload = { id, from: before.status, to: "APPROVED", by: req.user!.id };
-
-  // Get admin and owner info for notifications
   const [admin, property] = await Promise.all([
-    prisma.user.findUnique({
+    prisma.user.findFirst({
       where: { id: req.user!.id },
       select: { id: true, name: true, email: true },
     }),
-    prisma.property.findUnique({
+    prisma.property.findFirst({
       where: { id },
       select: { id: true, owner: { select: { id: true, name: true, email: true } } },
     }),

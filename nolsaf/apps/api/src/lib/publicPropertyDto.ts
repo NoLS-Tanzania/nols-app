@@ -100,7 +100,13 @@ export function pickImages(opts: {
   photos?: any;
   limit?: number | null;
 }): string[] {
-  const { images, photos, limit = 12 } = opts;
+  const { images, limit = 12 } = opts;
+
+  // Normalize photos: MariaDB adapter may return JSON fields as strings rather than parsed arrays
+  let photos = opts.photos;
+  if (typeof photos === "string") {
+    try { photos = JSON.parse(photos); } catch { photos = null; }
+  }
 
   const out: string[] = [];
 
