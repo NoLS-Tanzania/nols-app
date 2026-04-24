@@ -484,7 +484,7 @@ export default function NolScopeEstimator() {
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="max-w-2xl mx-auto px-4 sm:px-0">
       {/* Step indicator */}
       <StepBar current={step} steps={STEPS} />
 
@@ -585,7 +585,7 @@ export default function NolScopeEstimator() {
             </div>
 
             {/* Traveler counts */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <CounterField label="Adults" value={adults} min={1} max={20} onChange={setAdults} />
               <CounterField label="Children" sub="under 16" value={children} min={0} max={10} onChange={setChildren} />
             </div>
