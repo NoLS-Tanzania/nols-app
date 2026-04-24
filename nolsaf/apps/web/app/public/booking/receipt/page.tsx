@@ -70,13 +70,10 @@ export default function ReceiptPage() {
 
   async function fetchReceipt(invoiceId: number, accessToken: string) {
     try {
-      const API = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000").replace(/\/$/, "");
       const accessQuery = `accessToken=${encodeURIComponent(accessToken)}`;
       const candidates = [
-        // Prefer same-origin (works with Next rewrites/proxies and avoids CORS issues)
+        // Use same-origin proxy (works with Next rewrites and avoids CORS issues)
         `/api/public/invoices/${invoiceId}?${accessQuery}`,
-        // Fallback to explicit API base if configured
-        `${API}/api/public/invoices/${invoiceId}?${accessQuery}`,
       ];
 
       let lastErr: any = null;

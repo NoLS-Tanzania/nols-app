@@ -103,8 +103,7 @@ export default function PaymentPage() {
   const fetchInvoice = useCallback(
     async (invoiceId: number, accessToken: string) => {
       try {
-        const API = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000").replace(/\/$/, "");
-        const url = new URL(`${API}/api/public/invoices/${invoiceId}`);
+        const url = new URL(`/api/public/invoices/${invoiceId}`, window.location.origin);
         url.searchParams.set("accessToken", accessToken);
         const response = await fetch(url.toString());
 
@@ -186,10 +185,8 @@ export default function PaymentPage() {
     setPaymentStatus("pending");
 
     try {
-      const API = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000").replace(/\/$/, "");
-      
       // Initiate payment
-      const response = await fetch(`${API}/api/payments/azampay/initiate`, {
+      const response = await fetch(`/api/payments/azampay/initiate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -224,10 +221,8 @@ export default function PaymentPage() {
       attempts++;
 
       try {
-        const API = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000").replace(/\/$/, "");
-        const response = await fetch(`${API}/api/payments/azampay/status/${paymentRef}`);
+        const response = await fetch(`/api/payments/azampay/status/${paymentRef}`);
         const data = await response.json();
-
         if (data.invoiceStatus === "PAID") {
           // Payment successful!
           if (pollingIntervalRef.current) {

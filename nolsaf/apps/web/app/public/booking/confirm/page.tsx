@@ -366,13 +366,11 @@ export default function BookingConfirmPage() {
     }
 
     try {
-      const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000").replace(/\/$/, "");
-      
       // Add timeout to prevent hanging requests (15 seconds should be enough)
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000);
       
-      const response = await fetch(`${API_BASE}/api/public/properties/${propertyId}`, {
+      const response = await fetch(`/api/public/properties/${propertyId}`, {
         signal: controller.signal,
         cache: 'no-store', // Don't cache this request
         headers: {
