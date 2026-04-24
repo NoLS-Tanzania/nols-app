@@ -435,55 +435,32 @@ export const PropertyLocationMap = memo(function PropertyLocationMap({
           {/* ── Body ── */}
           <div className="bg-white p-4 space-y-3">
 
-            {/* Primary GPS button -- locked once location is confirmed */}
-            {hasCoords && !isDetectingLocation && !locationDenied ? (
-              <div className="flex items-center gap-3 rounded-xl px-3.5 py-3" style={{ background: "rgba(2,102,94,0.06)", border: "1.5px solid rgba(2,102,94,0.2)" }}>
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#02665e] shadow-sm">
-                  <CheckCircle2 className="h-4 w-4 text-white" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[12px] font-bold text-[#02665e]">Location confirmed</p>
-                  <p className="font-mono text-[11px] text-[#02665e]/70 tabular-nums">
-                    {Number(latitude).toFixed(5)}, {Number(longitude).toFixed(5)}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={detectLocation}
-                  className="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-[#02665e]/20 px-2.5 py-1.5 text-[11px] font-semibold text-[#02665e] transition hover:bg-[#02665e]/10 active:scale-95"
-                  title="Re-detect location"
-                >
-                  <LocateFixed className="h-3.5 w-3.5 shrink-0" />
-                  Re-detect
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={detectLocation}
-                disabled={isDetectingLocation}
-                className={[
-                  "flex w-full items-center justify-center gap-2.5 rounded-xl py-3.5 text-[13px] font-bold tracking-wide transition-all active:scale-[0.98] disabled:opacity-60",
-                  locationDenied
-                    ? "border-2 border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100 shadow-[0_2px_10px_-2px_rgba(245,158,11,0.35)]"
-                    : "bg-[#02665e] text-white hover:bg-[#024f49] shadow-[0_4px_16px_-4px_rgba(2,102,94,0.55)]",
-                ].join(" ")}
-              >
-                {isDetectingLocation ? (
-                  <>
-                    <svg className="animate-spin h-4 w-4" style={{ animationDuration: "0.75s" }} viewBox="0 0 48 48" fill="none">
-                      <circle cx="24" cy="24" r="20" stroke="rgba(255,255,255,0.25)" strokeWidth="5" />
-                      <path d="M24 4 a20 20 0 0 1 20 20" stroke="white" strokeWidth="5" strokeLinecap="round" />
-                    </svg>
-                    Detecting location…
-                  </>
-                ) : locationDenied ? (
-                  <><LocateOff className="h-4 w-4" /> Enable location access</>
-                ) : (
-                  <><LocateFixed className="h-4 w-4" /> Detect my location</>
-                )}
-              </button>
-            )}
+            {/* Primary GPS button */}
+            <button
+              type="button"
+              onClick={detectLocation}
+              disabled={isDetectingLocation}
+              className={[
+                "flex w-full items-center justify-center gap-2.5 rounded-xl py-3.5 text-[13px] font-bold tracking-wide transition-all active:scale-[0.98] disabled:opacity-60",
+                locationDenied
+                  ? "border-2 border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100 shadow-[0_2px_10px_-2px_rgba(245,158,11,0.35)]"
+                  : "bg-[#02665e] text-white hover:bg-[#024f49] shadow-[0_4px_16px_-4px_rgba(2,102,94,0.55)]",
+              ].join(" ")}
+            >
+              {isDetectingLocation ? (
+                <>
+                  <svg className="animate-spin h-4 w-4" style={{ animationDuration: "0.75s" }} viewBox="0 0 48 48" fill="none">
+                    <circle cx="24" cy="24" r="20" stroke="rgba(255,255,255,0.25)" strokeWidth="5" />
+                    <path d="M24 4 a20 20 0 0 1 20 20" stroke="white" strokeWidth="5" strokeLinecap="round" />
+                  </svg>
+                  Detecting location…
+                </>
+              ) : locationDenied ? (
+                <><LocateOff className="h-4 w-4" /> Enable location access</>
+              ) : (
+                <><LocateFixed className="h-4 w-4" /> Detect my location</>
+              )}
+            </button>
 
             {/* Divider */}
             <div className="flex items-center gap-2">
@@ -505,20 +482,36 @@ export const PropertyLocationMap = memo(function PropertyLocationMap({
               Place pin manually on map
             </button>
 
-            {/* Weak-signal warning */}
-            {locationDetected !== null && locationDetected?.accuracy !== null && locationDetected?.accuracy !== undefined && locationDetected.accuracy > 100 ? (
-              <div className="flex items-start gap-3 rounded-xl px-3.5 py-3.5" style={{ background: "#fef3c7", border: "2px solid #f59e0b" }}>
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full shadow-md" style={{ background: "#f59e0b" }}>
-                  <AlertCircle className="h-5 w-5 text-white" />
+            {/* Success / accuracy warning banner */}
+            {locationDetected ? (() => {
+              const acc = locationDetected.accuracy;
+              const isPoor = acc !== null && acc > 100;
+              return isPoor ? (
+                <div className="flex items-start gap-3 rounded-xl px-3.5 py-3.5" style={{ background: "#fef3c7", border: "2px solid #f59e0b" }}>
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full shadow-md" style={{ background: "#f59e0b" }}>
+                    <AlertCircle className="h-5 w-5 text-white" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13px] font-extrabold" style={{ color: "#92400e" }}>Weak GPS signal</p>
+                    <p className="mt-0.5 text-[11.5px] leading-relaxed font-medium" style={{ color: "#78350f" }}>
+                      ~{Math.round(acc!)} m margin of error — step outside or use the map to place the pin precisely.
+                    </p>
+                  </div>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[13px] font-extrabold" style={{ color: "#92400e" }}>Weak GPS signal</p>
-                  <p className="mt-0.5 text-[11.5px] leading-relaxed font-medium" style={{ color: "#78350f" }}>
-                    ~{Math.round(locationDetected.accuracy)} m margin of error — step outside or use the map to pin precisely.
-                  </p>
+              ) : (
+                <div className="flex items-center gap-3 rounded-xl px-3.5 py-3" style={{ background: "rgba(2,102,94,0.06)", border: "1.5px solid rgba(2,102,94,0.2)" }}>
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#02665e] shadow-sm">
+                    <CheckCircle2 className="h-4 w-4 text-white" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[12px] font-bold text-[#02665e]">Location pinned!</p>
+                    <p className="mt-0.5 text-[11px] text-[#02665e]/70">
+                      {acc !== null ? `Within ~${Math.round(acc)} m — excellent signal` : "Coordinates saved successfully"}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ) : null}
+              );
+            })() : null}
 
             {/* Location error */}
             {locationError ? (

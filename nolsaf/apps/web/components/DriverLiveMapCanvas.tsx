@@ -499,6 +499,11 @@ export default function DriverLiveMapCanvas({
     if (!mapboxToken) return;
     if (mapRef.current) return;
 
+    const host = containerRef.current;
+    const mapContainer = document.createElement("div");
+    mapContainer.style.cssText = "position:absolute;inset:0;width:100%;height:100%";
+    host.appendChild(mapContainer);
+
     let map: any = null;
     (async () => {
       try {
@@ -508,7 +513,7 @@ export default function DriverLiveMapCanvas({
         mapboxgl.accessToken = mapboxToken;
 
         map = new mapboxgl.Map({
-          container: containerRef.current as HTMLElement,
+          container: mapContainer,
           // Base style (switchable by driver)
           style: desiredStyleUrl,
           center: [startupCenter.lng, startupCenter.lat],
@@ -866,6 +871,11 @@ export default function DriverLiveMapCanvas({
     return () => {
       try {
         if (map) map.remove();
+      } catch {
+        // ignore
+      }
+      try {
+        if (mapContainer.parentNode) mapContainer.parentNode.removeChild(mapContainer);
       } catch {
         // ignore
       }

@@ -13,6 +13,7 @@ export default function DriverLiveMap({ liveOnly }: { liveOnly?: boolean } = {})
   const mapRef = useRef<any | null>(null);
   const markersRef = useRef<Record<string, { marker: any; el: HTMLElement }>>({});
   const mapboxglRef = useRef<any | null>(null);
+  const mapHostRef = useRef<HTMLDivElement | null>(null);
 
   // ensure pulse CSS for available markers is injected once
   const ensurePulseStyle = () => {
@@ -64,7 +65,12 @@ export default function DriverLiveMap({ liveOnly }: { liveOnly?: boolean } = {})
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!data) return;
+    if (!mapHostRef.current) return;
     let map: any = null;
+    const host = mapHostRef.current;
+    const mapContainer = document.createElement("div");
+    mapContainer.style.cssText = "position:absolute;inset:0;width:100%;height:100%";
+    host.appendChild(mapContainer);
     (async () => {
       try {
         const mapboxglModule = await import("mapbox-gl");
@@ -72,11 +78,9 @@ export default function DriverLiveMap({ liveOnly }: { liveOnly?: boolean } = {})
         const token = (process.env.NEXT_PUBLIC_MAPBOX_TOKEN as string) || (window as any).__MAPBOX_TOKEN;
         if (!token) return;
         mapboxgl.accessToken = token;
-        const el = document.getElementById("driver-live-map");
-        if (!el) return;
-        map = new mapboxgl.Map({ container: el as HTMLElement, style: "mapbox://styles/mapbox/streets-v11", center: [data.driverLocation.lng, data.driverLocation.lat], zoom: 13 });
-  mapRef.current = map;
-  mapboxglRef.current = mapboxgl;
+        map = new mapboxgl.Map({ container: mapContainer, style: "mapbox://styles/mapbox/streets-v11", center: [data.driverLocation.lng, data.driverLocation.lat], zoom: 13 });
+        mapRef.current = map;
+        mapboxglRef.current = mapboxgl;
         map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
         // driver marker
         if (data.driverLocation) {
@@ -114,7 +118,19 @@ export default function DriverLiveMap({ liveOnly }: { liveOnly?: boolean } = {})
         console.warn("Driver live map init failed", err);
       }
     })();
-    return () => { try { if (map) map.remove(); } catch (e) {} finally { mapRef.current = null; markersRef.current = {}; } };
+    return () => {
+      try {
+        if (map) map.remove();
+      } catch (e) {
+      } finally {
+        try {
+          if (mapContainer.parentNode) mapContainer.parentNode.removeChild(mapContainer);
+        } catch (e) {
+        }
+        mapRef.current = null;
+        markersRef.current = {};
+      }
+    };
   }, [data, createMarkerEl]);
 
   // Socket.IO client: listen for driver:location:update events and update map data live
@@ -224,7 +240,7 @@ export default function DriverLiveMap({ liveOnly }: { liveOnly?: boolean } = {})
         <div className="text-gray-500">Loading map data…</div>
       ) : (
         <>
-          <div id="driver-live-map" className="w-full h-96 rounded-md overflow-hidden border-2 border-blue-200 bg-gray-50" />
+          <div ref={mapHostRef} id="driver-live-map" className="relative w-full h-96 rounded-md overflow-hidden border-2 border-blue-200 bg-gray-50" />
           {/* Demand zones: show from data or fallback */}
           {(() => {
             const zones = Array.isArray((data as any).demandZones) ? (data as any).demandZones : [];

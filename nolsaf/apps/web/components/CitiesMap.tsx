@@ -40,6 +40,11 @@ export default function CitiesMap({ pins, highlightedId, onPinHover, onPinClick 
     if (!token) return;
     if (!containerRef.current) return;
 
+    const host = containerRef.current;
+    const mapContainer = document.createElement('div');
+    mapContainer.style.cssText = 'position:absolute;inset:0;width:100%;height:100%';
+    host.appendChild(mapContainer);
+
     let map: any = null;
     (async () => {
       try {
@@ -49,7 +54,7 @@ export default function CitiesMap({ pins, highlightedId, onPinHover, onPinClick 
         mapboxgl.accessToken = token;
 
         map = new mapboxgl.Map({
-          container: containerRef.current as HTMLElement,
+          container: mapContainer,
           style: 'mapbox://styles/mapbox/light-v10',
           center: [37.0, -2.0],
           zoom: 5,
@@ -87,6 +92,11 @@ export default function CitiesMap({ pins, highlightedId, onPinHover, onPinClick 
     return () => {
       try {
         if (map) map.remove();
+      } catch (e) {
+        // ignore
+      }
+      try {
+        if (mapContainer.parentNode) mapContainer.parentNode.removeChild(mapContainer);
       } catch (e) {
         // ignore
       }
