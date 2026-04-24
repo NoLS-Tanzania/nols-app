@@ -320,20 +320,19 @@ const listPublicProperties: RequestHandler = async (req, res) => {
                             (SELECT pi.thumbnailUrl FROM \`property_images\` pi
                               WHERE pi.propertyId = p.id
                                 AND pi.status IN ('READY','PROCESSING')
+                                AND pi.thumbnailUrl IS NOT NULL
+                              ORDER BY pi.id ASC LIMIT 1),
+                            (SELECT pi.url FROM \`property_images\` pi
+                              WHERE pi.propertyId = p.id
                                 AND pi.url IS NOT NULL
                               ORDER BY pi.id ASC LIMIT 1),
-                            (SELECT pi2.url FROM \`property_images\` pi2
-                              WHERE pi2.propertyId = p.id
-                              ORDER BY pi2.id ASC LIMIT 1),
-                            -- Only use photos[0] if it looks like a URL (not base64)
-                            NULLIF(
-                              CASE WHEN JSON_UNQUOTE(JSON_EXTRACT(p.photos, '$[0]')) LIKE 'http%'
-                                     OR JSON_UNQUOTE(JSON_EXTRACT(p.photos, '$[0]')) LIKE '/%'
-                                   THEN JSON_UNQUOTE(JSON_EXTRACT(p.photos, '$[0]'))
-                                   ELSE NULL
-                              END,
-                              ''
-                            )
+                            -- Fall back to photos[0] from legacy JSON field
+                            CASE 
+                              WHEN JSON_EXTRACT(p.photos, '$[0]') IS NOT NULL 
+                                AND JSON_UNQUOTE(JSON_EXTRACT(p.photos, '$[0]')) != ''
+                              THEN JSON_UNQUOTE(JSON_EXTRACT(p.photos, '$[0]'))
+                              ELSE NULL
+                            END
                           ) AS primaryImage
                         FROM \`property\` p
                         WHERE p.id IN (${Prisma.join(ids)})
@@ -383,20 +382,19 @@ const listPublicProperties: RequestHandler = async (req, res) => {
                             (SELECT pi.thumbnailUrl FROM \`property_images\` pi
                               WHERE pi.propertyId = p.id
                                 AND pi.status IN ('READY','PROCESSING')
+                                AND pi.thumbnailUrl IS NOT NULL
+                              ORDER BY pi.id ASC LIMIT 1),
+                            (SELECT pi.url FROM \`property_images\` pi
+                              WHERE pi.propertyId = p.id
                                 AND pi.url IS NOT NULL
                               ORDER BY pi.id ASC LIMIT 1),
-                            (SELECT pi2.url FROM \`property_images\` pi2
-                              WHERE pi2.propertyId = p.id
-                              ORDER BY pi2.id ASC LIMIT 1),
-                            -- Only use photos[0] if it looks like a real URL (not base64)
-                            NULLIF(
-                              CASE WHEN JSON_UNQUOTE(JSON_EXTRACT(p.photos, '$[0]')) LIKE 'http%'
-                                     OR JSON_UNQUOTE(JSON_EXTRACT(p.photos, '$[0]')) LIKE '/%'
-                                   THEN JSON_UNQUOTE(JSON_EXTRACT(p.photos, '$[0]'))
-                                   ELSE NULL
-                              END,
-                              ''
-                            )
+                            -- Fall back to photos[0] from legacy JSON field
+                            CASE 
+                              WHEN JSON_EXTRACT(p.photos, '$[0]') IS NOT NULL 
+                                AND JSON_UNQUOTE(JSON_EXTRACT(p.photos, '$[0]')) != ''
+                              THEN JSON_UNQUOTE(JSON_EXTRACT(p.photos, '$[0]'))
+                              ELSE NULL
+                            END
                           ) AS primaryImage
                         FROM \`property\` p
                         WHERE p.id IN (${Prisma.join(ids)})
@@ -433,16 +431,14 @@ const listPublicProperties: RequestHandler = async (req, res) => {
                     maxGuests: true,
                     totalBedrooms: true,
                     totalBathrooms: true,
-                    // photos omitted — contains large base64 blobs (12MB+) that would
-                    // make each request take 20-37s. Use images relation instead.
+                    photos: true,
+                    // Fetch new PropertyImage entries (preferred); photos[] is fallback only
                     images: {
                       where: {
                         status: { in: ["READY", "PROCESSING"] },
                         url: { not: null },
                       },
                       select: { url: true, thumbnailUrl: true, status: true },
-                      // Avoid MariaDB/MySQL sort buffer blowups on large image sets.
-                      // We only need a primary image for cards; order by PK which is indexed.
                       orderBy: { id: "asc" },
                       take: 1,
                     },
@@ -480,7 +476,8 @@ const listPublicProperties: RequestHandler = async (req, res) => {
                     maxGuests: true,
                     totalBedrooms: true,
                     totalBathrooms: true,
-                    // photos omitted — large base64 blobs, use images relation instead
+                    photos: true,
+                    // Fetch new PropertyImage entries (preferred); photos[] is fallback only
                     images: {
                       where: {
                         status: { in: ["READY", "PROCESSING"] },
@@ -531,7 +528,8 @@ const listPublicProperties: RequestHandler = async (req, res) => {
                   maxGuests: true,
                   totalBedrooms: true,
                   totalBathrooms: true,
-                  // photos omitted — large base64 blobs, primaryImage will be null for legacy properties
+                  photos: true,
+                  // Fallback when PropertyImage table is unavailable or minimal select is needed
                 },
               }),
               prisma.property.count({ where }),

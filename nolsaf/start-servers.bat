@@ -28,7 +28,7 @@ if "%MAPBOX_ACCESS_TOKEN%"=="" (
 	)
 )
 
-call pnpm dev
+call npm run dev
 
 pause
 

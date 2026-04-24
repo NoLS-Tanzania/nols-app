@@ -24,6 +24,18 @@ const nextConfig: NextConfig = {
     // Without this, Next will truncate bodies >10MB when proxying /api/*.
     proxyClientMaxBodySize: '25mb',
   },
+  webpack: (config, { dev }) => {
+    if (dev) {
+      // Polling avoids missed FS events on some Windows environments.
+      config.watchOptions = {
+        ...(config.watchOptions || {}),
+        poll: 1000,
+        aggregateTimeout: 300,
+        ignored: ['**/node_modules/**', '**/.git/**', '**/.next/**'],
+      };
+    }
+    return config;
+  },
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'img.youtube.com', pathname: '/**' },

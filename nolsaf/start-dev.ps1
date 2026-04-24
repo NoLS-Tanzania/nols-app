@@ -85,8 +85,8 @@ if (-not $env:MAPBOX_ACCESS_TOKEN) {
 # This keeps the dev flow stable on Windows and avoids stale .next artifacts.
 Write-Host "Starting API + Web dev servers..." -ForegroundColor Cyan
 
-pnpm --filter @nolsaf/web predev
+npm --workspace=@nolsaf/web run predev
 
 # Root dev runs both API and Web (and will now also run web predev).
-pnpm dev
+npm run dev
 
