@@ -17,8 +17,110 @@
 import { Router } from 'express';
 import { prisma } from '@nolsaf/prisma';
 import { asyncHandler } from '../middleware/errorHandler.js';
+import { z } from 'zod';
+import rateLimit from 'express-rate-limit';
+import { getAnonymizedClientIp, truncateSessionId } from '../lib/privacy.js';
 
 const router = Router();
+
+// ─── rate limiters ────────────────────────────────────────────────────────────
+
+// Strict limiter for compute-heavy estimate creation
+const limitNolScopeEstimate = rateLimit({
+  windowMs: 15 * 60_000, // 15 minutes
+  limit: 5, // 5 estimates per IP per 15 min
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { 
+    error: 'rate_limited',
+    message: 'Too many estimate requests. Please wait 15 minutes before creating another.' 
+  },
+  keyGenerator: (req) => {
+    // Key by IP for anonymous users
+    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() 
+               || req.socket?.remoteAddress 
+               || 'unknown';
+    return `nolscope-estimate:${ip}`;
+  }
+});
+
+// Moderate limiter for public read endpoints
+const limitNolScopeList = rateLimit({
+  windowMs: 60_000, // 1 minute
+  limit: 60, // 60 requests per minute
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() 
+               || req.socket?.remoteAddress 
+               || 'unknown';
+    return `nolscope-read:${ip}`;
+  }
+});
+
+// ─── validation schemas ───────────────────────────────────────────────────────
+
+const EstimateRequestSchema = z.object({
+  nationality: z.string()
+    .length(2, 'Nationality must be 2-letter country code')
+    .regex(/^[A-Z]{2}$/, 'Nationality must be uppercase ISO 3166-1 alpha-2 code')
+    .transform(v => v.toUpperCase()),
+  
+  destinations: z.array(
+    z.object({
+      code: z.string()
+        .min(2, 'Destination code too short')
+        .max(30, 'Destination code too long')
+        .regex(/^[A-Z0-9_-]+$/i, 'Invalid destination code format')
+        .transform(v => v.toUpperCase()),
+      days: z.number()
+        .int('Days must be an integer')
+        .min(1, 'Minimum 1 day required')
+        .max(30, 'Maximum 30 days per destination')
+    })
+  )
+  .min(1, 'At least one destination required')
+  .max(10, 'Maximum 10 destinations allowed'),
+  
+  startDate: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format')
+    .optional()
+    .transform(v => v ? new Date(v) : undefined),
+  
+  travelers: z.object({
+    adults: z.number()
+      .int('Adults must be an integer')
+      .min(1, 'At least 1 adult required')
+      .max(20, 'Maximum 20 adults allowed'),
+    children: z.number()
+      .int('Children must be an integer')
+      .min(0, 'Children cannot be negative')
+      .max(10, 'Maximum 10 children allowed')
+      .optional()
+      .default(0)
+  }),
+  
+  transportPreference: z.enum([
+    'flight', 'bus', 'private-car', 'ferry', 'shared-taxi', 'any'
+  ], { errorMap: () => ({ message: 'Invalid transport preference' }) })
+    .optional()
+    .default('any'),
+  
+  activities: z.array(
+    z.string()
+      .max(100, 'Activity code too long')
+      .regex(/^[A-Z0-9_-]+$/i, 'Invalid activity code format')
+  )
+  .max(50, 'Maximum 50 activities allowed')
+  .optional()
+  .default([]),
+  
+  tier: z.enum(['budget', 'standard', 'luxury'], {
+    errorMap: () => ({ message: 'Tier must be: budget, standard, or luxury' })
+  })
+    .optional()
+    .default('standard')
+}).strict(); // Reject unknown fields
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
@@ -184,37 +286,32 @@ const listActivities = async (req: any, res: any) => {
 // ─── POST /api/public/nolscope/estimate ──────────────────────────────────────
 
 const createEstimate = async (req: any, res: any) => {
-  const body: EstimateRequestBody = req.body ?? {};
-
-  // ── input validation ────────────────────────────────────────────────────────
-  const nationality = String(body.nationality ?? '').toUpperCase().trim().slice(0, 5);
-  if (!nationality) return res.status(400).json({ error: 'nationality is required' });
-
-  const destInputs: DestinationInput[] = Array.isArray(body.destinations) ? body.destinations : [];
-  if (destInputs.length === 0)
-    return res.status(400).json({ error: 'destinations array is required (at least one entry with code + days)' });
-
-  for (const d of destInputs) {
-    if (!d.code)      return res.status(400).json({ error: 'each destination needs a code' });
-    if (!d.days || d.days < 1) return res.status(400).json({ error: `days must be >= 1 for destination ${d.code}` });
+  // ── input validation with Zod ──────────────────────────────────────────────
+  const validation = EstimateRequestSchema.safeParse(req.body);
+  
+  if (!validation.success) {
+    const errors = validation.error.format();
+    return res.status(400).json({ 
+      error: 'Invalid request data',
+      details: errors,
+      message: 'Please check your input and try again.'
+    });
   }
+  
+  const body = validation.data;
 
-  const startDate = body.startDate ? new Date(body.startDate) : new Date();
-  if (isNaN(startDate.getTime()))
-    return res.status(400).json({ error: 'invalid startDate — use ISO format e.g. 2026-07-15' });
-
-  const adults    = Math.max(1, Math.floor(Number(body.travelers?.adults  ?? 1)));
-  const children  = Math.max(0, Math.floor(Number(body.travelers?.children ?? 0)));
-  const totalPax  = adults + children;
+  // ── extract validated data ──────────────────────────────────────────────────
+  const nationality = body.nationality;
+  const destInputs = body.destinations;
+  const startDate = body.startDate || new Date();
+  const adults = body.travelers.adults;
+  const children = body.travelers.children || 0;
+  const totalPax = adults + children;
   const totalDays = destInputs.reduce((s, d) => s + d.days, 0);
   const travelMonth = startDate.getMonth() + 1; // JS months are 0-based
-
-  const transportPref: string = body.transportPreference ?? 'any';
-  const tier = (['budget', 'standard', 'luxury'].includes(body.tier ?? '') ? body.tier! : 'standard') as
-    'budget' | 'standard' | 'luxury';
-  const requestedActivityCodes: string[] = Array.isArray(body.activities)
-    ? body.activities.filter((a) => typeof a === 'string' && a.trim().length > 0)
-    : [];
+  const transportPref = body.transportPreference || 'any';
+  const tier = body.tier || 'standard';
+  const requestedActivityCodes = body.activities || [];
 
   const destCodes = destInputs.map((d) => d.code.toUpperCase());
 
@@ -663,12 +760,10 @@ const createEstimate = async (req: any, res: any) => {
     endDate.setDate(endDate.getDate() + totalDays);
 
     // Extract user identity from request (optional — anonymous is fine)
+    // GDPR compliance: IP addresses are anonymized, session IDs are truncated
     const userId    = (req as any).user?.id   ?? null;
-    const sessionId = (req.headers['x-session-id'] as string | undefined)?.slice(0, 128) ?? null;
-    const ipRaw     = (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0].trim()
-                      ?? req.socket?.remoteAddress
-                      ?? null;
-    const ipAddress = ipRaw ? ipRaw.slice(0, 45) : null;
+    const sessionId = truncateSessionId(req.headers['x-session-id'] as string | undefined);
+    const ipAddress = getAnonymizedClientIp(req);
 
     const saved = await (prisma as any).tripEstimate.create({
       data: {
@@ -775,10 +870,10 @@ const getEstimate = async (req: any, res: any) => {
 
 // ─── register routes ──────────────────────────────────────────────────────────
 
-router.get('/destinations',          asyncHandler(listDestinations));
-router.get('/visa-fee/:nationality', asyncHandler(getVisaFee));
-router.get('/activities',            asyncHandler(listActivities));
-router.post('/estimate',             asyncHandler(createEstimate));
-router.get('/estimate/:id',          asyncHandler(getEstimate));
+router.get('/destinations',          limitNolScopeList, asyncHandler(listDestinations));
+router.get('/visa-fee/:nationality', limitNolScopeList, asyncHandler(getVisaFee));
+router.get('/activities',            limitNolScopeList, asyncHandler(listActivities));
+router.post('/estimate',             limitNolScopeEstimate, asyncHandler(createEstimate));
+router.get('/estimate/:id',          limitNolScopeList, asyncHandler(getEstimate));
 
 export default router;
