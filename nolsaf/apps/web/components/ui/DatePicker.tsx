@@ -280,10 +280,10 @@ export default function DatePicker({
         }}
         onFocus={() => setFocusedIdx(idx + refOffset)}
         className={`
-          relative aspect-square flex items-center justify-center rounded-lg text-sm font-medium
-          transition-all duration-150 outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1
+          relative aspect-square flex items-center justify-center rounded-full text-sm font-medium
+          transition-all duration-150 outline-none focus:ring-2 focus:ring-[#02665e]/40 focus:ring-offset-1
           ${!cell.currentMonth ? "text-gray-300" : ""}
-          ${sel ? "bg-emerald-600 text-white shadow-md scale-105" : isToday ? "bg-emerald-50 text-emerald-700 border-2 border-emerald-500 font-semibold" : isDisabled ? "text-gray-400 cursor-not-allowed" : "text-gray-700 hover:bg-gray-100 active:scale-95"}
+          ${sel ? "bg-[#02665e] text-white shadow-sm" : isToday ? "text-[#02665e] font-bold ring-2 ring-[#02665e]/40" : isDisabled ? "text-gray-300 cursor-not-allowed" : "text-gray-700 hover:bg-[#02665e]/10 hover:text-[#02665e] active:scale-95"}
           ${hasCount && !sel ? "font-semibold" : ""}
         `}
         title={perDayCounts[isoKey] ? Object.entries(perDayCounts[isoKey].statuses).map(([k, v]) => `${k}: ${v}`).join(", ") : undefined}
@@ -296,7 +296,7 @@ export default function DatePicker({
   };
 
   return (
-    <div ref={rootRef} className={`bg-white border border-gray-200 rounded-xl shadow-2xl p-4 backdrop-blur-sm ${twoMonths ? "w-max" : "w-72 sm:w-80"}`}>
+    <div ref={rootRef} className={`bg-white p-4 ${twoMonths ? "w-max" : "w-72 sm:w-80"}`}>
       {/* Header with month/year navigation */}
       <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
         <button

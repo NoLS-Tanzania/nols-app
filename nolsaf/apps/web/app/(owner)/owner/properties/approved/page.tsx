@@ -315,7 +315,7 @@ export default function ApprovedProps() {
             "high": "4★",
             "luxury": "5★",
           };
-          const starLabel = property.hotelStar ? hotelStarLabels[property.hotelStar] || null : null;
+          const _starLabel = property.hotelStar ? hotelStarLabels[property.hotelStar] || null : null;
 
           const reviews = reviewsMap[property.id] || { averageRating: 0, totalReviews: 0, reviews: [] };
           const hasReviews = reviews.totalReviews > 0;
@@ -328,7 +328,7 @@ export default function ApprovedProps() {
           const finalPrice = effectiveBase > 0
             ? calculatePriceWithCommission(effectiveBase, getPropertyCommission(property, systemCommission))
             : null;
-          const price = fmtMoney(finalPrice, property.currency);
+          const _price = fmtMoney(finalPrice, property.currency);
           const basePriceFormatted = effectiveBase > 0 ? fmtMoney(effectiveBase, property.currency) : null;
 
           return (

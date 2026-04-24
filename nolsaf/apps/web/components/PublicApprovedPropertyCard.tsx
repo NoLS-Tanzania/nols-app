@@ -67,21 +67,23 @@ export default function PublicApprovedPropertyCard({
         whileHover={{ y: -5, boxShadow: "0 16px 40px rgba(2,6,23,0.13)" }}
         transition={{ duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
       >
-        {/* Title (above image) */}
+        {/* Title at top */}
         <div className="px-3 pt-3 sm:px-4 sm:pt-4">
           <div className="text-sm sm:text-base font-bold text-slate-900 truncate">{p.title}</div>
         </div>
 
-        {/* Image */}
+        {/* Image with padding and rounded corners */}
         <div className="px-3 mt-2 sm:px-4 sm:mt-3">
           <div className="relative aspect-square bg-slate-100 rounded-2xl overflow-hidden">
             {p.primaryImage ? (
               <Image
                 src={p.primaryImage}
-                alt=""
+                alt={p.title}
                 fill
                 sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
                 className="object-cover transition-transform duration-500 ease-out group-hover:scale-[1.08]"
+                priority={false}
+                unoptimized={p.primaryImage.includes('cloudinary') ? false : true}
               />
             ) : (
               <PhotoPlaceholder />
@@ -92,8 +94,8 @@ export default function PublicApprovedPropertyCard({
           </div>
         </div>
 
-        {/* Below image: location then price (stack on mobile) */}
-        <div className="p-3 sm:p-4">
+        {/* Location, price and action button */}
+        <div className="px-3 pb-3 sm:px-4 sm:pb-4 mt-2 sm:mt-3">
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 text-xs text-slate-600">

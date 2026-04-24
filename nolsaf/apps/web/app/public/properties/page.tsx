@@ -793,7 +793,7 @@ export default function PropertiesPage() {
           </div>
 
           {/* ── Recently Viewed Properties ── */}
-          {recentProperties.length > 0 && !loading && (
+          {recentProperties.length > 0 && !loading && appliedChips.length === 0 && !q && (
             <div className="rounded-2xl border border-amber-100/80 bg-amber-50/40 p-3 sm:p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">

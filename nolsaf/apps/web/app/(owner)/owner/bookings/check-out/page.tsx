@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import Link from "next/link";
-import { Calendar, Loader2, PhoneCall, Mail, Check, CheckCircle2, Clock, X, History, Star, Search, RotateCw } from "lucide-react";
+import { Calendar, Loader2, PhoneCall, Mail, CheckCircle2, Clock, X, History, Star, Search, RotateCw } from "lucide-react";
 import TableRow from "@/components/TableRow";
 
 // Use same-origin calls + secure httpOnly cookie session.

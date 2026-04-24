@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "seed": "tsx src/dev/seed.ts",
+    "seed:nolscope": "tsx src/dev/seed-nolscope.ts",
     "bootstrap:admin": "tsx src/dev/bootstrap-admin.ts",
     "revoke:admin": "tsx src/dev/revoke-admin.ts",
     "test": "vitest run",

@@ -20,6 +20,8 @@ import publicBookingsRouter from './routes/public.bookings';
 import publicInvoicesRouter from './routes/public.invoices';
 import publicPropertiesRouter from './routes/public.properties';
 import publicTourismSitesRouter from './routes/public.tourismSites';
+import publicNolScopeRouter from './routes/public.nolscope';
+import { router as adminNolScopeRouter } from './routes/admin.nolscope';
 import publicPlanRequestRouter from './routes/public.planRequest';
 import { router as ownerPhone } from "./routes/owner.phone.verify";
 import { router as ownerEmail } from "./routes/owner.email.verify";
@@ -741,6 +743,10 @@ app.use('/api/public/invoices', publicInvoicesRouter);
 app.use('/api/public/properties', publicPropertiesRouter);
 // Public tourism sites (parks/attractions) list
 app.use('/api/public/tourism-sites', publicTourismSitesRouter);
+// NoLScope — public cost estimation engine
+app.use('/api/public/nolscope', publicNolScopeRouter);
+// NoLScope — admin rate management (ADMIN only)
+app.use('/api/admin/nolscope', adminNolScopeRouter);
 // Public plan request submission
 app.use('/api/plan-request', publicPlanRequestRouter);
 // Customer account endpoints (for travellers/customers)

@@ -80,13 +80,8 @@ export default function DatePickerField({
 }: Props) {
   const isDark = variant === "dark";
   const buttonRef = useRef<HTMLButtonElement | null>(null);
-  const [mounted, setMounted] = useState(false);
   const [panelPos, setPanelPos] = useState<{ top: number; left: number; width: number } | null>(null);
   const [twoMonths, setTwoMonths] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   useEffect(() => {
     if (typeof twoMonthsProp === "boolean") {
@@ -105,13 +100,11 @@ export default function DatePickerField({
     if (typeof window === "undefined") return;
 
     const rect = el.getBoundingClientRect();
-    // Single-month mode: fix to ~320 px so no empty space appears beside the calendar.
-    // Two-month mode: stretch to fill available space up to 720 px.
     const width = twoMonths
       ? Math.min(720, Math.max(320, window.innerWidth - 32))
-      : 320;
-    const rawLeft = rect.left;
-    const left = Math.max(16, Math.min(rawLeft, window.innerWidth - 16 - width));
+      : Math.min(320, window.innerWidth - 32);
+    // Always center horizontally on screen
+    const left = Math.max(16, (window.innerWidth - width) / 2);
     const top = rect.bottom + 8;
     setPanelPos({ top, left, width });
   }, [twoMonths]);
@@ -165,8 +158,7 @@ export default function DatePickerField({
               <span className={pretty ? "" : (isDark ? "text-slate-500" : "text-gray-400")}>{pretty || "DD Mon YYYY"}</span>
             </Popover.Button>
 
-            {mounted
-              ? createPortal(
+            {typeof document !== 'undefined' && createPortal(
                   <Transition
                     as={Fragment}
                     show={open}
@@ -179,12 +171,14 @@ export default function DatePickerField({
                   >
                     <Popover.Panel
                       static
-                      className="fixed z-[10000] rounded-xl border border-gray-200 bg-white shadow-2xl p-3 nolsaf-date-popper"
-                      style={
-                        panelPos
+                      className="fixed z-[10000] rounded-2xl bg-white p-3 nolsaf-date-popper"
+                      style={{
+                        ...(panelPos
                           ? { top: panelPos.top, left: panelPos.left, width: panelPos.width }
-                          : { top: 0, left: 0, width: twoMonths ? Math.min(720, Math.max(320, window.innerWidth - 32)) : 320 }
-                      }
+                          : { top: 0, left: "50%", transform: "translateX(-50%)", width: twoMonths ? Math.min(720, Math.max(320, window.innerWidth - 32)) : Math.min(320, window.innerWidth - 32) }),
+                        boxShadow: "0 8px 32px rgba(0,0,0,0.12), 0 1px 4px rgba(0,0,0,0.06)",
+                        border: "1px solid rgba(0,0,0,0.07)",
+                      }}
                     >
                       <DatePicker
                         selected={value || undefined}
@@ -205,8 +199,7 @@ export default function DatePickerField({
                     </Popover.Panel>
                   </Transition>,
                   document.body
-                )
-              : null}
+                )}
           </>
         );
       }}

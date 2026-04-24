@@ -252,6 +252,9 @@ model User {
   // KYC audit history (all admin review actions on this driver)
   kycAuditLogs KycAuditLog[] @relation("DriverKycAuditLogs")
 
+  // TripMeter cost estimates created by this user
+  tripEstimates TripEstimate[]
+
   @@index([role])
   @@index([email])
   @@index([phone])
@@ -410,6 +413,7 @@ model Booking {
   reviews              PropertyReview[]
   referralEarnings     ReferralEarning[]
   cancellationRequests CancellationRequest[]
+  tripEstimates        TripEstimate[]
 
   @@index([propertyId])
   @@index([userId])
@@ -1643,6 +1647,20 @@ model SystemSetting {
   /// Record last update timestamp
   updatedAt DateTime @updatedAt
 
+  // ==================== NoLScope Configuration ====================
+  /// Default currency for NoLScope cost estimates (ISO 4217, e.g. "USD")
+  nolScopeDefaultCurrency      String?  @default("USD") @db.VarChar(3)
+  /// Service charge % applied on top of all NoLScope estimates (e.g. 5.00 = 5%)
+  nolScopeServiceChargePercent Decimal? @default(5.00) @db.Decimal(5, 2)
+  /// Days a NoLScope estimate remains valid before it expires
+  nolScopeEstimateValidDays    Int?     @default(7)
+  /// Base confidence level before data-quality bonuses are applied (0–1)
+  nolScopeBaseConfidence       Decimal? @default(0.70) @db.Decimal(3, 2)
+  /// Variance % used for min/max cost range (e.g. 10.00 = ±10%)
+  nolScopeCostVariancePercent  Decimal? @default(10.00) @db.Decimal(5, 2)
+  /// Whether NoLScope is live for users
+  nolScopeEnabled              Boolean? @default(true)
+
   @@map("systemsetting")
 }
 
@@ -2516,3 +2534,336 @@ model PodcastEpisode {
 }
 
 // =========================================================
+//  NOLSCOPE – Smart Travel Cost Estimation Engine
+// =========================================================
+
+/// Stores every trip cost estimate request and its result.
+/// One estimate can later be linked to a Booking for conversion tracking.
+model TripEstimate {
+  id                  Int      @id @default(autoincrement())
+
+  // ── Request parameters ──────────────────────────────────────────────
+  destination         String   @db.VarChar(120)                    // "Serengeti", "Zanzibar"
+  destinationType     String?  @db.VarChar(40)                     // "park" | "island" | "city" | "region"
+  startDate           DateTime @db.Date
+  endDate             DateTime @db.Date
+  travelers           Int      @default(1)
+  accommodationLevel  String   @db.VarChar(20)                     // "budget" | "mid-range" | "luxury"
+  transportPreference String?  @db.VarChar(30)                     // "shared" | "private" | "flight" | "bus"
+  nationality         String   @default("US") @db.VarChar(5)       // ISO 3166-1 alpha-2
+  currency            String   @default("USD") @db.VarChar(3)      // ISO 4217
+  /// Activity codes requested, e.g. ["safari-full-day","diving-2-tank"]
+  requestedActivities Json?
+
+  // ── Calculation results ─────────────────────────────────────────────
+  totalCost           Decimal  @db.Decimal(12, 2)
+  confidence          Decimal  @db.Decimal(3, 2)                   // 0.00 – 1.00
+  /// Full cost breakdown object
+  /// { visa, accommodation, transport, activities, parkFees, serviceCharges }
+  breakdown           Json
+  minCost             Decimal? @db.Decimal(12, 2)
+  maxCost             Decimal? @db.Decimal(12, 2)
+
+  // ── Seasonality ─────────────────────────────────────────────────────
+  currentSeason       String?  @db.VarChar(20)                     // "peak" | "shoulder" | "off-peak"
+  offPeakCost         Decimal? @db.Decimal(12, 2)
+  offPeakSavings      Decimal? @db.Decimal(12, 2)
+  /// e.g. [{"type":"timing","message":"Travel in May saves $300","savings":300}]
+  suggestions         Json?
+
+  // ── Validity ────────────────────────────────────────────────────────
+  validUntil          DateTime
+  /// e.g. ["nolsaf-listings","static-park-fees","market-rates"]
+  dataSourcesUsed     Json?
+
+  // ── User tracking ───────────────────────────────────────────────────
+  userId              Int?
+  user                User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  sessionId           String?  @db.VarChar(128)                    // anonymous users
+  ipAddress           String?  @db.VarChar(45)                     // IPv4 or IPv6
+
+  // ── Conversion tracking ─────────────────────────────────────────────
+  convertedToBooking  Boolean  @default(false)
+  bookingId           Int?
+  booking             Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+
+  // ── Analytics ───────────────────────────────────────────────────────
+  viewCount           Int      @default(1)
+  lastViewedAt        DateTime @default(now())
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([destination, startDate])
+  @@index([userId])
+  @@index([sessionId])
+  @@index([convertedToBooking])
+  @@index([createdAt])
+  @@map("trip_estimates")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  VISA FEES  (updated quarterly from immigration.go.tz)
+// ─────────────────────────────────────────────────────────────────────────────
+model VisaFee {
+  id              Int      @id @default(autoincrement())
+
+  /// ISO 3166-1 alpha-2 country code, e.g. "US", "UK", "KE"
+  nationality     String   @db.VarChar(5)
+  visaType        String   @default("tourist") @db.VarChar(30)    // "tourist" | "business" | "transit"
+  entries         String   @default("single") @db.VarChar(20)     // "single" | "multiple"
+  durationDays    Int      @default(90)
+
+  amount          Decimal  @db.Decimal(10, 2)
+  currency        String   @default("USD") @db.VarChar(3)
+  description     String?  @db.VarChar(500)
+  processingTime  String?  @db.VarChar(80)                        // "on-arrival" | "7-14 days"
+  /// e.g. ["passport","photo","yellow-fever-certificate"]
+  requirements    Json?
+
+  validFrom       DateTime @default(now())
+  validUntil      DateTime?
+  lastVerified    DateTime @default(now())
+  isActive        Boolean  @default(true)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([nationality, visaType, entries])
+  @@index([nationality])
+  @@index([isActive])
+  @@map("visa_fees")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  PARK / ATTRACTION FEES  (updated when TANAPA publishes new fee schedule)
+// ─────────────────────────────────────────────────────────────────────────────
+model ParkFee {
+  id                Int      @id @default(autoincrement())
+
+  parkName          String   @db.VarChar(200)
+  parkCode          String   @unique @db.VarChar(30)               // "SERENP", "NGORO", "KILIM"
+  category          String   @db.VarChar(40)                       // "national-park" | "conservation-area" | "marine-park"
+  region            String   @db.VarChar(100)                      // "Northern Circuit" | "Zanzibar" | "Southern"
+
+  /// Per-person per-day entry fees
+  adultForeignerFee Decimal  @db.Decimal(10, 2)
+  adultResidentFee  Decimal? @db.Decimal(10, 2)
+  childForeignerFee Decimal? @db.Decimal(10, 2)
+  childResidentFee  Decimal? @db.Decimal(10, 2)
+  currency          String   @default("USD") @db.VarChar(3)
+
+  vehicleFee        Decimal? @db.Decimal(10, 2)                    // per vehicle per day
+  guideFee          Decimal? @db.Decimal(10, 2)                    // mandatory guide fee where applicable
+  campingFee        Decimal? @db.Decimal(10, 2)                    // per person per night
+
+  requiresGuide     Boolean  @default(false)
+  minimumDays       Int?
+
+  description       String?  @db.Text
+  officialWebsite   String?  @db.VarChar(300)
+  lastVerified      DateTime @default(now())
+  isActive          Boolean  @default(true)
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([region])
+  @@index([isActive])
+  @@map("park_fees")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  TRANSPORT COST AVERAGES  (updated monthly)
+// ─────────────────────────────────────────────────────────────────────────────
+model TransportCostAverage {
+  id                Int      @id @default(autoincrement())
+
+  fromLocation      String   @db.VarChar(120)
+  toLocation        String   @db.VarChar(120)
+  transportType     String   @db.VarChar(30)                       // "flight" | "bus" | "private-car" | "shared-taxi" | "ferry"
+
+  minCost           Decimal  @db.Decimal(10, 2)
+  maxCost           Decimal  @db.Decimal(10, 2)
+  averageCost       Decimal  @db.Decimal(10, 2)
+  currency          String   @default("USD") @db.VarChar(3)
+
+  durationHours     Decimal? @db.Decimal(5, 1)
+  distanceKm        Int?
+  frequency         String?  @db.VarChar(60)                       // "daily" | "3x-weekly" | "on-demand"
+
+  peakMultiplier    Decimal  @default(1.00) @db.Decimal(3, 2)
+  offPeakMultiplier Decimal  @default(1.00) @db.Decimal(3, 2)
+
+  description       String?  @db.VarChar(500)
+  provider          String?  @db.VarChar(200)
+  requiresBooking   Boolean  @default(false)
+  bookingLeadDays   Int?
+
+  /// Confidence in this estimate (0–1)
+  confidence        Decimal  @default(0.80) @db.Decimal(3, 2)
+  dataSource        String?  @db.VarChar(60)                       // "provider-api" | "manual-entry" | "aggregator"
+  lastUpdated       DateTime @default(now())
+  isActive          Boolean  @default(true)
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([fromLocation, toLocation, transportType])
+  @@index([fromLocation, toLocation])
+  @@index([transportType])
+  @@index([isActive])
+  @@map("transport_cost_averages")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  ACTIVITY COSTS  (safaris, water sports, cultural tours, adventure)
+// ─────────────────────────────────────────────────────────────────────────────
+model ActivityCost {
+  id                Int      @id @default(autoincrement())
+
+  activityCode      String   @unique @db.VarChar(80)               // "safari-full-day", "diving-2-tank"
+  activityName      String   @db.VarChar(200)
+  category          String   @db.VarChar(40)                       // "safari" | "water-sports" | "cultural" | "adventure"
+  destination       String   @db.VarChar(120)
+
+  minCost           Decimal  @db.Decimal(10, 2)
+  maxCost           Decimal  @db.Decimal(10, 2)
+  averageCost       Decimal  @db.Decimal(10, 2)
+  currency          String   @default("USD") @db.VarChar(3)
+  priceUnit         String   @default("per-person") @db.VarChar(30) // "per-person" | "per-group" | "per-vehicle"
+
+  duration          String?  @db.VarChar(40)                       // "full-day" | "half-day" | "3-hours"
+  durationHours     Decimal? @db.Decimal(4, 1)
+  groupSize         String?  @db.VarChar(60)                       // "2-6 people" | "private" | "shared"
+  difficulty        String?  @db.VarChar(20)                       // "easy" | "moderate" | "challenging"
+
+  /// e.g. ["guide","equipment","lunch","transport"]
+  includes          Json?
+  /// e.g. ["park-fees","tips","drinks"]
+  excludes          Json?
+  /// e.g. ["padi-certified","medical-clearance"]
+  requirements      Json?
+
+  seasonalActivity  Boolean  @default(false)
+  /// Months activity is available (1–12)
+  availableMonths   Json?
+  requiresBooking   Boolean  @default(true)
+  bookingLeadDays   Int?     @default(3)
+
+  peakMultiplier    Decimal  @default(1.00) @db.Decimal(3, 2)
+  offPeakMultiplier Decimal  @default(1.00) @db.Decimal(3, 2)
+
+  description       String?  @db.Text
+  provider          String?  @db.VarChar(200)
+  website           String?  @db.VarChar(300)
+  /// Popularity score 1–100
+  popularity        Int      @default(50)
+  isActive          Boolean  @default(true)
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([destination, category])
+  @@index([category])
+  @@index([isActive])
+  @@map("activity_costs")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  PRICING RULES  (seasonal multipliers and demand-based adjustments)
+// ─────────────────────────────────────────────────────────────────────────────
+model PricingRule {
+  id              Int      @id @default(autoincrement())
+
+  ruleName        String   @unique @db.VarChar(120)
+  ruleType        String   @db.VarChar(30)                         // "seasonal" | "demand-based" | "special-event"
+
+  /// NULL = applies to all destinations
+  destination     String?  @db.VarChar(120)
+  /// NULL = applies to all cost categories
+  category        String?  @db.VarChar(40)                         // "accommodation" | "transport" | "activity"
+
+  seasonName      String?  @db.VarChar(30)                         // "peak" | "shoulder" | "off-peak"
+  startMonth      Int?                                             // 1–12
+  endMonth        Int?                                             // 1–12
+  /// Date-range overrides, e.g. [{"start":"2026-12-20","end":"2027-01-05"}]
+  specificDates   Json?
+
+  /// e.g. 1.25 = 25% markup, 0.90 = 10% discount
+  priceMultiplier Decimal  @db.Decimal(4, 2)
+
+  minTravelers    Int?
+  maxTravelers    Int?
+  /// Only apply when trip is booked at least N days in advance
+  daysInAdvance   Int?
+
+  /// Higher number = evaluated first
+  priority        Int      @default(100)
+  isActive        Boolean  @default(true)
+  validFrom       DateTime @default(now())
+  validUntil      DateTime?
+
+  description     String?  @db.Text
+  createdBy       String?  @db.VarChar(80)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([destination, seasonName])
+  @@index([isActive, priority])
+  @@map("pricing_rules")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  TRIP DESTINATIONS  (master reference list for the cost estimator)
+// ─────────────────────────────────────────────────────────────────────────────
+model TripDestination {
+  id                      Int      @id @default(autoincrement())
+
+  destinationCode         String   @unique @db.VarChar(30)         // "SERENP", "ZANZIBAR", "ARUSHA"
+  destinationName         String   @db.VarChar(120)                // "Serengeti", "Zanzibar"
+  displayName             String?  @db.VarChar(200)                // "Serengeti National Park"
+  destinationType         String   @db.VarChar(30)                 // "park" | "island" | "city" | "region"
+
+  country                 String   @default("Tanzania") @db.VarChar(80)
+  region                  String   @db.VarChar(100)                // "Northern Circuit" | "Zanzibar" | "Southern"
+  /// e.g. {"lat": -2.333, "lng": 34.833}
+  coordinates             Json?
+  timezone                String   @default("Africa/Dar_es_Salaam") @db.VarChar(60)
+
+  mainAirport             String?  @db.VarChar(100)                // "Seronera Airstrip (SEU)"
+  nearestCity             String?  @db.VarChar(80)
+  accessDifficulty        String   @default("moderate") @db.VarChar(20) // "easy" | "moderate" | "difficult"
+
+  /// Best months to visit (1–12)
+  bestMonths              Json?
+  /// Rainy/green season months (1–12)
+  rainyMonths             Json?
+  /// Peak pricing months (1–12)
+  peakMonths              Json?
+  /// Off-peak/discount months (1–12)
+  offPeakMonths           Json?
+
+  /// Multiplier applied to accommodation base price for this destination
+  accommodationMultiplier Decimal  @default(1.00) @db.Decimal(3, 2)
+  /// Base transport cost in USD from the nearest major hub
+  transportBaseUsd        Decimal? @db.Decimal(10, 2)
+  /// Typical length of stay (days)
+  avgStayDays             Int?
+
+  description             String?  @db.Text
+  imageUrl                String?  @db.VarChar(500)
+  officialWebsite         String?  @db.VarChar(300)
+  /// Popularity score 1–100
+  popularity              Int      @default(50)
+  isActive                Boolean  @default(true)
+
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@index([destinationType])
+  @@index([region])
+  @@index([isActive, popularity])
+  @@map("trip_destinations")
+}
