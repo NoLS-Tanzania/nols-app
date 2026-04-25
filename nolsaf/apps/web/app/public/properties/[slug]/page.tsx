@@ -567,197 +567,107 @@ function extractFirstUrl(s: string): { url: string | null; textWithoutUrl: strin
 // Interactive Map Component for Property
 
 function PropertyMap({ latitude, longitude, propertyTitle }: { latitude: number; longitude: number; propertyTitle: string }) {
-
-  const containerRef = useRef<HTMLDivElement | null>(null);
-
+  const hostRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any | null>(null);
-
   const markerRef = useRef<any | null>(null);
-
+  const initStartedRef = useRef(false);
   const [mapFailed, setMapFailed] = useState(false);
 
-
-
   useEffect(() => {
-
     if (typeof window === 'undefined') return;
-
-    
+    if (!hostRef.current) return;
+    if (initStartedRef.current || mapRef.current) return;
 
     const token =
-
       (process.env.NEXT_PUBLIC_MAPBOX_TOKEN as string) ||
-
       (process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN as string) ||
-
       (window as any).__MAPBOX_TOKEN ||
-
       '';
-
-
 
     if (!token) return;
 
-    if (!containerRef.current) return;
+    let cancelled = false;
+    initStartedRef.current = true;
+    setMapFailed(false);
 
-
-
-    let map: any = null;
+    // Always use a fresh inner container so Mapbox receives an empty element.
+    hostRef.current.replaceChildren();
+    const container = document.createElement('div');
+    container.style.cssText = 'position:absolute;inset:0;width:100%;height:100%';
+    hostRef.current.appendChild(container);
 
     (async () => {
-
       try {
-
         const mod = await import('mapbox-gl');
-
+        if (cancelled) return;
         const mapboxgl = (mod as any).default ?? mod;
-
         mapboxgl.accessToken = token;
 
-
-
-        map = new mapboxgl.Map({
-
-          container: containerRef.current as HTMLElement,
-
+        const map = new mapboxgl.Map({
+          container,
           style: 'mapbox://styles/mapbox/streets-v12',
-
           center: [longitude, latitude],
-
           zoom: 15,
-
           interactive: true,
-
+          attributionControl: false,
         });
-
         mapRef.current = map;
-
-        
-
-        // Add navigation controls
 
         map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
 
-
-
-        // Create custom marker
-
         const el = document.createElement('div');
-
         el.className = 'property-map-marker';
-
         el.style.width = '32px';
-
         el.style.height = '32px';
-
         el.style.borderRadius = '50%';
-
         el.style.backgroundColor = '#10b981';
-
         el.style.border = '3px solid white';
-
         el.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)';
-
         el.style.cursor = 'pointer';
-
         el.setAttribute('aria-label', propertyTitle);
 
-
-
-        // Add marker to map
-
         const marker = new mapboxgl.Marker(el)
-
           .setLngLat([longitude, latitude])
-
           .addTo(map);
-
         markerRef.current = marker;
-
-
-
-        // Cleanup
-
-        return () => {
-
-          if (markerRef.current) {
-
-            markerRef.current.remove();
-
-          }
-
-          if (mapRef.current) {
-
-            mapRef.current.remove();
-
-          }
-
-        };
-
       } catch {
-
-        // Avoid noisy console errors in production/dev; fall back to static coordinates panel.
-
         setMapFailed(true);
-
+        initStartedRef.current = false;
+        if (container.parentNode) container.parentNode.removeChild(container);
       }
-
     })();
 
-
-
     return () => {
-
+      cancelled = true;
       if (markerRef.current) {
-
-        markerRef.current.remove();
-
+        try { markerRef.current.remove(); } catch { }
+        markerRef.current = null;
       }
-
       if (mapRef.current) {
-
-        mapRef.current.remove();
-
+        try { mapRef.current.remove(); } catch { }
+        mapRef.current = null;
       }
-
+      if (container.parentNode) container.parentNode.removeChild(container);
+      initStartedRef.current = false;
     };
-
   }, [latitude, longitude, propertyTitle]);
 
-
-
   return (
-
     <div className="relative w-full h-[400px] bg-slate-100">
-
-      <div ref={containerRef} className="absolute inset-0 w-full h-full" />
-
+      <div ref={hostRef} className="absolute inset-0 w-full h-full" />
       {(mapFailed || (!process.env.NEXT_PUBLIC_MAPBOX_TOKEN && !process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN)) && (
-
         <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200">
-
           <div className="text-center">
-
             <MapIcon className="h-8 w-8 text-slate-400 mx-auto mb-2" />
-
             <p className="text-sm text-slate-600 font-medium">Map view</p>
-
             <p className="text-xs text-slate-500 mt-1">
-
               {latitude}, {longitude}
-
             </p>
-
           </div>
-
         </div>
-
       )}
-
     </div>
-
   );
-
 }
 
 
@@ -928,7 +838,7 @@ function PolicyCard({
 
 function fmtMoney(amount: number | null | undefined, currency?: string | null) {
 
-  if (amount == null || !Number.isFinite(Number(amount))) return "—";
+  if (amount == null || !Number.isFinite(Number(amount))) return "Ã¢â‚¬â€";
 
   const cur = currency || "TZS";
 
@@ -952,7 +862,7 @@ function capWords(s: string, maxChars: number) {
 
   if (t.length <= maxChars) return t;
 
-  return t.slice(0, maxChars - 1).trimEnd() + "…";
+  return t.slice(0, maxChars - 1).trimEnd() + "Ã¢â‚¬Â¦";
 
 }
 
@@ -962,13 +872,13 @@ function capWords(s: string, maxChars: number) {
 
 const BED_DIMENSIONS: Record<string, string> = {
 
-  twin: "38\" × 75\" (96.5 × 190.5 cm)",
+  twin: "38\" Ãƒâ€” 75\" (96.5 Ãƒâ€” 190.5 cm)",
 
-  full: "54\" × 75\" (137 × 190.5 cm)",
+  full: "54\" Ãƒâ€” 75\" (137 Ãƒâ€” 190.5 cm)",
 
-  queen: "60\" × 80\" (152.4 × 203.2 cm)",
+  queen: "60\" Ãƒâ€” 80\" (152.4 Ãƒâ€” 203.2 cm)",
 
-  king: "76\" × 80\" (193 × 203.2 cm)",
+  king: "76\" Ãƒâ€” 80\" (193 Ãƒâ€” 203.2 cm)",
 
 };
 
@@ -976,7 +886,7 @@ const BED_DIMENSIONS: Record<string, string> = {
 
 function bedsToSummary(beds: any): string {
 
-  if (!beds || typeof beds !== "object") return "—";
+  if (!beds || typeof beds !== "object") return "Ã¢â‚¬â€";
 
   const entries: Array<{ key: string; label: string }> = [
 
@@ -1004,7 +914,7 @@ function bedsToSummary(beds: any): string {
 
     .filter(Boolean) as string[];
 
-  return parts.length ? parts.join(", ") : "—";
+  return parts.length ? parts.join(", ") : "Ã¢â‚¬â€";
 
 }
 
@@ -1012,7 +922,7 @@ function bedsToSummary(beds: any): string {
 
 function getBedDimensions(bedsSummary: string): string | null {
 
-  if (!bedsSummary || bedsSummary === "—") return null;
+  if (!bedsSummary || bedsSummary === "Ã¢â‚¬â€") return null;
 
   
 
@@ -1050,7 +960,7 @@ function getBedDimensions(bedsSummary: string): string | null {
 
   
 
-  return dimensions.length > 0 ? dimensions.join(" • ") : null;
+  return dimensions.length > 0 ? dimensions.join(" Ã¢â‚¬Â¢ ") : null;
 
 }
 
@@ -1198,7 +1108,7 @@ function normalizeRoomSpec(
 
     payActionLabel: "Pay now",
 
-    policies: policies.length ? policies : [{ text: "—" }],
+    policies: policies.length ? policies : [{ text: "Ã¢â‚¬â€" }],
 
   };
 
@@ -1272,7 +1182,7 @@ function formatDateLabel(dateString: string) {
 
 function formatTimeAgo(ms: number): string {
 
-  if (!ms || ms <= 0) return "—";
+  if (!ms || ms <= 0) return "Ã¢â‚¬â€";
 
   const diff = Date.now() - ms;
 
@@ -1616,7 +1526,7 @@ function PropertyAvailabilityChecker({
 
           <div className="text-xs text-slate-500">
 
-            Select check-in and check-out dates to see live availability • Last updated: {formatTimeAgo(lastUpdatedAt)}
+            Select check-in and check-out dates to see live availability Ã¢â‚¬Â¢ Last updated: {formatTimeAgo(lastUpdatedAt)}
 
             <span className="text-slate-400"> (refreshes up to every 4 minutes)</span>
 
@@ -1880,7 +1790,7 @@ function PropertyAvailabilityChecker({
 
                         <span className="font-semibold text-slate-800">{formatDate(checkIn)} - {formatDate(checkOut)}</span>
 
-                        <span className="text-slate-400"> • </span>
+                        <span className="text-slate-400"> Ã¢â‚¬Â¢ </span>
 
                         <span className="text-slate-600">Updated {formatTimeAgo(lastUpdatedAt)}</span>
 
@@ -2028,7 +1938,7 @@ function PropertyAvailabilityChecker({
 
                                       <span className="font-semibold">{availableRooms}</span>/{totalRooms} rooms
 
-                                      <span className="text-slate-300">•</span>
+                                      <span className="text-slate-300">Ã¢â‚¬Â¢</span>
 
                                       <span className="font-semibold">{availableBeds}</span>/{totalBeds} beds
 
@@ -2267,6 +2177,8 @@ export default function PublicPropertyDetailPage() {
   const [isFavorite, setIsFavorite] = useState(false);
 
   const [favoriteLoading, setFavoriteLoading] = useState(false);
+
+  const [showSaveLoginPrompt, setShowSaveLoginPrompt] = useState(false);
 
   const [favoriteNotice, setFavoriteNotice] = useState<string | null>(null);
 
@@ -2942,7 +2854,7 @@ export default function PublicPropertyDetailPage() {
 
   
 
-  const price = useMemo(() => (finalBasePrice ? fmtMoney(finalBasePrice, property?.currency) : "—"), [finalBasePrice, property?.currency]);
+  const price = useMemo(() => (finalBasePrice ? fmtMoney(finalBasePrice, property?.currency) : "Ã¢â‚¬â€"), [finalBasePrice, property?.currency]);
 
 
 
@@ -2958,7 +2870,7 @@ export default function PublicPropertyDetailPage() {
 
     const hasMore = raw.length > limit;
 
-    const collapsed = hasMore ? raw.slice(0, limit).trimEnd() + "…" : text;
+    const collapsed = hasMore ? raw.slice(0, limit).trimEnd() + "Ã¢â‚¬Â¦" : text;
 
     return { raw, text, hasMore, collapsed };
 
@@ -3160,7 +3072,7 @@ export default function PublicPropertyDetailPage() {
 
         const t = String(to || "").trim();
 
-        if (f && t) return `${f} – ${t}`;
+        if (f && t) return `${f} Ã¢â‚¬â€œ ${t}`;
 
         if (f) return `From ${f}`;
 
@@ -3994,7 +3906,7 @@ export default function PublicPropertyDetailPage() {
 
                     <p className="text-[11px] mt-0.5 text-slate-500 leading-relaxed">
 
-                      Physical site visit · location &amp; documentation review
+                      Physical site visit Ã‚Â· location &amp; documentation review
 
                     </p>
 
@@ -4358,7 +4270,7 @@ export default function PublicPropertyDetailPage() {
                 <div className="pointer-events-none absolute inset-0" style={{ backgroundImage: "repeating-linear-gradient(135deg,rgba(255,255,255,0.13) 0px,rgba(255,255,255,0.13) 1.5px,transparent 1.5px,transparent 10px)" }} />
                 <Users className="w-4 h-4 text-white/80 shrink-0 relative" />
                 <div className="relative">
-                  <div className="text-sm font-bold text-white leading-none tabular-nums">{property.maxGuests ?? "—"}</div>
+                  <div className="text-sm font-bold text-white leading-none tabular-nums">{property.maxGuests ?? "Ã¢â‚¬â€"}</div>
                   <div className="text-[11px] text-white/60 mt-0.5">Guests</div>
                 </div>
               </div>
@@ -4366,7 +4278,7 @@ export default function PublicPropertyDetailPage() {
                 <div className="pointer-events-none absolute inset-0" style={{ backgroundImage: "repeating-linear-gradient(135deg,rgba(255,255,255,0.13) 0px,rgba(255,255,255,0.13) 1.5px,transparent 1.5px,transparent 10px)" }} />
                 <BedDouble className="w-4 h-4 text-white/80 shrink-0 relative" />
                 <div className="relative">
-                  <div className="text-sm font-bold text-white leading-none tabular-nums">{property.totalBedrooms ?? "—"}</div>
+                  <div className="text-sm font-bold text-white leading-none tabular-nums">{property.totalBedrooms ?? "Ã¢â‚¬â€"}</div>
                   <div className="text-[11px] text-white/60 mt-0.5">Bedrooms</div>
                 </div>
               </div>
@@ -4374,7 +4286,7 @@ export default function PublicPropertyDetailPage() {
                 <div className="pointer-events-none absolute inset-0" style={{ backgroundImage: "repeating-linear-gradient(135deg,rgba(255,255,255,0.13) 0px,rgba(255,255,255,0.13) 1.5px,transparent 1.5px,transparent 10px)" }} />
                 <Bath className="w-4 h-4 text-white/80 shrink-0 relative" />
                 <div className="relative">
-                  <div className="text-sm font-bold text-white leading-none tabular-nums">{property.totalBathrooms ?? "—"}</div>
+                  <div className="text-sm font-bold text-white leading-none tabular-nums">{property.totalBathrooms ?? "Ã¢â‚¬â€"}</div>
                   <div className="text-[11px] text-white/60 mt-0.5">Bathrooms</div>
                 </div>
               </div>
@@ -4981,11 +4893,11 @@ export default function PublicPropertyDetailPage() {
 
                         {selectedDates.checkIn && selectedDates.checkOut ? (
 
-                          <span className="text-slate-400"> · dates selected</span>
+                          <span className="text-slate-400"> Ã‚Â· dates selected</span>
 
                         ) : (
 
-                          <span className="text-amber-700"> · select dates above to see live availability</span>
+                          <span className="text-amber-700"> Ã‚Â· select dates above to see live availability</span>
 
                         )}
 
@@ -5355,7 +5267,7 @@ export default function PublicPropertyDetailPage() {
 
                                           <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Beds</div>
 
-                                          <div className="mt-1 text-sm font-semibold text-slate-900">{row?.bedsSummary || "—"}</div>
+                                          <div className="mt-1 text-sm font-semibold text-slate-900">{row?.bedsSummary || "Ã¢â‚¬â€"}</div>
 
                                         </div>
 
@@ -5687,7 +5599,7 @@ export default function PublicPropertyDetailPage() {
 
                                       {effectiveDates.checkIn && effectiveDates.checkOut
 
-                                        ? `${formatDateLabel(effectiveDates.checkIn)} → ${formatDateLabel(effectiveDates.checkOut)}`
+                                        ? `${formatDateLabel(effectiveDates.checkIn)} Ã¢â€ â€™ ${formatDateLabel(effectiveDates.checkOut)}`
 
                                         : "Select dates first"}
 
@@ -5695,7 +5607,7 @@ export default function PublicPropertyDetailPage() {
 
                                     <div className="mt-1 text-[11px] text-slate-500">
 
-                                      Rooms: {modalRoomsQty} · Adults: {modalGuests.adults}
+                                      Rooms: {modalRoomsQty} Ã‚Â· Adults: {modalGuests.adults}
 
                                     </div>
 
@@ -5883,7 +5795,7 @@ export default function PublicPropertyDetailPage() {
 
                                 <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Beds</div>
 
-                                <div className="mt-1 text-sm font-semibold text-slate-900">{row?.bedsSummary || "—"}</div>
+                                <div className="mt-1 text-sm font-semibold text-slate-900">{row?.bedsSummary || "Ã¢â‚¬â€"}</div>
 
                               </div>
 
@@ -6501,7 +6413,7 @@ export default function PublicPropertyDetailPage() {
 
                             <div className="mt-2 text-xs text-amber-700">
 
-                              Tip: select dates in â€œCheck Availabilityâ€, then tap â€œCheck Availabilityâ€.
+                              Tip: select dates in ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œCheck AvailabilityÃƒÂ¢Ã¢â€šÂ¬Ã‚Â, then tap ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œCheck AvailabilityÃƒÂ¢Ã¢â€šÂ¬Ã‚Â.
 
                             </div>
 
@@ -7257,7 +7169,7 @@ export default function PublicPropertyDetailPage() {
 
                   if (!reviewRating) {
 
-                    setReviewSubmitMsg("Please select a rating (1â€“5).");
+                    setReviewSubmitMsg("Please select a rating (1ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“5).");
                     setReviewSubmitMsg("Please select a rating (1-5).");
                     return;
 
@@ -7361,7 +7273,7 @@ export default function PublicPropertyDetailPage() {
 
               >
 
-                {reviewSubmitting ? "Submittingâ€¦" : "Submit review"}
+                {reviewSubmitting ? "SubmittingÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦" : "Submit review"}
                 {reviewSubmitting ? "Submitting..." : "Submit review"}
               </button>
 
@@ -8129,7 +8041,7 @@ export default function PublicPropertyDetailPage() {
 
                   </div>
 
-                  <div className="text-sm text-slate-600">{location || "â€”"}</div>
+                  <div className="text-sm text-slate-600">{location || "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â"}</div>
 
                 </div>
 
@@ -9141,6 +9053,9 @@ function RoomAmenityChip({
   );
 
 }
+
+
+
 
 
 
