@@ -72,7 +72,7 @@ for (let i = startIdx; i < lines.length; i++) {
   if (i > startIdx && depth === 0) { endIdx = i; break; }
 }
 
-console.log(`Replacing lines ${startIdx + 1}â€“${endIdx + 1}`);
+console.log(`Replacing lines ${startIdx + 1}–${endIdx + 1}`);
 
 const eol = raw.includes("\r\n") ? "\r\n" : "\n";
 const indent = "            "; // 12 spaces

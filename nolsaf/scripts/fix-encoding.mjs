@@ -28,7 +28,7 @@ function walk(dir, results = []) {
 // Chars that appear ONLY in mojibake sequences (Windows-1252 code points > U+00FF)
 // These never legitimately appear in JSX/TS source code.
 const MOJIBAKE_INDICATORS = new Set([
-  0x20AC, // euro sign, W1252 0x80, appears in â€ sequences
+  0x20AC, // euro sign, W1252 0x80, appears in sequences
   0x2122, // trade mark, W1252 0x99, part of broken apostrophe
   0x0152, // OE ligature, W1252 0x8C
   0x0153, // oe ligature, W1252 0x9C, part of broken left double quote

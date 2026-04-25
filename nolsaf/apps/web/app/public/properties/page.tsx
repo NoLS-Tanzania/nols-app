@@ -315,7 +315,23 @@ export default function PropertiesPage() {
   const [data, setData] = useState<ListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [pageNotice, setPageNotice] = useState<string | null>(null);
   const [systemCommission, setSystemCommission] = useState<number>(0);
+
+  useEffect(() => {
+    const originalAlert = window.alert;
+
+    // Prevent native browser popups on this page and keep a consistent in-app UI.
+    window.alert = (message?: any) => {
+      const text = String(message ?? "").trim();
+      if (!text) return;
+      setPageNotice(text);
+    };
+
+    return () => {
+      window.alert = originalAlert;
+    };
+  }, []);
 
   // Load system commission settings
   useEffect(() => {
@@ -1780,6 +1796,44 @@ export default function PropertiesPage() {
           </motion.div>
         </div>
       )}
+
+      {pageNotice ? (
+        <div
+          className="fixed inset-0 z-[560] bg-black/40 backdrop-blur-[2px] p-4 sm:p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Message"
+          onClick={() => setPageNotice(null)}
+        >
+          <div
+            className="relative mx-auto mt-[12vh] w-full max-w-md overflow-hidden rounded-3xl border border-[#02665e]/20 bg-white shadow-[0_20px_60px_rgba(2,102,94,0.26)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="px-6 py-4 text-white"
+              style={{
+                backgroundColor: "#02665e",
+                backgroundImage: "repeating-linear-gradient(-32deg, rgba(255,255,255,0.18) 0px, rgba(255,255,255,0.18) 2px, rgba(255,255,255,0) 2px, rgba(255,255,255,0) 14px)",
+              }}
+            >
+              <div className="text-base font-bold">Notice</div>
+            </div>
+            <div className="px-6 py-5">
+              <p className="text-sm text-slate-700 leading-relaxed">{pageNotice}</p>
+              <div className="mt-4 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setPageNotice(null)}
+                  className="rounded-xl px-4 py-2 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
+                  style={{ backgroundColor: "#02665e" }}
+                >
+                  OK
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }

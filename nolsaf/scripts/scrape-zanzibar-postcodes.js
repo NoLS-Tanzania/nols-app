@@ -2,7 +2,7 @@
  * scrape-zanzibar-postcodes.js
  * 
  * Crawls tanzaniapostcode.com for all 5 Zanzibar regions, extracting real
- * district â†’ ward â†’ postcode data, then writes it into tzRegionsFull.ts.
+ * district → ward → postcode data, then writes it into tzRegionsFull.ts.
  * 
  * Usage:  node nolsaf/scripts/scrape-zanzibar-postcodes.js
  */
@@ -82,7 +82,7 @@ function extractWardName(html, wardSlug) {
   const h1Match = html.match(/<h1[^>]*>([^<]+)<\/h1>/i);
   if (h1Match) {
     let name = h1Match[1].trim();
-    // Clean "BROWSE LOCATION - BUBUBU, MAGHARIBI, MJINI MAGHARIBI" â†’ "BUBUBU"
+    // Clean "BROWSE LOCATION - BUBUBU, MAGHARIBI, MJINI MAGHARIBI" → "BUBUBU"
     name = name.replace(/^BROWSE LOCATION\s*[--]\s*/i, '');
     name = name.replace(/,.*$/, ''); // strip ", DISTRICT, REGION"
     return name.trim().toUpperCase();
@@ -108,7 +108,7 @@ function extractWardLinks(html, regionSlug, districtSlug) {
   return [...found];
 }
 
-// â”€â”€ Zanzibar region map (corrected slugs from tanzaniapostcode.com) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  Zanzibar region map (corrected slugs from tanzaniapostcode.com)
 
 const ZANZIBAR_REGIONS = [
   {
@@ -150,13 +150,13 @@ async function scrapeRegion(region) {
   console.log(`\n== ${region.name} (${region.slug}) ==`);
 
   const regionPage = await getWithRetry(`${BASE}/location/${region.slug}/`);
-  if (!regionPage) { console.log('  âœ— Region page failed'); return { name: region.name, code: region.code, districts: [] }; }
+  if (!regionPage) { console.log('  ✖ Region page failed'); return { name: region.name, code: region.code, districts: [] }; }
 
   const districtPaths = extractDistrictLinks(regionPage, region.slug);
   console.log(`  Districts found: ${districtPaths.length} - ${districtPaths.map(p => p.split('/')[3]).join(', ')}`);
 
   const builtDistricts = [];
-  let distCode = parseInt(region.code) * 10 + 1; // e.g. 71 â†’ 711, 712, ...
+  let distCode = parseInt(region.code) * 10 + 1; // e.g. 71 → 711, 712, ...
 
   for (const dPath of districtPaths) {
     const dSlug = dPath.replace(/^\/|\/$/g, '').split('/')[2]; // e.g. "mjini"
@@ -172,14 +172,14 @@ async function scrapeRegion(region) {
     console.log(`  ${wardPaths.length} wards to fetch...`);
 
     const wards = [];
-    let wardCode = parseInt(districtCode) * 100 + 1; // e.g. 711 â†’ 71101, 71102...
+    let wardCode = parseInt(districtCode) * 100 + 1; // e.g. 711 → 71101, 71102...
 
     for (const wPath of wardPaths) {
       const wSlug = wPath.replace(/^\/|\/$/g, '').split('/').pop();
       const wardPage = await getWithRetry(`${BASE}${wPath}`);
 
       if (!wardPage) {
-        console.log(`    âœ— Failed: ${wSlug}`);
+        console.log(`    ✖ Failed: ${wSlug}`);
         wards.push({ name: wSlug.replace(/-/g, ' ').toUpperCase(), code: '', postcode: '', streets: [] });
         wardCode++;
         continue;
@@ -187,7 +187,7 @@ async function scrapeRegion(region) {
 
       const wardName = extractWardName(wardPage, wSlug);
       const postcode = extractPostcode(wardPage);
-      console.log(`    ${wardName} â†’ ${postcode || '?'}`);
+      console.log(`    ${wardName} → ${postcode || '?'}`);
       wards.push({ name: wardName, code: postcode || String(wardCode), postcode: postcode || '', streets: [] });
       wardCode++;
     }
@@ -235,9 +235,9 @@ async function scrapeRegion(region) {
 
   // Save raw results for inspection
   fs.writeFileSync(rawOut, JSON.stringify(results, null, 2), 'utf8');
-  console.log(`\nâœ“ Raw data saved to ${rawOut}`);
+  console.log(`\n✓ Raw data saved to ${rawOut}`);
 
-  // â”€â”€ Write to tzRegionsFull.ts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  //  Write to tzRegionsFull.ts 
   const fullDataPath = path.join(__dirname, '../apps/web/lib/tzRegionsFull.ts');
   let content = fs.readFileSync(fullDataPath, 'utf8');
 
@@ -246,9 +246,9 @@ async function scrapeRegion(region) {
   const firstMarker = '"name": "MJINI MAGHARIBI"';
   const markerIdx = content.lastIndexOf(firstMarker);
   if (markerIdx === -1) {
-    console.error('\nâœ— Could not find MJINI MAGHARIBI marker in tzRegionsFull.ts');
-    console.log('  â†’ Raw data is in', rawOut);
-    console.log('  â†’ Manually replace the last 5 entries in the file with the raw JSON');
+    console.error('\n✖ Could not find MJINI MAGHARIBI marker in tzRegionsFull.ts');
+    console.log('  → Raw data is in', rawOut);
+    console.log('  → Manually replace the last 5 entries in the file with the raw JSON');
     process.exit(1);
   }
 
@@ -264,7 +264,7 @@ async function scrapeRegion(region) {
   const newContent = `${pre},\n  ${newEntries}\n] as any;\n`;
 
   fs.writeFileSync(fullDataPath, newContent, 'utf8');
-  console.log('\nâœ“ tzRegionsFull.ts updated with real Zanzibar postcode data');
+  console.log('\n✓ tzRegionsFull.ts updated with real Zanzibar postcode data');
 
   for (const r of results) {
     const totalWards = r.districts.reduce((s, d) => s + d.wards.length, 0);

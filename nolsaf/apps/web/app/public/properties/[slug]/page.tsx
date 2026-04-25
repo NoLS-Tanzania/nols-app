@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 
 
@@ -928,7 +928,7 @@ function PolicyCard({
 
 function fmtMoney(amount: number | null | undefined, currency?: string | null) {
 
-  if (amount == null || !Number.isFinite(Number(amount))) return "â€”";
+  if (amount == null || !Number.isFinite(Number(amount))) return "—";
 
   const cur = currency || "TZS";
 
@@ -952,7 +952,7 @@ function capWords(s: string, maxChars: number) {
 
   if (t.length <= maxChars) return t;
 
-  return t.slice(0, maxChars - 1).trimEnd() + "â€¦";
+  return t.slice(0, maxChars - 1).trimEnd() + "…";
 
 }
 
@@ -962,13 +962,13 @@ function capWords(s: string, maxChars: number) {
 
 const BED_DIMENSIONS: Record<string, string> = {
 
-  twin: "38\" Ã— 75\" (96.5 Ã— 190.5 cm)",
+  twin: "38\" × 75\" (96.5 × 190.5 cm)",
 
-  full: "54\" Ã— 75\" (137 Ã— 190.5 cm)",
+  full: "54\" × 75\" (137 × 190.5 cm)",
 
-  queen: "60\" Ã— 80\" (152.4 Ã— 203.2 cm)",
+  queen: "60\" × 80\" (152.4 × 203.2 cm)",
 
-  king: "76\" Ã— 80\" (193 Ã— 203.2 cm)",
+  king: "76\" × 80\" (193 × 203.2 cm)",
 
 };
 
@@ -976,7 +976,7 @@ const BED_DIMENSIONS: Record<string, string> = {
 
 function bedsToSummary(beds: any): string {
 
-  if (!beds || typeof beds !== "object") return "â€”";
+  if (!beds || typeof beds !== "object") return "—";
 
   const entries: Array<{ key: string; label: string }> = [
 
@@ -1004,7 +1004,7 @@ function bedsToSummary(beds: any): string {
 
     .filter(Boolean) as string[];
 
-  return parts.length ? parts.join(", ") : "â€”";
+  return parts.length ? parts.join(", ") : "—";
 
 }
 
@@ -1012,7 +1012,7 @@ function bedsToSummary(beds: any): string {
 
 function getBedDimensions(bedsSummary: string): string | null {
 
-  if (!bedsSummary || bedsSummary === "â€”") return null;
+  if (!bedsSummary || bedsSummary === "—") return null;
 
   
 
@@ -1050,7 +1050,7 @@ function getBedDimensions(bedsSummary: string): string | null {
 
   
 
-  return dimensions.length > 0 ? dimensions.join(" â€¢ ") : null;
+  return dimensions.length > 0 ? dimensions.join(" • ") : null;
 
 }
 
@@ -1198,7 +1198,7 @@ function normalizeRoomSpec(
 
     payActionLabel: "Pay now",
 
-    policies: policies.length ? policies : [{ text: "â€”" }],
+    policies: policies.length ? policies : [{ text: "—" }],
 
   };
 
@@ -1272,7 +1272,7 @@ function formatDateLabel(dateString: string) {
 
 function formatTimeAgo(ms: number): string {
 
-  if (!ms || ms <= 0) return "â€”";
+  if (!ms || ms <= 0) return "—";
 
   const diff = Date.now() - ms;
 
@@ -1616,7 +1616,7 @@ function PropertyAvailabilityChecker({
 
           <div className="text-xs text-slate-500">
 
-            Select check-in and check-out dates to see live availability â€¢ Last updated: {formatTimeAgo(lastUpdatedAt)}
+            Select check-in and check-out dates to see live availability • Last updated: {formatTimeAgo(lastUpdatedAt)}
 
             <span className="text-slate-400"> (refreshes up to every 4 minutes)</span>
 
@@ -1816,7 +1816,7 @@ function PropertyAvailabilityChecker({
 
 
 
-        {/* Three-dot loading indicator â€” alternating green/blue like a car indicator */}
+        {/* Three-dot loading indicator alternating green/blue like a car indicator */}
 
         <div className={`flex items-center justify-center gap-1.5 h-5 transition-opacity duration-300 ${loading ? 'opacity-100' : 'opacity-0'}`}>
 
@@ -1880,7 +1880,7 @@ function PropertyAvailabilityChecker({
 
                         <span className="font-semibold text-slate-800">{formatDate(checkIn)} - {formatDate(checkOut)}</span>
 
-                        <span className="text-slate-400"> â€¢ </span>
+                        <span className="text-slate-400"> • </span>
 
                         <span className="text-slate-600">Updated {formatTimeAgo(lastUpdatedAt)}</span>
 
@@ -2028,7 +2028,7 @@ function PropertyAvailabilityChecker({
 
                                       <span className="font-semibold">{availableRooms}</span>/{totalRooms} rooms
 
-                                      <span className="text-slate-300">â€¢</span>
+                                      <span className="text-slate-300">•</span>
 
                                       <span className="font-semibold">{availableBeds}</span>/{totalBeds} beds
 
@@ -2267,6 +2267,8 @@ export default function PublicPropertyDetailPage() {
   const [isFavorite, setIsFavorite] = useState(false);
 
   const [favoriteLoading, setFavoriteLoading] = useState(false);
+
+  const [favoriteNotice, setFavoriteNotice] = useState<string | null>(null);
 
   const [showShareMenu, setShowShareMenu] = useState(false);
 
@@ -2940,7 +2942,7 @@ export default function PublicPropertyDetailPage() {
 
   
 
-  const price = useMemo(() => (finalBasePrice ? fmtMoney(finalBasePrice, property?.currency) : "â€”"), [finalBasePrice, property?.currency]);
+  const price = useMemo(() => (finalBasePrice ? fmtMoney(finalBasePrice, property?.currency) : "—"), [finalBasePrice, property?.currency]);
 
 
 
@@ -2956,7 +2958,7 @@ export default function PublicPropertyDetailPage() {
 
     const hasMore = raw.length > limit;
 
-    const collapsed = hasMore ? raw.slice(0, limit).trimEnd() + "â€¦" : text;
+    const collapsed = hasMore ? raw.slice(0, limit).trimEnd() + "…" : text;
 
     return { raw, text, hasMore, collapsed };
 
@@ -3158,7 +3160,7 @@ export default function PublicPropertyDetailPage() {
 
         const t = String(to || "").trim();
 
-        if (f && t) return `${f} â€“ ${t}`;
+        if (f && t) return `${f} – ${t}`;
 
         if (f) return `From ${f}`;
 
@@ -3225,25 +3227,23 @@ export default function PublicPropertyDetailPage() {
     return normalize(direct) || normalize(viaServices) || null;
 
   }, [property, servicesObj]);
-
-  
-
-    // Fix UTF-8 mojibake encoding issues
-
+    // Normalize common mojibake sequences coming from legacy text payloads.
   const fixEncoding = (s?: string | null): string => {
-
-    if (!s) return '';
-
-    return s
-
-      .replace(/\u00e2\u20ac\u201c/g, '\u2013')
-
-      .replace(/\u00e2\u20ac\u201d/g, '\u2014')
-
-      .replace(/\u00e2\u20ac\u2122/g, '\u2019')
-
-      .replace(/\u00e2\u20ac\u0153/g, '\u201c');
-
+    if (!s) return "";
+    return String(s)
+      .replace(/\u00c3\u00a2\u00e2\u201a\u00ac\u00e2\u201e\u00a2/g, "\u2019")
+      .replace(/\u00c3\u00a2\u00e2\u201a\u00ac\u00c5\u00a1/g, "\u201c")
+      .replace(/\u00c3\u00a2\u00e2\u201a\u00ac\u00e2\u20ac\u009d/g, "\u201d")
+      .replace(/\u00c3\u00a2\u00e2\u201a\u00ac\u00e2\u20ac\u201c/g, "\u2013")
+      .replace(/\u00c3\u00a2\u00e2\u201a\u00ac\u00e2\u20ac\u201d/g, "\u2014")
+      .replace(/\u00c3\u00a2\u00e2\u201a\u00ac\u00c2\u00a2/g, "\u2022")
+      .replace(/\u00c3\u0082\u00c2\u00b7/g, "\u00b7")
+      .replace(/\u00e2\u20ac\u009d/g, "\u201d")
+      .replace(/\u00e2\u20ac\u009c/g, "\u201c")
+      .replace(/\u00e2\u20ac\u2122/g, "\u2019")
+      .replace(/\u00e2\u20ac\u2013/g, "\u2013")
+      .replace(/\u00e2\u20ac\u2014/g, "\u2014")
+      .replace(/\u00e2\u20ac\u00a2/g, "\u2022");
   };
 
 
@@ -3498,7 +3498,7 @@ export default function PublicPropertyDetailPage() {
 
 
 
-        {/* â”€â”€ Property header card â”€â”€ */}
+        {/* Property header card */}
 
         <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-white border border-slate-100 shadow-[0_4px_24px_rgba(2,102,94,0.10)]">
 
@@ -3588,7 +3588,7 @@ export default function PublicPropertyDetailPage() {
 
                             } else {
 
-                              alert(json.error || "Failed to remove from saved list. Please try again.");
+                              setFavoriteNotice(json.error || "Failed to remove from saved list. Please try again.");
 
                             }
 
@@ -3600,7 +3600,7 @@ export default function PublicPropertyDetailPage() {
 
                           if (!propertyId || isNaN(propertyId)) {
 
-                            alert("Invalid property ID");
+                            setFavoriteNotice("Invalid property ID");
 
                             setFavoriteLoading(false);
 
@@ -3628,15 +3628,15 @@ export default function PublicPropertyDetailPage() {
 
                           } else if (res.status === 401 || res.status === 403) {
 
-                            alert("Please log in to save properties");
+                            setShowSaveLoginPrompt(true);
 
-                            router.push(`/login?next=${encodeURIComponent(window.location.pathname)}`);
+                            
 
                           } else {
 
                             const errorMsg = json.error || json.message || "Failed to save property. Please try again.";
 
-                            alert(errorMsg);
+                            const normalizedError = String(errorMsg || "").toLowerCase(); if (normalizedError.includes("log in") || normalizedError.includes("login") || normalizedError.includes("unauthorized") || normalizedError.includes("forbidden") || normalizedError.includes("not authenticated")) { setShowSaveLoginPrompt(true); } else { setFavoriteNotice(errorMsg); }
 
                           }
 
@@ -3644,7 +3644,7 @@ export default function PublicPropertyDetailPage() {
 
                       } catch (e: any) {
 
-                        alert("Network error. Please check your connection and try again.");
+                        setFavoriteNotice("Network error. Please check your connection and try again.");
 
                       } finally {
 
@@ -3994,7 +3994,7 @@ export default function PublicPropertyDetailPage() {
 
                     <p className="text-[11px] mt-0.5 text-slate-500 leading-relaxed">
 
-                      Physical site visit Â· location &amp; documentation review
+                      Physical site visit · location &amp; documentation review
 
                     </p>
 
@@ -4358,7 +4358,7 @@ export default function PublicPropertyDetailPage() {
                 <div className="pointer-events-none absolute inset-0" style={{ backgroundImage: "repeating-linear-gradient(135deg,rgba(255,255,255,0.13) 0px,rgba(255,255,255,0.13) 1.5px,transparent 1.5px,transparent 10px)" }} />
                 <Users className="w-4 h-4 text-white/80 shrink-0 relative" />
                 <div className="relative">
-                  <div className="text-sm font-bold text-white leading-none tabular-nums">{property.maxGuests ?? "â€”"}</div>
+                  <div className="text-sm font-bold text-white leading-none tabular-nums">{property.maxGuests ?? "—"}</div>
                   <div className="text-[11px] text-white/60 mt-0.5">Guests</div>
                 </div>
               </div>
@@ -4366,7 +4366,7 @@ export default function PublicPropertyDetailPage() {
                 <div className="pointer-events-none absolute inset-0" style={{ backgroundImage: "repeating-linear-gradient(135deg,rgba(255,255,255,0.13) 0px,rgba(255,255,255,0.13) 1.5px,transparent 1.5px,transparent 10px)" }} />
                 <BedDouble className="w-4 h-4 text-white/80 shrink-0 relative" />
                 <div className="relative">
-                  <div className="text-sm font-bold text-white leading-none tabular-nums">{property.totalBedrooms ?? "â€”"}</div>
+                  <div className="text-sm font-bold text-white leading-none tabular-nums">{property.totalBedrooms ?? "—"}</div>
                   <div className="text-[11px] text-white/60 mt-0.5">Bedrooms</div>
                 </div>
               </div>
@@ -4374,7 +4374,7 @@ export default function PublicPropertyDetailPage() {
                 <div className="pointer-events-none absolute inset-0" style={{ backgroundImage: "repeating-linear-gradient(135deg,rgba(255,255,255,0.13) 0px,rgba(255,255,255,0.13) 1.5px,transparent 1.5px,transparent 10px)" }} />
                 <Bath className="w-4 h-4 text-white/80 shrink-0 relative" />
                 <div className="relative">
-                  <div className="text-sm font-bold text-white leading-none tabular-nums">{property.totalBathrooms ?? "â€”"}</div>
+                  <div className="text-sm font-bold text-white leading-none tabular-nums">{property.totalBathrooms ?? "—"}</div>
                   <div className="text-[11px] text-white/60 mt-0.5">Bathrooms</div>
                 </div>
               </div>
@@ -4981,11 +4981,11 @@ export default function PublicPropertyDetailPage() {
 
                         {selectedDates.checkIn && selectedDates.checkOut ? (
 
-                          <span className="text-slate-400"> Â· dates selected</span>
+                          <span className="text-slate-400"> · dates selected</span>
 
                         ) : (
 
-                          <span className="text-amber-700"> Â· select dates above to see live availability</span>
+                          <span className="text-amber-700"> · select dates above to see live availability</span>
 
                         )}
 
@@ -5355,7 +5355,7 @@ export default function PublicPropertyDetailPage() {
 
                                           <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Beds</div>
 
-                                          <div className="mt-1 text-sm font-semibold text-slate-900">{row?.bedsSummary || "â€”"}</div>
+                                          <div className="mt-1 text-sm font-semibold text-slate-900">{row?.bedsSummary || "—"}</div>
 
                                         </div>
 
@@ -5687,7 +5687,7 @@ export default function PublicPropertyDetailPage() {
 
                                       {effectiveDates.checkIn && effectiveDates.checkOut
 
-                                        ? `${formatDateLabel(effectiveDates.checkIn)} â†’ ${formatDateLabel(effectiveDates.checkOut)}`
+                                        ? `${formatDateLabel(effectiveDates.checkIn)} → ${formatDateLabel(effectiveDates.checkOut)}`
 
                                         : "Select dates first"}
 
@@ -5695,7 +5695,7 @@ export default function PublicPropertyDetailPage() {
 
                                     <div className="mt-1 text-[11px] text-slate-500">
 
-                                      Rooms: {modalRoomsQty} Â· Adults: {modalGuests.adults}
+                                      Rooms: {modalRoomsQty} · Adults: {modalGuests.adults}
 
                                     </div>
 
@@ -5805,7 +5805,7 @@ export default function PublicPropertyDetailPage() {
 
                                     <div className="mt-1 text-[11px] text-amber-700">
 
-                                      Availability shown may be for different dates â€” tap â€œCheck availabilityâ€.
+                                      Availability shown may be for different dates. Tap "Check availability".
 
                                     </div>
 
@@ -5883,7 +5883,7 @@ export default function PublicPropertyDetailPage() {
 
                                 <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Beds</div>
 
-                                <div className="mt-1 text-sm font-semibold text-slate-900">{row?.bedsSummary || "â€”"}</div>
+                                <div className="mt-1 text-sm font-semibold text-slate-900">{row?.bedsSummary || "—"}</div>
 
                               </div>
 
@@ -6443,7 +6443,7 @@ export default function PublicPropertyDetailPage() {
 
                             <div className="mt-1 text-[11px] text-amber-700">
 
-                              Availability shown may be for different dates â€” tap â€œCheck availabilityâ€.
+                              Availability shown may be for different dates. Tap "Check availability".
 
                             </div>
 
@@ -6859,7 +6859,7 @@ export default function PublicPropertyDetailPage() {
 
           ) : reviewsLoading ? (
 
-            <div className="mt-4 text-sm text-slate-600">Loading reviewsâ€¦</div>
+            <div className="mt-4 text-sm text-slate-600">Loading reviews...</div>
 
           ) : (
 
@@ -6911,7 +6911,7 @@ export default function PublicPropertyDetailPage() {
 
                           )}
 
-                          <span className="text-slate-500">Â·</span>
+                          <span className="text-slate-500"> - </span>
 
                           <span>{totalReviews} {totalReviews === 1 ? 'review' : 'reviews'}</span>
 
@@ -7053,7 +7053,7 @@ export default function PublicPropertyDetailPage() {
 
             <div className="text-sm font-semibold text-slate-900">Leave a review</div>
 
-            <div className="mt-1 text-xs text-slate-600">You can rate and comment. If youâ€™re not logged in, weâ€™ll ask you to log in first.</div>
+            <div className="mt-1 text-xs text-slate-600">You can rate and comment. If you're not logged in, we'll ask you to log in first.</div>
 
 
 
@@ -7193,7 +7193,9 @@ export default function PublicPropertyDetailPage() {
 
                             >
 
-                              â˜…
+                              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden>
+                                <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+                              </svg>
 
                             </button>
 
@@ -7256,7 +7258,7 @@ export default function PublicPropertyDetailPage() {
                   if (!reviewRating) {
 
                     setReviewSubmitMsg("Please select a rating (1â€“5).");
-
+                    setReviewSubmitMsg("Please select a rating (1-5).");
                     return;
 
                   }
@@ -7360,7 +7362,7 @@ export default function PublicPropertyDetailPage() {
               >
 
                 {reviewSubmitting ? "Submittingâ€¦" : "Submit review"}
-
+                {reviewSubmitting ? "Submitting..." : "Submit review"}
               </button>
 
             </div>
@@ -8575,7 +8577,7 @@ function ReviewCard({ review }: { review: PropertyReview }) {
 
                   <span className="inline-flex items-center rounded-full bg-emerald-50 border border-emerald-200/60 px-2.5 py-1 text-[10px] font-bold text-emerald-700 flex-shrink-0 tracking-wide">
 
-                    âœ“ Verified
+                    Verified
 
                   </span>
 
@@ -8591,7 +8593,7 @@ function ReviewCard({ review }: { review: PropertyReview }) {
 
                 </div>
 
-                <span className="text-slate-300">â€¢</span>
+                <span className="text-slate-300">-</span>
 
                 <span className="font-medium">{new Date(review.createdAt).toLocaleDateString()}</span>
 
@@ -8821,7 +8823,7 @@ function ReviewModal({ review, onClose }: { review: PropertyReview; onClose: () 
 
               <StarRow value={review.rating} />
 
-              <span>â€¢</span>
+              <span>-</span>
 
               <span>{new Date(review.createdAt).toLocaleDateString()}</span>
 
@@ -8928,105 +8930,60 @@ function ReviewModal({ review, onClose }: { review: PropertyReview; onClose: () 
 
 
 function StarRow({ value }: { value: number }) {
-
   const v = Math.max(0, Math.min(5, Number(value) || 0));
-
   return (
-
     <span className="inline-flex items-center gap-0.5">
-
       {Array.from({ length: 5 }).map((_, i) => (
-
-        <span key={i} className={i < v ? "text-amber-500" : "text-slate-300"} aria-hidden>
-
-          â˜…
-
-        </span>
-
+        <svg
+          key={i}
+          viewBox="0 0 24 24"
+          className={i < v ? "h-4 w-4 text-amber-500" : "h-4 w-4 text-slate-300"}
+          fill="currentColor"
+          aria-hidden
+        >
+          <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+        </svg>
       ))}
-
       <span className="sr-only">{v} out of 5</span>
-
     </span>
-
   );
-
 }
-
-
 
 function StarPicker({ value, onChange }: { value: number; onChange: (n: number) => void }) {
-
   const v = Math.max(0, Math.min(5, Number(value) || 0));
-
   return (
-
     <div className="inline-flex items-center gap-1">
-
       {Array.from({ length: 5 }).map((_, i) => {
-
         const n = i + 1;
-
         const active = n <= v;
-
         return (
-
           <button
-
             key={n}
-
             type="button"
-
             onClick={() => onChange(n)}
-
             className={[
-
               "h-8 w-8 rounded-full border flex items-center justify-center",
-
               active ? "bg-amber-50 border-amber-200 text-amber-600" : "bg-white border-slate-200 text-slate-400",
-
               "hover:bg-slate-50",
-
             ].join(" ")}
-
             aria-label={`${n} star`}
-
             aria-pressed={active}
-
           >
-
-            â˜…
-
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" /></svg>
           </button>
-
         );
-
       })}
-
       <button
-
         type="button"
-
         onClick={() => onChange(0)}
-
         className="ml-2 text-xs font-semibold text-slate-600 hover:underline"
-
         aria-label="Clear rating"
-
       >
-
         Clear
-
       </button>
-
     </div>
-
   );
-
 }
-
-
-
 // Icon mappings matching the owner's add page exactly
 
 // Icon mappings are imported from shared source to ensure consistency with owner submissions
@@ -9184,6 +9141,10 @@ function RoomAmenityChip({
   );
 
 }
+
+
+
+
 
 
 
