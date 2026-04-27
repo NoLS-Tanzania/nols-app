@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import "mapbox-gl/dist/mapbox-gl.css";
 
