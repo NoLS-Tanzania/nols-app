@@ -66,12 +66,14 @@ function EditableField({
   type = "text",
   prefix,
   onChange,
+  disabled = false,
 }: {
   label: string;
   value: string | number | null | undefined;
   type?: "text" | "number";
   prefix?: string;
   onChange: (v: string) => void;
+  disabled?: boolean;
 }) {
   const safeValue = value ?? (type === "number" ? 0 : "");
   return (
@@ -84,8 +86,13 @@ function EditableField({
         <input
           type={type}
           value={safeValue}
-          onChange={(e) => onChange(e.target.value)}
-          className="w-full text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#02665e]/30 focus:border-[#02665e]"
+          onChange={(e) => !disabled && onChange(e.target.value)}
+          disabled={disabled}
+          className={`w-full text-sm border rounded-lg px-2.5 py-1.5 focus:outline-none ${
+            disabled
+              ? "border-slate-100 bg-slate-50 text-slate-400 cursor-not-allowed"
+              : "border-slate-200 focus:ring-2 focus:ring-[#02665e]/30 focus:border-[#02665e]"
+          }`}
         />
       </div>
     </div>
@@ -202,40 +209,71 @@ function HistoryPanel({ entity, entityId, label, onClose }: { entity: string; en
       {!loading && logs.length > 0 && (
         <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
           {logs.map((log) => {
-            const changes = diffFields(log.beforeJson, log.afterJson);
+            const isCreate = log.action?.endsWith("_CREATE");
+            const changes = isCreate ? [] : diffFields(log.beforeJson, log.afterJson);
             const actor = log.actor;
+            const after = log.afterJson ?? {};
+            const categoryLabel = after.category ?? after.transportType ?? after.seasonName ?? null;
             return (
-              <div key={String(log.id)} className="bg-white border border-slate-100 rounded-xl p-3 shadow-sm">
+              <div key={String(log.id)} className={`bg-white border rounded-xl p-3 shadow-sm ${isCreate ? "border-emerald-200" : "border-slate-100"}`}>
                 {/* meta row */}
                 <div className="flex flex-wrap items-center gap-2 mb-2">
-                  <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 bg-[#02665e]/10 text-[#02665e] rounded-full">
+                  {isCreate ? (
+                    <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full">
+                      <Plus className="w-3 h-3" /> Record created
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 bg-[#02665e]/10 text-[#02665e] rounded-full">
+                      <Edit2 className="w-3 h-3" /> Updated
+                    </span>
+                  )}
+                  <span className="flex items-center gap-1 text-[10px] text-slate-500 px-2 py-0.5 bg-slate-100 rounded-full">
                     <Clock className="w-3 h-3" />
                     {new Date(log.createdAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}
                   </span>
                   {actor ? (
                     <span className="flex items-center gap-1 text-[10px] text-slate-600 px-2 py-0.5 bg-slate-100 rounded-full">
                       <User className="w-3 h-3" />
-                      {actor.fullName ?? actor.name ?? actor.email} <span className="text-slate-400">({actor.email})</span>
+                      {actor.fullName ?? actor.name ?? actor.email} <span className="text-slate-400 ml-0.5">({actor.email})</span>
                     </span>
                   ) : (
-                    <span className="text-[10px] text-slate-400">System</span>
+                    <span className="text-[10px] text-slate-400 px-2 py-0.5 bg-slate-50 rounded-full">System / seed</span>
                   )}
-                  <span className="text-[10px] font-mono text-slate-400 ml-auto">{log.action}</span>
+                  {categoryLabel && (
+                    <span className="text-[10px] font-semibold px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full ml-auto">{categoryLabel}</span>
+                  )}
                 </div>
 
-                {/* changed fields */}
-                {changes.length === 0 ? (
-                  <p className="text-xs text-slate-400 italic">No field changes recorded</p>
-                ) : (
-                  <div className="space-y-1">
-                    {changes.map((c) => (
-                      <div key={c.field} className="grid grid-cols-[120px_1fr_1fr] gap-1 text-xs">
-                        <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide truncate">{c.field}</span>
-                        <span className="text-red-500 line-through truncate" title={fmt(c.from)}>{fmt(c.from)}</span>
-                        <span className="text-emerald-700 font-medium truncate" title={fmt(c.to)}>{fmt(c.to)}</span>
-                      </div>
-                    ))}
+                {/* create: show a summary of key initial values */}
+                {isCreate && (
+                  <div className="space-y-1 mt-1">
+                    {Object.entries(after)
+                      .filter(([k]) => !["id","createdAt","updatedAt","lastVerified","lastUpdated","isActive"].includes(k))
+                      .slice(0, 8)
+                      .map(([k, v]) => (
+                        <div key={k} className="grid grid-cols-[140px_1fr] gap-1 text-xs">
+                          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide truncate">{k}</span>
+                          <span className="text-slate-700 truncate font-medium" title={fmt(v)}>{fmt(v)}</span>
+                        </div>
+                      ))}
                   </div>
+                )}
+
+                {/* update: show changed fields */}
+                {!isCreate && (
+                  changes.length === 0 ? (
+                    <p className="text-xs text-slate-400 italic">No field changes recorded</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {changes.map((c) => (
+                        <div key={c.field} className="grid grid-cols-[120px_1fr_1fr] gap-1 text-xs">
+                          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide truncate">{c.field}</span>
+                          <span className="text-red-500 line-through truncate" title={fmt(c.from)}>{fmt(c.from)}</span>
+                          <span className="text-emerald-700 font-medium truncate" title={fmt(c.to)}>{fmt(c.to)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )
                 )}
               </div>
             );
@@ -377,9 +415,12 @@ function ActivitiesTab() {
                 </select>
               </div>
             </div>
-            <EditableField label="Min cost (USD)" value={newRow.minCost} type="number" prefix="$" onChange={(v) => setNewRow((p) => ({ ...p, minCost: v }))} />
-            <EditableField label="Avg cost (USD)" value={newRow.averageCost} type="number" prefix="$" onChange={(v) => setNewRow((p) => ({ ...p, averageCost: v }))} />
-            <EditableField label="Max cost (USD)" value={newRow.maxCost} type="number" prefix="$" onChange={(v) => setNewRow((p) => ({ ...p, maxCost: v }))} />
+            <EditableField label="Min cost (USD)" value={newRow.minCost} type="number" prefix="$" onChange={(v) => setNewRow((p) => { const min = Number(v); const max = Number(p.maxCost); return { ...p, minCost: v, averageCost: String(Math.round((min + max) / 2 * 100) / 100) }; })} />
+            <div className="relative">
+              <EditableField label="Avg cost (USD)" value={newRow.averageCost} type="number" prefix="$" disabled onChange={(v) => setNewRow((p) => ({ ...p, averageCost: v }))} />
+              <span className="absolute top-0 right-0 text-[8px] font-bold text-[#02665e] bg-[#02665e]/10 rounded px-1 py-0.5 leading-none">AUTO</span>
+            </div>
+            <EditableField label="Max cost (USD)" value={newRow.maxCost} type="number" prefix="$" onChange={(v) => setNewRow((p) => { const max = Number(v); const min = Number(p.minCost); return { ...p, maxCost: v, averageCost: String(Math.round((min + max) / 2 * 100) / 100) }; })} />
             <EditableField label="Description" value={newRow.description} onChange={(v) => setNewRow((p) => ({ ...p, description: v }))} />
           </div>
           <div className="flex gap-2">
@@ -452,9 +493,12 @@ function ActivitiesTab() {
                               </select>
                             </div>
                           </div>
-                          <EditableField label="Min cost (USD)" value={draft.minCost} type="number" prefix="$" onChange={(v) => setDraft((p: any) => ({ ...p, minCost: v }))} />
-                          <EditableField label="Avg cost (USD)" value={draft.averageCost} type="number" prefix="$" onChange={(v) => setDraft((p: any) => ({ ...p, averageCost: v }))} />
-                          <EditableField label="Max cost (USD)" value={draft.maxCost} type="number" prefix="$" onChange={(v) => setDraft((p: any) => ({ ...p, maxCost: v }))} />
+                          <EditableField label="Min cost (USD)" value={draft.minCost} type="number" prefix="$" onChange={(v) => setDraft((p: any) => { const min = Number(v); const max = Number(p.maxCost); return { ...p, minCost: v, averageCost: String(Math.round((min + max) / 2 * 100) / 100) }; })} />
+                          <div className="relative">
+                            <EditableField label="Avg cost (USD)" value={draft.averageCost} type="number" prefix="$" disabled onChange={(v) => setDraft((p: any) => ({ ...p, averageCost: v }))} />
+                            <span className="absolute top-0 right-0 text-[8px] font-bold text-[#02665e] bg-[#02665e]/10 rounded px-1 py-0.5 leading-none">AUTO</span>
+                          </div>
+                          <EditableField label="Max cost (USD)" value={draft.maxCost} type="number" prefix="$" onChange={(v) => setDraft((p: any) => { const max = Number(v); const min = Number(p.minCost); return { ...p, maxCost: v, averageCost: String(Math.round((min + max) / 2 * 100) / 100) }; })} />
                           <EditableField label="Peak multiplier" value={draft.peakMultiplier ?? 1} type="number" onChange={(v) => setDraft((p: any) => ({ ...p, peakMultiplier: v }))} />
                           <EditableField label="Off-peak multiplier" value={draft.offPeakMultiplier ?? 1} type="number" onChange={(v) => setDraft((p: any) => ({ ...p, offPeakMultiplier: v }))} />
                           <EditableField label="Duration" value={draft.duration ?? ""} onChange={(v) => setDraft((p: any) => ({ ...p, duration: v }))} />
@@ -499,6 +543,9 @@ function ParkFeesTab() {
   const [draft, setDraft]         = useState<any>(null);
   const [saving, setSaving]       = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [showAdd, setShowAdd]     = useState(false);
+  const [newRow, setNewRow]       = useState({ parkCode: "", parkName: "", category: "national-park", region: "", adultForeignerFee: "0", adultResidentFee: "0", childForeignerFee: "", vehicleFee: "", campingFee: "", description: "" });
+  const [adding, setAdding]       = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -524,6 +571,18 @@ function ParkFeesTab() {
     finally { setSaving(false); }
   }
 
+  async function addNew() {
+    if (!newRow.parkCode || !newRow.parkName || !newRow.region) return;
+    setAdding(true);
+    try {
+      const d = await apiFetch("/api/admin/nolscope/park-fees", { method: "POST", body: JSON.stringify({ ...newRow, adultForeignerFee: Number(newRow.adultForeignerFee), adultResidentFee: Number(newRow.adultResidentFee) }) });
+      setRows((prev) => [...prev, d.created]);
+      setShowAdd(false);
+      setNewRow({ parkCode: "", parkName: "", category: "national-park", region: "", adultForeignerFee: "0", adultResidentFee: "0", childForeignerFee: "", vehicleFee: "", campingFee: "", description: "" });
+    } catch {}
+    finally { setAdding(false); }
+  }
+
   if (loading) return <Loader2 className="w-5 h-5 animate-spin text-[#02665e] mx-auto mt-8" />;
   if (error)   return <p className="text-sm text-red-600 p-4">{error}</p>;
 
@@ -531,8 +590,46 @@ function ParkFeesTab() {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <p className="text-xs text-slate-400">{rows.length} park fee records</p>
-        <button onClick={load} className="p-2 text-slate-400 hover:text-[#02665e] border border-slate-200 rounded-xl"><RefreshCw className="w-4 h-4" /></button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowAdd(true)} className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold bg-[#02665e] text-white rounded-xl hover:bg-[#015a52]">
+            <Plus className="w-4 h-4" /> Add park
+          </button>
+          <button onClick={load} className="p-2 text-slate-400 hover:text-[#02665e] border border-slate-200 rounded-xl"><RefreshCw className="w-4 h-4" /></button>
+        </div>
       </div>
+
+      {/* add form */}
+      {showAdd && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 space-y-3">
+          <h4 className="text-sm font-bold text-emerald-900">New Park / Conservation Area</h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            <EditableField label="Park Code (unique)" value={newRow.parkCode} onChange={(v) => setNewRow((p) => ({ ...p, parkCode: v }))} />
+            <EditableField label="Park Name" value={newRow.parkName} onChange={(v) => setNewRow((p) => ({ ...p, parkName: v }))} />
+            <EditableField label="Region" value={newRow.region} onChange={(v) => setNewRow((p) => ({ ...p, region: v }))} />
+            <div>
+              <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Category</label>
+              <div className="flex items-center gap-1">
+                <select value={newRow.category} onChange={(e) => setNewRow((p) => ({ ...p, category: e.target.value }))}
+                  className="w-full text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#02665e]/30">
+                  {["national-park","conservation-area","marine-park","game-reserve"].map((c) => <option key={c}>{c}</option>)}
+                </select>
+              </div>
+            </div>
+            <EditableField label="Adult foreigner fee/day (USD)" value={newRow.adultForeignerFee} type="number" prefix="$" onChange={(v) => setNewRow((p) => ({ ...p, adultForeignerFee: v }))} />
+            <EditableField label="Adult resident fee/day (USD)" value={newRow.adultResidentFee} type="number" prefix="$" onChange={(v) => setNewRow((p) => ({ ...p, adultResidentFee: v }))} />
+            <EditableField label="Child foreigner fee (USD)" value={newRow.childForeignerFee} type="number" prefix="$" onChange={(v) => setNewRow((p) => ({ ...p, childForeignerFee: v }))} />
+            <EditableField label="Vehicle fee (USD)" value={newRow.vehicleFee} type="number" prefix="$" onChange={(v) => setNewRow((p) => ({ ...p, vehicleFee: v }))} />
+            <EditableField label="Camping fee/night (USD)" value={newRow.campingFee} type="number" prefix="$" onChange={(v) => setNewRow((p) => ({ ...p, campingFee: v }))} />
+            <EditableField label="Description" value={newRow.description} onChange={(v) => setNewRow((p) => ({ ...p, description: v }))} />
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => setShowAdd(false)} className="px-3 py-1.5 text-xs text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
+            <button onClick={addNew} disabled={adding} className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold bg-[#02665e] text-white rounded-lg hover:bg-[#015a52] disabled:opacity-50">
+              {adding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />} Create
+            </button>
+          </div>
+        </div>
+      )}
       <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white shadow-sm">
         <table className="w-full text-sm">
           <thead>
@@ -634,6 +731,9 @@ function VisaFeesTab() {
   const [saving, setSaving]       = useState(false);
   const [saveError, setSaveError] = useState("");
   const [filter, setFilter]       = useState("");
+  const [showAdd, setShowAdd]     = useState(false);
+  const [newRow, setNewRow]       = useState({ nationality: "", amount: "50", visaType: "tourist", entries: "single", durationDays: "90", processingTime: "on-arrival", description: "" });
+  const [adding, setAdding]       = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -659,6 +759,18 @@ function VisaFeesTab() {
     finally { setSaving(false); }
   }
 
+  async function addNew() {
+    if (!newRow.nationality) return;
+    setAdding(true);
+    try {
+      const d = await apiFetch("/api/admin/nolscope/visa-fees", { method: "POST", body: JSON.stringify({ ...newRow, amount: Number(newRow.amount), durationDays: Number(newRow.durationDays) }) });
+      setRows((prev) => [...prev, d.created]);
+      setShowAdd(false);
+      setNewRow({ nationality: "", amount: "50", visaType: "tourist", entries: "single", durationDays: "90", processingTime: "on-arrival", description: "" });
+    } catch {}
+    finally { setAdding(false); }
+  }
+
   const visible = rows.filter((r) => {
     const q = filter.toLowerCase();
     return !q || r.nationality.toLowerCase().includes(q) || r.description?.toLowerCase().includes(q);
@@ -672,9 +784,57 @@ function VisaFeesTab() {
       <div className="flex gap-2 items-center">
         <input placeholder="Search nationality…" value={filter} onChange={(e) => setFilter(e.target.value)}
           className="flex-1 min-w-[160px] text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#02665e]/30" />
+        <button onClick={() => setShowAdd(true)} className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold bg-[#02665e] text-white rounded-xl hover:bg-[#015a52]">
+          <Plus className="w-4 h-4" /> Add country
+        </button>
         <button onClick={load} className="p-2 text-slate-400 hover:text-[#02665e] border border-slate-200 rounded-xl"><RefreshCw className="w-4 h-4" /></button>
       </div>
       <p className="text-xs text-slate-400">{visible.length} of {rows.length} visa fee rules</p>
+
+      {/* add form */}
+      {showAdd && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 space-y-3">
+          <h4 className="text-sm font-bold text-emerald-900">New Visa Fee Rule</h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Nationality Code (ISO 2)</label>
+              <input value={newRow.nationality} onChange={(e) => setNewRow((p) => ({ ...p, nationality: e.target.value.toUpperCase().slice(0,2) }))}
+                placeholder="e.g. GB" maxLength={2}
+                className="w-full text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#02665e]/30 font-mono uppercase" />
+            </div>
+            <EditableField label="Fee (USD)" value={newRow.amount} type="number" prefix="$" onChange={(v) => setNewRow((p) => ({ ...p, amount: v }))} />
+            <div>
+              <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Visa Type</label>
+              <select value={newRow.visaType} onChange={(e) => setNewRow((p) => ({ ...p, visaType: e.target.value }))}
+                className="w-full text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#02665e]/30">
+                {["tourist","business","multiple-entry","transit","visa-free"].map((t) => <option key={t}>{t}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Entries</label>
+              <select value={newRow.entries} onChange={(e) => setNewRow((p) => ({ ...p, entries: e.target.value }))}
+                className="w-full text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#02665e]/30">
+                {["single","double","multiple"].map((e) => <option key={e}>{e}</option>)}
+              </select>
+            </div>
+            <EditableField label="Duration (days)" value={newRow.durationDays} type="number" onChange={(v) => setNewRow((p) => ({ ...p, durationDays: v }))} />
+            <div>
+              <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Processing</label>
+              <select value={newRow.processingTime} onChange={(e) => setNewRow((p) => ({ ...p, processingTime: e.target.value }))}
+                className="w-full text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#02665e]/30">
+                {["on-arrival","e-visa","embassy","visa-free"].map((p) => <option key={p}>{p}</option>)}
+              </select>
+            </div>
+            <EditableField label="Description" value={newRow.description} onChange={(v) => setNewRow((p) => ({ ...p, description: v }))} />
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => setShowAdd(false)} className="px-3 py-1.5 text-xs text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
+            <button onClick={addNew} disabled={adding || !newRow.nationality} className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold bg-[#02665e] text-white rounded-lg hover:bg-[#015a52] disabled:opacity-50">
+              {adding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />} Create
+            </button>
+          </div>
+        </div>
+      )}
       <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white shadow-sm">
         <table className="w-full text-sm">
           <thead>
@@ -769,6 +929,9 @@ function TransportTab() {
   const [saving, setSaving]       = useState(false);
   const [saveError, setSaveError] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
+  const [showAdd, setShowAdd]     = useState(false);
+  const [newRow, setNewRow]       = useState({ fromLocation: "", toLocation: "", transportType: "flight", minCost: "0", maxCost: "0", averageCost: "0", provider: "", description: "" });
+  const [adding, setAdding]       = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -794,6 +957,18 @@ function TransportTab() {
     finally { setSaving(false); }
   }
 
+  async function addNew() {
+    if (!newRow.fromLocation || !newRow.toLocation) return;
+    setAdding(true);
+    try {
+      const d = await apiFetch("/api/admin/nolscope/transport-routes", { method: "POST", body: JSON.stringify({ ...newRow, minCost: Number(newRow.minCost), maxCost: Number(newRow.maxCost), averageCost: Number(newRow.averageCost) }) });
+      setRows((prev) => [...prev, d.created]);
+      setShowAdd(false);
+      setNewRow({ fromLocation: "", toLocation: "", transportType: "flight", minCost: "0", maxCost: "0", averageCost: "0", provider: "", description: "" });
+    } catch {}
+    finally { setAdding(false); }
+  }
+
   const types = [...new Set(rows.map((r) => r.transportType))].sort();
   const visible = typeFilter ? rows.filter((r) => r.transportType === typeFilter) : rows;
 
@@ -808,14 +983,50 @@ function TransportTab() {
           <option value="">All types</option>
           {types.map((t) => <option key={t}>{t}</option>)}
         </select>
+        <button onClick={() => setShowAdd(true)} className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold bg-[#02665e] text-white rounded-xl hover:bg-[#015a52]">
+          <Plus className="w-4 h-4" /> Add route
+        </button>
         <button onClick={load} className="p-2 text-slate-400 hover:text-[#02665e] border border-slate-200 rounded-xl"><RefreshCw className="w-4 h-4" /></button>
         <p className="text-xs text-slate-400">{visible.length} routes</p>
       </div>
+
+      {/* add form */}
+      {showAdd && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 space-y-3">
+          <h4 className="text-sm font-bold text-emerald-900">New Transport Route</h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            <EditableField label="From" value={newRow.fromLocation} onChange={(v) => setNewRow((p) => ({ ...p, fromLocation: v }))} />
+            <EditableField label="To" value={newRow.toLocation} onChange={(v) => setNewRow((p) => ({ ...p, toLocation: v }))} />
+            <div>
+              <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Transport Type</label>
+              <select value={newRow.transportType} onChange={(e) => setNewRow((p) => ({ ...p, transportType: e.target.value }))}
+                className="w-full text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#02665e]/30">
+                {["flight","bus","ferry","private-car","shared-taxi","train"].map((t) => <option key={t}>{t}</option>)}
+              </select>
+            </div>
+            <EditableField label="Min cost (USD)" value={newRow.minCost} type="number" prefix="$" onChange={(v) => setNewRow((p) => { const min = Number(v); const max = Number(p.maxCost); return { ...p, minCost: v, averageCost: String(Math.round((min + max) / 2 * 100) / 100) }; })} />
+            <div className="relative">
+              <EditableField label="Avg cost (USD)" value={newRow.averageCost} type="number" prefix="$" disabled onChange={(v) => setNewRow((p) => ({ ...p, averageCost: v }))} />
+              <span className="absolute top-0 right-0 text-[8px] font-bold text-[#02665e] bg-[#02665e]/10 rounded px-1 py-0.5 leading-none">AUTO</span>
+            </div>
+            <EditableField label="Max cost (USD)" value={newRow.maxCost} type="number" prefix="$" onChange={(v) => setNewRow((p) => { const max = Number(v); const min = Number(p.minCost); return { ...p, maxCost: v, averageCost: String(Math.round((min + max) / 2 * 100) / 100) }; })} />
+            <EditableField label="Provider" value={newRow.provider} onChange={(v) => setNewRow((p) => ({ ...p, provider: v }))} />
+            <EditableField label="Description" value={newRow.description} onChange={(v) => setNewRow((p) => ({ ...p, description: v }))} />
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => setShowAdd(false)} className="px-3 py-1.5 text-xs text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
+            <button onClick={addNew} disabled={adding || !newRow.fromLocation || !newRow.toLocation} className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold bg-[#02665e] text-white rounded-lg hover:bg-[#015a52] disabled:opacity-50">
+              {adding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />} Create
+            </button>
+          </div>
+        </div>
+      )}
       <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white shadow-sm">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-100 bg-slate-50">
-              <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#02665e] uppercase tracking-wider">Route</th>
+              <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#02665e] uppercase tracking-wider">From</th>
+              <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#02665e] uppercase tracking-wider">To</th>
               <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#02665e] uppercase tracking-wider">Type</th>
               <th className="px-4 py-2.5 text-right text-[10px] font-bold text-[#02665e] uppercase tracking-wider">Min</th>
               <th className="px-4 py-2.5 text-right text-[10px] font-bold text-[#02665e] uppercase tracking-wider">Avg</th>
@@ -830,7 +1041,10 @@ function TransportTab() {
               <React.Fragment key={row.id}>
                 <tr className="hover:bg-slate-50/60 transition-colors">
                   <td className="px-4 py-3">
-                    <span className="font-semibold text-slate-800 whitespace-nowrap">{row.fromLocation} → {row.toLocation}</span>
+                    <span className="font-semibold text-slate-800 whitespace-nowrap">{row.fromLocation}</span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="font-semibold text-slate-800 whitespace-nowrap">{row.toLocation}</span>
                   </td>
                   <td className="px-4 py-3">
                     <span className="text-[10px] px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-full capitalize whitespace-nowrap">{row.transportType}</span>
@@ -853,12 +1067,15 @@ function TransportTab() {
                 </tr>
                 {expanded === row.id && draft && (
                   <tr>
-                    <td colSpan={8} className="p-0 border-t border-slate-100">
+                    <td colSpan={9} className="p-0 border-t border-slate-100">
                       <div className="px-4 py-4 bg-slate-50/60 overflow-hidden">
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                          <EditableField label="Min cost (USD)" value={draft.minCost} type="number" prefix="$" onChange={(v) => setDraft((p: any) => ({ ...p, minCost: v }))} />
-                          <EditableField label="Avg cost (USD)" value={draft.averageCost} type="number" prefix="$" onChange={(v) => setDraft((p: any) => ({ ...p, averageCost: v }))} />
-                          <EditableField label="Max cost (USD)" value={draft.maxCost} type="number" prefix="$" onChange={(v) => setDraft((p: any) => ({ ...p, maxCost: v }))} />
+                          <EditableField label="Min cost (USD)" value={draft.minCost} type="number" prefix="$" onChange={(v) => setDraft((p: any) => { const min = Number(v); const max = Number(p.maxCost); return { ...p, minCost: v, averageCost: String(Math.round((min + max) / 2 * 100) / 100) }; })} />
+                          <div className="relative">
+                            <EditableField label="Avg cost (USD)" value={draft.averageCost} type="number" prefix="$" disabled onChange={(v) => setDraft((p: any) => ({ ...p, averageCost: v }))} />
+                            <span className="absolute top-0 right-0 text-[8px] font-bold text-[#02665e] bg-[#02665e]/10 rounded px-1 py-0.5 leading-none">AUTO</span>
+                          </div>
+                          <EditableField label="Max cost (USD)" value={draft.maxCost} type="number" prefix="$" onChange={(v) => setDraft((p: any) => { const max = Number(v); const min = Number(p.minCost); return { ...p, maxCost: v, averageCost: String(Math.round((min + max) / 2 * 100) / 100) }; })} />
                           <EditableField label="Peak multiplier" value={draft.peakMultiplier ?? 1} type="number" onChange={(v) => setDraft((p: any) => ({ ...p, peakMultiplier: v }))} />
                           <EditableField label="Off-peak multiplier" value={draft.offPeakMultiplier ?? 1} type="number" onChange={(v) => setDraft((p: any) => ({ ...p, offPeakMultiplier: v }))} />
                           <EditableField label="Duration (hours)" value={draft.durationHours ?? ""} type="number" onChange={(v) => setDraft((p: any) => ({ ...p, durationHours: v }))} />
@@ -887,7 +1104,7 @@ function TransportTab() {
                 )}
                 {historyId === row.id && (
                   <tr>
-                    <td colSpan={8} className="p-0">
+                    <td colSpan={9} className="p-0">
                       <HistoryPanel entity="NOLSCOPE_TRANSPORT" entityId={row.id} label={`${row.fromLocation} → ${row.toLocation}`} onClose={() => setHistoryId(null)} />
                     </td>
                   </tr>
@@ -1063,22 +1280,46 @@ export default function NolScopeAdminClient() {
   return (
     <div className="min-h-screen bg-slate-50/50 p-4 sm:p-6">
       {/* header */}
-      <div className="mb-6">
-        <div className="flex items-center gap-3 mb-1">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#02665e] to-[#02b4f5] flex items-center justify-center shadow-sm">
-            <Sparkles className="w-4 h-4 text-white" />
+      <div className="mb-6 rounded-2xl overflow-hidden shadow-md">
+        {/* main banner */}
+        <div className="relative bg-gradient-to-r from-[#02665e] via-[#027a71] to-[#02b4f5] px-6 py-6">
+          {/* decorative blobs */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            <div className="absolute -top-8 -right-8 w-48 h-48 rounded-full bg-white/5" />
+            <div className="absolute top-4 right-24 w-24 h-24 rounded-full bg-[#02b4f5]/20" />
+            <div className="absolute -bottom-10 -left-6 w-36 h-36 rounded-full bg-[#02665e]/40" />
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-slate-900">NoLScope Rate Manager</h1>
-            <p className="text-xs text-slate-500">Update estimator data. Changes apply immediately to all new estimates</p>
+
+          <div className="relative flex items-center gap-4">
+            {/* icon */}
+            <div className="shrink-0 w-14 h-14 rounded-2xl bg-white/15 backdrop-blur-sm border border-white/25 flex items-center justify-center shadow-lg">
+              <Sparkles className="w-7 h-7 text-white" />
+            </div>
+
+            {/* text */}
+            <div className="flex-1 min-w-0">
+              <h1 className="text-2xl font-bold text-white tracking-tight leading-none mb-1">
+                NoLScope Rate Manager
+              </h1>
+              <p className="text-sm text-white/75 leading-snug">
+                Update estimator data. Changes apply immediately to all new estimates
+              </p>
+            </div>
+
+            {/* stat badge */}
+            <div className="hidden sm:flex shrink-0 items-center gap-1.5 bg-white/10 border border-white/20 rounded-xl px-3 py-2 backdrop-blur-sm">
+              <TrendingUp className="w-4 h-4 text-white/80" />
+              <span className="text-xs font-semibold text-white/90">Live Rates</span>
+            </div>
           </div>
         </div>
 
-        {/* notice */}
-        <div className="mt-3 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
-          <Shield className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-          <p className="text-xs text-amber-800 leading-relaxed">
-            Price changes take effect immediately. Deactivating a record removes it from all future estimates. Always verify rates against official sources before saving.
+        {/* notice strip */}
+        <div className="flex items-start gap-3 bg-[#02665e]/8 border-t border-[#02665e]/15 px-6 py-3">
+          <Shield className="w-4 h-4 text-[#02665e] shrink-0 mt-0.5" />
+          <p className="text-xs text-slate-700 leading-relaxed">
+            <span className="font-semibold text-[#02665e]">Live pricing:</span>{" "}
+            Changes take effect immediately. Deactivating a record removes it from all future estimates. Always verify rates against official sources before saving.
           </p>
         </div>
       </div>

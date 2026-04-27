@@ -21,12 +21,212 @@
  */
 
 import { Router } from 'express';
+import { z } from 'zod';
+import rateLimit from 'express-rate-limit';
 import { prisma } from '@nolsaf/prisma';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
+import { sanitizeText } from '../lib/sanitize.js';
 
 export const router = Router();
 router.use(requireAuth as any, requireRole('ADMIN') as any);
+
+// ─── RATE LIMITING ────────────────────────────────────────────────────────────
+const adminRateKey = (req: any): string => {
+  const id = req?.user?.id;
+  return id ? `nolscope-admin:${String(id)}` : req.ip || req.socket?.remoteAddress || 'unknown';
+};
+
+// Admin UI can be chatty (polling, tab switching). Permissive but not unlimited.
+const limitNolscopeRead = rateLimit({
+  windowMs: 60_000,
+  limit: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: adminRateKey,
+  message: { error: 'Too many requests. Please wait a moment and try again.' },
+});
+
+// Write operations are significantly tighter.
+const limitNolscopeWrite = rateLimit({
+  windowMs: 15 * 60_000,
+  limit: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: adminRateKey,
+  message: { error: 'Too many write operations. Please wait and try again.' },
+});
+
+// ─── VALIDATION HELPER ────────────────────────────────────────────────────────
+function validate<T extends z.ZodTypeAny>(schema: T) {
+  return (req: any, res: any, next: any) => {
+    const result = schema.safeParse(req.body);
+    if (!result.success)
+      return res.status(400).json({ error: 'Invalid request', details: result.error.issues });
+    req.validatedBody = result.data;
+    next();
+  };
+}
+
+// ─── ZOD SCHEMAS ─────────────────────────────────────────────────────────────
+const visaFeePutSchema = z.object({
+  amount:         z.coerce.number().positive().max(10_000).optional(),
+  entries:        z.enum(['single', 'double', 'multiple']).optional(),
+  durationDays:   z.coerce.number().int().min(1).max(3650).optional(),
+  processingTime: z.string().min(1).max(100).optional(),
+  description:    z.string().max(1000).nullish(),
+  isActive:       z.coerce.boolean().optional(),
+  requirements:   z.unknown().optional(),
+}).strict();
+
+const visaFeePostSchema = z.object({
+  nationality:    z.string().regex(/^[A-Z]{2}$/, 'Must be a 2-letter ISO country code'),
+  amount:         z.coerce.number().nonnegative().max(10_000),
+  visaType:       z.enum(['tourist', 'business', 'multiple-entry', 'transit', 'visa-free']).default('tourist'),
+  entries:        z.enum(['single', 'double', 'multiple']).default('single'),
+  durationDays:   z.coerce.number().int().min(0).max(3650).default(90),
+  processingTime: z.string().min(1).max(100).default('on-arrival'),
+  description:    z.string().max(1000).nullish(),
+  requirements:   z.unknown().optional(),
+}).strict();
+
+const parkFeePutSchema = z.object({
+  adultForeignerFee: z.coerce.number().nonnegative().max(1_000_000).optional(),
+  adultResidentFee:  z.coerce.number().nonnegative().max(1_000_000).optional(),
+  childForeignerFee: z.coerce.number().nonnegative().max(1_000_000).nullish(),
+  childResidentFee:  z.coerce.number().nonnegative().max(1_000_000).nullish(),
+  vehicleFee:        z.coerce.number().nonnegative().max(1_000_000).nullish(),
+  guideFee:          z.coerce.number().nonnegative().max(1_000_000).nullish(),
+  campingFee:        z.coerce.number().nonnegative().max(1_000_000).nullish(),
+  requiresGuide:     z.coerce.boolean().optional(),
+  minimumDays:       z.coerce.number().int().min(1).max(365).nullish(),
+  description:       z.string().max(2000).nullish(),
+  officialWebsite:   z.string().url().max(500).nullish(),
+  isActive:          z.coerce.boolean().optional(),
+}).strict();
+
+const parkFeePostSchema = z.object({
+  parkCode:          z.string().min(2).max(20).regex(/^[A-Z0-9_-]+$/i, 'Invalid park code format'),
+  parkName:          z.string().min(2).max(200),
+  category:          z.enum(['national-park', 'conservation-area', 'marine-park', 'game-reserve']),
+  region:            z.string().min(2).max(100),
+  adultForeignerFee: z.coerce.number().nonnegative().max(1_000_000),
+  adultResidentFee:  z.coerce.number().nonnegative().max(1_000_000),
+  childForeignerFee: z.coerce.number().nonnegative().max(1_000_000).nullish(),
+  childResidentFee:  z.coerce.number().nonnegative().max(1_000_000).nullish(),
+  vehicleFee:        z.coerce.number().nonnegative().max(1_000_000).nullish(),
+  campingFee:        z.coerce.number().nonnegative().max(1_000_000).nullish(),
+  guideFee:          z.coerce.number().nonnegative().max(1_000_000).nullish(),
+  requiresGuide:     z.coerce.boolean().default(false),
+  minimumDays:       z.coerce.number().int().min(1).max(365).nullish(),
+  description:       z.string().max(2000).nullish(),
+  officialWebsite:   z.string().url().max(500).nullish(),
+}).strict();
+
+const transportPutSchema = z.object({
+  minCost:           z.coerce.number().nonnegative().max(1_000_000).optional(),
+  maxCost:           z.coerce.number().nonnegative().max(1_000_000).optional(),
+  averageCost:       z.coerce.number().nonnegative().max(1_000_000).optional(),
+  durationHours:     z.coerce.number().nonnegative().max(500).nullish(),
+  distanceKm:        z.coerce.number().int().nonnegative().max(100_000).nullish(),
+  frequency:         z.string().max(100).nullish(),
+  peakMultiplier:    z.coerce.number().min(0.1).max(10).optional(),
+  offPeakMultiplier: z.coerce.number().min(0.1).max(10).optional(),
+  description:       z.string().max(2000).nullish(),
+  provider:          z.string().max(200).nullish(),
+  requiresBooking:   z.coerce.boolean().optional(),
+  bookingLeadDays:   z.coerce.number().int().min(0).max(365).nullish(),
+  confidence:        z.coerce.number().min(0).max(1).optional(),
+  dataSource:        z.string().max(100).optional(),
+  isActive:          z.coerce.boolean().optional(),
+}).strict();
+
+const transportPostSchema = z.object({
+  fromLocation:      z.string().min(2).max(200),
+  toLocation:        z.string().min(2).max(200),
+  transportType:     z.enum(['flight', 'bus', 'ferry', 'private-car', 'shared-taxi', 'train']),
+  minCost:           z.coerce.number().nonnegative().max(1_000_000).default(0),
+  maxCost:           z.coerce.number().nonnegative().max(1_000_000).default(0),
+  averageCost:       z.coerce.number().nonnegative().max(1_000_000),
+  durationHours:     z.coerce.number().nonnegative().max(500).nullish(),
+  distanceKm:        z.coerce.number().int().nonnegative().max(100_000).nullish(),
+  frequency:         z.string().max(100).nullish(),
+  peakMultiplier:    z.coerce.number().min(0.1).max(10).default(1.0),
+  offPeakMultiplier: z.coerce.number().min(0.1).max(10).default(1.0),
+  description:       z.string().max(2000).nullish(),
+  provider:          z.string().max(200).nullish(),
+  requiresBooking:   z.coerce.boolean().default(false),
+  bookingLeadDays:   z.coerce.number().int().min(0).max(365).nullish(),
+  confidence:        z.coerce.number().min(0).max(1).default(0.80),
+  dataSource:        z.string().max(100).default('manual-entry'),
+}).strict();
+
+const pricingRulePutSchema = z.object({
+  priceMultiplier: z.coerce.number().min(0.01).max(100).optional(),
+  startMonth:      z.coerce.number().int().min(1).max(12).nullish(),
+  endMonth:        z.coerce.number().int().min(1).max(12).nullish(),
+  seasonName:      z.string().max(100).optional(),
+  destination:     z.string().max(200).optional(),
+  category:        z.string().max(100).optional(),
+  minTravelers:    z.coerce.number().int().min(1).max(1000).nullish(),
+  maxTravelers:    z.coerce.number().int().min(1).max(1000).nullish(),
+  daysInAdvance:   z.coerce.number().int().min(0).max(730).nullish(),
+  priority:        z.coerce.number().int().min(0).max(1000).optional(),
+  isActive:        z.coerce.boolean().optional(),
+  description:     z.string().max(2000).nullish(),
+  validFrom:       z.string().nullish(),
+  validUntil:      z.string().nullish(),
+}).strict();
+
+const activityPutSchema = z.object({
+  activityName:      z.string().min(2).max(200).optional(),
+  category:          z.string().max(100).optional(),
+  destination:       z.string().max(200).optional(),
+  minCost:           z.coerce.number().nonnegative().max(1_000_000).optional(),
+  maxCost:           z.coerce.number().nonnegative().max(1_000_000).optional(),
+  averageCost:       z.coerce.number().nonnegative().max(1_000_000).optional(),
+  priceUnit:         z.string().max(50).optional(),
+  duration:          z.string().max(100).nullish(),
+  durationHours:     z.coerce.number().nonnegative().max(500).nullish(),
+  groupSize:         z.string().max(100).nullish(),
+  difficulty:        z.string().max(50).nullish(),
+  includes:          z.unknown().optional(),
+  excludes:          z.unknown().optional(),
+  requirements:      z.unknown().optional(),
+  seasonalActivity:  z.coerce.boolean().optional(),
+  availableMonths:   z.unknown().optional(),
+  requiresBooking:   z.coerce.boolean().optional(),
+  bookingLeadDays:   z.coerce.number().int().min(0).max(365).nullish(),
+  peakMultiplier:    z.coerce.number().min(0.1).max(10).optional(),
+  offPeakMultiplier: z.coerce.number().min(0.1).max(10).optional(),
+  description:       z.string().max(2000).nullish(),
+  provider:          z.string().max(200).nullish(),
+  website:           z.string().url().max(500).nullish(),
+  popularity:        z.coerce.number().int().min(0).max(100).optional(),
+  isActive:          z.coerce.boolean().optional(),
+}).strict();
+
+const activityPostSchema = z.object({
+  activityCode:      z.string().min(2).max(50).regex(/^[A-Z0-9_-]+$/i, 'Invalid activity code format'),
+  activityName:      z.string().min(2).max(200),
+  category:          z.string().min(1).max(100),
+  destination:       z.string().min(1).max(200),
+  minCost:           z.coerce.number().nonnegative().max(1_000_000).default(0),
+  maxCost:           z.coerce.number().nonnegative().max(1_000_000).default(0),
+  averageCost:       z.coerce.number().nonnegative().max(1_000_000),
+  priceUnit:         z.string().max(50).default('per-person'),
+  duration:          z.string().max(100).nullish(),
+  durationHours:     z.coerce.number().nonnegative().max(500).nullish(),
+  groupSize:         z.string().max(100).nullish(),
+  difficulty:        z.string().max(50).nullish(),
+  description:       z.string().max(2000).nullish(),
+  provider:          z.string().max(200).nullish(),
+  peakMultiplier:    z.coerce.number().min(0.1).max(10).default(1.0),
+  offPeakMultiplier: z.coerce.number().min(0.1).max(10).default(1.0),
+  requiresBooking:   z.coerce.boolean().default(true),
+  popularity:        z.coerce.number().int().min(0).max(100).default(50),
+  isActive:          z.coerce.boolean().default(true),
+}).strict();
 
 // helpers
 const n = (v: unknown) =>
@@ -67,30 +267,30 @@ async function writeAudit(
 
 // ─── VISA FEES ────────────────────────────────────────────────────────────────
 
-router.get('/visa-fees', asyncHandler(async (_req, res) => {
+router.get('/visa-fees', limitNolscopeRead, asyncHandler(async (_req, res) => {
   const rows = await (prisma as any).visaFee.findMany({
     orderBy: [{ nationality: 'asc' }, { visaType: 'asc' }],
   });
   return res.json({ visaFees: rows.map((r: any) => ({ ...r, amount: n(r.amount) })) });
 }));
 
-router.put('/visa-fees/:id', asyncHandler(async (req, res) => {
+router.put('/visa-fees/:id', limitNolscopeWrite, validate(visaFeePutSchema), asyncHandler(async (req, res) => {
   const id = parseId(req.params.id);
   if (!id) return res.status(400).json({ error: 'invalid id' });
 
   const {
     amount, entries, durationDays, processingTime,
     description, isActive, requirements,
-  } = req.body ?? {};
+  } = (req as any).validatedBody;
 
   const data: any = {};
-  if (amount       !== undefined) data.amount        = Number(amount);
-  if (entries      !== undefined) data.entries        = String(entries);
-  if (durationDays !== undefined) data.durationDays   = parseInt(durationDays, 10);
-  if (processingTime !== undefined) data.processingTime = String(processingTime);
-  if (description  !== undefined) data.description    = String(description);
-  if (isActive     !== undefined) data.isActive       = Boolean(isActive);
-  if (requirements !== undefined) data.requirements   = requirements;
+  if (amount         !== undefined) data.amount        = amount;
+  if (entries        !== undefined) data.entries        = entries;
+  if (durationDays   !== undefined) data.durationDays   = durationDays;
+  if (processingTime !== undefined) data.processingTime = sanitizeText(processingTime);
+  if (description    !== undefined) data.description    = description ? sanitizeText(description) : null;
+  if (isActive       !== undefined) data.isActive       = isActive;
+  if (requirements   !== undefined) data.requirements   = requirements;
   data.lastVerified = new Date();
 
   const before  = await (prisma as any).visaFee.findUnique({ where: { id } });
@@ -99,21 +299,39 @@ router.put('/visa-fees/:id', asyncHandler(async (req, res) => {
   return res.json({ updated: { ...updated, amount: n(updated.amount) } });
 }));
 
+router.post('/visa-fees', limitNolscopeWrite, validate(visaFeePostSchema), asyncHandler(async (req, res) => {
+  const { nationality, amount, visaType, entries, durationDays, processingTime, description, requirements } = (req as any).validatedBody;
+
+  const created = await (prisma as any).visaFee.create({
+    data: {
+      nationality:    nationality.toUpperCase().trim(),
+      amount,
+      visaType:       visaType ?? 'tourist',
+      entries:        entries ?? 'single',
+      durationDays:   durationDays ?? 90,
+      processingTime: sanitizeText(processingTime ?? 'on-arrival'),
+      description:    description ? sanitizeText(description) : null,
+      requirements:   requirements ?? null,
+    },
+  });
+  void writeAudit(req, 'NOLSCOPE_VISA_FEE_CREATE', 'NOLSCOPE_VISA_FEE', created.id, {}, created);
+  return res.status(201).json({ created: { ...created, amount: n(created.amount) } });
+}));
+
 // ─── PARK FEES ────────────────────────────────────────────────────────────────
 
-router.get('/park-fees', asyncHandler(async (_req, res) => {
+router.get('/park-fees', limitNolscopeRead, asyncHandler(async (_req, res) => {
   const rows = await (prisma as any).parkFee.findMany({
     orderBy: [{ region: 'asc' }, { parkName: 'asc' }],
   });
   return res.json({ parkFees: rows });
 }));
 
-router.put('/park-fees/:id', asyncHandler(async (req, res) => {
+router.put('/park-fees/:id', limitNolscopeWrite, validate(parkFeePutSchema), asyncHandler(async (req, res) => {
   const id = parseId(req.params.id);
   if (!id) return res.status(400).json({ error: 'invalid id' });
 
-  const floatFieldsPF = new Set(['adultForeignerFee', 'adultResidentFee', 'childForeignerFee', 'childResidentFee', 'vehicleFee', 'guideFee', 'campingFee']);
-  const intFieldsPF   = new Set(['minimumDays']);
+  const body = (req as any).validatedBody;
   const allowed = [
     'adultForeignerFee', 'adultResidentFee', 'childForeignerFee', 'childResidentFee',
     'vehicleFee', 'guideFee', 'campingFee', 'requiresGuide', 'minimumDays',
@@ -121,13 +339,12 @@ router.put('/park-fees/:id', asyncHandler(async (req, res) => {
   ];
   const data: any = {};
   for (const key of allowed) {
-    const val = (req.body ?? {})[key];
+    const val = body[key];
     if (val === undefined) continue;
-    if (floatFieldsPF.has(key)) data[key] = val === null || val === '' ? null : parseFloat(val);
-    else if (intFieldsPF.has(key)) data[key] = val === null || val === '' ? null : parseInt(val, 10);
-    else data[key] = val;
+    data[key] = val;
   }
   if (Object.keys(data).length === 0) return res.status(400).json({ error: 'no updatable fields provided' });
+  if (data.description)    data.description    = sanitizeText(data.description);
   data.lastVerified = new Date();
 
   const before  = await (prisma as any).parkFee.findUnique({ where: { id } });
@@ -136,10 +353,38 @@ router.put('/park-fees/:id', asyncHandler(async (req, res) => {
   return res.json({ updated });
 }));
 
+router.post('/park-fees', limitNolscopeWrite, validate(parkFeePostSchema), asyncHandler(async (req, res) => {
+  const { parkCode, parkName, category, region, adultForeignerFee, adultResidentFee,
+    childForeignerFee, childResidentFee, vehicleFee, campingFee, guideFee,
+    requiresGuide, minimumDays, description, officialWebsite } = (req as any).validatedBody;
+
+  const created = await (prisma as any).parkFee.create({
+    data: {
+      parkCode:          parkCode.toUpperCase().trim(),
+      parkName:          sanitizeText(parkName),
+      category,
+      region:            sanitizeText(region),
+      adultForeignerFee,
+      adultResidentFee,
+      childForeignerFee: childForeignerFee ?? null,
+      childResidentFee:  childResidentFee  ?? null,
+      vehicleFee:        vehicleFee        ?? null,
+      campingFee:        campingFee        ?? null,
+      guideFee:          guideFee          ?? null,
+      requiresGuide:     requiresGuide     ?? false,
+      minimumDays:       minimumDays       ?? null,
+      description:       description ? sanitizeText(description) : null,
+      officialWebsite:   officialWebsite   ?? null,
+    },
+  });
+  void writeAudit(req, 'NOLSCOPE_PARK_FEE_CREATE', 'NOLSCOPE_PARK_FEE', created.id, {}, created);
+  return res.status(201).json({ created });
+}));
+
 // ─── TRANSPORT ROUTES ─────────────────────────────────────────────────────────
 
-router.get('/transport-routes', asyncHandler(async (req, res) => {
-  const type = String((req.query as any)?.type ?? '').trim();
+router.get('/transport-routes', limitNolscopeRead, asyncHandler(async (req, res) => {
+  const type = String((req.query as any)?.type ?? '').trim().slice(0, 50);
   const where: any = {};
   if (type) where.transportType = type;
   const rows = await (prisma as any).transportCostAverage.findMany({
@@ -149,12 +394,11 @@ router.get('/transport-routes', asyncHandler(async (req, res) => {
   return res.json({ routes: rows });
 }));
 
-router.put('/transport-routes/:id', asyncHandler(async (req, res) => {
+router.put('/transport-routes/:id', limitNolscopeWrite, validate(transportPutSchema), asyncHandler(async (req, res) => {
   const id = parseId(req.params.id);
   if (!id) return res.status(400).json({ error: 'invalid id' });
 
-  const floatFieldsTR = new Set(['minCost', 'maxCost', 'averageCost', 'durationHours', 'peakMultiplier', 'offPeakMultiplier', 'confidence']);
-  const intFieldsTR   = new Set(['distanceKm', 'bookingLeadDays']);
+  const body = (req as any).validatedBody;
   const allowed = [
     'minCost', 'maxCost', 'averageCost', 'durationHours', 'distanceKm',
     'frequency', 'peakMultiplier', 'offPeakMultiplier', 'description',
@@ -163,13 +407,14 @@ router.put('/transport-routes/:id', asyncHandler(async (req, res) => {
   ];
   const data: any = {};
   for (const key of allowed) {
-    const val = (req.body ?? {})[key];
+    const val = body[key];
     if (val === undefined) continue;
-    if (floatFieldsTR.has(key)) data[key] = val === null || val === '' ? null : parseFloat(val);
-    else if (intFieldsTR.has(key)) data[key] = val === null || val === '' ? null : parseInt(val, 10);
-    else data[key] = val;
+    data[key] = val;
   }
   if (Object.keys(data).length === 0) return res.status(400).json({ error: 'no updatable fields provided' });
+  if (data.description) data.description = sanitizeText(data.description);
+  if (data.provider)    data.provider    = sanitizeText(data.provider);
+  if (data.frequency)   data.frequency   = sanitizeText(data.frequency);
   data.lastUpdated = new Date();
 
   const before  = await (prisma as any).transportCostAverage.findUnique({ where: { id } });
@@ -178,50 +423,50 @@ router.put('/transport-routes/:id', asyncHandler(async (req, res) => {
   return res.json({ updated });
 }));
 
-router.post('/transport-routes', asyncHandler(async (req, res) => {
-  const { fromLocation, toLocation, transportType, minCost, maxCost, averageCost } = req.body ?? {};
-  if (!fromLocation || !toLocation || !transportType || averageCost === undefined)
-    return res.status(400).json({ error: 'fromLocation, toLocation, transportType, averageCost are required' });
+router.post('/transport-routes', limitNolscopeWrite, validate(transportPostSchema), asyncHandler(async (req, res) => {
+  const { fromLocation, toLocation, transportType, minCost, maxCost, averageCost,
+    durationHours, distanceKm, frequency, peakMultiplier, offPeakMultiplier,
+    description, provider, requiresBooking, bookingLeadDays, confidence, dataSource } = (req as any).validatedBody;
 
   const created = await (prisma as any).transportCostAverage.create({
     data: {
-      fromLocation:     String(fromLocation),
-      toLocation:       String(toLocation),
-      transportType:    String(transportType),
-      minCost:          Number(minCost ?? averageCost),
-      maxCost:          Number(maxCost ?? averageCost),
-      averageCost:      Number(averageCost),
-      durationHours:    req.body.durationHours  ? Number(req.body.durationHours) : null,
-      distanceKm:       req.body.distanceKm     ? parseInt(req.body.distanceKm, 10) : null,
-      frequency:        req.body.frequency      ? String(req.body.frequency) : null,
-      peakMultiplier:   req.body.peakMultiplier    ? Number(req.body.peakMultiplier)    : 1.0,
-      offPeakMultiplier:req.body.offPeakMultiplier ? Number(req.body.offPeakMultiplier) : 1.0,
-      description:      req.body.description    ? String(req.body.description)     : null,
-      provider:         req.body.provider       ? String(req.body.provider)        : null,
-      requiresBooking:  req.body.requiresBooking ?? false,
-      bookingLeadDays:  req.body.bookingLeadDays ? parseInt(req.body.bookingLeadDays, 10) : null,
-      confidence:       req.body.confidence     ? Number(req.body.confidence)     : 0.80,
-      dataSource:       req.body.dataSource     ? String(req.body.dataSource)     : 'manual-entry',
+      fromLocation:      sanitizeText(fromLocation),
+      toLocation:        sanitizeText(toLocation),
+      transportType,
+      minCost:           minCost ?? averageCost,
+      maxCost:           maxCost ?? averageCost,
+      averageCost,
+      durationHours:     durationHours  ?? null,
+      distanceKm:        distanceKm     ?? null,
+      frequency:         frequency      ? sanitizeText(frequency)    : null,
+      peakMultiplier:    peakMultiplier    ?? 1.0,
+      offPeakMultiplier: offPeakMultiplier ?? 1.0,
+      description:       description    ? sanitizeText(description)  : null,
+      provider:          provider       ? sanitizeText(provider)     : null,
+      requiresBooking:   requiresBooking ?? false,
+      bookingLeadDays:   bookingLeadDays ?? null,
+      confidence:        confidence      ?? 0.80,
+      dataSource:        dataSource      ?? 'manual-entry',
     },
   });
+  void writeAudit(req, 'NOLSCOPE_TRANSPORT_CREATE', 'NOLSCOPE_TRANSPORT', created.id, {}, created);
   return res.status(201).json({ created });
 }));
 
 // ─── PRICING RULES ────────────────────────────────────────────────────────────
 
-router.get('/pricing-rules', asyncHandler(async (_req, res) => {
+router.get('/pricing-rules', limitNolscopeRead, asyncHandler(async (_req, res) => {
   const rules = await (prisma as any).pricingRule.findMany({
     orderBy: [{ priority: 'desc' }, { ruleName: 'asc' }],
   });
   return res.json({ pricingRules: rules });
 }));
 
-router.put('/pricing-rules/:id', asyncHandler(async (req, res) => {
+router.put('/pricing-rules/:id', limitNolscopeWrite, validate(pricingRulePutSchema), asyncHandler(async (req, res) => {
   const id = parseId(req.params.id);
   if (!id) return res.status(400).json({ error: 'invalid id' });
 
-  const intFields    = new Set(['startMonth', 'endMonth', 'minTravelers', 'maxTravelers', 'daysInAdvance', 'priority']);
-  const floatFields  = new Set(['priceMultiplier']);
+  const body = (req as any).validatedBody;
   const allowed = [
     'priceMultiplier', 'startMonth', 'endMonth', 'seasonName',
     'destination', 'category', 'minTravelers', 'maxTravelers',
@@ -230,13 +475,12 @@ router.put('/pricing-rules/:id', asyncHandler(async (req, res) => {
   ];
   const data: any = {};
   for (const key of allowed) {
-    const val = (req.body ?? {})[key];
+    const val = body[key];
     if (val === undefined) continue;
-    if (intFields.has(key))   data[key] = val === null || val === '' ? null : parseInt(val, 10);
-    else if (floatFields.has(key)) data[key] = val === null || val === '' ? null : parseFloat(val);
-    else data[key] = val;
+    data[key] = val;
   }
   if (Object.keys(data).length === 0) return res.status(400).json({ error: 'no updatable fields provided' });
+  if (data.description) data.description = sanitizeText(data.description);
 
   const before  = await (prisma as any).pricingRule.findUnique({ where: { id } });
   const updated = await (prisma as any).pricingRule.update({ where: { id }, data });
@@ -246,9 +490,9 @@ router.put('/pricing-rules/:id', asyncHandler(async (req, res) => {
 
 // ─── ACTIVITIES ───────────────────────────────────────────────────────────────
 
-router.get('/activities', asyncHandler(async (req, res) => {
-  const dest     = String((req.query as any)?.dest     ?? '').trim();
-  const category = String((req.query as any)?.category ?? '').trim();
+router.get('/activities', limitNolscopeRead, asyncHandler(async (req, res) => {
+  const dest     = String((req.query as any)?.dest     ?? '').trim().slice(0, 200);
+  const category = String((req.query as any)?.category ?? '').trim().slice(0, 100);
   const where: any = {};
   if (dest)     where.destination = dest;
   if (category) where.category    = category;
@@ -269,12 +513,11 @@ router.get('/activities', asyncHandler(async (req, res) => {
   });
 }));
 
-router.put('/activities/:id', asyncHandler(async (req, res) => {
+router.put('/activities/:id', limitNolscopeWrite, validate(activityPutSchema), asyncHandler(async (req, res) => {
   const id = parseId(req.params.id);
   if (!id) return res.status(400).json({ error: 'invalid id' });
 
-  const floatFieldsAC = new Set(['minCost', 'maxCost', 'averageCost', 'durationHours', 'peakMultiplier', 'offPeakMultiplier']);
-  const intFieldsAC   = new Set(['bookingLeadDays', 'popularity']);
+  const body = (req as any).validatedBody;
   const allowed = [
     'activityName', 'category', 'destination', 'minCost', 'maxCost', 'averageCost',
     'priceUnit', 'duration', 'durationHours', 'groupSize', 'difficulty',
@@ -284,13 +527,14 @@ router.put('/activities/:id', asyncHandler(async (req, res) => {
   ];
   const data: any = {};
   for (const key of allowed) {
-    const val = (req.body ?? {})[key];
+    const val = body[key];
     if (val === undefined) continue;
-    if (floatFieldsAC.has(key)) data[key] = val === null || val === '' ? null : parseFloat(val);
-    else if (intFieldsAC.has(key)) data[key] = val === null || val === '' ? null : parseInt(val, 10);
-    else data[key] = val;
+    data[key] = val;
   }
   if (Object.keys(data).length === 0) return res.status(400).json({ error: 'no updatable fields provided' });
+  if (data.activityName) data.activityName = sanitizeText(data.activityName);
+  if (data.description)  data.description  = sanitizeText(data.description);
+  if (data.provider)     data.provider     = sanitizeText(data.provider);
 
   const before  = await (prisma as any).activityCost.findUnique({ where: { id } });
   const updated = await (prisma as any).activityCost.update({ where: { id }, data });
@@ -307,34 +551,35 @@ router.put('/activities/:id', asyncHandler(async (req, res) => {
   });
 }));
 
-router.post('/activities', asyncHandler(async (req, res) => {
-  const { activityCode, activityName, category, destination, averageCost } = req.body ?? {};
-  if (!activityCode || !activityName || !category || !destination || averageCost === undefined)
-    return res.status(400).json({ error: 'activityCode, activityName, category, destination, averageCost are required' });
+router.post('/activities', limitNolscopeWrite, validate(activityPostSchema), asyncHandler(async (req, res) => {
+  const { activityCode, activityName, category, destination, minCost, maxCost, averageCost,
+    priceUnit, duration, durationHours, groupSize, difficulty, description, provider,
+    peakMultiplier, offPeakMultiplier, requiresBooking, popularity, isActive } = (req as any).validatedBody;
 
   const created = await (prisma as any).activityCost.create({
     data: {
-      activityCode:      String(activityCode),
-      activityName:      String(activityName),
-      category:          String(category),
-      destination:       String(destination),
-      minCost:           Number(req.body.minCost     ?? averageCost),
-      maxCost:           Number(req.body.maxCost     ?? averageCost),
-      averageCost:       Number(averageCost),
-      priceUnit:         req.body.priceUnit          ? String(req.body.priceUnit)          : 'per-person',
-      duration:          req.body.duration           ? String(req.body.duration)           : null,
-      durationHours:     req.body.durationHours      ? Number(req.body.durationHours)      : null,
-      groupSize:         req.body.groupSize          ? String(req.body.groupSize)          : null,
-      difficulty:        req.body.difficulty         ? String(req.body.difficulty)         : null,
-      description:       req.body.description        ? String(req.body.description)        : null,
-      provider:          req.body.provider           ? String(req.body.provider)           : null,
-      peakMultiplier:    req.body.peakMultiplier    != null ? Number(req.body.peakMultiplier)    : 1.0,
-      offPeakMultiplier: req.body.offPeakMultiplier != null ? Number(req.body.offPeakMultiplier) : 1.0,
-      requiresBooking:   req.body.requiresBooking   ?? true,
-      popularity:        req.body.popularity         ? parseInt(req.body.popularity, 10)   : 50,
-      isActive:          req.body.isActive           ?? true,
+      activityCode:      activityCode.toUpperCase().trim(),
+      activityName:      sanitizeText(activityName),
+      category,
+      destination:       sanitizeText(destination),
+      minCost:           minCost ?? averageCost,
+      maxCost:           maxCost ?? averageCost,
+      averageCost,
+      priceUnit:         priceUnit     ?? 'per-person',
+      duration:          duration      ?? null,
+      durationHours:     durationHours ?? null,
+      groupSize:         groupSize     ?? null,
+      difficulty:        difficulty    ?? null,
+      description:       description   ? sanitizeText(description)  : null,
+      provider:          provider      ? sanitizeText(provider)     : null,
+      peakMultiplier:    peakMultiplier    ?? 1.0,
+      offPeakMultiplier: offPeakMultiplier ?? 1.0,
+      requiresBooking:   requiresBooking   ?? true,
+      popularity:        popularity        ?? 50,
+      isActive:          isActive          ?? true,
     },
   });
+  void writeAudit(req, 'NOLSCOPE_ACTIVITY_CREATE', 'NOLSCOPE_ACTIVITY', created.id, {}, created);
   return res.status(201).json({
     created: {
       ...created,
@@ -352,7 +597,7 @@ router.post('/activities', asyncHandler(async (req, res) => {
 //   Returns the 30 most-recent AuditLog entries for a specific record,
 //   with the actor's name + email joined in.
 
-router.get('/audit/:entity/:entityId', asyncHandler(async (req, res) => {
+router.get('/audit/:entity/:entityId', limitNolscopeRead, asyncHandler(async (req, res) => {
   const entityId = parseId(req.params.entityId);
   if (!entityId) return res.status(400).json({ error: 'invalid id' });
 
@@ -381,7 +626,7 @@ router.get('/audit/:entity/:entityId', asyncHandler(async (req, res) => {
 
 // ─── ESTIMATES (analytics) ────────────────────────────────────────────────────
 
-router.get('/estimates', asyncHandler(async (req, res) => {
+router.get('/estimates', limitNolscopeRead, asyncHandler(async (req, res) => {
   const page     = Math.max(1, parseInt(String((req.query as any)?.page ?? '1'), 10));
   const limit    = Math.min(100, Math.max(1, parseInt(String((req.query as any)?.limit ?? '25'), 10)));
   const nat      = String((req.query as any)?.nationality ?? '').toUpperCase().trim();
@@ -436,7 +681,7 @@ router.get('/estimates', asyncHandler(async (req, res) => {
   });
 }));
 
-router.get('/estimates/stats', asyncHandler(async (_req, res) => {
+router.get('/estimates/stats', limitNolscopeRead, asyncHandler(async (_req, res) => {
   const [
     totalCount,
     convertedCount,
