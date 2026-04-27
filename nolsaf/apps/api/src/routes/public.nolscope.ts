@@ -653,6 +653,30 @@ const createEstimate = async (req: any, res: any) => {
   const noDataLegs = transportDetail.filter((t) => t.status === 'no-data').length;
   const confidence  = r2(Math.max(0.45, 0.90 - noDataLegs * 0.15));
 
+  // ── data freshness ────────────────────────────────────────────────────────────
+  // Derive the latest admin-verified timestamps from already-fetched reference data
+  const _maxTs = (rows: any[], ...fields: string[]): string | null => {
+    let max = 0;
+    for (const row of rows) {
+      for (const f of fields) {
+        const v = row[f] ? new Date(row[f]).getTime() : 0;
+        if (v > max) max = v;
+      }
+    }
+    return max > 0 ? new Date(max).toISOString() : null;
+  };
+  const fvisa      = _maxTs(visaRows,     'lastVerified', 'updatedAt');
+  const fpark      = _maxTs(parkFees,     'lastVerified', 'updatedAt');
+  const ftransport = _maxTs(allTransport, 'lastUpdated',  'updatedAt');
+  const factivity  = activityRows.length > 0 ? _maxTs(activityRows, 'updatedAt') : null;
+  const fpricing   = _maxTs(pricingRules, 'updatedAt');
+  const allFreshTs = [fvisa, fpark, ftransport, fpricing].filter(Boolean).map(s => new Date(s!).getTime());
+  const dataFreshness = {
+    lastUpdatedAt: allFreshTs.length > 0 ? new Date(Math.max(...allFreshTs)).toISOString() : null,
+    updatedBy: 'NoLSAF Research Team',
+    categories: { visaFees: fvisa, parkFees: fpark, transport: ftransport, activities: factivity, pricingRules: fpricing },
+  };
+
   const responsePayload: any = {
     currency: 'USD',
     travelers: { adults, children, total: totalPax },
@@ -745,6 +769,7 @@ const createEstimate = async (req: any, res: any) => {
       description: r.description,
     })),
 
+    dataFreshness,
     generatedAt: new Date().toISOString(),
   };
 
@@ -868,11 +893,37 @@ const getEstimate = async (req: any, res: any) => {
   });
 };
 
+// ─── GET /api/public/nolscope/data-freshness ────────────────────────────────
+
+const getDataFreshness = async (_req: any, res: any) => {
+  const [visaRow, parkRow, transportRow, activityRow, pricingRow] = await Promise.all([
+    (prisma as any).visaFee.findFirst({ where: { isActive: true }, orderBy: { lastVerified: 'desc' }, select: { lastVerified: true, updatedAt: true } }),
+    (prisma as any).parkFee.findFirst({ where: { isActive: true }, orderBy: { lastVerified: 'desc' }, select: { lastVerified: true, updatedAt: true } }),
+    (prisma as any).transportCostAverage.findFirst({ where: { isActive: true }, orderBy: { lastUpdated: 'desc' }, select: { lastUpdated: true, updatedAt: true } }),
+    (prisma as any).activityCost.findFirst({ where: { isActive: true }, orderBy: { updatedAt: 'desc' }, select: { updatedAt: true } }),
+    (prisma as any).pricingRule.findFirst({ where: { isActive: true }, orderBy: { updatedAt: 'desc' }, select: { updatedAt: true } }),
+  ]);
+  const categories = {
+    visaFees:    visaRow      ? ((visaRow.lastVerified      ?? visaRow.updatedAt)      as Date | null)?.toISOString() ?? null : null,
+    parkFees:    parkRow      ? ((parkRow.lastVerified      ?? parkRow.updatedAt)      as Date | null)?.toISOString() ?? null : null,
+    transport:   transportRow ? ((transportRow.lastUpdated  ?? transportRow.updatedAt) as Date | null)?.toISOString() ?? null : null,
+    activities:  activityRow  ? (activityRow.updatedAt  as Date | null)?.toISOString()  ?? null : null,
+    pricingRules: pricingRow  ? (pricingRow.updatedAt   as Date | null)?.toISOString()  ?? null : null,
+  };
+  const allTs = Object.values(categories).filter(Boolean).map(s => new Date(s!).getTime());
+  return res.json({
+    lastUpdatedAt: allTs.length > 0 ? new Date(Math.max(...allTs)).toISOString() : null,
+    updatedBy: 'NoLSAF Research Team',
+    categories,
+  });
+};
+
 // ─── register routes ──────────────────────────────────────────────────────────
 
 router.get('/destinations',          limitNolScopeList, asyncHandler(listDestinations));
 router.get('/visa-fee/:nationality', limitNolScopeList, asyncHandler(getVisaFee));
 router.get('/activities',            limitNolScopeList, asyncHandler(listActivities));
+router.get('/data-freshness',        limitNolScopeList, asyncHandler(getDataFreshness));
 router.post('/estimate',             limitNolScopeEstimate, asyncHandler(createEstimate));
 router.get('/estimate/:id',          limitNolScopeList, asyncHandler(getEstimate));
 

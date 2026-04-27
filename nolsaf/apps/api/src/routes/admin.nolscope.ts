@@ -592,6 +592,134 @@ router.post('/activities', limitNolscopeWrite, validate(activityPostSchema), asy
   });
 }));
 
+// ─── DESTINATIONS ─────────────────────────────────────────────────────────────
+
+const destinationPutSchema = z.object({
+  destinationName:         z.string().min(2).max(120).optional(),
+  displayName:             z.string().max(200).nullish(),
+  destinationType:         z.enum(['national-park', 'conservation-area', 'marine-park', 'game-reserve', 'island', 'city', 'region', 'mountain', 'beach']).optional(),
+  country:                 z.string().max(80).optional(),
+  region:                  z.string().max(100).optional(),
+  nearestCity:             z.string().max(80).nullish(),
+  mainAirport:             z.string().max(100).nullish(),
+  accessDifficulty:        z.enum(['easy', 'moderate', 'difficult']).optional(),
+  description:             z.string().max(5000).nullish(),
+  imageUrl:                z.string().url().max(500).nullish(),
+  officialWebsite:         z.string().url().max(300).nullish(),
+  popularity:              z.coerce.number().int().min(0).max(100).optional(),
+  avgStayDays:             z.coerce.number().int().min(0).max(365).nullish(),
+  accommodationMultiplier: z.coerce.number().min(0.01).max(20).optional(),
+  transportBaseUsd:        z.coerce.number().nonnegative().max(1_000_000).nullish(),
+  isActive:                z.coerce.boolean().optional(),
+  bestMonths:              z.unknown().optional(),
+  peakMonths:              z.unknown().optional(),
+  offPeakMonths:           z.unknown().optional(),
+  rainyMonths:             z.unknown().optional(),
+}).strict();
+
+const destinationPostSchema = z.object({
+  destinationCode:         z.string().min(2).max(30).regex(/^[A-Z0-9_-]+$/i, 'Invalid code format'),
+  destinationName:         z.string().min(2).max(120),
+  displayName:             z.string().max(200).nullish(),
+  destinationType:         z.enum(['national-park', 'conservation-area', 'marine-park', 'game-reserve', 'island', 'city', 'region', 'mountain', 'beach']),
+  country:                 z.string().max(80).default('Tanzania'),
+  region:                  z.string().min(2).max(100),
+  nearestCity:             z.string().max(80).nullish(),
+  mainAirport:             z.string().max(100).nullish(),
+  accessDifficulty:        z.enum(['easy', 'moderate', 'difficult']).default('moderate'),
+  description:             z.string().max(5000).nullish(),
+  imageUrl:                z.string().url().max(500).nullish(),
+  officialWebsite:         z.string().url().max(300).nullish(),
+  popularity:              z.coerce.number().int().min(0).max(100).default(50),
+  avgStayDays:             z.coerce.number().int().min(0).max(365).nullish(),
+  accommodationMultiplier: z.coerce.number().min(0.01).max(20).default(1.0),
+  transportBaseUsd:        z.coerce.number().nonnegative().max(1_000_000).nullish(),
+  isActive:                z.coerce.boolean().default(true),
+  bestMonths:              z.unknown().optional(),
+  peakMonths:              z.unknown().optional(),
+  offPeakMonths:           z.unknown().optional(),
+  rainyMonths:             z.unknown().optional(),
+}).strict();
+
+router.get('/destinations', limitNolscopeRead, asyncHandler(async (_req, res) => {
+  const rows = await (prisma as any).tripDestination.findMany({
+    orderBy: [{ isActive: 'desc' }, { popularity: 'desc' }, { destinationName: 'asc' }],
+  });
+  return res.json({ destinations: rows.map((r: any) => ({
+    ...r,
+    accommodationMultiplier: n(r.accommodationMultiplier),
+    transportBaseUsd: r.transportBaseUsd ? n(r.transportBaseUsd) : null,
+  })) });
+}));
+
+router.put('/destinations/:id', limitNolscopeWrite, validate(destinationPutSchema), asyncHandler(async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) return res.status(400).json({ error: 'invalid id' });
+  const body = (req as any).validatedBody as z.infer<typeof destinationPutSchema>;
+  const before = await (prisma as any).tripDestination.findUnique({ where: { id } });
+  if (!before) return res.status(404).json({ error: 'destination not found' });
+  const updated = await (prisma as any).tripDestination.update({
+    where: { id },
+    data: {
+      ...( body.destinationName         !== undefined && { destinationName:         sanitizeText(body.destinationName) }),
+      ...( body.displayName             !== undefined && { displayName:             body.displayName ? sanitizeText(body.displayName) : null }),
+      ...( body.destinationType         !== undefined && { destinationType:         body.destinationType }),
+      ...( body.country                 !== undefined && { country:                 sanitizeText(body.country) }),
+      ...( body.region                  !== undefined && { region:                  sanitizeText(body.region) }),
+      ...( body.nearestCity             !== undefined && { nearestCity:             body.nearestCity ? sanitizeText(body.nearestCity) : null }),
+      ...( body.mainAirport             !== undefined && { mainAirport:             body.mainAirport ? sanitizeText(body.mainAirport) : null }),
+      ...( body.accessDifficulty        !== undefined && { accessDifficulty:        body.accessDifficulty }),
+      ...( body.description             !== undefined && { description:             body.description ? sanitizeText(body.description) : null }),
+      ...( body.imageUrl                !== undefined && { imageUrl:                body.imageUrl }),
+      ...( body.officialWebsite         !== undefined && { officialWebsite:         body.officialWebsite }),
+      ...( body.popularity              !== undefined && { popularity:              body.popularity }),
+      ...( body.avgStayDays             !== undefined && { avgStayDays:             body.avgStayDays }),
+      ...( body.accommodationMultiplier !== undefined && { accommodationMultiplier: body.accommodationMultiplier }),
+      ...( body.transportBaseUsd        !== undefined && { transportBaseUsd:        body.transportBaseUsd }),
+      ...( body.isActive                !== undefined && { isActive:                body.isActive }),
+      ...( body.bestMonths              !== undefined && { bestMonths:              body.bestMonths }),
+      ...( body.peakMonths              !== undefined && { peakMonths:              body.peakMonths }),
+      ...( body.offPeakMonths           !== undefined && { offPeakMonths:           body.offPeakMonths }),
+      ...( body.rainyMonths             !== undefined && { rainyMonths:             body.rainyMonths }),
+    },
+  });
+  void writeAudit(req, 'NOLSCOPE_DESTINATION_UPDATE', 'NOLSCOPE_DESTINATION', id, before, updated);
+  return res.json({ updated });
+}));
+
+router.post('/destinations', limitNolscopeWrite, validate(destinationPostSchema), asyncHandler(async (req, res) => {
+  const body = (req as any).validatedBody as z.infer<typeof destinationPostSchema>;
+  const exists = await (prisma as any).tripDestination.findUnique({ where: { destinationCode: body.destinationCode.toUpperCase() } });
+  if (exists) return res.status(409).json({ error: `Destination code ${body.destinationCode.toUpperCase()} already exists` });
+  const created = await (prisma as any).tripDestination.create({
+    data: {
+      destinationCode:         body.destinationCode.toUpperCase(),
+      destinationName:         sanitizeText(body.destinationName),
+      displayName:             body.displayName ? sanitizeText(body.displayName) : null,
+      destinationType:         body.destinationType,
+      country:                 sanitizeText(body.country),
+      region:                  sanitizeText(body.region),
+      nearestCity:             body.nearestCity ? sanitizeText(body.nearestCity) : null,
+      mainAirport:             body.mainAirport ? sanitizeText(body.mainAirport) : null,
+      accessDifficulty:        body.accessDifficulty,
+      description:             body.description ? sanitizeText(body.description) : null,
+      imageUrl:                body.imageUrl ?? null,
+      officialWebsite:         body.officialWebsite ?? null,
+      popularity:              body.popularity,
+      avgStayDays:             body.avgStayDays ?? null,
+      accommodationMultiplier: body.accommodationMultiplier,
+      transportBaseUsd:        body.transportBaseUsd ?? null,
+      isActive:                body.isActive,
+      bestMonths:              body.bestMonths ?? null,
+      peakMonths:              body.peakMonths ?? null,
+      offPeakMonths:           body.offPeakMonths ?? null,
+      rainyMonths:             body.rainyMonths ?? null,
+    },
+  });
+  void writeAudit(req, 'NOLSCOPE_DESTINATION_CREATE', 'NOLSCOPE_DESTINATION', created.id, {}, created);
+  return res.status(201).json({ created });
+}));
+
 // ─── AUDIT HISTORY ────────────────────────────────────────────────────────────
 //   GET /api/admin/nolscope/audit/:entity/:id
 //   Returns the 30 most-recent AuditLog entries for a specific record,

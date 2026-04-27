@@ -9,6 +9,7 @@ import {
   Edit2,
   Globe,
   Loader2,
+  MapPin,
   Mountain,
   Plus,
   RefreshCw,
@@ -48,14 +49,15 @@ function fmtUSD(v: number) {
 
 // ─── Tab types ────────────────────────────────────────────────────────────────
 
-type Tab = "activities" | "park-fees" | "visa-fees" | "transport" | "seasonal";
+type Tab = "activities" | "park-fees" | "visa-fees" | "transport" | "seasonal" | "destinations";
 
 const TABS: { id: Tab; label: string; Icon: React.ElementType }[] = [
-  { id: "activities",  label: "Activities",       Icon: Activity    },
-  { id: "park-fees",   label: "Park Fees",         Icon: Mountain    },
-  { id: "visa-fees",   label: "Visa Fees",         Icon: Globe       },
-  { id: "transport",   label: "Transport",         Icon: Route       },
-  { id: "seasonal",    label: "Seasonal Rules",    Icon: TrendingUp  },
+  { id: "destinations", label: "Destinations",    Icon: MapPin      },
+  { id: "activities",   label: "Activities",      Icon: Activity    },
+  { id: "park-fees",    label: "Park Fees",        Icon: Mountain    },
+  { id: "visa-fees",    label: "Visa Fees",        Icon: Globe       },
+  { id: "transport",    label: "Transport",        Icon: Route       },
+  { id: "seasonal",     label: "Seasonal Rules",   Icon: TrendingUp  },
 ];
 
 // ─── Inline edit field ────────────────────────────────────────────────────────
@@ -1272,10 +1274,282 @@ function SeasonalTab() {
   );
 }
 
+// ─── DESTINATIONS TAB ────────────────────────────────────────────────────────
+
+function DestinationsTab() {
+  const [rows, setRows]           = useState<any[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState("");
+  const [expanded, setExpanded]   = useState<number | null>(null);
+  const [historyId, setHistoryId] = useState<number | null>(null);
+  const [draft, setDraft]         = useState<any>(null);
+  const [saving, setSaving]       = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [filter, setFilter]       = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
+  const [showAdd, setShowAdd]     = useState(false);
+  const [newRow, setNewRow]       = useState({
+    destinationCode: "", destinationName: "", displayName: "",
+    destinationType: "national-park", region: "", nearestCity: "",
+    mainAirport: "", accessDifficulty: "moderate",
+    accommodationMultiplier: "1.0", popularity: "50", avgStayDays: "",
+    description: "",
+  });
+  const [adding, setAdding] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true); setError("");
+    try {
+      const d = await apiFetch("/api/admin/nolscope/destinations");
+      setRows(d.destinations ?? []);
+    } catch (e: any) { setError(e.message); }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const destTypes = [...new Set(rows.map((r) => r.destinationType))].sort();
+
+  const visible = rows.filter((r) => {
+    const q = filter.toLowerCase();
+    const matchQ = !q || r.destinationName.toLowerCase().includes(q) || r.destinationCode.toLowerCase().includes(q) || r.region?.toLowerCase().includes(q);
+    const matchT = !typeFilter || r.destinationType === typeFilter;
+    return matchQ && matchT;
+  });
+
+  function openEdit(row: any) { setExpanded(row.id); setDraft({ ...row }); setSaveError(""); }
+  function closeEdit() { setExpanded(null); setDraft(null); }
+
+  async function save() {
+    if (!draft) return;
+    setSaving(true); setSaveError("");
+    try {
+      const { id, destinationCode, createdAt, updatedAt, ...rest } = draft;
+      const d = await apiFetch(`/api/admin/nolscope/destinations/${id}`, { method: "PUT", body: JSON.stringify(rest) });
+      setRows((prev) => prev.map((r) => r.id === id ? d.updated : r));
+      closeEdit();
+    } catch (e: any) { setSaveError(e.message); }
+    finally { setSaving(false); }
+  }
+
+  async function toggleActive(row: any) {
+    try {
+      const d = await apiFetch(`/api/admin/nolscope/destinations/${row.id}`, { method: "PUT", body: JSON.stringify({ isActive: !row.isActive }) });
+      setRows((prev) => prev.map((r) => r.id === row.id ? d.updated : r));
+    } catch {}
+  }
+
+  async function addNew() {
+    if (!newRow.destinationCode || !newRow.destinationName || !newRow.region) return;
+    setAdding(true);
+    try {
+      const d = await apiFetch("/api/admin/nolscope/destinations", {
+        method: "POST",
+        body: JSON.stringify({
+          ...newRow,
+          accommodationMultiplier: Number(newRow.accommodationMultiplier),
+          popularity: Number(newRow.popularity),
+          avgStayDays: newRow.avgStayDays ? Number(newRow.avgStayDays) : null,
+        }),
+      });
+      setRows((prev) => [...prev, d.created]);
+      setShowAdd(false);
+      setNewRow({ destinationCode: "", destinationName: "", displayName: "", destinationType: "national-park", region: "", nearestCity: "", mainAirport: "", accessDifficulty: "moderate", accommodationMultiplier: "1.0", popularity: "50", avgStayDays: "", description: "" });
+    } catch {}
+    finally { setAdding(false); }
+  }
+
+  const DEST_TYPES = ["national-park","conservation-area","marine-park","game-reserve","island","city","region","mountain","beach"];
+
+  if (loading) return <Loader2 className="w-5 h-5 animate-spin text-[#02665e] mx-auto mt-8" />;
+  if (error)   return <p className="text-sm text-red-600 p-4">{error}</p>;
+
+  return (
+    <div className="space-y-3">
+      {/* filters */}
+      <div className="flex flex-wrap gap-2 items-center">
+        <input
+          placeholder="Search destinations…"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          className="flex-1 min-w-[160px] text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#02665e]/30"
+        />
+        <select
+          value={typeFilter}
+          onChange={(e) => setTypeFilter(e.target.value)}
+          className="text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#02665e]/30"
+        >
+          <option value="">All types</option>
+          {destTypes.map((t) => <option key={t}>{t}</option>)}
+        </select>
+        <button onClick={() => setShowAdd(true)} className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold bg-[#02665e] text-white rounded-xl hover:bg-[#015a52]">
+          <Plus className="w-4 h-4" /> Add destination
+        </button>
+        <button onClick={load} className="p-2 text-slate-400 hover:text-[#02665e] border border-slate-200 rounded-xl">
+          <RefreshCw className="w-4 h-4" />
+        </button>
+      </div>
+
+      <p className="text-xs text-slate-400">{visible.length} of {rows.length} destinations</p>
+
+      {/* add form */}
+      {showAdd && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 space-y-3">
+          <h4 className="text-sm font-bold text-emerald-900">New Destination</h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <EditableField label="Destination Code (unique, e.g. SERENP)" value={newRow.destinationCode} onChange={(v) => setNewRow((p) => ({ ...p, destinationCode: v.toUpperCase() }))} />
+            <EditableField label="Destination Name" value={newRow.destinationName} onChange={(v) => setNewRow((p) => ({ ...p, destinationName: v }))} />
+            <EditableField label="Display Name (optional, full name)" value={newRow.displayName} onChange={(v) => setNewRow((p) => ({ ...p, displayName: v }))} />
+            <div>
+              <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Type</label>
+              <select value={newRow.destinationType} onChange={(e) => setNewRow((p) => ({ ...p, destinationType: e.target.value }))}
+                className="w-full text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#02665e]/30">
+                {DEST_TYPES.map((t) => <option key={t}>{t}</option>)}
+              </select>
+            </div>
+            <EditableField label="Region" value={newRow.region} onChange={(v) => setNewRow((p) => ({ ...p, region: v }))} />
+            <EditableField label="Nearest City" value={newRow.nearestCity} onChange={(v) => setNewRow((p) => ({ ...p, nearestCity: v }))} />
+            <EditableField label="Main Airport" value={newRow.mainAirport} onChange={(v) => setNewRow((p) => ({ ...p, mainAirport: v }))} />
+            <div>
+              <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Access Difficulty</label>
+              <select value={newRow.accessDifficulty} onChange={(e) => setNewRow((p) => ({ ...p, accessDifficulty: e.target.value }))}
+                className="w-full text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#02665e]/30">
+                {["easy","moderate","difficult"].map((v) => <option key={v}>{v}</option>)}
+              </select>
+            </div>
+            <EditableField label="Accommodation Multiplier" value={newRow.accommodationMultiplier} type="number" onChange={(v) => setNewRow((p) => ({ ...p, accommodationMultiplier: v }))} />
+            <EditableField label="Popularity (0–100)" value={newRow.popularity} type="number" onChange={(v) => setNewRow((p) => ({ ...p, popularity: v }))} />
+            <EditableField label="Avg Stay Days" value={newRow.avgStayDays} type="number" onChange={(v) => setNewRow((p) => ({ ...p, avgStayDays: v }))} />
+          </div>
+          <div>
+            <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Description</label>
+            <textarea rows={2} value={newRow.description} onChange={(e) => setNewRow((p) => ({ ...p, description: e.target.value }))}
+              className="w-full text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#02665e]/30 resize-none" />
+          </div>
+          <div className="flex gap-2">
+            <button onClick={addNew} disabled={adding || !newRow.destinationCode || !newRow.destinationName || !newRow.region}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-[#02665e] text-white rounded-xl disabled:opacity-50">
+              {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Save destination
+            </button>
+            <button onClick={() => setShowAdd(false)} className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* table */}
+      <div className="overflow-x-auto rounded-2xl border border-slate-100 shadow-sm">
+        <table className="w-full text-sm min-w-[700px]">
+          <thead>
+            <tr className="bg-slate-50 border-b border-slate-100 text-left">
+              <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Code</th>
+              <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Name</th>
+              <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Type</th>
+              <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Region</th>
+              <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Acc.×</th>
+              <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Pop.</th>
+              <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+              <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-50">
+            {visible.map((row) => (
+              <React.Fragment key={row.id}>
+                <tr className={`group transition-colors ${!row.isActive ? "opacity-50" : "hover:bg-slate-50/60"}`}>
+                  <td className="px-4 py-3">
+                    <span className="font-mono text-[11px] font-bold text-[#02665e] bg-[#02665e]/8 px-1.5 py-0.5 rounded">{row.destinationCode}</span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <p className="font-semibold text-slate-800 text-xs leading-tight">{row.destinationName}</p>
+                    {row.displayName && row.displayName !== row.destinationName && (
+                      <p className="text-[10px] text-slate-400 leading-tight">{row.displayName}</p>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium">{row.destinationType}</span>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-slate-600">{row.region}</td>
+                  <td className="px-4 py-3 text-xs text-slate-700 font-medium">{row.accommodationMultiplier}×</td>
+                  <td className="px-4 py-3 text-xs text-slate-600">{row.popularity}</td>
+                  <td className="px-4 py-3">
+                    <button onClick={() => toggleActive(row)}
+                      className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                        row.isActive ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"
+                      }`}>
+                      {row.isActive ? <ToggleRight className="w-3 h-3" /> : <ToggleLeft className="w-3 h-3" />}
+                      {row.isActive ? "Active" : "Inactive"}
+                    </button>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => expanded === row.id ? closeEdit() : openEdit(row)}
+                        className="p-1.5 text-slate-400 hover:text-[#02665e] hover:bg-[#02665e]/8 rounded-lg transition-colors">
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => setHistoryId(historyId === row.id ? null : row.id)}
+                        className="p-1.5 text-slate-400 hover:text-[#02665e] hover:bg-[#02665e]/8 rounded-lg transition-colors">
+                        <History className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+                {expanded === row.id && draft && (
+                  <tr>
+                    <td colSpan={8} className="px-4 py-4 bg-slate-50/80">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <EditableField label="Destination Name" value={draft.destinationName} onChange={(v) => setDraft((p: any) => ({ ...p, destinationName: v }))} />
+                        <EditableField label="Display Name" value={draft.displayName ?? ""} onChange={(v) => setDraft((p: any) => ({ ...p, displayName: v }))} />
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Type</label>
+                          <select value={draft.destinationType} onChange={(e) => setDraft((p: any) => ({ ...p, destinationType: e.target.value }))}
+                            className="w-full text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#02665e]/30">
+                            {DEST_TYPES.map((t) => <option key={t}>{t}</option>)}
+                          </select>
+                        </div>
+                        <EditableField label="Region" value={draft.region ?? ""} onChange={(v) => setDraft((p: any) => ({ ...p, region: v }))} />
+                        <EditableField label="Nearest City" value={draft.nearestCity ?? ""} onChange={(v) => setDraft((p: any) => ({ ...p, nearestCity: v }))} />
+                        <EditableField label="Main Airport" value={draft.mainAirport ?? ""} onChange={(v) => setDraft((p: any) => ({ ...p, mainAirport: v }))} />
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Access Difficulty</label>
+                          <select value={draft.accessDifficulty} onChange={(e) => setDraft((p: any) => ({ ...p, accessDifficulty: e.target.value }))}
+                            className="w-full text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#02665e]/30">
+                            {["easy","moderate","difficult"].map((v) => <option key={v}>{v}</option>)}
+                          </select>
+                        </div>
+                        <EditableField label="Accommodation Multiplier" value={draft.accommodationMultiplier} type="number" onChange={(v) => setDraft((p: any) => ({ ...p, accommodationMultiplier: v }))} />
+                        <EditableField label="Popularity (0–100)" value={draft.popularity} type="number" onChange={(v) => setDraft((p: any) => ({ ...p, popularity: v }))} />
+                        <EditableField label="Avg Stay Days" value={draft.avgStayDays ?? ""} type="number" onChange={(v) => setDraft((p: any) => ({ ...p, avgStayDays: v }))} />
+                        <EditableField label="Official Website" value={draft.officialWebsite ?? ""} onChange={(v) => setDraft((p: any) => ({ ...p, officialWebsite: v }))} />
+                        <EditableField label="Image URL" value={draft.imageUrl ?? ""} onChange={(v) => setDraft((p: any) => ({ ...p, imageUrl: v }))} />
+                        <div className="sm:col-span-2">
+                          <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Description</label>
+                          <textarea rows={3} value={draft.description ?? ""} onChange={(e) => setDraft((p: any) => ({ ...p, description: e.target.value }))}
+                            className="w-full text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#02665e]/30 resize-none" />
+                        </div>
+                      </div>
+                      <SaveBar saving={saving} error={saveError} onSave={save} onCancel={closeEdit} />
+                    </td>
+                  </tr>
+                )}
+                {historyId === row.id && (
+                  <tr>
+                    <td colSpan={8} className="p-0">
+                      <HistoryPanel entity="NOLSCOPE_DESTINATION" entityId={row.id} label={row.destinationName} onClose={() => setHistoryId(null)} />
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 // ─── ROOT component ───────────────────────────────────────────────────────────
 
 export default function NolScopeAdminClient() {
-  const [tab, setTab] = useState<Tab>("activities");
+  const [tab, setTab] = useState<Tab>("destinations");
 
   return (
     <div className="min-h-screen bg-slate-50/50 p-4 sm:p-6">
@@ -1345,11 +1619,12 @@ export default function NolScopeAdminClient() {
 
       {/* tab content */}
       <div>
-        {tab === "activities"  && <ActivitiesTab />}
-        {tab === "park-fees"   && <ParkFeesTab   />}
-        {tab === "visa-fees"   && <VisaFeesTab   />}
-        {tab === "transport"   && <TransportTab  />}
-        {tab === "seasonal"    && <SeasonalTab   />}
+        {tab === "destinations" && <DestinationsTab />}
+        {tab === "activities"   && <ActivitiesTab />}
+        {tab === "park-fees"    && <ParkFeesTab   />}
+        {tab === "visa-fees"    && <VisaFeesTab   />}
+        {tab === "transport"    && <TransportTab  />}
+        {tab === "seasonal"     && <SeasonalTab   />}
       </div>
     </div>
   );

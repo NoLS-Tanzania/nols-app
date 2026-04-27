@@ -9,11 +9,9 @@ import DatePickerField from "@/components/DatePickerField";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  AlertTriangle,
   ArrowLeft,
   ArrowRight,
   Binoculars,
-  BookOpen,
   Bus,
   Calculator,
   Calendar,
@@ -21,9 +19,9 @@ import {
   Car,
   CheckCircle2,
   ChevronDown,
+  Clock,
   Copy,
   Download,
-  ExternalLink,
   Fish,
   Footprints,
   Globe,
@@ -38,14 +36,12 @@ import {
   RefreshCw,
   Share2,
   Shield,
-  Ship,
   Sparkles,
   TentTree,
   Users,
   UtensilsCrossed,
   Waves,
   Wine,
-  X,
 } from "lucide-react";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -100,6 +96,17 @@ interface EstimateResult {
   perAdultAvg: number;
   confidence: number;
   appliedRules?: { ruleName: string; seasonName: string; multiplier: number; description?: string }[];
+  dataFreshness?: {
+    lastUpdatedAt: string | null;
+    updatedBy: string;
+    categories: {
+      visaFees: string | null;
+      parkFees: string | null;
+      transport: string | null;
+      activities: string | null;
+      pricingRules: string | null;
+    };
+  };
 }
 
 interface DestinationEntry {
@@ -244,6 +251,11 @@ function fmt(n: number) {
 
 function fmtUSD(n: number) {
   return `$${fmt(n)}`;
+}
+
+function fmtFresh(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 function confidenceLabel(c: number) {
@@ -1333,7 +1345,7 @@ function ResultCard({ result, onRestart, nationality, availableDests }: { result
           <HeroPill>{cleanLabel(result.season)} season</HeroPill>
           <HeroPill>{cleanLabel(result.tier)}</HeroPill>
           <HeroPill className={conf.color === "text-green-600" ? "!text-emerald-300" : conf.color === "text-amber-600" ? "!text-amber-300" : "!text-red-300"}>
-            {conf.text} confidence
+            {conf.text} accuracy
           </HeroPill>
         </div>
       </div>
@@ -1389,55 +1401,79 @@ function ResultCard({ result, onRestart, nationality, availableDests }: { result
         </div>
       )}
 
-      {/* ── Disclaimer + Data Sources ──────────────────────────────────── */}
-      <div className="rounded-2xl border border-amber-200/70 overflow-hidden shadow-sm">
-        {/* Disclaimer */}
-        <div className="flex items-start gap-3 bg-amber-50 px-4 py-3 border-b border-amber-200/60">
-          <div className="w-7 h-7 rounded-lg bg-amber-100 flex items-center justify-center shrink-0 mt-0.5">
-            <Shield className="w-3.5 h-3.5 text-amber-700" />
+      {/* ── Accuracy + Data Freshness ──────────────────────────────────── */}
+      <div className="rounded-2xl border border-[#02665e]/25 overflow-hidden shadow-sm">
+        {/* Accuracy statement */}
+        <div className="flex items-start gap-3 bg-[#02665e]/5 px-4 py-3 border-b border-[#02665e]/15">
+          <div className="w-7 h-7 rounded-lg bg-[#02665e]/10 flex items-center justify-center shrink-0 mt-0.5">
+            <Shield className="w-3.5 h-3.5 text-[#02665e]" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-[11px] font-bold text-amber-900 mb-0.5">Estimate Disclaimer</p>
-            <p className="text-[11px] text-amber-800 leading-relaxed">
-              This is an <strong>awareness estimate</strong>, not a final quote. Accommodation is based on{" "}
-              <strong>NoLSAF verified properties</strong>. Other costs vary by season, availability, and operator.
-              Always confirm prices before booking.
+            <p className="text-xs font-bold text-[#02665e] mb-0.5">Accuracy-Verified Estimate</p>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              All rates are sourced from <strong>official and operator-verified data</strong>, actively managed
+              by the <strong>NoLSAF Research Team</strong>. Accommodation is based on{" "}
+              <strong>NoLSAF verified properties</strong>. Confirm final prices at time of booking.
             </p>
           </div>
         </div>
 
-        {/* Data Sources */}
-        <div className="flex items-start gap-3 bg-white px-4 py-3">
-          <div className="w-7 h-7 rounded-lg bg-amber-100 flex items-center justify-center shrink-0 mt-0.5">
-            <BookOpen className="w-3.5 h-3.5 text-amber-700" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[11px] font-bold text-amber-900 mb-2">Data Sources</p>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
-              {[
-                { label: "Park Fees",       src: "TANAPA 2025/26 Official Rates" },
-                { label: "Visa Fees",       src: "Tanzania Immigration Official Rates" },
-                { label: "Transport",       src: "Verified operator market averages" },
-                { label: "Accommodation",   src: "NoLSAF verified properties" },
-                { label: "Seasonal Rates",  src: "Historical booking & tourism data" },
-                { label: "Activities",      src: "Operator surveys & published rates" },
-              ].map(({ label, src }) => (
-                <div key={label} className="flex items-start gap-1.5 min-w-0">
-                  <CheckCircle2 className="w-3 h-3 text-amber-500 shrink-0 mt-0.5" />
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-semibold text-amber-900 leading-tight">{label}</p>
-                    <p className="text-[10px] text-amber-600 leading-tight truncate">{src}</p>
+        {/* Data freshness per category */}
+        <div className="relative overflow-hidden border-b border-[#02665e]/10">
+          {/* Background: deep teal gradient with subtle texture */}
+          <div className="absolute inset-0 bg-gradient-to-br from-[#02665e] via-[#027a71] to-[#014d47]" />
+          {/* Decorative circles for depth */}
+          <div className="absolute -top-6 -right-6 w-28 h-28 rounded-full bg-white/5" />
+          <div className="absolute -bottom-4 -left-4 w-20 h-20 rounded-full bg-white/5" />
+          <div className="absolute top-2 right-16 w-10 h-10 rounded-full bg-[#02b4f5]/10" />
+
+          <div className="relative flex items-start gap-3 px-4 py-4">
+            <div className="w-8 h-8 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
+              <Clock className="w-4 h-4 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-3">
+                <p className="text-sm font-bold text-white tracking-tight">Rate Data - Last Verified</p>
+                {result.dataFreshness?.lastUpdatedAt && (
+                  <span className="inline-flex items-center gap-1 text-[11px] px-2.5 py-0.5 rounded-full bg-white/20 text-white font-semibold whitespace-nowrap border border-white/25 backdrop-blur-sm">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 inline-block" />
+                    {fmtFresh(result.dataFreshness.lastUpdatedAt)}
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
+                {[
+                  { label: "Park Fees",      ts: result.dataFreshness?.categories?.parkFees },
+                  { label: "Visa Fees",      ts: result.dataFreshness?.categories?.visaFees },
+                  { label: "Transport",      ts: result.dataFreshness?.categories?.transport },
+                  { label: "Activities",     ts: result.dataFreshness?.categories?.activities },
+                  { label: "Seasonal Rules", ts: result.dataFreshness?.categories?.pricingRules },
+                  { label: "Accommodation",  ts: null },
+                ].map(({ label, ts }) => (
+                  <div key={label} className="flex items-start gap-1.5 min-w-0 bg-white/10 rounded-lg px-2.5 py-1.5 border border-white/10">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300 shrink-0 mt-0.5" />
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-white leading-tight">{label}</p>
+                      <p className="text-[11px] text-white/60 leading-tight truncate">
+                        {ts ? fmtFresh(ts) : label === "Accommodation" ? "NoLSAF verified" : "—"}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
+              <p className="text-[11px] text-white/50 mt-3 leading-tight">
+                Maintained by NoLSAF Research Team ·{" "}
+                Sources: TANAPA official rates · Tanzania Immigration · Operator market surveys
+              </p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* ── Disclaimer ─────────────────────────────────────────────────── */}
+      {/* ── Footer note ────────────────────────────────────────────────── */}
       <p className="text-xs text-slate-400 leading-relaxed bg-slate-50 px-4 py-3 rounded-lg">
-        For planning purposes only. Costs vary with availability, exchange rates and operator pricing at time of booking.
+        Prices shown are verified estimates. Final costs may vary with availability, exchange rates, and operator
+        pricing at time of booking.
         {result.estimateId && (
           <span className="ml-1 font-semibold text-slate-500">Ref: EST-{result.estimateId}</span>
         )}
