@@ -396,12 +396,17 @@ export default function HelpCenterPage() {
         <div className="public-container py-8 sm:py-10">
 
         {/* ── Premium Hero ─────────────────────────────────────── */}
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#010f0e] via-[#011a18] to-[#022820] text-white">
-          <div className="pointer-events-none absolute inset-0 opacity-[0.03]"
+        <div className="relative overflow-hidden rounded-3xl bg-[#02665e] text-white"
+          style={{ backgroundImage: "radial-gradient(ellipse at 85% 0%, #02b4f550 0%, transparent 55%), radial-gradient(ellipse at 0% 100%, #01332e80 0%, transparent 55%)" }}>
+          {/* diagonal white slashes */}
+          <div className="pointer-events-none absolute inset-0 opacity-[0.13]"
+            style={{ backgroundImage: "repeating-linear-gradient(-55deg, rgba(255,255,255,1) 0px, rgba(255,255,255,1) 1.5px, transparent 1.5px, transparent 22px)" }} />
+          {/* white dot grid on top */}
+          <div className="pointer-events-none absolute inset-0 opacity-[0.07]"
             style={{ backgroundImage: "radial-gradient(circle, #ffffff 1px, transparent 1px)", backgroundSize: "20px 20px" }} />
           <div className="pointer-events-none absolute -top-24 right-0 w-[500px] h-[500px] rounded-full blur-3xl opacity-20"
             style={{ background: "radial-gradient(circle, #4dd9ac 0%, transparent 65%)" }} />
-          <div className="pointer-events-none absolute bottom-0 left-0 w-80 h-80 rounded-full blur-3xl opacity-10"
+          <div className="pointer-events-none absolute bottom-0 left-0 w-80 h-80 rounded-full blur-3xl opacity-15"
             style={{ background: "radial-gradient(circle, #02b4f5 0%, transparent 70%)" }} />
 
           <div className="py-12 sm:py-16 px-6 sm:px-10 relative z-10">

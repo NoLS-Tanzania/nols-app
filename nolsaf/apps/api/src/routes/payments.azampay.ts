@@ -43,7 +43,7 @@ const paymentLimiter = rateLimit({
 
 // ── Input schema ──────────────────────────────────────────────────────────────
 
-// Tanzania phone: +255 or 0, then network digit (6=Airtel, 7=Vodacom/Tigo/Halo, 2=TTCL), then 8 digits
+// Tanzania phone: +255 or 0, then network digit (6=Airtel, 7=Vodacom/Mixx/Halo, 2=TTCL), then 8 digits
 const TZ_PHONE_RE = /^(\+255|0)(6|7|2)\d{8}$/;
 
 const initiateSchema = z.object({
@@ -52,7 +52,7 @@ const initiateSchema = z.object({
     /^[\d+]+$/,
     "Phone number must contain only digits and an optional leading +"
   ),
-  provider:       z.enum(["Airtel", "Tigo", "M-Pesa", "Halopesa"]).default("Airtel"),
+  provider:       z.enum(["Airtel", "Mixx", "M-Pesa", "Halopesa"]).default("Airtel"),
   idempotencyKey: z.string().min(8).max(128).optional(),
 });
 

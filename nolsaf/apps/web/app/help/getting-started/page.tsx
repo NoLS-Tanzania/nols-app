@@ -56,7 +56,7 @@ const BOOKING_STEPS = [
     step: "04",
     icon: Banknote,
     title: "Pay & confirm",
-    detail: "Complete payment through one of NoLSAF's certified payment partners (M-Pesa, Airtel, Tigo, HaloPesa, Visa, Mastercard, PayPal, Stripe). Your booking is confirmed instantly once payment is authorised.",
+    detail: "Complete payment through one of NoLSAF's certified payment partners (M-Pesa, Airtel, Mixx by Yas, HaloPesa, Visa, Mastercard, PayPal, Stripe). Your booking is confirmed instantly once payment is authorised.",
     cta: { label: "Payment methods", href: "/help/payments" },
     color: "#f59e0b",
   },
@@ -182,7 +182,7 @@ export default function HelpGettingStartedPage() {
                 {[
                   { icon: BadgeCheck, label: "Verified properties",  sub: "Inspected by NoLSAF" },
                   { icon: ShieldCheck, label: "Secure payments",     sub: "Certified partners" },
-                  { icon: Smartphone, label: "Mobile money ready",   sub: "M-Pesa · Airtel · Tigo" },
+                  { icon: Smartphone, label: "Mobile money ready",   sub: "M-Pesa · Airtel · Mixx" },
                   { icon: MapPin,     label: "East Africa",           sub: "Tanzania · Kenya · Uganda" },
                 ].map(({ icon: Icon, label, sub }) => (
                   <div key={label} className="rounded-xl bg-white/8 border border-white/12 p-4 backdrop-blur-sm">

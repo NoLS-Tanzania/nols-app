@@ -41,7 +41,7 @@ const INTL_METHODS = [
 
 const PAYMENT_FLOW = [
   { step: "01", icon: CreditCard,  title: "Choose your method",  description: "At checkout, all payment methods available for that booking are shown. Pick the one that works best for you.", color: "#02b4f5" },
-  { step: "02", icon: Lock,        title: "Confirm & authorise", description: "Complete your payment via your chosen method. You are taken to a secure screen managed by our payment partner — NoLSAF never sees your card or wallet details.", color: "#a78bfa" },
+  { step: "02", icon: Lock,        title: "Confirm & authorise", description: "Complete your payment via your chosen method. You are taken to a secure screen managed by our payment partner. NoLSAF never sees your card or wallet details.", color: "#a78bfa" },
   { step: "03", icon: BadgeCheck,  title: "Booking confirmed",   description: "Once payment is authorised, your booking is confirmed instantly and a receipt is sent to your registered contact.", color: "#02665e" },
   { step: "04", icon: ShieldCheck, title: "Funds held securely", description: "Your payment is held by our payment partner until check-in is validated. NoLSAF does not handle your money directly.", color: "#f59e0b" },
 ];
@@ -50,7 +50,7 @@ const SECURITY_BADGES = [
   { icon: Lock,        label: "Encrypted in transit",      sub: "All payment data passes through secure, encrypted channels managed by our payment partners." },
   { icon: ShieldCheck, label: "Certified payment partners", sub: "We work exclusively with payment providers that meet international compliance standards." },
   { icon: BadgeCheck,  label: "OTP confirmation",           sub: "Mobile money payments require a one-time PIN sent directly to your registered SIM by the network." },
-  { icon: RefreshCcw,  label: "Funds held until check-in",  sub: "Your payment is held by the payment partner until your booking is validated — protecting you at every step." },
+  { icon: RefreshCcw,  label: "Funds held until check-in",  sub: "Your payment is held by the payment partner until your booking is validated. Protecting you at every step." },
 ];
 
 export default function HelpPaymentsPage() {
@@ -163,7 +163,7 @@ export default function HelpPaymentsPage() {
               </div>
               <div>
                 <h2 className="text-xl font-bold text-gray-900">Local mobile money</h2>
-                <p className="text-sm text-gray-500">Tanzania&apos;s four major mobile networks — processed through our local payment partners. Fast, familiar, and OTP-verified.</p>
+                <p className="text-sm text-gray-500">Tanzania&apos;s four major mobile networks. Processed through our local payment partners. Fast, familiar, and OTP-verified.</p>
               </div>
             </div>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -227,7 +227,7 @@ export default function HelpPaymentsPage() {
               <div className="mt-5 flex items-start gap-3 bg-white/80 border border-purple-200 rounded-xl px-4 py-3">
                 <Info className="h-4 w-4 text-purple-500 flex-shrink-0 mt-0.5" />
                 <p className="text-xs text-purple-800">
-                  International payments are processed by our certified global payment partners. Currency conversion happens at the rate set by your card network at the time of payment. Your bank may apply a transaction fee — we recommend checking before you book.
+                  International payments are processed by our certified global payment partners. Currency conversion happens at the rate set by your card network at the time of payment. Your bank may apply a transaction fee. We recommend checking before you book.
                 </p>
               </div>
             </div>
@@ -271,7 +271,7 @@ export default function HelpPaymentsPage() {
               </div>
               <div>
                 <h2 className="text-xl font-bold text-gray-900">Your payment is in safe hands</h2>
-                <p className="text-sm text-gray-500">All transactions are handled by our certified payment partners — not stored or processed directly by NoLSAF.</p>
+                <p className="text-sm text-gray-500">All transactions are handled by our certified payment partners. Not stored or processed directly by NoLSAF.</p>
               </div>
             </div>
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -294,28 +294,28 @@ export default function HelpPaymentsPage() {
           <div className="mt-8 flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-5 py-4">
             <Banknote className="h-4 w-4 text-amber-500 flex-shrink-0 mt-0.5" />
             <div className="text-xs text-amber-800 space-y-1">
-              <p><strong>When is my payment taken?</strong> Payment is collected in full at the time your booking is confirmed and processed by our payment partner. On some cards, a temporary hold may show on your statement — this is released automatically once the transaction settles, usually within 1–3 business days.</p>
-              <p className="mt-1"><strong>NoLSAF is fully cashless for standard bookings.</strong> All regular bookings require full digital payment at checkout — no pay-later, no ad-hoc cash. <em>Exception:</em> Group Stay and Plan with Us bookings operate on a deposit model — a non-refundable deposit is paid digitally at booking, and the outstanding balance may be settled digitally or in cash at arrival. See the section below for details.</p>
+              <p><strong>When is my payment taken?</strong> Payment is collected in full at the time your booking is confirmed and processed by our payment partner. On some cards, a temporary hold may show on your statement. This is released automatically once the transaction settles, usually within 1–3 business days.</p>
+              <p className="mt-1"><strong>NoLSAF is fully cashless for standard bookings.</strong> All regular bookings require full digital payment at checkout. No pay-later, no ad-hoc cash. <em>Exception:</em> Group Stay and Plan with Us bookings operate on a deposit model. A non-refundable deposit is paid digitally at booking, and the outstanding balance may be settled digitally or in cash at arrival. See the section below for details.</p>
             </div>
           </div>
 
           {/* Special booking types — Group Stay & Plan with Us */}
           <section className="mt-12">
             {/* Dark header strip */}
-            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#14052e] to-[#1e0a3c] p-6 sm:p-8 mb-6 text-white"
-              style={{ backgroundImage: "radial-gradient(ellipse at 80% 0%, #a78bfa1a 0%, transparent 60%), radial-gradient(ellipse at 0% 100%, #02665e18 0%, transparent 60%)" }}>
-              <div className="pointer-events-none absolute inset-0 opacity-[0.035]"
-                style={{ backgroundImage: "radial-gradient(circle, #ffffff 1px, transparent 1px)", backgroundSize: "22px 22px" }} />
+            <div className="relative overflow-hidden rounded-2xl bg-[#02665e] p-6 sm:p-8 mb-6 text-white"
+              style={{ backgroundImage: "radial-gradient(ellipse at 80% 0%, #02b4f540 0%, transparent 60%), radial-gradient(ellipse at 0% 100%, #01332e90 0%, transparent 60%)" }}>
+              <div className="pointer-events-none absolute inset-0 opacity-[0.18]"
+                style={{ backgroundImage: "repeating-linear-gradient(-55deg, rgba(255,255,255,1) 0px, rgba(255,255,255,1) 1.5px, transparent 1.5px, transparent 22px)" }} />
               <div className="relative z-10 flex items-start gap-4">
-                <div className="flex-shrink-0 h-10 w-10 rounded-xl bg-violet-500/20 border border-violet-400/30 flex items-center justify-center">
-                  <Users className="h-5 w-5 text-violet-300" />
+                <div className="flex-shrink-0 h-10 w-10 rounded-xl bg-white/15 border border-white/30 flex items-center justify-center">
+                  <Users className="h-5 w-5 text-white" />
                 </div>
                 <div>
-                  <div className="inline-flex items-center gap-2 rounded-full bg-violet-500/10 border border-violet-400/20 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-violet-300 mb-2">
+                  <div className="inline-flex items-center gap-2 rounded-full bg-white/15 border border-white/30 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-white mb-2">
                     Exceptional payment flows
                   </div>
                   <h2 className="text-xl sm:text-2xl font-black tracking-tight">Group Stay &amp; Plan with Us</h2>
-                  <p className="mt-1.5 text-sm text-slate-300 max-w-xl leading-relaxed">
+                  <p className="mt-1.5 text-sm text-white/80 max-w-xl leading-relaxed">
                     These two booking types follow a two-stage payment model: a non-refundable deposit secures your slot, and the remaining balance is settled before or at arrival. All deposits are processed digitally through NoLSAF&rsquo;s certified payment partners.
                   </p>
                 </div>
@@ -344,7 +344,7 @@ export default function HelpPaymentsPage() {
                       { label: "Non-refundable deposit required", detail: "A deposit is required at booking to confirm and lock all rooms for your group. This deposit is non-refundable regardless of cancellation timing." },
                       { label: "Rooms secured for your group", detail: "Group-booked rooms are protected from reallocation to other users, as long as payment terms are honoured." },
                       { label: "Balance before or at check-in", detail: "The outstanding balance can be paid digitally via any supported method, or settled in cash upon arrival at the property." },
-                      { label: "Unpaid balance = full cancellation", detail: "If the remaining balance is not paid by the agreed deadline, the entire group booking is cancelled — not a partial reallocation." },
+                      { label: "Unpaid balance = full cancellation", detail: "If the remaining balance is not paid by the agreed deadline, the entire group booking is cancelled. Not a partial reallocation." },
                       { label: "Cancellation windows", detail: "Cancellations more than 30 days before check-in may qualify for a partial refund. Within 30 days, bookings are typically non-refundable." },
                       { label: "Date & guest-count changes", detail: "Date changes require 60+ days notice. Reducing guest count may forfeit group discounts; increases depend on available capacity." },
                     ].map(({ label, detail }) => (
@@ -378,14 +378,14 @@ export default function HelpPaymentsPage() {
                     </div>
                   </div>
                   <p className="text-sm text-gray-600 leading-relaxed mb-4">
-                    &ldquo;Plan with Us&rdquo; is for travellers who need a tailored arrangement — custom-routed transport, accommodation packages, or multi-leg journeys. A NoLSAF coordinator builds and manages the plan for you.
+                    &ldquo;Plan with Us&rdquo; is for travellers who need a tailored arrangement. Custom-routed transport, accommodation packages, or multi-leg journeys. A NoLSAF coordinator builds and manages the plan for you.
                   </p>
                   <ul className="space-y-3">
                     {[
                       { label: "Deposit to confirm your plan", detail: "Pay a non-refundable deposit digitally to lock your arrangement and trigger coordinator assignment." },
                       { label: "24-hour balance window", detail: "After the deposit, you have 24 hours to settle the remaining balance. Missing this window may result in automatic cancellation and forfeiture of the deposit." },
                       { label: "Balance payment options", detail: "The remaining balance can be paid digitally via any supported method, or settled in cash upon arrival at your booked destination." },
-                      { label: "No reallocation within window", detail: "Your booked accommodation is fully secured within the 24-hour balance window — it won't be offered to other users during that period." },
+                      { label: "No reallocation within window", detail: "Your booked accommodation is fully secured within the 24-hour balance window. It won't be offered to other users during that period." },
                       { label: "Custom terms confirmed at booking", detail: "Pricing, inclusions, and cancellation terms are set at the time of arrangement and form part of your binding booking agreement." },
                     ].map(({ label, detail }) => (
                       <li key={label} className="flex items-start gap-2.5">
@@ -409,7 +409,7 @@ export default function HelpPaymentsPage() {
             <div className="mt-4 flex items-start gap-3 bg-slate-50 border border-slate-200 rounded-xl px-5 py-4">
               <Info className="h-4 w-4 text-slate-500 flex-shrink-0 mt-0.5" />
               <p className="text-xs text-slate-600 leading-relaxed">
-                <strong>On deposits:</strong> Non-refundable deposits are processed digitally through NoLSAF&rsquo;s payment partners. Paying a deposit does not complete the booking — the full balance must be settled by the stated deadline or your booking will be cancelled and the deposit forfeited. Receipt confirmation is sent immediately after the deposit is processed.
+                <strong>On deposits:</strong> Non-refundable deposits are processed digitally through NoLSAF&rsquo;s payment partners. Paying a deposit does not complete the booking. The full balance must be settled by the stated deadline or your booking will be cancelled and the deposit forfeited. Receipt confirmation is sent immediately after the deposit is processed.
               </p>
             </div>
           </section>

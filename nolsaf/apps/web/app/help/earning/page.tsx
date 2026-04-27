@@ -116,7 +116,7 @@ export default function HelpEarningPage() {
               <div className="grid grid-cols-2 gap-3">
                 {[
                   { label: "Instant claim",      sub: "Withdraw right after check-in" },
-                  { label: "Mobile Money",        sub: "M-Pesa, Airtel, Tigo, Halo" },
+                  { label: "Mobile Money",        sub: "M-Pesa, Airtel, Mixx, Halo" },
                   { label: "Auto-payout",         sub: "Daily or weekly auto-sweep" },
                   { label: "No fees on balance",  sub: "Hold earnings with no expiry" },
                 ].map(({ label, sub }) => (

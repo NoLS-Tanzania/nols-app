@@ -25,7 +25,7 @@ const CHECKOUT_ITEMS = [
   {
     icon: Banknote,
     label: "Original (base) rate",
-    detail: "The listed nightly or per-stay rate for the property — the baseline before any additions.",
+    detail: "The listed nightly or per-stay rate for the property. The baseline before any additions.",
     color: "#02665e",
   },
   {
@@ -37,7 +37,7 @@ const CHECKOUT_ITEMS = [
   {
     icon: Tag,
     label: "Taxes & property charges",
-    detail: "Any taxes or surcharges declared by the property owner are displayed at checkout — e.g. late check-in fees or cleaning fees agreed upfront.",
+    detail: "Any taxes or surcharges declared by the property owner are displayed at checkout, e.g. late check-in fees or cleaning fees agreed upfront.",
     color: "#a78bfa",
   },
   {
@@ -64,7 +64,7 @@ const CURRENCY_ROWS = [
   },
   {
     flag: "📲",
-    label: "Mobile money (M-Pesa, Airtel, Tigo, Halo)",
+    label: "Mobile money (M-Pesa, Airtel, Mixx, Halo)",
     sub: "Local wallets transact in TZS",
     note: "No conversion required",
   },

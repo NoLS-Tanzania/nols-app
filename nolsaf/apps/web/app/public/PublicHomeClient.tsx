@@ -1916,40 +1916,61 @@ export default function Page() {
 
           {/* ── Explore Tourism by Country ── */}
           <ScrollReveal direction="up" className="mt-12 relative overflow-hidden rounded-3xl">
-            {/* Background */}
+            {/* Base */}
             <div aria-hidden className="absolute inset-0 bg-[#02665e]" />
+            {/* Deep shadow corner — gives the card depth */}
+            <div aria-hidden className="absolute inset-0"
+              style={{ background: "radial-gradient(ellipse at 0% 100%, #01332e99 0%, transparent 55%), radial-gradient(ellipse at 100% 0%, #02b4f522 0%, transparent 50%)" }} />
+
+            {/* ── NEW: bold slash columns ── */}
+            {/* Large, widely-spaced thick slashes — structural, not decorative noise */}
+            <div aria-hidden className="absolute inset-0 overflow-hidden pointer-events-none">
+              {/* repeating thick slash columns: each column is a rotated narrow strip */}
+              <div className="absolute inset-0 opacity-[0.08]"
+                style={{ backgroundImage: "repeating-linear-gradient(-55deg, rgba(255,255,255,1) 0px, rgba(255,255,255,1) 8px, transparent 8px, transparent 48px)" }} />
+              {/* Second layer offset — creates a cross-hatch of varying weight */}
+              <div className="absolute inset-0 opacity-[0.04]"
+                style={{ backgroundImage: "repeating-linear-gradient(-55deg, rgba(255,255,255,1) 0px, rgba(255,255,255,1) 2px, transparent 2px, transparent 32px)" }} />
+              {/* Right-side mask so slashes fade out toward the country indicators */}
+              <div className="absolute inset-0"
+                style={{ background: "linear-gradient(to right, transparent 40%, #02665e 100%)" }} />
+            </div>
 
             <div className="relative z-10 px-6 py-8 sm:px-8 sm:py-10">
-              {/* Gradient top accent */}
-              <div className="h-[3px] w-16 rounded-full bg-gradient-to-r from-white/70 to-white/20 mb-6" aria-hidden />
+              {/* Top rule — bolder, dual-tone */}
+              <div className="flex items-center gap-2 mb-6" aria-hidden>
+                <div className="h-[3px] w-8 rounded-full bg-white/80" />
+                <div className="h-[3px] w-4 rounded-full bg-white/30" />
+                <div className="h-[3px] w-2 rounded-full bg-white/15" />
+              </div>
 
-              <p className="text-[11px] font-semibold tracking-[0.14em] uppercase text-white/45 mb-3">Regional Focus</p>
+              <p className="text-[11px] font-bold tracking-[0.18em] uppercase text-white/50 mb-3">Regional Focus</p>
 
               <h2 className="text-3xl sm:text-4xl lg:text-[2.75rem] font-extrabold tracking-tight leading-[1.1]">
                 <span className="text-white">Explore Tourism </span>
-                <span className="text-white/40 font-light">by </span>
+                <span className="text-white/35 font-light">by </span>
                 <span className="text-white">Country</span>
               </h2>
 
               <p className="mt-3 max-w-[52ch] text-sm sm:text-[15px] leading-relaxed text-white/55">
-                Choose a country to see major and minor tourist sites {" "}
+                Choose a country to see major and minor tourist sites{" "}
                 <span className="font-medium text-white/80">then book verified stays and coordinate transport in one flow.</span>
               </p>
 
-              {/* Country indicators */}
-              <div className="mt-5 flex flex-wrap items-center gap-4">
+              {/* Country indicators — pill style with flag stripe */}
+              <div className="mt-6 flex flex-wrap items-center gap-3">
                 {[
                   { name: 'Tanzania', colors: ['#1eb53a','#fcd116','#00a3dd','#000000'] },
                   { name: 'Kenya',    colors: ['#006600','#cc0001','#ffffff','#000000'] },
                   { name: 'Uganda',   colors: ['#000000','#fcdc04','#da121a'] },
                 ].map(c => (
-                  <div key={c.name} className="flex items-center gap-2">
-                    <div className="flex rounded-full overflow-hidden h-2 w-12">
+                  <div key={c.name} className="flex items-center gap-2.5 rounded-full bg-white/10 border border-white/15 px-3.5 py-1.5 backdrop-blur-sm">
+                    <div className="flex rounded-full overflow-hidden h-2 w-10 flex-shrink-0">
                       {c.colors.map((col, i) => (
                         <div key={i} className="flex-1 h-full" style={{ background: col }} />
                       ))}
                     </div>
-                    <span className="text-[11px] font-semibold tracking-wide text-white/50">{c.name}</span>
+                    <span className="text-[11px] font-bold tracking-wide text-white/70">{c.name}</span>
                   </div>
                 ))}
               </div>

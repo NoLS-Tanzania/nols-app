@@ -170,21 +170,25 @@ export default function HelpAccountSetupPage() {
 
           {/* ── Security section ──────────────────────────────────────────── */}
           <section className="mt-12">
-            {/* Dark security header */}
-            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 to-[#0a1628] text-white p-6 sm:p-8 mb-5"
-              style={{ backgroundImage: "radial-gradient(ellipse at 80% 0%, #02b4f514 0%, transparent 60%)" }}>
-              <div className="pointer-events-none absolute inset-0 opacity-[0.04]"
-                style={{ backgroundImage: "radial-gradient(circle, #ffffff 1px, transparent 1px)", backgroundSize: "22px 22px" }} />
+            {/* Security header */}
+            <div className="relative overflow-hidden rounded-2xl bg-[#02665e] text-white p-6 sm:p-8 mb-5"
+              style={{ backgroundImage: "radial-gradient(ellipse at 85% 0%, #02b4f550 0%, transparent 55%), radial-gradient(ellipse at 0% 100%, #01332e80 0%, transparent 55%)" }}>
+              {/* diagonal white slashes */}
+              <div className="pointer-events-none absolute inset-0 opacity-[0.13]"
+                style={{ backgroundImage: "repeating-linear-gradient(-55deg, rgba(255,255,255,1) 0px, rgba(255,255,255,1) 1.5px, transparent 1.5px, transparent 22px)" }} />
+              {/* white dot grid */}
+              <div className="pointer-events-none absolute inset-0 opacity-[0.07]"
+                style={{ backgroundImage: "radial-gradient(circle, #ffffff 1px, transparent 1px)", backgroundSize: "20px 20px" }} />
               <div className="relative z-10 flex items-start gap-4">
-                <div className="flex-shrink-0 h-10 w-10 rounded-xl bg-[#02b4f5]/20 border border-[#02b4f5]/30 flex items-center justify-center">
-                  <Lock className="h-5 w-5 text-[#02b4f5]" />
+                <div className="flex-shrink-0 h-10 w-10 rounded-xl bg-white/15 border border-white/30 flex items-center justify-center">
+                  <Lock className="h-5 w-5 text-white" />
                 </div>
                 <div>
-                  <div className="inline-flex items-center gap-2 rounded-full bg-white/10 border border-white/15 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-[#02b4f5] mb-2">
+                  <div className="inline-flex items-center gap-2 rounded-full bg-white/15 border border-white/30 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-white mb-2">
                     Account security
                   </div>
                   <h2 className="text-xl font-black">Keep your account locked down</h2>
-                  <p className="mt-1.5 text-sm text-slate-300 max-w-xl leading-relaxed">
+                  <p className="mt-1.5 text-sm text-white/80 max-w-xl leading-relaxed">
                     Your account holds your booking history, saved payment methods, and personal details. These four steps keep it protected.
                   </p>
                 </div>
