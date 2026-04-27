@@ -6,6 +6,7 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import rateLimit from "express-rate-limit";
 import crypto from "crypto";
+import jwt from "jsonwebtoken";
 import { checkPropertyAvailability, checkGuestCapacity } from "../lib/bookingAvailability.js";
 import { sanitizeText } from "../lib/sanitize.js";
 import { notifyAdmins, notifyOwner } from "../lib/notifications.js";
@@ -13,6 +14,20 @@ import { invalidateOwnerReports } from "../lib/cache.js";
 import { maybeAuth } from "../middleware/auth.js";
 import { AUTO_DISPATCH_LOOKAHEAD_MS, MIN_TRANSPORT_LEAD_MS } from "../lib/transportPolicy.js";
 import { generateTransportTripCode } from "../lib/tripCode.js";
+
+/** Sign a short-lived token proving the caller created this booking. */
+function signBookingAccessToken(bookingId: number): string {
+  const secret =
+    process.env.PUBLIC_LINK_TOKEN_SECRET ||
+    process.env.JWT_SECRET ||
+    (process.env.NODE_ENV !== "production" ? "dev_jwt_secret" : "");
+  if (!secret) throw new Error("booking_access_secret_missing");
+  return jwt.sign(
+    { typ: "BOOKING_ACCESS", bookingId },
+    secret,
+    { expiresIn: "2h", issuer: "nolsaf-public", subject: String(bookingId) }
+  );
+}
 
 async function getEffectiveCommissionPercent(params: { propertyServices: unknown }): Promise<number> {
   // Per-property override (admin sets this via /admin/properties/:id -> services.commissionPercent)
@@ -1393,6 +1408,9 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
     return res.status(201).json({
       ok: true,
       bookingId: result.bookingId,
+      // Short-lived proof-of-creation token. Required by POST /api/public/invoices/from-booking
+      // to prevent sequential-ID enumeration of other users' bookings.
+      bookingAccessToken: signBookingAccessToken(result.bookingId),
       bookingCode: result.bookingCode,
       totalAmount: result.totalAmount,
       accommodationAmount: result.accommodationAmount,

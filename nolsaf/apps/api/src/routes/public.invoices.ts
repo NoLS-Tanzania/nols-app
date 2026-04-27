@@ -300,7 +300,24 @@ function makeInvoiceNumber(bookingId: number, codeId: number) {
 // Validation schema
 const createInvoiceSchema = z.object({
   bookingId: z.number().int().positive(),
+  // Proof-of-creation token returned by POST /api/public/bookings.
+  // Required to prevent sequential bookingId enumeration by unauthenticated callers.
+  bookingAccessToken: z.string().min(20).max(512),
 });
+
+function verifyBookingAccessToken(token: string, bookingId: number): boolean {
+  try {
+    const secret =
+      process.env.PUBLIC_LINK_TOKEN_SECRET ||
+      process.env.JWT_SECRET ||
+      (process.env.NODE_ENV !== "production" ? "dev_jwt_secret" : "");
+    if (!secret) return false;
+    const decoded = jwt.verify(token, secret, { issuer: "nolsaf-public" }) as any;
+    return decoded?.typ === "BOOKING_ACCESS" && Number(decoded.bookingId) === bookingId;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * POST /api/public/invoices/from-booking
@@ -323,7 +340,14 @@ router.post("/from-booking", publicInvoiceLimiter, async (req: Request, res: Res
       });
     }
 
-    const { bookingId } = validationResult.data;
+    const { bookingId, bookingAccessToken } = validationResult.data;
+
+    // Verify proof-of-creation token — blocks unauthenticated enumeration of sequential bookingIds.
+    // Authenticated users (req.user) are exempt so admin/owner tools still work.
+    const isAuthenticated = !!(req as any).user;
+    if (!isAuthenticated && !verifyBookingAccessToken(bookingAccessToken, bookingId)) {
+      return res.status(403).json({ error: "Invalid or expired booking access token" });
+    }
 
     // Fetch booking with property and code
     const booking = await prisma.booking.findUnique({

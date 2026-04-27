@@ -128,6 +128,7 @@ import { prisma } from "@nolsaf/prisma";
 import { getRedis } from "./lib/redis.js";
 import { startTransportAutoDispatch } from "./workers/transportAutoDispatch.js";
 import { startOwnerBusinessLicenceExpiryReminders } from "./workers/ownerBusinessLicenceExpiryReminders.js";
+import { startExpireStaleBookings } from "./workers/expireStaleBookings.js";
 import { getProtectedDriverAccessDenial, getProtectedDriverState, isDriverApprovedForProtectedAccess } from "./lib/driverAccess.js";
 
 // moved the POST handler to after the app is created
@@ -193,6 +194,8 @@ app.set('io', io);
 if (process.env.NODE_ENV !== "test") {
   startTransportAutoDispatch({ io });
   startOwnerBusinessLicenceExpiryReminders({ io });
+  // Expire NEW bookings that were never paid within 30 minutes (anti-squatting).
+  startExpireStaleBookings();
 }
 
 // Socket.IO authentication middleware

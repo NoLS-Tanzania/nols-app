@@ -716,6 +716,7 @@ export default function BookingConfirmPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           bookingId: bookingResult.bookingId,
+          bookingAccessToken: bookingResult.bookingAccessToken,
         }),
       });
 
