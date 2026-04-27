@@ -63,6 +63,62 @@ function bboxFromKm(lat: number, lng: number, radiusKm: number) {
 }
 
 /**
+ * Batch-resolve the primary image URL for a list of property IDs using
+ * the same 3-tier COALESCE used in the raw-SQL browse paths:
+ *   Tier 1 — thumbnailUrl from property_images WHERE status IN (READY, PROCESSING)
+ *   Tier 2 — any url from property_images (catches PENDING / no-status rows)
+ *   Tier 3 — JSON_EXTRACT(photos, '$[0]') legacy fallback
+ *
+ * This is the permanent fix for images disappearing when filters are active.
+ * The filtered code path previously used a Prisma relation that only included
+ * READY/PROCESSING images, so any property whose images were still PENDING
+ * would silently fall back to the photos JSON field, which is often empty or
+ * contains base64 data URIs that are rejected by isRenderablePublicImageUrl.
+ */
+async function batchResolvePrimaryImages(ids: number[]): Promise<Map<number, string | null>> {
+  if (ids.length === 0) return new Map();
+  try {
+    const rows = (await prisma.$queryRaw(
+      Prisma.sql`
+        SELECT p.id,
+          COALESCE(
+            (SELECT pi.thumbnailUrl FROM \`property_images\` pi
+              WHERE pi.propertyId = p.id
+                AND pi.status IN ('READY','PROCESSING')
+                AND pi.thumbnailUrl IS NOT NULL
+              ORDER BY pi.id ASC LIMIT 1),
+            (SELECT pi.url FROM \`property_images\` pi
+              WHERE pi.propertyId = p.id
+                AND pi.url IS NOT NULL
+              ORDER BY pi.id ASC LIMIT 1),
+            CASE
+              WHEN JSON_EXTRACT(p.photos, '$[0]') IS NOT NULL
+                AND JSON_UNQUOTE(JSON_EXTRACT(p.photos, '$[0]')) != ''
+              THEN JSON_UNQUOTE(JSON_EXTRACT(p.photos, '$[0]'))
+              ELSE NULL
+            END
+          ) AS primaryImage
+        FROM \`property\` p
+        WHERE p.id IN (${Prisma.join(ids)})
+      `
+    )) as Array<{ id: number; primaryImage: string | null }>;
+    return new Map<number, string | null>(
+      (rows || []).map((r) => [Number(r.id), r.primaryImage ?? null])
+    );
+  } catch {
+    // If the batch query fails (e.g. property_images table not yet migrated),
+    // return an empty map — toPublicCard will fall back to pickImages(photos).
+    return new Map();
+  }
+}
+
+/** Merge a primaryImage map into an items array (mutates each item in-place). */
+function applyPrimaryImages(items: any[], imgMap: Map<number, string | null>): any[] {
+  if (imgMap.size === 0) return items;
+  return items.map((p: any) => ({ ...p, primaryImage: imgMap.get(Number(p.id)) ?? null }));
+}
+
+/**
  * GET /api/public/properties
  * Public browse/search endpoint for APPROVED properties only.
  */
@@ -408,7 +464,7 @@ const listPublicProperties: RequestHandler = async (req, res) => {
               items = ids.map((id) => byId.get(id)).filter(Boolean);
               total = cnt as number;
             } else {
-              const res = await Promise.all([
+              const [dbItems, cnt] = await Promise.all([
                 prisma.property.findMany({
                   where,
                   skip,
@@ -431,29 +487,28 @@ const listPublicProperties: RequestHandler = async (req, res) => {
                     maxGuests: true,
                     totalBedrooms: true,
                     totalBathrooms: true,
-                    photos: true,
-                    // Fetch new PropertyImage entries (preferred); photos[] is fallback only
-                    images: {
-                      where: {
-                        status: { in: ["READY", "PROCESSING"] },
-                        url: { not: null },
-                      },
-                      select: { url: true, thumbnailUrl: true, status: true },
-                      orderBy: { id: "asc" },
-                      take: 1,
-                    },
+                    // photos and images are intentionally omitted here.
+                    // batchResolvePrimaryImages below handles image resolution
+                    // via a 3-tier COALESCE (thumbnail → url → legacy photos JSON)
+                    // which correctly includes PENDING images missed by the old
+                    // status: { in: ['READY','PROCESSING'] } Prisma filter.
                   },
                 }),
                 prisma.property.count({ where }),
               ]);
-              items = res[0] as any[];
-              total = res[1] as number;
+              items = dbItems as any[];
+              total = cnt as number;
+              // Resolve primary images for all filtered results in one query.
+              const imgMap = await batchResolvePrimaryImages(
+                items.map((p: any) => Number(p.id)).filter((n: number) => Number.isFinite(n))
+              );
+              items = applyPrimaryImages(items, imgMap);
             }
           } catch (e) {
             if ((sort === "price_asc" || sort === "price_desc") && isMysqlSortMemoryError(e)) {
               console.warn("public.properties.list price sort exceeded DB sort memory; falling back to newest", e);
               const fallbackOrderBy = [{ id: "desc" }];
-              const res = await Promise.all([
+              const [fbItems, fbCnt] = await Promise.all([
                 prisma.property.findMany({
                   where,
                   skip,
@@ -476,27 +531,18 @@ const listPublicProperties: RequestHandler = async (req, res) => {
                     maxGuests: true,
                     totalBedrooms: true,
                     totalBathrooms: true,
-                    photos: true,
-                    // Fetch new PropertyImage entries (preferred); photos[] is fallback only
-                    images: {
-                      where: {
-                        status: { in: ["READY", "PROCESSING"] },
-                        url: { not: null },
-                      },
-                      select: { url: true, thumbnailUrl: true, status: true },
-                      orderBy: { id: "asc" },
-                      take: 1,
-                    },
                   },
                 }),
                 prisma.property.count({ where }),
               ]);
-              items = res[0] as any[];
-              total = res[1] as number;
-              const dto = (items || []).map(toPublicCard);
+              const fbImgMap = await batchResolvePrimaryImages(
+                (fbItems as any[]).map((p: any) => Number(p.id)).filter((n: number) => Number.isFinite(n))
+              );
+              const fbItemsWithImages = applyPrimaryImages(fbItems as any[], fbImgMap);
+              const dto = fbItemsWithImages.map(toPublicCard);
               return {
                 items: dto,
-                total,
+                total: fbCnt as number,
                 page,
                 pageSize,
                 warning: "price_sort_fallback_newest",
@@ -507,7 +553,7 @@ const listPublicProperties: RequestHandler = async (req, res) => {
             // (missing columns like ward/street or missing relations like images).
             console.warn("public.properties.list falling back to minimal select", e);
 
-            const res = await Promise.all([
+            const [minItems, minCnt] = await Promise.all([
               prisma.property.findMany({
                 where,
                 skip,
@@ -528,14 +574,16 @@ const listPublicProperties: RequestHandler = async (req, res) => {
                   maxGuests: true,
                   totalBedrooms: true,
                   totalBathrooms: true,
-                  photos: true,
-                  // Fallback when PropertyImage table is unavailable or minimal select is needed
+                  // photos omitted: batchResolvePrimaryImages handles all image tiers
                 },
               }),
               prisma.property.count({ where }),
             ]);
-            items = res[0] as any[];
-            total = res[1] as number;
+            const minImgMap = await batchResolvePrimaryImages(
+              (minItems as any[]).map((p: any) => Number(p.id)).filter((n: number) => Number.isFinite(n))
+            );
+            items = applyPrimaryImages(minItems as any[], minImgMap);
+            total = minCnt as number;
           }
 
           const dto = (items || []).map(toPublicCard);

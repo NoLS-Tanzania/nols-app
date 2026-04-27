@@ -152,6 +152,8 @@ import {
 
   LogOut,
 
+  Wifi,
+
 } from "lucide-react";
 
 import LogoSpinner from "@/components/LogoSpinner";
@@ -1823,39 +1825,48 @@ function PropertyAvailabilityChecker({
 
         {availability && !error && (
 
-          <div className="mt-4 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_12px_30px_rgba(15,23,42,0.06)]">
+          <div className="mt-4 overflow-hidden rounded-3xl border border-[#02665e]/20 bg-white shadow-[0_16px_40px_rgba(2,102,94,0.18)]">
 
-            <div className="px-5 py-4 border-b border-slate-200 bg-white">
-
-              <div className="flex items-start justify-between gap-4">
+            <div className="relative px-5 py-4 border-b border-white/15 bg-gradient-to-br from-[#02665e] via-[#025c55] to-[#024a43] overflow-hidden">
+              {/* Diagonal white slash stripes */}
+              <div className="pointer-events-none absolute inset-0" style={{ backgroundImage: 'repeating-linear-gradient(135deg, rgba(255,255,255,0.045) 0px, rgba(255,255,255,0.045) 1px, transparent 1px, transparent 18px)' }} />
+              <div className="relative flex items-start justify-between gap-4">
 
                 <div className="min-w-0">
 
                   <div className="flex items-center gap-3">
 
-                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-600/10 text-emerald-800 ring-1 ring-emerald-600/15">
-
-                      <CheckCircle2 className="w-5 h-5" aria-hidden />
-
+                                        {/* Animated live pulse icon */}
+                    <span className="relative inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-white/15 text-white ring-1 ring-white/25 flex-shrink-0">
+                      {/* Outer pulsing ring */}
+                      <span className="absolute inset-0 rounded-2xl animate-ping bg-white/20" style={{ animationDuration: '2.4s' }} />
+                      <Wifi className="w-5 h-5 relative z-10" aria-hidden />
                     </span>
 
                     <div className="min-w-0">
 
                       <div className="flex items-center gap-2">
 
-                        <h3 className="text-base font-extrabold tracking-tight text-slate-900">Availability</h3>
+                        <h3 className="text-base font-extrabold tracking-tight text-white">Availability</h3>
 
-                        <span className="inline-flex items-center rounded-full bg-emerald-600 text-white px-2.5 py-0.5 text-[10px] font-extrabold tracking-wide shadow-sm">LIVE</span>
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-2.5 py-1 text-[10px] font-extrabold tracking-wide text-white ring-1 ring-white/30">
+                          {/* Triple-ring live dot */}
+                          <span className="relative flex h-2 w-2">
+                            <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75 animate-ping" style={{ animationDuration: '1.5s' }} />
+                            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-300" />
+                          </span>
+                          LIVE
+                        </span>
 
                       </div>
 
-                      <div className="mt-0.5 text-[12px] text-slate-700">
+                      <div className="mt-0.5 text-[12px]">
 
-                        <span className="font-semibold text-slate-800">{formatDate(checkIn)} - {formatDate(checkOut)}</span>
+                        <span className="font-semibold text-white/90">{formatDate(checkIn)} - {formatDate(checkOut)}</span>
 
-                        <span className="text-slate-400"> | </span>
+                        <span className="text-white/40"> • </span>
 
-                        <span className="text-slate-600">Updated {formatTimeAgo(lastUpdatedAt)}</span>
+                        <span className="text-white/60">Updated {formatTimeAgo(lastUpdatedAt)}</span>
 
                       </div>
 
@@ -1869,7 +1880,7 @@ function PropertyAvailabilityChecker({
 
                 <div className="hidden sm:flex items-center gap-2">
 
-                  <span className="inline-flex items-center rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-slate-700 ring-1 ring-slate-200 shadow-sm">
+                  <span className="inline-flex items-center rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold text-white/80 ring-1 ring-white/20">
 
                     Refreshes up to every 4 minutes
 
@@ -1885,7 +1896,7 @@ function PropertyAvailabilityChecker({
 
             {availability.available ? (
 
-              <div className="p-5">
+              <div className="p-5 bg-[#f5fbfa]">
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
@@ -1893,31 +1904,31 @@ function PropertyAvailabilityChecker({
 
                   <div className="lg:col-span-1">
 
-                    <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_8px_22px_rgba(15,23,42,0.06)]">
+                    <div className="rounded-3xl border border-[#02665e]/15 bg-white p-4 shadow-[0_4px_16px_rgba(2,102,94,0.08)]">
 
-                      <div className="text-[11px] font-medium tracking-wide text-slate-700 uppercase">Available now</div>
+                      <div className="text-[11px] font-bold tracking-wide text-[#02665e] uppercase">Available now</div>
 
                       <div className="mt-3 grid grid-cols-2 gap-3">
 
-                        <div className="rounded-2xl bg-white ring-1 ring-slate-200 p-3">
+                        <div className="rounded-2xl bg-[#f0faf9] ring-1 ring-[#02665e]/15 p-3">
 
-                          <div className="text-[11px] font-medium text-slate-700">Rooms</div>
+                          <div className="text-[11px] font-medium text-slate-600">Rooms</div>
 
-                          <div className="mt-1 text-3xl font-semibold tracking-tight text-slate-900">{availability.summary.totalAvailableRooms}</div>
+                          <div className="mt-1 text-3xl font-semibold tracking-tight text-[#02665e]">{availability.summary.totalAvailableRooms}</div>
 
                         </div>
 
-                        <div className="rounded-2xl bg-white ring-1 ring-slate-200 p-3">
+                        <div className="rounded-2xl bg-[#f0faf9] ring-1 ring-[#02665e]/15 p-3">
 
-                          <div className="text-[11px] font-medium text-slate-700">Beds</div>
+                          <div className="text-[11px] font-medium text-slate-600">Beds</div>
 
-                          <div className="mt-1 text-3xl font-semibold tracking-tight text-slate-900">{availability.summary.totalAvailableBeds}</div>
+                          <div className="mt-1 text-3xl font-semibold tracking-tight text-[#02665e]">{availability.summary.totalAvailableBeds}</div>
 
                         </div>
 
                       </div>
 
-                      <div className="mt-3 text-[11px] text-slate-600">
+                      <div className="mt-3 text-[11px] text-slate-500">
 
                         Numbers reflect the selected date range.
 
@@ -1933,11 +1944,11 @@ function PropertyAvailabilityChecker({
 
                   <div className="lg:col-span-2">
 
-                    <div className="rounded-3xl border border-slate-200 overflow-hidden">
+                    <div className="rounded-3xl border border-[#02665e]/15 overflow-hidden bg-white">
 
-                      <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
+                      <div className="px-4 py-3 bg-[#f0faf9] border-b border-[#02665e]/10">
 
-                        <div className="hidden md:grid grid-cols-12 gap-3 text-[11px] font-bold tracking-wide text-slate-500 uppercase">
+                        <div className="hidden md:grid grid-cols-12 gap-3 text-[11px] font-bold tracking-wide text-[#02665e]/70 uppercase">
 
                           <div className="col-span-4">Room type</div>
 
@@ -2127,7 +2138,7 @@ function PropertyAvailabilityChecker({
 
             ) : (
 
-              <div className="p-5">
+              <div className="p-5 bg-[#f5fbfa]">
 
                 <div className="rounded-3xl border border-amber-200 bg-amber-50 p-4">
 

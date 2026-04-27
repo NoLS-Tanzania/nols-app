@@ -147,11 +147,13 @@ export function formatLocation(p: {
 export function toPublicCard(p: any): PublicPropertyCard {
   const id = Number(p.id);
   const slug = buildPropertySlug(String(p.title || ""), id);
-  // If primaryImage is pre-extracted (e.g. from a raw SQL query using JSON_EXTRACT),
-  // use it directly to avoid fetching the full photos JSON blob.
+  // If primaryImage is pre-extracted (e.g. from a raw SQL query using JSON_EXTRACT or
+  // batchResolvePrimaryImages), use it directly — but still validate it's a renderable URL
+  // so base64 data URIs from the legacy photos JSON field can never reach the browser.
   let primaryImage: string | null;
   if (Object.prototype.hasOwnProperty.call(p, 'primaryImage')) {
-    primaryImage = typeof p.primaryImage === 'string' && p.primaryImage ? p.primaryImage : null;
+    const raw = typeof p.primaryImage === 'string' ? p.primaryImage.trim() : null;
+    primaryImage = raw && isRenderablePublicImageUrl(raw) ? raw : null;
   } else {
     const images = pickImages({ images: p.images, photos: p.photos, limit: 1 });
     primaryImage = images[0] ?? null;
