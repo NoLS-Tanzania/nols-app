@@ -1208,9 +1208,10 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
               data: {
             userId,
             propertyId: data.propertyId,
-            // Cashless platform: if the property booking is successfully created, it is paid.
-            // Transport-inclusive bookings should be visible under Scheduled Trips.
-            status: "PENDING_ASSIGNMENT",
+            // Transport booking is held as PAYMENT_PENDING until the invoice is paid.
+            // The webhook handler (webhooks.payments.ts markInvoicePaid) upgrades
+            // PAYMENT_PENDING → PENDING_ASSIGNMENT once AzamPay confirms the payment.
+            status: "PAYMENT_PENDING",
             scheduledDate: effectiveScheduled,
             fromLatitude: fromLat as any,
             fromLongitude: fromLng as any,
@@ -1230,7 +1231,7 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
             notes: sanitizeText(
               `NoLSAF Auction Policy: Claim only if you can commit to the pickup time. No-shows/cancellations after claiming may affect your driver rating.`
             ),
-            paymentStatus: "PAID",
+            paymentStatus: "UNPAID",
             paymentRef: `BOOKING:${booking.id}`,
             tripCode,
             tripCodeHash,

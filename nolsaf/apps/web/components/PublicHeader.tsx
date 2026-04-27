@@ -469,6 +469,8 @@ export default function PublicHeader({
                 width={logoDims.width}
                 height={logoDims.height}
                 sizes="64px"
+                loading="eager"
+                priority
                 className="object-contain transition-all duration-300 group-hover:brightness-110 w-auto max-w-[56px] sm:max-w-[64px]"
                 style={{
                   width: "auto",

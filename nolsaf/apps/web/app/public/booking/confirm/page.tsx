@@ -119,6 +119,8 @@ export default function BookingConfirmPage() {
   const [isGuestSelectorOpen, setIsGuestSelectorOpen] = useState(false);
   const [checkInPickerOpen, setCheckInPickerOpen] = useState(false);
   const [checkOutPickerOpen, setCheckOutPickerOpen] = useState(false);
+  const [checkInPickerPos, setCheckInPickerPos] = useState<{ top: number; left: number } | null>(null);
+  const [checkOutPickerPos, setCheckOutPickerPos] = useState<{ top: number; right: number } | null>(null);
 
   const checkInBtnRef = useRef<HTMLButtonElement>(null);
   const checkOutBtnRef = useRef<HTMLButtonElement>(null);
@@ -1385,7 +1387,13 @@ export default function BookingConfirmPage() {
                         <button
                           ref={checkInBtnRef}
                           type="button"
-                          onClick={() => setCheckInPickerOpen(true)}
+                          onClick={() => {
+                            if (checkInBtnRef.current) {
+                              const r = checkInBtnRef.current.getBoundingClientRect();
+                              setCheckInPickerPos({ top: r.bottom + 6, left: r.left });
+                            }
+                            setCheckInPickerOpen(true);
+                          }}
                           className="w-full min-w-0 px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 pl-8 sm:pl-10 md:pl-11 pr-8 sm:pr-10 md:pr-11 border-2 border-slate-300 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-gradient-to-r from-slate-50 to-blue-50/50 shadow-sm max-w-full box-border flex items-center justify-between group"
                         >
                           <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
@@ -1404,10 +1412,10 @@ export default function BookingConfirmPage() {
                           </div>
                           <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 group-hover:text-[#02665e] transition-colors flex-shrink-0" />
                         </button>
-                        {checkInPickerOpen && (
+                        {checkInPickerOpen && checkInPickerPos && (
                           <>
                             <div className="fixed inset-0 z-40" onClick={() => setCheckInPickerOpen(false)} />
-                            <div className="absolute z-50 top-full left-0 mt-1">
+                            <div className="fixed z-[200]" style={{ top: checkInPickerPos.top, left: checkInPickerPos.left }}>
                               <DatePicker
                                 selected={bookingData?.checkIn || undefined}
                                 onSelectAction={(s) => {
@@ -1440,7 +1448,13 @@ export default function BookingConfirmPage() {
                         <button
                           ref={checkOutBtnRef}
                           type="button"
-                          onClick={() => setCheckOutPickerOpen(true)}
+                          onClick={() => {
+                            if (checkOutBtnRef.current) {
+                              const r = checkOutBtnRef.current.getBoundingClientRect();
+                              setCheckOutPickerPos({ top: r.bottom + 6, right: window.innerWidth - r.right });
+                            }
+                            setCheckOutPickerOpen(true);
+                          }}
                           className="w-full min-w-0 px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 pl-8 sm:pl-10 md:pl-11 pr-8 sm:pr-10 md:pr-11 border-2 border-slate-300 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-gradient-to-r from-slate-50 to-blue-50/50 shadow-sm max-w-full box-border flex items-center justify-between group"
                         >
                           <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
@@ -1459,10 +1473,10 @@ export default function BookingConfirmPage() {
                           </div>
                           <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 group-hover:text-[#02665e] transition-colors flex-shrink-0" />
                         </button>
-                        {checkOutPickerOpen && (
+                        {checkOutPickerOpen && checkOutPickerPos && (
                           <>
                             <div className="fixed inset-0 z-40" onClick={() => setCheckOutPickerOpen(false)} />
-                            <div className="absolute z-50 top-full left-0 mt-1">
+                            <div className="fixed z-[200]" style={{ top: checkOutPickerPos.top, right: checkOutPickerPos.right }}>
                               <DatePicker
                                 selected={bookingData?.checkOut || undefined}
                                 onSelectAction={(s) => {
@@ -1904,32 +1918,98 @@ export default function BookingConfirmPage() {
 
                 {/* Transportation Option */}
                 <div className="pt-6 border-t border-slate-200/60">
-                  <div className="flex items-center justify-between mb-4 p-4 bg-gradient-to-r from-slate-50 to-blue-50/30 rounded-xl border border-slate-200/60">
-                    <div className="flex-1">
-                      <label className="text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2">
-                        <Car className="w-4 h-4 text-[#02665e]" />
-                        Include Transportation
-                      </label>
-                      <p className="text-xs text-slate-600">
-                        Add transport from your location to the property
-                      </p>
+                  {/* Transport card header */}
+                  <div className="relative overflow-hidden rounded-2xl mb-4" style={{ background: "linear-gradient(135deg, #02665e 0%, #024d47 100%)" }}>
+                    {/* subtle diagonal slashes — brand pattern */}
+                    <div className="pointer-events-none absolute inset-0 opacity-[0.08]"
+                      style={{ backgroundImage: "repeating-linear-gradient(-55deg, rgba(255,255,255,1) 0px, rgba(255,255,255,1) 1.5px, transparent 1.5px, transparent 22px)" }} />
+                    {/* white dot grid — very subtle */}
+                    <div className="pointer-events-none absolute inset-0 opacity-[0.06]"
+                      style={{ backgroundImage: "radial-gradient(circle, #ffffff 1px, transparent 1px)", backgroundSize: "20px 20px" }} />
+                    {/* top-right radial highlight */}
+                    <div className="pointer-events-none absolute inset-0"
+                      style={{ background: "radial-gradient(ellipse at 100% 0%, rgba(2,180,245,0.25) 0%, transparent 55%)" }} />
+
+                    <div className="relative z-10 p-5 sm:p-6">
+                      {/* top row: icon + title */}
+                      <div className="flex items-start gap-4">
+                        <div className="w-11 h-11 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <Car className="w-5 h-5 text-white" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[15px] font-extrabold text-white tracking-tight">Include Transportation</span>
+                            <span className="bg-white/15 border border-white/25 rounded-full px-2.5 py-0.5 text-[10px] font-bold text-white/90 uppercase tracking-widest">
+                              Optional add-on
+                            </span>
+                          </div>
+                          <p className="mt-0.5 text-[12px] text-white/65 font-medium">
+                            Door-to-door pickup from anywhere to the property
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* switch row */}
+                      <div className="mt-4 pt-4 border-t border-white/10">
+                        {/* ON state — confirmation line */}
+                        {includeTransport && (
+                          <div className="flex items-center gap-2 text-[13px] font-semibold text-white/80">
+                            <svg className="w-4 h-4 text-[#4dd9ac] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                            Transportation included. Configure below
+                          </div>
+                        )}
+
+                      {/* OFF state — button centred, hints below */}
+                      {!includeTransport && (
+                        <div className="flex flex-col items-center gap-3">
+                          {/* CTA button */}
+                          <div className="relative">
+                            <span className="absolute -inset-1 rounded-2xl animate-ping bg-white/30 pointer-events-none" style={{ animationDuration: "2s" }} />
+                            <button
+                              type="button"
+                              onClick={() => setIncludeTransport(true)}
+                              aria-label="Add transportation to booking"
+                              className="relative inline-flex items-center gap-2 rounded-xl bg-white text-[#02665e] px-6 py-3 text-[13px] font-extrabold tracking-wide shadow-xl shadow-black/20 hover:bg-white/90 active:scale-95 transition-all duration-200 select-none"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+                              Add to booking
+                              <svg className="w-3.5 h-3.5 ml-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                            </button>
+                          </div>
+                          {/* feature hints — below button on all sizes */}
+                          <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                            {[
+                              { icon: "🏍️", label: "Boda · Car · XL" },
+                              { icon: "📍", label: "GPS / Airport" },
+                              { icon: "💰", label: "Live fare" },
+                            ].map(({ icon, label }, i) => (
+                              <span key={label} className="inline-flex items-center gap-1 text-[11px] font-semibold text-white/60 whitespace-nowrap">
+                                {i > 0 && <span className="w-px h-3 bg-white/20 mx-0.5 flex-shrink-0" />}
+                                <span className="text-xs leading-none">{icon}</span>
+                                {label}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Remove button — only when ON */}
+                      {includeTransport && (
+                        <div className="flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => setIncludeTransport(false)}
+                            aria-label="Remove transportation"
+                            className="inline-flex items-center gap-2 rounded-xl bg-white/15 border border-white/30 text-white px-4 py-2.5 text-[13px] font-bold hover:bg-white/25 active:scale-95 transition-all duration-200 select-none"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                            Remove
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setIncludeTransport(!includeTransport)}
-                      aria-label={includeTransport ? "Disable transportation" : "Enable transportation"}
-                      title={includeTransport ? "Disable transportation" : "Enable transportation"}
-                      className={`relative inline-flex h-7 w-12 items-center rounded-full transition-all duration-300 shadow-md ${
-                        includeTransport ? "bg-[#02665e] shadow-[#02665e]/30" : "bg-slate-300"
-                      }`}
-                    >
-                      <span
-                        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-lg transition-all duration-300 ${
-                          includeTransport ? "translate-x-6" : "translate-x-1"
-                        }`}
-                      />
-                    </button>
                   </div>
+                </div>
 
                   {includeTransport && (
                     <div className="space-y-5 mt-4 p-5 bg-white rounded-2xl border border-slate-200/80 shadow-md animate-in fade-in slide-in-from-top-2 duration-300">
@@ -2733,7 +2813,7 @@ export default function BookingConfirmPage() {
                   ) : (
                     <>
                       <CheckCircle2 className="w-5 h-5" />
-                      <span>Confirm & Continue to Payment</span>
+                      <span>Confirm &amp; Continue to Payment</span>
                     </>
                   )}
                 </button>

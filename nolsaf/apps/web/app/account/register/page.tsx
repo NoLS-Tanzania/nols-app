@@ -759,15 +759,15 @@ export default function RegisterPage() {
     return (
       <div className="w-full flex flex-col bg-slate-950 relative box-border">
         {/* subtle background decoration */}
-        <div className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full bg-[#02665e]/10 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-32 -left-32 h-80 w-80 rounded-full bg-slate-900/5 blur-3xl" />
+        <div className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full bg-[#02665e]/25 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-32 -left-32 h-80 w-80 rounded-full bg-[#02b4f5]/10 blur-3xl" />
         <div className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur border-b border-slate-800">
           <div className="h-1 bg-[#02665e]" />
           
           <div className="px-6 py-5 border-b border-slate-800">
             <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-lg bg-[#02665e]/10 flex items-center justify-center">
-                <LogIn className="w-5 h-5 text-[#02665e]" />
+              <div className="w-10 h-10 rounded-lg bg-[#02665e] flex items-center justify-center">
+                <LogIn className="w-5 h-5 text-white" />
               </div>
               <div className="flex-1">
                 <h1 className="text-xl font-bold text-slate-50">Sign In</h1>
@@ -782,7 +782,7 @@ export default function RegisterPage() {
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 text-emerald-200 px-2.5 py-1 text-[11px] font-semibold border border-emerald-500/20">
                 <Shield className="h-3.5 w-3.5" />
-                <span>Secure sign-in</span>
+                <span>Secure sign-in · we never share your details</span>
               </div>
               {!!roleParam && (
                 <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-900/60 text-slate-200 px-2.5 py-1 text-[11px] font-semibold border border-slate-800">
@@ -796,7 +796,7 @@ export default function RegisterPage() {
                   <span className="capitalize">{roleParam}</span>
                 </div>
               )}
-              <div className="text-[11px] text-slate-400">We never share your details.</div>
+
             </div>
           </div>
 
