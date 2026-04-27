@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useReducedMotion, useInView } from "framer-motion";
+import { motion, useReducedMotion, useInView, type UseInViewOptions } from "framer-motion";
 import { useRef, type ReactNode } from "react";
 
 /**
@@ -61,7 +61,7 @@ export default function ScrollReveal({
 }: ScrollRevealProps) {
   const prefersReduced = useReducedMotion();
   const ref = useRef<HTMLDivElement>(null);
-  const isInView = useInView(ref, { once, margin });
+  const isInView = useInView(ref, { once, margin: margin as UseInViewOptions["margin"] });
 
   if (prefersReduced) {
     return <div className={className}>{children}</div>;
@@ -125,7 +125,7 @@ export function StaggerReveal({
   return (
     <>
       {(Array.isArray(children) ? children : [children]).map((child, i) => (
-        <_StaggerItem
+        <StaggerItem
           key={i}
           duration={duration}
           delay={baseDelay + i * staggerDelay}
@@ -134,13 +134,13 @@ export function StaggerReveal({
           className={className}
         >
           {child}
-        </_StaggerItem>
+        </StaggerItem>
       ))}
     </>
   );
 }
 
-function _StaggerItem({
+function StaggerItem({
   children,
   duration,
   delay,
@@ -156,7 +156,7 @@ function _StaggerItem({
   className?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const isInView = useInView(ref, { once, margin });
+  const isInView = useInView(ref, { once, margin: margin as UseInViewOptions["margin"] });
 
   return (
     <motion.div
