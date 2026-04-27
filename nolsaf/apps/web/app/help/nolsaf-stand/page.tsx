@@ -26,10 +26,10 @@ import HelpBackLink from "../HelpBackLink";
 
 const ATTRACTION_TYPES = [
   { icon: TreePine,   label: "National parks",           sub: "Serengeti, Kilimanjaro, Nyerere, Mikumi and other gazetted parks across East Africa.",           gradient: "from-green-600 to-emerald-700",  shadow: "shadow-green-100" },
-  { icon: Binoculars, label: "Wildlife game reserves",   sub: "Selous, Ruaha, Ngorongoro — guided game drives, night safaris, and walking expeditions.",         gradient: "from-amber-600 to-yellow-600",  shadow: "shadow-amber-100" },
+  { icon: Binoculars, label: "Wildlife game reserves",   sub: "Selous, Ruaha, Ngorongoro guided game drives, night safaris, and walking expeditions.",         gradient: "from-amber-600 to-yellow-600",  shadow: "shadow-amber-100" },
   { icon: Mountain,   label: "Mountain treks & climbs",  sub: "Summit expeditions, acclimatisation treks, and guided ascents on Kilimanjaro and beyond.",         gradient: "from-slate-600 to-slate-800",   shadow: "shadow-slate-100" },
-  { icon: Globe,      label: "Marine & coastal parks",   sub: "Mafia Island, Zanzibar Marine Park — snorkelling, diving, and reef conservation encounters.",     gradient: "from-cyan-600 to-blue-600",     shadow: "shadow-cyan-100" },
-  { icon: Leaf,       label: "Nature reserves & trails", sub: "Arusha, Gombe, Mahale — primate tracking, bird watching, and forest trail experiences.",          gradient: "from-teal-600 to-green-600",    shadow: "shadow-teal-100" },
+  { icon: Globe,      label: "Marine & coastal parks",   sub: "Mafia Island, Zanzibar Marine Park - snorkelling, diving, and reef conservation encounters.",     gradient: "from-cyan-600 to-blue-600",     shadow: "shadow-cyan-100" },
+  { icon: Leaf,       label: "Nature reserves & trails", sub: "Arusha, Gombe, Mahale - primate tracking, bird watching, and forest trail experiences.",          gradient: "from-teal-600 to-green-600",    shadow: "shadow-teal-100" },
   { icon: Compass,    label: "Cultural heritage sites",  sub: "UNESCO-listed ruins, ancient caravan routes, and archaeological sites guided with context.",      gradient: "from-orange-500 to-amber-600",  shadow: "shadow-orange-100" },
 ];
 
@@ -37,12 +37,12 @@ const HOW_IT_WORKS = [
   { step: "01", icon: Sparkles,      title: "Guest expresses interest",      detail: "When a user on NoLSAF selects a park, reserve, or safari-type attraction during planning, the platform flags them as a tourist-attraction seeker and opens their request for assignment." },
   { step: "02", icon: Users,         title: "NoLSAF matches to your stand",  detail: "Based on your registered coverage area, license category, and availability, NoLSAF routes the request directly to your operator account with guest details, dates, and the attraction of interest." },
   { step: "03", icon: ClipboardCheck,title: "You accept & confirm the tour", detail: "Accept the assignment, confirm your itinerary, and lock in the tour details through the operator dashboard. The guest receives an instant confirmation with your company profile and license badge." },
-  { step: "04", icon: MapPin,        title: "You lead the experience",       detail: "You handle everything on the ground — transport, park fees, safety briefing, guide narration, and guest wellbeing. NoLSAF manages the payment and review at the close of the experience." },
+  { step: "04", icon: MapPin,        title: "You lead the experience",       detail: "You handle everything on the ground - transport, park fees, safety briefing, guide narration, and guest wellbeing. NoLSAF manages the payment and review at the close of the experience." },
 ];
 
 const WHAT_YOU_GET = [
   { icon: FileCheck,   title: "Verified operator badge",      detail: "Your company appears on the platform with a 'Verified Safari Operator' badge, built from your license details, coverage areas, and guest reviews." },
-  { icon: ShieldCheck, title: "Assignment matching engine",   detail: "The platform matches tourist-attraction seekers to your stand automatically based on area, capacity, and speciality — no cold prospecting needed." },
+  { icon: ShieldCheck, title: "Assignment matching engine",   detail: "The platform matches tourist-attraction seekers to your stand automatically based on area, capacity, and speciality - no cold prospecting needed." },
   { icon: Globe,       title: "Multi-park coverage profile",  detail: "Register your stand across multiple parks and reserves. When a guest selects any of your covered attractions, you are in the match pool." },
   { icon: Binoculars,  title: "Tour & guest management tools",detail: "Manage booking details, itineraries, guest lists, waivers, and post-tour reviews from a single operator dashboard built for field professionals." },
 ];
@@ -56,7 +56,7 @@ export default function HelpNolsafStandPage() {
         <div className="public-container py-8 sm:py-14">
           <HelpBackLink />
 
-          {/* ── Hero ─────────────────────────────────────────────── */}
+          {/* ── Hero ──*/}
           <div className="mt-4 relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#010f0e] via-[#011a18] to-[#022820] text-white p-8 sm:p-12">
             {/* dot grid */}
             <div className="pointer-events-none absolute inset-0 opacity-[0.03]"
@@ -107,7 +107,7 @@ export default function HelpNolsafStandPage() {
             </div>
           </div>
 
-          {/* ── What is a NoLSAF Stand ────────────────────────────── */}
+          {/* ── What is a NoLSAF Stand ── */}
           <section className="mt-12">
             <div className="inline-flex items-center gap-2 rounded-full bg-[#02665e]/10 px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-[#02665e] mb-4">
               <span className="h-1.5 w-1.5 rounded-full bg-[#02665e]" /> Overview
@@ -121,14 +121,14 @@ export default function HelpNolsafStandPage() {
                   </div>
                   <div>
                     <h2 className="text-xl font-extrabold text-gray-900">What is a NoLSAF Stand?</h2>
-                    <p className="text-xs text-gray-500 mt-0.5">More than a location — a licensed gateway to East Africa&apos;s wild places.</p>
+                    <p className="text-xs text-gray-500 mt-0.5">More than a location. A licensed gateway to East Africa&apos;s wild places.</p>
                   </div>
                 </div>
                 <p className="text-sm text-gray-700 leading-relaxed">
-                  A NoLSAF Stand is a <strong>registered safari and tour operation</strong> — a company or licensed individual whose sole focus on the platform is to <strong>receive tourists who want to experience national parks, game reserves, wildlife safaris, mountain treks, and natural attractions</strong>. When a guest signals interest in a tourist attraction, the platform <em>assigns</em> them to a matching NoLSAF Stand in that region.
+                  A NoLSAF Stand is a <strong>registered safari and tour operation</strong> A company or licensed individual whose sole focus on the platform is to <strong>receive tourists who want to experience national parks, game reserves, wildlife safaris, mountain treks, and natural attractions</strong>. When a guest signals interest in a tourist attraction, the platform <em>assigns</em> them to a matching NoLSAF Stand in that region.
                 </p>
                 <p className="mt-4 text-sm text-gray-700 leading-relaxed">
-                  This role is distinct from the Event Manager. While Event Managers coordinate cultural tourism and group stays, the NoLSAF Stand is the <strong>specialist arm for wildlife, nature, and adventure tourism</strong> — the operator on the ground who gets guests into the wild safely, legally, and memorably.
+                  This role is distinct from the Event Manager. While Event Managers coordinate cultural tourism and group stays, the NoLSAF Stand is the <strong>specialist arm for wildlife, nature, and adventure tourism</strong>. The operator on the ground who gets guests into the wild safely, legally, and memorably.
                 </p>
               </div>
 
@@ -156,7 +156,7 @@ export default function HelpNolsafStandPage() {
             </div>
           </section>
 
-          {/* ── Attractions you cover ─────────────────────────────── */}
+          {/* ── Attractions you cover ── */}
           <section className="mt-14">
             <div className="inline-flex items-center gap-2 rounded-full bg-[#02665e]/10 px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-[#02665e] mb-4">
               <span className="h-1.5 w-1.5 rounded-full bg-[#02665e]" /> Coverage areas
@@ -191,7 +191,7 @@ export default function HelpNolsafStandPage() {
             </div>
           </section>
 
-          {/* ── How assignment works ──────────────────────────────── */}
+          {/* ── How assignment works ── */}
           <section className="mt-14">
             <div className="inline-flex items-center gap-2 rounded-full bg-[#02665e]/10 px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-[#02665e] mb-4">
               <span className="h-1.5 w-1.5 rounded-full bg-[#02665e]" /> The process
@@ -199,7 +199,7 @@ export default function HelpNolsafStandPage() {
             <div className="flex items-end justify-between mb-6">
               <div>
                 <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">How guest assignment works</h2>
-                <p className="text-sm text-gray-500 mt-1">Tourists come to you — here is the journey from interest to experience.</p>
+                <p className="text-sm text-gray-500 mt-1">Tourists come to you. Here is the journey from interest to experience.</p>
               </div>
             </div>
 
@@ -233,7 +233,7 @@ export default function HelpNolsafStandPage() {
             </div>
           </section>
 
-          {/* ── What approved operators receive ───────────────────── */}
+          {/* ── What approved operators receive ── */}
           <section className="mt-14">
             <div className="inline-flex items-center gap-2 rounded-full bg-[#02665e]/10 px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-[#02665e] mb-4">
               <span className="h-1.5 w-1.5 rounded-full bg-[#02665e]" /> Platform tools
@@ -266,7 +266,7 @@ export default function HelpNolsafStandPage() {
             </div>
           </section>
 
-          {/* ── CTA ──────────────────────────────────────────────── */}
+          {/* ── CTA ───*/}
           <div className="mt-12 relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#010f0e] via-[#011a18] to-[#022820] text-white p-8 sm:p-10">
             <div className="pointer-events-none absolute inset-0 opacity-[0.03]"
               style={{ backgroundImage: "radial-gradient(circle, #ffffff 1px, transparent 1px)", backgroundSize: "20px 20px" }} />

@@ -223,7 +223,7 @@ export default function HelpEventManagerPage() {
                   gradient: "from-green-500 to-teal-600",
                   shadow: "shadow-green-100",
                   title: "Build eco-conscious events",
-                  body: "Design events with a low environmental footprint — connecting guests to eco-lodges, conservation areas, and community-run nature experiences that fund conservation efforts.",
+                  body: "Design events with a low environmental footprint, connecting guests to eco-lodges, conservation areas, and community-run nature experiences that fund conservation efforts.",
                   tag: "Sustainability",
                 },
                 {
@@ -231,7 +231,7 @@ export default function HelpEventManagerPage() {
                   gradient: "from-rose-500 to-pink-600",
                   shadow: "shadow-rose-100",
                   title: "Create recurring community moments",
-                  body: "Recurring annual events — festivals, retreats, reunions — build traditions that communities can depend on for tourism income year after year. You make that cycle possible.",
+                  body: "Recurring annual events — festivals, retreats, re-unions, build traditions that communities can depend on for tourism income year after year. You make that cycle possible.",
                   tag: "Long-term impact",
                 },
                 {
@@ -239,7 +239,7 @@ export default function HelpEventManagerPage() {
                   gradient: "from-amber-500 to-orange-500",
                   shadow: "shadow-amber-100",
                   title: "Innovate how people experience places",
-                  body: "Combine accommodation with storytelling, heritage walks, cooking experiences, or community visits. NoLSAF supports event packages that go beyond beds — giving guests true immersion.",
+                  body: "Combine accommodation with storytelling, heritage walks, cooking experiences, or community visits. NoLSAF supports event packages that go beyond beds giving guests true immersion.",
                   tag: "Experience innovation",
                 },
               ].map(({ icon: Icon, gradient, shadow, title, body, tag }) => (
@@ -277,7 +277,7 @@ export default function HelpEventManagerPage() {
             </div>
           </section>
 
-          {/* ── CTA ──────────────────────────────────────────────── */}
+          {/* ── CTA ──*/}
           <div className="group mt-8 relative overflow-hidden bg-gradient-to-br from-white to-slate-50 rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl hover:border-[#a78bfa]/30 hover:-translate-y-1 transition-all duration-300 p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_right,_#a78bfa18_0%,_transparent_65%)] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
             <div className="relative z-10 flex items-start gap-4">

@@ -40,7 +40,7 @@ const BOOKING_STEPS = [
     step: "02",
     icon: CalendarRange,
     title: "Select your dates & guests",
-    detail: "Choose your check-in and check-out dates and the number of guests. Availability updates in real time — if dates are shown, they're open.",
+    detail: "Choose your check-in and check-out dates and the number of guests. Availability updates in real time, if dates are shown, they're open.",
     cta: null,
     color: "#02665e",
   },
@@ -48,7 +48,7 @@ const BOOKING_STEPS = [
     step: "03",
     icon: BookOpen,
     title: "Review before you confirm",
-    detail: "Read the house rules, cancellation policy, and the full itemised cost — base rate, service fees, and any applicable charges — before clicking confirm.",
+    detail: "Read the house rules, cancellation policy, and the full itemised cost. Base rate, service fees, and any applicable charges, before clicking confirm.",
     cta: { label: "Cancellation policy", href: "/cancellation-policy" },
     color: "#a78bfa",
   },
@@ -70,7 +70,7 @@ const BOOKING_STEPS = [
   },
 ];
 
-// ─── Help section links ────────────────────────────────────────────────────────
+// ─── Help section links ───
 const HELP_LINKS = [
   {
     icon: UserCheck,
@@ -147,7 +147,7 @@ export default function HelpGettingStartedPage() {
         <div className="public-container py-8 sm:py-12">
           <HelpBackLink />
 
-          {/* ── Hero ──────────────────────────────────────────────────────── */}
+          {/* ── Hero ── */}
           <div className="mt-4 relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#010f0e] via-[#011a18] to-[#021f1c] text-white p-8 sm:p-10">
             <div className="pointer-events-none absolute inset-0 opacity-[0.035]"
               style={{ backgroundImage: "radial-gradient(circle, #ffffff 1px, transparent 1px)", backgroundSize: "22px 22px" }} />
@@ -195,7 +195,7 @@ export default function HelpGettingStartedPage() {
             </div>
           </div>
 
-          {/* ── How to book — vertical timeline ───────────────────────────── */}
+          {/* ── How to book — vertical timeline ── */}
           <section className="mt-12">
             <div className="flex items-center gap-3 mb-7">
               <div className="h-8 w-8 rounded-lg bg-[#02665e] flex items-center justify-center flex-shrink-0">
@@ -250,16 +250,16 @@ export default function HelpGettingStartedPage() {
             </div>
           </section>
 
-          {/* ── Tip: things to check before you confirm ───────────────────── */}
+          {/* ── Tip: things to check before you confirm ── */}
           <div className="mt-6 flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-5 py-4">
             <Info className="h-4 w-4 text-amber-500 flex-shrink-0 mt-0.5" />
             <div className="text-xs text-amber-800 space-y-1.5">
-              <p className="font-bold">Before you confirm — check these three things:</p>
+              <p className="font-bold">Before you confirm - check these three things:</p>
               <ul className="space-y-1">
                 {[
-                  "The cancellation window — you have 24 hrs free cancellation if done 72+ hrs before check-in.",
-                  "The payment type — standard bookings are paid in full now; Group Stay and Plan with Us use a deposit model.",
-                  "House rules and max guest count — violations can result in early eviction with no refund.",
+                  "The cancellation window - you have 24 hrs free cancellation if done 72+ hrs before check-in.",
+                  "The payment type - standard bookings are paid in full now; Group Stay and Plan with Us use a deposit model.",
+                  "House rules and max guest count - violations can result in early eviction with no refund.",
                 ].map((item) => (
                   <li key={item} className="flex items-start gap-2">
                     <CheckCircle2 className="h-3.5 w-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
@@ -270,7 +270,7 @@ export default function HelpGettingStartedPage() {
             </div>
           </div>
 
-          {/* ── All help sections ──────────────────────────────────────────── */}
+          {/* ── All help sections ── */}
           <section className="mt-12">
             <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#f0fdfc] via-white to-[#e8f8ff] border border-teal-200 p-6 sm:p-8">
               <div className="pointer-events-none absolute inset-0 opacity-[0.5]"
@@ -278,7 +278,7 @@ export default function HelpGettingStartedPage() {
 
               <div className="relative z-10 mb-6">
                 <h2 className="text-xl font-bold text-gray-900">Explore the Help Center</h2>
-                <p className="text-sm text-gray-500 mt-0.5">Every topic covered — pick what you need.</p>
+                <p className="text-sm text-gray-500 mt-0.5">Every topic covered - pick what you need.</p>
               </div>
 
               <div className="relative z-10 grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -300,7 +300,7 @@ export default function HelpGettingStartedPage() {
             </div>
           </section>
 
-          {/* ── CTA ───────────────────────────────────────────────────────── */}
+          {/* ── CTA ─ */}
           <div className="group mt-8 relative overflow-hidden bg-gradient-to-br from-white to-slate-50 rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl hover:border-[#02665e]/30 hover:-translate-y-1 transition-all duration-300 p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_right,_#02665e18_0%,_transparent_65%)] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
             <div className="relative z-10 flex items-start gap-4">

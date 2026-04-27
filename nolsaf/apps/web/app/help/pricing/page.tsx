@@ -299,16 +299,16 @@ export default function HelpPricingPage() {
             </div>
           </section>
 
-          {/* ── Rate guarantee note ────────────────────────────────────────── */}
+          {/* ── Rate guarantee note ── */}
           <div className="mt-6 flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-5 py-4">
             <Info className="h-4 w-4 text-amber-500 flex-shrink-0 mt-0.5" />
             <div className="text-xs text-amber-800 space-y-1">
               <p><strong>Rates can change if your balance is unpaid.</strong> If you book with a deposit and do not settle the remaining balance within the stated window (typically 24 hours), NoLSAF cannot guarantee the original rate on rebooking. The rate in effect at the time of re-confirmation applies.</p>
-              <p className="mt-1"><strong>Prices on listings reflect live published rates.</strong> Promotions and availability are subject to change — the price locked at the moment you confirm your booking is the price you pay.</p>
+              <p className="mt-1"><strong>Prices on listings reflect live published rates.</strong> Promotions and availability are subject to change. The price locked at the moment you confirm your booking is the price you pay.</p>
             </div>
           </div>
 
-          {/* ── CTA ───────────────────────────────────────────────────────── */}
+          {/* ── CTA ── */}
           <div className="group mt-8 relative overflow-hidden bg-gradient-to-br from-white to-slate-50 rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl hover:border-[#02665e]/30 hover:-translate-y-1 transition-all duration-300 p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_right,_#02665e18_0%,_transparent_65%)] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
             <div className="relative z-10 flex items-start gap-4">

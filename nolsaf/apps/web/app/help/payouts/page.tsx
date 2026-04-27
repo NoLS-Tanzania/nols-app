@@ -20,7 +20,7 @@ const ROLES = [
     badge: "For Agents",
     color: "#02b4f5",
     headline: "Represent NoLSAF. Earn on every booking you close.",
-    description: "Become a named NoLSAF Agent in your area — refer guests, assist with bookings, and earn commission on every confirmed stay.",
+    description: "Become a named NoLSAF Agent in your area - refer guests, assist with bookings, and earn commission on every confirmed stay.",
     href: "/help/become-agent",
     cta: "Learn about becoming an Agent",
     gradient: "from-[#010f0e] via-[#011520] to-[#021f2c]",

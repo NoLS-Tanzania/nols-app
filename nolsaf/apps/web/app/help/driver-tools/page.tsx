@@ -39,12 +39,12 @@ const SERVICE_TYPES = [
     description:
       "A guest books a specific pick-up time in advance. Once the booking is confirmed, it becomes available for drivers to claim interest in through the Driver Portal. Multiple drivers can claim the same trip — the NoLSAF system then selects the most suitable driver based on its own criteria. Full trip details are visible before you claim, so you always know what you're committing to.",
     how: [
-      "Open the Driver Portal — available scheduled trips are listed with pick-up time, destination, and guest details",
-      "Claim your interest in a trip — other drivers may claim the same trip simultaneously",
-      "The NoLSAF system evaluates all claims and assigns the trip to the selected driver automatically",
-      "If selected, you are notified and the guest receives your name, photo, and vehicle plate",
-      "Arrive a minimum of 5 minutes before the scheduled pick-up time",
-      "Validate the guest's booking code at pick-up — this officially starts the trip and records your earnings",
+      "Open the Driver Portal. Available scheduled trips are listed with pick-up time, destination, and guest details.",
+      "Claim your interest in a trip. Other drivers may claim the same trip simultaneously.",
+      "The NoLSAF system evaluates all claims and assigns the trip to the selected driver automatically.",
+      "If selected, you are notified and the guest receives your name, photo, and vehicle plate.",
+      "Arrive a minimum of 5 minutes before the scheduled pick-up time.",
+      "Validate the guest's booking code at pick-up. This officially starts the trip and records your earnings.",
     ],
     color: "#02b4f5",
   },
@@ -56,10 +56,10 @@ const SERVICE_TYPES = [
     description:
       "NoLSAF dispatches you in real time based on your current location and availability status. Speed of acceptance matters — assignments are offered to the nearest available driver first.",
     how: [
-      "Set your status to \"Available\" in the Driver Portal before going on shift",
-      "Dispatch notification arrives — you have a short window to accept",
-      "Navigate to pick-up using the in-app directions",
-      "Validate booking code on arrival to begin the trip",
+      "Set your status to \"Available\" in the Driver Portal before going on shift.",
+      "Dispatch notification arrives you have a short window to accept.",
+      "Navigate to pick-up using the in-app directions.",
+      "Validate booking code on arrival to begin the trip.",
     ],
     color: "#a78bfa",
   },
@@ -71,10 +71,10 @@ const SERVICE_TYPES = [
     description:
       "These are time-sensitive assignments tied to flight or bus arrivals. You will receive flight/bus details so you can monitor arrival times. A sign with the guest's name is expected at the terminal.",
     how: [
-      "Assignment includes flight number and terminal details",
-      "Monitor the arrival status — delays update automatically in your portal",
-      "Meet the guest at the arrivals gate with a visible name sign",
-      "Validate booking code before departing the terminal",
+      "Assignment includes flight number and terminal details.",
+      "Monitor the arrival status — delays update automatically in your portal.",
+      "Meet the guest at the arrivals gate with a visible name sign.",
+      "Validate booking code before departing the terminal.",
     ],
     color: "#02665e",
   },
@@ -86,10 +86,10 @@ const SERVICE_TYPES = [
     description:
       "Assigned for groups, family transfers, or curated tour itineraries. These may involve multiple stops, waiting time, and an extended booking duration. Vehicle capacity must match the group size.",
     how: [
-      "Assignment specifies group size, stops, and total expected duration",
-      "Confirm your vehicle can accommodate the group before accepting",
-      "Waiting time between stops is tracked and compensated",
-      "Final code validation happens at the last drop-off point",
+      "Assignment specifies group size, stops, and total expected duration.",
+      "Confirm your vehicle can accommodate the group before accepting.",
+      "Waiting time between stops is tracked and compensated.",
+      "Final code validation happens at the last drop-off point.",
     ],
     color: "#f59e0b",
   },
@@ -98,7 +98,7 @@ const SERVICE_TYPES = [
 const NOLSAF_EDGE = [
   { icon: Navigation, title: "Live guest tracking",     description: "Guests can follow your live location from the moment you accept — building trust before you even arrive." },
   { icon: BadgeCheck, title: "Verified driver identity",  description: "Every driver on NoLSAF is identity-verified. Guests see your name, photo, and vehicle plate before the trip — no surprises." },
-  { icon: Zap,        title: "Instant earning records",  description: "Your earnings for each trip are logged the moment the booking code is validated — no end-of-week mystery." },
+  { icon: Zap,        title: "Instant earning records",  description: "Your earnings for each trip are logged the moment the booking code is validated. No end-of-week mystery." },
   { icon: Sparkles,   title: "Rating-based priority",   description: "Drivers with consistently high ratings are prioritised for premium assignments, airport runs, and group tours." },
 ];
 
@@ -107,7 +107,7 @@ const PORTAL_FEATURES = [
     step: "01",
     icon: ClipboardList,
     title: "Assignments & schedules",
-    description: "View all your active and upcoming trip assignments in real time. Schedules update automatically — always check before starting your shift.",
+    description: "View all your active and upcoming trip assignments in real time. Schedules update automatically. Always check before starting your shift.",
     color: "#02b4f5",
   },
   {
@@ -136,10 +136,10 @@ const PORTAL_FEATURES = [
 const BEST_PRACTICES = [
   { icon: Clock3,    text: "Log in before every shift to check for last-minute assignment updates or schedule changes." },
   { icon: MapPin,    text: "Keep location permissions enabled on your device during active trips so guests can track progress." },
-  { icon: Star,      text: "Maintain a high service rating — it directly influences your assignment priority and bonus eligibility." },
+  { icon: Star,      text: "Maintain a high service rating. It directly influences your assignment priority and bonus eligibility." },
   { icon: Smartphone,text: "Use the latest version of the portal app. Outdated versions may miss critical features or notifications." },
-  { icon: CheckCircle2, text: "Complete your profile fully — missing vehicle or license details can pause your assignments." },
-  { icon: AlertCircle, text: "Never accept off-platform payments. All earnings are processed through NoLSAF — this protects you and the guest." },
+  { icon: CheckCircle2, text: "Complete your profile fully. Missing vehicle or license details can pause your assignments." },
+  { icon: AlertCircle, text: "Never accept off-platform payments. All earnings are processed through NoLSAF. This protects you and the guest." },
 ];
 
 export default function HelpDriverToolsPage() {
@@ -151,13 +151,12 @@ export default function HelpDriverToolsPage() {
         <div className="public-container py-8 sm:py-12">
           <HelpBackLink />
 
-          {/* ── Hero ─────────────────────────────────────────────────── */}
+          {/* ── Hero ── */}
           <div className="mt-4 relative overflow-hidden rounded-2xl bg-[#010f0e] text-white shadow-2xl">
             <div className="absolute inset-0 bg-gradient-to-br from-[#011918] via-[#01332e] to-[#010f0e]" />
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_65%_55%_at_100%_0%,_#02b4f53a_0%,_transparent_65%)]" />
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_45%_35%_at_0%_100%,_#02665e45_0%,_transparent_60%)]" />
-            <div
-              className="absolute inset-0 opacity-[0.06]"
+            <div className="absolute inset-0 opacity-[0.06]"
               style={{ backgroundImage: "radial-gradient(circle,#ffffff 1px,transparent 1px)", backgroundSize: "22px 22px" }}
             />
             <div className="relative z-10 grid lg:grid-cols-[1fr_auto] gap-6 px-7 py-10 sm:px-10 sm:py-12 items-center">
@@ -212,7 +211,7 @@ export default function HelpDriverToolsPage() {
             </div>
           </div>
 
-          {/* ── Service types ─────────────────────────────────────────── */}
+          {/* ── Service types ── */}
           <section className="mt-10">
             <div className="flex items-center gap-3 mb-6">
               <div className="h-8 w-8 rounded-lg bg-[#02b4f5] flex items-center justify-center flex-shrink-0">
@@ -265,7 +264,7 @@ export default function HelpDriverToolsPage() {
             </div>
           </section>
 
-          {/* ── The NoLSAF edge ───────────────────────────────────────── */}
+          {/* ── The NoLSAF edge ── */}
           <section className="mt-10 relative overflow-hidden rounded-2xl border border-slate-200/80 shadow-sm">
             <div className="absolute inset-0 bg-[#010f0e]" />
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_60%_at_100%_0%,_#02b4f525_0%,_transparent_65%)]" />
@@ -299,7 +298,7 @@ export default function HelpDriverToolsPage() {
             </div>
           </section>
 
-          {/* ── Driver Portal features ─────────────────────────────────── */}
+          {/* ── Driver Portal features ── */}
           <section className="mt-10">
             <div className="flex items-center gap-3 mb-6">
               <div className="h-8 w-8 rounded-lg bg-[#02665e] flex items-center justify-center flex-shrink-0">
@@ -336,7 +335,7 @@ export default function HelpDriverToolsPage() {
             </div>
           </section>
 
-          {/* ── Best practices ────────────────────────────────────────── */}
+          {/* ── Best practices ── */}
           <section className="mt-10 relative overflow-hidden rounded-2xl border border-slate-200/80 shadow-sm">
             <div className="absolute inset-0 bg-gradient-to-br from-[#f0fdfc] via-white to-[#e8f8ff]" />
             <div
@@ -370,7 +369,7 @@ export default function HelpDriverToolsPage() {
             </div>
           </section>
 
-          {/* ── Earnings link card ────────────────────────────────────── */}
+          {/* ── Earnings link card ── */}
           <section className="mt-10">
             <Link
               href="/help/driver-earnings"
@@ -389,7 +388,7 @@ export default function HelpDriverToolsPage() {
             </Link>
           </section>
 
-          {/* ── Support alert ─────────────────────────────────────────── */}
+          {/* ── Support alert ── */}
           <div className="mt-5 flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-5 py-4">
             <Info className="h-4 w-4 text-amber-500 flex-shrink-0 mt-0.5" />
             <p className="text-xs text-amber-800">
@@ -399,7 +398,7 @@ export default function HelpDriverToolsPage() {
             </p>
           </div>
 
-          {/* ── CTA ───────────────────────────────────────────────────── */}
+          {/* ── CTA ── */}
           <div className="group mt-6 relative overflow-hidden bg-gradient-to-br from-white to-slate-50 rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl hover:border-[#02665e]/30 hover:-translate-y-1 transition-all duration-300 p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_right,_#02665e18_0%,_transparent_65%)] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
             <div className="relative z-10 flex items-start gap-4">
@@ -409,7 +408,7 @@ export default function HelpDriverToolsPage() {
               <div>
                 <h3 className="text-base font-bold text-gray-900">Need more help?</h3>
                 <p className="mt-1 text-sm text-gray-500 max-w-md">
-                  Browse the Help Center or reach our support team directly — we&apos;re here to keep you on the road.
+                  Browse the Help Center or reach our support team directly. We&apos;re here to keep you on the road.
                 </p>
               </div>
             </div>

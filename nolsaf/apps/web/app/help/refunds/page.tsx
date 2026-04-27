@@ -278,17 +278,17 @@ export default function HelpRefundsPage() {
               </div>
               <div>
                 <h2 className="text-xl font-bold text-gray-900">Group Stay cancellations</h2>
-                <p className="text-sm text-gray-500">Stricter terms apply — review before booking.</p>
+                <p className="text-sm text-gray-500">Stricter terms apply - review before booking.</p>
               </div>
             </div>
 
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
               {[
                 { icon: CheckCircle2, color: "#7c3aed", label: "Free cancellation window", detail: "May be reduced to 14+ days before check-in (vs the standard 24-hour grace). Exact window is specified in your booking confirmation." },
-                { icon: CheckCircle2, color: "#7c3aed", label: "Partial refunds — >30 days out", detail: "Cancellations made more than 30 days before check-in may be eligible for a partial refund. The precise amount depends on the terms agreed at booking." },
-                { icon: XCircle,      color: "#ef4444", label: "No refund — within 30 days", detail: "Cancellations within 30 days of check-in are typically non-refundable or subject to significant penalties." },
+                { icon: CheckCircle2, color: "#7c3aed", label: "Partial refunds ->30 days out", detail: "Cancellations made more than 30 days before check-in may be eligible for a partial refund. The precise amount depends on the terms agreed at booking." },
+                { icon: XCircle,      color: "#ef4444", label: "No refund -> within 30 days", detail: "Cancellations within 30 days of check-in are typically non-refundable or subject to significant penalties." },
                 { icon: XCircle,      color: "#ef4444", label: "Deposits are non-refundable", detail: "Non-refundable deposits paid to secure a group booking will not be returned regardless of cancellation timing, unless the booking agreement specifies otherwise." },
-                { icon: CheckCircle2, color: "#7c3aed", label: "Date changes — 60+ days notice", detail: "Changes to check-in dates must be requested at least 60 days before the original check-in date, subject to property availability and owner approval." },
+                { icon: CheckCircle2, color: "#7c3aed", label: "Date changes -> 60+ days notice", detail: "Changes to check-in dates must be requested at least 60 days before the original check-in date, subject to property availability and owner approval." },
                 { icon: CheckCircle2, color: "#7c3aed", label: "Guest-count reductions", detail: "Reducing headcount may forfeit group discounts and trigger rate adjustments. Increases require availability confirmation." },
                 { icon: XCircle,      color: "#ef4444", label: "Full group no-show = full charge", detail: "If the entire group fails to check in without prior notification, the full booking amount is charged with no refunds." },
                 { icon: Info,         color: "#02665e", label: "All requests must be in writing", detail: "Verbal requests are not accepted for group cancellations. Submit via the platform or email info@nolsaf.com. Allow 5–7 business days processing." },
@@ -312,7 +312,7 @@ export default function HelpRefundsPage() {
             </div>
           </section>
 
-          {/* ── Refund timing by payment method ───────────────────────────── */}
+          {/* ── Refund timing by payment method ── */}
           <section className="mt-12">
             <div className="flex items-center gap-3 mb-5">
               <div className="h-8 w-8 rounded-lg bg-[#02b4f5] flex items-center justify-center flex-shrink-0">
@@ -351,7 +351,7 @@ export default function HelpRefundsPage() {
             </div>
           </section>
 
-          {/* ── Owner-initiated cancellations ──────────────────────────────── */}
+          {/* ── Owner-initiated cancellations ── */}
           <section className="mt-10">
             <div className="group relative overflow-hidden bg-gradient-to-br from-[#f0fdfc] via-white to-[#e8f8ff] rounded-2xl border border-teal-200 shadow-sm p-6 sm:p-8">
               <div className="pointer-events-none absolute inset-0 opacity-[0.6]"
@@ -377,7 +377,7 @@ export default function HelpRefundsPage() {
             </div>
           </section>
 
-          {/* ── CTA ───────────────────────────────────────────────────────── */}
+          {/* ── CTA ── */}
           <div className="group mt-8 relative overflow-hidden bg-gradient-to-br from-white to-slate-50 rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl hover:border-[#02665e]/30 hover:-translate-y-1 transition-all duration-300 p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_right,_#02665e18_0%,_transparent_65%)] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
             <div className="relative z-10 flex items-start gap-4">
@@ -387,7 +387,7 @@ export default function HelpRefundsPage() {
               <div>
                 <h3 className="text-base font-bold text-gray-900">Still unsure about your specific booking?</h3>
                 <p className="mt-1 text-sm text-gray-500 max-w-md">
-                  Read the full Cancellation Policy or contact support — include your booking reference for faster help.
+                  Read the full Cancellation Policy or contact support - include your booking reference for faster help.
                 </p>
               </div>
             </div>

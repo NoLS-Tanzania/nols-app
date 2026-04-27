@@ -67,7 +67,7 @@ export default function NolScopePage() {
             {/* sub */}
             <p className="text-sm text-white/60 max-w-md mx-auto leading-relaxed">
               Instant, itemised estimates covering visa fees, park entrance, transport,
-              activities and accommodation &mdash; no sign-up required.
+              activities and accommodation. No sign-up required.
             </p>
 
             {/* stats grid — each tile has an icon */}

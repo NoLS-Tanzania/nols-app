@@ -34,7 +34,7 @@ const LISTING_STEPS = [
     icon: ClipboardList,
     title: "Write an accurate description",
     description:
-      "Describe what makes your space unique — nearby landmarks, standout amenities, and the atmosphere guests can expect. Accurate descriptions reduce disputes and cancellations.",
+      "Describe what makes your space unique - nearby landmarks, standout amenities, and the atmosphere guests can expect. Accurate descriptions reduce disputes and cancellations.",
   },
   {
     icon: ShieldCheck,
@@ -67,7 +67,7 @@ const BOOKING_TIPS = [
     icon: MessageSquare,
     title: "Reply within 1 hour",
     description:
-      "Fast responses are one of the biggest factors in getting bookings. Guests often message multiple properties — being first matters.",
+      "Fast responses are one of the biggest factors in getting bookings. Guests often message multiple properties - being first matters.",
   },
   {
     icon: KeyRound,
@@ -310,11 +310,11 @@ export default function HelpOwnerGuidePage() {
             </div>
           </section>
 
-          {/* ── Pro Tips callout ────────────────────────────────────────── */}
+          {/* ── Pro Tips callout ── */}
           <div className="mt-8 bg-amber-50 border border-amber-200 rounded-xl p-5 flex gap-4">
             <Lightbulb className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm font-semibold text-amber-800">Pro tip — build your superhost reputation</p>
+              <p className="text-sm font-semibold text-amber-800">Pro tip - build your superhost reputation</p>
               <p className="mt-1 text-xs text-amber-700 leading-relaxed">
                 Owners who maintain a response rate above 90%, receive consistent 5-star reviews, and have zero
                 cancellations are featured higher in search results. Consistency is everything — treat every
@@ -323,7 +323,7 @@ export default function HelpOwnerGuidePage() {
             </div>
           </div>
 
-          {/* ── Section 3: Payouts ──────────────────────────────────────── */}
+          {/* ── Section 3: Payouts ── */}
           <section className="mt-10">
             <div className="flex items-center gap-3 mb-5">
               <div className="h-8 w-8 rounded-lg bg-emerald-600 flex items-center justify-center flex-shrink-0">
