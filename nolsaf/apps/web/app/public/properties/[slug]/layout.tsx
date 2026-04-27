@@ -75,7 +75,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       .filter(Boolean)
       .join(", ");
 
-    const pageTitle = location ? `${title} — ${location}` : title;
+    const pageTitle = location ? `${title} | ${location}` : title;
     const ogImage = (property.images as string[])?.[0];
     const canonicalUrl = `${SITE_URL}/public/properties/${slug}`;
 

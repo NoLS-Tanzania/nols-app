@@ -468,6 +468,7 @@ export default function PublicHeader({
                 alt="NoLSAF" 
                 width={logoDims.width}
                 height={logoDims.height}
+                sizes="64px"
                 className="object-contain transition-all duration-300 group-hover:brightness-110 w-auto max-w-[56px] sm:max-w-[64px]"
                 style={{
                   width: "auto",
@@ -481,7 +482,6 @@ export default function PublicHeader({
                   boxShadow: undefined,
                   transition: 'all 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
                 }}
-                priority
               />
             </Link>
 

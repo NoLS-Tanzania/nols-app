@@ -1946,7 +1946,7 @@ export default function PlanRequestForm({ selectedRole }: Props) {
                     </div>
                   );
                 }
-                return <div className="mt-1.5 text-[11px] text-slate-400">Enter amount per person — total auto-calculates</div>;
+                return <div className="mt-1.5 text-[11px] text-slate-400">Enter amount per person. Total auto-calculates</div>;
               })()}
             </div>
           </div>{/* end travel dates + group + budget grid */}

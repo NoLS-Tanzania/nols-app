@@ -572,8 +572,11 @@ function PropertyMap({ latitude, longitude, propertyTitle }: { latitude: number;
   const markerRef = useRef<any | null>(null);
   const initStartedRef = useRef(false);
   const [mapFailed, setMapFailed] = useState(false);
+  // Lazy: map stays dormant until user explicitly opens it.
+  const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
+    if (!isOpen) return;
     if (typeof window === 'undefined') return;
     if (!hostRef.current) return;
     if (initStartedRef.current || mapRef.current) return;
@@ -584,13 +587,12 @@ function PropertyMap({ latitude, longitude, propertyTitle }: { latitude: number;
       (window as any).__MAPBOX_TOKEN ||
       '';
 
-    if (!token) return;
+    if (!token) { setMapFailed(true); return; }
 
     let cancelled = false;
     initStartedRef.current = true;
     setMapFailed(false);
 
-    // Always use a fresh inner container so Mapbox receives an empty element.
     hostRef.current.replaceChildren();
     const container = document.createElement('div');
     container.style.cssText = 'position:absolute;inset:0;width:100%;height:100%';
@@ -610,6 +612,7 @@ function PropertyMap({ latitude, longitude, propertyTitle }: { latitude: number;
           zoom: 15,
           interactive: true,
           attributionControl: false,
+          cooperativeGestures: true,
         });
         mapRef.current = map;
 
@@ -650,27 +653,87 @@ function PropertyMap({ latitude, longitude, propertyTitle }: { latitude: number;
       if (container.parentNode) container.parentNode.removeChild(container);
       initStartedRef.current = false;
     };
-  }, [latitude, longitude, propertyTitle]);
+  }, [isOpen, latitude, longitude, propertyTitle]);
+
+  const googleMapsUrl = `https://www.google.com/maps?q=${latitude},${longitude}`;
+
+  if (!isOpen) {
+    return (
+      <div className="relative w-full h-[340px] rounded-xl overflow-hidden">
+        {/* Brand teal gradient */}
+        <div className="absolute inset-0 bg-gradient-to-br from-[#02665e] via-[#025c55] to-[#013d38]" />
+        {/* Decorative rings */}
+        <div className="absolute -top-20 -right-20 w-64 h-64 rounded-full border border-white/10" />
+        <div className="absolute -top-10 -right-10 w-44 h-44 rounded-full border border-white/10" />
+        <div className="absolute -bottom-16 -left-16 w-52 h-52 rounded-full border border-white/10" />
+        <div className="absolute bottom-6 left-6 w-24 h-24 rounded-full border border-white/10" />
+        {/* Dot grid — map-like texture */}
+        <div
+          className="absolute inset-0 opacity-[0.07]"
+          style={{
+            backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)',
+            backgroundSize: '22px 22px',
+          }}
+        />
+        {/* Content */}
+        <div className="relative h-full flex flex-col items-center justify-center gap-4 px-6 text-center">
+          {/* Pin icon in glass ring */}
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/15 ring-2 ring-white/25 shadow-lg">
+            <MapPin className="h-8 w-8 text-white" />
+          </div>
+          <div className="space-y-1.5">
+            <p className="text-base font-bold text-white leading-tight">{propertyTitle}</p>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[11px] font-mono text-white/80 ring-1 ring-white/20">
+              <MapIcon className="h-3 w-3 shrink-0" />
+              {latitude.toFixed(4)}, {longitude.toFixed(4)}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsOpen(true)}
+            className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-[#02665e] shadow-lg hover:bg-white/90 active:scale-[0.98] transition-all"
+          >
+            <MapIcon className="h-4 w-4" />
+            View interactive map
+          </button>
+          <a
+            href={googleMapsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-white/60 underline underline-offset-2 hover:text-white transition-colors"
+          >
+            Open in Google Maps
+          </a>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative w-full h-[400px] bg-slate-100">
       <div ref={hostRef} className="absolute inset-0 w-full h-full" />
-      {(mapFailed || (!process.env.NEXT_PUBLIC_MAPBOX_TOKEN && !process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN)) && (
+      {mapFailed && (
         <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200">
           <div className="text-center">
             <MapIcon className="h-8 w-8 text-slate-400 mx-auto mb-2" />
-            <p className="text-sm text-slate-600 font-medium">Map view</p>
-            <p className="text-xs text-slate-500 mt-1">
-              {latitude}, {longitude}
-            </p>
+            <p className="text-sm text-slate-600 font-medium">Map unavailable</p>
+            <p className="text-xs text-slate-500 mt-1">{latitude}, {longitude}</p>
           </div>
         </div>
       )}
+      {/* Close button - lets mobile users collapse map to stop scroll interference */}
+      <button
+        type="button"
+        onClick={() => { setIsOpen(false); initStartedRef.current = false; }}
+        className="absolute top-2 left-2 z-10 inline-flex items-center gap-1.5 rounded-full border border-slate-200/80 bg-white/90 px-3 py-1.5 text-[11px] font-semibold text-slate-700 shadow backdrop-blur-sm transition hover:bg-white"
+        aria-label="Close map"
+      >
+        <X className="h-3 w-3" />
+        Close map
+      </button>
     </div>
   );
 }
-
-
 
 type NearbyItem = {
 
@@ -838,7 +901,7 @@ function PolicyCard({
 
 function fmtMoney(amount: number | null | undefined, currency?: string | null) {
 
-  if (amount == null || !Number.isFinite(Number(amount))) return "Ã¢â‚¬â€";
+  if (amount == null || !Number.isFinite(Number(amount))) return "-";
 
   const cur = currency || "TZS";
 
@@ -862,7 +925,7 @@ function capWords(s: string, maxChars: number) {
 
   if (t.length <= maxChars) return t;
 
-  return t.slice(0, maxChars - 1).trimEnd() + "Ã¢â‚¬Â¦";
+  return t.slice(0, maxChars - 1).trimEnd() + "...";
 
 }
 
@@ -872,13 +935,13 @@ function capWords(s: string, maxChars: number) {
 
 const BED_DIMENSIONS: Record<string, string> = {
 
-  twin: "38\" Ãƒâ€” 75\" (96.5 Ãƒâ€” 190.5 cm)",
+  twin: "38\" x 75\" (96.5 x 190.5 cm)",
 
-  full: "54\" Ãƒâ€” 75\" (137 Ãƒâ€” 190.5 cm)",
+  full: "54\" x 75\" (137 x 190.5 cm)",
 
-  queen: "60\" Ãƒâ€” 80\" (152.4 Ãƒâ€” 203.2 cm)",
+  queen: "60\" x 80\" (152.4 x 203.2 cm)",
 
-  king: "76\" Ãƒâ€” 80\" (193 Ãƒâ€” 203.2 cm)",
+  king: "76\" x 80\" (193 x 203.2 cm)",
 
 };
 
@@ -886,7 +949,7 @@ const BED_DIMENSIONS: Record<string, string> = {
 
 function bedsToSummary(beds: any): string {
 
-  if (!beds || typeof beds !== "object") return "Ã¢â‚¬â€";
+  if (!beds || typeof beds !== "object") return "-";
 
   const entries: Array<{ key: string; label: string }> = [
 
@@ -914,7 +977,7 @@ function bedsToSummary(beds: any): string {
 
     .filter(Boolean) as string[];
 
-  return parts.length ? parts.join(", ") : "Ã¢â‚¬â€";
+  return parts.length ? parts.join(", ") : "-";
 
 }
 
@@ -922,7 +985,7 @@ function bedsToSummary(beds: any): string {
 
 function getBedDimensions(bedsSummary: string): string | null {
 
-  if (!bedsSummary || bedsSummary === "Ã¢â‚¬â€") return null;
+  if (!bedsSummary || bedsSummary === "-") return null;
 
   
 
@@ -960,7 +1023,7 @@ function getBedDimensions(bedsSummary: string): string | null {
 
   
 
-  return dimensions.length > 0 ? dimensions.join(" Ã¢â‚¬Â¢ ") : null;
+  return dimensions.length > 0 ? dimensions.join(" | ") : null;
 
 }
 
@@ -1108,7 +1171,7 @@ function normalizeRoomSpec(
 
     payActionLabel: "Pay now",
 
-    policies: policies.length ? policies : [{ text: "Ã¢â‚¬â€" }],
+    policies: policies.length ? policies : [{ text: "-" }],
 
   };
 
@@ -1182,7 +1245,7 @@ function formatDateLabel(dateString: string) {
 
 function formatTimeAgo(ms: number): string {
 
-  if (!ms || ms <= 0) return "Ã¢â‚¬â€";
+  if (!ms || ms <= 0) return "-";
 
   const diff = Date.now() - ms;
 
@@ -1526,7 +1589,7 @@ function PropertyAvailabilityChecker({
 
           <div className="text-xs text-slate-500">
 
-            Select check-in and check-out dates to see live availability Ã¢â‚¬Â¢ Last updated: {formatTimeAgo(lastUpdatedAt)}
+            Select check-in and check-out dates to see live availability | Last updated: {formatTimeAgo(lastUpdatedAt)}
 
             <span className="text-slate-400"> (refreshes up to every 4 minutes)</span>
 
@@ -1790,7 +1853,7 @@ function PropertyAvailabilityChecker({
 
                         <span className="font-semibold text-slate-800">{formatDate(checkIn)} - {formatDate(checkOut)}</span>
 
-                        <span className="text-slate-400"> Ã¢â‚¬Â¢ </span>
+                        <span className="text-slate-400"> | </span>
 
                         <span className="text-slate-600">Updated {formatTimeAgo(lastUpdatedAt)}</span>
 
@@ -1938,7 +2001,7 @@ function PropertyAvailabilityChecker({
 
                                       <span className="font-semibold">{availableRooms}</span>/{totalRooms} rooms
 
-                                      <span className="text-slate-300">Ã¢â‚¬Â¢</span>
+                                      <span className="text-slate-300">|</span>
 
                                       <span className="font-semibold">{availableBeds}</span>/{totalBeds} beds
 
@@ -2854,7 +2917,7 @@ export default function PublicPropertyDetailPage() {
 
   
 
-  const price = useMemo(() => (finalBasePrice ? fmtMoney(finalBasePrice, property?.currency) : "Ã¢â‚¬â€"), [finalBasePrice, property?.currency]);
+  const price = useMemo(() => (finalBasePrice ? fmtMoney(finalBasePrice, property?.currency) : "-"), [finalBasePrice, property?.currency]);
 
 
 
@@ -2870,7 +2933,7 @@ export default function PublicPropertyDetailPage() {
 
     const hasMore = raw.length > limit;
 
-    const collapsed = hasMore ? raw.slice(0, limit).trimEnd() + "Ã¢â‚¬Â¦" : text;
+    const collapsed = hasMore ? raw.slice(0, limit).trimEnd() + "..." : text;
 
     return { raw, text, hasMore, collapsed };
 
@@ -3072,7 +3135,7 @@ export default function PublicPropertyDetailPage() {
 
         const t = String(to || "").trim();
 
-        if (f && t) return `${f} Ã¢â‚¬â€œ ${t}`;
+        if (f && t) return `${f} -" ${t}`;
 
         if (f) return `From ${f}`;
 
@@ -3906,7 +3969,7 @@ export default function PublicPropertyDetailPage() {
 
                     <p className="text-[11px] mt-0.5 text-slate-500 leading-relaxed">
 
-                      Physical site visit Ã‚Â· location &amp; documentation review
+                      Physical site visit . location &amp; documentation review
 
                     </p>
 
@@ -4270,7 +4333,7 @@ export default function PublicPropertyDetailPage() {
                 <div className="pointer-events-none absolute inset-0" style={{ backgroundImage: "repeating-linear-gradient(135deg,rgba(255,255,255,0.13) 0px,rgba(255,255,255,0.13) 1.5px,transparent 1.5px,transparent 10px)" }} />
                 <Users className="w-4 h-4 text-white/80 shrink-0 relative" />
                 <div className="relative">
-                  <div className="text-sm font-bold text-white leading-none tabular-nums">{property.maxGuests ?? "Ã¢â‚¬â€"}</div>
+                  <div className="text-sm font-bold text-white leading-none tabular-nums">{property.maxGuests ?? "-"}</div>
                   <div className="text-[11px] text-white/60 mt-0.5">Guests</div>
                 </div>
               </div>
@@ -4278,7 +4341,7 @@ export default function PublicPropertyDetailPage() {
                 <div className="pointer-events-none absolute inset-0" style={{ backgroundImage: "repeating-linear-gradient(135deg,rgba(255,255,255,0.13) 0px,rgba(255,255,255,0.13) 1.5px,transparent 1.5px,transparent 10px)" }} />
                 <BedDouble className="w-4 h-4 text-white/80 shrink-0 relative" />
                 <div className="relative">
-                  <div className="text-sm font-bold text-white leading-none tabular-nums">{property.totalBedrooms ?? "Ã¢â‚¬â€"}</div>
+                  <div className="text-sm font-bold text-white leading-none tabular-nums">{property.totalBedrooms ?? "-"}</div>
                   <div className="text-[11px] text-white/60 mt-0.5">Bedrooms</div>
                 </div>
               </div>
@@ -4286,7 +4349,7 @@ export default function PublicPropertyDetailPage() {
                 <div className="pointer-events-none absolute inset-0" style={{ backgroundImage: "repeating-linear-gradient(135deg,rgba(255,255,255,0.13) 0px,rgba(255,255,255,0.13) 1.5px,transparent 1.5px,transparent 10px)" }} />
                 <Bath className="w-4 h-4 text-white/80 shrink-0 relative" />
                 <div className="relative">
-                  <div className="text-sm font-bold text-white leading-none tabular-nums">{property.totalBathrooms ?? "Ã¢â‚¬â€"}</div>
+                  <div className="text-sm font-bold text-white leading-none tabular-nums">{property.totalBathrooms ?? "-"}</div>
                   <div className="text-[11px] text-white/60 mt-0.5">Bathrooms</div>
                 </div>
               </div>
@@ -4893,11 +4956,11 @@ export default function PublicPropertyDetailPage() {
 
                         {selectedDates.checkIn && selectedDates.checkOut ? (
 
-                          <span className="text-slate-400"> Ã‚Â· dates selected</span>
+                          <span className="text-slate-400"> . dates selected</span>
 
                         ) : (
 
-                          <span className="text-amber-700"> Ã‚Â· select dates above to see live availability</span>
+                          <span className="text-amber-700"> . select dates above to see live availability</span>
 
                         )}
 
@@ -5267,7 +5330,7 @@ export default function PublicPropertyDetailPage() {
 
                                           <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Beds</div>
 
-                                          <div className="mt-1 text-sm font-semibold text-slate-900">{row?.bedsSummary || "Ã¢â‚¬â€"}</div>
+                                          <div className="mt-1 text-sm font-semibold text-slate-900">{row?.bedsSummary || "-"}</div>
 
                                         </div>
 
@@ -5599,7 +5662,7 @@ export default function PublicPropertyDetailPage() {
 
                                       {effectiveDates.checkIn && effectiveDates.checkOut
 
-                                        ? `${formatDateLabel(effectiveDates.checkIn)} Ã¢â€ â€™ ${formatDateLabel(effectiveDates.checkOut)}`
+                                        ? `${formatDateLabel(effectiveDates.checkIn)} ->' ${formatDateLabel(effectiveDates.checkOut)}`
 
                                         : "Select dates first"}
 
@@ -5607,7 +5670,7 @@ export default function PublicPropertyDetailPage() {
 
                                     <div className="mt-1 text-[11px] text-slate-500">
 
-                                      Rooms: {modalRoomsQty} Ã‚Â· Adults: {modalGuests.adults}
+                                      Rooms: {modalRoomsQty} . Adults: {modalGuests.adults}
 
                                     </div>
 
@@ -5795,7 +5858,7 @@ export default function PublicPropertyDetailPage() {
 
                                 <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Beds</div>
 
-                                <div className="mt-1 text-sm font-semibold text-slate-900">{row?.bedsSummary || "Ã¢â‚¬â€"}</div>
+                                <div className="mt-1 text-sm font-semibold text-slate-900">{row?.bedsSummary || "-"}</div>
 
                               </div>
 
@@ -6413,7 +6476,7 @@ export default function PublicPropertyDetailPage() {
 
                             <div className="mt-2 text-xs text-amber-700">
 
-                              Tip: select dates in ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œCheck AvailabilityÃƒÂ¢Ã¢â€šÂ¬Ã‚Â, then tap ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œCheck AvailabilityÃƒÂ¢Ã¢â€šÂ¬Ã‚Â.
+                              Tip: select dates in ""Check Availability", then tap ""Check Availability".
 
                             </div>
 
@@ -7169,7 +7232,7 @@ export default function PublicPropertyDetailPage() {
 
                   if (!reviewRating) {
 
-                    setReviewSubmitMsg("Please select a rating (1ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“5).");
+                    setReviewSubmitMsg("Please select a rating (1-5).");
                     setReviewSubmitMsg("Please select a rating (1-5).");
                     return;
 
@@ -7273,7 +7336,7 @@ export default function PublicPropertyDetailPage() {
 
               >
 
-                {reviewSubmitting ? "SubmittingÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦" : "Submit review"}
+                {reviewSubmitting ? "Submitting..." : "Submit review"}
                 {reviewSubmitting ? "Submitting..." : "Submit review"}
               </button>
 
@@ -7331,27 +7394,29 @@ export default function PublicPropertyDetailPage() {
 
           {houseRules ? (
 
-            <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-slate-100">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-0">
 
               {/* Column 1: Check-in & Check-out */}
 
-              <div className="p-5 sm:p-6">
+              <div className="p-4 sm:p-6 border-r border-b md:border-b-0 border-slate-100">
 
                 <div className="flex items-center gap-2 mb-4">
 
-                  <Clock className="w-4 h-4 text-[#02665e]" />
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#02665e]/10">
+                    <Clock className="w-3.5 h-3.5 text-[#02665e]" />
+                  </span>
 
-                  <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Check-in & Check-out</h3>
+                  <h3 className="text-[11px] font-bold text-[#02665e] uppercase tracking-widest">Check-in & Check-out</h3>
 
                 </div>
 
-                <div className="space-y-1">
+                <div className="space-y-2">
 
                   <div className="flex items-center gap-3">
 
-                    <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
+                    <div className="flex-shrink-0 w-9 h-9 rounded-full bg-[#02665e] flex items-center justify-center shadow-sm">
 
-                      <LogIn className="w-3.5 h-3.5 text-emerald-600" />
+                      <LogIn className="w-4 h-4 text-white" />
 
                     </div>
 
@@ -7369,17 +7434,17 @@ export default function PublicPropertyDetailPage() {
 
                   </div>
 
-                  <div className="pl-4">
+                  <div className="pl-[18px]">
 
-                    <div className="w-px h-4 border-l-2 border-dashed border-slate-200" />
+                    <div className="w-px h-4 border-l-2 border-dashed border-[#02665e]/20" />
 
                   </div>
 
                   <div className="flex items-center gap-3">
 
-                    <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-rose-50 flex items-center justify-center">
+                    <div className="flex-shrink-0 w-9 h-9 rounded-full bg-rose-500 flex items-center justify-center shadow-sm">
 
-                      <LogOut className="w-3.5 h-3.5 text-rose-500" />
+                      <LogOut className="w-4 h-4 text-white" />
 
                     </div>
 
@@ -7405,13 +7470,15 @@ export default function PublicPropertyDetailPage() {
 
               {/* Column 2: Policies */}
 
-              <div className="p-5 sm:p-6">
+              <div className="p-4 sm:p-6 border-b md:border-b-0 md:border-r border-slate-100">
 
                 <div className="flex items-center gap-2 mb-4">
 
-                  <Users className="w-4 h-4 text-[#02665e]" />
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#02665e]/10">
+                    <Users className="w-3.5 h-3.5 text-[#02665e]" />
+                  </span>
 
-                  <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Policies</h3>
+                  <h3 className="text-[11px] font-bold text-[#02665e] uppercase tracking-widest">Policies</h3>
 
                 </div>
 
@@ -7421,9 +7488,9 @@ export default function PublicPropertyDetailPage() {
 
                     <div className="flex items-start gap-3">
 
-                      <span className={`inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg mt-0.5 ${houseRules.pets ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-500'}`}>
+                      <span className={`inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full shadow-sm ${houseRules.pets ? 'bg-[#02665e]' : 'bg-rose-500'}`}>
 
-                        {houseRules.pets ? <CheckCircle2 className="w-3.5 h-3.5" /> : <X className="w-3.5 h-3.5" />}
+                        {houseRules.pets ? <CheckCircle2 className="w-4 h-4 text-white" /> : <X className="w-4 h-4 text-white" />}
 
                       </span>
 
@@ -7441,9 +7508,9 @@ export default function PublicPropertyDetailPage() {
 
                     <div className="flex items-center gap-3">
 
-                      <span className="inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400">
+                      <span className="inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-slate-200">
 
-                        <X className="w-3.5 h-3.5" />
+                        <X className="w-4 h-4 text-slate-400" />
 
                       </span>
 
@@ -7457,9 +7524,9 @@ export default function PublicPropertyDetailPage() {
 
                     <div className="flex items-start gap-3">
 
-                      <span className={`inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg mt-0.5 ${!houseRules.smoking ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-500'}`}>
+                      <span className={`inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full shadow-sm mt-0.5 ${!houseRules.smoking ? 'bg-[#02665e]' : 'bg-rose-500'}`}>
 
-                        {houseRules.smoking ? <CigaretteOff className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                        {houseRules.smoking ? <CigaretteOff className="w-4 h-4 text-white" /> : <CheckCircle2 className="w-4 h-4 text-white" />}
 
                       </span>
 
@@ -7475,19 +7542,21 @@ export default function PublicPropertyDetailPage() {
 
 
 
-              {/* Column 3: Safety Measures */}
+              {/* Column 3: Safety Measures - spans 2 cols on small */}
 
-              <div className="p-5 sm:p-6">
+              <div className="col-span-2 md:col-span-1 p-4 sm:p-6">
 
                 <div className="flex items-center gap-2 mb-4">
 
-                  <ShieldCheck className="w-4 h-4 text-[#02665e]" />
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#02665e]/10">
+                    <ShieldCheck className="w-3.5 h-3.5 text-[#02665e]" />
+                  </span>
 
-                  <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Safety Measures</h3>
+                  <h3 className="text-[11px] font-bold text-[#02665e] uppercase tracking-widest">Safety Measures</h3>
 
                 </div>
 
-                <ul className="space-y-2.5">
+                <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 gap-2">
 
                   {[
 
@@ -7507,7 +7576,9 @@ export default function PublicPropertyDetailPage() {
 
                     <li key={idx} className="flex items-start gap-2.5">
 
-                      <CheckCircle2 className="w-3.5 h-3.5 text-[#02665e] flex-shrink-0 mt-0.5" />
+                      <span className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-[#02665e] shadow-sm mt-0.5">
+                        <CheckCircle2 className="w-3 h-3 text-white" />
+                      </span>
 
                       <span className="text-sm text-slate-600 leading-relaxed">{measure}</span>
 
@@ -7541,9 +7612,9 @@ export default function PublicPropertyDetailPage() {
 
           <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-            {/* Nearby Services - Left Column */}
+            {/* Nearby Services - Left Column (below map on mobile) */}
 
-            <div className="space-y-6">
+            <div className="space-y-6 order-2 lg:order-1">
 
                 {/* Nearby Services - Detailed Cards */}
 
@@ -8021,9 +8092,9 @@ export default function PublicPropertyDetailPage() {
 
 
 
-              {/* Interactive Map - Right Column */}
+              {/* Interactive Map - Right Column (first on mobile) */}
 
-              <div className="space-y-4">
+              <div className="space-y-4 order-1 lg:order-2">
 
                 {/* Location Header - Map Title */}
 
@@ -8041,7 +8112,7 @@ export default function PublicPropertyDetailPage() {
 
                   </div>
 
-                  <div className="text-sm text-slate-600">{location || "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â"}</div>
+                  <div className="text-sm text-slate-600">{location || "-"}</div>
 
                 </div>
 

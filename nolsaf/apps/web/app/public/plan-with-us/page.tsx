@@ -88,7 +88,7 @@ const ROLES: {
 
 const HOW_IT_WORKS = [
   { icon: <CheckCircle2 className="w-5 h-5 text-emerald-500" />, label: 'Pick your role', detail: 'We tailor the questions to your group type.' },
-  { icon: <FileText className="w-5 h-5 text-emerald-500" />, label: 'Fill the form', detail: 'Destinations, dates, budget — takes ~3 minutes.' },
+  { icon: <FileText className="w-5 h-5 text-emerald-500" />, label: 'Fill the form', detail: 'Destinations, dates, budget. Takes ~3 minutes.' },
   { icon: <Sparkles className="w-5 h-5 text-emerald-500" />, label: 'Get a plan', detail: 'Itinerary, budget estimate and permit checklist in 48 h.' },
 ];
 
@@ -143,7 +143,7 @@ export default function PlanWithUsPage() {
               <div className="text-center mb-6">
                 <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Who are you planning for?</h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Select your role — this unlocks the right questions for your group.
+                  Select your role. This unlocks the right questions for your group.
                 </p>
               </div>
 
