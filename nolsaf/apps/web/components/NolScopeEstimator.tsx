@@ -1364,110 +1364,76 @@ function ResultCard({ result, onRestart, nationality, availableDests }: { result
 
       {/* ── Season notes ───────────────────────────────────────────────── */}
       {result.appliedRules && result.appliedRules.length > 0 && (
-        <div className="bg-gradient-to-br from-amber-50 via-orange-50/30 to-white border border-amber-200 rounded-2xl px-6 py-5 shadow-sm">
-          <div className="flex items-start gap-4">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shrink-0 shadow-md">
-              <Info className="w-5 h-5 text-white" />
+        <div className="bg-gradient-to-br from-amber-50 via-orange-50/30 to-white border border-amber-200 rounded-2xl px-4 sm:px-6 py-4 sm:py-5 shadow-sm">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shrink-0 shadow-md">
+              <Info className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </div>
-            <div className="flex-1">
-              <h3 className="text-base font-bold text-amber-900 mb-3">Seasonal Pricing Applied</h3>
-              <div className="space-y-3">
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-bold text-amber-900 mb-2.5">Seasonal Pricing Applied</h3>
+              <div className="space-y-2">
                 {result.appliedRules.map((r, i) => (
-                  <div key={i} className="bg-white/60 rounded-lg px-4 py-3 border border-amber-100">
-                    <div className="flex items-baseline gap-2 mb-1">
-                      <span className="text-sm font-bold text-amber-900">{cleanLabel(r.seasonName)}</span>
-                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
-                        {r.multiplier}x multiplier
+                  <div key={i} className="bg-white/70 rounded-xl px-3 py-2.5 border border-amber-100">
+                    <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                      <span className="text-xs font-bold text-amber-900">{cleanLabel(r.seasonName)}</span>
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 whitespace-nowrap">
+                        {r.multiplier}× rate
                       </span>
                     </div>
-                    <p className="text-sm text-amber-800 leading-relaxed">
-                      {r.description || r.ruleName}
-                    </p>
-                    <p className="text-xs text-amber-700 mt-2 italic">
-                      This seasonal adjustment affects accommodation, transport, and activity rates for your selected dates.
-                    </p>
+                    <p className="text-xs text-amber-800 leading-relaxed">{r.description || r.ruleName}</p>
                   </div>
                 ))}
-              </div>
-              
-              {/* Disclaimer & Data Sources */}
-              <div className="mt-4 space-y-3">
-                {/* Disclaimer */}
-                <div className="bg-white rounded-xl px-4 py-3 border border-amber-200/60 shadow-sm">
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
-                      <Shield className="w-4 h-4 text-amber-700" />
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="text-xs font-bold text-amber-900 mb-1">Disclaimer</h4>
-                      <p className="text-xs text-amber-800 leading-relaxed">
-                        This is an <strong>awareness estimate</strong>, not a final quote. Accommodation costs are based on <strong>NoLSAF verified properties</strong>. 
-                        Other costs vary by season, availability, operator, and booking timing. Always confirm prices with service providers before booking.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Data Sources */}
-                <div className="bg-white rounded-xl px-4 py-3 border border-amber-200/60 shadow-sm">
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
-                      <BookOpen className="w-4 h-4 text-amber-700" />
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="text-xs font-bold text-amber-900 mb-2">Data Sources</h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                        <div className="flex items-start gap-1.5">
-                          <CheckCircle2 className="w-3 h-3 text-amber-600 mt-0.5 shrink-0" />
-                          <div>
-                            <span className="font-semibold text-amber-900">Park Fees:</span>
-                            <span className="text-amber-700"> TANAPA 2025/26 Official Rates</span>
-                          </div>
-                        </div>
-                        <div className="flex items-start gap-1.5">
-                          <CheckCircle2 className="w-3 h-3 text-amber-600 mt-0.5 shrink-0" />
-                          <div>
-                            <span className="font-semibold text-amber-900">Visa Fees:</span>
-                            <span className="text-amber-700"> Tanzania Immigration Official Rates</span>
-                          </div>
-                        </div>
-                        <div className="flex items-start gap-1.5">
-                          <CheckCircle2 className="w-3 h-3 text-amber-600 mt-0.5 shrink-0" />
-                          <div>
-                            <span className="font-semibold text-amber-900">Transport:</span>
-                            <span className="text-amber-700"> Market averages from verified operators</span>
-                          </div>
-                        </div>
-                        <div className="flex items-start gap-1.5">
-                          <CheckCircle2 className="w-3 h-3 text-amber-600 mt-0.5 shrink-0" />
-                          <div>
-                            <span className="font-semibold text-amber-900">Accommodation:</span>
-                            <span className="text-amber-700"> NoLSAF verified properties & rates</span>
-                          </div>
-                        </div>
-                        <div className="flex items-start gap-1.5">
-                          <CheckCircle2 className="w-3 h-3 text-amber-600 mt-0.5 shrink-0" />
-                          <div>
-                            <span className="font-semibold text-amber-900">Seasonal Rates:</span>
-                            <span className="text-amber-700"> Historical booking data & tourism patterns</span>
-                          </div>
-                        </div>
-                        <div className="flex items-start gap-1.5">
-                          <CheckCircle2 className="w-3 h-3 text-amber-600 mt-0.5 shrink-0" />
-                          <div>
-                            <span className="font-semibold text-amber-900">Activities:</span>
-                            <span className="text-amber-700"> Operator surveys & published rates</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
           </div>
         </div>
       )}
+
+      {/* ── Disclaimer + Data Sources ──────────────────────────────────── */}
+      <div className="rounded-2xl border border-amber-200/70 overflow-hidden shadow-sm">
+        {/* Disclaimer */}
+        <div className="flex items-start gap-3 bg-amber-50 px-4 py-3 border-b border-amber-200/60">
+          <div className="w-7 h-7 rounded-lg bg-amber-100 flex items-center justify-center shrink-0 mt-0.5">
+            <Shield className="w-3.5 h-3.5 text-amber-700" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] font-bold text-amber-900 mb-0.5">Estimate Disclaimer</p>
+            <p className="text-[11px] text-amber-800 leading-relaxed">
+              This is an <strong>awareness estimate</strong>, not a final quote. Accommodation is based on{" "}
+              <strong>NoLSAF verified properties</strong>. Other costs vary by season, availability, and operator.
+              Always confirm prices before booking.
+            </p>
+          </div>
+        </div>
+
+        {/* Data Sources */}
+        <div className="flex items-start gap-3 bg-white px-4 py-3">
+          <div className="w-7 h-7 rounded-lg bg-amber-100 flex items-center justify-center shrink-0 mt-0.5">
+            <BookOpen className="w-3.5 h-3.5 text-amber-700" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] font-bold text-amber-900 mb-2">Data Sources</p>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+              {[
+                { label: "Park Fees",       src: "TANAPA 2025/26 Official Rates" },
+                { label: "Visa Fees",       src: "Tanzania Immigration Official Rates" },
+                { label: "Transport",       src: "Verified operator market averages" },
+                { label: "Accommodation",   src: "NoLSAF verified properties" },
+                { label: "Seasonal Rates",  src: "Historical booking & tourism data" },
+                { label: "Activities",      src: "Operator surveys & published rates" },
+              ].map(({ label, src }) => (
+                <div key={label} className="flex items-start gap-1.5 min-w-0">
+                  <CheckCircle2 className="w-3 h-3 text-amber-500 shrink-0 mt-0.5" />
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-semibold text-amber-900 leading-tight">{label}</p>
+                    <p className="text-[10px] text-amber-600 leading-tight truncate">{src}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* ── Disclaimer ─────────────────────────────────────────────────── */}
       <p className="text-xs text-slate-400 leading-relaxed bg-slate-50 px-4 py-3 rounded-lg">
