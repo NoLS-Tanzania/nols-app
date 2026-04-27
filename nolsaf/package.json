@@ -48,7 +48,7 @@
     "overrides": {
       "axios": "^1.15.0",
       "diff": "4.0.4",
-      "fast-xml-parser": "5.5.8",
+      "fast-xml-parser": ">=5.7.0",
       "@aws-sdk/xml-builder": "3.972.17",
       "glob": "10.5.0",
       "hono": "4.12.14",
@@ -62,13 +62,15 @@
       "jws": "3.2.3",
       "lodash": "^4.18.1",
       "nodemailer": "8.0.5",
-      "qs": "6.14.2"
+      "qs": "6.14.2",
+      "postcss": "^8.5.10",
+      "svix": ">=1.92.0"
     }
   },
   "overrides": {
     "axios": "^1.15.0",
     "diff": "4.0.4",
-    "fast-xml-parser": "5.5.8",
+    "fast-xml-parser": ">=5.7.0",
     "@aws-sdk/xml-builder": "3.972.17",
     "glob": "10.5.0",
     "hono": "4.12.14",
@@ -83,6 +85,8 @@
     "jws": "3.2.3",
     "lodash": "^4.18.1",
     "nodemailer": "8.0.5",
-    "qs": "6.14.2"
+    "qs": "6.14.2",
+    "postcss": "^8.5.10",
+    "svix": ">=1.92.0"
   }
 }
