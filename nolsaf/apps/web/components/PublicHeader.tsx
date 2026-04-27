@@ -6,7 +6,7 @@ import React, { useEffect, useState, useRef, useMemo } from "react";
 import { ChevronDown, ChevronRight, MapPin, Menu, X } from 'lucide-react';
 import { REGIONS } from '@/lib/tzRegions';
 import UserMenu from '@/components/UserMenu';
-import ThemeToggle from "@/components/ThemeToggle";
+
 import GlobalPicker from "@/components/GlobalPicker";
 import { usePathname } from "next/navigation";
 
@@ -551,7 +551,6 @@ export default function PublicHeader({
 
                 <div className={`flex items-center rounded-full px-1.5 py-1 ${isMobile ? '' : `backdrop-blur-md ${chromePillClass}`}`} style={{ gap: scrolled ? '4px' : '6px' }}>
                   <GlobalPicker variant={headerVariant} />
-                  <ThemeToggle variant={headerVariant} />
 
                   {authed && <span className="hidden xl:inline-flex"><UserMenu variant={headerVariant} /></span>}
 
