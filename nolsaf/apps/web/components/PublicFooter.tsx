@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Linkedin, Instagram, Youtube, X, Facebook } from "lucide-react";
+import { Linkedin, Instagram, Youtube, X, Facebook, MapPin, Phone } from "lucide-react";
 
 const APP_VERSION = "v0.1.0";
 
@@ -205,6 +205,20 @@ export default function PublicFooter({ withRail = true }: { withRail?: boolean }
                 <p className="text-sm text-slate-300 leading-relaxed max-w-sm">
                   NoLSAF connects travellers, owners and drivers with safe, local stays and services across East Africa.
                 </p>
+
+                <div className="flex flex-col gap-1.5 text-[13px] text-slate-400">
+                  <span className="flex items-center gap-2">
+                    <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+                    Ubungo, Dar es Salaam, Tanzania
+                  </span>
+                  <a
+                    href="tel:+255736766726"
+                    className="flex items-center gap-2 hover:text-slate-200 transition-colors no-underline"
+                  >
+                    <Phone className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+                    +255 736 766 726
+                  </a>
+                </div>
 
                 <div className="flex items-center gap-3 pt-2 flex-wrap">
                   <IconLinkButton

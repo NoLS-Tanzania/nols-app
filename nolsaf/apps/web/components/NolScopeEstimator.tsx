@@ -1525,17 +1525,25 @@ function ResultCard({ result, onRestart, nationality, availableDests }: { result
                 return cleaned.trim() || fullName; // Fallback to original if empty
               };
               
-              const destNames = result.destinations
+              const destNamesList = result.destinations
                 .map(code => {
                   const dest = availableDests.find((d: Destination) => d.code.toUpperCase() === code.toUpperCase());
                   const fullName = dest?.name || code;
                   // Extract meaningful location name (e.g., "Serengeti", "Zanzibar", "Kilimanjaro")
                   return extractLocationName(fullName);
                 })
-                .join(', ');
+                .filter(Boolean);
               
-              // Use extracted names for relevant search results
-              return `/public/properties?q=${encodeURIComponent(destNames)}`;
+              // IMPORTANT: The browse page uses a single LIKE text search for q=.
+              // Joining multiple destinations with a comma (e.g. "Serengeti, Zanzibar") produces
+              // a literal string match that returns 0 results. Instead:
+              // - 1 destination  → use q= filter so results are relevant to the trip
+              // - 2+ destinations → show all approved properties (let user filter from there)
+              //   This prevents the blank/photo-less card problem on multi-destination trips.
+              if (destNamesList.length === 1) {
+                return `/public/properties?q=${encodeURIComponent(destNamesList[0])}`;
+              }
+              return `/public/properties`;
             }
             return "/public/properties";
           })()}

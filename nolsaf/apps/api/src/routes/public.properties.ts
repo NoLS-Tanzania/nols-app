@@ -487,11 +487,10 @@ const listPublicProperties: RequestHandler = async (req, res) => {
                     maxGuests: true,
                     totalBedrooms: true,
                     totalBathrooms: true,
-                    // photos and images are intentionally omitted here.
-                    // batchResolvePrimaryImages below handles image resolution
-                    // via a 3-tier COALESCE (thumbnail → url → legacy photos JSON)
-                    // which correctly includes PENDING images missed by the old
-                    // status: { in: ['READY','PROCESSING'] } Prisma filter.
+                    // photos is included as a secondary fallback: if batchResolvePrimaryImages
+                    // returns null (e.g. photos[0] is a data: URI), toPublicCard will scan
+                    // the full array to find any non-data: renderable URL (e.g. photos[1]+).
+                    photos: true,
                   },
                 }),
                 prisma.property.count({ where }),
@@ -531,6 +530,7 @@ const listPublicProperties: RequestHandler = async (req, res) => {
                     maxGuests: true,
                     totalBedrooms: true,
                     totalBathrooms: true,
+                    photos: true,
                   },
                 }),
                 prisma.property.count({ where }),
@@ -574,7 +574,7 @@ const listPublicProperties: RequestHandler = async (req, res) => {
                   maxGuests: true,
                   totalBedrooms: true,
                   totalBathrooms: true,
-                  // photos omitted: batchResolvePrimaryImages handles all image tiers
+                  photos: true,
                 },
               }),
               prisma.property.count({ where }),

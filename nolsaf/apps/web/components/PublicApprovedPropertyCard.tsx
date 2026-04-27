@@ -83,7 +83,17 @@ export default function PublicApprovedPropertyCard({
                 sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
                 className="object-cover transition-transform duration-500 ease-out group-hover:scale-[1.08]"
                 priority={false}
-                unoptimized={p.primaryImage.includes('cloudinary') ? false : true}
+                unoptimized={
+                  // Cloudinary and localhost/127.0.0.1 URLs go through Next.js /_next/image proxy.
+                  // This ensures phones on the local network can load localhost-hosted images
+                  // (the Next.js server fetches from localhost internally and serves the result).
+                  // All other URLs (e.g. production CDN, S3) are passed directly to the browser.
+                  !(
+                    p.primaryImage.includes('cloudinary') ||
+                    p.primaryImage.startsWith('http://localhost') ||
+                    p.primaryImage.startsWith('http://127.0.0.1')
+                  )
+                }
               />
             ) : (
               <PhotoPlaceholder />

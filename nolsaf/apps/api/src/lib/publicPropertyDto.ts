@@ -153,7 +153,18 @@ export function toPublicCard(p: any): PublicPropertyCard {
   let primaryImage: string | null;
   if (Object.prototype.hasOwnProperty.call(p, 'primaryImage')) {
     const raw = typeof p.primaryImage === 'string' ? p.primaryImage.trim() : null;
-    primaryImage = raw && isRenderablePublicImageUrl(raw) ? raw : null;
+    const batched = raw && isRenderablePublicImageUrl(raw) ? raw : null;
+    if (batched) {
+      primaryImage = batched;
+    } else if (p.photos || p.images) {
+      // batchResolvePrimaryImages only checks photos[0]. If that was a data: URI, it returns null.
+      // Fall back to pickImages which scans the entire photos array for any valid URL.
+      // This handles properties that have a valid URL at photos[1+] but a data: URI at photos[0].
+      const fallback = pickImages({ images: p.images, photos: p.photos, limit: 1 });
+      primaryImage = fallback[0] ?? null;
+    } else {
+      primaryImage = null;
+    }
   } else {
     const images = pickImages({ images: p.images, photos: p.photos, limit: 1 });
     primaryImage = images[0] ?? null;
