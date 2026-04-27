@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import "mapbox-gl/dist/mapbox-gl.css";
 
@@ -1624,7 +1624,7 @@ export default function PublicPropertyDetailPage() {
       const fmtWindow = (from: string, to: string) => {
         const f = String(from || "").trim();
         const t = String(to || "").trim();
-        if (f && t) return `${f} -" ${t}`;
+        if (f && t) return `${f} - ${t}`;
         if (f) return `From ${f}`;
         if (t) return `Until ${t}`;
         return "";
@@ -1652,24 +1652,6 @@ export default function PublicPropertyDetailPage() {
     const viaServices = parseHouseRulesValue((servicesObj as any)?.houseRules);
     return normalize(direct) || normalize(viaServices) || null;
   }, [property, servicesObj]);
-    // Normalize common mojibake sequences coming from legacy text payloads.
-  const fixEncoding = (s?: string | null): string => {
-    if (!s) return "";
-    return String(s)
-      .replace(/\u00c3\u00a2\u00e2\u201a\u00ac\u00e2\u201e\u00a2/g, "\u2019")
-      .replace(/\u00c3\u00a2\u00e2\u201a\u00ac\u00c5\u00a1/g, "\u201c")
-      .replace(/\u00c3\u00a2\u00e2\u201a\u00ac\u00e2\u20ac\u009d/g, "\u201d")
-      .replace(/\u00c3\u00a2\u00e2\u201a\u00ac\u00e2\u20ac\u201c/g, "\u2013")
-      .replace(/\u00c3\u00a2\u00e2\u201a\u00ac\u00e2\u20ac\u201d/g, "\u2014")
-      .replace(/\u00c3\u00a2\u00e2\u201a\u00ac\u00c2\u00a2/g, "\u2022")
-      .replace(/\u00c3\u0082\u00c2\u00b7/g, "\u00b7")
-      .replace(/\u00e2\u20ac\u009d/g, "\u201d")
-      .replace(/\u00e2\u20ac\u009c/g, "\u201c")
-      .replace(/\u00e2\u20ac\u2122/g, "\u2019")
-      .replace(/\u00e2\u20ac\u2013/g, "\u2013")
-      .replace(/\u00e2\u20ac\u2014/g, "\u2014")
-      .replace(/\u00e2\u20ac\u00a2/g, "\u2022");
-  };
   // Default payment methods that should always be displayed
   const servicesByCategory = useMemo(() => {
     const DEFAULT_PAYMENT_METHODS = ["Mobile money", "Cash", "Card", "Bank transfer"];
@@ -3693,7 +3675,7 @@ export default function PublicPropertyDetailPage() {
                     <div>
                       <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider leading-none">Check-in</div>
                       <div className="text-sm font-semibold text-slate-800 mt-0.5">
-                        {houseRules.checkIn ? fixEncoding(houseRules.checkIn) : <span className="text-slate-400 font-normal text-xs">Not specified</span>}
+                        {houseRules.checkIn ? houseRules.checkIn : <span className="text-slate-400 font-normal text-xs">Not specified</span>}
                       </div>
                     </div>
                   </div>
@@ -3707,7 +3689,7 @@ export default function PublicPropertyDetailPage() {
                     <div>
                       <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider leading-none">Check-out</div>
                       <div className="text-sm font-semibold text-slate-800 mt-0.5">
-                        {houseRules.checkOut ? fixEncoding(houseRules.checkOut) : <span className="text-slate-400 font-normal text-xs">Not specified</span>}
+                        {houseRules.checkOut ? houseRules.checkOut : <span className="text-slate-400 font-normal text-xs">Not specified</span>}
                       </div>
                     </div>
                   </div>
