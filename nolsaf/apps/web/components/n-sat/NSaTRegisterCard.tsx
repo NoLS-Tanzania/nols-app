@@ -152,7 +152,7 @@ export default function NSaTRegisterCard({ programme }: { programme: Programme }
         className={`no-underline w-full flex items-center justify-center gap-2 rounded-2xl py-3 text-sm font-semibold text-white transition hover:-translate-y-[1px] active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 ${c.focusRing}`}
         style={{ background: c.btnBg }}
       >
-        Register Interest — {c.label}
+        Register Interest | {c.label}
       </button>
     );
   }

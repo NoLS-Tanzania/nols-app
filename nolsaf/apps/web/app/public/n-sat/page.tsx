@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { Moon, Heart, Music, Users, ShieldCheck } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'N-SaT — NoLSAF Service as Therapy',
+  title: 'N-SaT | NoLSAF Service as Therapy',
   description: 'N-SaT: two programmes to restore natural sleep and renew natural love through curated environments, mentorship, and peace.',
 };
 
@@ -56,7 +56,7 @@ export default function NSaTPage() {
               NoLSAF · Service as · Therapy
             </p>
             <p className="mt-4 mx-auto max-w-xl text-sm leading-6 text-white/65">
-              Two programmes built to restore what modern life breaks — your natural ability to sleep, and your natural capacity to love.
+              Two programmes built to restore what modern life breaks - your natural ability to sleep, and your natural capacity to love.
             </p>
           </div>
 
@@ -134,14 +134,14 @@ export default function NSaTPage() {
 
                   {/* supporting note */}
                   <p className="text-xs text-white/50 leading-5 mb-5">
-                    A verified calm environment + a certified mentor who guides your sleep recovery — no rush, at your pace.
+                    A verified calm environment + a certified mentor who guides your sleep recovery - no rush, at your pace.
                   </p>
 
                   {/* CTA */}
                   <Link href="/public/n-sat/plans?p=sleep"
                     className="no-underline hover:no-underline w-full flex items-center justify-center gap-2 rounded-2xl py-3 text-sm font-semibold text-white transition hover:-translate-y-[1px] active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/60"
                     style={{ background: 'linear-gradient(90deg, #0369a1, #1d4ed8)' }}>
-                    Register Interest — Sleep Sanctuary
+                    Register Interest | Sleep Sanctuary
                   </Link>
                 </div>
               </div>
@@ -192,14 +192,14 @@ export default function NSaTPage() {
 
                   {/* supporting note */}
                   <p className="text-xs text-white/50 leading-5 mb-5">
-                    Like King David who called for music every evening — peace of mind is not found, it is created. We create it for you.
+                    Like King David who called for music every evening - peace of mind is not found, it is created. We create it for you.
                   </p>
 
                   {/* CTA */}
                   <Link href="/public/n-sat/plans?p=love"
                     className="no-underline hover:no-underline w-full flex items-center justify-center gap-2 rounded-2xl py-3 text-sm font-semibold text-white transition hover:-translate-y-[1px] active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/60"
                     style={{ background: 'linear-gradient(90deg, #b45309, #9f1239)' }}>
-                    Register Interest — Love Restoration
+                    Register Interest | Love Restoration
                   </Link>
                 </div>
               </div>
@@ -291,7 +291,7 @@ export default function NSaTPage() {
               </div>
               <h2 className="text-2xl font-extrabold tracking-tight sm:text-3xl">N‑SaT Sanctuary Centres</h2>
               <p className="mt-2 text-xs text-white/45 max-w-md mx-auto leading-5">
-                Dedicated centres anchored in key regions across Tanzania — each a verified environment built for therapeutic restoration.
+                Dedicated centres anchored in key regions across Tanzania - each a verified environment built for therapeutic restoration.
               </p>
             </div>
 

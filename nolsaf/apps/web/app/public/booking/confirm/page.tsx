@@ -119,8 +119,7 @@ export default function BookingConfirmPage() {
   const [isGuestSelectorOpen, setIsGuestSelectorOpen] = useState(false);
   const [checkInPickerOpen, setCheckInPickerOpen] = useState(false);
   const [checkOutPickerOpen, setCheckOutPickerOpen] = useState(false);
-  const [checkInPickerPos, setCheckInPickerPos] = useState<{ top: number; left: number } | null>(null);
-  const [checkOutPickerPos, setCheckOutPickerPos] = useState<{ top: number; right: number } | null>(null);
+
 
   const checkInBtnRef = useRef<HTMLButtonElement>(null);
   const checkOutBtnRef = useRef<HTMLButtonElement>(null);
@@ -2766,7 +2765,7 @@ export default function BookingConfirmPage() {
                             <div className="px-5 py-3 bg-emerald-50/60 border-t border-emerald-100 flex items-center gap-2">
                               <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
                               <span className="text-xs text-emerald-800 font-medium">
-                                Fixed upfront fare &mdash; no surprises, included in your booking total.
+                                Fixed upfront fare - no surprises, included in your booking total.
                               </span>
                             </div>
                           </div>

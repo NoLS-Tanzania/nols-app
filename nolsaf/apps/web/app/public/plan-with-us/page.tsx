@@ -115,7 +115,7 @@ export default function PlanWithUsPage() {
             </h1>
             <p className="mt-4 max-w-2xl mx-auto text-sm sm:text-lg text-white/80 leading-relaxed">
               Tell us about your group and goals. We will send you tailored itineraries, estimated budgets, and
-              a clear checklist of permits and documents — all within 48 hours.
+              a clear checklist of permits and documents. All within 48 hours.
             </p>
 
             {/* How it works strip */}
@@ -169,8 +169,8 @@ export default function PlanWithUsPage() {
 
                     {/* text */}
                     <div className="flex-1">
-                      <div className="text-sm font-bold text-slate-900 leading-tight">{role.label}</div>
-                      <div className="text-[11px] mt-1 leading-snug text-slate-500">{role.description}</div>
+                      <div className="text-lg font-bold text-slate-900 leading-tight">{role.label}</div>
+                      <div className="text-sm mt-1 leading-snug text-slate-500">{role.description}</div>
                     </div>
 
                     {/* hover arrow */}
@@ -195,8 +195,8 @@ export default function PlanWithUsPage() {
                     {active.icon}
                   </div>
                   <div className="min-w-0">
-                    <div className="text-sm font-bold text-white leading-tight">{active.label}</div>
-                    <div className="text-[11px] text-white/75 mt-0.5 leading-snug">{active.description}</div>
+                    <div className="text-base font-bold text-white leading-tight">{active.label}</div>
+                    <div className="text-sm text-white/75 mt-0.5 leading-snug">{active.description}</div>
                   </div>
                   <CheckCircle2 className="ml-auto w-5 h-5 text-white/80 shrink-0" aria-hidden />
                 </div>
@@ -221,8 +221,8 @@ export default function PlanWithUsPage() {
                 <FileText className="w-4 h-4 text-emerald-600" aria-hidden />
               </div>
               <div>
-                <div className="font-semibold text-slate-800">What you'll receive</div>
-                <ul className="mt-2 space-y-1 text-slate-600 text-xs">
+                <div className="text-base font-semibold text-slate-800">What you'll receive</div>
+                <ul className="mt-2 space-y-1.5 text-slate-600 text-sm">
                   <li className="flex items-start gap-2"><MapPin className="w-3.5 h-3.5 text-emerald-500 mt-0.5 shrink-0" /> Suggested itineraries with estimated prices</li>
                   <li className="flex items-start gap-2"><FileText className="w-3.5 h-3.5 text-emerald-500 mt-0.5 shrink-0" /> Permit &amp; document checklist</li>
                   <li className="flex items-start gap-2"><Calendar className="w-3.5 h-3.5 text-emerald-500 mt-0.5 shrink-0" /> Timelines and booking windows</li>
@@ -235,8 +235,8 @@ export default function PlanWithUsPage() {
                 <Clock className="w-4 h-4 text-amber-500" aria-hidden />
               </div>
               <div>
-                <div className="font-semibold text-slate-800">Response time</div>
-                <p className="mt-2 text-xs text-slate-600 leading-relaxed">
+                <div className="text-base font-semibold text-slate-800">Response time</div>
+                <p className="mt-2 text-sm text-slate-600 leading-relaxed">
                   Most requests receive a tailored reply within <strong>48 hours</strong>.
                   For urgent planning, include the word <strong>urgent</strong> in the notes field.
                 </p>

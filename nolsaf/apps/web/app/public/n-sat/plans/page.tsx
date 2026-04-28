@@ -44,7 +44,7 @@ const sleepTiers = [
       { category: 'Stay',      items: ['Private sanctuary suite', 'Everything in Guided Restoration'] },
       { category: 'Meals',    items: ['Full board + welcome dinner & farewell dinner'] },
       { category: 'Transport', items: ['All ground transfers & excursions', 'Return domestic airline ticket included'] },
-      { category: 'Programme', items: ['Dedicated mentor — full programme', 'Extended follow-up (6 weeks)', 'Priority re-booking access'] },
+      { category: 'Programme', items: ['Dedicated mentor | full programme', 'Extended follow-up (6 weeks)', 'Priority re-booking access'] },
     ],
   },
 ];
@@ -156,14 +156,14 @@ export default function NSaTPlansPage() {
 
         {/* ── Back ── */}
         <Link href="/public/n-sat"
-          className="no-underline inline-flex items-center gap-1.5 text-xs text-white/40 hover:text-white/70 transition mb-8">
+          className="no-underline inline-flex items-center gap-1.5 text-sm text-white/40 hover:text-white/70 transition mb-8">
           <ArrowLeft className="h-3.5 w-3.5" />
           Back to N‑SaT
         </Link>
 
         {/* ── Page title ── */}
         <div className="text-center mb-10">
-          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/6 px-4 py-1 text-[10px] font-bold uppercase tracking-widest text-white/50">
+          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/6 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-white/50">
             N‑SaT · Choose your programme
           </div>
           <h1 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
@@ -182,7 +182,7 @@ export default function NSaTPlansPage() {
               return (
                 <button key={p} type="button"
                   onClick={() => setProg(p)}
-                  className={`flex items-center gap-2 rounded-xl border-0 px-5 py-2.5 text-xs font-bold transition ${
+                  className={`flex items-center gap-2 rounded-xl border-0 px-5 py-2.5 text-sm font-bold transition ${
                     isActive ? config[p].tabActive : config[p].tabInactive
                   }`}>
                   {icon}
@@ -229,38 +229,38 @@ export default function NSaTPlansPage() {
                       <c.Icon className={`h-4.5 w-4.5 ${c.iconColor}`} aria-hidden />
                     </div>
                     <div>
-                      <div className={`text-xs font-bold ${c.accentText}`}>{c.label}</div>
-                      <div className="text-[10px] text-white/40">N‑SaT Sanctuary · Tanzania</div>
+                      <div className={`text-sm font-bold ${c.accentText}`}>{c.label}</div>
+                      <div className="text-xs text-white/40">N‑SaT Sanctuary · Tanzania</div>
                     </div>
                   </div>
-                  <div className="text-[10px] text-white/35 uppercase tracking-widest">{c.zone}</div>
+                  <div className="text-xs text-white/35 uppercase tracking-widest">{c.zone}</div>
                 </div>
               </div>
 
               {/* Right — details */}
               <div className="p-6 flex flex-col justify-between">
                 <div>
-                  <div className="text-xs text-white/40 mb-3 uppercase tracking-wider font-semibold">What's always included</div>
+                  <div className="text-sm text-white/40 mb-3 uppercase tracking-wider font-semibold">What's always included</div>
                   <div className="space-y-2.5">
                     {[
                       { icon: <ShieldCheck className="h-4 w-4" />, title: 'Verified property', desc: 'Every sanctuary is inspected and approved by N‑SaT.' },
                       { icon: <Users className="h-4 w-4" />, title: 'Certified mentor', desc: 'A trained guide accompanies your entire programme.' },
-                      { icon: <Sparkles className="h-4 w-4" />, title: 'Curated environment', desc: 'Spaces designed intentionally — no noise, no distraction.' },
+                      { icon: <Sparkles className="h-4 w-4" />, title: 'Curated environment', desc: 'Spaces designed intentionally. No noise, no distraction.' },
                     ].map((f) => (
                       <div key={f.title} className="flex items-start gap-2.5">
                         <div className="mt-0.5 flex-shrink-0" style={{ color: c.tagColor, opacity: 0.8 }}>{f.icon}</div>
                         <div>
-                          <div className="text-xs font-semibold text-white/80">{f.title}</div>
-                          <div className="text-[11px] text-white/40 leading-4">{f.desc}</div>
+                          <div className="text-sm font-semibold text-white/80">{f.title}</div>
+                          <div className="text-xs text-white/40 leading-5">{f.desc}</div>
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
                 <div className="mt-5 pt-4 border-t border-white/8">
-                  <div className="text-[10px] text-white/35 uppercase tracking-wider mb-0.5">Pricing starts at</div>
+                  <div className="text-xs text-white/35 uppercase tracking-wider mb-0.5">Pricing starts at</div>
                   <div className={`text-2xl font-extrabold ${c.accentText}`}>TZS 9,000,000</div>
-                  <div className="text-[10px] text-white/35">per stay · 5 nights minimum</div>
+                  <div className="text-xs text-white/35">per stay · 5 nights minimum</div>
                 </div>
               </div>
 
@@ -269,7 +269,7 @@ export default function NSaTPlansPage() {
         </div>
 
         {/* ── Section label ── */}
-        <p className="text-center text-[10px] font-bold uppercase tracking-widest text-white/35 mb-6">
+        <p className="text-center text-xs font-bold uppercase tracking-widest text-white/35 mb-6">
           Select your package
         </p>
 
@@ -299,7 +299,7 @@ export default function NSaTPlansPage() {
                     {/* tag */}
                     <div className="mb-3 min-h-[22px] flex items-start">
                       {tier.tag && (
-                        <span className="text-[9px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full"
+                        <span className="text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full"
                           style={{ background: c.tagBg, color: c.tagColor, border: `1px solid ${c.accentBorder}` }}>
                           {tier.tag}
                         </span>
@@ -308,17 +308,17 @@ export default function NSaTPlansPage() {
 
                     {/* name + nights */}
                     <div className="text-lg font-extrabold text-white leading-tight">{tier.name}</div>
-                    <div className="text-xs text-white/35 mt-0.5 mb-5">{tier.nights}</div>
+                    <div className="text-sm text-white/35 mt-0.5 mb-5">{tier.nights}</div>
 
                     {/* price */}
                     <div className={`text-3xl font-extrabold leading-none mb-1 ${isMiddle ? c.accentText : 'text-white'}`}>
                       {tier.price}
                     </div>
-                    <div className="text-xs text-white/35 mb-4">{tier.priceNote}</div>
+                    <div className="text-sm text-white/35 mb-4">{tier.priceNote}</div>
 
                     {/* airline NB */}
                     {tier.airlineNote && (
-                      <div className="mb-4 rounded-xl px-3 py-2 text-[10px] leading-4"
+                      <div className="mb-4 rounded-xl px-3 py-2 text-xs leading-5"
                         style={{ background: 'rgba(234,179,8,0.10)', border: '1px solid rgba(234,179,8,0.25)', color: 'rgba(253,224,71,0.8)' }}>
                         <span className="font-bold uppercase tracking-wider">NB:</span> International flights are not included. Airline ticket covers domestic routes only. International travellers will incur additional charges.
                       </div>
@@ -328,7 +328,7 @@ export default function NSaTPlansPage() {
                     <div className="space-y-3 flex-1 mb-7">
                       {tier.inclusions.map((group) => (
                         <div key={group.category}>
-                          <div className="text-[9px] font-bold uppercase tracking-widest mb-1.5"
+                          <div className="text-[10px] font-bold uppercase tracking-widest mb-1.5"
                             style={{ color: isMiddle ? c.tagColor : 'rgba(255,255,255,0.3)' }}>
                             {group.category}
                           </div>
@@ -337,7 +337,7 @@ export default function NSaTPlansPage() {
                               <li key={item} className="flex items-start gap-2">
                                 <Check className="h-3.5 w-3.5 flex-shrink-0 mt-0.5"
                                   style={{ color: isMiddle ? c.tagColor : 'rgba(255,255,255,0.28)' }} />
-                                <span className="text-xs text-white/55 leading-4">{item}</span>
+                                <span className="text-sm text-white/55 leading-5">{item}</span>
                               </li>
                             ))}
                           </ul>
@@ -363,9 +363,9 @@ export default function NSaTPlansPage() {
         </div>
 
         {/* ── Footer note ── */}
-        <p className="mt-10 text-center text-xs text-white/25 leading-5 max-w-lg mx-auto">
+        <p className="mt-10 text-center text-sm text-white/25 leading-6 max-w-lg mx-auto">
           A NoLSAF advisor will confirm availability and a matched property before any payment is processed.
-          All stays include mentor support. Prices are per stay. Domestic airline tickets are included in Elite packages only — international flights are charged separately.
+          All stays include mentor support. Prices are per stay. Domestic airline tickets are included in Elite packages only. International flights are charged separately.
         </p>
 
           </div>
