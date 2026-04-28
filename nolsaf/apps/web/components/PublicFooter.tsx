@@ -419,7 +419,7 @@ export default function PublicFooter({ withRail = true }: { withRail?: boolean }
                 <div className="text-xs sm:text-sm text-slate-300 text-center">
                   <span className="font-semibold text-slate-200">© {year} </span>
                   <span className="font-extrabold text-emerald-200 tracking-wide">NoLSAF</span>
-                  <span className="text-slate-400"> — All rights reserved</span>
+                  <span className="text-slate-400"> | All rights reserved</span>
                 </div>
               </div>
             </div>

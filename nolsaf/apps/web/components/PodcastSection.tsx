@@ -69,53 +69,32 @@ export default function PodcastSection() {
     <section className="mt-14">
       {/* ── Section header ──────────────────────────────────────────────── */}
       <motion.div
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true, margin: "-50px" }}
-        variants={{
-          hidden: {},
-          visible: { transition: { staggerChildren: 0.1 } },
-        }}
+        initial={prefersReduced ? undefined : { opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, margin: "-40px" }}
+        transition={{ duration: 0.4, ease: "easeOut" }}
         className="flex flex-col items-center text-center mb-10"
       >
         {/* Eyebrow pill */}
-        <motion.div
-          variants={prefersReduced ? {} : {
-            hidden: { opacity: 0, y: 20, scale: 0.95 },
-            visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] } },
-          }}
-          className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#02665e]/8 border border-[#02665e]/15 mb-4"
-        >
+        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#02665e]/8 border border-[#02665e]/15 mb-4">
           <div className="h-5 w-5 rounded-lg bg-[#02665e]/15 flex items-center justify-center">
             <Play className="h-3 w-3 text-[#02665e] fill-[#02665e] ml-px" aria-hidden />
           </div>
           <span className="text-[11px] font-bold tracking-[0.14em] text-[#02665e]">
             NoLSAF Media
           </span>
-        </motion.div>
+        </div>
 
         {/* Title */}
-        <motion.h2
-          variants={prefersReduced ? {} : {
-            hidden: { opacity: 0, y: 28 },
-            visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] } },
-          }}
-          className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight text-slate-900 mb-3"
-        >
+        <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight text-slate-900 mb-3">
           Podcast &{" "}
           <span className="bg-gradient-to-r from-[#02665e] to-[#02b4f5] bg-clip-text text-transparent">
             Insights
           </span>
-        </motion.h2>
+        </h2>
 
         {/* Divider */}
-        <motion.div
-          variants={prefersReduced ? {} : {
-            hidden: { opacity: 0, scaleX: 0 },
-            visible: { opacity: 1, scaleX: 1, transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] } },
-          }}
-          className="flex items-center gap-2 mb-4 origin-center"
-        >
+        <div className="flex items-center gap-2 mb-4">
           <div className="h-px w-10 bg-gradient-to-r from-transparent to-[#02665e]/30" />
           <div className="h-1 w-1 rounded-full bg-[#02b4f5]/60" />
           <div className="h-px w-16 bg-[#02665e]/20" />
@@ -123,18 +102,12 @@ export default function PodcastSection() {
           <div className="h-px w-16 bg-[#02665e]/20" />
           <div className="h-1 w-1 rounded-full bg-[#02b4f5]/60" />
           <div className="h-px w-10 bg-gradient-to-l from-transparent to-[#02665e]/30" />
-        </motion.div>
+        </div>
 
         {/* Description */}
-        <motion.p
-          variants={prefersReduced ? {} : {
-            hidden: { opacity: 0, y: 16 },
-            visible: { opacity: 1, y: 0, transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] } },
-          }}
-          className="max-w-[48ch] text-sm sm:text-[15px] leading-relaxed text-slate-500"
-        >
+        <p className="max-w-[48ch] text-sm sm:text-[15px] leading-relaxed text-slate-500">
           Interviews with stakeholders, travel industry updates, and behind-the-scenes at NoLSAF.
-        </motion.p>
+        </p>
       </motion.div>
 
       {/* Episode cards grid */}
@@ -150,14 +123,10 @@ export default function PodcastSection() {
           return (
             <motion.div
               key={ep.id}
-              initial={prefersReduced ? undefined : { opacity: 0, y: 48, scale: 0.97 }}
-              whileInView={{ opacity: 1, y: 0, scale: 1 }}
-              viewport={{ once: true, margin: '-40px' }}
-              transition={{
-                duration: 0.55,
-                delay: idx * 0.08,
-                ease: [0.22, 1, 0.36, 1],
-              }}
+              initial={prefersReduced ? undefined : { opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-20px' }}
+              transition={{ duration: 0.35, delay: idx * 0.05, ease: "easeOut" }}
               className={isCenter ? "lg:-translate-y-3" : ""}
             >
             <a

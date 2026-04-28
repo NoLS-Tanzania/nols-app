@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import axios from "axios";
 import {
   Play,
@@ -118,6 +118,7 @@ export default function AdminPodcastsPage() {
   const [filterTab, setFilterTab] = useState<FilterTab>("all");
   const [search, setSearch] = useState("");
   const [actionsOpen, setActionsOpen] = useState<string | null>(null);
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; right: number } | null>(null);
   const [showPreview, setShowPreview] = useState(false);
 
   useEffect(() => {
@@ -267,8 +268,98 @@ export default function AdminPodcastsPage() {
     ? `https://img.youtube.com/vi/${previewVideoId}/hqdefault.jpg`
     : null;
 
+  const deleteTarget = deleteConfirmId ? episodes.find(e => e.id === deleteConfirmId) : null;
+  const actionsTarget = actionsOpen ? episodes.find(e => e.id === actionsOpen) : null;
+
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
+
+      {/* ─── Fixed actions dropdown popup ─── */}
+      {actionsOpen && actionsTarget && dropdownPos && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setActionsOpen(null)} />
+          <div
+            className="fixed z-50 w-48 rounded-xl bg-white border border-slate-200 shadow-xl shadow-slate-200/50 py-1.5 animate-in fade-in slide-in-from-top-1 duration-150"
+            style={{ top: dropdownPos.top, right: dropdownPos.right }}
+            onClick={e => e.stopPropagation()}
+          >
+            <button
+              onClick={() => { openEdit(actionsTarget); setActionsOpen(null); }}
+              className="flex items-center gap-2.5 w-full px-4 py-2 text-[13px] font-medium text-slate-700 hover:bg-slate-50 transition"
+            >
+              <Pencil className="h-3.5 w-3.5 text-slate-400" />
+              Edit Episode
+            </button>
+            <button
+              onClick={() => { togglePublish(actionsTarget); setActionsOpen(null); }}
+              className="flex items-center gap-2.5 w-full px-4 py-2 text-[13px] font-medium text-slate-700 hover:bg-slate-50 transition"
+            >
+              {actionsTarget.published ? (
+                <><EyeOff className="h-3.5 w-3.5 text-slate-400" />Move to Drafts</>
+              ) : (
+                <><Eye className="h-3.5 w-3.5 text-slate-400" />Publish Now</>
+              )}
+            </button>
+            <a
+              href={actionsTarget.youtubeUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2.5 w-full px-4 py-2 text-[13px] font-medium text-slate-700 hover:bg-slate-50 transition no-underline"
+              onClick={() => setActionsOpen(null)}
+            >
+              <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
+              View on YouTube
+            </a>
+            <div className="my-1.5 border-t border-slate-100" />
+            <button
+              onClick={() => { setDeleteConfirmId(actionsTarget.id); setActionsOpen(null); }}
+              className="flex items-center gap-2.5 w-full px-4 py-2 text-[13px] font-medium text-red-600 hover:bg-red-50 transition"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Delete Episode
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* ─── Delete confirmation modal ─── */}
+      {deleteConfirmId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setDeleteConfirmId(null)}>
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+          {/* Dialog */}
+          <div
+            className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl p-6 animate-in fade-in zoom-in-95 duration-200"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Icon */}
+            <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-red-50 flex items-center justify-center">
+              <Trash2 className="h-5 w-5 text-red-500" />
+            </div>
+            <h2 className="text-center text-[15px] font-bold text-slate-900 mb-1">Delete this episode?</h2>
+            {deleteTarget && (
+              <p className="text-center text-[13px] text-slate-500 mb-5 line-clamp-2">
+                &ldquo;{deleteTarget.title}&rdquo;
+              </p>
+            )}
+            <p className="text-center text-[12px] text-slate-400 mb-6">This action cannot be undone.</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteConfirmId(null)}
+                className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDelete(deleteConfirmId)}
+                className="flex-1 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-red-700 transition active:scale-[0.98]"
+              >
+                Yes, delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ─── Page header ─── */}
       <div className="flex items-center justify-between mb-8">
@@ -763,89 +854,18 @@ export default function AdminPodcastsPage() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        setActionsOpen(actionsOpen === ep.id ? null : ep.id);
+                        if (actionsOpen === ep.id) {
+                          setActionsOpen(null);
+                        } else {
+                          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                          setDropdownPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+                          setActionsOpen(ep.id);
+                        }
                       }}
                       className="h-8 w-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition opacity-0 group-hover:opacity-100 focus:opacity-100"
                     >
                       <MoreHorizontal className="h-4 w-4" />
                     </button>
-
-                    {actionsOpen === ep.id && (
-                      <div
-                        className="absolute right-0 top-9 z-20 w-48 rounded-xl bg-white border border-slate-200 shadow-xl shadow-slate-200/50 py-1.5 animate-in fade-in slide-in-from-top-1 duration-150"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <button
-                          onClick={() => {
-                            openEdit(ep);
-                            setActionsOpen(null);
-                          }}
-                          className="flex items-center gap-2.5 w-full px-4 py-2 text-[13px] font-medium text-slate-700 hover:bg-slate-50 transition"
-                        >
-                          <Pencil className="h-3.5 w-3.5 text-slate-400" />
-                          Edit Episode
-                        </button>
-                        <button
-                          onClick={() => {
-                            togglePublish(ep);
-                            setActionsOpen(null);
-                          }}
-                          className="flex items-center gap-2.5 w-full px-4 py-2 text-[13px] font-medium text-slate-700 hover:bg-slate-50 transition"
-                        >
-                          {ep.published ? (
-                            <>
-                              <EyeOff className="h-3.5 w-3.5 text-slate-400" />
-                              Move to Drafts
-                            </>
-                          ) : (
-                            <>
-                              <Eye className="h-3.5 w-3.5 text-slate-400" />
-                              Publish Now
-                            </>
-                          )}
-                        </button>
-                        <a
-                          href={ep.youtubeUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-2.5 w-full px-4 py-2 text-[13px] font-medium text-slate-700 hover:bg-slate-50 transition no-underline"
-                          onClick={() => setActionsOpen(null)}
-                        >
-                          <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
-                          View on YouTube
-                        </a>
-                        <div className="my-1.5 border-t border-slate-100" />
-                        {deleteConfirmId === ep.id ? (
-                          <div className="px-4 py-2">
-                            <p className="text-[12px] font-semibold text-red-600 mb-2">
-                              Delete this episode?
-                            </p>
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => handleDelete(ep.id)}
-                                className="rounded-lg px-3 py-1.5 text-[12px] font-bold bg-red-600 text-white hover:bg-red-700 transition"
-                              >
-                                Delete
-                              </button>
-                              <button
-                                onClick={() => setDeleteConfirmId(null)}
-                                className="rounded-lg px-3 py-1.5 text-[12px] font-medium text-slate-600 hover:bg-slate-100 transition"
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => setDeleteConfirmId(ep.id)}
-                            className="flex items-center gap-2.5 w-full px-4 py-2 text-[13px] font-medium text-red-600 hover:bg-red-50 transition"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                            Delete Episode
-                          </button>
-                        )}
-                      </div>
-                    )}
                   </div>
                 </div>
               );

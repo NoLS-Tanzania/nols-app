@@ -1118,20 +1118,8 @@ export default function Page() {
                   transition={{ duration: 0.6, ease: [0.2, 0.8, 0.2, 1] }}
                   className="max-w-4xl mx-auto text-center"
                 >
-                  <h1 className="text-[1.75rem] sm:text-[2.75rem] md:text-[3.5rem] lg:text-[4.25rem] font-black tracking-[-0.045em] leading-[0.95] sm:leading-[0.90] text-balance">
-                    <span
-                      className="text-transparent bg-clip-text"
-                      style={{
-                        backgroundImage: "linear-gradient(100deg,#ffffff 0%,#f0fdfa 50%,#ccfbf1 100%)",
-                        filter: "drop-shadow(0 0 32px rgba(45,212,191,0.35))"
-                      }}
-                    >Quality stay</span>
-                    <span
-                      className="block text-transparent bg-clip-text"
-                      style={{ backgroundImage: "linear-gradient(95deg,#5eead4 0%,#2dd4bf 50%,#14b8a6 100%)" }}
-                    >
-                      for every <em className="font-serif not-italic">wallet.</em>
-                    </span>
+                  <h1 className="text-[1.75rem] sm:text-[2.75rem] md:text-[3.5rem] lg:text-[4.25rem] font-black tracking-[-0.045em] leading-[1.05] sm:leading-[1.0] text-balance text-white">
+                    Quality stay<br />for every wallet.
                   </h1>
 
                   <p className="mx-auto mt-3 sm:mt-6 max-w-[44ch] text-[13px] sm:text-[15px] text-white/80 leading-[1.75] font-light">
