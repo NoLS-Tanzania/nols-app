@@ -418,7 +418,7 @@ export default function HelpCenterPage() {
                 How can we<br /><span className="text-[#4dd9ac]">help you?</span>
               </h1>
               <p className="mt-5 text-[15px] text-slate-300 leading-relaxed max-w-xl mx-auto">
-                Find answers to common questions, explore guides for every role, and reach our support team — all in one place.
+                Find answers to common questions, explore guides for every role, and reach our support team, all in one place.
               </p>
 
               {/* fake search bar for aesthetics */}

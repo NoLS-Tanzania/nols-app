@@ -91,7 +91,7 @@ export default function HelpEventManagerPage() {
             </div>
           </div>
 
-          {/* ── Types of events ──────────────────────────────────── */}
+          {/* ── Types of events ───*/}
           <section className="mt-10">
             <div className="flex items-center gap-3 mb-5">
               <div className="h-8 w-8 rounded-lg bg-[#a78bfa] flex items-center justify-center flex-shrink-0">
@@ -132,7 +132,7 @@ export default function HelpEventManagerPage() {
             </div>
           </section>
 
-          {/* ── What you earn ────────────────────────────────────── */}
+          {/* ── What you earn ───*/}
           <section className="mt-10">
             <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#faf7ff] via-white to-[#f3eeff] border border-violet-200 p-6 sm:p-8">
               <div className="pointer-events-none absolute inset-0 opacity-40"
@@ -162,7 +162,7 @@ export default function HelpEventManagerPage() {
             </div>
           </section>
 
-          {/* ── Community empowerment & innovation ───────────────── */}
+          {/* ── Community empowerment & innovation ───*/}
           <section className="mt-10">
             {/* Mission statement banner */}
             <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0d0418] via-[#150c2e] to-[#1a1040] p-7 sm:p-10 mb-6">
@@ -207,7 +207,7 @@ export default function HelpEventManagerPage() {
                   gradient: "from-teal-500 to-emerald-600",
                   shadow: "shadow-teal-100",
                   title: "Drive income into local economies",
-                  body: "Every event you manage sends guests into local restaurants, markets, transport operators, and service providers — turning a single booking into a ripple of economic activity for the whole area.",
+                  body: "Every event you manage sends guests into local restaurants, markets, transport operators, and service providers - turning a single booking into a ripple of economic activity for the whole area.",
                   tag: "Economic uplift",
                 },
                 {
@@ -231,7 +231,7 @@ export default function HelpEventManagerPage() {
                   gradient: "from-rose-500 to-pink-600",
                   shadow: "shadow-rose-100",
                   title: "Create recurring community moments",
-                  body: "Recurring annual events — festivals, retreats, re-unions, build traditions that communities can depend on for tourism income year after year. You make that cycle possible.",
+                  body: "Recurring annual events - festivals, retreats, re-unions, build traditions that communities can depend on for tourism income year after year. You make that cycle possible.",
                   tag: "Long-term impact",
                 },
                 {
@@ -239,7 +239,7 @@ export default function HelpEventManagerPage() {
                   gradient: "from-amber-500 to-orange-500",
                   shadow: "shadow-amber-100",
                   title: "Innovate how people experience places",
-                  body: "Combine accommodation with storytelling, heritage walks, cooking experiences, or community visits. NoLSAF supports event packages that go beyond beds giving guests true immersion.",
+                  body: "Combine accommodation with storytelling, heritage walks, cooking experiences, or community visits. NoLSAF supports event packages that go beyond beds - giving guests true immersion.",
                   tag: "Experience innovation",
                 },
               ].map(({ icon: Icon, gradient, shadow, title, body, tag }) => (

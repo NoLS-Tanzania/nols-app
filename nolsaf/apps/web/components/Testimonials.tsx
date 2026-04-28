@@ -14,7 +14,7 @@ function stripHtml(html: string) {
 const TESTIMONIALS = [
   {
     title: 'Effortless group bookings',
-    text: 'NoLSAF made organising our group trip effortless bookings, transport and payments in one place just one Click.',
+    text: 'NoLSAF made organising our group trip effortless. Bookings, transport, and payments in one place with just one click.',
     name: 'Asha M.',
     company: 'Group leader, Dar es Salaam',
     roleType: 'traveller',
@@ -22,7 +22,7 @@ const TESTIMONIALS = [
   },
   {
     title: 'Reliable drivers & booking codes',
-    text: 'Driver arrived on time and the booking code system worked perfectly — stress free.',
+    text: 'Driver arrived on time and the booking code system worked perfectly. Stress free.',
     name: 'John K.',
     company: 'International traveller',
     roleType: 'driver',
@@ -30,7 +30,7 @@ const TESTIMONIALS = [
   },
   {
     title: 'Bookings & fast payouts',
-    text: 'As a host, I get bookings and fast payouts — NoLSAF really helps our business.',
+    text: 'As a host, I get bookings and fast payouts. NoLSAF really helps our business.',
     name: 'Moses N.',
     company: 'Properties Owner, Arusha',
     roleType: 'owner',
@@ -38,7 +38,7 @@ const TESTIMONIALS = [
   },
   {
     title: 'Affordable travel options',
-    text: 'I used to think travel needed too much money. When I started using NoLSAF everything changed flexible options, clear pricing and group-friendly.',
+    text: 'I used to think travel needed too much money. When I started using NoLSAF everything changed. Flexible options, clear pricing and group-friendly.',
     name: 'Fatuma L.',
     company: 'Local traveller',
     roleType: 'traveller',
@@ -46,7 +46,7 @@ const TESTIMONIALS = [
   },
   {
     title: 'Booking without internet',
-    text: 'No internet? No problem — the USSD code *123# lets me check stays and book without data. NoLSAF works for everyone, even without a smartphone.',
+    text: 'No internet? No problem. The USSD code *123# lets me check stays and book without data. NoLSAF works for everyone, even without a smartphone.',
     name: 'Samson O.',
     company: 'USSD user',
     roleType: 'traveller',
@@ -54,7 +54,7 @@ const TESTIMONIALS = [
   },
   {
     title: 'Plan With Us simplified planning',
-    text: 'I had planning paralysis — Plan With Us gave clear recommendations, friendly costs and a simple plan. Booking felt easy and affordable.',
+    text: 'I had planning paralysis. Plan With Us gave clear recommendations, friendly costs and a simple plan. Booking felt easy and affordable.',
     name: 'Grace T.',
     company: 'Planner',
     roleType: 'planner',
