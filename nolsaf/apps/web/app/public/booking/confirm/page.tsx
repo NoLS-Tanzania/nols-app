@@ -1389,10 +1389,6 @@ export default function BookingConfirmPage() {
                           ref={checkInBtnRef}
                           type="button"
                           onClick={() => {
-                            if (checkInBtnRef.current) {
-                              const r = checkInBtnRef.current.getBoundingClientRect();
-                              setCheckInPickerPos({ top: r.bottom + 6, left: r.left });
-                            }
                             setCheckInPickerOpen(true);
                           }}
                           className="w-full min-w-0 px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 pl-8 sm:pl-10 md:pl-11 pr-8 sm:pr-10 md:pr-11 border-2 border-slate-300 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-gradient-to-r from-slate-50 to-blue-50/50 shadow-sm max-w-full box-border flex items-center justify-between group"
@@ -1413,10 +1409,10 @@ export default function BookingConfirmPage() {
                           </div>
                           <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 group-hover:text-[#02665e] transition-colors flex-shrink-0" />
                         </button>
-                        {checkInPickerOpen && checkInPickerPos && (
+                        {checkInPickerOpen && (
                           <>
-                            <div className="fixed inset-0 z-40" onClick={() => setCheckInPickerOpen(false)} />
-                            <div className="fixed z-[200]" style={{ top: checkInPickerPos.top, left: checkInPickerPos.left }}>
+                            <div className="fixed inset-0 z-40 bg-black/30" onClick={() => setCheckInPickerOpen(false)} />
+                            <div className="fixed z-[200] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
                               <DatePicker
                                 selected={bookingData?.checkIn || undefined}
                                 onSelectAction={(s) => {
@@ -1450,10 +1446,6 @@ export default function BookingConfirmPage() {
                           ref={checkOutBtnRef}
                           type="button"
                           onClick={() => {
-                            if (checkOutBtnRef.current) {
-                              const r = checkOutBtnRef.current.getBoundingClientRect();
-                              setCheckOutPickerPos({ top: r.bottom + 6, right: window.innerWidth - r.right });
-                            }
                             setCheckOutPickerOpen(true);
                           }}
                           className="w-full min-w-0 px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 pl-8 sm:pl-10 md:pl-11 pr-8 sm:pr-10 md:pr-11 border-2 border-slate-300 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-400 bg-gradient-to-r from-slate-50 to-blue-50/50 shadow-sm max-w-full box-border flex items-center justify-between group"
@@ -1474,10 +1466,10 @@ export default function BookingConfirmPage() {
                           </div>
                           <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 group-hover:text-[#02665e] transition-colors flex-shrink-0" />
                         </button>
-                        {checkOutPickerOpen && checkOutPickerPos && (
+                        {checkOutPickerOpen && (
                           <>
-                            <div className="fixed inset-0 z-40" onClick={() => setCheckOutPickerOpen(false)} />
-                            <div className="fixed z-[200]" style={{ top: checkOutPickerPos.top, right: checkOutPickerPos.right }}>
+                            <div className="fixed inset-0 z-40 bg-black/30" onClick={() => setCheckOutPickerOpen(false)} />
+                            <div className="fixed z-[200] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
                               <DatePicker
                                 selected={bookingData?.checkOut || undefined}
                                 onSelectAction={(s) => {

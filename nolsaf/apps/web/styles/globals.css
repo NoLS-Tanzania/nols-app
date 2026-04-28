@@ -133,6 +133,14 @@
   37%, 100% { opacity: 0.10; transform: scale(0.80); }
 }
 
+@keyframes qb-avail-blink {
+  0%, 100% { background-color: #02665e; box-shadow: 0 0 0 0 rgba(2,180,245,0); }
+  50%       { background-color: #02b4f5; box-shadow: 0 0 0 6px rgba(2,180,245,0.35); }
+}
+.qb-avail-blink {
+  animation: qb-avail-blink 1s ease-in-out infinite;
+}
+
 .nols-ai-hex-drift {
   transform-origin: center;
   animation: nols-ai-hex-drift 18s ease-in-out infinite;

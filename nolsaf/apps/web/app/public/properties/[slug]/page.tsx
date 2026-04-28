@@ -1238,6 +1238,7 @@ export default function PublicPropertyDetailPage() {
   // Throttle socket-driven refresh signals so we don't spam the availability endpoint.
   const socketRefreshTimerRef = useRef<any>(null);
   const lastSocketRefreshAtRef = useRef<number>(0);
+  const qbScrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     selectedDatesRef.current = selectedDates;
   }, [selectedDates]);
@@ -2489,36 +2490,38 @@ export default function PublicPropertyDetailPage() {
         {roomQuickView ? (
           <div className="fixed inset-0 z-[80]">
             <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setRoomQuickView(null)} />
-            <div className="absolute inset-x-0 top-14 sm:top-20 mx-auto w-[min(92vw,640px)] h-[min(78vh,640px)]">
+            <div className="nls-flipbook absolute inset-x-0 top-14 sm:top-20 mx-auto w-[min(92vw,480px)]">
               <div
-                className="rounded-[28px] border border-slate-200/80 bg-white shadow-2xl overflow-hidden nls-flipbook h-full flex flex-col ring-1 ring-slate-200/40"
-                data-qb-version="flip-v1"
+                className="rounded-[28px] border border-slate-200/80 bg-white shadow-2xl overflow-hidden flex flex-col ring-1 ring-slate-200/40 max-h-[min(82vh,660px)]"
+                data-qb-version="flip-v2"
               >
-                <div className="p-3 sm:p-4 bg-gradient-to-r from-slate-50 via-white to-emerald-50/40 border-b border-slate-200 shrink-0">
-                  <div className="flex items-start justify-between gap-3">
+                <div className="relative overflow-hidden bg-[#02665e] px-4 py-4 shrink-0">
+                  <div className="pointer-events-none absolute inset-0 opacity-[0.08]"
+                    style={{ backgroundImage: "repeating-linear-gradient(-55deg, rgba(255,255,255,1) 0px, rgba(255,255,255,1) 1.5px, transparent 1.5px, transparent 20px)" }} />
+                  <div className="relative z-10 flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Quick booking</div>
-                      <div className="mt-1 text-xl font-bold text-slate-900 truncate">{roomQuickView.roomType}</div>
-                      <div className="mt-1 text-sm text-slate-600">
+                      <div className="inline-flex items-center gap-1.5 rounded-full bg-white/15 border border-white/25 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white mb-1.5">Quick booking</div>
+                      <div className="text-xl font-black text-white truncate leading-tight">{roomQuickView.roomType}</div>
+                      <div className="mt-1 text-[13px] text-white/70 font-medium">
                         {getFloorName(roomQuickView.floor)} Floor
                         {selectedDates.checkIn && selectedDates.checkOut ? (
-                          <span className="text-slate-400"> . dates selected</span>
+                          <span className="text-white/50"> · dates selected</span>
                         ) : (
-                          <span className="text-amber-700"> . select dates above to see live availability</span>
+                          <span className="text-amber-300/90"> · select dates to check availability</span>
                         )}
                       </div>
                     </div>
                     <button
                       type="button"
                       onClick={() => setRoomQuickView(null)}
-                      className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white hover:bg-slate-50 w-10 h-10 transition-colors"
+                      className="inline-flex items-center justify-center rounded-xl bg-white/15 border border-white/25 hover:bg-white/25 w-10 h-10 transition-colors flex-shrink-0"
                       aria-label="Close"
                     >
-                      <X className="w-5 h-5 text-slate-600" aria-hidden />
+                      <X className="w-5 h-5 text-white" aria-hidden />
                     </button>
                   </div>
                 </div>
-                <div className="p-3 sm:p-4 flex-1 overflow-hidden">
+                <div ref={qbScrollRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-3" style={{ touchAction: "pan-y" }}>
                   {(() => {
                     const roomsSpec = Array.isArray(property.roomsSpec) ? property.roomsSpec : [];
                     const normalizedRows = normalizeRoomsSpec(roomsSpec, property.currency, property.basePrice, property, systemCommission);
@@ -2594,21 +2597,10 @@ export default function PublicPropertyDetailPage() {
                     };
                     return (
                       true ? (
-                      <div className="relative h-full [perspective:1200px] [isolation:isolate]">
-                          <div
-                            className={[
-                              "relative h-full",
-                              "motion-safe:transition-transform motion-safe:duration-500 motion-safe:ease-in-out",
-                            "[transform-style:preserve-3d]",
-                            "[will-change:transform]",
-                              quickBookingPage === "availability" ? "[transform:rotateY(180deg)]" : "",
-                            ].join(" ")}
-                          >
-                            {/* Front: Details */}
-                          <div
-                            className="absolute inset-0 overflow-y-auto [backface-visibility:hidden] [-webkit-backface-visibility:hidden]"
-                            data-qb-face="front"
-                          >
+                      <>
+                          {/* Details panel */}
+                          {quickBookingPage === "details" && (
+                          <div data-qb-face="front">
                               {(() => {
                                 const maxGuests = Number(property.maxGuests ?? 0) > 0 ? Number(property.maxGuests) : 100;
                                 const declaredRoomsCount =
@@ -2668,23 +2660,30 @@ export default function PublicPropertyDetailPage() {
                                   </div>
                                 );
                                 const canFlip = Boolean(modalDates.checkIn && modalDates.checkOut);
+                                const nights = canFlip
+                                  ? Math.max(1, Math.round(
+                                      (new Date(modalDates.checkOut).getTime() - new Date(modalDates.checkIn).getTime()) / 86400000
+                                    ))
+                                  : 0;
+                                const totalPrice = nights > 0 && typeof row?.pricePerNight === "number" && row.pricePerNight > 0
+                                  ? row.pricePerNight * nights * modalRoomsQty
+                                  : null;
                                 return (
-                                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                                    <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4">
-                                      <div className="flex items-start justify-between gap-4">
-                                        <div className="min-w-0">
-                                          <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Beds</div>
-                                          <div className="mt-1 text-sm font-semibold text-slate-900">{row?.bedsSummary || "-"}</div>
-                                        </div>
-                                        <div className="text-right">
-                                          <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Price / night</div>
-                                          <div className="mt-1 text-base font-extrabold text-slate-900">
-                                            {fmtMoney(row?.pricePerNight ?? null, property.currency)}
-                                          </div>
-                                        </div>
+                                  <div className="space-y-3 pb-2">
+                                    {/* Beds + Price */}
+                                    <div className="flex items-center justify-between px-4 py-3 rounded-2xl bg-[#02665e]/[0.07] border border-[#02665e]/20">
+                                      <div>
+                                        <div className="text-[10px] font-bold text-[#02665e] uppercase tracking-widest">Beds</div>
+                                        <div className="mt-0.5 text-sm font-bold text-slate-900">{row?.bedsSummary || "—"}</div>
+                                      </div>
+                                      <div className="text-right">
+                                        <div className="text-[10px] font-bold text-[#02665e] uppercase tracking-widest">Per night</div>
+                                        <div className="mt-0.5 text-xl font-black text-slate-900">{fmtMoney(row?.pricePerNight ?? null, property.currency)}</div>
                                       </div>
                                     </div>
-                                    <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+                                    {/* Dates */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                       <div className="space-y-1">
                                         <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">Check-in</label>
                                         <div className="relative">
@@ -2776,34 +2775,47 @@ export default function PublicPropertyDetailPage() {
                                         </div>
                                       </div>
                                     </div>
-                                    <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                      <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
-                                        <div className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide">Rooms</div>
-                                        <div className="mt-2 flex items-center justify-between gap-3">
-                                          <div className="text-sm font-semibold text-slate-900">{modalRoomsQty}</div>
-                                          <Stepper value={modalRoomsQty} min={1} max={maxRooms} onChange={setRooms} label="rooms" />
-                                        </div>
-                                        <div className="mt-1 text-[11px] text-slate-500">Max {maxRooms}.</div>
+                                    {/* Nights + Total */}
+                                    {canFlip ? (
+                                      <div className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                                        <span className="text-xs font-semibold text-slate-500">{nights} night{nights !== 1 ? "s" : ""}</span>
+                                        {totalPrice !== null && (
+                                          <span className="text-sm font-black text-slate-900">{fmtMoney(totalPrice, property.currency)}</span>
+                                        )}
                                       </div>
-                                      <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
-                                        <div className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide">Adults</div>
-                                        <div className="mt-2 flex items-center justify-between gap-3">
-                                          <div className="text-sm font-semibold text-slate-900">{modalGuests.adults}</div>
-                                          <Stepper value={modalGuests.adults} min={1} max={maxGuests} onChange={setAdults} label="adults" />
+                                    ) : (
+                                      <div className="flex items-center px-3 py-2 rounded-xl bg-amber-50 border border-amber-200/80">
+                                        <span className="text-xs font-medium text-amber-700">Select check-in and check-out to continue</span>
+                                      </div>
+                                    )}
+
+                                    {/* Rooms + Adults */}
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <div className="flex items-center justify-between px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/60">
+                                        <div>
+                                          <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Rooms</div>
+                                          <div className="text-[11px] text-slate-400 mt-0.5">Max {maxRooms}</div>
                                         </div>
-                                        <div className="mt-1 text-[11px] text-slate-500">Max {maxGuests}.</div>
+                                        <Stepper value={modalRoomsQty} min={1} max={maxRooms} onChange={setRooms} label="rooms" />
+                                      </div>
+                                      <div className="flex items-center justify-between px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/60">
+                                        <div>
+                                          <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Adults</div>
+                                          <div className="text-[11px] text-slate-400 mt-0.5">Max {maxGuests}</div>
+                                        </div>
+                                        <Stepper value={modalGuests.adults} min={1} max={maxGuests} onChange={setAdults} label="adults" />
                                       </div>
                                     </div>
-                                    <div className="mt-4 flex gap-2">
+
+                                    {/* CTAs */}
+                                    <div className="space-y-1.5 pt-0.5">
                                       <button
                                         type="button"
-                                        onClick={() => {
-                                          setQuickBookingPage("availability");
-                                        }}
+                                        onClick={() => setQuickBookingPage("availability")}
                                         disabled={!canFlip}
-                                        className="flex-1 rounded-xl bg-slate-900 text-white py-2.5 text-sm font-semibold hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                        className="w-full rounded-xl bg-[#02665e] text-white py-3 text-sm font-bold hover:bg-[#014e47] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                       >
-                                        Next: check availability
+                                        Check availability →
                                       </button>
                                       <button
                                         type="button"
@@ -2811,23 +2823,21 @@ export default function PublicPropertyDetailPage() {
                                           document.getElementById("roomsSection")?.scrollIntoView({ behavior: "smooth", block: "start" });
                                           setRoomQuickView(null);
                                         }}
-                                        className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 hover:bg-slate-50 transition-colors"
+                                        className="w-full rounded-xl border border-slate-200 bg-white py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
                                       >
-                                        View rooms
+                                        View all rooms
                                       </button>
                                     </div>
-                                    {!canFlip ? (
-                                      <div className="mt-2 text-xs text-amber-700">Select both dates to continue.</div>
+                                    {false ? (
+                                      <div className="hidden">placeholder</div>
                                     ) : null}
                                   </div>
                                 );
                               })()}
                             </div>
-                            {/* Back: Availability */}
-                          <div
-                            className="absolute inset-0 overflow-y-auto [backface-visibility:hidden] [-webkit-backface-visibility:hidden] [transform:rotateY(180deg)]"
-                            data-qb-face="back"
-                          >
+                          )}
+                          {quickBookingPage === "availability" && (
+                          <div data-qb-face="back">
                               <div className="rounded-2xl border border-slate-200 bg-white p-4">
                                 <div className="flex items-start justify-between gap-3">
                                   <div className="min-w-0">
@@ -2851,14 +2861,14 @@ export default function PublicPropertyDetailPage() {
                                     Back
                                   </button>
                                 </div>
-                                <div className="mt-4 flex items-center justify-between gap-2">
+                                <div className="mt-4 flex flex-col gap-2">
                                   <button
                                     type="button"
                                     onClick={() => {
                                       runAvailabilityCheck(property.id, modalDates.checkIn, modalDates.checkOut, roomQuickView.roomType);
                                     }}
                                     disabled={modalAvailLoading}
-                                    className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className={`inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-bold text-white disabled:opacity-50 disabled:cursor-not-allowed${modalAvailLoading ? " bg-[#02665e]/70" : computedAvailableRooms != null ? " bg-[#02665e]" : " qb-avail-blink"}`}
                                   >
                                     {modalAvailLoading ? (
                                       <span className="inline-flex items-center gap-2">
@@ -2902,7 +2912,7 @@ export default function PublicPropertyDetailPage() {
                                       router.push(buildBookingUrl());
                                     }}
                                     disabled={!canBook}
-                                    className="flex-1 inline-flex items-center justify-center rounded-xl bg-[#02665e] text-white py-2.5 text-sm font-semibold hover:bg-[#014e47] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className={`flex-1 inline-flex items-center justify-center rounded-xl text-white py-2.5 text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed${computedAvailableRooms != null && !modalAvailLoading ? " qb-avail-blink" : " bg-[#02665e] hover:bg-[#014e47]"}`}
                                   >
                                     Book this room type
                                   </button>
@@ -2919,8 +2929,8 @@ export default function PublicPropertyDetailPage() {
                                 </div>
                               </div>
                             </div>
-                          </div>
-                        </div>
+                          )}
+                      </>
                       ) : (
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
                         {/* Left: compact premium summary + rooms/guests */}

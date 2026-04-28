@@ -296,7 +296,7 @@ export default function DatePicker({
   };
 
   return (
-    <div ref={rootRef} className={`bg-white p-4 ${twoMonths ? "w-max" : "w-72 sm:w-80"}`}>
+    <div ref={rootRef} className={`bg-white p-4 rounded-xl border border-slate-200 shadow-xl ${twoMonths ? "w-max" : "w-[min(20rem,calc(100vw-1rem))]"}`}>
       {/* Header with month/year navigation */}
       <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
         <button
