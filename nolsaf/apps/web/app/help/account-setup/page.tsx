@@ -42,7 +42,7 @@ const SETUP_STEPS = [
     step: "03",
     icon: User,
     title: "Complete your profile",
-    detail: "A complete profile — name, location, and contact details — enables faster checkout and allows support to assist you quickly.",
+    detail: "A complete profile name, location, and contact details enables faster checkout and allows support to assist you quickly.",
     color: "#a78bfa",
   },
   {
@@ -54,7 +54,7 @@ const SETUP_STEPS = [
   },
 ];
 
-// ─── Security features ───────────────────────────────────────────────────────
+// ─── Security features ──────
 const SECURITY_ITEMS = [
   {
     icon: KeyRound,

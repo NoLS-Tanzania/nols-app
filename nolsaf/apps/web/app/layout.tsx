@@ -40,7 +40,7 @@ export const metadata: Metadata = {
     siteName: "NoLSAF",
     title: "NoLSAF | Quality Stay for Every Wallet",
     description:
-      "Verified accommodation, seamless transport and flexible payments — all in one platform built for Africa.",
+      "Verified accommodation, seamless transport and flexible payments all in one platform built for Africa.",
     url: SITE_URL,
     images: [
       {
@@ -55,7 +55,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "NoLSAF | Quality Stay for Every Wallet",
     description:
-      "Verified accommodation, seamless transport and flexible payments — built for Africa.",
+      "Verified accommodation, seamless transport and flexible payments  built for you.",
     images: [`${SITE_URL}/og-default.jpg`],
   },
   icons: {
