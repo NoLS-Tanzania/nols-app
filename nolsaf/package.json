@@ -37,7 +37,9 @@
     "assign:bookings": "node scripts/assign-bookings-to-test-user.js",
     "create:test-booking": "node scripts/create-test-booking.js",
     "create:test-user-data": "node scripts/create-comprehensive-test-user-data.js",
-    "create:test-owners": "node scripts/create-test-owners.js"
+    "create:test-owners": "node scripts/create-test-owners.js",
+    "smoke-test": "node scripts/smoke-test.mjs",
+    "smoke-test:staging": "API_URL=$npm_config_api_url node scripts/smoke-test.mjs"
   },
   "dependencies": {
     "dotenv": "^17.2.3",
