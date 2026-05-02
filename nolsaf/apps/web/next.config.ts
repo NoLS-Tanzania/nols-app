@@ -7,6 +7,7 @@ import type { NextConfig } from 'next';
  */
 const apiOriginRaw = process.env.API_ORIGIN || process.env.NEXT_PUBLIC_API_URL || '';
 const apiOrigin = (apiOriginRaw || (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:4000')).replace(/\/$/, '');
+const isProduction = process.env.NODE_ENV === 'production';
 
 if (!apiOrigin) {
   throw new Error('Missing API_ORIGIN. Set API_ORIGIN to your API base URL (e.g. https://api.nolsaf.com).');
@@ -42,25 +43,53 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: 'res.cloudinary.com', pathname: '/**' },
       { protocol: 'https', hostname: 'api.mapbox.com', pathname: '/**' },
       { protocol: 'https', hostname: '*.mapbox.com', pathname: '/**' },
-      { protocol: 'http', hostname: 'localhost', pathname: '/**' },
-      { protocol: 'http', hostname: '127.0.0.1', pathname: '/**' },
+      ...(isProduction ? [] : [
+        { protocol: 'http' as const, hostname: 'localhost', pathname: '/**' },
+        { protocol: 'http' as const, hostname: '127.0.0.1', pathname: '/**' },
+      ]),
     ],
   },
   turbopack: {},
   async headers() {
-    const connectSrc = [
-      "'self'",
+    const localConnectSrc = isProduction ? [] : [
       'http://127.0.0.1:4000',
       'http://localhost:4000',
       'http://localhost:3001',
-      'https:',
       'ws:',
+    ];
+    const connectSrc = [
+      "'self'",
+      'https:',
       'wss:',
       'https://api.mapbox.com',
       'https://events.mapbox.com',
       apiOrigin,
       socketOrigin,
+      ...localConnectSrc,
     ].filter(Boolean);
+    const scriptSrc = [
+      "'self'",
+      ...(isProduction ? [] : ["'unsafe-eval'"]),
+      "'unsafe-inline'",
+      'https://api.mapbox.com',
+      'https://events.mapbox.com',
+    ].join(' ');
+    const imgSrc = [
+      "'self'",
+      'blob:',
+      'data:',
+      'https:',
+      ...(isProduction ? [] : ['http:']),
+      'res.cloudinary.com',
+      'img.youtube.com',
+      'https://api.mapbox.com',
+      'https://*.mapbox.com',
+    ].join(' ');
+    const frameSrc = [
+      "'self'",
+      'https://js.stripe.com',
+      'https://hooks.stripe.com',
+    ].join(' ');
 
     return [
       {
@@ -68,7 +97,7 @@ const nextConfig: NextConfig = {
         headers: [
           {
             key: 'Content-Security-Policy',
-            value: `default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://api.mapbox.com https://events.mapbox.com; style-src 'self' 'unsafe-inline' https://api.mapbox.com; img-src 'self' blob: data: https: http: res.cloudinary.com img.youtube.com https://api.mapbox.com https://*.mapbox.com; font-src 'self' data:; worker-src 'self' blob:; media-src 'self' blob: data: https:; connect-src ${connectSrc.join(' ')}; frame-ancestors 'self'; frame-src 'self' https:;`,
+            value: `default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline' https://api.mapbox.com; img-src ${imgSrc}; font-src 'self' data:; worker-src 'self' blob:; media-src 'self' blob: data: https:; connect-src ${connectSrc.join(' ')}; frame-ancestors 'self'; frame-src ${frameSrc};`,
           },
         ],
       },

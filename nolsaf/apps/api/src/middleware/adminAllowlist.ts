@@ -5,12 +5,14 @@ import ipaddr from "ipaddr.js";
 
 const CACHE_TTL_MS = 30_000;
 let cachedList: string[] | null = null;
+let cachedEnabled = false;
 let cachedAtMs = 0;
 
 // Helper: get client IP
+// Use req.ip (respects Express `trust proxy` setting — strips spoofed leading
+// X-Forwarded-For entries) rather than reading the header directly.
 function getIp(req: Request): string {
-  const fwd = (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim();
-  return fwd || req.socket.remoteAddress || "";
+  return req.ip || req.socket.remoteAddress || "";
 }
 
 export async function adminAllowlist(req: Request, res: Response, next: NextFunction) {
@@ -18,7 +20,7 @@ export async function adminAllowlist(req: Request, res: Response, next: NextFunc
     const now = Date.now();
     if (cachedList && now - cachedAtMs < CACHE_TTL_MS) {
       // Use cached allowlist
-      if (cachedList.length === 0) return next();
+      if (!cachedEnabled || cachedList.length === 0) return next();
       const list = cachedList;
 
       const ip = getIp(req);
@@ -52,6 +54,7 @@ export async function adminAllowlist(req: Request, res: Response, next: NextFunc
     interface SystemSetting {
       id: number;
       ipAllowlist?: string | null;
+      enableIpAllowlist?: boolean | null;
     }
 
     const list: string[] =
@@ -61,8 +64,9 @@ export async function adminAllowlist(req: Request, res: Response, next: NextFunc
       .filter((v: string) => v !== "")) || [];
 
     cachedList = list;
+    cachedEnabled = Boolean((s as SystemSetting | null)?.enableIpAllowlist);
     cachedAtMs = now;
-    if (list.length === 0) return next(); // not configured
+    if (!cachedEnabled || list.length === 0) return next(); // not configured/enabled
 
     const ip = getIp(req);
     if (!ip) return res.status(403).json({ error: "IP blocked" });

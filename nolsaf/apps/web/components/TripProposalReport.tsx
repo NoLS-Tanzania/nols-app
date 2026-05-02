@@ -163,7 +163,7 @@ export default function TripProposalReport({ request, label }: Props) {
               <img src="/assets/NoLS2025-04.png" alt="NoLSAF" className="w-14 h-14 object-contain flex-shrink-0 drop-shadow" />
               <div className="min-w-0">
                 <p className="text-[10px] font-black uppercase tracking-[0.28em] text-white/50">NoLSAF</p>
-                <div className="text-white font-black text-[17px] tracking-tight leading-tight">NoLS Africa Inc</div>
+                <div className="text-white font-black text-[17px] tracking-tight leading-tight">NoLS Africa Co Ltd</div>
                 <div className="text-[11px] font-bold text-teal-300 mt-0.5 tracking-wide">Quality Stay For Every Wallet</div>
                 <div className="text-[10px] text-white/40 mt-0.5">P.O BOX 23091 · Dar es Salaam, Tanzania</div>
               </div>
@@ -602,7 +602,7 @@ export default function TripProposalReport({ request, label }: Props) {
           </svg>
           <div className="relative flex items-center justify-between gap-4">
             <div>
-              <div className="text-white font-black text-sm tracking-tight">NoLS Africa Inc</div>
+              <div className="text-white font-black text-sm tracking-tight">NoLS Africa Co Ltd</div>
               <div className="text-teal-300 text-[10px] mt-0.5">Authorised Trip Planning Report · Ref NLS-{String(request.id).padStart(5, "0")}</div>
             </div>
             <div className="text-center">
@@ -617,7 +617,7 @@ export default function TripProposalReport({ request, label }: Props) {
             <span>sales@nolsaf.com</span>
             <span>Dar es Salaam, Tanzania</span>
             <span>Fax: +255 736 766 726</span>
-            <span className="ml-auto">© {new Date().getFullYear()} NoLS Africa Inc. · NoLSAF TripEngine™ · Precision-Crafted Travel Technology</span>
+            <span className="ml-auto">© {new Date().getFullYear()} NoLS Africa Co Ltd · NoLSAF TripEngine™ · Precision-Crafted Travel Technology</span>
           </div>
         </div>
 

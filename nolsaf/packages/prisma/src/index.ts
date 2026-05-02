@@ -17,10 +17,19 @@ function createMariaDbAdapterFromDatabaseUrl(databaseUrl: string) {
     allowPublicKeyRetrievalParam !== 'false' &&
     allowPublicKeyRetrievalParam !== '0'
 
-  // Enable SSL if sslaccept param is present or if NODE_ENV is production
+  // Enable SSL if sslaccept/ssl-mode params are present or if NODE_ENV is production.
+  // Aiven MySQL emits URLs with `ssl-mode=REQUIRED`; Prisma examples often use `sslaccept`.
   const sslAccept = url.searchParams.get('sslaccept')
-  const ssl = sslAccept
-    ? { rejectUnauthorized: sslAccept !== 'accept_invalid_certs' }
+  const sslMode = url.searchParams.get('ssl-mode') || url.searchParams.get('sslmode')
+  const wantsSsl = Boolean(sslAccept || sslMode)
+  const shouldRejectUnauthorized =
+    sslAccept
+      ? sslAccept !== 'accept_invalid_certs'
+      : sslMode
+        ? !['REQUIRED', 'required', 'DISABLED', 'disabled'].includes(sslMode)
+        : false
+  const ssl = wantsSsl
+    ? { rejectUnauthorized: shouldRejectUnauthorized }
     : process.env.NODE_ENV === 'production'
       ? { rejectUnauthorized: false }
       : undefined

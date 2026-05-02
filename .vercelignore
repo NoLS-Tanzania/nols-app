@@ -1,0 +1,22 @@
+# Local database backups and dumps must never be uploaded with Vercel CLI.
+*.sql
+*.sql.gz
+**/*.sql
+**/*.sql.gz
+backups/
+**/backups/
+
+# Local dependency/build artifacts.
+node_modules/
+**/node_modules/
+.next/
+**/.next/
+dist/
+**/dist/
+coverage/
+**/coverage/
+
+# Local logs and temporary reports.
+*.log
+*report.json
+devservers.log

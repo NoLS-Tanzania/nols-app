@@ -966,7 +966,7 @@ export default function PropertiesPage() {
               {/* Platform feature cards — 2 cols mobile, 3 cols desktop */}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {([
-                  { title: "Unique Stays", desc: "Hotels, villas, lodges & hidden gems — from Dar to Nairobi and beyond", Icon: Hotel },
+                  { title: "Unique Stays", desc: "Hotels, villas, lodges & hidden gems, from Dar to Nairobi and beyond", Icon: Hotel },
                   { title: "Solo-Friendly", desc: "Curated experiences for independent travelers exploring Africa", Icon: UserCircle },
                   { title: "Seamless Transport", desc: "Airport pickups, city rides & inter-city travel on demand", Icon: Car },
                   { title: "Mobile Payments", desc: "M-Pesa, Mixx by Yas, Airtel Money, cards - secure & instant", Icon: Wallet },

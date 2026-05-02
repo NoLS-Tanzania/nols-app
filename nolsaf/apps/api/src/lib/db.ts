@@ -18,8 +18,15 @@ function createMariaDbAdapterFromDatabaseUrl(databaseUrl: string) {
     allowPublicKeyRetrievalParam !== '0';
 
   const sslAccept = url.searchParams.get('sslaccept');
-  const ssl = sslAccept
-    ? { rejectUnauthorized: sslAccept !== 'accept_invalid_certs' }
+  const sslMode = url.searchParams.get('ssl-mode') || url.searchParams.get('sslmode');
+  const wantsSsl = Boolean(sslAccept || sslMode);
+  const shouldRejectUnauthorized = sslAccept
+    ? sslAccept !== 'accept_invalid_certs'
+    : sslMode
+      ? !['REQUIRED', 'required', 'DISABLED', 'disabled'].includes(sslMode)
+      : false;
+  const ssl = wantsSsl
+    ? { rejectUnauthorized: shouldRejectUnauthorized }
     : process.env.NODE_ENV === 'production'
       ? { rejectUnauthorized: false }
       : undefined;

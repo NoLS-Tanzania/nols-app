@@ -2012,7 +2012,7 @@ export default function OnboardRole() {
                         <div className="p-3 bg-sky-50 border border-sky-200 rounded-lg flex items-start gap-3">
                           <CheckCircle2 className="w-5 h-5 text-sky-600 flex-shrink-0 mt-0.5" />
                           <div className="flex-1">
-                            <p className="text-sm font-medium text-sky-700">Already verified — no code needed</p>
+                            <p className="text-sm font-medium text-sky-700">Already verified. No code needed</p>
                             <p className="text-xs text-sky-600 mt-0.5">This is the same phone you used to create your account. It was already verified during registration.</p>
                           </div>
                         </div>

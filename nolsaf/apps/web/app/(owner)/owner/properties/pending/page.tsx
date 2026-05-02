@@ -324,7 +324,7 @@ function PendingCard({ p, onPreview }: { p: any; onPreview: (id: number) => void
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 flex items-start gap-2">
           <Clock className="w-3.5 h-3.5 text-amber-600 flex-shrink-0 mt-0.5" />
           <p className="text-xs text-amber-800 leading-snug">
-            Submitted for review. Our team will check your listing shortly — you will be notified once approved.
+            Submitted for review. Our team will check your listing shortly. You will be notified once approved.
           </p>
         </div>
         <button
@@ -339,7 +339,7 @@ function PendingCard({ p, onPreview }: { p: any; onPreview: (id: number) => void
   );
 }
 
-// ── ACTION REQUIRED CARD (suspended / pending-with-fixes) ────────────────────────────────────────
+// ── ACTION REQUIRED CARD (suspended / pending-with-fixes) ─────
 function ActionRequiredCard({ p, onPreview }: { p: any; onPreview: (id: number) => void }) {
   const router = useRouter();
   const isSuspended = p.status === "SUSPENDED";
@@ -453,7 +453,7 @@ function ActionRequiredCard({ p, onPreview }: { p: any; onPreview: (id: number) 
   );
 }
 
-// ── PAGE ────────────────────────────────────────────────────────────────────────────
+// ── PAGE ──
 export default function PendingProps() {
   const [drafts, setDrafts] = useState<any[]>([]);
   const [pending, setPending] = useState<any[]>([]);

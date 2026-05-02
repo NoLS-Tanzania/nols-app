@@ -135,7 +135,7 @@ export default function UnreadNotificationsPage() {
               ? "Fetching your notifications…"
               : items.length > 0
                 ? `${items.length} notification${items.length === 1 ? "" : "s"} waiting for your attention`
-                : "You're all caught up — nothing pending!"}
+                : "You're all caught up - nothing pending!"}
           </p>
           <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
             <Link

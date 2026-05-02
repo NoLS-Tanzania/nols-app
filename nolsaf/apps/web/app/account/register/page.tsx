@@ -436,7 +436,7 @@ export default function RegisterPage() {
         const data = await resp.json().catch(() => ({}));
         throw new Error(data?.message || 'OTP verification failed');
       }
-      setSuccess('Verified — account created');
+      setSuccess('Verified. Account created');
       setStep('done');
       // Include referral code in URL if present
       const onboardUrl = referralCode 

@@ -36,10 +36,7 @@ const limitNolScopeEstimate = rateLimit({
     message: 'Too many estimate requests. Please wait 15 minutes before creating another.' 
   },
   keyGenerator: (req) => {
-    // Key by IP for anonymous users
-    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() 
-               || req.socket?.remoteAddress 
-               || 'unknown';
+    const ip = req.ip || req.socket?.remoteAddress || 'unknown';
     return `nolscope-estimate:${ip}`;
   }
 });
@@ -51,9 +48,7 @@ const limitNolScopeList = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
-    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() 
-               || req.socket?.remoteAddress 
-               || 'unknown';
+    const ip = req.ip || req.socket?.remoteAddress || 'unknown';
     return `nolscope-read:${ip}`;
   }
 });

@@ -93,7 +93,7 @@ export default function AdminProfile() {
             <span className="dot dot-yellow" />
             <span className="dot dot-green" />
           </div>
-          <p className="text-sm text-slate-500 mt-4">Loading profile…</p>
+          <p className="text-sm text-slate-500 mt-4">Loading profile</p>
         </div>
       </div>
     );

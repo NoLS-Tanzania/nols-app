@@ -76,3 +76,5 @@ scripts/migrate-base64-photos-to-cloudinary.mjs
 *.dump
 remote-backup.sql
 backups/
+.vercel
+.env*.local
