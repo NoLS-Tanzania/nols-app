@@ -210,6 +210,22 @@ function nextReceiptNumber(prefix = "RCPT", seq: number) {
   return `${prefix}/${y}/${String(seq).padStart(5, "0")}`;
 }
 
+function buildReceiptQrPayload(inv: any) {
+  if (typeof inv?.receiptQrPayload === "string" && inv.receiptQrPayload.trim()) {
+    return inv.receiptQrPayload;
+  }
+  if (!inv?.receiptNumber) return null;
+  return JSON.stringify({
+    receipt: inv.receiptNumber,
+    invoice: inv.invoiceNumber,
+    amount: inv.netPayable ?? inv.total,
+    property: inv.booking?.property?.title,
+    bookingId: inv.bookingId,
+    issuedAt: inv.issuedAt,
+    ref: inv.paymentRef,
+  });
+}
+
 /** POST /admin/invoices/:id/approve */
 router.post("/:id/approve", async (req, res) => {
   const id = Number(req.params.id);
@@ -672,13 +688,30 @@ router.get("/:id/receipt.png", async (req, res) => {
     const id = Number(req.params.id);
     const inv = await prisma.invoice.findUnique({
       where: { id },
-      select: { receiptQrPng: true },
+      select: {
+        receiptQrPng: true,
+        receiptQrPayload: true,
+        receiptNumber: true,
+        invoiceNumber: true,
+        netPayable: true,
+        total: true,
+        bookingId: true,
+        issuedAt: true,
+        paymentRef: true,
+        booking: { select: { property: { select: { title: true } } } },
+      },
     });
-    if (!inv || !inv.receiptQrPng) {
+    if (!inv) {
       return res.status(404).json({ error: "Receipt not found" });
     }
+    const qrPayload = buildReceiptQrPayload(inv);
+    if (!qrPayload) {
+      return res.status(404).json({ error: "Receipt not found" });
+    }
+    const { png } = await makeQR(qrPayload);
+
     res.setHeader("Content-Type", "image/png");
-    res.send(Buffer.from(inv.receiptQrPng));
+    res.send(png);
   } catch (err: any) {
     console.error("Error in GET /admin/invoices/:id/receipt.png", err);
     res.status(500).json({ error: "Internal server error" });

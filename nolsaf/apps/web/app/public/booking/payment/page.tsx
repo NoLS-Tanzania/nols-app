@@ -11,8 +11,15 @@ import {
   ShieldCheck,
   CreditCard,
   Smartphone,
+  Clock3,
+  RefreshCw,
+  ReceiptText,
 } from "lucide-react";
 import LogoSpinner from "@/components/LogoSpinner";
+
+const PAYMENT_WAIT_SECONDS = 4 * 60;
+const PAYMENT_RETRY_WINDOW_SECONDS = 5 * 60;
+const PAYMENT_RETRY_LIMIT = 3;
 
 type PaymentMethod = {
   id: "Airtel" | "Mixx" | "M-Pesa" | "Halopesa";
@@ -47,6 +54,81 @@ const PAYMENT_METHODS: PaymentMethod[] = [
     description: "Pay with HaloPesa",
   },
 ];
+
+function formatCountdown(totalSeconds: number) {
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = safeSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+function toDisplayMessage(value: unknown, fallback: string) {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed || fallback;
+  }
+
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    if (typeof record.message === "string" && record.message.trim()) return record.message.trim();
+    if (typeof record.error === "string" && record.error.trim()) return record.error.trim();
+  }
+
+  return fallback;
+}
+
+function formatPaymentError(message?: unknown, retryAfterSeconds?: number) {
+  const plainMessage = toDisplayMessage(message, "Failed to initiate payment. Please try again.");
+  const normalized = plainMessage.trim().toLowerCase();
+  if (normalized === "rate_limited" || normalized?.includes("too many payment requests")) {
+    if (retryAfterSeconds && retryAfterSeconds > 0) {
+      return `Too many payment requests. Try again in ${formatCountdown(retryAfterSeconds)}.`;
+    }
+    return "Too many payment requests. Please wait before trying again.";
+  }
+
+  if (normalized === "unauthorized" || normalized === "forbidden") {
+    return "Payment service is not available yet. Please try again later.";
+  }
+
+  return plainMessage;
+}
+
+function isPaymentCooldownMessage(message: string | null) {
+  return message?.toLowerCase().includes("too many payment requests") ?? false;
+}
+
+function getPaymentAttemptKey(invoiceId: number, phone: string) {
+  return `nolsaf:payment-attempts:${invoiceId}:${phone}`;
+}
+
+function registerPaymentAttempt(invoiceId: number, phone: string) {
+  if (typeof window === "undefined") return 0;
+
+  const now = Date.now();
+  const windowMs = PAYMENT_RETRY_WINDOW_SECONDS * 1000;
+  const key = getPaymentAttemptKey(invoiceId, phone);
+
+  try {
+    const raw = window.localStorage.getItem(key);
+    const current = raw ? JSON.parse(raw) as { startedAt: number; count: number } : null;
+    const expired = !current || now - current.startedAt >= windowMs;
+
+    if (expired) {
+      window.localStorage.setItem(key, JSON.stringify({ startedAt: now, count: 1 }));
+      return 0;
+    }
+
+    if (current.count >= PAYMENT_RETRY_LIMIT) {
+      return Math.ceil((current.startedAt + windowMs - now) / 1000);
+    }
+
+    window.localStorage.setItem(key, JSON.stringify({ ...current, count: current.count + 1 }));
+    return 0;
+  } catch {
+    return 0;
+  }
+}
 
 type InvoiceData = {
   id: number;
@@ -92,13 +174,21 @@ export default function PaymentPage() {
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [invoice, setInvoice] = useState<InvoiceData | null>(null);
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [paymentStatus, setPaymentStatus] = useState<"idle" | "pending" | "success" | "failed">("idle");
+  const [paymentStatus, setPaymentStatus] = useState<"idle" | "pending" | "success" | "failed" | "timeout">("idle");
+  const [authRequired, setAuthRequired] = useState(false);
+  const [paymentRef, setPaymentRef] = useState<string | null>(null);
+  const [remainingSeconds, setRemainingSeconds] = useState(PAYMENT_WAIT_SECONDS);
+  const [paymentCooldownSeconds, setPaymentCooldownSeconds] = useState(0);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const paymentReturnQuery = searchParams?.toString();
+  const paymentReturnPath = `/public/booking/payment${paymentReturnQuery ? `?${paymentReturnQuery}` : ""}`;
+  const loginHref = `/account/login?next=${encodeURIComponent(paymentReturnPath)}`;
+  const registerHref = `/account/register?mode=register&role=traveller&next=${encodeURIComponent(paymentReturnPath)}`;
 
   const fetchInvoice = useCallback(
     async (invoiceId: number, accessToken: string) => {
@@ -120,22 +210,16 @@ export default function PaymentPage() {
 
         setInvoice(data);
 
-        // If already paid, redirect to receipt
         if (data.status === "PAID") {
-          const receiptParams = new URLSearchParams({
-            invoiceId: String(invoiceId),
-            accessToken,
-          });
-          router.push(`/public/booking/receipt?${receiptParams.toString()}`);
-          return;
+          setPaymentStatus("success");
         }
       } catch (err: any) {
-        setError(err?.message || "Failed to load invoice");
+        setError(toDisplayMessage(err, "Failed to load invoice"));
       } finally {
         setLoading(false);
       }
     },
-    [router]
+    []
   );
 
   useEffect(() => {
@@ -162,10 +246,67 @@ export default function PaymentPage() {
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
       }
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+      }
     };
   }, []);
 
+  useEffect(() => {
+    if (paymentStatus !== "pending") {
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+      }
+      return;
+    }
+
+    setRemainingSeconds(PAYMENT_WAIT_SECONDS);
+    const startedAt = Date.now();
+    countdownIntervalRef.current = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+      const nextRemaining = PAYMENT_WAIT_SECONDS - elapsed;
+      setRemainingSeconds(Math.max(0, nextRemaining));
+      if (nextRemaining <= 0) {
+        if (countdownIntervalRef.current) {
+          clearInterval(countdownIntervalRef.current);
+          countdownIntervalRef.current = null;
+        }
+        setPaymentStatus((current) => (current === "pending" ? "timeout" : current));
+        setSubmitting(false);
+      }
+    }, 1000);
+
+    return () => {
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+      }
+    };
+  }, [paymentStatus]);
+
+  useEffect(() => {
+    if (paymentCooldownSeconds <= 0) return;
+
+    const cooldownTimer = setInterval(() => {
+      setPaymentCooldownSeconds((current) => {
+        if (current <= 1) {
+          setError((message) => (isPaymentCooldownMessage(message) ? null : message));
+          return 0;
+        }
+        return current - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(cooldownTimer);
+  }, [paymentCooldownSeconds]);
+
   async function handlePayment() {
+    if (paymentCooldownSeconds > 0) {
+      setError(null);
+      return;
+    }
+
     if (!selectedMethod || !phoneNumber.trim() || !invoice) {
       setError("Please select a payment method and enter your phone number");
       return;
@@ -179,10 +320,19 @@ export default function PaymentPage() {
       return;
     }
 
+    const localRetryAfter = registerPaymentAttempt(invoice.id, cleanedPhone);
+    if (localRetryAfter > 0) {
+      setPaymentCooldownSeconds(localRetryAfter);
+      setPaymentStatus("failed");
+      setError(null);
+      return;
+    }
+
     setError(null);
+    setAuthRequired(false);
     setSubmitting(true);
-    setProcessing(true);
     setPaymentStatus("pending");
+    setRemainingSeconds(PAYMENT_WAIT_SECONDS);
 
     try {
       // Initiate payment
@@ -193,77 +343,106 @@ export default function PaymentPage() {
           invoiceId: invoice.id,
           phoneNumber: cleanedPhone,
           provider: selectedMethod.id,
+          accessToken: searchParams?.get("accessToken") || undefined,
         }),
       });
 
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || "Failed to initiate payment");
+        if (response.status === 401) {
+          setAuthRequired(true);
+          setError(null);
+          setSubmitting(false);
+          setPaymentStatus("failed");
+          return;
+        }
+        const retryAfterHeader = Number(response.headers.get("Retry-After"));
+        const retryAfterSeconds = Number(result.retryAfterSeconds || retryAfterHeader || 0);
+        const message = formatPaymentError(result.message ?? result.error, retryAfterSeconds);
+        if (response.status === 429 && retryAfterSeconds > 0) {
+          setPaymentCooldownSeconds(retryAfterSeconds);
+          setError(null);
+          setSubmitting(false);
+          setPaymentStatus("failed");
+          return;
+        }
+        throw new Error(message);
       }
 
       // Start polling for payment status
-      startPolling(result.paymentRef);
+      const ref = result.paymentRef || result.transactionId || invoice.paymentRef;
+      setPaymentCooldownSeconds(0);
+      setPaymentRef(ref);
+      startPolling(ref);
     } catch (err: any) {
-      setError(err?.message || "Failed to initiate payment. Please try again.");
+      setError(formatPaymentError(err));
       setSubmitting(false);
-      setProcessing(false);
       setPaymentStatus("failed");
     }
   }
 
-  function startPolling(paymentRef: string) {
-    // Poll every 2 seconds for up to 60 seconds (30 attempts)
+  function startPolling(ref: string) {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+
+    const invoiceId = invoice?.id;
+    const accessToken = searchParams?.get("accessToken");
+    if (!invoiceId || !accessToken) return;
+
+    const pollInvoice = async () => {
+      const url = new URL(`/api/public/invoices/${invoiceId}`, window.location.origin);
+      url.searchParams.set("accessToken", accessToken);
+      const response = await fetch(url.toString(), { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error("Failed to check invoice status");
+      }
+      const data = await response.json();
+      setInvoice(data);
+
+      if (data.status === "PAID") {
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+        setPaymentStatus("success");
+        setSubmitting(false);
+        setError(null);
+        return true;
+      }
+
+      return false;
+    };
+
+    void pollInvoice().catch((err) => {
+      console.error("Initial payment polling error:", err);
+    });
+
+    // Poll for longer than the visible countdown so late webhooks can still update the card.
     let attempts = 0;
-    const maxAttempts = 30;
+    const maxAttempts = 200;
 
     pollingIntervalRef.current = setInterval(async () => {
       attempts++;
 
       try {
-        const response = await fetch(`/api/payments/azampay/status/${paymentRef}`);
-        const data = await response.json();
-        if (data.invoiceStatus === "PAID") {
-          // Payment successful!
+        const completed = await pollInvoice();
+        if (completed) {
+          return;
+        }
+
+        if (attempts >= maxAttempts) {
           if (pollingIntervalRef.current) {
             clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
           }
-          setPaymentStatus("success");
-          setProcessing(false);
-          
-          // Redirect to receipt after 2 seconds
-          setTimeout(() => {
-            const accessToken = searchParams?.get("accessToken");
-            if (!invoice?.id || !accessToken) return;
-            const receiptParams = new URLSearchParams({
-              invoiceId: String(invoice.id),
-              accessToken,
-            });
-            router.push(`/public/booking/receipt?${receiptParams.toString()}`);
-          }, 2000);
-        } else if (data.paymentStatus === "FAILED") {
-          // Payment failed
-          if (pollingIntervalRef.current) {
-            clearInterval(pollingIntervalRef.current);
-          }
-          setPaymentStatus("failed");
-          setProcessing(false);
-          setSubmitting(false);
-          setError("Payment failed. Please try again.");
-        } else if (attempts >= maxAttempts) {
-          // Timeout
-          if (pollingIntervalRef.current) {
-            clearInterval(pollingIntervalRef.current);
-          }
-          setProcessing(false);
-          setSubmitting(false);
-          setError("Payment is taking longer than expected. Please check your phone or try again.");
         }
       } catch (err) {
-        console.error("Polling error:", err);
-        // Continue polling on error
+        console.error("Payment polling error:", err, ref);
       }
-    }, 2000);
+    }, 3000);
   }
 
   if (loading) {
@@ -323,35 +502,123 @@ export default function PaymentPage() {
           <div className="lg:col-span-2 space-y-6">
             {/* Payment Status */}
             {paymentStatus === "success" && (
-              <div className="bg-gradient-to-br from-green-50 to-emerald-50/50 border-2 border-green-200 rounded-2xl p-8 text-center shadow-lg animate-in fade-in slide-in-from-top-4">
+              <div className="bg-white border-2 border-emerald-200 rounded-2xl p-6 lg:p-8 shadow-lg animate-in fade-in slide-in-from-top-4">
                 <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <CheckCircle2 className="w-10 h-10 text-green-500" />
                 </div>
-                <h2 className="text-2xl lg:text-3xl font-bold text-green-900 mb-3">
-                  Payment Successful!
+                <h2 className="text-center text-2xl lg:text-3xl font-bold text-green-900 mb-3">
+                  Payment Successful
                 </h2>
-                <p className="text-green-700 font-medium">
-                  Redirecting to your receipt...
+                <p className="text-center text-green-700 font-medium">
+                  Your booking is confirmed. The booking code will be available in your account.
                 </p>
+                <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                  <Link
+                    href="/account/bookings"
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#02665e] px-5 py-3 font-semibold text-white shadow-md transition hover:bg-[#014e47]"
+                  >
+                    <ReceiptText className="h-5 w-5" />
+                    My Bookings
+                  </Link>
+                  {invoice && (
+                    <Link
+                      href={`/public/booking/receipt?${new URLSearchParams({
+                        invoiceId: String(invoice.id),
+                        accessToken: String(searchParams?.get("accessToken") || ""),
+                      }).toString()}`}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-3 font-semibold text-emerald-800 transition hover:bg-emerald-100"
+                    >
+                      View Receipt
+                    </Link>
+                  )}
+                </div>
               </div>
             )}
 
-            {paymentStatus === "pending" && processing && (
-              <div className="bg-gradient-to-br from-blue-50 to-cyan-50/50 border-2 border-blue-200 rounded-2xl p-8 text-center shadow-lg animate-in fade-in slide-in-from-top-4">
-                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <LogoSpinner size="md" ariaLabel="Processing" />
+            {paymentStatus === "pending" && (
+              <div className="bg-white border-2 border-blue-200 rounded-2xl p-6 lg:p-8 shadow-lg animate-in fade-in slide-in-from-top-4">
+                <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex items-start gap-4">
+                    <div className="mt-1 flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-blue-100">
+                      <LogoSpinner size="sm" ariaLabel="Processing" />
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-bold text-blue-950">Waiting for Payment</h2>
+                      <p className="mt-2 text-sm leading-6 text-blue-800">
+                        We sent a payment request to your phone. Keep this page open and approve the prompt on your mobile money account.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-center">
+                    <div className="flex items-center justify-center gap-2 text-xs font-semibold uppercase tracking-wide text-blue-700">
+                      <Clock3 className="h-4 w-4" />
+                      Time left
+                    </div>
+                    <div className="mt-1 font-mono text-2xl font-black text-blue-950">
+                      {formatCountdown(remainingSeconds)}
+                    </div>
+                  </div>
                 </div>
-                <h2 className="text-2xl lg:text-3xl font-bold text-blue-900 mb-3">
-                  Processing Payment...
-                </h2>
-                <p className="text-blue-700 font-medium">
-                  Please complete the payment on your phone. We'll update you when it's confirmed.
-                </p>
+                <div className="mt-6 grid gap-3 rounded-xl bg-slate-50 p-4 text-sm text-slate-700 sm:grid-cols-3">
+                  <div>
+                    <div className="text-xs font-semibold uppercase text-slate-500">Invoice</div>
+                    <div className="mt-1 font-semibold text-slate-900">{invoice?.invoiceNumber || `#${invoice?.id}`}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold uppercase text-slate-500">Amount</div>
+                    <div className="mt-1 font-semibold text-slate-900">
+                      {invoice?.totalAmount.toLocaleString()} {invoice?.currency}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold uppercase text-slate-500">Phone</div>
+                    <div className="mt-1 font-semibold text-slate-900">{phoneNumber || invoice?.booking.guestPhone || "-"}</div>
+                  </div>
+                </div>
+                {paymentRef && (
+                  <p className="mt-4 text-xs text-slate-500">
+                    Payment reference: <span className="font-mono">{paymentRef}</span>
+                  </p>
+                )}
+              </div>
+            )}
+
+            {paymentStatus === "timeout" && (
+              <div className="bg-white border-2 border-amber-200 rounded-2xl p-6 lg:p-8 shadow-lg animate-in fade-in slide-in-from-top-4">
+                <div className="flex items-start gap-4">
+                  <div className="mt-1 flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-amber-100">
+                    <Clock3 className="h-6 w-6 text-amber-700" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-amber-950">Payment Not Confirmed Yet</h2>
+                    <p className="mt-2 text-sm leading-6 text-amber-800">
+                      Your booking details are still here. You do not need to choose the room again. If you did not approve the phone prompt, try sending a new payment request.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {paymentStatus === "failed" && !authRequired && (
+              <div className="rounded-2xl border border-rose-200 bg-white p-5 shadow-lg shadow-rose-950/5 animate-in fade-in slide-in-from-top-4 lg:p-6">
+                <div className="flex items-start gap-4">
+                  <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-rose-50 ring-1 ring-rose-100">
+                    <AlertCircle className="h-5 w-5 text-rose-700" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-xl font-bold leading-tight text-slate-950 sm:text-2xl">
+                      Payment Request Failed
+                    </h2>
+                    <p className="mt-2 max-w-xl text-sm leading-6 text-slate-600">
+                      Your booking details are saved. Please confirm the phone number and try again.
+                    </p>
+                  </div>
+                </div>
               </div>
             )}
 
             {/* Payment Method Selection */}
-            {paymentStatus === "idle" && (
+            {(paymentStatus === "idle" || paymentStatus === "failed" || paymentStatus === "timeout") && (
               <>
                 <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-slate-200/60 p-5 lg:p-6 transition-all duration-300 hover:shadow-xl">
                   <h2 className="text-xl lg:text-2xl font-bold text-slate-900 mb-4 lg:mb-5">
@@ -371,13 +638,13 @@ export default function PaymentPage() {
                         }`}
                       >
                         <div className="flex flex-col items-center text-center gap-2">
-                          <div className="relative w-12 h-12 lg:w-14 lg:h-14 rounded-lg overflow-hidden flex-shrink-0 bg-white shadow-sm ring-1 ring-slate-100">
+                          <div className="relative h-16 w-24 flex-shrink-0">
                             <Image
                               src={method.icon}
                               alt={method.name}
                               fill
-                              sizes="(max-width: 768px) 48px, 56px"
-                              className="object-contain p-1.5"
+                              sizes="96px"
+                              className="object-contain"
                             />
                           </div>
                           <div className="w-full">
@@ -430,7 +697,7 @@ export default function PaymentPage() {
                         </p>
                       </div>
 
-                      {error && (
+                      {error && !isPaymentCooldownMessage(error) && (
                         <div className="bg-red-50/80 border-2 border-red-200 rounded-xl p-4 flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
                           <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
                           <p className="text-sm font-medium text-red-700">{error}</p>
@@ -440,7 +707,7 @@ export default function PaymentPage() {
                       <button
                         type="button"
                         onClick={handlePayment}
-                        disabled={submitting || !phoneNumber.trim()}
+                        disabled={submitting || authRequired || paymentCooldownSeconds > 0 || !phoneNumber.trim()}
                         className="w-full py-4 px-6 rounded-xl bg-gradient-to-r from-[#02665e] to-[#014e47] text-white font-semibold hover:from-[#014e47] hover:to-[#02665e] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98]"
                       >
                         {submitting ? (
@@ -448,10 +715,27 @@ export default function PaymentPage() {
                             <LogoSpinner size="sm" ariaLabel="Loading" className="text-white/90" />
                             <span>Initiating payment...</span>
                           </>
+                        ) : authRequired ? (
+                          <>
+                            <ShieldCheck className="w-5 h-5" />
+                            <span>Sign in to continue payment</span>
+                          </>
+                        ) : paymentCooldownSeconds > 0 ? (
+                          <>
+                            <Clock3 className="w-5 h-5" />
+                            <span>Try again in {formatCountdown(paymentCooldownSeconds)}</span>
+                          </>
                         ) : (
                           <>
-                            <CreditCard className="w-5 h-5" />
-                            <span>Pay {invoice?.totalAmount.toLocaleString()} {invoice?.currency}</span>
+                            {paymentStatus === "failed" || paymentStatus === "timeout" ? (
+                              <RefreshCw className="w-5 h-5" />
+                            ) : (
+                              <CreditCard className="w-5 h-5" />
+                            )}
+                            <span>
+                              {paymentStatus === "failed" || paymentStatus === "timeout" ? "Send payment request again" : "Pay"}{" "}
+                              {invoice?.totalAmount.toLocaleString()} {invoice?.currency}
+                            </span>
                           </>
                         )}
                       </button>
@@ -479,6 +763,8 @@ export default function PaymentPage() {
                         fill
                         sizes="(max-width: 1024px) 100vw, 384px"
                         className="object-cover"
+                        loading="eager"
+                        priority
                       />
                     </div>
                   )}
@@ -653,6 +939,43 @@ export default function PaymentPage() {
           </div>
         </div>
       </div>
+
+      {authRequired && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-3xl border border-emerald-100 bg-white p-5 shadow-[0_28px_90px_rgba(15,23,42,0.24)] animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-[#02665e] ring-1 ring-emerald-100">
+                <ShieldCheck className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-xl font-bold leading-tight text-slate-950">
+                  Sign in to continue payment
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  Your booking is still reserved. You will return here after sign in.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-2 sm:grid-cols-2">
+              <Link
+                href={loginHref}
+                className="inline-flex items-center justify-center rounded-2xl bg-[#02665e] px-4 py-3 text-sm font-semibold text-white no-underline shadow-md transition hover:bg-[#014e47] hover:no-underline"
+                style={{ textDecoration: "none" }}
+              >
+                Sign in
+              </Link>
+              <Link
+                href={registerHref}
+                className="inline-flex items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 no-underline transition hover:bg-emerald-100 hover:no-underline"
+                style={{ textDecoration: "none" }}
+              >
+                Create account
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

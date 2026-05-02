@@ -823,6 +823,8 @@ const getRecentBookings: RequestHandler = async (req, res) => {
   const bookings = await prisma.booking.findMany({
     where: {
       property: { ownerId },
+      status: { in: ["CONFIRMED", "CHECKED_IN", "CHECKED_OUT"] },
+      code: { isNot: null },
     },
     include: {
       property: {

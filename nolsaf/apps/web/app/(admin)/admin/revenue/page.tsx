@@ -48,6 +48,30 @@ function isOwnerClaimInvoice(inv: InvoiceRow) {
   return n.toUpperCase().startsWith("OINV-");
 }
 
+function paidStatusLabel(inv?: InvoiceRow | null) {
+  return inv && isOwnerClaimInvoice(inv) ? "Disbursed" : "Paid";
+}
+
+function bulkCompletionVerb(invoices: InvoiceRow[]) {
+  if (invoices.length > 0 && invoices.every((inv) => isOwnerClaimInvoice(inv))) {
+    return "Mark Disbursed";
+  }
+  if (invoices.length > 0 && invoices.every((inv) => !isOwnerClaimInvoice(inv))) {
+    return "Mark Paid";
+  }
+  return "Mark Completed";
+}
+
+function bulkCompletionNoun(invoices: InvoiceRow[]) {
+  if (invoices.length > 0 && invoices.every((inv) => isOwnerClaimInvoice(inv))) {
+    return "disbursed";
+  }
+  if (invoices.length > 0 && invoices.every((inv) => !isOwnerClaimInvoice(inv))) {
+    return "paid";
+  }
+  return "completed";
+}
+
 function isDraftStatus(statusRaw: string) {
   return String(statusRaw || "").toUpperCase() === "DRAFT";
 }
@@ -501,11 +525,24 @@ export default function AdminRevenue() {
     const map: Record<string, string> = {
       VERIFIED: "No verified invoices.",
       APPROVED: "No approved invoices.",
-      PAID: "No paid invoices.",
+      PAID: "No paid or disbursed invoices.",
       REJECTED: "No rejected invoices.",
     };
     return map[status] ?? "No invoices.";
   }, [status]);
+
+  const selectedApprovedInvoices = useMemo(
+    () => items.filter((inv) => selectedIds.has(inv.id) && inv.status === "APPROVED"),
+    [items, selectedIds]
+  );
+  const bulkMarkActionLabel = useMemo(
+    () => bulkCompletionVerb(selectedApprovedInvoices),
+    [selectedApprovedInvoices]
+  );
+  const bulkMarkActionNoun = useMemo(
+    () => bulkCompletionNoun(selectedApprovedInvoices),
+    [selectedApprovedInvoices]
+  );
 
   // Bulk selection functions
   const toggleSelect = (id: number) => {
@@ -556,7 +593,8 @@ export default function AdminRevenue() {
 
   async function bulkMarkPaid() {
     if (selectedIds.size === 0) return;
-    const paymentRef = prompt(`Enter payment reference for ${selectedIds.size} invoice(s):`);
+    const referenceLabel = bulkMarkActionNoun === "disbursed" ? "disbursement reference" : "payment reference";
+    const paymentRef = prompt(`Enter ${referenceLabel} for ${selectedIds.size} invoice(s):`);
     if (!paymentRef) return;
     
     setBulkActionLoading(true);
@@ -567,10 +605,10 @@ export default function AdminRevenue() {
       await Promise.all(promises);
       await load();
       clearSelection();
-      alert(`Successfully marked ${selectedIds.size} invoice(s) as paid`);
+      alert(`Successfully marked ${selectedIds.size} invoice(s) as ${bulkMarkActionNoun}`);
     } catch (err) {
       console.error("Bulk mark paid failed", err);
-      alert("Some invoices failed to mark as paid. Please check individually.");
+      alert(`Some invoices failed to mark as ${bulkMarkActionNoun}. Please check individually.`);
     } finally {
       setBulkActionLoading(false);
     }
@@ -592,12 +630,12 @@ export default function AdminRevenue() {
     setPage(1);
   };
 
-  function getStatusBadge(status: string) {
+  function getStatusBadge(status: string, inv?: InvoiceRow) {
     const statusLower = status.toLowerCase();
     if (statusLower === 'paid') {
       return (
         <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-green-100 text-green-800 text-xs font-medium">
-          {status}
+          {paidStatusLabel(inv)}
         </span>
       );
     }
@@ -769,7 +807,7 @@ export default function AdminRevenue() {
             ["REQUESTED", "New"],
             ["VERIFIED", "Verified"],
             ["APPROVED", "Approved"],
-            ["PAID", "Paid"],
+            ["PAID", "Paid / Disbursed"],
             ["REJECTED", "Rejected"],
           ].map(([val, label]) => {
             const v = val as string;
@@ -1003,7 +1041,7 @@ export default function AdminRevenue() {
                 ) : (
                   <>
                     <Receipt className="h-3.5 w-3.5" />
-                    Mark Paid
+                    {bulkMarkActionLabel}
                   </>
                 )}
               </button>
@@ -1172,7 +1210,7 @@ export default function AdminRevenue() {
                   </div>
 
                   <div className="pt-2">
-                    {getStatusBadge(inv.status)}
+                    {getStatusBadge(inv.status, inv)}
                   </div>
             </div>
           </div>
@@ -1312,7 +1350,7 @@ export default function AdminRevenue() {
                         <div className="text-sm font-medium text-gray-900">{fmt(inv.financialPreview?.taxAmount ?? 0)}</div>
                       </td>
                       <td className="px-3 sm:px-4 py-3 whitespace-nowrap">
-                        {getStatusBadge(inv.status)}
+                        {getStatusBadge(inv.status, inv)}
                       </td>
                       <td className="px-3 sm:px-4 py-3 whitespace-nowrap">
                         <div className="text-sm font-bold text-[#02665e]">{fmt(inv.financialPreview?.netPayable ?? inv.netPayable)}</div>

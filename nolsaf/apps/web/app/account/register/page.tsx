@@ -438,6 +438,13 @@ export default function RegisterPage() {
       }
       setSuccess('Verified. Account created');
       setStep('done');
+      const nextPath = safeNextPath(nextParamRaw);
+      if (nextPath?.startsWith('/public/booking/payment')) {
+        setTimeout(() => {
+          window.location.href = nextPath;
+        }, 900);
+        return;
+      }
       // Include referral code in URL if present
       const onboardUrl = referralCode 
         ? `/account/onboard/${role}?ref=${encodeURIComponent(referralCode)}`

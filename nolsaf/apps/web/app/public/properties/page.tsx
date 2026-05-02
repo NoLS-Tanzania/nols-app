@@ -1089,7 +1089,11 @@ export default function PropertiesPage() {
                               transition={{ duration: 0.35, delay: idx * 0.04, ease: [0.22, 0.8, 0.32, 1] }}
                               onClick={() => addRecentProperty({ title: p.title, slug: p.slug, location: p.location, primaryImage: p.primaryImage, basePrice: p.basePrice, currency: p.currency, services: p.services })}
                             >
-                              <PublicApprovedPropertyCard p={p} systemCommission={systemCommission} />
+                              <PublicApprovedPropertyCard
+                                p={p}
+                                systemCommission={systemCommission}
+                                priorityImage={rowIdx === 0 && idx === 0}
+                              />
                             </motion.div>
                           ))}
                         </div>
@@ -1161,7 +1165,11 @@ export default function PropertiesPage() {
                     transition={{ duration: 0.40, delay: Math.min(idx, 9) * 0.06, ease: [0.2, 0.8, 0.2, 1] }}
                     onClick={() => addRecentProperty({ title: p.title, slug: p.slug, location: p.location, primaryImage: p.primaryImage, basePrice: p.basePrice, currency: p.currency, services: p.services })}
                   >
-                    <PublicApprovedPropertyCard p={p} systemCommission={systemCommission} />
+                    <PublicApprovedPropertyCard
+                      p={p}
+                      systemCommission={systemCommission}
+                      priorityImage={idx === 0}
+                    />
                   </motion.div>
                 ))}
               </div>

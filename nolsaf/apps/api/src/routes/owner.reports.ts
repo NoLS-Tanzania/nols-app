@@ -16,6 +16,22 @@ import type { RequestHandler, Response } from 'express';
 export const router = Router();
 router.use(requireAuth as unknown as RequestHandler, requireRole("OWNER") as unknown as RequestHandler);
 
+const REAL_BOOKING_STATUSES = ["CONFIRMED", "CHECKED_IN", "PENDING_CHECKIN", "CHECKED_OUT"] as const;
+
+function ownerRevenueVisibilityClause() {
+  return {
+    OR: [
+      { invoiceNumber: { startsWith: "OINV-" } },
+      {
+        AND: [
+          { invoiceNumber: { startsWith: "INV-" } },
+          { status: "PAID" },
+        ],
+      },
+    ],
+  };
+}
+
 /** Parse common query params */
 function parseQuery(q: any) {
   const now = new Date();
@@ -87,6 +103,7 @@ router.get(
     const data = await withCache(key, async () => {
       const invoices: Invoice[] = await prisma.invoice.findMany({
         where: {
+          AND: [ownerRevenueVisibilityClause()],
           ownerId,
           issuedAt: { gte: from, lte: to },
           ...(propertyId ? { booking: { propertyId } } : {}),
@@ -104,6 +121,8 @@ router.get(
       const bookings: Booking[] = await prisma.booking.findMany({
         where: {
           property: { ownerId },
+          status: { in: [...REAL_BOOKING_STATUSES] },
+          code: { isNot: null },
           checkIn: { gte: from, lte: to },
           ...(propertyId ? { propertyId } : {}),
         },

@@ -202,7 +202,7 @@ router.get("/:id", async (req: Request, res: Response) => {
 
   return res.json({
     ...inv,
-    title: `${propertyTitle} — Accommodation Invoice`,
+    title: `${propertyTitle} | Accommodation Invoice`,
     currency: "TZS",
     senderName: owner?.name ?? `Owner #${authReq.user!.id}`,
     senderPhone: owner?.phone ?? null,

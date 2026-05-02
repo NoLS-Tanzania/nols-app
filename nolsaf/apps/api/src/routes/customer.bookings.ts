@@ -121,10 +121,15 @@ router.get("/", (async (req: AuthedRequest, res) => {
     const where: any = {
       AND: [
         buildCustomerBookingWhere({ id: userId }, legacyBookingIds),
+        { status: { in: ["CONFIRMED", "CHECKED_IN", "CHECKED_OUT"] } },
+        { code: { isNot: null } },
       ],
     };
 
-    if (status) where.AND.push({ status: String(status) });
+    if (status) {
+      where.AND = where.AND.filter((clause: any) => !clause.status);
+      where.AND.push({ status: String(status) }, { code: { isNot: null } });
+    }
 
     const pageNum = Math.max(1, Number(page) || 1);
     const pageSizeNum = Math.min(50, Math.max(1, Number(pageSize) || 20));
@@ -233,7 +238,8 @@ router.get("/property-slugs", (async (req: AuthedRequest, res) => {
       where: {
         AND: [
           buildCustomerBookingWhere({ id: userId }, legacyBookingIds),
-          { status: { in: ["NEW", "CONFIRMED", "CHECKED_IN", "CHECKED_OUT"] } },
+          { status: { in: ["CONFIRMED", "CHECKED_IN", "CHECKED_OUT"] } },
+          { code: { isNot: null } },
         ],
       },
       select: {
@@ -278,6 +284,8 @@ router.get("/:id", (async (req: AuthedRequest, res) => {
       where: {
         id: bookingId,
         ...buildCustomerBookingWhere({ id: userId }, legacyBookingIds),
+        status: { in: ["CONFIRMED", "CHECKED_IN", "CHECKED_OUT"] },
+        code: { isNot: null },
       },
       include: {
         property: {
@@ -350,6 +358,8 @@ router.get("/:id/pdf", (async (req: AuthedRequest, res) => {
       where: {
         id: bookingId,
         ...buildCustomerBookingWhere({ id: userId }, legacyBookingIds),
+        status: { in: ["CONFIRMED", "CHECKED_IN", "CHECKED_OUT"] },
+        code: { isNot: null },
       },
       include: {
         property: true,
@@ -429,6 +439,8 @@ router.get("/:id/receipt.html", (async (req: AuthedRequest, res) => {
       where: {
         id: bookingId,
         ...buildCustomerBookingWhere({ id: userId }, legacyBookingIds),
+        status: { in: ["CONFIRMED", "CHECKED_IN", "CHECKED_OUT"] },
+        code: { isNot: null },
       },
       include: {
         property: true,
@@ -502,7 +514,8 @@ router.get("/property/:propertyId/my-count", (async (req, res) => {
     const count = await prisma.booking.count({
       where: {
         propertyId,
-        status: { in: ["NEW", "CONFIRMED", "CHECKED_IN", "CHECKED_OUT"] },
+        status: { in: ["CONFIRMED", "CHECKED_IN", "CHECKED_OUT"] },
+        code: { isNot: null },
         OR: [
           { userId: user.id },
           ...(email ? [{ guestEmail: email }] : []),

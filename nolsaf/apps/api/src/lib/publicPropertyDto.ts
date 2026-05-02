@@ -70,6 +70,36 @@ function safeString(v: any): string | null {
   return s ? s : null;
 }
 
+function normalizeRoomsSpecInput(roomsSpec: any): any[] {
+  if (Array.isArray(roomsSpec)) return roomsSpec;
+  if (typeof roomsSpec === "string") {
+    try {
+      const parsed = JSON.parse(roomsSpec);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function extractEffectiveBasePrice(p: any): number | null {
+  const basePrice = p?.basePrice != null ? Number(p.basePrice) : NaN;
+  if (Number.isFinite(basePrice) && basePrice > 0) return basePrice;
+
+  const roomsSpec = normalizeRoomsSpecInput(p?.roomsSpec);
+  const roomPrices = roomsSpec
+    .map((room: any) => {
+      const raw = room?.pricePerNight ?? room?.price ?? null;
+      const value = Number(raw);
+      return Number.isFinite(value) && value > 0 ? value : null;
+    })
+    .filter((value: number | null): value is number => value != null);
+
+  if (roomPrices.length === 0) return null;
+  return Math.min(...roomPrices);
+}
+
 function isRenderablePublicImageUrl(url: string) {
   // Never expose browser-only blob URLs on the public site (they won't load for other users)
   // Also exclude file:// style local paths and base64 data URIs (next/image can't render them).
@@ -147,6 +177,7 @@ export function formatLocation(p: {
 export function toPublicCard(p: any): PublicPropertyCard {
   const id = Number(p.id);
   const slug = buildPropertySlug(String(p.title || ""), id);
+  const effectiveBasePrice = extractEffectiveBasePrice(p);
   // If primaryImage is pre-extracted (e.g. from a raw SQL query using JSON_EXTRACT or
   // batchResolvePrimaryImages), use it directly — but still validate it's a renderable URL
   // so base64 data URIs from the legacy photos JSON field can never reach the browser.
@@ -184,7 +215,7 @@ export function toPublicCard(p: any): PublicPropertyCard {
     parkPlacement: p.parkPlacement === "INSIDE" || p.parkPlacement === "NEARBY" ? p.parkPlacement : null,
     primaryImage,
     services: p.services ?? null, // Preserve full services object (may contain commissionPercent, discountRules)
-    basePrice: p.basePrice !== null && typeof p.basePrice !== "undefined" ? Number(p.basePrice) : null,
+    basePrice: effectiveBasePrice,
     currency: p.currency ?? null,
     maxGuests: typeof p.maxGuests === "number" ? p.maxGuests : (p.maxGuests != null ? Number(p.maxGuests) : null),
     totalBedrooms: typeof p.totalBedrooms === "number" ? p.totalBedrooms : (p.totalBedrooms != null ? Number(p.totalBedrooms) : null),
@@ -198,6 +229,7 @@ export function toPublicDetail(p: any): PublicPropertyDetail {
   const propertyImages = pickImages({ images: p.images, photos: p.photos, limit: null });
   const roomImages = pickRoomImages(p.roomsSpec);
   const images = Array.from(new Set<string>([...propertyImages, ...roomImages]));
+  const effectiveBasePrice = extractEffectiveBasePrice(p);
 
   return {
     id,
@@ -217,7 +249,7 @@ export function toPublicDetail(p: any): PublicPropertyDetail {
     latitude: p.latitude !== null && typeof p.latitude !== "undefined" ? Number(p.latitude) : null,
     longitude: p.longitude !== null && typeof p.longitude !== "undefined" ? Number(p.longitude) : null,
     images,
-    basePrice: p.basePrice !== null && typeof p.basePrice !== "undefined" ? Number(p.basePrice) : null,
+    basePrice: effectiveBasePrice,
     currency: p.currency ?? null,
     maxGuests: typeof p.maxGuests === "number" ? p.maxGuests : (p.maxGuests != null ? Number(p.maxGuests) : null),
     totalBedrooms: typeof p.totalBedrooms === "number" ? p.totalBedrooms : (p.totalBedrooms != null ? Number(p.totalBedrooms) : null),

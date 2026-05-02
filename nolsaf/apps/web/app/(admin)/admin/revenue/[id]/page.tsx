@@ -34,6 +34,7 @@ type Inv = {
     taxAmount: number;
     netPayable: number;
   };
+  receiptQrDataUrl?: string | null;
   notes?:string|null; paidAt?:string|null; paymentMethod?:string|null; paymentRef?:string|null; accountNumber?:string|null;
   verifiedAt?:string|null; verifiedByUser?:{id:number;name:string|null}|null;
   approvedAt?:string|null; approvedByUser?:{id:number;name:string|null}|null;
@@ -48,6 +49,33 @@ type Inv = {
     mobileMoneyNumber: string | null;
   } | null;
 };
+
+function isOwnerClaimInvoice(inv?: Pick<Inv, "invoiceNumber"> | null) {
+  const n = String(inv?.invoiceNumber ?? "");
+  return n.toUpperCase().startsWith("OINV-");
+}
+
+function paidStatusLabel(inv?: Pick<Inv, "invoiceNumber"> | null) {
+  return isOwnerClaimInvoice(inv) ? "Disbursed" : "Paid";
+}
+
+function completionLabel(inv?: Pick<Inv, "invoiceNumber"> | null) {
+  return isOwnerClaimInvoice(inv) ? "Disbursement" : "Payment";
+}
+
+function invoiceRecordLabel(inv?: Pick<Inv, "invoiceNumber"> | null) {
+  if (isOwnerClaimInvoice(inv)) return "Owner Disbursement Record";
+  const n = String(inv?.invoiceNumber ?? "").toUpperCase();
+  if (n.startsWith("INV-")) return "Customer Payment Record";
+  return "Invoice Record";
+}
+
+function prettyInvoiceStatus(statusRaw?: string | null, inv?: Pick<Inv, "invoiceNumber"> | null) {
+  const status = String(statusRaw ?? "").toUpperCase();
+  if (status === "PAID") return paidStatusLabel(inv);
+  if (!status) return "Unknown";
+  return status.charAt(0) + status.slice(1).toLowerCase();
+}
 
 export default function Page(){
   const routeParams = useParams<{ id?: string | string[] }>();
@@ -134,7 +162,7 @@ export default function Page(){
   }
   async function markPaid(){
     if (!payRef.trim()) {
-      setActionMessage({ type: "error", text: "Please enter a payment reference." });
+      setActionMessage({ type: "error", text: `Please enter a ${completionLabel(inv).toLowerCase()} reference.` });
       return;
     }
     setActionLoading(true);
@@ -142,22 +170,22 @@ export default function Page(){
       await api.post(`/api/admin/revenue/invoices/${id}/mark-paid`, { method: payMethod, ref: payRef });
       await load();
       setPayRef("");
-      setActionMessage({ type: "success", text: "Invoice marked as paid successfully." });
+      setActionMessage({ type: "success", text: `Invoice marked as ${paidStatusLabel(inv).toLowerCase()} successfully.` });
     } catch (err: any) {
       const detail = err?.response?.data?.detail;
-      setActionMessage({ type: "error", text: detail || err?.response?.data?.error || "Failed to mark as paid" });
+      setActionMessage({ type: "error", text: detail || err?.response?.data?.error || `Failed to mark as ${paidStatusLabel(inv).toLowerCase()}` });
     } finally {
       setActionLoading(false);
     }
   }
 
-  function getStatusBadge(status: string) {
+  function getStatusBadge(status: string, invoice?: Inv | null) {
     const statusLower = status.toLowerCase();
     if (statusLower === 'paid') {
       return (
         <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-100 text-green-800 text-sm font-medium">
           <CheckCircle2 className="h-4 w-4" />
-          {status}
+          {paidStatusLabel(invoice)}
         </span>
       );
     }
@@ -227,9 +255,9 @@ export default function Page(){
 
   const invNumUpper = String(inv.invoiceNumber ?? "").toUpperCase();
   const isOwnerClaim = invNumUpper.startsWith("OINV-");
-  const invoiceTypeLabel = isOwnerClaim ? "Owner Claim" : (invNumUpper.startsWith("INV-") ? "Customer Payment" : "Invoice");
+  const invoiceTypeLabel = isOwnerClaim ? "Owner Disbursement" : (invNumUpper.startsWith("INV-") ? "Customer Payment" : "Invoice");
   const invoiceTypeHint = isOwnerClaim
-    ? "Owner payout request (admin approval flow)"
+    ? "This record tracks the owner's payout after the customer payment has been confirmed."
     : (invNumUpper.startsWith("INV-") ? "Customer payment record (booking paid)" : "");
   const related = (inv.relatedInvoices || []).find((r) => {
     const n = String(r.invoiceNumber ?? "").toUpperCase();
@@ -238,6 +266,12 @@ export default function Page(){
   }) ?? (inv.relatedInvoices || [])[0] ?? null;
   const ownerValidated = !!inv.ownerValidation?.validated;
   const ownerValidatedAt = inv.ownerValidation?.validatedAt ?? null;
+  const relatedInvoiceLabel = related
+    ? (isOwnerClaim ? "Linked Customer Payment" : "Linked Owner Disbursement")
+    : null;
+  const workflowHint = isOwnerClaim
+    ? "Customer pays first, then this owner disbursement record is processed."
+    : "This customer payment can later produce a linked owner disbursement record.";
 
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 xl:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6 min-w-0">
@@ -262,7 +296,7 @@ export default function Page(){
                 </h1>
               </div>
               <div className="mt-2">
-                {getStatusBadge(inv.status)}
+                {getStatusBadge(inv.status, inv)}
               </div>
               <div className="mt-2 text-xs sm:text-sm text-gray-600">
                 Type: <span className="font-medium text-gray-800" title={invoiceTypeHint}>{invoiceTypeLabel}</span>
@@ -325,7 +359,7 @@ export default function Page(){
                   )}
                   {inv.paidAt ? (
                     <div className="min-w-0">
-                      <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Paid Date</div>
+                      <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">{paidStatusLabel(inv)} Date</div>
                       <div className="flex items-center gap-2 min-w-0">
                         <Calendar className="h-4 w-4 text-gray-400 flex-shrink-0" />
                         <span className="font-semibold text-sm text-gray-900">
@@ -373,7 +407,9 @@ export default function Page(){
                   </div>
 
                   <div className="flex items-center justify-between p-3 sm:p-4 bg-emerald-50 rounded-lg border-2 border-emerald-200 min-w-0">
-                    <span className="text-sm sm:text-base font-semibold text-emerald-900 truncate pr-2">Total Paid</span>
+                    <span className="text-sm sm:text-base font-semibold text-emerald-900 truncate pr-2">
+                      {isOwnerClaimInvoice(inv) ? "Customer Paid Total" : "Total Paid"}
+                    </span>
                     <span className="text-xl sm:text-2xl font-bold text-emerald-900 flex-shrink-0 break-words">{fmt(grossTotal)}</span>
                   </div>
 
@@ -381,7 +417,9 @@ export default function Page(){
                     <div className="grid grid-cols-2 sm:grid-cols-2 gap-3 sm:gap-4">
                       {inv.paymentMethod && (
                         <div className="p-3 sm:p-4 bg-gray-50 rounded-lg min-w-0">
-                          <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Payment Method</div>
+                          <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+                            {completionLabel(inv)} Method
+                          </div>
                           <div className="flex items-center gap-2 min-w-0">
                             <CreditCard className="h-4 w-4 text-gray-400 flex-shrink-0" />
                             <span className="font-semibold text-xs sm:text-sm text-gray-900 truncate">{inv.paymentMethod}</span>
@@ -396,7 +434,9 @@ export default function Page(){
                           )}
                           {inv.paymentRef && (
                             <div className="mt-2 min-w-0">
-                              <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Payment Reference</div>
+                              <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+                                {completionLabel(inv)} Reference
+                              </div>
                               <span className="font-semibold text-xs sm:text-sm text-gray-900 break-words">{inv.paymentRef}</span>
                             </div>
                           )}
@@ -404,13 +444,22 @@ export default function Page(){
                       )}
 
                       {inv.receiptNumber && (
-                        <div className="p-3 sm:p-4 bg-gray-50 rounded-lg overflow-hidden flex items-center justify-center">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={`/admin/revenue/invoices/${inv.id}/receipt.png`}
-                            alt="Receipt QR"
-                            className="w-full max-w-[120px] sm:max-w-[160px] aspect-square border-2 border-gray-200 rounded-lg shadow-sm object-contain"
-                          />
+                        <div className="p-3 sm:p-4 bg-gray-50 rounded-lg overflow-hidden">
+                          <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Receipt QR</div>
+                          <div className="flex items-center justify-center min-h-[160px] bg-white">
+                            {inv.receiptQrDataUrl ? (
+                              /* eslint-disable-next-line @next/next/no-img-element */
+                              <img
+                                src={inv.receiptQrDataUrl}
+                                alt=""
+                                className="w-full max-w-[160px] sm:max-w-[192px] aspect-square object-contain [image-rendering:pixelated]"
+                              />
+                            ) : (
+                              <div className="text-center text-sm text-gray-500 px-4">
+                                Receipt QR unavailable
+                              </div>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -606,18 +655,18 @@ export default function Page(){
             </div>
           )}
 
-          {/* Mark Paid Action */}
+          {/* Mark Paid / Disbursed Action */}
           {inv.status==="APPROVED" && (
             <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center flex-shrink-0">
                   <CreditCard className="h-4 w-4 text-purple-600" />
                 </div>
-                <h3 className="text-base sm:text-lg font-semibold text-gray-900">Mark Paid</h3>
+                <h3 className="text-base sm:text-lg font-semibold text-gray-900">Mark {paidStatusLabel(inv)}</h3>
               </div>
               <div className="space-y-3 sm:space-y-4">
                 <div className="min-w-0">
-                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">Payment Method</label>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">{completionLabel(inv)} Method</label>
                   <select
                     className="w-full px-3 sm:px-4 py-2 sm:py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all bg-white text-sm sm:text-base box-border"
                     value={payMethod}
@@ -630,12 +679,12 @@ export default function Page(){
                 </div>
                 <div className="min-w-0">
                   <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
-                    Payment Reference <span className="text-red-500">*</span>
+                    {completionLabel(inv)} Reference <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     className="w-full px-3 sm:px-4 py-2 sm:py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all text-sm sm:text-base box-border"
-                    placeholder="Enter payment reference"
+                    placeholder={`Enter ${completionLabel(inv).toLowerCase()} reference`}
                     value={payRef}
                     onChange={e=>setPayRef(e.target.value)}
                     required
@@ -654,7 +703,7 @@ export default function Page(){
                   ) : (
                     <>
                       <Receipt className="h-4 w-4" />
-                      Mark PAID & Generate Receipt
+                      Mark {paidStatusLabel(inv).toUpperCase()} & Generate Receipt
                     </>
                   )}
                 </button>
@@ -742,12 +791,12 @@ export default function Page(){
                 </div>
               )}
 
-              {/* Paid */}
+              {/* Paid / Disbursed */}
               {inv.paidAt && (
                 <div className="flex items-start gap-3 p-3 sm:p-4 bg-green-50 rounded-lg border-l-4 border-green-500">
                   <Receipt className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold text-gray-900">Paid</div>
+                    <div className="text-sm font-semibold text-gray-900">{paidStatusLabel(inv)}</div>
                     <div className="text-xs text-gray-600 mt-1">
                       {new Date(inv.paidAt).toLocaleDateString()} at {new Date(inv.paidAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                     </div>
@@ -756,7 +805,7 @@ export default function Page(){
                     )}
                     {inv.paymentMethod && (
                       <div className="text-xs text-gray-600 mt-2">
-                        <span className="font-medium">Method:</span> {inv.paymentMethod}
+                        <span className="font-medium">{completionLabel(inv)} Method:</span> {inv.paymentMethod}
                       </div>
                     )}
                     {inv.accountNumber && (
@@ -766,7 +815,7 @@ export default function Page(){
                     )}
                     {inv.paymentRef && (
                       <div className="text-xs text-gray-600 mt-1">
-                        <span className="font-medium">Reference:</span> {inv.paymentRef}
+                        <span className="font-medium">{completionLabel(inv)} Reference:</span> {inv.paymentRef}
                       </div>
                     )}
                     {inv.receiptNumber && (

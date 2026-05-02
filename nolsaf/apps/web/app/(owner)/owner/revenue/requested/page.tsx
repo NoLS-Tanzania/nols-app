@@ -157,9 +157,9 @@ export default function Requested() {
               <Link
                 href="/owner/revenue/paid"
                 className="no-underline inline-flex items-center gap-1.5 h-7 px-3 rounded-md bg-slate-900 hover:bg-slate-700 text-white text-[11px] font-semibold tracking-wide transition-all duration-200 active:scale-[0.97]"
-                aria-label="Go to paid invoices"
+                aria-label="Go to disbursed invoices"
               >
-                Paid
+                Disbursed
                 <ArrowUpRight className="h-3 w-3 opacity-70" aria-hidden />
               </Link>
               <Link
@@ -295,7 +295,7 @@ export default function Requested() {
                 href="/owner/revenue/paid"
                 className="no-underline inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-slate-900 hover:bg-slate-700 text-white text-sm font-semibold transition active:scale-[0.98] shadow-sm"
               >
-                View Paid
+                View Disbursed
                 <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
               </Link>
             </div>

@@ -370,7 +370,7 @@ const listPublicProperties: RequestHandler = async (req, res) => {
                         SELECT
                           p.id, p.title, p.type, p.parkPlacement, p.regionName,
                           p.district, p.ward, p.street, p.city, p.country,
-                          p.services, p.basePrice, p.currency,
+                          p.services, p.basePrice, p.currency, p.roomsSpec,
                           p.maxGuests, p.totalBedrooms, p.totalBathrooms,
                           COALESCE(
                             (SELECT pi.thumbnailUrl FROM \`property_images\` pi
@@ -432,7 +432,7 @@ const listPublicProperties: RequestHandler = async (req, res) => {
                         SELECT
                           p.id, p.title, p.type, p.parkPlacement, p.regionName,
                           p.district, p.ward, p.street, p.city, p.country,
-                          p.services, p.basePrice, p.currency,
+                          p.services, p.basePrice, p.currency, p.roomsSpec,
                           p.maxGuests, p.totalBedrooms, p.totalBathrooms,
                           COALESCE(
                             (SELECT pi.thumbnailUrl FROM \`property_images\` pi
@@ -484,6 +484,7 @@ const listPublicProperties: RequestHandler = async (req, res) => {
                     services: true,
                     basePrice: true,
                     currency: true,
+                    roomsSpec: true,
                     maxGuests: true,
                     totalBedrooms: true,
                     totalBathrooms: true,
@@ -527,6 +528,7 @@ const listPublicProperties: RequestHandler = async (req, res) => {
                     services: true,
                     basePrice: true,
                     currency: true,
+                    roomsSpec: true,
                     maxGuests: true,
                     totalBedrooms: true,
                     totalBathrooms: true,
@@ -571,6 +573,7 @@ const listPublicProperties: RequestHandler = async (req, res) => {
                   services: true,
                   basePrice: true,
                   currency: true,
+                  roomsSpec: true,
                   maxGuests: true,
                   totalBedrooms: true,
                   totalBathrooms: true,
@@ -737,6 +740,7 @@ const topCities: RequestHandler = async (req, res) => {
             country: true,
             basePrice: true,
             currency: true,
+            roomsSpec: true,
             maxGuests: true,
             totalBedrooms: true,
             totalBathrooms: true,

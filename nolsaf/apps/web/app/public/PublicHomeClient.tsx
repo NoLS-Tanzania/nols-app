@@ -849,9 +849,8 @@ export default function Page() {
             >
           {/* Inner ring highlight */}
           <div className="pointer-events-none absolute inset-0 rounded-[calc(30px-1px)] sm:rounded-[calc(52px-1.5px)] ring-1 ring-white/12" aria-hidden />
-        {/* ══════════════════════════════════════════════
-             FULL-BLEED HERO BACKGROUND
-        ══════════════════════════════════════════════ */}
+          
+        {/*FULL-BLEED HERO BACKGROUND */}
         <div className="absolute inset-0" aria-hidden>
 
           {/* Background — owner portal teal gradient */}

@@ -4,6 +4,7 @@ import { prisma } from "@nolsaf/prisma";
 import { z } from "zod";
 import rateLimit from "express-rate-limit";
 import jwt from "jsonwebtoken";
+import { makeQR } from "../lib/qr.js";
 
 async function getEffectiveCommissionPercent(params: {
   propertyServices: unknown;
@@ -297,6 +298,22 @@ function makeInvoiceNumber(bookingId: number, codeId: number) {
   return `INV-${ym}-${String(bookingId).padStart(6, "0")}-${String(codeId).padStart(4, "0")}`;
 }
 
+function buildReceiptQrPayload(invoice: any) {
+  if (typeof invoice?.receiptQrPayload === "string" && invoice.receiptQrPayload.trim()) {
+    return invoice.receiptQrPayload;
+  }
+  if (!invoice?.receiptNumber) return null;
+  return JSON.stringify({
+    receipt: invoice.receiptNumber,
+    invoice: invoice.invoiceNumber,
+    amount: invoice.netPayable ?? invoice.total,
+    property: invoice?.booking?.property?.title,
+    bookingId: invoice?.booking?.id,
+    issuedAt: invoice.issuedAt,
+    ref: invoice.paymentRef,
+  });
+}
+
 // Validation schema
 const createInvoiceSchema = z.object({
   bookingId: z.number().int().positive(),
@@ -495,54 +512,9 @@ router.post("/from-booking", publicInvoiceLimiter, async (req: Request, res: Res
       });
     }
 
-    // Generate booking code if it doesn't exist
-    let codeId: number;
-    if (!booking.code) {
-      // Generate code
-      const crypto = await import("crypto");
-      const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-      let code: string;
-      let attempts = 0;
-      const maxAttempts = 10;
-      let codeGenerated = false;
-      let generatedCodeId: number | undefined;
-
-      while (attempts < maxAttempts && !codeGenerated) {
-        code = "";
-        for (let i = 0; i < 8; i++) {
-          code += alphabet[crypto.randomInt(0, alphabet.length)];
-        }
-        const codeHash = crypto.createHash("sha256").update(code).digest("hex");
-
-        try {
-          const codeRecord = await prisma.checkinCode.create({
-            data: {
-              bookingId: booking.id,
-              code: code,
-              codeHash: codeHash,
-              codeVisible: code,
-              status: "ACTIVE",
-              generatedAt: new Date(),
-            },
-          });
-          generatedCodeId = codeRecord.id;
-          codeGenerated = true;
-        } catch (error: any) {
-          if (error?.code === "P2002") {
-            attempts++;
-            continue;
-          }
-          throw error;
-        }
-      }
-
-      if (!codeGenerated || !generatedCodeId) {
-        throw new Error("Failed to generate booking code after multiple attempts");
-      }
-      codeId = generatedCodeId;
-    } else {
-      codeId = booking.code.id;
-    }
+    // Do not issue a check-in code while the invoice is still unpaid.
+    // The AzamPay SUCCESS webhook generates the code after the payment is confirmed.
+    const invoiceNumberSeed = booking.code?.id ?? booking.id;
 
     // Create invoice in transaction
     const result = await prisma.$transaction(async (tx) => {
@@ -569,7 +541,7 @@ router.post("/from-booking", publicInvoiceLimiter, async (req: Request, res: Res
 
       const invoice = await tx.invoice.create({
         data: {
-          invoiceNumber: makeInvoiceNumber(booking.id, codeId),
+          invoiceNumber: makeInvoiceNumber(booking.id, invoiceNumberSeed),
           ownerId: booking.property.ownerId,
           bookingId: booking.id,
           total: effectiveTotalAmount,
@@ -581,9 +553,10 @@ router.post("/from-booking", publicInvoiceLimiter, async (req: Request, res: Res
           commissionAmount: commissionAmount > 0 ? (commissionAmount as any) : null,
           taxPercent: 0,
           // Payment lifecycle (production-safe):
-          // - Create invoice as REQUESTED (explicit, not relying on schema default)
+          // - Create customer checkout invoice as PENDING before payment starts
+          // - Move to PROCESSING only after AzamPay accepts the checkout request
           // - Mark as PAID only from the AzamPay webhook
-          status: "REQUESTED",
+          status: "PENDING",
           paymentRef: `INVREF-${booking.id}-${Date.now()}`,
           notes: notes,
         },
@@ -628,7 +601,7 @@ router.post("/from-booking", publicInvoiceLimiter, async (req: Request, res: Res
       currency: booking.property.currency || "TZS",
       booking: {
         id: booking.id,
-        bookingCode: booking.code?.code,
+        bookingCode: null,
         checkIn: booking.checkIn,
         checkOut: booking.checkOut,
         nights: nights,
@@ -753,6 +726,17 @@ router.get("/:id", publicInvoiceReadLimiter, async (req: Request, res: Response)
     const subtotal = accommodationSubtotal + taxAmount + transportFare;
     const discount = 0;
 
+    const qrPayload = buildReceiptQrPayload(invoice);
+    let receiptQrDataUrl: string | null = null;
+    if (qrPayload) {
+      try {
+        const { png } = await makeQR(qrPayload);
+        receiptQrDataUrl = `data:image/png;base64,${png.toString("base64")}`;
+      } catch {
+        receiptQrDataUrl = null;
+      }
+    }
+
     return res.json({
       id: invoice.id,
       invoiceNumber: invoice.invoiceNumber,
@@ -785,10 +769,8 @@ router.get("/:id", publicInvoiceReadLimiter, async (req: Request, res: Response)
           : null,
         basePrice: basePrice,
       },
-      // Provide QR as data URL if present (useful for receipt page)
-      receiptQrPng: invoice.receiptQrPng
-        ? `data:image/png;base64,${Buffer.from(invoice.receiptQrPng as any).toString("base64")}`
-        : null,
+      // Provide QR as data URL regenerated from the text payload.
+      receiptQrPng: receiptQrDataUrl,
       priceBreakdown: {
         accommodationSubtotal: accommodationSubtotal,
         taxPercent: taxPercent,

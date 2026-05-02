@@ -16,6 +16,26 @@ import { getOwnerDisbursementEmail } from "../lib/bookingEmailTemplates.js";
 export const router = Router();
 router.use(requireAuth as express.RequestHandler, requireRole("ADMIN") as express.RequestHandler);
 
+function revenueVisibilityClause() {
+  return {
+    OR: [
+      { invoiceNumber: { startsWith: "OINV-" } },
+      {
+        AND: [
+          { invoiceNumber: { startsWith: "INV-" } },
+          { status: "PAID" },
+        ],
+      },
+    ],
+  };
+}
+
+function applyRevenueVisibility(where: any) {
+  const currentAnd = Array.isArray(where?.AND) ? where.AND : [];
+  where.AND = [...currentAnd, revenueVisibilityClause()];
+  return where;
+}
+
 async function createAdminAuditSafe(data: { adminId: number; targetUserId?: number | null; action: string; details?: any }) {
   try {
     await prisma.adminAudit.create({
@@ -197,6 +217,22 @@ function normalizeOwnerPayout(payoutRaw: unknown): {
   };
 }
 
+function buildReceiptQrPayload(inv: any) {
+  if (typeof inv?.receiptQrPayload === "string" && inv.receiptQrPayload.trim()) {
+    return inv.receiptQrPayload;
+  }
+  if (!inv?.receiptNumber) return null;
+  return JSON.stringify({
+    receipt: inv.receiptNumber,
+    invoice: inv.invoiceNumber,
+    amount: inv.netPayable ?? inv.total,
+    property: inv?.booking?.property?.title,
+    bookingId: inv.bookingId,
+    issuedAt: inv.issuedAt,
+    ref: inv.paymentRef,
+  });
+}
+
 /** GET /admin/invoices */
 router.get("/invoices", async (req, res) => {
   try {
@@ -205,7 +241,7 @@ router.get("/invoices", async (req, res) => {
     
     const { status, ownerId, propertyId, from, to, q, page = "1", pageSize = "50", sortBy, sortDir, amountMin, amountMax } = req.query as any;
 
-    const where: any = {};
+    const where: any = applyRevenueVisibility({});
     if (status) where.status = status;
     if (ownerId) where.ownerId = Number(ownerId);
     if (from || to) {
@@ -358,8 +394,8 @@ router.get("/invoices/:id(\\d+)", async (req, res) => {
       res.setHeader('Content-Type', 'application/json');
       return res.status(400).json({ error: "Invalid invoice ID" });
     }
-    const inv = await prisma.invoice.findUnique({
-      where: { id },
+    const inv = await prisma.invoice.findFirst({
+      where: applyRevenueVisibility({ id }),
       include: {
         booking: {
           include: {
@@ -471,6 +507,21 @@ router.get("/invoices/:id(\\d+)", async (req, res) => {
       response.ownerPayout = normalizeOwnerPayout(owner?.payout);
     } catch {
       response.ownerPayout = null;
+    }
+
+    // Attach receipt QR as a data URL and regenerate it from the text payload.
+    // We do not trust stored receiptQrPng bytes here because some environments
+    // return corrupted blob data for older admin receipts.
+    try {
+      const qrPayload = buildReceiptQrPayload(inv);
+      if (qrPayload) {
+        const { png } = await makeQR(qrPayload);
+        response.receiptQrDataUrl = `data:image/png;base64,${png.toString("base64")}`;
+      } else {
+        response.receiptQrDataUrl = null;
+      }
+    } catch {
+      response.receiptQrDataUrl = null;
     }
     
     // Explicitly set Content-Type to JSON
@@ -1085,10 +1136,28 @@ router.post("/invoices/:id/mark-paid", async (req, res) => {
 router.get("/invoices/:id(\\d+)/receipt.png", async (req, res) => {
   try {
     const id = Number(req.params.id);
-    const inv = await prisma.invoice.findUnique({ where: { id }, select: { receiptQrPng: true } });
-    if (!inv || !inv.receiptQrPng) return res.status(404).send("No receipt QR");
+    const inv = await prisma.invoice.findUnique({
+      where: { id },
+      select: {
+        receiptQrPng: true,
+        receiptQrPayload: true,
+        receiptNumber: true,
+        invoiceNumber: true,
+        netPayable: true,
+        total: true,
+        bookingId: true,
+        issuedAt: true,
+        paymentRef: true,
+        booking: { select: { property: { select: { title: true } } } },
+      },
+    });
+    if (!inv) return res.status(404).send("No receipt QR");
+    const qrPayload = buildReceiptQrPayload(inv);
+    if (!qrPayload) return res.status(404).send("No receipt QR");
+    const { png } = await makeQR(qrPayload);
+
     res.setHeader("Content-Type", "image/png");
-    res.send(Buffer.from(inv.receiptQrPng));
+    res.send(png);
   } catch (err: any) {
     console.error("Error in GET /admin/invoices/:id/receipt.png", err);
     res.status(500).send("Internal server error");
@@ -1103,7 +1172,7 @@ router.get("/invoices/export.csv", async (req, res) => {
   try {
     const { status, from, to, ownerId, q } = req.query as any;
 
-    const where: any = {};
+    const where: any = applyRevenueVisibility({});
     if (status) where.status = status;
     if (ownerId) where.ownerId = Number(ownerId);
     if (from || to) {

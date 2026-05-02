@@ -245,7 +245,7 @@ export default function OwnerPage() {
           )}
         </svg>
 
-        {/* ════════════════════════ CONTENT ════════════════════════ */}
+        {/* ════ CONTENT ══════ */}
         <div className="relative flex flex-col lg:flex-row lg:items-stretch gap-0">
 
           {/* ── LEFT: greeting + KPI tiles ── */}

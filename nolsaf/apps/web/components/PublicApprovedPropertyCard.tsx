@@ -32,9 +32,11 @@ function fmtMoney(amount: number | null | undefined, currency?: string | null) {
 export default function PublicApprovedPropertyCard({
   p,
   systemCommission = 0,
+  priorityImage = false,
 }: {
   p: PublicApprovedPropertyCardData;
   systemCommission?: number;
+  priorityImage?: boolean;
 }) {
   const href = `/public/properties/${p.slug}`;
 
@@ -82,7 +84,8 @@ export default function PublicApprovedPropertyCard({
                 fill
                 sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
                 className="object-cover transition-transform duration-500 ease-out group-hover:scale-[1.08]"
-                priority={false}
+                loading={priorityImage ? "eager" : "lazy"}
+                priority={priorityImage}
                 unoptimized={
                   // Cloudinary and localhost/127.0.0.1 URLs go through Next.js /_next/image proxy.
                   // This ensures phones on the local network can load localhost-hosted images

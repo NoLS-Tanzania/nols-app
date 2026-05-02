@@ -59,13 +59,19 @@ router.get("/", async (req, res) => {
   const { date, start, end, status, propertyId, ownerId, userId, q, page = "1", pageSize = "30" } = req.query as any;
 
   const where: any = {};
-  if (status) {
+  const hasStatusFilter = typeof status === "string" && status.trim().length > 0;
+  if (hasStatusFilter) {
     // When filtering by CHECKED_IN, include PENDING_CHECKIN as well (matches frontend count display)
     if (status === 'CHECKED_IN') {
       where.status = { in: ['CHECKED_IN', 'PENDING_CHECKIN'] };
     } else {
       where.status = status;
     }
+  } else {
+    // Default admin lists should show real bookings only.
+    // Unpaid public checkout holds remain NEW without a check-in code and are hidden unless explicitly filtered.
+    where.status = { in: ["CONFIRMED", "CHECKED_IN", "PENDING_CHECKIN", "CHECKED_OUT"] };
+    where.code = { isNot: null };
   }
   if (propertyId) where.propertyId = Number(propertyId);
   if (ownerId) where.property = { is: { ownerId: Number(ownerId) } };
@@ -876,7 +882,12 @@ router.get("/export.csv", async (req, res) => {
       }
     } else {
       // Otherwise apply filters
-      if (status) where.status = status;
+      if (status) {
+        where.status = status;
+      } else {
+        where.status = { in: ["CONFIRMED", "CHECKED_IN", "PENDING_CHECKIN", "CHECKED_OUT"] };
+        where.code = { isNot: null };
+      }
       if (propertyId) where.propertyId = Number(propertyId);
       if (ownerId) where.property = { ownerId: Number(ownerId) };
       if (date) {

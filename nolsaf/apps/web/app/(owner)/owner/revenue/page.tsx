@@ -297,7 +297,7 @@ export default function OwnerRevenuePage() {
     return (
       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${config.bg} ${config.text} border ${config.border}`}>
         <Icon className="h-3 w-3" />
-        {status}
+        {status.toUpperCase() === "PAID" ? "DISBURSED" : status}
       </span>
     );
   };
@@ -336,7 +336,7 @@ export default function OwnerRevenuePage() {
               </div>
             </div>
             <div className="flex items-center gap-1.5">
-              <Link href="/owner/revenue/paid" className="no-underline inline-flex items-center gap-1.5 h-7 px-3 rounded-md bg-slate-900 hover:bg-slate-700 text-white text-[11px] font-semibold tracking-wide transition-all duration-200 active:scale-[0.97]">Paid</Link>
+              <Link href="/owner/revenue/paid" className="no-underline inline-flex items-center gap-1.5 h-7 px-3 rounded-md bg-slate-900 hover:bg-slate-700 text-white text-[11px] font-semibold tracking-wide transition-all duration-200 active:scale-[0.97]">Disbursed</Link>
               <Link href="/owner/revenue/requested" className="no-underline inline-flex items-center gap-1.5 h-7 px-3 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-[11px] font-semibold tracking-wide transition-all duration-200 active:scale-[0.97]">Requested</Link>
             </div>
           </div>
@@ -368,10 +368,10 @@ export default function OwnerRevenuePage() {
             <div className="h-9 w-9 rounded-lg bg-emerald-900/60 border border-emerald-800/40 flex items-center justify-center flex-shrink-0">
               <CheckCircle className="h-4 w-4 text-emerald-400" />
             </div>
-            <span className="text-xs font-bold uppercase tracking-widest text-emerald-400/80">Paid payout</span>
+            <span className="text-xs font-bold uppercase tracking-widest text-emerald-400/80">Disbursed payout</span>
           </div>
           <div className="text-2xl font-black text-white leading-none">{formatCurrency(stats.paidRevenue)}</div>
-          <div className="text-xs text-emerald-400/60 font-medium">{stats.paidInvoices} paid</div>
+          <div className="text-xs text-emerald-400/60 font-medium">{stats.paidInvoices} disbursed</div>
         </div>
 
         {/* Pending Payout — dark slate */}
@@ -501,7 +501,7 @@ export default function OwnerRevenuePage() {
                                 <option value="VERIFIED">Verified</option>
                                 <option value="APPROVED">Approved</option>
                                 <option value="PROCESSING">Processing</option>
-                                <option value="PAID">Paid</option>
+                                <option value="PAID">Disbursed</option>
                                 <option value="REJECTED">Rejected</option>
                               </select>
                               <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" aria-hidden />
