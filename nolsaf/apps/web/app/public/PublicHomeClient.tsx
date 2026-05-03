@@ -328,31 +328,37 @@ export default function Page() {
           city: "Dar es Salaam",
           country: "Tanzania",
           tagline: "Coastal city stays, business travel, and quick getaways.",
+          filterParam: "region",
         },
         {
           city: "Nairobi",
           country: "Kenya",
           tagline: "Major hub for safaris, conferences, and city breaks.",
+          filterParam: "city",
         },
         {
           city: "Zanzibar",
           country: "Tanzania",
           tagline: "Beachfront escapes, old town charm, and island stays.",
+          filterParam: "region",
         },
         {
           city: "Arusha",
           country: "Tanzania",
           tagline: "Gateway to parks lodges, villas, and adventure trips.",
+          filterParam: "region",
         },
         {
           city: "Mwanza",
           country: "Tanzania",
           tagline: "Lake views, local hospitality, and weekend retreats.",
+          filterParam: "region",
         },
         {
           city: "Dodoma",
           country: "Tanzania",
           tagline: "New capital energy apartments, hotels, and homes.",
+          filterParam: "region",
         },
       ] as const,
     []
@@ -530,7 +536,8 @@ export default function Page() {
       try {
         const pairs = await Promise.all(
           FEATURED_DESTINATIONS.map(async (d) => {
-            const res = await fetch(`/api/public/properties?city=${encodeURIComponent(d.city)}&page=1&pageSize=1`, {
+            const filterParam = d.filterParam === "region" ? "region" : "city";
+            const res = await fetch(`/api/public/properties?${filterParam}=${encodeURIComponent(d.city)}&page=1&pageSize=1`, {
               cache: "no-store",
             });
             if (!res.ok) return [d.city, null] as const;
@@ -1744,7 +1751,8 @@ export default function Page() {
                   className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5"
                 >
                   {(featuredDestinationSlides[featuredSlide] || featuredDestinationSlides[0] || []).map((d, idx) => {
-                    const href = `/public/properties?city=${encodeURIComponent(d.city)}&page=1`;
+                    const filterParam = d.filterParam === "region" ? "region" : "city";
+                    const href = `/public/properties?${filterParam}=${encodeURIComponent(d.city)}&page=1`;
                     const total = featuredCityCounts[d.city];
 
                     // Each city gets a unique palette — no two adjacent cards share the same

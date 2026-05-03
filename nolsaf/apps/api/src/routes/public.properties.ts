@@ -55,6 +55,53 @@ function expandPropertyTypeFilters(types: string[]): string[] {
   return Array.from(aliases).filter(Boolean);
 }
 
+function toTitleLocation(value: string): string {
+  return value
+    .toLowerCase()
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => (part === "es" ? "es" : part.charAt(0).toUpperCase() + part.slice(1)))
+    .join(" ");
+}
+
+function expandLocationAliases(value: string): string[] {
+  const raw = String(value || "").trim();
+  if (!raw) return [];
+
+  const spaced = raw.replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim();
+  const dashed = spaced.replace(/\s+/g, "-");
+  const compact = spaced.replace(/\s+/g, "");
+  const title = toTitleLocation(spaced);
+  const aliases = new Set<string>([
+    raw,
+    raw.toUpperCase(),
+    raw.toLowerCase(),
+    spaced,
+    spaced.toUpperCase(),
+    spaced.toLowerCase(),
+    dashed,
+    dashed.toUpperCase(),
+    dashed.toLowerCase(),
+    compact,
+    compact.toUpperCase(),
+    compact.toLowerCase(),
+    title,
+  ]);
+
+  if (spaced.toLowerCase() === "dar es salaam") {
+    aliases.add("Dar es Salaam");
+    aliases.add("DAR-ES-SALAAM");
+    aliases.add("Dar-es-Salaam");
+    aliases.add("DSM");
+  }
+
+  return Array.from(aliases).filter(Boolean);
+}
+
+function locationContainsClauses(field: "regionName" | "city" | "district" | "ward" | "street", value: string) {
+  return expandLocationAliases(value).map((alias) => ({ [field]: { contains: alias } }));
+}
+
 function parseAmenities(v: any): string[] {
   const out = parseCsv(v);
   // cap to avoid abuse
@@ -221,17 +268,29 @@ const listPublicProperties: RequestHandler = async (req, res) => {
   }
 
   if (region) {
-    // Support both regionId (e.g. "11") and regionName (e.g. "Dar es Salaam")
-    // Some UIs pass `region` as a numeric id from tzRegions.
+    // Support regionId (e.g. "11") and regionName variants:
+    // "Dar es Salaam", "DAR-ES-SALAAM", "dar-es-salaam", etc.
     where.AND = Array.isArray(where.AND) ? where.AND : [];
     where.AND.push({
-      OR: [{ regionId: region }, { regionName: { contains: region } }],
+      OR: [{ regionId: region }, ...locationContainsClauses("regionName", region)],
     });
   }
-  if (district) where.district = { contains: district };
-  if (ward) where.ward = { contains: ward };
-  if (street) where.street = { contains: street };
-  if (city) where.city = { contains: city };
+  if (district) {
+    where.AND = Array.isArray(where.AND) ? where.AND : [];
+    where.AND.push({ OR: locationContainsClauses("district", district) });
+  }
+  if (ward) {
+    where.AND = Array.isArray(where.AND) ? where.AND : [];
+    where.AND.push({ OR: locationContainsClauses("ward", ward) });
+  }
+  if (street) {
+    where.AND = Array.isArray(where.AND) ? where.AND : [];
+    where.AND.push({ OR: locationContainsClauses("street", street) });
+  }
+  if (city) {
+    where.AND = Array.isArray(where.AND) ? where.AND : [];
+    where.AND.push({ OR: locationContainsClauses("city", city) });
+  }
   if (typeFilters.length > 0) where.type = { in: typeFilters };
 
   // Services filter: Property.services is Json (array of strings)

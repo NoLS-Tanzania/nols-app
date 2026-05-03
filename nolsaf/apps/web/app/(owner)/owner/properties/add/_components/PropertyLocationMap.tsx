@@ -160,6 +160,13 @@ export const PropertyLocationMap = memo(function PropertyLocationMap({
         successTimerRef.current = setTimeout(() => setLocationDetected(null), 10000);
       },
       (error) => {
+        if (hasValidCoordinates(latitude, longitude) && error.code !== error.PERMISSION_DENIED) {
+          setLocationError(null);
+          setLocationDetected((current) => current ?? { accuracy: null });
+          setIsDetectingLocation(false);
+          return;
+        }
+
         if (error.code === error.PERMISSION_DENIED) {
           setLocationDenied(true);
           setLocationError("Location access was denied. Open your browser site settings and allow location, then tap the button again.");
@@ -178,7 +185,7 @@ export const PropertyLocationMap = memo(function PropertyLocationMap({
         maximumAge: 30000,
       }
     );
-  }, [emitLocation, locationDenied]);
+  }, [emitLocation, latitude, locationDenied, longitude]);
 
   const openMap = useCallback(() => {
     setHasInitialized(true);
@@ -371,6 +378,12 @@ export const PropertyLocationMap = memo(function PropertyLocationMap({
 
   const hasCoords = hasValidCoordinates(latitude, longitude);
 
+  useEffect(() => {
+    if (hasCoords && locationError && !locationDenied) {
+      setLocationError(null);
+    }
+  }, [hasCoords, locationDenied, locationError]);
+
   return (
     <div className="w-full">
       {/* Closed card — shown when map panel is not open */}
@@ -457,6 +470,8 @@ export const PropertyLocationMap = memo(function PropertyLocationMap({
                 </>
               ) : locationDenied ? (
                 <><LocateOff className="h-4 w-4" /> Enable location access</>
+              ) : hasCoords ? (
+                <><LocateFixed className="h-4 w-4" /> Refresh my location</>
               ) : (
                 <><LocateFixed className="h-4 w-4" /> Detect my location</>
               )}
@@ -481,6 +496,27 @@ export const PropertyLocationMap = memo(function PropertyLocationMap({
               <MapPin className="h-3.5 w-3.5" />
               Place pin manually on map
             </button>
+
+            {hasCoords ? (
+              <div className="rounded-xl border border-[#02665e]/18 bg-[#02665e]/[0.045] px-3.5 py-3">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#02665e] text-white shadow-sm">
+                    <CheckCircle2 className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-[12px] font-extrabold text-[#02665e]">Location saved</p>
+                      <span className="rounded-full bg-white px-2.5 py-1 font-mono text-[10px] font-bold text-[#02665e] shadow-sm ring-1 ring-[#02665e]/10 tabular-nums">
+                        {Number(latitude).toFixed(6)}, {Number(longitude).toFixed(6)}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-[11px] leading-relaxed text-slate-600">
+                      Use these coordinates if they match the property. Open the map only if you need to adjust the pin.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : null}
 
             {/* Success / accuracy warning banner */}
             {locationDetected ? (() => {
@@ -514,7 +550,7 @@ export const PropertyLocationMap = memo(function PropertyLocationMap({
             })() : null}
 
             {/* Location error */}
-            {locationError ? (
+            {locationError && !hasCoords ? (
               <div className="flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-3">
                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
                 <p className="text-[11px] leading-relaxed text-rose-700">{locationError}</p>

@@ -6,7 +6,7 @@
  */
 
 import DatePickerField from "@/components/DatePickerField";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   ArrowLeft,
@@ -63,6 +63,7 @@ interface Activity {
   basePrice?: number;
   description?: string;
   destinationCode?: string;
+  destinationCodes?: string[];
 }
 
 interface BreakdownItem {
@@ -271,6 +272,7 @@ const STEPS = ["Trip basics", "Destinations", "Activities", "Style", "Your estim
 // ─── Main component ────────────────────────────────────────────────────────────
 
 export default function NolScopeEstimator() {
+  const estimatorRef = useRef<HTMLDivElement | null>(null);
   const [step, setStep] = useState(0);
 
   // Step 0 — basics
@@ -365,19 +367,26 @@ export default function NolScopeEstimator() {
               category: a.category ?? '',
               basePrice: a.averageCost ?? a.basePrice ?? a.minCost ?? 0,
               description: a.description,
-              destinationCode: a.destination ?? a.destinationCode,
+              destinationCode: c,
+              destinationCodes: [c],
             }))
           )
           .catch(() => [] as Activity[])
       )
     )
       .then((groups) => {
-        const seen = new Set<string>();
+        const seen = new Map<string, Activity>();
         const merged: Activity[] = [];
         for (const grp of groups) {
           for (const a of grp) {
-            if (!seen.has(a.code)) {
-              seen.add(a.code);
+            const key = a.code || a.name;
+            const existing = seen.get(key);
+            if (existing) {
+              const existingCodes = existing.destinationCodes ?? (existing.destinationCode ? [existing.destinationCode] : []);
+              const nextCodes = a.destinationCodes ?? (a.destinationCode ? [a.destinationCode] : []);
+              existing.destinationCodes = [...new Set([...existingCodes, ...nextCodes])];
+            } else {
+              seen.set(key, a);
               merged.push(a);
             }
           }
@@ -408,6 +417,33 @@ export default function NolScopeEstimator() {
 
   // ── helpers ─────────────────────────────────────────────────────────────────
   const totalDays = destinations.reduce((s, d) => s + d.days, 0);
+  const destinationLabelByCode = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const dest of availableDests) {
+      map.set(dest.code.toUpperCase(), dest.name || dest.code);
+    }
+    return map;
+  }, [availableDests]);
+
+  const activitiesByDestination = useMemo(() => {
+    return destinations
+      .map((dest) => {
+        const code = dest.code.toUpperCase();
+        const activities = availableActivities.filter((activity) => {
+          const codes = activity.destinationCodes ?? (activity.destinationCode ? [activity.destinationCode] : []);
+          return codes.some((activityCode) => String(activityCode).toUpperCase() === code);
+        });
+
+        return {
+          code,
+          days: dest.days,
+          name: destinationLabelByCode.get(code) ?? code.replace(/_/g, " "),
+          activities,
+          selectedCount: activities.filter((activity) => selectedActivities.includes(activity.code)).length,
+        };
+      })
+      .filter((group) => group.activities.length > 0);
+  }, [availableActivities, destinationLabelByCode, destinations, selectedActivities]);
 
   const canNext = useCallback((): boolean => {
     if (step === 0) return !!nationality && !!startDate && adults >= 1;
@@ -469,21 +505,33 @@ export default function NolScopeEstimator() {
     }
   }, [nationality, destinations, startDate, adults, children, transportPref, selectedActivities, tier]);
 
+  const focusEstimator = useCallback(() => {
+    window.setTimeout(() => {
+      estimatorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+  }, []);
+
   const goNext = () => {
     if (step === 3) {
       setStep(4);
+      focusEstimator();
       runEstimate();
     } else {
       setStep((s) => Math.min(s + 1, 4));
+      focusEstimator();
     }
   };
 
-  const goBack = () => setStep((s) => Math.max(s - 1, 0));
+  const goBack = () => {
+    setStep((s) => Math.max(s - 1, 0));
+    focusEstimator();
+  };
 
   const restart = () => {
     setStep(0);
     setResult(null);
     setEstimateError("");
+    focusEstimator();
   };
 
   const selectedNatLabel =
@@ -496,7 +544,7 @@ export default function NolScopeEstimator() {
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <div className="max-w-2xl mx-auto px-4 sm:px-0">
+    <div ref={estimatorRef} className="max-w-2xl mx-auto px-4 sm:px-0 scroll-mt-24">
       {/* Step indicator */}
       <StepBar current={step} steps={STEPS} />
 
@@ -666,66 +714,96 @@ export default function NolScopeEstimator() {
                 <p className="text-sm text-slate-500 -mt-1 mb-3">
                   Select activities to include in the estimate. You can skip to get a base cost.
                 </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {availableActivities.map((act, i) => {
-                    const on = selectedActivities.includes(act.code);
-                    const Icon = getActivityIcon(act.name, act.category);
-                    const color = getActivityColor(act.name);
-                    return (
-                      <button
-                        key={`act-${act.code ?? i}-${i}`}
-                        type="button"
-                        onClick={() =>
-                          setSelectedActivities((prev) =>
-                            on ? prev.filter((c) => c !== act.code) : [...prev, act.code]
-                          )
-                        }
-                        className={`relative flex items-center gap-3 px-4 py-3.5 rounded-xl border-2 text-left transition-all duration-200 ${
-                          on
-                            ? "border-[#8b5cf6] bg-[#8b5cf6]/5 shadow-md"
-                            : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm"
-                        }`}
-                      >
-                        {/* Icon circle */}
-                        <div 
-                          className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 transition-all duration-200 ${
-                            on ? "shadow-md" : "shadow-sm"
-                          }`}
-                          style={{
-                            backgroundColor: on ? color : `${color}15`
-                          }}
-                        >
-                          <Icon 
-                            className="w-5 h-5 transition-colors duration-200"
-                            style={{ color: on ? 'white' : color }}
-                          />
-                        </div>
-                        
-                        {/* Content */}
-                        <div className="flex-1 min-w-0">
-                          <div className={`text-sm font-semibold transition-colors duration-200 ${
-                            on ? "text-[#8b5cf6]" : "text-slate-700"
-                          }`}>
-                            {act.name}
-                          </div>
-                          {act.basePrice && (
-                            <div className={`text-xs font-medium mt-0.5 transition-colors duration-200 ${
-                              on ? "text-violet-600" : "text-slate-400"
-                            }`}>
-                              ~{fmtUSD(act.basePrice)}
+                <div className="space-y-4">
+                  {activitiesByDestination.map((group) => (
+                    <section
+                      key={`activity-group-${group.code}`}
+                      className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-slate-50/80 px-4 py-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-violet-100 text-violet-700">
+                              <MapPin className="h-4 w-4" />
+                            </span>
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-extrabold text-slate-900">{group.name}</p>
+                              <p className="text-[11px] font-medium text-slate-500">
+                                {group.days} night{group.days === 1 ? "" : "s"} selected for this destination
+                              </p>
                             </div>
-                          )}
-                        </div>
-                        
-                        {/* Check indicator */}
-                        {on && (
-                          <div className="absolute top-2 right-2">
-                            <CheckCircle2 className="w-5 h-5 text-[#8b5cf6]" />
                           </div>
-                        )}
-                      </button>
-                    );
-                  })}
+                        </div>
+                        <span className="rounded-full bg-violet-50 px-3 py-1 text-[11px] font-bold text-violet-700 ring-1 ring-violet-100">
+                          {group.selectedCount}/{group.activities.length} selected
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-3 p-3 sm:grid-cols-2">
+                        {group.activities.map((act, i) => {
+                          const on = selectedActivities.includes(act.code);
+                          const Icon = getActivityIcon(act.name, act.category);
+                          const color = getActivityColor(act.name);
+                          return (
+                            <button
+                              key={`act-${group.code}-${act.code ?? i}-${i}`}
+                              type="button"
+                              onClick={() =>
+                                setSelectedActivities((prev) =>
+                                  on ? prev.filter((c) => c !== act.code) : [...prev, act.code]
+                                )
+                              }
+                              className={`relative flex min-h-[86px] items-center gap-3 rounded-xl border-2 px-4 py-3.5 text-left transition-all duration-200 ${
+                                on
+                                  ? "border-[#8b5cf6] bg-[#8b5cf6]/5 shadow-md"
+                                  : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm"
+                              }`}
+                            >
+                              <div
+                                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-all duration-200 ${
+                                  on ? "shadow-md" : "shadow-sm"
+                                }`}
+                                style={{ backgroundColor: on ? color : `${color}15` }}
+                              >
+                                <Icon
+                                  className="h-5 w-5 transition-colors duration-200"
+                                  style={{ color: on ? "white" : color }}
+                                />
+                              </div>
+
+                              <div className="min-w-0 flex-1 pr-5">
+                                <div className={`text-sm font-bold leading-snug transition-colors duration-200 ${
+                                  on ? "text-[#8b5cf6]" : "text-slate-800"
+                                }`}>
+                                  {act.name}
+                                </div>
+                                <div className="mt-1 flex flex-wrap items-center gap-2">
+                                  {act.category ? (
+                                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+                                      {act.category}
+                                    </span>
+                                  ) : null}
+                                  {act.basePrice ? (
+                                    <span className={`text-xs font-semibold transition-colors duration-200 ${
+                                      on ? "text-violet-600" : "text-slate-400"
+                                    }`}>
+                                      ~{fmtUSD(act.basePrice)}
+                                    </span>
+                                  ) : null}
+                                </div>
+                              </div>
+
+                              {on && (
+                                <div className="absolute right-2.5 top-2.5">
+                                  <CheckCircle2 className="h-5 w-5 text-[#8b5cf6]" />
+                                </div>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  ))}
                 </div>
                 {selectedActivities.length > 0 && (
                   <p className="text-sm text-violet-600 mt-3 font-semibold flex items-center gap-1.5">
@@ -742,34 +820,57 @@ export default function NolScopeEstimator() {
         {step === 3 && (
           <StepPanel title="Travel style & transport" icon={<Mountain className="w-5 h-5 text-amber-500" />}>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-3">Accommodation tier</label>
+              <div className="mb-3">
+                <label className="block text-[15px] font-bold text-slate-800">Accommodation tier</label>
+                <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                  Select the accommodation level that matches your comfort preference and how you want the estimate priced.
+                </p>
+              </div>
               <div className="grid grid-cols-1 gap-3">
                 {TIERS.map((t) => (
                   <button
                     key={t.key}
                     type="button"
                     onClick={() => setTier(t.key)}
-                    className={`flex items-center gap-4 w-full px-5 py-4 rounded-xl border-2 text-left transition
-                      ${tier === t.key ? `${t.color} ${t.active}` : "border-slate-200 hover:border-slate-300"}`}
+                    className={`relative flex w-full items-center gap-4 rounded-xl border-2 px-5 py-4 text-left transition-all duration-200
+                      ${tier === t.key ? `${t.color} ${t.active} shadow-sm` : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm"}`}
                   >
-                    <span className="text-2xl">{t.icon}</span>
-                    <div>
-                      <p className="font-semibold text-slate-800">{t.label}</p>
-                      <p className="text-xs text-slate-500 mt-0.5">{t.sub}</p>
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/75 text-2xl shadow-sm ring-1 ring-slate-100">
+                      {t.icon}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-extrabold text-slate-900">{t.label}</p>
+                        {tier === t.key ? (
+                          <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-slate-600 ring-1 ring-slate-200">
+                            Selected
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="mt-1 text-xs leading-relaxed text-slate-500">{t.sub}</p>
                     </div>
                     {tier === t.key && (
-                      <CheckCircle2 className="w-5 h-5 text-slate-600 ml-auto shrink-0" />
+                      <CheckCircle2 className="h-5 w-5 shrink-0 text-slate-600" />
                     )}
                   </button>
                 ))}
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Transport preference</label>
-              <p className="text-xs text-slate-500 mb-3">
-                Choose your preferred transport mode. This affects vehicle costs, park fees, and overall travel estimates.
-              </p>
+            <div className="pt-4 border-t border-slate-200/80">
+              <div className="mb-3 rounded-xl border border-[#02665e]/12 bg-[#02665e]/[0.035] px-4 py-3">
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#02665e]/10 text-[#02665e]">
+                    <Car className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <label className="block text-[15px] font-bold text-slate-800">Transport preference</label>
+                    <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                      Choose how you prefer to move between destinations. This changes vehicle costs, transfer assumptions, and the final estimate.
+                    </p>
+                  </div>
+                </div>
+              </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {TRANSPORT_OPTIONS.map((opt) => {
                   const Icon = opt.icon;
@@ -821,72 +922,90 @@ export default function NolScopeEstimator() {
           <div className="p-6 sm:p-8">
             {loadingEstimate && (
               <div 
-                className="relative z-10 flex items-center justify-center min-h-[500px] animate-in fade-in duration-500"
+                className="relative z-10 flex min-h-[360px] items-center justify-center animate-in fade-in duration-300"
               >
-                {/* Compact card with teal background and white slashes */}
                 <div 
-                  className="relative rounded-3xl shadow-2xl p-10 max-w-xs w-full mx-4 animate-in zoom-in-95 duration-700 overflow-hidden"
+                  className="relative mx-2 w-full max-w-md overflow-hidden rounded-2xl p-[1px] shadow-xl animate-in zoom-in-95 duration-500"
                   style={{
-                    background: 'linear-gradient(135deg, #013d38 0%, #02665e 50%, #014d47 100%)',
+                    background: "linear-gradient(135deg, rgba(2,180,245,0.45), rgba(2,102,94,0.85), rgba(20,184,166,0.35))",
                   }}
                 >
-                  {/* White diagonal slashes pattern on card */}
-                  <div 
-                    className="absolute inset-0 opacity-15"
+                  <div
+                    className="relative overflow-hidden rounded-[calc(1rem-1px)] px-5 py-6 text-white sm:px-6"
                     style={{
-                      backgroundImage: `repeating-linear-gradient(
-                        45deg,
-                        transparent,
-                        transparent 18px,
-                        white 18px,
-                        white 20px
-                      ), repeating-linear-gradient(
-                        -45deg,
-                        transparent,
-                        transparent 18px,
-                        white 18px,
-                        white 20px
-                      )`
+                      background: [
+                        "radial-gradient(circle at 16% 0%, rgba(255,255,255,0.18), transparent 30%)",
+                        "radial-gradient(circle at 100% 100%, rgba(2,180,245,0.16), transparent 32%)",
+                        "linear-gradient(135deg, #013d38 0%, #02665e 54%, #014d47 100%)",
+                      ].join(", "),
                     }}
-                  ></div>
+                  >
+                    <div
+                      className="absolute inset-0 opacity-[0.12]"
+                      style={{
+                        backgroundImage: "repeating-linear-gradient(135deg, white 0px, white 1px, transparent 1px, transparent 18px)",
+                      }}
+                    />
+                    <div className="absolute -left-16 -top-16 h-36 w-36 rounded-full bg-white/10 blur-2xl animate-pulse" />
+                    <div className="absolute -right-12 bottom-0 h-32 w-32 rounded-full bg-[#02b4f5]/20 blur-2xl animate-pulse" />
 
-                  {/* Content */}
-                  <div className="relative z-10">
-                    {/* Icon with enhanced glow */}
-                    <div className="flex justify-center mb-5">
-                      <div className="relative">
-                        <div className="absolute inset-0 bg-white/60 rounded-full blur-xl animate-pulse"></div>
-                        <div className="absolute inset-0 bg-white/40 rounded-full blur-2xl animate-ping" style={{ animationDuration: '2s' }}></div>
-                        <div className="relative w-16 h-16 rounded-full bg-white flex items-center justify-center shadow-2xl ring-4 ring-white/30 animate-pulse">
-                          <Calculator className="w-8 h-8 text-[#02665e]" />
+                    <div className="relative z-10">
+                      <div className="flex items-center gap-4">
+                        <div className="relative flex h-14 w-14 shrink-0 items-center justify-center">
+                          <div className="absolute inset-0 rounded-2xl border border-white/20" />
+                          <div className="absolute inset-1 rounded-2xl border border-dashed border-white/35 animate-spin" style={{ animationDuration: "6s" }} />
+                          <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-white text-[#02665e] shadow-lg ring-2 ring-white/25">
+                            <Calculator className="h-5 w-5" />
+                          </div>
+                        </div>
+
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/55">NoLScope</p>
+                          <h3 className="mt-0.5 text-lg font-extrabold tracking-tight text-white sm:text-xl">Calculating estimate</h3>
+                          <p className="mt-1 text-xs leading-relaxed text-white/68">
+                            Combining rates, routes, activities, and seasonal rules.
+                          </p>
                         </div>
                       </div>
-                    </div>
-                    
-                    {/* Text - white for contrast */}
-                    <h3 className="text-2xl font-bold text-white text-center mb-2 drop-shadow-lg">
-                      NoLScope
-                    </h3>
-                    <p className="text-white/90 text-center mb-6 drop-shadow">
-                      Calculating your estimate
-                    </p>
-                    
-                    {/* Animated progress bar with glow */}
-                    <div className="w-full h-2 bg-white/20 rounded-full overflow-hidden mb-5 shadow-inner">
-                      <div 
-                        className="h-full bg-white rounded-full shadow-lg animate-pulse"
-                        style={{ 
-                          width: '100%',
-                          boxShadow: '0 0 20px rgba(255, 255, 255, 0.8)'
-                        }}
-                      ></div>
-                    </div>
-                    
-                    {/* Animated dots - larger and more visible */}
-                    <div className="flex justify-center items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-white shadow-lg animate-bounce" style={{ animationDelay: '0ms', animationDuration: '0.8s' }}></div>
-                      <div className="w-3 h-3 rounded-full bg-white shadow-lg animate-bounce" style={{ animationDelay: '150ms', animationDuration: '0.8s' }}></div>
-                      <div className="w-3 h-3 rounded-full bg-white shadow-lg animate-bounce" style={{ animationDelay: '300ms', animationDuration: '0.8s' }}></div>
+
+                      <div className="mt-5 rounded-2xl border border-white/10 bg-white/8 p-3 backdrop-blur-sm">
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                          <span className="text-[11px] font-semibold text-white/70">Estimate engine</span>
+                          <span className="flex items-center gap-1 rounded-full bg-white/10 px-2 py-1 text-[10px] font-bold text-emerald-100">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-300 animate-ping" />
+                            Live
+                          </span>
+                        </div>
+                        {[
+                          "Destination rates",
+                          "Transport costs",
+                          "Cost range",
+                        ].map((label, index) => (
+                          <div key={label} className="grid grid-cols-[108px_1fr_34px] items-center gap-2 py-1.5">
+                            <span className="text-[11px] font-semibold text-white/78">{label}</span>
+                            <div className="h-1.5 overflow-hidden rounded-full bg-white/12">
+                              <div
+                                className="h-full rounded-full bg-gradient-to-r from-emerald-200 via-white to-cyan-100 shadow-[0_0_16px_rgba(255,255,255,0.65)] animate-pulse"
+                                style={{ width: `${56 + index * 15}%`, animationDelay: `${index * 140}ms` }}
+                              />
+                            </div>
+                            <span
+                              className="h-2 w-2 rounded-full bg-emerald-300 justify-self-end shadow-[0_0_12px_rgba(110,231,183,0.85)] animate-pulse"
+                              style={{ animationDelay: `${index * 180}ms` }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="mt-4 flex items-center justify-center gap-1.5">
+                        {[0, 1, 2, 3].map((dot) => (
+                          <span
+                            key={dot}
+                            className="h-1.5 w-1.5 rounded-full bg-white/70 animate-bounce"
+                            style={{ animationDelay: `${dot * 120}ms`, animationDuration: "900ms" }}
+                          />
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1427,21 +1546,21 @@ function ResultCard({ result, onRestart, nationality, availableDests }: { result
           <div className="absolute -bottom-4 -left-4 w-20 h-20 rounded-full bg-white/5" />
           <div className="absolute top-2 right-16 w-10 h-10 rounded-full bg-[#02b4f5]/10" />
 
-          <div className="relative flex items-start gap-3 px-4 py-4">
-            <div className="w-8 h-8 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
-              <Clock className="w-4 h-4 text-white" />
+          <div className="relative flex flex-col gap-3 px-3 py-4 sm:flex-row sm:items-start sm:px-4">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/20 bg-white/15 shadow-sm sm:mt-0.5">
+              <Clock className="h-4 w-4 text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-3">
-                <p className="text-sm font-bold text-white tracking-tight">Rate Data - Last Verified</p>
+              <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+                <p className="text-sm font-bold tracking-tight text-white sm:text-[15px]">Rate Data - Last Verified</p>
                 {result.dataFreshness?.lastUpdatedAt && (
-                  <span className="inline-flex items-center gap-1 text-[11px] px-2.5 py-0.5 rounded-full bg-white/20 text-white font-semibold whitespace-nowrap border border-white/25 backdrop-blur-sm">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 inline-block" />
+                  <span className="inline-flex w-fit items-center gap-1 rounded-full border border-white/25 bg-white/20 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur-sm">
+                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-300" />
                     {fmtFresh(result.dataFreshness.lastUpdatedAt)}
                   </span>
                 )}
               </div>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-x-4">
                 {[
                   { label: "Park Fees",      ts: result.dataFreshness?.categories?.parkFees },
                   { label: "Visa Fees",      ts: result.dataFreshness?.categories?.visaFees },
@@ -1450,18 +1569,18 @@ function ResultCard({ result, onRestart, nationality, availableDests }: { result
                   { label: "Seasonal Rules", ts: result.dataFreshness?.categories?.pricingRules },
                   { label: "Accommodation",  ts: null },
                 ].map(({ label, ts }) => (
-                  <div key={label} className="flex items-start gap-1.5 min-w-0 bg-white/10 rounded-lg px-2.5 py-1.5 border border-white/10">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300 shrink-0 mt-0.5" />
+                  <div key={label} className="flex min-w-0 items-start gap-2 rounded-xl border border-white/10 bg-white/10 px-3 py-2.5">
+                    <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-300" />
                     <div className="min-w-0">
-                      <p className="text-xs font-semibold text-white leading-tight">{label}</p>
-                      <p className="text-[11px] text-white/60 leading-tight truncate">
+                      <p className="text-xs font-semibold leading-tight text-white">{label}</p>
+                      <p className="mt-1 text-[11px] leading-tight text-white/65">
                         {ts ? fmtFresh(ts) : label === "Accommodation" ? "NoLSAF verified" : "—"}
                       </p>
                     </div>
                   </div>
                 ))}
               </div>
-              <p className="text-[11px] text-white/50 mt-3 leading-tight">
+              <p className="mt-3 text-[11px] leading-relaxed text-white/58">
                 Maintained by NoLSAF Research Team ·{" "}
                 Sources: TANAPA official rates · Tanzania Immigration · Operator market surveys
               </p>
