@@ -200,19 +200,17 @@ export default function OwnerSidebar({ collapsed = false }: { collapsed?: boolea
     let intervalId: ReturnType<typeof setInterval> | null = null;
     let authFailed = false;
 
-    const normalizeArray = (raw: any) =>
-      Array.isArray(raw) ? raw : (Array.isArray(raw?.data) ? raw.data : (Array.isArray(raw?.items) ? raw.items : []));
-
     const fetchCounts = async () => {
       if (!mounted || authFailed) return;
       try {
-        const [r1, r2] = await Promise.all([
-          api.get("/api/owner/bookings/checked-in", { signal: abortController.signal, timeout: 10000 }),
-          api.get("/api/owner/bookings/for-checkout", { signal: abortController.signal, timeout: 10000 }),
-        ]);
+        const response = await api.get("/api/owner/bookings/sidebar-counts", {
+          signal: abortController.signal,
+          timeout: 10000,
+        });
         if (!mounted) return;
-        setCheckedInCount(normalizeArray((r1 as any).data).length);
-        setCheckoutDueCount(normalizeArray((r2 as any).data).length);
+        const data = response.data ?? {};
+        setCheckedInCount(Number(data.checkedIn ?? 0));
+        setCheckoutDueCount(Number(data.checkoutDue ?? 0));
       } catch (err: any) {
         if (!mounted) return;
         if (err.code === "ECONNABORTED" || err.name === "AbortError" || err.message === "Request aborted") return;
