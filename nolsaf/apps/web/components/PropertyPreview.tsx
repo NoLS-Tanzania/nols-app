@@ -2695,16 +2695,17 @@ export default function PropertyPreview({
                       <div className="space-y-0">
                         {ownerAuditHistory.map((a: any, i: number) => {
                           const actionMap: Record<string, { label: string; color: string; bg: string }> = {
-                            PROPERTY_APPROVE: { label: "Approved", color: "text-emerald-700", bg: "bg-emerald-100" },
-                            PROPERTY_REJECT: { label: "Rejected", color: "text-red-700", bg: "bg-red-100" },
-                            PROPERTY_SUSPEND: { label: "Suspended", color: "text-orange-700", bg: "bg-orange-100" },
-                            PROPERTY_UNSUSPEND: { label: "Reactivated", color: "text-blue-700", bg: "bg-blue-100" },
-                            PROPERTY_UPDATE: { label: "Updated", color: "text-slate-700", bg: "bg-slate-100" },
-                            PROPERTY_SUBMIT: { label: "Submitted", color: "text-violet-700", bg: "bg-violet-100" },
+                            PROPERTY_APPROVE: { label: "Approved for listing", color: "text-emerald-700", bg: "bg-emerald-100" },
+                            PROPERTY_REJECT: { label: "Sent back for changes", color: "text-red-700", bg: "bg-red-100" },
+                            PROPERTY_SUSPEND: { label: "Temporarily suspended", color: "text-orange-700", bg: "bg-orange-100" },
+                            PROPERTY_UNSUSPEND: { label: "Restored", color: "text-blue-700", bg: "bg-blue-100" },
+                            PROPERTY_UPDATE: { label: "Details updated", color: "text-slate-700", bg: "bg-slate-100" },
+                            PROPERTY_SUBMIT: { label: "Submitted for review", color: "text-violet-700", bg: "bg-violet-100" },
                           };
                           const info = actionMap[a.action] || { label: a.action.replace(/PROPERTY_/g, "").replace(/_/g, " "), color: "text-slate-700", bg: "bg-slate-100" };
                           const dateStr = new Date(a.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
                           const timeStr = new Date(a.createdAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+                          const actorLabel = a.actorName || (a.actorRole === "ADMIN" ? "NoLSAF Review" : "You");
 
                           return (
                             <div key={a.id || i} className="relative flex items-start gap-4 pl-1 py-3">
@@ -2714,7 +2715,7 @@ export default function PropertyPreview({
                               <div className="flex-1 min-w-0 -mt-0.5">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <span className={`text-sm font-semibold ${info.color}`}>{info.label}</span>
-                                  <span className="text-xs text-slate-400">by {a.actorRole === "ADMIN" ? "Admin" : "You"}</span>
+                                  <span className="text-xs text-slate-400">by {actorLabel}</span>
                                 </div>
                                 <div className="text-xs text-slate-400 mt-0.5">{dateStr} at {timeStr}</div>
                               </div>

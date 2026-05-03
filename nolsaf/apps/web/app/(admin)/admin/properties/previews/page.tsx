@@ -20,6 +20,7 @@ type Property = {
   status: string;
   type: string | null;
   photos?: unknown;
+  roomsSpec?: unknown;
   regionName?: string | null;
   district?: string | null;
   owner?: { id: number; name?: string | null; email?: string | null } | null;
@@ -38,6 +39,7 @@ function isSafeNextImageSrc(value: unknown): value is string {
   if (typeof value !== "string") return false;
   const v = value.trim();
   if (!v) return false;
+  if (/^data:image\//i.test(v)) return true;
   if (v.startsWith("/")) return true;
   if (v.startsWith("http://") || v.startsWith("https://")) return true;
   return false;
@@ -45,6 +47,7 @@ function isSafeNextImageSrc(value: unknown): value is string {
 
 function canUseNextImageForSrc(src: string): boolean {
   if (src.startsWith("/")) return true;
+  if (/^data:image\//i.test(src)) return false;
 
   if (!src.startsWith("http://") && !src.startsWith("https://")) return false;
   try {
@@ -59,6 +62,34 @@ function canUseNextImageForSrc(src: string): boolean {
   } catch {
     return false;
   }
+}
+
+function normalizeRoomsSpec(value: unknown): any[] {
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function effectiveBasePrice(property: Pick<Property, "basePrice" | "roomsSpec">): number | null {
+  const explicit = property.basePrice != null ? Number(property.basePrice) : NaN;
+  if (Number.isFinite(explicit) && explicit > 0) return explicit;
+
+  const roomPrices = normalizeRoomsSpec(property.roomsSpec)
+    .map((room: any) => {
+      const raw = room?.pricePerNight ?? room?.price ?? null;
+      const value = Number(raw);
+      return Number.isFinite(value) && value > 0 ? value : null;
+    })
+    .filter((value: number | null): value is number => value != null);
+
+  return roomPrices.length ? Math.min(...roomPrices) : null;
 }
 
 export default function PropertyPreviewsPage() {
@@ -490,6 +521,7 @@ export default function PropertyPreviewsPage() {
                 if (isSafeNextImageSrc(property.photos)) return property.photos;
                 return null;
               })();
+              const displayBasePrice = effectiveBasePrice(property);
               
               const hotelStarLabels: Record<string, string> = {
                 "basic": "1★",
@@ -584,9 +616,9 @@ export default function PropertyPreviewsPage() {
                   </div>
 
                       {/* Price */}
-                      {property.basePrice && (() => {
+                      {displayBasePrice && (() => {
                         const commission = getPropertyCommission(property, systemCommission);
-                        const finalPrice = calculatePriceWithCommission(property.basePrice, commission);
+                        const finalPrice = calculatePriceWithCommission(displayBasePrice, commission);
                         return (
                           <div className="flex items-baseline gap-1">
                             <div className="text-sm font-bold text-slate-900">

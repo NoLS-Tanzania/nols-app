@@ -55,6 +55,20 @@ const limitNolScopeList = rateLimit({
 
 // ─── validation schemas ───────────────────────────────────────────────────────
 
+const TransportPreferenceSchema = z.preprocess((value) => {
+  if (typeof value !== 'string') return value;
+
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return undefined;
+
+  if (normalized === 'private') return 'private-car';
+  if (normalized === 'shared') return 'shared-taxi';
+
+  return normalized;
+}, z.enum([
+  'flight', 'bus', 'private-car', 'ferry', 'shared-taxi', 'any'
+], { errorMap: () => ({ message: 'Invalid transport preference' }) }));
+
 const EstimateRequestSchema = z.object({
   nationality: z.string()
     .length(2, 'Nationality must be 2-letter country code')
@@ -95,9 +109,7 @@ const EstimateRequestSchema = z.object({
       .default(0)
   }),
   
-  transportPreference: z.enum([
-    'flight', 'bus', 'private-car', 'ferry', 'shared-taxi', 'any'
-  ], { errorMap: () => ({ message: 'Invalid transport preference' }) })
+  transportPreference: TransportPreferenceSchema
     .optional()
     .default('any'),
   

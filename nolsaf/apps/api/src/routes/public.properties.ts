@@ -4,6 +4,7 @@ import { prisma } from "@nolsaf/prisma";
 import { toPublicCard, toPublicDetail } from "../lib/publicPropertyDto.js";
 import { Prisma } from "@prisma/client";
 import { withCache, cacheKeys, cacheTags, measureTime } from "../lib/performance.js";
+import { REAL_BOOKING_STATUSES } from "../lib/bookingStatus.js";
 
 const router = Router();
 
@@ -30,6 +31,28 @@ function parseCsv(v: any): string[] {
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+function expandPropertyTypeFilters(types: string[]): string[] {
+  const aliases = new Set<string>();
+  for (const raw of types) {
+    const value = String(raw || "").trim();
+    if (!value) continue;
+
+    const spaced = value.replace(/_/g, " ").trim();
+    const titled = spaced
+      .toLowerCase()
+      .replace(/\b\w/g, (ch) => ch.toUpperCase());
+
+    aliases.add(value);
+    aliases.add(value.toUpperCase());
+    aliases.add(value.toLowerCase());
+    aliases.add(spaced);
+    aliases.add(spaced.toUpperCase());
+    aliases.add(spaced.toLowerCase());
+    aliases.add(titled);
+  }
+  return Array.from(aliases).filter(Boolean);
 }
 
 function parseAmenities(v: any): string[] {
@@ -130,6 +153,7 @@ const listPublicProperties: RequestHandler = async (req, res) => {
   const street = String((req.query as any)?.street ?? "").trim();
   const city = String((req.query as any)?.city ?? "").trim();
   const types = parseCsv((req.query as any)?.types ?? (req.query as any)?.type);
+  const typeFilters = expandPropertyTypeFilters(types);
   const amenities = parseAmenities((req.query as any)?.amenities ?? (req.query as any)?.services);
   const nearbyServices = parseCsv((req.query as any)?.nearbyServices);
   const paymentModes = parseCsv((req.query as any)?.paymentModes);
@@ -208,7 +232,7 @@ const listPublicProperties: RequestHandler = async (req, res) => {
   if (ward) where.ward = { contains: ward };
   if (street) where.street = { contains: street };
   if (city) where.city = { contains: city };
-  if (types.length > 0) where.type = { in: types };
+  if (typeFilters.length > 0) where.type = { in: typeFilters };
 
   // Services filter: Property.services is Json (array of strings)
   // We implement "must include all selected tags" via JSON_CONTAINS (MySQL).
@@ -330,15 +354,74 @@ const listPublicProperties: RequestHandler = async (req, res) => {
               sort !== "price_asc" &&
               sort !== "price_desc";
 
-            if (isParkBrowse) {
+            const isLatestApprovedTypeBrowse =
+              sort === "latest_approved" &&
+              types.length > 0 &&
+              !q &&
+              !region &&
+              !district &&
+              !ward &&
+              !street &&
+              !city &&
+              !tourismSiteSlug &&
+              !parkPlacement &&
+              serviceTags.length === 0 &&
+              minPrice === undefined &&
+              maxPrice === undefined &&
+              guests === undefined &&
+              !(typeof nearLat === "number" && typeof nearLng === "number");
+
+            if (isLatestApprovedTypeBrowse) {
+              const rows = (await prisma.$queryRaw(
+                Prisma.sql`
+                  SELECT
+                    p.id, p.title, p.type, p.parkPlacement, p.regionName,
+                    p.district, p.ward, p.street, p.city, p.country,
+                    p.services, p.basePrice, p.currency, p.roomsSpec,
+                    p.maxGuests, p.totalBedrooms, p.totalBathrooms,
+                    COALESCE(
+                      (SELECT pi.thumbnailUrl FROM \`property_images\` pi
+                        WHERE pi.propertyId = p.id
+                          AND pi.status IN ('READY','PROCESSING')
+                          AND pi.thumbnailUrl IS NOT NULL
+                        ORDER BY pi.id ASC LIMIT 1),
+                      (SELECT pi.url FROM \`property_images\` pi
+                        WHERE pi.propertyId = p.id
+                          AND pi.url IS NOT NULL
+                        ORDER BY pi.id ASC LIMIT 1),
+                      CASE
+                        WHEN JSON_EXTRACT(p.photos, '$[0]') IS NOT NULL
+                          AND JSON_UNQUOTE(JSON_EXTRACT(p.photos, '$[0]')) != ''
+                        THEN JSON_UNQUOTE(JSON_EXTRACT(p.photos, '$[0]'))
+                        ELSE NULL
+                      END
+                    ) AS primaryImage
+                  FROM \`property\` p
+                  LEFT JOIN (
+                    SELECT entityId, MAX(createdAt) AS approvedAt
+                    FROM \`auditlog\`
+                    WHERE entity = 'PROPERTY'
+                      AND action IN ('PROPERTY_APPROVE', 'PROPERTY_UNSUSPEND')
+                    GROUP BY entityId
+                  ) latestApproval ON latestApproval.entityId = p.id
+                  WHERE p.status = 'APPROVED'
+                    AND p.type IN (${Prisma.join(typeFilters.map((t) => Prisma.sql`${t}`))})
+                  ORDER BY COALESCE(latestApproval.approvedAt, p.updatedAt, p.createdAt) DESC, p.id DESC
+                  LIMIT ${pageSize} OFFSET ${skip}
+                `
+              )) as any[];
+
+              items = rows || [];
+              total = await prisma.property.count({ where });
+            } else if (isParkBrowse) {
               // Park/tourism-site browsing can still trigger MariaDB "Out of sort memory" even
               // with ORDER BY id when the optimizer chooses a non-PK index and then filesorts.
               // Use a PK-desc scan for ids and then hydrate rows.
               const tourismSiteId = Number(where.tourismSiteId);
               if (!Number.isFinite(tourismSiteId)) return { items: [], total: 0, page, pageSize };
 
-              const typeClause = types.length
-                ? Prisma.sql` AND type IN (${Prisma.join(types.map((t) => Prisma.sql`${t}`))})`
+              const typeClause = typeFilters.length
+                ? Prisma.sql` AND type IN (${Prisma.join(typeFilters.map((t) => Prisma.sql`${t}`))})`
                 : Prisma.empty;
 
               const placementClause = parkPlacement
@@ -405,8 +488,8 @@ const listPublicProperties: RequestHandler = async (req, res) => {
               // MariaDB can throw "Out of sort memory" when it picks a non-PK index for filters
               // and then needs a filesort for ORDER BY. Force a PK scan (descending) and apply
               // filters as it scans until it collects enough ids.
-              const typeClause = types.length
-                ? Prisma.sql` AND type IN (${Prisma.join(types.map((t) => Prisma.sql`${t}`))})`
+              const typeClause = typeFilters.length
+                ? Prisma.sql` AND type IN (${Prisma.join(typeFilters.map((t) => Prisma.sql`${t}`))})`
                 : Prisma.empty;
 
               const idsRows = (await prisma.$queryRaw(
@@ -780,7 +863,7 @@ router.get("/:id/booking-count", (async (req, res) => {
     const count = await prisma.booking.count({
       where: {
         propertyId: id,
-        status: { in: ["CONFIRMED", "CHECKED_IN", "CHECKED_OUT", "NEW"] },
+        status: { in: [...REAL_BOOKING_STATUSES] },
       },
     });
     return res.json({ count });

@@ -107,7 +107,7 @@ function isRenderablePublicImageUrl(url: string) {
   if (!u) return false;
   if (u.startsWith("blob:")) return false;
   if (u.startsWith("file:")) return false;
-  if (u.startsWith("data:")) return false;
+  if (u.startsWith("data:")) return /^data:image\//i.test(u);
   return true;
 }
 

@@ -18,7 +18,6 @@ import {
   Circle,
   Clock,
   Trash2,
-  ChevronLeft,
   BookOpen,
   Shield as ShieldIcon,
   Star,
@@ -622,7 +621,7 @@ export default function PendingProps() {
             </div>
             <div className="flex items-start gap-3">
               <Bell className="w-5 h-5 text-[#02665e] mt-0.5 flex-shrink-0" />
-              <p className="text-sm text-slate-700 leading-relaxed">You will receive an email and in-app notification once the review is complete — whether approved or if changes are needed.</p>
+              <p className="text-sm text-slate-700 leading-relaxed">You will receive an email and in-app notification once the review is complete, whether approved or if changes are needed.</p>
             </div>
           </div>
         </div>
@@ -673,7 +672,7 @@ export default function PendingProps() {
             {[
               "Your property will appear in public search results and be available for booking by guests.",
               "Guests can browse your listing, photos, amenities, room types, and pricing details.",
-              "You will receive booking requests via email and in-app notifications — respond within 24 hours.",
+              "You will receive booking requests via email and in-app notifications.",
               "You can update photos, pricing, and room availability anytime from your owner dashboard.",
               "Maintain a high response rate and quality standards to rank higher in search results.",
             ].map((text, i) => (
@@ -706,7 +705,7 @@ export default function PendingProps() {
                 <span className="text-lg">💰</span>
                 <div>
                   <p className="text-sm font-bold text-slate-800">Your Earnings</p>
-                  <p className="text-sm text-slate-600 leading-relaxed">You receive your full base price. The platform commission is added on top of your price and paid by the guest — it does not reduce your earnings.</p>
+                  <p className="text-sm text-slate-600 leading-relaxed">You receive your full base price. The platform commission is added on top of your price and paid by the guest. It does not reduce your earnings.</p>
                 </div>
               </div>
               <div className="flex items-start gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-100">

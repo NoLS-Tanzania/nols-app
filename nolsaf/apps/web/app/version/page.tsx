@@ -66,7 +66,7 @@ export default function VersionPage() {
       <section className="border-t border-slate-100 py-8 px-4">
         <div className="max-w-3xl mx-auto flex flex-wrap items-center justify-between gap-4 text-sm text-slate-500">
           <span>
-            &copy; {new Date().getFullYear()} NoLSAF &mdash; All rights reserved.
+            &copy; {new Date().getFullYear()} NoLSAF | All rights reserved.
           </span>
           <div className="flex gap-4">
             <Link href="/" className="text-[#02665e] font-semibold hover:underline">

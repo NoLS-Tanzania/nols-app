@@ -152,7 +152,7 @@ function buildSecurityFooter(): string {
     </tr>`;
 }
 
-// ─── Security email wrapper ───────────────────────────────────────────────────
+// ─── Security email wrapper ────
 /**
  * Security-themed email shell — dark navy/slate header with an embedded
  * lock SVG watermark. Used for password reset, password-changed confirmation,

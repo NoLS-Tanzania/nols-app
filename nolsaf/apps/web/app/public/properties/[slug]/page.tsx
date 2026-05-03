@@ -3,6 +3,7 @@
 import "mapbox-gl/dist/mapbox-gl.css";
 
 import Image from "next/image";
+import { createPortal } from "react-dom";
 
 import Link from "next/link";
 
@@ -102,6 +103,43 @@ import {
 } from "../../../../lib/priceUtils";
 
 import { BATHROOM_ICONS, OTHER_AMENITIES_ICONS } from "../../../../lib/amenityIcons";
+
+function PropertyGalleryImage({
+  src,
+  alt,
+  sizes,
+  priority = false,
+  className = "object-cover",
+}: {
+  src: string;
+  alt: string;
+  sizes: string;
+  priority?: boolean;
+  className?: string;
+}) {
+  if (/^data:image\//i.test(src)) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={src} alt={alt} className={`h-full w-full ${className}`} loading={priority ? "eager" : "lazy"} />;
+  }
+
+  return (
+    <Image
+      src={src}
+      alt={alt}
+      fill
+      className={className}
+      sizes={sizes}
+      priority={priority}
+      unoptimized={
+        !(
+          src.includes("cloudinary") ||
+          src.startsWith("http://localhost") ||
+          src.startsWith("http://127.0.0.1")
+        )
+      }
+    />
+  );
+}
 
 type PublicPropertyDetail = {
   id: number;
@@ -1679,6 +1717,11 @@ export default function PublicPropertyDetailPage() {
   const [activeIdx, setActiveIdx] = useState(0);
   const [allPhotosOpen, setAllPhotosOpen] = useState(false);
   const [allPhotosShown, setAllPhotosShown] = useState(false);
+  const [photoPortalReady, setPhotoPortalReady] = useState(false);
+
+  useEffect(() => {
+    setPhotoPortalReady(true);
+  }, []);
   const openLightbox = (idx: number) => {
     setActiveIdx(Math.max(0, Math.min(idx, lightboxImages.length - 1)));
     setLightboxOpen(true);
@@ -2039,14 +2082,7 @@ export default function PublicPropertyDetailPage() {
                 onClick={() => openLightbox(0)}
                 aria-label="Open photo gallery"
               >
-                <Image
-                  src={gallery[0]}
-                  alt={`${property.title} photo 1`}
-                  fill
-                  className="object-cover"
-                  sizes="(min-width: 768px) 66vw, 100vw"
-                  priority
-                />
+                <PropertyGalleryImage src={gallery[0]} alt={`${property.title} photo 1`} sizes="(min-width: 768px) 66vw, 100vw" priority />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/0 to-black/0" />
               </button>
               <div className="grid grid-cols-2 md:grid-cols-1 gap-3 bg-white p-3">
@@ -2063,13 +2099,7 @@ export default function PublicPropertyDetailPage() {
                     onClick={() => openLightbox(1)}
                     aria-label="Open photo 2"
                   >
-                    <Image
-                      src={gallery[1]}
-                      alt={`${property.title} photo 2`}
-                      fill
-                      className="object-cover"
-                      sizes="(min-width: 768px) 22vw, 50vw"
-                    />
+                    <PropertyGalleryImage src={gallery[1]} alt={`${property.title} photo 2`} sizes="(min-width: 768px) 22vw, 50vw" />
                   </button>
                 ) : (
                   <div className="relative aspect-[16/10] bg-slate-100 rounded-xl overflow-hidden">
@@ -2093,13 +2123,7 @@ export default function PublicPropertyDetailPage() {
                     onClick={() => (hasMorePhotos ? openAllPhotos() : openLightbox(2))}
                     aria-label={hasMorePhotos ? "View all photos" : "Open photo 3"}
                   >
-                    <Image
-                      src={gallery[2]}
-                      alt={`${property.title} photo 3`}
-                      fill
-                      className="object-cover"
-                      sizes="(min-width: 768px) 22vw, 50vw"
-                    />
+                    <PropertyGalleryImage src={gallery[2]} alt={`${property.title} photo 3`} sizes="(min-width: 768px) 22vw, 50vw" />
                                         {hasMorePhotos ? (
                       <div className="absolute right-3 bottom-3">
                         <div className="inline-flex items-center gap-1.5 rounded-full bg-black/60 backdrop-blur-sm px-2.5 py-1.5 shadow-sm ring-1 ring-white/10">
@@ -4064,9 +4088,9 @@ export default function PublicPropertyDetailPage() {
           )}
         </div>
       {/* Lightbox */}
-      {lightboxOpen && lightboxImages.length > 0 ? (
+      {photoPortalReady && lightboxOpen && lightboxImages.length > 0 ? createPortal((
         <div
-          className="fixed inset-0 z-[200] bg-black/70 backdrop-blur-sm"
+          className="fixed inset-0 z-[2147483647] bg-black/90 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
           aria-label="Photo gallery"
@@ -4074,33 +4098,32 @@ export default function PublicPropertyDetailPage() {
             if (e.target === e.currentTarget) closeLightbox();
           }}
         >
-          <div className="absolute inset-0 flex items-center justify-center p-4">
-            <div className="w-full max-w-4xl">
-              <div className="flex items-center justify-between mb-3">
-                <div className="text-white text-sm font-semibold truncate">{property.title}</div>
-                <button
-                  type="button"
-                  className="h-10 w-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center"
-                  onClick={closeLightbox}
-                  aria-label="Close"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+          <div className="absolute inset-x-0 top-0 z-[2147483647] border-b border-white/10 bg-black/70 px-4 py-3 backdrop-blur-md">
+            <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="truncate text-sm font-semibold text-white">{property.title}</div>
+                <div className="text-xs text-white/60">{activeIdx + 1} of {lightboxImages.length} photos</div>
               </div>
+              <button
+                type="button"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 text-sm font-semibold text-white shadow-lg hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+                onClick={closeLightbox}
+                aria-label="Close photo gallery"
+              >
+                <X className="w-4 h-4" />
+                <span>Close</span>
+              </button>
+            </div>
+          </div>
+          <div className="absolute inset-0 flex items-center justify-center px-3 pb-4 pt-24 sm:p-6 sm:pt-24">
+            <div className="w-full max-w-5xl">
               {/* Main image (compact like your sample) */}
               <div className="mx-auto w-full max-w-[720px]">
-                <div className="relative rounded-2xl overflow-hidden bg-black h-[62vh] max-h-[520px] min-h-[320px]">
-                  <Image
-                    src={lightboxImages[activeIdx]}
-                    alt={`${property.title} photo ${activeIdx + 1}`}
-                    fill
-                    className="object-contain"
-                    sizes="(min-width: 1024px) 720px, 100vw"
-                    priority
-                  />
+                <div className="relative rounded-2xl overflow-hidden bg-black h-[58vh] max-h-[520px] min-h-[280px] sm:h-[62vh]">
+                  <PropertyGalleryImage src={lightboxImages[activeIdx]} alt={`${property.title} photo ${activeIdx + 1}`} sizes="(min-width: 1024px) 720px, 100vw" className="object-contain" priority />
                   <button
                     type="button"
-                    className="absolute left-3 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 h-11 w-11 rounded-full border border-white/20 bg-black/45 hover:bg-black/65 text-white flex items-center justify-center shadow-lg backdrop-blur-sm"
                     onClick={() => setActiveIdx((i) => (i <= 0 ? lightboxImages.length - 1 : i - 1))}
                     aria-label="Previous photo"
                   >
@@ -4108,7 +4131,7 @@ export default function PublicPropertyDetailPage() {
                   </button>
                   <button
                     type="button"
-                    className="absolute right-3 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 h-11 w-11 rounded-full border border-white/20 bg-black/45 hover:bg-black/65 text-white flex items-center justify-center shadow-lg backdrop-blur-sm"
                     onClick={() => setActiveIdx((i) => (i >= lightboxImages.length - 1 ? 0 : i + 1))}
                     aria-label="Next photo"
                   >
@@ -4121,7 +4144,7 @@ export default function PublicPropertyDetailPage() {
                 {activeIdx + 1} / {lightboxImages.length}
               </div>
               {/* Thumbnails strip */}
-              <div className="mt-4 mx-auto w-full max-w-[920px] flex gap-2 overflow-x-auto pb-2 justify-center">
+              <div className="mt-4 mx-auto w-full max-w-[920px] flex gap-2 overflow-x-auto pb-2 sm:justify-center">
                 {lightboxImages.map((src, i) => (
                   <button
                     key={`${src}-${i}`}
@@ -4136,18 +4159,18 @@ export default function PublicPropertyDetailPage() {
                     onClick={() => setActiveIdx(i)}
                     aria-label={`View photo ${i + 1}`}
                   >
-                    <Image src={src} alt={`thumb ${i + 1}`} fill className="object-cover" sizes="120px" />
+                    <PropertyGalleryImage src={src} alt={`thumb ${i + 1}`} sizes="120px" />
                   </button>
                 ))}
               </div>
             </div>
           </div>
         </div>
-      ) : null}
+      ), document.body) : null}
       {/* All photos (masonry/grid) */}
-      {allPhotosOpen ? (
+      {photoPortalReady && allPhotosOpen ? createPortal((
         <div
-          className="fixed inset-0 z-[500] bg-black/40 p-3 sm:p-6"
+          className="fixed inset-0 z-[2147483647] bg-black/70 p-3 sm:p-6"
           role="dialog"
           aria-modal="true"
           aria-label="All photos"
@@ -4174,7 +4197,7 @@ export default function PublicPropertyDetailPage() {
                 <button
                   type="button"
                   onClick={closeAllPhotos}
-                  className="h-10 w-10 rounded-xl border border-slate-200 bg-white flex items-center justify-center hover:bg-slate-50"
+                  className="h-11 w-11 rounded-full border border-slate-200 bg-white flex items-center justify-center shadow-sm hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30"
                   aria-label="Close"
                 >
                   <X className="w-5 h-5 text-slate-700" />
@@ -4209,13 +4232,7 @@ export default function PublicPropertyDetailPage() {
                         aria-label={`Open photo ${i + 1}`}
                       >
                         <div className="relative w-full aspect-[4/3]">
-                          <Image
-                            src={src}
-                            alt={`${property.title} photo ${i + 1}`}
-                            fill
-                            className="object-cover"
-                            sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
-                          />
+                          <PropertyGalleryImage src={src} alt={`${property.title} photo ${i + 1}`} sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw" />
                           <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-t from-black/35 via-black/0 to-black/0" />
                         </div>
                       </button>
@@ -4226,7 +4243,7 @@ export default function PublicPropertyDetailPage() {
             </div>
           </div>
         </div>
-      ) : null}
+      ), document.body) : null}
     </main>
   );
 

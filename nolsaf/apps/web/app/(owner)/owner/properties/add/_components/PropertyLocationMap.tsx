@@ -494,7 +494,7 @@ export const PropertyLocationMap = memo(function PropertyLocationMap({
                   <div className="min-w-0 flex-1">
                     <p className="text-[13px] font-extrabold" style={{ color: "#92400e" }}>Weak GPS signal</p>
                     <p className="mt-0.5 text-[11.5px] leading-relaxed font-medium" style={{ color: "#78350f" }}>
-                      ~{Math.round(acc!)} m margin of error — step outside or use the map to place the pin precisely.
+                      ~{Math.round(acc!)} m margin of error. Step outside or use the map to place the pin precisely.
                     </p>
                   </div>
                 </div>

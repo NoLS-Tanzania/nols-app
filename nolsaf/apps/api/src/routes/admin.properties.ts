@@ -51,6 +51,62 @@ const adminPropertyOwnerSelect = {
   phone: true,
 } as const;
 
+function normalizePhotoList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .map((photo) => (typeof photo === "string" ? photo.trim() : ""))
+      .filter(Boolean);
+  }
+
+  if (typeof value === "string") {
+    const raw = value.trim();
+    if (!raw) return [];
+    if (raw.startsWith("[")) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          return parsed
+            .map((photo) => (typeof photo === "string" ? photo.trim() : ""))
+            .filter(Boolean);
+        }
+      } catch {
+        // fall back to direct string handling below
+      }
+    }
+    return [raw];
+  }
+
+  return [];
+}
+
+function normalizeRoomsSpec(value: unknown): any[] {
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function effectivePropertyBasePrice(property: { basePrice?: unknown; roomsSpec?: unknown }): number | null {
+  const explicit = property.basePrice != null ? Number(property.basePrice) : NaN;
+  if (Number.isFinite(explicit) && explicit > 0) return explicit;
+
+  const roomPrices = normalizeRoomsSpec(property.roomsSpec)
+    .map((room: any) => {
+      const raw = room?.pricePerNight ?? room?.price ?? null;
+      const value = Number(raw);
+      return Number.isFinite(value) && value > 0 ? value : null;
+    })
+    .filter((value: number | null): value is number => value != null);
+
+  return roomPrices.length ? Math.min(...roomPrices) : null;
+}
+
 // Drift-safe select: avoid selecting columns that may not exist in older DBs
 // (e.g. Property.tourismSiteId).
 const adminPropertyDTOSelect = {
@@ -186,6 +242,14 @@ router.get("/", (async (req: AuthedRequest, res) => {
             regionName: true,
             district: true,
             photos: true,
+            images: {
+              select: {
+                url: true,
+                thumbnailUrl: true,
+              },
+              orderBy: { createdAt: "asc" },
+              take: 3,
+            },
             basePrice: true,
             currency: true,
             services: true,
@@ -245,6 +309,8 @@ router.get("/", (async (req: AuthedRequest, res) => {
       regionName?: string | null;
       district?: string | null;
       photos?: string[] | null;
+      images?: Array<{ url?: string | null; thumbnailUrl?: string | null }> | null;
+      roomsSpec?: any;
       basePrice?: number | null;
       currency?: string | null;
       services?: any;
@@ -260,6 +326,7 @@ router.get("/", (async (req: AuthedRequest, res) => {
       regionName?: string | null;
       district?: string | null;
       photos: string[];
+      roomsSpec?: any;
       basePrice?: number | null;
       currency?: string | null;
       services?: any;
@@ -382,6 +449,15 @@ router.get("/", (async (req: AuthedRequest, res) => {
           servicesValue = null;
         }
         
+        const photosFromJson = normalizePhotoList(p.photos);
+        const photosFromImages = Array.isArray(p.images)
+          ? p.images
+              .map((image) => image?.thumbnailUrl || image?.url || "")
+              .filter((photo): photo is string => typeof photo === "string" && photo.trim().length > 0)
+          : [];
+        const mergedPhotos = (photosFromImages.length > 0 ? photosFromImages : photosFromJson).slice(0, 3);
+
+        const effectiveBasePrice = effectivePropertyBasePrice(p);
         const item: any = {
           id: typeof p.id === 'bigint' ? Number(p.id) : Number(p.id),
           title: String(p.title || ''),
@@ -390,8 +466,9 @@ router.get("/", (async (req: AuthedRequest, res) => {
           owner: ownerObj,
           regionName: p.regionName ? String(p.regionName) : null,
           district: p.district ? String(p.district) : null,
-          photos: Array.isArray(p.photos) ? p.photos.slice(0, 3).map((photo: any) => String(photo)) : [],
-          basePrice: p.basePrice !== null && p.basePrice !== undefined ? Number(p.basePrice) : null,
+          photos: mergedPhotos,
+          roomsSpec: p.roomsSpec ?? null,
+          basePrice: effectiveBasePrice,
           currency: p.currency ? String(p.currency) : null,
           services: servicesValue,
           updatedAt: p.updatedAt instanceof Date ? p.updatedAt.toISOString() : (typeof p.updatedAt === 'string' ? p.updatedAt : new Date().toISOString()),
@@ -424,7 +501,8 @@ router.get("/", (async (req: AuthedRequest, res) => {
             regionName: p?.regionName ?? null,
             district: p?.district ?? null,
             photos: [],
-            basePrice: p?.basePrice ?? null,
+            roomsSpec: p?.roomsSpec ?? null,
+            basePrice: effectivePropertyBasePrice(p),
             currency: p?.currency ?? null,
             services: p?.services ?? null,
             updatedAt: p?.updatedAt instanceof Date ? p.updatedAt.toISOString() : new Date().toISOString(),

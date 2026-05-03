@@ -479,7 +479,7 @@ export default function Page() {
       try {
         const pairs = await Promise.all(
           PROPERTY_TYPE_CARDS.map(async (t) => {
-            const res = await fetch(`/api/public/properties?types=${encodeURIComponent(t.key)}&page=1&pageSize=1`, {
+            const res = await fetch(`/api/public/properties?types=${encodeURIComponent(t.key)}&page=1&pageSize=1&sort=latest_approved`, {
               cache: "no-store",
             });
             if (!res.ok) return [t.key, null, null] as const;

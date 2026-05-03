@@ -1,5 +1,6 @@
 // apps/api/src/lib/bookingAvailability.ts
 import { prisma } from "@nolsaf/prisma";
+import { AVAILABILITY_BLOCKING_BOOKING_STATUSES } from "./bookingStatus.js";
 
 /**
  * Check if a property is available for the given dates
@@ -17,9 +18,7 @@ export async function checkPropertyAvailability(
   const conflictingBookings = await prisma.booking.findMany({
     where: {
       propertyId,
-      status: {
-        in: ["NEW", "CONFIRMED", "CHECKED_IN"], // Only active bookings matter
-      },
+      status: { in: [...AVAILABILITY_BLOCKING_BOOKING_STATUSES] },
       // Check for date overlap: existing booking starts before requested checkout
       // AND existing booking ends after requested checkin
       AND: [
@@ -118,4 +117,3 @@ export async function checkGuestCapacity(
 
   return { canAccommodate: true, maxGuests };
 }
-

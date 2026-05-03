@@ -12,6 +12,7 @@ import { sanitizeText } from "../lib/sanitize.js";
 import { maybeAuth } from "../middleware/auth.js";
 import { AUTO_DISPATCH_LOOKAHEAD_MS, MIN_TRANSPORT_LEAD_MS } from "../lib/transportPolicy.js";
 import { generateTransportTripCode } from "../lib/tripCode.js";
+import { AVAILABILITY_BLOCKING_BOOKING_STATUSES } from "../lib/bookingStatus.js";
 
 /** Sign a short-lived token proving the caller created this booking. */
 function signBookingAccessToken(bookingId: number): string {
@@ -479,9 +480,7 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
       const conflictingBookings = await tx.booking.findMany({
         where: {
           propertyId: data.propertyId,
-          status: {
-            in: ["NEW", "CONFIRMED", "CHECKED_IN"],
-          },
+          status: { in: [...AVAILABILITY_BLOCKING_BOOKING_STATUSES] },
           AND: [
             { checkIn: { lt: checkOut } },
             { checkOut: { gt: checkIn } },
@@ -917,7 +916,7 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
       const finalConflictingBookings = await tx.booking.findMany({
         where: {
           propertyId: data.propertyId,
-          status: { in: ["NEW", "CONFIRMED", "CHECKED_IN"] },
+          status: { in: [...AVAILABILITY_BLOCKING_BOOKING_STATUSES] },
           AND: [{ checkIn: { lt: checkOut } }, { checkOut: { gt: checkIn } }],
         },
       });

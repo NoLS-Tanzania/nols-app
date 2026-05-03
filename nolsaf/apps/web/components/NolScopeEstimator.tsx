@@ -195,8 +195,8 @@ const TIERS = [
 
 const TRANSPORT_OPTIONS = [
   { value: "any", label: "Best available", icon: Sparkles, color: "#02665e" },
-  { value: "shared", label: "Shared / public", icon: Users, color: "#10b981" },
-  { value: "private", label: "Private vehicle", icon: Car, color: "#3b82f6" },
+  { value: "shared-taxi", label: "Shared / public", icon: Users, color: "#10b981" },
+  { value: "private-car", label: "Private vehicle", icon: Car, color: "#3b82f6" },
   { value: "flight", label: "Charter / flight", icon: Plane, color: "#8b5cf6" },
   { value: "bus", label: "Bus / ferry", icon: Bus, color: "#f59e0b" },
 ];
