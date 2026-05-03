@@ -42,7 +42,7 @@ export default function PropertyEditModal({ property, isOpen, onClose, onSave }:
 
   async function loadSystemSettings() {
     try {
-      const response = await api.get("/api/admin/settings");
+      const response = await api.get("/api/public/support/system-settings");
       if (response.data?.commissionPercent !== undefined) {
         const commission = Number(response.data.commissionPercent);
         setSystemCommission(isNaN(commission) ? 0 : commission);

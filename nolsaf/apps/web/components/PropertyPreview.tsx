@@ -312,7 +312,7 @@ export default function PropertyPreview({
     let mounted = true;
     const load = async () => {
       try {
-        const response = await api.get("/admin/settings");
+        const response = await api.get("/api/public/support/system-settings");
         if (mounted && response.data?.commissionPercent !== undefined) {
           const commission = Number(response.data.commissionPercent);
           setSystemCommission(isNaN(commission) ? 0 : commission);
@@ -3085,7 +3085,7 @@ export default function PropertyPreview({
             
             // Also reload system commission in case it changed
             try {
-              const response = await api.get("/admin/settings");
+              const response = await api.get("/api/public/support/system-settings");
               if (response.data?.commissionPercent !== undefined) {
                 const commission = Number(response.data.commissionPercent);
                 setSystemCommission(isNaN(commission) ? 0 : commission);
