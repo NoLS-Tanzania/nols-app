@@ -46,7 +46,7 @@ export default function CheckedIn() {
     let mounted = true;
     setLoading(true);
 
-    const url = "/api/owner/bookings/checked-in";
+    const url = "/api/owner/bookings/checked-in?source=checked-in-page";
 
     api.get<CheckedInBooking[] | { data: CheckedInBooking[] } | { items: CheckedInBooking[] }>(url)
       .then((r) => {

@@ -424,6 +424,7 @@ model Booking {
   @@index([createdAt]) // For time-based queries (e.g., bookings in last 24h)
   @@index([status, checkIn])
   @@index([status, createdAt]) // For filtering by status and creation time
+  @@index([propertyId, status, checkOut], map: "idx_Booking_property_status_checkOut")
   @@index([includeTransport])
   @@index([includeTransport, transportScheduledDate])
   @@map("booking")

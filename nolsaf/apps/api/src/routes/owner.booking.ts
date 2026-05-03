@@ -258,17 +258,24 @@ const getSidebarBookingCounts: RequestHandler = async (req, res) => {
     const ownerId = r.user?.id;
     if (!ownerId) return res.status(401).json({ error: "Unauthorized" });
 
+    const propertyIds = await prisma.property.findMany({
+      where: { ownerId },
+      select: { id: true },
+    });
+    const ids = propertyIds.map((p) => p.id);
+    if (ids.length === 0) return res.json({ checkedIn: 0, checkoutDue: 0 });
+
     const cutoff = new Date(Date.now() + 7 * 60 * 60 * 1000);
     const [checkedIn, checkoutDue] = await Promise.all([
       prisma.booking.count({
         where: {
-          property: { ownerId },
+          propertyId: { in: ids },
           status: "CHECKED_IN",
         },
       }),
       prisma.booking.count({
         where: {
-          property: { ownerId },
+          propertyId: { in: ids },
           status: "CHECKED_IN",
           checkOut: { lte: cutoff },
         },
