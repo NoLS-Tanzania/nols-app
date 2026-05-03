@@ -198,12 +198,13 @@ export default function OwnerSidebar({ collapsed = false }: { collapsed?: boolea
     let mounted = true;
     const abortController = new AbortController();
     let intervalId: ReturnType<typeof setInterval> | null = null;
+    let authFailed = false;
 
     const normalizeArray = (raw: any) =>
       Array.isArray(raw) ? raw : (Array.isArray(raw?.data) ? raw.data : (Array.isArray(raw?.items) ? raw.items : []));
 
     const fetchCounts = async () => {
-      if (!mounted) return;
+      if (!mounted || authFailed) return;
       try {
         const [r1, r2] = await Promise.all([
           api.get("/api/owner/bookings/checked-in", { signal: abortController.signal, timeout: 10000 }),
@@ -215,6 +216,15 @@ export default function OwnerSidebar({ collapsed = false }: { collapsed?: boolea
       } catch (err: any) {
         if (!mounted) return;
         if (err.code === "ECONNABORTED" || err.name === "AbortError" || err.message === "Request aborted") return;
+        const status = err?.response?.status;
+        if (status === 401 || status === 403) {
+          authFailed = true;
+          if (intervalId) {
+            clearInterval(intervalId);
+            intervalId = null;
+          }
+          return;
+        }
       }
     };
 
