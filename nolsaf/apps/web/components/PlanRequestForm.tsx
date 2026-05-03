@@ -3433,7 +3433,7 @@ export default function PlanRequestForm({ selectedRole }: Props) {
 
           {step === totalSteps && (
             <button type="submit" disabled={submitting || redirectingToAuth} className="ml-auto inline-flex items-center justify-center gap-2 bg-emerald-600 text-white font-semibold px-4 py-2 rounded-lg disabled:opacity-70 disabled:cursor-not-allowed">
-              {redirectingToAuth ? 'Taking you to sign up…' : submitting ? 'Sending…' : 'Send request'}
+              {redirectingToAuth ? 'Taking you to sign up…' : submitting ? 'Sending...' : 'Send request'}
             </button>
           )}
           </div>

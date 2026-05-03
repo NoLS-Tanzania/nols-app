@@ -764,8 +764,33 @@ function getFloorName(floorNum: number): string {
 
 }
 
+function parseBookingDateOnly(dateString: string) {
+  const value = String(dateString || "").trim();
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  if (match) {
+    const [, year, month, day] = match;
+    return new Date(Number(year), Number(month) - 1, Number(day));
+  }
+
+  const parsed = new Date(value);
+  if (isNaN(parsed.getTime())) return parsed;
+  return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+}
+
+function todayBookingDateOnly() {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+function localIsoDate(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function formatDateLabel(dateString: string) {
-  const d = new Date(dateString);
+  const d = parseBookingDateOnly(dateString);
   if (isNaN(d.getTime())) return dateString;
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 
@@ -818,14 +843,14 @@ function PropertyAvailabilityChecker({
   const runCheckNow = useCallback(async () => {
     if (inFlightRef.current) return;
     if (!checkIn || !checkOut) return;
-    const checkInDate = new Date(checkIn);
-    const checkOutDate = new Date(checkOut);
-    const now = new Date();
+    const checkInDate = parseBookingDateOnly(checkIn);
+    const checkOutDate = parseBookingDateOnly(checkOut);
+    const today = todayBookingDateOnly();
     if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) {
       setError("Please select valid dates");
       return;
     }
-    if (checkInDate < now) {
+    if (checkInDate < today) {
       setError("Check-in date cannot be in the past");
       return;
     }
@@ -911,7 +936,7 @@ function PropertyAvailabilityChecker({
     return () => clearInterval(id);
   }, []);
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
+    const date = parseBookingDateOnly(dateString);
     return date.toLocaleDateString("en-GB", {
       day: "2-digit",
       month: "short",
@@ -962,19 +987,21 @@ function PropertyAvailabilityChecker({
                   <div className="absolute z-50 top-full left-0 mt-2 bg-white rounded-xl border-2 border-slate-200 shadow-xl">
                     <DatePicker
                       selected={checkIn}
+                      allowRange={false}
                       onSelectAction={(s) => {
                         const date = Array.isArray(s) ? s[0] : s;
+                        setError(null);
                         setCheckIn(date);
                         onDatesChange?.(date, checkOut);
                         setCheckInPickerOpen(false);
                         // Reset check-out if it's before new check-in
-                        if (checkOut && date && new Date(checkOut) <= new Date(date)) {
+                        if (checkOut && date && parseBookingDateOnly(checkOut) <= parseBookingDateOnly(date)) {
                           setCheckOut("");
                           onDatesChange?.(date, "");
                         }
                       }}
                       onCloseAction={() => setCheckInPickerOpen(false)}
-                      minDate={new Date().toISOString().split("T")[0]}
+                      minDate={localIsoDate()}
                     />
                   </div>
                 </>
@@ -1009,14 +1036,16 @@ function PropertyAvailabilityChecker({
                   <div className="absolute z-50 top-full left-0 mt-2 bg-white rounded-xl border-2 border-slate-200 shadow-xl">
                     <DatePicker
                       selected={checkOut}
+                      allowRange={false}
                       onSelectAction={(s) => {
                         const date = Array.isArray(s) ? s[0] : s;
+                        setError(null);
                         setCheckOut(date);
                         onDatesChange?.(checkIn, date);
                         setCheckOutPickerOpen(false);
                       }}
                       onCloseAction={() => setCheckOutPickerOpen(false)}
-                      minDate={checkIn || new Date().toISOString().split("T")[0]}
+                      minDate={checkIn || localIsoDate()}
                     />
                   </div>
                 </>
@@ -1288,10 +1317,14 @@ export default function PublicPropertyDetailPage() {
         setModalAvailError("Select both check-in and check-out dates");
         return;
       }
-      const checkInDate = new Date(checkInStr);
-      const checkOutDate = new Date(checkOutStr);
+      const checkInDate = parseBookingDateOnly(checkInStr);
+      const checkOutDate = parseBookingDateOnly(checkOutStr);
       if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) {
         setModalAvailError("Please enter valid dates");
+        return;
+      }
+      if (checkInDate < todayBookingDateOnly()) {
+        setModalAvailError("Check-in date cannot be in the past");
         return;
       }
       if (checkOutDate <= checkInDate) {
@@ -2686,7 +2719,7 @@ export default function PublicPropertyDetailPage() {
                                 const canFlip = Boolean(modalDates.checkIn && modalDates.checkOut);
                                 const nights = canFlip
                                   ? Math.max(1, Math.round(
-                                      (new Date(modalDates.checkOut).getTime() - new Date(modalDates.checkIn).getTime()) / 86400000
+                                      (parseBookingDateOnly(modalDates.checkOut).getTime() - parseBookingDateOnly(modalDates.checkIn).getTime()) / 86400000
                                     ))
                                   : 0;
                                 const totalPrice = nights > 0 && typeof row?.pricePerNight === "number" && row.pricePerNight > 0
@@ -2737,18 +2770,19 @@ export default function PublicPropertyDetailPage() {
                                               <div className="relative mt-24 sm:mt-28 bg-white rounded-2xl border-2 border-slate-200 shadow-2xl p-3 transition-all duration-200">
                                                 <DatePicker
                                                   selected={modalDates.checkIn}
+                                                  allowRange={false}
                                                   onSelectAction={(s) => {
                                                     const date = Array.isArray(s) ? s[0] : s;
                                                     setModalDates((st) => ({ ...st, checkIn: date }));
                                                     setModalAvailError(null);
                                                     setModalCheckInPickerOpen(false);
                                                     // Reset check-out if it is before/equals new check-in
-                                                    if (modalDates.checkOut && date && new Date(modalDates.checkOut) <= new Date(date)) {
+                                                    if (modalDates.checkOut && date && parseBookingDateOnly(modalDates.checkOut) <= parseBookingDateOnly(date)) {
                                                       setModalDates((st) => ({ ...st, checkOut: "" }));
                                                     }
                                                   }}
                                                   onCloseAction={() => setModalCheckInPickerOpen(false)}
-                                                  minDate={new Date().toISOString().split("T")[0]}
+                                                  minDate={localIsoDate()}
                                                 />
                                               </div>
                                             </div>
@@ -2784,6 +2818,7 @@ export default function PublicPropertyDetailPage() {
                                               <div className="relative mt-24 sm:mt-28 bg-white rounded-2xl border-2 border-slate-200 shadow-2xl p-3 transition-all duration-200">
                                                 <DatePicker
                                                   selected={modalDates.checkOut}
+                                                  allowRange={false}
                                                   onSelectAction={(s) => {
                                                     const date = Array.isArray(s) ? s[0] : s;
                                                     setModalDates((st) => ({ ...st, checkOut: date }));
@@ -2791,7 +2826,7 @@ export default function PublicPropertyDetailPage() {
                                                     setModalCheckOutPickerOpen(false);
                                                   }}
                                                   onCloseAction={() => setModalCheckOutPickerOpen(false)}
-                                                  minDate={modalDates.checkIn || new Date().toISOString().split("T")[0]}
+                                                  minDate={modalDates.checkIn || localIsoDate()}
                                                 />
                                               </div>
                                             </div>
@@ -3132,18 +3167,19 @@ export default function PublicPropertyDetailPage() {
                                     <div className="relative mt-24 sm:mt-28 bg-white rounded-2xl border-2 border-slate-200 shadow-2xl p-3 transition-all duration-200">
                                       <DatePicker
                                         selected={modalDates.checkIn}
+                                        allowRange={false}
                                         onSelectAction={(s) => {
                                           const date = Array.isArray(s) ? s[0] : s;
                                           setModalDates((st) => ({ ...st, checkIn: date }));
                                           setModalAvailError(null);
                                           setModalCheckInPickerOpen(false);
                                           // Reset check-out if it is before/equals new check-in
-                                          if (modalDates.checkOut && date && new Date(modalDates.checkOut) <= new Date(date)) {
+                                          if (modalDates.checkOut && date && parseBookingDateOnly(modalDates.checkOut) <= parseBookingDateOnly(date)) {
                                             setModalDates((st) => ({ ...st, checkOut: "" }));
                                           }
                                         }}
                                         onCloseAction={() => setModalCheckInPickerOpen(false)}
-                                        minDate={new Date().toISOString().split("T")[0]}
+                                        minDate={localIsoDate()}
                                       />
                                     </div>
                                   </div>
@@ -3179,6 +3215,7 @@ export default function PublicPropertyDetailPage() {
                                     <div className="relative mt-24 sm:mt-28 bg-white rounded-2xl border-2 border-slate-200 shadow-2xl p-3 transition-all duration-200">
                                       <DatePicker
                                         selected={modalDates.checkOut}
+                                        allowRange={false}
                                         onSelectAction={(s) => {
                                           const date = Array.isArray(s) ? s[0] : s;
                                           setModalDates((st) => ({ ...st, checkOut: date }));
@@ -3186,7 +3223,7 @@ export default function PublicPropertyDetailPage() {
                                           setModalCheckOutPickerOpen(false);
                                         }}
                                         onCloseAction={() => setModalCheckOutPickerOpen(false)}
-                                        minDate={modalDates.checkIn || new Date().toISOString().split("T")[0]}
+                                        minDate={modalDates.checkIn || localIsoDate()}
                                       />
                                     </div>
                                   </div>

@@ -638,7 +638,7 @@ export default function HelpCenterPage() {
                     </div>
                     <button type="submit" disabled={sending}
                       className="w-full py-2.5 rounded-xl bg-[#02665e] text-white text-sm font-extrabold hover:bg-[#024d47] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm hover:shadow-md">
-                      {sending ? "Sending…" : "Send Message"}
+                      {sending ? "Sending..." : "Send Message"}
                     </button>
                   </form>
 

@@ -80,8 +80,8 @@ function getGreetingName(user: { name?: string | null; email?: string | null }):
 
 // Helper: Generate email verification URL
 function getVerificationUrl(token: string): string {
-  const appUrl = process.env.APP_URL || "http://localhost:3000";
-  return `${appUrl}/api/admin/email/verify?token=${token}`;
+  const appUrl = process.env.APP_URL || process.env.WEB_ORIGIN || "http://localhost:3000";
+  return `${appUrl.replace(/\/$/, "")}/email/verify?token=${encodeURIComponent(token)}`;
 }
 
 // Zod Validation Schemas

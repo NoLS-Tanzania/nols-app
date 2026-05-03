@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { AuthedRequest, requireAuth, requireRole } from '../middleware/auth.js';
-import { fetchNotifications, markNotificationRead } from '../services/notifications';
+import { deleteReadNotification, deleteReadNotifications, fetchNotifications, markNotificationRead } from '../services/notifications';
 
 const router = Router();
 router.use(requireAuth as any, requireRole('OWNER') as any);
@@ -21,6 +21,23 @@ router.post('/:id/mark-read', (async (req: AuthedRequest, res: any) => {
   const { id } = req.params;
   const ownerId = req.user!.id;
   const r = await markNotificationRead(id, ownerId);
+  if (!r.ok) return res.status(404).json(r);
+  return res.json(r);
+}) as any);
+
+// DELETE /api/owner/notifications/read - delete all read notifications for this owner
+router.delete('/read', (async (req: AuthedRequest, res: any) => {
+  const ownerId = req.user!.id;
+  const r = await deleteReadNotifications({ ownerId });
+  if (!r.ok) return res.status(500).json(r);
+  return res.json(r);
+}) as any);
+
+// DELETE /api/owner/notifications/:id - delete a read notification for this owner
+router.delete('/:id', (async (req: AuthedRequest, res: any) => {
+  const { id } = req.params;
+  const ownerId = req.user!.id;
+  const r = await deleteReadNotification(id, ownerId);
   if (!r.ok) return res.status(404).json(r);
   return res.json(r);
 }) as any);

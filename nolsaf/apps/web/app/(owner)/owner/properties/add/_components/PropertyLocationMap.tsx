@@ -414,12 +414,9 @@ export const PropertyLocationMap = memo(function PropertyLocationMap({
               )}
             </div>
 
-            {/* Title + subtitle */}
+            {/* Title */}
             <div className="relative flex-1 min-w-0">
               <p className="text-[14px] font-extrabold text-white tracking-tight leading-tight">Property location</p>
-              <p className="text-[11px] text-white/75 leading-tight mt-0.5">
-                {isDetectingLocation ? "Pinpointing your exact position…" : "GPS auto-detects your coordinates"}
-              </p>
             </div>
 
             {/* Right status badge */}

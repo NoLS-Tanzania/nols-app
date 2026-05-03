@@ -929,7 +929,7 @@ export default function AdminHome() {
                                     onMouseEnter={e => { if (!e.currentTarget.disabled) e.currentTarget.style.background = "rgba(99,102,241,0.25)"; }}
                                     onMouseLeave={e => { e.currentTarget.style.background = "rgba(99,102,241,0.15)"; }}>
                                     {vNotifSending
-                                      ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Sending…</>
+                                      ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Sending...</>
                                       : <><Bell className="h-3.5 w-3.5" /> Send to {vSuccess.ownerName}</>}
                                   </button>
                                 </div>
@@ -1136,7 +1136,7 @@ export default function AdminHome() {
                                           }}
                                         >
                                           {vNotifSending
-                                            ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" />Sending…</>
+                                            ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" />Sending...</>
                                             : <><Bell className="h-3.5 w-3.5" />Send to {d.property?.owner?.name ?? "Owner"}</>}
                                         </button>
                                       </>

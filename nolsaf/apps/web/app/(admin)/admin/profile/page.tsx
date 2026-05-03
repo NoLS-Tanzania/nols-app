@@ -290,7 +290,7 @@ export default function AdminProfile() {
               aria-live="polite"
             >
               <Save className="h-4 w-4 flex-shrink-0" />
-              <span className="truncate min-w-0">{saving ? 'Saving…' : 'Save Changes'}</span>
+              <span className="truncate min-w-0">{saving ? 'Saving...' : 'Save Changes'}</span>
             </button>
             
             <button 

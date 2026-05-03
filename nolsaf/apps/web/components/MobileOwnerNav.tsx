@@ -56,16 +56,26 @@ export default function MobileOwnerNav() {
   });
 
   const BRAND = "#02665e";
-  const ICON_SIZE = 24;
+  const ICON_SIZE = 21;
   const iconColor = (isActive: boolean) => (isActive ? BRAND : "rgba(2,102,94,0.78)");
   const strokeW = (isActive: boolean) => (isActive ? 2.6 : 2.2);
+  const labelClass = (isActive: boolean) =>
+    `mt-1 text-[10px] leading-none tracking-tight transition-all duration-200 ${isActive ? "font-extrabold text-[#02665e]" : "font-bold text-[#02665e]/70"}`;
+  const itemClass = (isActive: boolean) =>
+    `relative flex flex-col items-center justify-center flex-1 h-full select-none outline-none rounded-2xl transition-all duration-200 ease-out ${
+      isActive ? "bg-[#02665e]/8 shadow-[inset_0_0_0_1px_rgba(2,102,94,0.08)]" : "hover:bg-[#02665e]/5"
+    }`;
+  const iconWrapClass = (isActive: boolean) =>
+    `relative inline-flex h-8 w-8 items-center justify-center rounded-xl transition-all duration-200 ${
+      isActive ? "bg-[#02665e] text-white shadow-sm shadow-[#02665e]/25" : "text-[#02665e]/80"
+    }`;
 
   // Tuned to match the reference footer shape
-  const BAR_HEIGHT = 60;
+  const BAR_HEIGHT = 76;
   const BAR_RADIUS = 10;
   const NOTCH_WIDTH = 132;
   const NOTCH_DEPTH = 18;
-  const FAB_SIZE = 54;
+  const FAB_SIZE = 52;
 
   const W = 400;
   const H = BAR_HEIGHT;
@@ -114,7 +124,7 @@ export default function MobileOwnerNav() {
             {/* SVG background: white pill with a smooth center bend (notch) */}
             <svg
               className="absolute inset-0 w-full h-full"
-              viewBox="0 0 400 60"
+              viewBox="0 0 400 76"
               preserveAspectRatio="none"
               aria-hidden
             >
@@ -127,17 +137,18 @@ export default function MobileOwnerNav() {
           href="/owner"
           aria-label="Home"
           style={{ textDecoration: "none" }}
-          className="relative flex items-center justify-center flex-1 h-full select-none outline-none"
+          className={itemClass(active.home)}
           {...touch("home")}
         >
-          <span style={iconScale("home")}>
+          <span className={iconWrapClass(active.home)} style={iconScale("home")}>
             <Home
               width={ICON_SIZE}
               height={ICON_SIZE}
               strokeWidth={strokeW(active.home)}
-              color={iconColor(active.home)}
+              color={active.home ? "#ffffff" : iconColor(active.home)}
             />
           </span>
+          <span className={labelClass(active.home)}>Home</span>
         </Link>
 
         {/* My Bookings */}
@@ -145,17 +156,18 @@ export default function MobileOwnerNav() {
           href="/owner/bookings"
           aria-label="My bookings"
           style={{ textDecoration: "none" }}
-          className="relative flex items-center justify-center flex-1 h-full select-none outline-none"
+          className={itemClass(active.bookings)}
           {...touch("bookings")}
         >
-          <span style={iconScale("bookings")}>
+          <span className={iconWrapClass(active.bookings)} style={iconScale("bookings")}>
             <ClipboardList
               width={ICON_SIZE}
               height={ICON_SIZE}
               strokeWidth={strokeW(active.bookings)}
-              color={iconColor(active.bookings)}
+              color={active.bookings ? "#ffffff" : iconColor(active.bookings)}
             />
           </span>
+          <span className={labelClass(active.bookings)}>Bookings</span>
         </Link>
 
         {/* Middle slot keeps spacing */}
@@ -166,17 +178,18 @@ export default function MobileOwnerNav() {
           href="/owner/revenue"
           aria-label="My revenue"
           style={{ textDecoration: "none" }}
-          className="relative flex items-center justify-center flex-1 h-full select-none outline-none"
+          className={itemClass(active.revenue)}
           {...touch("revenue")}
         >
-          <span style={iconScale("revenue")}>
+          <span className={iconWrapClass(active.revenue)} style={iconScale("revenue")}>
             <CreditCard
               width={ICON_SIZE}
               height={ICON_SIZE}
               strokeWidth={strokeW(active.revenue)}
-              color={iconColor(active.revenue)}
+              color={active.revenue ? "#ffffff" : iconColor(active.revenue)}
             />
           </span>
+          <span className={labelClass(active.revenue)}>Revenue</span>
         </Link>
 
         {/* Room Availability */}
@@ -184,17 +197,18 @@ export default function MobileOwnerNav() {
           href="/owner/properties/availability"
           aria-label="Room availability"
           style={{ textDecoration: "none" }}
-          className="relative flex items-center justify-center flex-1 h-full select-none outline-none"
+          className={itemClass(active.availability)}
           {...touch("availability")}
         >
-          <span style={iconScale("availability")}>
+          <span className={iconWrapClass(active.availability)} style={iconScale("availability")}>
             <CalendarDays
               width={ICON_SIZE}
               height={ICON_SIZE}
               strokeWidth={strokeW(active.availability)}
-              color={iconColor(active.availability)}
+              color={active.availability ? "#ffffff" : iconColor(active.availability)}
             />
           </span>
+          <span className={labelClass(active.availability)}>Calendar</span>
         </Link>
             </div>
 

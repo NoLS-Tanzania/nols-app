@@ -276,7 +276,7 @@ export default function Page() {
                     {sending ? (
                       <>
                         <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        <span>Sending…</span>
+                        <span>Sending...</span>
                       </>
                     ) : (
                       <>

@@ -587,17 +587,27 @@ export default function OwnerProfile() {
       
       // also save payout details (owner fields) if present
       try {
-        const payoutPayload: any = {
-          bankAccountName: form.bankAccountName,
-          bankName: form.bankName,
-          bankAccountNumber: form.bankAccountNumber,
-          bankBranch: form.bankBranch,
-          mobileMoneyProvider: form.mobileMoneyProvider,
-          mobileMoneyNumber: form.mobileMoneyNumber,
-          payoutPreferred: form.payoutPreferred,
+        const payoutPayload: any = {};
+        const addPayoutField = (key: string, value: unknown) => {
+          if (typeof value !== "string") return;
+          const trimmed = value.trim();
+          if (trimmed) payoutPayload[key] = trimmed;
         };
+
+        addPayoutField("bankAccountName", form.bankAccountName);
+        addPayoutField("bankName", form.bankName);
+        addPayoutField("bankAccountNumber", form.bankAccountNumber);
+        addPayoutField("bankBranch", form.bankBranch);
+        addPayoutField("mobileMoneyProvider", form.mobileMoneyProvider);
+        addPayoutField("mobileMoneyNumber", form.mobileMoneyNumber);
+
+        const preferred = String(form.payoutPreferred || "").trim().toUpperCase();
+        if (preferred === "BANK" || preferred === "MOBILE_MONEY") {
+          payoutPayload.payoutPreferred = preferred;
+        }
+
         // Only call payouts endpoint if any payout field exists
-        if (Object.values(payoutPayload).some(v => typeof v !== 'undefined' && v !== null && v !== '')) {
+        if (Object.keys(payoutPayload).length > 0) {
           await api.put('/api/account/payouts', payoutPayload);
         }
       } catch (e: any) {
@@ -772,7 +782,7 @@ export default function OwnerProfile() {
             <span className="dot dot-yellow" />
             <span className="dot dot-green" />
           </div>
-          <p className="text-sm text-slate-500 mt-4">Loading profile—</p>
+          <p className="text-sm text-slate-500 mt-4">Loading profile...</p>
         </div>
       </div>
     );
@@ -1247,7 +1257,7 @@ export default function OwnerProfile() {
 
                     className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 disabled:opacity-50">
 
-                    <ShieldCheck className="h-3.5 w-3.5" />{verifyingEmail ? 'Sending—' : 'Verify email'}
+                    <ShieldCheck className="h-3.5 w-3.5" />{verifyingEmail ? 'Sending...' : 'Verify email'}
 
                   </button>
 
@@ -1275,7 +1285,59 @@ export default function OwnerProfile() {
 
           </div>
 
-          <div className="p-5 sm:p-6 grid grid-cols-2 gap-4 sm:gap-5">
+          <div className="p-5 sm:p-6 space-y-5">
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+              {[
+                {
+                  value: "BANK",
+                  label: "Bank account",
+                  hint: "Use your bank details for disbursements.",
+                  Icon: Building2,
+                },
+                {
+                  value: "MOBILE_MONEY",
+                  label: "Mobile money",
+                  hint: "Use your mobile wallet number.",
+                  Icon: Phone,
+                },
+              ].map(({ value, label, hint, Icon }) => {
+                const selected = String(form.payoutPreferred || "").toUpperCase() === value;
+
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setForm((p: any) => ({ ...p, payoutPreferred: value }))}
+                    aria-pressed={selected}
+                    className={`relative min-h-[104px] rounded-2xl border-2 p-4 text-left transition-all duration-200 ${
+                      selected
+                        ? "border-[#02665e] bg-[#02665e]/8 shadow-[0_12px_28px_rgba(2,102,94,0.14)]"
+                        : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <span className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${selected ? "bg-[#02665e] text-white" : "bg-slate-100 text-slate-600"}`}>
+                        <Icon className="h-5 w-5" aria-hidden />
+                      </span>
+                      <span className="min-w-0">
+                        <span className={`block text-sm font-extrabold ${selected ? "text-[#02665e]" : "text-slate-900"}`}>{label}</span>
+                        <span className="mt-1 block text-xs leading-5 text-slate-500">{hint}</span>
+                      </span>
+                    </div>
+                    {selected && (
+                      <span className="absolute right-3 top-3 inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#02665e] text-white">
+                        <CheckCircle2 className="h-4 w-4" aria-hidden />
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 sm:gap-5">
 
             <EditableInfoItem icon={<Building2 className="w-5 h-5" />} label="Bank name" value={form.bankName} fieldKey="bankName" {...editProps} />
 
@@ -1284,6 +1346,8 @@ export default function OwnerProfile() {
             <EditableInfoItem icon={<CreditCard className="w-5 h-5" />} label="Account number" value={form.bankAccountNumber} fieldKey="bankAccountNumber" maskFn={maskAccount} {...editProps} />
 
             <EditableInfoItem icon={<MapPin className="w-5 h-5" />} label="Branch" value={form.bankBranch} fieldKey="bankBranch" {...editProps} />
+
+            </div>
 
           </div>
 
@@ -1724,7 +1788,7 @@ export default function OwnerProfile() {
 
               className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#02665e] text-white text-sm font-semibold hover:bg-[#02665e]/90 shadow-card transition-colors disabled:opacity-60 disabled:cursor-wait">
 
-              <Save className="h-4 w-4" />{saving ? "Saving—" : "Save changes"}
+              <Save className="h-4 w-4" />{saving ? "Saving..." : "Save changes"}
 
             </button>
 

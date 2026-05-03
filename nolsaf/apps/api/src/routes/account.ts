@@ -881,7 +881,7 @@ const updatePayouts: RequestHandler = async (req, res) => {
     
     // If no fields actually changed, return early
     if (changedFields.length === 0) {
-      return sendError(res, 400, "No changes detected. The values you entered are the same as the current values.");
+      return sendSuccess(res, null, "No payout changes detected");
     }
     
     const updated = await prisma.user.update({
