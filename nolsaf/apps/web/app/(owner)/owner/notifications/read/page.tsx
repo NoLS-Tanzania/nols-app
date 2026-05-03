@@ -31,8 +31,7 @@ type Note = {
 };
 
 function ownerApi(path: string) {
-  const base = process.env.NEXT_PUBLIC_API_URL || "";
-  return base ? `${base.replace(/\/$/, "")}${path}` : path;
+  return path;
 }
 
 export default function ReadNotificationsPage() {

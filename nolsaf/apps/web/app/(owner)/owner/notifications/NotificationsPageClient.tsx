@@ -15,21 +15,14 @@ export default function NotificationsPageClient() {
 
     (async () => {
       try {
-        const base = process.env.NEXT_PUBLIC_API_URL || "";
-        const baseUrl = base ? base.replace(/\/$/, "") : "";
-
-        const unreadUrl = baseUrl
-          ? `${baseUrl}/api/owner/notifications?tab=unread&page=1&pageSize=1`
-          : "/api/owner/notifications?tab=unread&page=1&pageSize=1";
+        const unreadUrl = "/api/owner/notifications?tab=unread&page=1&pageSize=1";
         const ru = await fetch(unreadUrl, { credentials: "include", signal: controller.signal });
         if (ru.ok) {
           const ju = await ru.json();
           if (mounted) setUnreadCount(Number(ju.totalUnread ?? ju.total ?? 0));
         }
 
-        const readUrl = baseUrl
-          ? `${baseUrl}/api/owner/notifications?tab=viewed&page=1&pageSize=1`
-          : "/api/owner/notifications?tab=viewed&page=1&pageSize=1";
+        const readUrl = "/api/owner/notifications?tab=viewed&page=1&pageSize=1";
         const rr = await fetch(readUrl, { credentials: "include", signal: controller.signal });
         if (rr.ok) {
           const jr = await rr.json();
