@@ -72,6 +72,7 @@ scripts/migrate-database.sh
 scripts/migrate-base64-photos-to-cloudinary.mjs
 
 # Database dumps & backups
+/driver_database_schema.sql
 *.sql.gz
 *.dump
 remote-backup.sql
