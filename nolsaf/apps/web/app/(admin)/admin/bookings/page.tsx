@@ -452,6 +452,7 @@ export default function AdminBookingsPage() {
                     selected={date || undefined}
                     onSelectAction={(s) => { setDate(s as string | string[]); }}
                     onCloseAction={() => setPickerOpen(false)}
+                    showBookingCounts
                   />
                 </div>
               </>

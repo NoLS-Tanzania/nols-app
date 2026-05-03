@@ -56,6 +56,7 @@ export default function DatePicker({
   twoMonths = false,
   initialViewDate,
   resetRangeAnchor = false,
+  showBookingCounts = false,
 }: {
   selected?: string | string[];
   onSelectAction: (s: string | string[]) => void;
@@ -67,6 +68,7 @@ export default function DatePicker({
   twoMonths?: boolean; // show current month and next month side by side
   initialViewDate?: string; // ISO date string (YYYY-MM-DD) to set the initial month/year when nothing selected
   resetRangeAnchor?: boolean; // if true, first click is always treated as a new range start
+  showBookingCounts?: boolean; // admin-only booking count badges
 }) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const btnRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -182,6 +184,11 @@ export default function DatePicker({
 
   // fetch aggregated counts for the visible month(s)
   useEffect(() => {
+    if (!showBookingCounts) {
+      setPerDayCounts({});
+      return;
+    }
+
     const start = new Date(view.year, view.month, 1);
     const end = view2
       ? new Date(view2.year, view2.month + 1, 0)
@@ -190,9 +197,8 @@ export default function DatePicker({
     const isoEnd = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;
     (async () => {
       try {
-        const base = process.env.NEXT_PUBLIC_API_URL || "";
         const r = await axios.get<Record<string, { total: number; statuses: Record<string, number> }>>(
-          `${base}/admin/bookings/counts`,
+          "/api/admin/bookings/counts",
           { params: { start: isoStart, end: isoEnd } }
         );
         if (r?.data) setPerDayCounts(r.data);
@@ -200,7 +206,7 @@ export default function DatePicker({
         // ignore failures — calendar will still work without counts
       }
     })();
-  }, [view.year, view.month, view2]);
+  }, [showBookingCounts, view.year, view.month, view2]);
 
   const renderCell = (cell: DayCell, idx: number, refOffset: number) => {
     const isoKey = `${cell.y}-${pad(cell.m + 1)}-${pad(cell.d)}`;
