@@ -161,12 +161,21 @@ async function batchResolvePrimaryImages(ids: number[]): Promise<Map<number, str
               WHERE pi.propertyId = p.id
                 AND pi.url IS NOT NULL
               ORDER BY pi.id ASC LIMIT 1),
-            CASE
-              WHEN JSON_EXTRACT(p.photos, '$[0]') IS NOT NULL
-                AND JSON_UNQUOTE(JSON_EXTRACT(p.photos, '$[0]')) != ''
-              THEN JSON_UNQUOTE(JSON_EXTRACT(p.photos, '$[0]'))
-              ELSE NULL
-            END
+            (SELECT legacy.url
+              FROM JSON_TABLE(
+                p.photos,
+                '$[*]' COLUMNS (
+                  photoOrder FOR ORDINALITY,
+                  url VARCHAR(2048) PATH '$'
+                )
+              ) legacy
+              WHERE legacy.url IS NOT NULL
+                AND legacy.url <> ''
+                AND legacy.url NOT LIKE 'data:%'
+                AND legacy.url NOT LIKE 'blob:%'
+                AND legacy.url NOT LIKE 'file:%'
+              ORDER BY legacy.photoOrder ASC
+              LIMIT 1)
           ) AS primaryImage
         FROM \`property\` p
         WHERE p.id IN (${Prisma.join(ids)})
@@ -186,6 +195,38 @@ async function batchResolvePrimaryImages(ids: number[]): Promise<Map<number, str
 function applyPrimaryImages(items: any[], imgMap: Map<number, string | null>): any[] {
   if (imgMap.size === 0) return items;
   return items.map((p: any) => ({ ...p, primaryImage: imgMap.get(Number(p.id)) ?? null }));
+}
+
+async function resolveLegacyPhotoUrls(propertyId: number, limit = 24): Promise<string[]> {
+  try {
+    const rows = (await prisma.$queryRaw(
+      Prisma.sql`
+        SELECT legacy.url
+        FROM \`property\` p
+        JOIN JSON_TABLE(
+          p.photos,
+          '$[*]' COLUMNS (
+            photoOrder FOR ORDINALITY,
+            url VARCHAR(2048) PATH '$'
+          )
+        ) legacy
+        WHERE p.id = ${propertyId}
+          AND legacy.url IS NOT NULL
+          AND legacy.url <> ''
+          AND legacy.url NOT LIKE 'data:%'
+          AND legacy.url NOT LIKE 'blob:%'
+          AND legacy.url NOT LIKE 'file:%'
+        ORDER BY legacy.photoOrder ASC
+        LIMIT ${Math.max(1, Math.min(48, limit))}
+      `
+    )) as Array<{ url: string | null }>;
+
+    return (rows || [])
+      .map((row) => (typeof row.url === "string" ? row.url.trim() : ""))
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -630,10 +671,6 @@ const listPublicProperties: RequestHandler = async (req, res) => {
                     maxGuests: true,
                     totalBedrooms: true,
                     totalBathrooms: true,
-                    // photos is included as a secondary fallback: if batchResolvePrimaryImages
-                    // returns null (e.g. photos[0] is a data: URI), toPublicCard will scan
-                    // the full array to find any non-data: renderable URL (e.g. photos[1]+).
-                    photos: true,
                   },
                 }),
                 prisma.property.count({ where }),
@@ -674,7 +711,6 @@ const listPublicProperties: RequestHandler = async (req, res) => {
                     maxGuests: true,
                     totalBedrooms: true,
                     totalBathrooms: true,
-                    photos: true,
                   },
                 }),
                 prisma.property.count({ where }),
@@ -719,7 +755,6 @@ const listPublicProperties: RequestHandler = async (req, res) => {
                   maxGuests: true,
                   totalBedrooms: true,
                   totalBathrooms: true,
-                  photos: true,
                 },
               }),
               prisma.property.count({ where }),
@@ -796,7 +831,6 @@ const getPublicProperty: RequestHandler = async (req, res) => {
               totalBathrooms: true,
               services: true,
               roomsSpec: true,
-              photos: true,
               ownerId: true, // Include ownerId to check ownership on frontend
               images: {
                 where: {
@@ -813,7 +847,8 @@ const getPublicProperty: RequestHandler = async (req, res) => {
 
           if (!p) return null;
 
-          const dto = toPublicDetail(p);
+          const legacyPhotos = await resolveLegacyPhotoUrls(id);
+          const dto = toPublicDetail({ ...p, photos: legacyPhotos });
           return { property: dto };
         },
         {

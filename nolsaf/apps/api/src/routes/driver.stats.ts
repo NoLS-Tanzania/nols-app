@@ -1588,10 +1588,15 @@ const updateDriverProfile: RequestHandler = async (req, res) => {
   if (hasField('gender') && typeof gender !== 'undefined') data.gender = gender;
   if (hasField('nin') && typeof nin !== 'undefined') data.nin = nin;
   if (hasField('licenseNumber') && typeof licenseNumber !== 'undefined') data.licenseNumber = licenseNumber;
-  if (hasField('plateNumber') && typeof plateNumber !== 'undefined') data.plateNumber = plateNumber;
+  // Sync both plate fields: whichever is provided, keep them in sync
+  if ((hasField('plateNumber') && typeof plateNumber !== 'undefined') ||
+      (hasField('vehiclePlate') && typeof vehiclePlate !== 'undefined')) {
+    const plateVal = plateNumber !== undefined ? plateNumber : vehiclePlate;
+    data.plateNumber  = plateVal;
+    data.vehiclePlate = plateVal;
+  }
   if (hasField('vehicleType') && typeof vehicleType !== 'undefined') data.vehicleType = vehicleType;
   if (hasField('vehicleMake') && typeof vehicleMake !== 'undefined') data.vehicleMake = vehicleMake;
-  if (hasField('vehiclePlate') && typeof vehiclePlate !== 'undefined') data.vehiclePlate = vehiclePlate;
   if (hasField('operationArea') && typeof operationArea !== 'undefined') data.operationArea = operationArea;
   if (hasField('paymentPhone') && typeof paymentPhone !== 'undefined') data.paymentPhone = paymentPhone;
   // Resubmitting profile clears any outstanding admin note (driver has addressed it)

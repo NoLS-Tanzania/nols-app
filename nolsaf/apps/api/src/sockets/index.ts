@@ -83,8 +83,8 @@ function registerSocketHandlers(io: SocketServer): void {
                 });
                 isAvailable = Boolean(row?.available);
               } else {
-                const row = await prisma.user.findUnique({ where: { id: user.id }, select: { available: true, isAvailable: true } });
-                isAvailable = Boolean(row?.available ?? row?.isAvailable ?? false);
+                const row = await prisma.user.findUnique({ where: { id: user.id }, select: { available: true } });
+                isAvailable = Boolean(row?.available ?? false);
               }
             } catch {
               isAvailable = false;
@@ -135,11 +135,7 @@ function registerSocketHandlers(io: SocketServer): void {
             try {
               await prisma.user.update({ where: { id: user.id }, data: { available } as any });
             } catch {
-              try {
-                await prisma.user.update({ where: { id: user.id }, data: { isAvailable: available } as any });
-              } catch {
-                // ignore
-              }
+              // ignore
             }
           }
         } catch {

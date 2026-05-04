@@ -5,7 +5,6 @@ import { router as ownerEmail } from "./owner.email.verify";
 import ownerGroupStaysClaimsRouter from "./owner.groupStays.claims";
 import ownerGroupStaysRouter from "./owner.groupStays";
 import ownerInvoicesRouter from "./owner.invoices";
-import ownerMessagesRouter from "./owner.messages";
 import ownerNotificationsRouter from "./owner.notifications";
 import { router as ownerPhone } from "./owner.phone.verify";
 import { router as ownerProperties } from "./owner.properties";
@@ -27,7 +26,6 @@ export function registerOwnerReportsRoute(app: Express): void {
 
 export function registerOwnerBusinessRoutes(app: Express): void {
   app.use("/api/owner/revenue", requireRole("OWNER") as RequestHandler, ownerRevenue);
-  app.use("/api/owner/messages", requireRole("OWNER") as RequestHandler, ownerMessagesRouter as RequestHandler);
   app.use("/api/owner/notifications", requireRole("OWNER") as RequestHandler, ownerNotificationsRouter as RequestHandler);
   app.use("/api/owner/availability", ownerAvailabilityRouter as RequestHandler);
 }

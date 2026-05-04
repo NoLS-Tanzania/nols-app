@@ -195,7 +195,6 @@ const normalizeVehicleType = (v: unknown): "BODA" | "BAJAJI" | "CAR" | "XL" | "P
 
 const isDriverAvailable = (driver: any) => {
   if (driver?.available === false) return false;
-  if (driver?.isAvailable === false) return false;
   return true;
 };
 

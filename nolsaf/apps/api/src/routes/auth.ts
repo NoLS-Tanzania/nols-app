@@ -1108,6 +1108,7 @@ router.post('/register', limitRegisterAttempts, async (req, res) => {
           ? {
               vehicleMake: typeof vehicleMake === 'string' ? vehicleMake : null,
               vehiclePlate: typeof vehiclePlate === 'string' ? vehiclePlate : null,
+              plateNumber: typeof vehiclePlate === 'string' ? vehiclePlate : null,
               licenseNumber: typeof licenseNumber === 'string' ? licenseNumber : null,
             }
           : {}),
@@ -1330,7 +1331,10 @@ router.post('/profile', upload.none(), async (req, res) => {
       }
       if (hasField('nin') && typeof nin === 'string') dataToUpdate.nin = nin;
       if (hasField('licenseNumber') && typeof licenseNumber === 'string') dataToUpdate.licenseNumber = licenseNumber;
-      if (hasField('plateNumber') && typeof plateNumber === 'string') dataToUpdate.plateNumber = plateNumber;
+      if (hasField('plateNumber') && typeof plateNumber === 'string') {
+        dataToUpdate.plateNumber = plateNumber;
+        dataToUpdate.vehiclePlate = plateNumber; // keep fields in sync
+      }
       if (hasField('vehicleType') && typeof vehicleType === 'string') dataToUpdate.vehicleType = vehicleType;
       if (hasField('operationArea') && typeof operationArea === 'string') dataToUpdate.operationArea = operationArea;
       if (hasField('region') && typeof region === 'string') dataToUpdate.region = region;

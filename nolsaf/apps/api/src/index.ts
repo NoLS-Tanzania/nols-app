@@ -48,7 +48,13 @@ app.use(express.urlencoded({
   limit: "100kb",
   parameterLimit: 50,
 }));
-app.use(morgan("dev"));
+app.use(
+  process.env.NODE_ENV === "production"
+    ? morgan("tiny", {
+        skip: (_req, res) => res.statusCode < 400,
+      })
+    : morgan("dev")
+);
 // Performance monitoring middleware should be early to capture all requests.
 app.use(performanceMiddleware);
 

@@ -115,8 +115,12 @@ const updateDriverProfile: RequestHandler = async (req, res) => {
     if (data.gender       !== undefined) updateData.gender       = str(data.gender);
     if (data.nin          !== undefined) updateData.nin          = str(data.nin);
     if (data.licenseNumber !== undefined) updateData.licenseNumber = str(data.licenseNumber);
-    if (data.plateNumber   !== undefined) updateData.plateNumber   = str(data.plateNumber);
-    if (data.vehiclePlate  !== undefined) updateData.vehiclePlate  = str(data.vehiclePlate);
+    // Sync both plate fields: whichever is set, keep them in sync
+    if (data.plateNumber !== undefined || data.vehiclePlate !== undefined) {
+      const plateVal = str(data.plateNumber !== undefined ? data.plateNumber : data.vehiclePlate);
+      updateData.plateNumber  = plateVal;
+      updateData.vehiclePlate = plateVal;
+    }
     if (data.vehicleType   !== undefined) updateData.vehicleType   = str(data.vehicleType);
     if (data.vehicleMake   !== undefined) updateData.vehicleMake   = str(data.vehicleMake);
     if (data.operationArea !== undefined) updateData.operationArea = str(data.operationArea);

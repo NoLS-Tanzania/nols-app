@@ -102,13 +102,27 @@ function extractEffectiveBasePrice(p: any): number | null {
 
 function isRenderablePublicImageUrl(url: string) {
   // Never expose browser-only blob URLs on the public site (they won't load for other users)
-  // Also exclude file:// style local paths and base64 data URIs (next/image can't render them).
+  // Also exclude file:// style local paths and base64 data URIs. Data URIs can make
+  // public property payloads multiple megabytes before the browser even paints.
   const u = url.trim();
   if (!u) return false;
   if (u.startsWith("blob:")) return false;
   if (u.startsWith("file:")) return false;
-  if (u.startsWith("data:")) return /^data:image\//i.test(u);
+  if (u.startsWith("data:")) return false;
   return true;
+}
+
+function optimizeCloudinaryImageUrl(url: string, width = 1280): string {
+  if (!/res\.cloudinary\.com\/.+\/image\/upload\//i.test(url)) return url;
+  if (/\/image\/upload\/[^/]*(?:f_auto|q_auto|w_)\b/i.test(url)) return url;
+  const clampedWidth = Math.min(2400, Math.max(320, Math.round(width)));
+  return url.replace("/image/upload/", `/image/upload/f_auto,q_auto,w_${clampedWidth}/`);
+}
+
+function toPublicImageUrl(url: string, width?: number): string | null {
+  const safe = safeString(url);
+  if (!safe || !isRenderablePublicImageUrl(safe)) return null;
+  return optimizeCloudinaryImageUrl(safe, width);
 }
 
 function pickRoomImages(roomsSpec: any): string[] {
@@ -143,15 +157,15 @@ export function pickImages(opts: {
   // Prefer moderated/processed images when available; otherwise take whatever exists.
   if (Array.isArray(images) && images.length) {
     const urls = images
-      .map((i) => safeString(i.thumbnailUrl) || safeString(i.url))
-      .filter((u): u is string => typeof u === "string" && isRenderablePublicImageUrl(u)) as string[];
+      .map((i) => toPublicImageUrl(safeString(i.thumbnailUrl) || safeString(i.url) || "", i.thumbnailUrl ? 900 : 1600))
+      .filter((u): u is string => typeof u === "string");
     out.push(...urls);
   }
 
   if (Array.isArray(photos) && photos.length) {
     const urls = photos
-      .map((p: any) => safeString(p))
-      .filter((u): u is string => typeof u === "string" && isRenderablePublicImageUrl(u));
+      .map((p: any) => toPublicImageUrl(String(p || ""), 1600))
+      .filter((u): u is string => typeof u === "string");
     out.push(...urls);
   }
 
@@ -184,7 +198,7 @@ export function toPublicCard(p: any): PublicPropertyCard {
   let primaryImage: string | null;
   if (Object.prototype.hasOwnProperty.call(p, 'primaryImage')) {
     const raw = typeof p.primaryImage === 'string' ? p.primaryImage.trim() : null;
-    const batched = raw && isRenderablePublicImageUrl(raw) ? raw : null;
+    const batched = raw ? toPublicImageUrl(raw, 900) : null;
     if (batched) {
       primaryImage = batched;
     } else if (p.photos || p.images) {
