@@ -350,6 +350,7 @@ router.get("/export.csv", async (req, res) => {
 router.get("/:id", async (req, res) => {
   try {
     const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: "Invalid owner id" });
     const owner = await prisma.user.findFirst({
       where: { id, role: "OWNER" },
       select: {
