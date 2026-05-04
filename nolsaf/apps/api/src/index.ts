@@ -22,6 +22,20 @@ const app = express();
 
 registerEarlyRoutes(app);
 
+// ─── MAINTENANCE MODE ─────────────────────────────────────────────────────────
+// Set MAINTENANCE_MODE=true in environment to block all non-health traffic.
+if (process.env.MAINTENANCE_MODE === "true") {
+  app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
+    // Allow health checks through so load balancers stay happy
+    if (req.path === "/health" || req.path === "/api/health") return next();
+    res.status(503).json({
+      error: "maintenance",
+      message: "NoLSAF is currently undergoing scheduled maintenance. Please try again shortly.",
+    });
+  });
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 const server = http.createServer(app);
 const io = createSocketServer(server, app);
 startBackgroundWorkers(io);

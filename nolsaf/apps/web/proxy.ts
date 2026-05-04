@@ -3,14 +3,24 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 export function proxy(req: NextRequest) {
+  const url = req.nextUrl.clone();
+  const path = url.pathname;
+
+  // ─── MAINTENANCE MODE ───────────────────────────────────────────────────────
+  // Edge runtime reads process.env at request time (not build time in Next.js 15+).
+  // Set MAINTENANCE_MODE=true in your .env.local or AWS EB environment variables.
+  const maintenance = process.env.MAINTENANCE_MODE === "true";
+  if (maintenance && path !== "/maintenance") {
+    url.pathname = "/maintenance";
+    return NextResponse.redirect(url);
+  }
+  // ────────────────────────────────────────────────────────────────────────────
+
   // Check for both cookie names for compatibility
   const token = req.cookies.get("token")?.value || req.cookies.get("nolsaf_token")?.value || "";
   // Prefer an explicit role cookie; fallback to token decode stub
   const cookieRole = req.cookies.get("role")?.value || "";
   const role = cookieRole || decodeRoleFromToken(token); // dev: we primarily rely on cookie
-
-  const url = req.nextUrl.clone();
-  const path = url.pathname;
 
   if (path.startsWith("/admin")) {
     if (role !== "ADMIN") {
@@ -76,7 +86,10 @@ export function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/owner/:path*", "/driver/:path*", "/account/:path*", "/login"],
+  matcher: [
+    // When in maintenance mode, intercept everything except Next.js internals
+    "/((?!_next/static|_next/image|favicon.ico|icon|apple-icon).*)",
+  ],
 };
 
 // stub — replace with real decode
