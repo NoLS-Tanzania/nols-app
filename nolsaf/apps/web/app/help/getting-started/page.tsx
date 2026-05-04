@@ -277,8 +277,8 @@ export default function HelpGettingStartedPage() {
                 style={{ backgroundImage: "linear-gradient(#02665e12 1px, transparent 1px), linear-gradient(90deg, #02665e12 1px, transparent 1px)", backgroundSize: "48px 48px" }} />
 
               <div className="relative z-10 mb-6">
-                <h2 className="text-xl font-bold text-gray-900">Explore the Help Center</h2>
-                <p className="text-sm text-gray-500 mt-0.5">Every topic covered - pick what you need.</p>
+                <h2 className="text-2xl font-bold text-gray-900">Explore the Help Center</h2>
+                <p className="text-base text-gray-500 mt-0.5">Every topic covered - pick what you need.</p>
               </div>
 
               <div className="relative z-10 grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -290,8 +290,8 @@ export default function HelpGettingStartedPage() {
                       <Icon className="h-4 w-4" style={{ color }} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-gray-900 group-hover:text-[#02665e] transition-colors duration-200 leading-snug">{label}</p>
-                      <p className="text-[10px] text-gray-500 mt-0.5 leading-snug">{sub}</p>
+                      <p className="text-sm font-bold text-gray-900 group-hover:text-[#02665e] transition-colors duration-200 leading-snug">{label}</p>
+                      <p className="text-xs text-gray-500 mt-0.5 leading-snug">{sub}</p>
                     </div>
                     <ChevronRight className="h-3.5 w-3.5 text-slate-300 group-hover:text-[#02665e] flex-shrink-0 mt-0.5 transition-colors duration-200" />
                   </Link>
