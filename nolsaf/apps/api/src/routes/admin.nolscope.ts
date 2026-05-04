@@ -77,6 +77,11 @@ const visaFeePutSchema = z.object({
   description:    z.string().max(1000).nullish(),
   isActive:       z.coerce.boolean().optional(),
   requirements:   z.unknown().optional(),
+  // passthrough: returned by GET, not updatable via this endpoint
+  currency:       z.string().max(3).optional(),
+  validFrom:      z.unknown().optional(),
+  validUntil:     z.unknown().optional(),
+  lastVerified:   z.unknown().optional(),
 }).strict();
 
 const visaFeePostSchema = z.object({
@@ -101,8 +106,12 @@ const parkFeePutSchema = z.object({
   requiresGuide:     z.coerce.boolean().optional(),
   minimumDays:       z.coerce.number().int().min(1).max(365).nullish(),
   description:       z.string().max(2000).nullish(),
-  officialWebsite:   z.string().url().max(500).nullish(),
+  officialWebsite:   z.preprocess((v) => v === '' ? null : v, z.string().url().max(500).nullish()),
   isActive:          z.coerce.boolean().optional(),
+  // passthrough: returned by GET, not updatable via this endpoint
+  region:            z.string().max(100).optional(),
+  currency:          z.string().max(3).optional(),
+  lastVerified:      z.unknown().optional(),
 }).strict();
 
 const parkFeePostSchema = z.object({
@@ -120,7 +129,7 @@ const parkFeePostSchema = z.object({
   requiresGuide:     z.coerce.boolean().default(false),
   minimumDays:       z.coerce.number().int().min(1).max(365).nullish(),
   description:       z.string().max(2000).nullish(),
-  officialWebsite:   z.string().url().max(500).nullish(),
+  officialWebsite:   z.preprocess((v) => v === '' ? null : v, z.string().url().max(500).nullish()),
 }).strict();
 
 const transportPutSchema = z.object({
@@ -139,6 +148,9 @@ const transportPutSchema = z.object({
   confidence:        z.coerce.number().min(0).max(1).optional(),
   dataSource:        z.string().max(100).optional(),
   isActive:          z.coerce.boolean().optional(),
+  // passthrough: returned by GET, not updatable via this endpoint
+  currency:          z.string().max(3).optional(),
+  lastUpdated:       z.unknown().optional(),
 }).strict();
 
 const transportPostSchema = z.object({
@@ -165,9 +177,9 @@ const pricingRulePutSchema = z.object({
   priceMultiplier: z.coerce.number().min(0.01).max(100).optional(),
   startMonth:      z.coerce.number().int().min(1).max(12).nullish(),
   endMonth:        z.coerce.number().int().min(1).max(12).nullish(),
-  seasonName:      z.string().max(100).optional(),
-  destination:     z.string().max(200).optional(),
-  category:        z.string().max(100).optional(),
+  seasonName:      z.string().max(100).nullish(),
+  destination:     z.string().max(200).nullish(),
+  category:        z.string().max(100).nullish(),
   minTravelers:    z.coerce.number().int().min(1).max(1000).nullish(),
   maxTravelers:    z.coerce.number().int().min(1).max(1000).nullish(),
   daysInAdvance:   z.coerce.number().int().min(0).max(730).nullish(),
@@ -176,6 +188,8 @@ const pricingRulePutSchema = z.object({
   description:     z.string().max(2000).nullish(),
   validFrom:       z.string().nullish(),
   validUntil:      z.string().nullish(),
+  specificDates:   z.unknown().optional(),
+  createdBy:       z.string().max(80).nullish(),
 }).strict();
 
 const activityPutSchema = z.object({
@@ -201,9 +215,11 @@ const activityPutSchema = z.object({
   offPeakMultiplier: z.coerce.number().min(0.1).max(10).optional(),
   description:       z.string().max(2000).nullish(),
   provider:          z.string().max(200).nullish(),
-  website:           z.string().url().max(500).nullish(),
+  website:           z.preprocess((v) => v === '' ? null : v, z.string().url().max(500).nullish()),
   popularity:        z.coerce.number().int().min(0).max(100).optional(),
   isActive:          z.coerce.boolean().optional(),
+  // passthrough: returned by GET, not updatable via this endpoint
+  currency:          z.string().max(3).optional(),
 }).strict();
 
 const activityPostSchema = z.object({
@@ -471,7 +487,7 @@ router.put('/pricing-rules/:id', limitNolscopeWrite, validate(pricingRulePutSche
     'priceMultiplier', 'startMonth', 'endMonth', 'seasonName',
     'destination', 'category', 'minTravelers', 'maxTravelers',
     'daysInAdvance', 'priority', 'isActive', 'description',
-    'validFrom', 'validUntil',
+    'validFrom', 'validUntil', 'specificDates', 'createdBy',
   ];
   const data: any = {};
   for (const key of allowed) {
@@ -597,15 +613,15 @@ router.post('/activities', limitNolscopeWrite, validate(activityPostSchema), asy
 const destinationPutSchema = z.object({
   destinationName:         z.string().min(2).max(120).optional(),
   displayName:             z.string().max(200).nullish(),
-  destinationType:         z.enum(['national-park', 'conservation-area', 'marine-park', 'game-reserve', 'island', 'city', 'region', 'mountain', 'beach']).optional(),
+  destinationType:         z.string().max(30).optional(),
   country:                 z.string().max(80).optional(),
   region:                  z.string().max(100).optional(),
   nearestCity:             z.string().max(80).nullish(),
   mainAirport:             z.string().max(100).nullish(),
   accessDifficulty:        z.enum(['easy', 'moderate', 'difficult']).optional(),
   description:             z.string().max(5000).nullish(),
-  imageUrl:                z.string().url().max(500).nullish(),
-  officialWebsite:         z.string().url().max(300).nullish(),
+  imageUrl:                z.preprocess((v) => v === '' ? null : v, z.string().url().max(500).nullish()),
+  officialWebsite:         z.preprocess((v) => v === '' ? null : v, z.string().url().max(300).nullish()),
   popularity:              z.coerce.number().int().min(0).max(100).optional(),
   avgStayDays:             z.coerce.number().int().min(0).max(365).nullish(),
   accommodationMultiplier: z.coerce.number().min(0.01).max(20).optional(),
@@ -615,6 +631,9 @@ const destinationPutSchema = z.object({
   peakMonths:              z.unknown().optional(),
   offPeakMonths:           z.unknown().optional(),
   rainyMonths:             z.unknown().optional(),
+  // passthrough: returned by GET, not updatable via this endpoint
+  coordinates:             z.unknown().optional(),
+  timezone:                z.string().max(60).optional(),
 }).strict();
 
 const destinationPostSchema = z.object({
@@ -628,8 +647,8 @@ const destinationPostSchema = z.object({
   mainAirport:             z.string().max(100).nullish(),
   accessDifficulty:        z.enum(['easy', 'moderate', 'difficult']).default('moderate'),
   description:             z.string().max(5000).nullish(),
-  imageUrl:                z.string().url().max(500).nullish(),
-  officialWebsite:         z.string().url().max(300).nullish(),
+  imageUrl:                z.preprocess((v) => v === '' ? null : v, z.string().url().max(500).nullish()),
+  officialWebsite:         z.preprocess((v) => v === '' ? null : v, z.string().url().max(300).nullish()),
   popularity:              z.coerce.number().int().min(0).max(100).default(50),
   avgStayDays:             z.coerce.number().int().min(0).max(365).nullish(),
   accommodationMultiplier: z.coerce.number().min(0.01).max(20).default(1.0),
@@ -857,3 +876,131 @@ router.get('/estimates/stats', limitNolscopeRead, asyncHandler(async (_req, res)
 }));
 
 function r2(v: number) { return Math.round(v * 100) / 100; }
+
+// ─── TOURISM SITES ────────────────────────────────────────────────────────────
+
+const tourismSitePostSchema = z.object({
+  name:        z.string().min(2).max(200),
+  slug:        z.string().min(2).max(160).regex(/^[a-z0-9-]+$/, 'Slug must be lowercase letters, numbers, and hyphens only').optional(),
+  country:     z.string().min(2).max(120).default('Tanzania'),
+  description: z.string().max(5000).nullish(),
+  latitude:    z.coerce.number().min(-90).max(90).nullish(),
+  longitude:   z.coerce.number().min(-180).max(180).nullish(),
+}).strict();
+
+const tourismSitePutSchema = z.object({
+  name:        z.string().min(2).max(200).optional(),
+  slug:        z.string().min(2).max(160).regex(/^[a-z0-9-]+$/, 'Slug must be lowercase letters, numbers, and hyphens only').optional(),
+  country:     z.string().min(2).max(120).optional(),
+  description: z.string().max(5000).nullish(),
+  latitude:    z.coerce.number().min(-90).max(90).nullish(),
+  longitude:   z.coerce.number().min(-180).max(180).nullish(),
+}).strict();
+
+function generateSlug(name: string): string {
+  return name.toLowerCase().trim()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .slice(0, 160);
+}
+
+router.get('/tourism-sites', limitNolscopeRead, asyncHandler(async (req, res) => {
+  const country = String((req.query as any)?.country ?? '').trim().slice(0, 120);
+  const search  = String((req.query as any)?.search  ?? '').trim().slice(0, 100);
+  const where: any = {};
+  if (country) where.country = country;
+  if (search)  where.name = { contains: search };
+
+  const rows = await (prisma as any).tourismSite.findMany({
+    where,
+    orderBy: [{ country: 'asc' }, { name: 'asc' }],
+    include: { _count: { select: { properties: true } } },
+  });
+  return res.json({
+    tourismSites: rows.map((r: any) => ({ ...r, propertyCount: r._count.properties, _count: undefined })),
+  });
+}));
+
+router.get('/tourism-sites/:id', limitNolscopeRead, asyncHandler(async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) return res.status(400).json({ error: 'invalid id' });
+
+  const site = await (prisma as any).tourismSite.findUnique({
+    where: { id },
+    include: { _count: { select: { properties: true } } },
+  });
+  if (!site) return res.status(404).json({ error: 'not found' });
+  return res.json({ tourismSite: { ...site, propertyCount: site._count.properties, _count: undefined } });
+}));
+
+router.post('/tourism-sites', limitNolscopeWrite, validate(tourismSitePostSchema), asyncHandler(async (req, res) => {
+  const { name, slug, country, description, latitude, longitude } = (req as any).validatedBody;
+  const finalSlug = (slug ?? generateSlug(name)).toLowerCase();
+
+  const existing = await (prisma as any).tourismSite.findUnique({ where: { slug: finalSlug } });
+  if (existing) return res.status(409).json({ error: 'A tourism site with this slug already exists' });
+
+  const created = await (prisma as any).tourismSite.create({
+    data: {
+      name:        sanitizeText(name),
+      slug:        finalSlug,
+      country:     sanitizeText(country ?? 'Tanzania'),
+      description: description ? sanitizeText(description) : null,
+      latitude:    latitude  ?? null,
+      longitude:   longitude ?? null,
+    },
+  });
+  void writeAudit(req, 'TOURISM_SITE_CREATE', 'TOURISM_SITE', created.id, {}, created);
+  return res.status(201).json({ created });
+}));
+
+router.put('/tourism-sites/:id', limitNolscopeWrite, validate(tourismSitePutSchema), asyncHandler(async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) return res.status(400).json({ error: 'invalid id' });
+
+  const { name, slug, country, description, latitude, longitude } = (req as any).validatedBody;
+  const data: any = {};
+  if (name        !== undefined) data.name        = sanitizeText(name);
+  if (slug        !== undefined) data.slug        = slug.toLowerCase();
+  if (country     !== undefined) data.country     = sanitizeText(country);
+  if (description !== undefined) data.description = description ? sanitizeText(description) : null;
+  if (latitude    !== undefined) data.latitude    = latitude;
+  if (longitude   !== undefined) data.longitude   = longitude;
+
+  if (Object.keys(data).length === 0) return res.status(400).json({ error: 'no updatable fields provided' });
+
+  if (data.slug) {
+    const conflict = await (prisma as any).tourismSite.findFirst({ where: { slug: data.slug, NOT: { id } } });
+    if (conflict) return res.status(409).json({ error: 'Slug already used by another tourism site' });
+  }
+
+  const before = await (prisma as any).tourismSite.findUnique({ where: { id } });
+  if (!before) return res.status(404).json({ error: 'not found' });
+
+  const updated = await (prisma as any).tourismSite.update({ where: { id }, data });
+  void writeAudit(req, 'TOURISM_SITE_UPDATE', 'TOURISM_SITE', id, before, updated);
+  return res.json({ updated });
+}));
+
+router.delete('/tourism-sites/:id', limitNolscopeWrite, asyncHandler(async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) return res.status(400).json({ error: 'invalid id' });
+
+  const site = await (prisma as any).tourismSite.findUnique({
+    where: { id },
+    include: { _count: { select: { properties: true } } },
+  });
+  if (!site) return res.status(404).json({ error: 'not found' });
+
+  const propCount = site._count.properties;
+  if (propCount > 0) {
+    return res.status(409).json({
+      error: `Cannot delete: ${propCount} propert${propCount === 1 ? 'y' : 'ies'} linked to this tourism site. Unlink them first.`,
+    });
+  }
+
+  await (prisma as any).tourismSite.delete({ where: { id } });
+  void writeAudit(req, 'TOURISM_SITE_DELETE', 'TOURISM_SITE', id, site, {});
+  return res.json({ deleted: true });
+}));

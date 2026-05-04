@@ -24,6 +24,8 @@ import {
   Clock,
   History,
   User,
+  Trash2,
+  TreePine,
 } from "lucide-react";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -49,15 +51,16 @@ function fmtUSD(v: number) {
 
 // ─── Tab types ────────────────────────────────────────────────────────────────
 
-type Tab = "activities" | "park-fees" | "visa-fees" | "transport" | "seasonal" | "destinations";
+type Tab = "activities" | "park-fees" | "visa-fees" | "transport" | "seasonal" | "destinations" | "tourism-sites";
 
 const TABS: { id: Tab; label: string; Icon: React.ElementType }[] = [
-  { id: "destinations", label: "Destinations",    Icon: MapPin      },
-  { id: "activities",   label: "Activities",      Icon: Activity    },
-  { id: "park-fees",    label: "Park Fees",        Icon: Mountain    },
-  { id: "visa-fees",    label: "Visa Fees",        Icon: Globe       },
-  { id: "transport",    label: "Transport",        Icon: Route       },
-  { id: "seasonal",     label: "Seasonal Rules",   Icon: TrendingUp  },
+  { id: "destinations",  label: "Destinations",    Icon: MapPin      },
+  { id: "tourism-sites", label: "Tourism Sites",   Icon: TreePine    },
+  { id: "activities",    label: "Activities",      Icon: Activity    },
+  { id: "park-fees",     label: "Park Fees",        Icon: Mountain    },
+  { id: "visa-fees",     label: "Visa Fees",        Icon: Globe       },
+  { id: "transport",     label: "Transport",        Icon: Route       },
+  { id: "seasonal",      label: "Seasonal Rules",   Icon: TrendingUp  },
 ];
 
 // ─── Inline edit field ────────────────────────────────────────────────────────
@@ -1546,6 +1549,311 @@ function DestinationsTab() {
   );
 }
 
+// ─── TOURISM SITES TAB ────────────────────────────────────────────────────────
+
+function TourismSitesTab() {
+  const [rows, setRows]           = useState<any[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState("");
+  const [search, setSearch]       = useState("");
+  const [expanded, setExpanded]   = useState<number | null>(null);
+  const [draft, setDraft]         = useState<any>(null);
+  const [saving, setSaving]       = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [showCreate, setShowCreate] = useState(false);
+  const [newRow, setNewRow]         = useState({ name: "", slug: "", country: "Tanzania", description: "", latitude: "", longitude: "" });
+  const [creating, setCreating]     = useState(false);
+  const [createError, setCreateError] = useState("");
+  const [deleteId, setDeleteId]     = useState<number | null>(null);
+  const [deleting, setDeleting]     = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+
+  const load = useCallback(() => {
+    setLoading(true); setError("");
+    apiFetch("/api/admin/nolscope/tourism-sites")
+      .then((d) => setRows(d.tourismSites ?? []))
+      .catch((e: any) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const visible = rows.filter((r) =>
+    !search || r.name.toLowerCase().includes(search.toLowerCase()) || r.country.toLowerCase().includes(search.toLowerCase())
+  );
+
+  function openEdit(row: any) {
+    setExpanded(row.id);
+    setDraft({ ...row });
+    setSaveError("");
+  }
+  function closeEdit() { setExpanded(null); setDraft(null); setSaveError(""); }
+
+  async function save() {
+    if (!draft) return;
+    setSaving(true); setSaveError("");
+    const { id, propertyCount, ...rest } = draft;
+    try {
+      const d = await apiFetch(`/api/admin/nolscope/tourism-sites/${id}`, { method: "PUT", body: JSON.stringify(rest) });
+      setRows((prev) => prev.map((r) => r.id === id ? { ...r, ...d.updated } : r));
+      closeEdit();
+    } catch (e: any) {
+      setSaveError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function create() {
+    setCreating(true); setCreateError("");
+    try {
+      const payload: any = {
+        name:    newRow.name,
+        country: newRow.country || "Tanzania",
+      };
+      if (newRow.slug)        payload.slug        = newRow.slug;
+      if (newRow.description) payload.description = newRow.description;
+      if (newRow.latitude)    payload.latitude    = parseFloat(newRow.latitude);
+      if (newRow.longitude)   payload.longitude   = parseFloat(newRow.longitude);
+      const d = await apiFetch("/api/admin/nolscope/tourism-sites", { method: "POST", body: JSON.stringify(payload) });
+      setRows((prev) => [...prev, { ...d.created, propertyCount: 0 }].sort((a, b) => a.name.localeCompare(b.name)));
+      setShowCreate(false);
+      setNewRow({ name: "", slug: "", country: "Tanzania", description: "", latitude: "", longitude: "" });
+    } catch (e: any) {
+      setCreateError(e.message);
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function confirmDelete() {
+    if (!deleteId) return;
+    setDeleting(true); setDeleteError("");
+    try {
+      await apiFetch(`/api/admin/nolscope/tourism-sites/${deleteId}`, { method: "DELETE" });
+      setRows((prev) => prev.filter((r) => r.id !== deleteId));
+      setDeleteId(null);
+    } catch (e: any) {
+      setDeleteError(e.message);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  const deleteTarget = rows.find((r) => r.id === deleteId);
+
+  return (
+    <div className="space-y-4">
+      {/* toolbar */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-48">
+          <input
+            type="text"
+            placeholder="Search by name or country…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full text-sm border border-slate-200 rounded-xl pl-9 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#02665e]/30 focus:border-[#02665e]"
+          />
+          <MapPin className="absolute left-2.5 top-2.5 w-4 h-4 text-slate-400 pointer-events-none" />
+        </div>
+        <button onClick={load} className="p-2 text-slate-500 hover:text-[#02665e] hover:bg-[#02665e]/8 rounded-xl border border-slate-200 transition-colors">
+          <RefreshCw className="w-4 h-4" />
+        </button>
+        <button
+          onClick={() => { setShowCreate((v) => !v); setCreateError(""); }}
+          className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold bg-[#02665e] text-white rounded-xl hover:bg-[#015a52] transition-colors"
+        >
+          <Plus className="w-3.5 h-3.5" /> Add Tourism Site
+        </button>
+      </div>
+
+      {/* create form */}
+      {showCreate && (
+        <div className="bg-white border border-[#02665e]/20 rounded-2xl p-5 shadow-sm">
+          <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+            <Plus className="w-4 h-4 text-[#02665e]" /> New Tourism Site
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+            <EditableField label="Name *" value={newRow.name} onChange={(v) => setNewRow((p) => ({ ...p, name: v }))} />
+            <EditableField label="Country" value={newRow.country} onChange={(v) => setNewRow((p) => ({ ...p, country: v }))} />
+            <EditableField label="Slug (auto-generated if blank)" value={newRow.slug} onChange={(v) => setNewRow((p) => ({ ...p, slug: v }))} />
+            <div />
+            <EditableField label="Latitude" value={newRow.latitude} type="number" onChange={(v) => setNewRow((p) => ({ ...p, latitude: v }))} />
+            <EditableField label="Longitude" value={newRow.longitude} type="number" onChange={(v) => setNewRow((p) => ({ ...p, longitude: v }))} />
+            <div className="sm:col-span-2">
+              <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Description</label>
+              <textarea rows={3} value={newRow.description} onChange={(e) => setNewRow((p) => ({ ...p, description: e.target.value }))}
+                className="w-full text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#02665e]/30 resize-none" />
+            </div>
+          </div>
+          {createError && (
+            <p className="flex items-center gap-1 text-xs text-red-600 mb-3">
+              <AlertTriangle className="w-3.5 h-3.5" /> {createError}
+            </p>
+          )}
+          <div className="flex items-center justify-end gap-2">
+            <button onClick={() => setShowCreate(false)} className="px-3 py-1.5 text-xs font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
+            <button
+              onClick={create}
+              disabled={creating || !newRow.name.trim()}
+              className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold bg-[#02665e] text-white rounded-lg hover:bg-[#015a52] disabled:opacity-50"
+            >
+              {creating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+              Create
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* delete confirm modal */}
+      {deleteId && deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-800 text-sm">Delete Tourism Site</h3>
+                <p className="text-xs text-slate-500 mt-0.5">This action cannot be undone.</p>
+              </div>
+            </div>
+            <p className="text-sm text-slate-700 mb-4">
+              Delete <strong>{deleteTarget.name}</strong>?
+              {deleteTarget.propertyCount > 0 && (
+                <span className="block mt-1 text-amber-600 font-medium">
+                  ⚠ {deleteTarget.propertyCount} propert{deleteTarget.propertyCount === 1 ? "y is" : "ies are"} linked — unlink them first.
+                </span>
+              )}
+            </p>
+            {deleteError && <p className="text-xs text-red-600 mb-3 flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" />{deleteError}</p>}
+            <div className="flex items-center justify-end gap-2">
+              <button onClick={() => { setDeleteId(null); setDeleteError(""); }} className="px-3 py-1.5 text-xs font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
+              <button
+                onClick={confirmDelete}
+                disabled={deleting || deleteTarget.propertyCount > 0}
+                className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+              >
+                {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* table */}
+      {loading ? (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="w-6 h-6 animate-spin text-[#02665e]" />
+        </div>
+      ) : error ? (
+        <div className="flex items-center gap-2 text-sm text-red-600 py-8 justify-center">
+          <AlertTriangle className="w-4 h-4" /> {error}
+        </div>
+      ) : (
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              {visible.length} site{visible.length !== 1 ? "s" : ""}
+            </span>
+          </div>
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 border-b border-slate-100">
+              <tr>
+                <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider text-left">Name</th>
+                <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider text-left">Slug</th>
+                <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider text-left">Country</th>
+                <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider text-left">Properties</th>
+                <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider text-left">Coordinates</th>
+                <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {visible.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-12 text-center text-sm text-slate-400">
+                    No tourism sites found
+                  </td>
+                </tr>
+              )}
+              {visible.map((row) => (
+                <React.Fragment key={row.id}>
+                  <tr className="group hover:bg-slate-50/60 transition-colors">
+                    <td className="px-4 py-3">
+                      <p className="font-semibold text-slate-800 text-xs leading-tight">{row.name}</p>
+                      {row.description && (
+                        <p className="text-[10px] text-slate-400 leading-tight line-clamp-1 max-w-[200px]">{row.description}</p>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="font-mono text-[11px] text-[#02665e] bg-[#02665e]/8 px-1.5 py-0.5 rounded">{row.slug}</span>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-slate-600">{row.country}</td>
+                    <td className="px-4 py-3">
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                        row.propertyCount > 0
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          : "bg-slate-100 text-slate-500"
+                      }`}>
+                        {row.propertyCount}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-[11px] text-slate-500">
+                      {row.latitude && row.longitude
+                        ? `${Number(row.latitude).toFixed(4)}, ${Number(row.longitude).toFixed(4)}`
+                        : <span className="text-slate-300">—</span>
+                      }
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={() => expanded === row.id ? closeEdit() : openEdit(row)}
+                          className="p-1.5 text-slate-400 hover:text-[#02665e] hover:bg-[#02665e]/8 rounded-lg transition-colors"
+                          title="Edit"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => { setDeleteId(row.id); setDeleteError(""); }}
+                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                  {expanded === row.id && draft && (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-4 bg-slate-50/80">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <EditableField label="Name *" value={draft.name} onChange={(v) => setDraft((p: any) => ({ ...p, name: v }))} />
+                          <EditableField label="Country" value={draft.country} onChange={(v) => setDraft((p: any) => ({ ...p, country: v }))} />
+                          <EditableField label="Slug" value={draft.slug} onChange={(v) => setDraft((p: any) => ({ ...p, slug: v.toLowerCase().replace(/[^a-z0-9-]/g, '') }))} />
+                          <div />
+                          <EditableField label="Latitude" value={draft.latitude ?? ""} type="number" onChange={(v) => setDraft((p: any) => ({ ...p, latitude: v === "" ? null : v }))} />
+                          <EditableField label="Longitude" value={draft.longitude ?? ""} type="number" onChange={(v) => setDraft((p: any) => ({ ...p, longitude: v === "" ? null : v }))} />
+                          <div className="sm:col-span-2">
+                            <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Description</label>
+                            <textarea rows={3} value={draft.description ?? ""} onChange={(e) => setDraft((p: any) => ({ ...p, description: e.target.value }))}
+                              className="w-full text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#02665e]/30 resize-none" />
+                          </div>
+                        </div>
+                        <SaveBar saving={saving} error={saveError} onSave={save} onCancel={closeEdit} />
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── ROOT component ───────────────────────────────────────────────────────────
 
 export default function NolScopeAdminClient() {
@@ -1619,12 +1927,13 @@ export default function NolScopeAdminClient() {
 
       {/* tab content */}
       <div>
-        {tab === "destinations" && <DestinationsTab />}
-        {tab === "activities"   && <ActivitiesTab />}
-        {tab === "park-fees"    && <ParkFeesTab   />}
-        {tab === "visa-fees"    && <VisaFeesTab   />}
-        {tab === "transport"    && <TransportTab  />}
-        {tab === "seasonal"     && <SeasonalTab   />}
+        {tab === "destinations"  && <DestinationsTab  />}
+        {tab === "tourism-sites" && <TourismSitesTab  />}
+        {tab === "activities"    && <ActivitiesTab    />}
+        {tab === "park-fees"     && <ParkFeesTab      />}
+        {tab === "visa-fees"     && <VisaFeesTab      />}
+        {tab === "transport"     && <TransportTab     />}
+        {tab === "seasonal"      && <SeasonalTab      />}
       </div>
     </div>
   );
