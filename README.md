@@ -1,4 +1,4 @@
-# NoLS — Networked occupancy & Logistics System
+# NoLS - Networked occupancy & Logistics System
 
 [![License: Proprietary](https://img.shields.io/badge/license-proprietary-red.svg)](#license)
 [![Stack: Next.js + Node.js](https://img.shields.io/badge/stack-Next.js%20%2B%20Node.js-blue.svg)](#tech-stack)
