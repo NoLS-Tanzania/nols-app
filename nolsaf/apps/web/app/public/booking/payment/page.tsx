@@ -20,6 +20,9 @@ import LogoSpinner from "@/components/LogoSpinner";
 const PAYMENT_WAIT_SECONDS = 4 * 60;
 const PAYMENT_RETRY_WINDOW_SECONDS = 5 * 60;
 const PAYMENT_RETRY_LIMIT = 3;
+const PAYMENT_POLL_MAX_ATTEMPTS = 45;
+const PAYMENT_POLL_FAST_DELAY_MS = 3000;
+const PAYMENT_POLL_SLOW_DELAY_MS = 10000;
 
 type PaymentMethod = {
   id: "Airtel" | "Mixx" | "M-Pesa" | "Halopesa";
@@ -244,7 +247,7 @@ export default function PaymentPage() {
   useEffect(() => {
     return () => {
       if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
+        clearTimeout(pollingIntervalRef.current);
       }
       if (countdownIntervalRef.current) {
         clearInterval(countdownIntervalRef.current);
@@ -384,7 +387,7 @@ export default function PaymentPage() {
 
   function startPolling(ref: string) {
     if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
+      clearTimeout(pollingIntervalRef.current);
       pollingIntervalRef.current = null;
     }
 
@@ -404,7 +407,7 @@ export default function PaymentPage() {
 
       if (data.status === "PAID") {
         if (pollingIntervalRef.current) {
-          clearInterval(pollingIntervalRef.current);
+          clearTimeout(pollingIntervalRef.current);
           pollingIntervalRef.current = null;
         }
         setPaymentStatus("success");
@@ -420,11 +423,20 @@ export default function PaymentPage() {
       console.error("Initial payment polling error:", err);
     });
 
-    // Poll for longer than the visible countdown so late webhooks can still update the card.
+    // Poll quickly while the mobile-money prompt is fresh, then back off.
+    // This keeps the payment card responsive without creating hundreds of
+    // duplicate status requests when the provider is slow or unavailable.
     let attempts = 0;
-    const maxAttempts = 200;
+    const scheduleNextPoll = () => {
+      if (attempts >= PAYMENT_POLL_MAX_ATTEMPTS) {
+        pollingIntervalRef.current = null;
+        return;
+      }
+      const delay = attempts < 20 ? PAYMENT_POLL_FAST_DELAY_MS : PAYMENT_POLL_SLOW_DELAY_MS;
+      pollingIntervalRef.current = setTimeout(runPoll, delay);
+    };
 
-    pollingIntervalRef.current = setInterval(async () => {
+    const runPoll = async () => {
       attempts++;
 
       try {
@@ -432,17 +444,14 @@ export default function PaymentPage() {
         if (completed) {
           return;
         }
-
-        if (attempts >= maxAttempts) {
-          if (pollingIntervalRef.current) {
-            clearInterval(pollingIntervalRef.current);
-            pollingIntervalRef.current = null;
-          }
-        }
       } catch (err) {
         console.error("Payment polling error:", err, ref);
       }
-    }, 3000);
+
+      scheduleNextPoll();
+    };
+
+    scheduleNextPoll();
   }
 
   if (loading) {

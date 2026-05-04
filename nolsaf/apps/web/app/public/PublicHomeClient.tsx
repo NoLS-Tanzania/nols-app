@@ -1494,11 +1494,15 @@ export default function Page() {
               <div aria-hidden className="pointer-events-none absolute -top-14 -right-14 w-56 h-56 rounded-full opacity-[0.15] group-hover:opacity-[0.25] transition-opacity duration-500" style={{ border: '2px solid #34d399', boxShadow: 'inset 0 0 60px rgba(52,211,153,0.3)' }} />
               <div aria-hidden className="pointer-events-none absolute -top-4 -right-4 w-32 h-32 rounded-full opacity-[0.10] group-hover:opacity-[0.18] transition-opacity duration-500" style={{ border: '1px solid #6ee7b7' }} />
               <div aria-hidden className="pointer-events-none absolute bottom-0 left-0 right-0 h-32 opacity-40" style={{ background: 'linear-gradient(to top, rgba(16,185,129,0.25), transparent)' }} />
-
               <div className="relative flex h-full flex-col p-5 sm:p-6 md:p-7 min-h-[260px]">
-                <div className="inline-flex self-start items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold tracking-widest uppercase" style={{ background: 'rgba(52,211,153,0.18)', color: '#6ee7b7', border: '1px solid rgba(52,211,153,0.35)' }}>
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399]" />
-                  Travelers
+                <div className="flex items-start justify-between gap-3">
+                  <div className="inline-flex self-start items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold tracking-widest uppercase" style={{ background: 'rgba(52,211,153,0.18)', color: '#6ee7b7', border: '1px solid rgba(52,211,153,0.35)' }}>
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399]" />
+                    Travelers
+                  </div>
+                  <div aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: 'rgba(52,211,153,0.15)', border: '1px solid rgba(52,211,153,0.25)', backdropFilter: 'blur(8px)' }}>
+                    <Users style={{ width: '1.125rem', height: '1.125rem', color: '#6ee7b7' }} />
+                  </div>
                 </div>
 
                 <h3 className="mt-5 text-xl sm:text-2xl font-bold text-white leading-tight tracking-tight">
@@ -1534,11 +1538,15 @@ export default function Page() {
               <div aria-hidden className="pointer-events-none absolute -top-14 -right-14 w-56 h-56 rounded-full opacity-[0.15] group-hover:opacity-[0.25] transition-opacity duration-500" style={{ border: '2px solid #38bdf8', boxShadow: 'inset 0 0 60px rgba(56,189,248,0.3)' }} />
               <div aria-hidden className="pointer-events-none absolute -top-4 -right-4 w-32 h-32 rounded-full opacity-[0.10] group-hover:opacity-[0.18] transition-opacity duration-500" style={{ border: '1px solid #7dd3fc' }} />
               <div aria-hidden className="pointer-events-none absolute bottom-0 left-0 right-0 h-32 opacity-40" style={{ background: 'linear-gradient(to top, rgba(56,189,248,0.22), transparent)' }} />
-
               <div className="relative flex h-full flex-col p-5 sm:p-6 md:p-7 min-h-[260px]">
-                <div className="inline-flex self-start items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold tracking-widest uppercase" style={{ background: 'rgba(56,189,248,0.18)', color: '#7dd3fc', border: '1px solid rgba(56,189,248,0.35)' }}>
-                  <span className="w-1.5 h-1.5 rounded-full bg-sky-400 shadow-[0_0_6px_#38bdf8]" />
-                  Drivers
+                <div className="flex items-start justify-between gap-3">
+                  <div className="inline-flex self-start items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold tracking-widest uppercase" style={{ background: 'rgba(56,189,248,0.18)', color: '#7dd3fc', border: '1px solid rgba(56,189,248,0.35)' }}>
+                    <span className="w-1.5 h-1.5 rounded-full bg-sky-400 shadow-[0_0_6px_#38bdf8]" />
+                    Drivers
+                  </div>
+                  <div aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: 'rgba(56,189,248,0.15)', border: '1px solid rgba(56,189,248,0.25)', backdropFilter: 'blur(8px)' }}>
+                    <Car style={{ width: '1.125rem', height: '1.125rem', color: '#7dd3fc' }} />
+                  </div>
                 </div>
 
                 <h3 className="mt-5 text-xl sm:text-2xl font-bold text-white leading-tight tracking-tight">
@@ -1574,11 +1582,15 @@ export default function Page() {
               <div aria-hidden className="pointer-events-none absolute -top-14 -right-14 w-56 h-56 rounded-full opacity-[0.15] group-hover:opacity-[0.25] transition-opacity duration-500" style={{ border: '2px solid #a78bfa', boxShadow: 'inset 0 0 60px rgba(167,139,250,0.3)' }} />
               <div aria-hidden className="pointer-events-none absolute -top-4 -right-4 w-32 h-32 rounded-full opacity-[0.10] group-hover:opacity-[0.18] transition-opacity duration-500" style={{ border: '1px solid #c4b5fd' }} />
               <div aria-hidden className="pointer-events-none absolute bottom-0 left-0 right-0 h-32 opacity-40" style={{ background: 'linear-gradient(to top, rgba(139,92,246,0.25), transparent)' }} />
-
               <div className="relative flex h-full flex-col p-5 sm:p-6 md:p-7 min-h-[260px]">
-                <div className="inline-flex self-start items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold tracking-widest uppercase" style={{ background: 'rgba(167,139,250,0.18)', color: '#c4b5fd', border: '1px solid rgba(167,139,250,0.35)' }}>
-                  <span className="w-1.5 h-1.5 rounded-full bg-violet-400 shadow-[0_0_6px_#a78bfa]" />
-                  Property Owners
+                <div className="flex items-start justify-between gap-3">
+                  <div className="inline-flex self-start items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold tracking-widest uppercase" style={{ background: 'rgba(167,139,250,0.18)', color: '#c4b5fd', border: '1px solid rgba(167,139,250,0.35)' }}>
+                    <span className="w-1.5 h-1.5 rounded-full bg-violet-400 shadow-[0_0_6px_#a78bfa]" />
+                    Property Owners
+                  </div>
+                  <div aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: 'rgba(167,139,250,0.15)', border: '1px solid rgba(167,139,250,0.25)', backdropFilter: 'blur(8px)' }}>
+                    <Home style={{ width: '1.125rem', height: '1.125rem', color: '#c4b5fd' }} />
+                  </div>
                 </div>
 
                 <h3 className="mt-5 text-xl sm:text-2xl font-bold text-white leading-tight tracking-tight">
