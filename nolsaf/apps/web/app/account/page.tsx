@@ -493,7 +493,7 @@ export default function AccountIndex() {
             style={{ background: "linear-gradient(135deg, #011a18 0%, #02665e 100%)" }}
           >
             {saving ? (
-              <><div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Saving…</>
+              <><div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Saving...</>
             ) : (
               <><Save className="h-4 w-4" />Save Changes</>
             )}

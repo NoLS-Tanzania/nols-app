@@ -1,0 +1,9 @@
+import { type Express, type RequestHandler } from "express";
+import requireRole from "../middleware/auth";
+import agentAssignmentsRouter from "./agent.assignments";
+import agentNotificationsRouter from "./agent.notifications";
+
+export function registerAgentRoutes(app: Express): void {
+  app.use("/api/agent/notifications", requireRole("AGENT") as RequestHandler, agentNotificationsRouter as RequestHandler);
+  app.use("/api/agent", requireRole("AGENT") as RequestHandler, agentAssignmentsRouter as RequestHandler);
+}

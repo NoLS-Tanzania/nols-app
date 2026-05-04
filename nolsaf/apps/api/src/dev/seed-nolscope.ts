@@ -87,7 +87,7 @@ const destinations = [
     accommodationMultiplier: 1.15,
     transportBaseUsd: 150.00,
     avgStayDays: 2,
-    description: 'UNESCO World Heritage site — an unbroken volcanic caldera teeming with wildlife including the Big Five.',
+    description: 'UNESCO World Heritage site. An unbroken volcanic caldera teeming with wildlife including the Big Five.',
     popularity: 90,
   },
   {

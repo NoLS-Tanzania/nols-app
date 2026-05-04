@@ -557,7 +557,7 @@ export default function Owner2FAPage() {
                   }`}
                 >
                   <MessageSquare className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-                  <span className="truncate">{sending ? 'Sending…' : 'Send code'}</span>
+                  <span className="truncate">{sending ? 'Sending...' : 'Send code'}</span>
                 </button>
                 <button 
                   onClick={() => setSmsFlow('sent')} 

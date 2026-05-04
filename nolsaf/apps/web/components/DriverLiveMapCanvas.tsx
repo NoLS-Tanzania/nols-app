@@ -193,6 +193,7 @@ export default function DriverLiveMapCanvas({
   const [styleRevision, setStyleRevision] = useState(0);
   const [runtimeToken, setRuntimeToken] = useState("");
   const [tokenFetchDone, setTokenFetchDone] = useState(false);
+  const [mapInitCenter, setMapInitCenter] = useState<LngLat | null>(null);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any | null>(null);
@@ -263,6 +264,13 @@ export default function DriverLiveMapCanvas({
   const hasTrackedDriverPos = Boolean(
     manualDriverPos || snappedDriverPos || smoothedDriverPos || startupDriverPos || (allowServerDriverFallback && serverDriverPos)
   );
+
+  useEffect(() => {
+    if (mapInitCenter) return;
+    if (!data) return;
+    if (!startupCenter) return;
+    setMapInitCenter(startupCenter);
+  }, [data, mapInitCenter, startupCenter]);
 
   useEffect(() => {
     if (!startupDriverPos) return;
@@ -494,8 +502,7 @@ export default function DriverLiveMapCanvas({
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!containerRef.current) return;
-    if (!data) return;
-    if (!startupCenter) return;
+    if (!mapInitCenter) return;
     if (!mapboxToken) return;
     if (mapRef.current) return;
 
@@ -505,9 +512,11 @@ export default function DriverLiveMapCanvas({
     host.appendChild(mapContainer);
 
     let map: any = null;
+    let disposed = false;
     (async () => {
       try {
         const mod = await import("mapbox-gl");
+        if (disposed) return;
         const mapboxgl = (mod as any).default ?? mod;
         mapboxRef.current = mapboxgl;
         mapboxgl.accessToken = mapboxToken;
@@ -516,7 +525,7 @@ export default function DriverLiveMapCanvas({
           container: mapContainer,
           // Base style (switchable by driver)
           style: desiredStyleUrl,
-          center: [startupCenter.lng, startupCenter.lat],
+          center: [mapInitCenter.lng, mapInitCenter.lat],
           zoom: liveOnly ? 15 : 13,
           pitch: liveOnly ? 50 : 0,
           bearing: 0,
@@ -869,6 +878,7 @@ export default function DriverLiveMapCanvas({
     })();
 
     return () => {
+      disposed = true;
       try {
         if (map) map.remove();
       } catch {
@@ -884,7 +894,7 @@ export default function DriverLiveMapCanvas({
       mapLoadedRef.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, mapboxToken, desiredStyleUrl, liveOnly, startupCenter]);
+  }, [mapInitCenter, mapboxToken, liveOnly]);
 
   // Switch base map style (light/dark) without remounting the whole page.
   useEffect(() => {

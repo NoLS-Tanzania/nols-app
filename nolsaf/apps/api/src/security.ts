@@ -8,10 +8,11 @@ import hpp from "hpp";
 
 export function configureSecurity(app: Express) {
   app.set("trust proxy", 1);
+  const isProduction = process.env.NODE_ENV === "production";
 
   // Strict headers + basic CSP (adjust CONNECT/IMG src for your domains)
   // Compute local dev origins for CSP and CORS
-  const defaultOrigins = [
+  const localDevOrigins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://localhost:4000",
@@ -21,6 +22,7 @@ export function configureSecurity(app: Express) {
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
+  const defaultOrigins = isProduction ? [] : localDevOrigins;
   const allowOrigins = Array.from(new Set([...defaultOrigins, ...envOrigins]));
 
   app.use(
@@ -68,12 +70,13 @@ export function configureSecurity(app: Express) {
     origin(origin, cb) {
       if (!origin) return cb(null, true); // same-origin or non-browser (curl, server-to-server)
       if (allow.includes(origin)) return cb(null, true);
-      // allow localhost/127.0.0.1 on any port for local development
-      try {
-        const m = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
-        if (m) return cb(null, true);
-      } catch (e) {
-        // ignore regex errors and treat as disallowed
+      if (!isProduction) {
+        try {
+          const m = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+          if (m) return cb(null, true);
+        } catch {
+          // ignore regex errors and treat as disallowed
+        }
       }
       // deny by default
       return cb(null, false);

@@ -248,7 +248,7 @@ export default function AdminFooter({
                 <div className="text-xs sm:text-sm text-slate-600 text-center">
                   <span className="font-semibold text-slate-800">© {year} </span>
                   <span className="font-extrabold text-[#02665e] tracking-wide">NoLSAF</span>
-                  <span className="text-slate-500"> — All rights reserved</span>
+                  <span className="text-slate-500"> | All rights reserved</span>
                 </div>
               </div>
             </div>

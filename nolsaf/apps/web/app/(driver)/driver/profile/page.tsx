@@ -340,7 +340,7 @@ export default function DriverProfile() {
           <span className="dot dot-blue" /><span className="dot dot-black" />
           <span className="dot dot-yellow" /><span className="dot dot-green" />
         </div>
-        <p className="text-sm text-slate-600 mt-4">Loading profile—</p>
+        <p className="text-sm text-slate-600 mt-4">Loading profile...</p>
       </div>
     );
   }
@@ -808,7 +808,7 @@ export default function DriverProfile() {
           <div className="p-5 sm:p-6 grid grid-cols-2 gap-3">
             <button onClick={save} disabled={saving}
               className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#02665e] text-white text-sm font-semibold hover:bg-[#02665e]/90 shadow-card transition-colors disabled:opacity-60 disabled:cursor-wait">
-              <Save className="h-4 w-4" />{saving ? "Saving—" : "Save changes"}
+              <Save className="h-4 w-4" />{saving ? "Saving..." : "Save changes"}
             </button>
             <button onClick={() => { window.location.href = "/driver/security"; }}
               className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-semibold hover:bg-slate-50 shadow-card transition-colors">

@@ -48,7 +48,7 @@ export default function Paid() {
     } catch (err: any) {
       console.error("Failed to load invoices", err);
       if (!silent) setItems([]);
-      setError(err?.response?.data?.error ?? err?.message ?? "Failed to load paid invoices");
+      setError(err?.response?.data?.error ?? err?.message ?? "Failed to load disbursed invoices");
     } finally {
       if (silent) setRefreshing(false);
       else setLoading(false);
@@ -131,7 +131,7 @@ export default function Paid() {
             <Loader2 className="h-7 w-7 animate-spin text-white" />
           </div>
         </div>
-        <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Paid Invoices</h1>
+        <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Disbursed Invoices</h1>
         <p className="text-sm text-slate-500 mt-2 max-w-sm">Loading your payment history…</p>
       </div>
     );
@@ -144,7 +144,7 @@ export default function Paid() {
       <div className="relative overflow-hidden rounded-2xl bg-white border border-slate-200 shadow-xl shadow-slate-100/70">
         {/* Faint watermark */}
         <div className="pointer-events-none select-none absolute right-0 bottom-0 text-[120px] font-black text-slate-100/80 leading-none tracking-tighter pr-4 pb-1" aria-hidden>
-          PAID
+          DISBURSED
         </div>
         {/* Subtle dot grid */}
         <div
@@ -189,10 +189,10 @@ export default function Paid() {
           {/* Title block */}
           <div className="mt-5">
             <h1 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight leading-none">
-              Paid Invoices
+              Disbursed Invoices
             </h1>
             <p className="mt-2.5 text-sm text-slate-500 max-w-md leading-relaxed">
-              View all invoices that have been paid and processed by NoLSAF.
+              View all invoices that have been disbursed and processed by NoLSAF.
             </p>
           </div>
 
@@ -211,7 +211,7 @@ export default function Paid() {
           <div className="min-w-0">
             <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Invoices</p>
             <p className="mt-0.5 text-3xl font-black text-slate-900 tabular-nums leading-none">{stats.totalCount.toLocaleString()}</p>
-            <p className="mt-1 text-xs text-slate-400">Paid &amp; processed</p>
+            <p className="mt-1 text-xs text-slate-400">Disbursed &amp; processed</p>
           </div>
         </div>
 
@@ -352,8 +352,8 @@ export default function Paid() {
                 className="appearance-none h-9 pl-8 pr-8 rounded-lg border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/30 focus:border-emerald-400 transition-all duration-200 cursor-pointer"
                 aria-label="Sort invoices"
               >
-                <option value="paidAt_desc">Newest paid</option>
-                <option value="paidAt_asc">Oldest paid</option>
+                  <option value="paidAt_desc">Newest disbursed</option>
+                  <option value="paidAt_asc">Oldest disbursed</option>
                 <option value="amount_desc">Amount (high)</option>
                 <option value="amount_asc">Amount (low)</option>
               </select>
@@ -391,7 +391,7 @@ export default function Paid() {
             <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-slate-100 border border-slate-200 mb-5">
               <Receipt className="h-8 w-8 text-slate-400" aria-hidden />
             </div>
-            <h2 className="text-lg font-bold text-slate-900 mb-1.5">No paid invoices yet</h2>
+            <h2 className="text-lg font-bold text-slate-900 mb-1.5">No disbursed invoices yet</h2>
             <p className="text-sm text-slate-500">Once payments are processed, they&apos;ll appear here.</p>
             <div className="mt-6 flex justify-center gap-2">
               <Link
@@ -412,7 +412,7 @@ export default function Paid() {
                   <th className="px-5 sm:px-6 py-3 text-left text-[11px] font-bold uppercase tracking-widest text-slate-500">Invoice</th>
                   <th className="px-5 sm:px-6 py-3 text-left text-[11px] font-bold uppercase tracking-widest text-slate-500">Property</th>
                   <th className="px-5 sm:px-6 py-3 text-left text-[11px] font-bold uppercase tracking-widest text-slate-500">Issued</th>
-                  <th className="px-5 sm:px-6 py-3 text-left text-[11px] font-bold uppercase tracking-widest text-slate-500">Paid</th>
+                  <th className="px-5 sm:px-6 py-3 text-left text-[11px] font-bold uppercase tracking-widest text-slate-500">Disbursed</th>
                   <th className="px-5 sm:px-6 py-3 text-left text-[11px] font-bold uppercase tracking-widest text-slate-500">Status</th>
                   <th className="px-5 sm:px-6 py-3 text-left text-[11px] font-bold uppercase tracking-widest text-slate-500">Receipt</th>
                   <th className="px-5 sm:px-6 py-3 text-right text-[11px] font-bold uppercase tracking-widest text-slate-500">Amount</th>
@@ -449,7 +449,7 @@ export default function Paid() {
                       <td className="px-5 sm:px-6 py-3.5">
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold tracking-wide bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm">
                           <CheckCircle2 className="h-3 w-3" aria-hidden />
-                          PAID
+                          DISBURSED
                         </span>
                       </td>
                       <td className="px-5 sm:px-6 py-3.5">

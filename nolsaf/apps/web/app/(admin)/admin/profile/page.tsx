@@ -93,7 +93,7 @@ export default function AdminProfile() {
             <span className="dot dot-yellow" />
             <span className="dot dot-green" />
           </div>
-          <p className="text-sm text-slate-500 mt-4">Loading profile…</p>
+          <p className="text-sm text-slate-500 mt-4">Loading profile</p>
         </div>
       </div>
     );
@@ -290,7 +290,7 @@ export default function AdminProfile() {
               aria-live="polite"
             >
               <Save className="h-4 w-4 flex-shrink-0" />
-              <span className="truncate min-w-0">{saving ? 'Saving…' : 'Save Changes'}</span>
+              <span className="truncate min-w-0">{saving ? 'Saving...' : 'Save Changes'}</span>
             </button>
             
             <button 

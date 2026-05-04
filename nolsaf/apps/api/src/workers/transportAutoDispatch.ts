@@ -62,7 +62,6 @@ function isDriverOnlineToggled(driver: any): boolean {
   if (!isDriverApprovedForProtectedAccess(driver)) return false;
   // Support both schema variants.
   if (driver?.available === false) return false;
-  if (driver?.isAvailable === false) return false;
   return true;
 }
 
@@ -162,7 +161,6 @@ async function findCandidatesWithinRadius({
           id: true,
           role: true,
           available: true,
-          isAvailable: true,
           isDisabled: true,
           suspendedAt: true,
           vehicleType: true,
@@ -676,7 +674,7 @@ async function processEscalations(io?: Server) {
   }
 }
 
-export function startTransportAutoDispatch({ io, intervalMs = 15_000 }: StartOptions = {}) {
+export function startTransportAutoDispatch({ io, intervalMs = 30_000 }: StartOptions = {}) {
   if ((global as any).__transportAutoDispatchStarted) return;
   (global as any).__transportAutoDispatchStarted = true;
 

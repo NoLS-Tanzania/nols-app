@@ -26,14 +26,12 @@ export default function UnreadMessagesPage() {
       setLoading(true);
       setError(null);
       try {
-        const base = process.env.NEXT_PUBLIC_API_URL || '';
-        const url = base ? `${base.replace(/\/$/, '')}/api/owner/messages?tab=unread&page=1&pageSize=50` : '/api/owner/messages?tab=unread&page=1&pageSize=50';
-        const r = await fetch(url, { credentials: 'include', signal: controller.signal });
+        const r = await fetch('/api/owner/notifications?tab=unread&page=1&pageSize=50', { credentials: 'include', signal: controller.signal });
         if (!mounted) return;
         if (!r.ok) throw new Error(`Fetch failed (${r.status})`);
         const j = await r.json();
-        // expect { items: MessageDto[] }
-        setItems((j?.items ?? []).map((it: any) => ({ id: String(it.id), from: it.from ?? it.sender ?? '', subject: it.subject ?? '', snippet: it.snippet ?? it.body ?? '', receivedAt: it.receivedAt ?? it.createdAt ?? new Date().toISOString() })));
+        // expect { items: NotificationDto[] }
+        setItems((j?.items ?? []).map((it: any) => ({ id: String(it.id), from: it.type ?? 'NoLSAF', subject: it.title ?? '', snippet: it.body ?? '', receivedAt: it.createdAt ?? new Date().toISOString() })));
       } catch (err: any) {
         if (err?.name === 'AbortError') return;
         console.debug('Could not load owner unread messages', err);
@@ -54,8 +52,7 @@ export default function UnreadMessagesPage() {
     const before = items;
     setItems((prev) => prev.filter((m) => m.id !== id));
     try {
-      const base = process.env.NEXT_PUBLIC_API_URL || '';
-      const endpoint = base ? `${base.replace(/\/$/, '')}/api/owner/messages/${encodeURIComponent(id)}/mark-read` : `/api/owner/messages/${encodeURIComponent(id)}/mark-read`;
+      const endpoint = `/api/owner/notifications/${encodeURIComponent(id)}/mark-read`;
       const r = await fetch(endpoint, { method: 'POST', credentials: 'include' });
       if (!r.ok) throw new Error(`Server returned ${r.status}`);
     } catch (err) {

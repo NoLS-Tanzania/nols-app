@@ -173,7 +173,7 @@ export default function DriverPayoutsPage() {
 
         <div class="footer">
           <div><img src="${safeAttr(qrUrl)}" alt="qr"/></div>
-          <div class="copyright">2025 NoLSAF All Rights Reserved</div>
+          <div class="copyright">© 2026 NoLSAF | All Rights Reserved</div>
         </div>
       </body>
       </html>`
@@ -255,7 +255,7 @@ export default function DriverPayoutsPage() {
 
             <div style="position:absolute; left:0; right:0; bottom:12mm; display:flex; justify-content:center; align-items:center; gap:8px;">
               <div><img src="${safeAttr(qrDataUrl)}" alt="qr" style="width:36px; height:36px;"/></div>
-              <div style="text-align:center; color:#94a3b8; font-size:10px">2025 NoLSAF All Rights Reserved</div>
+              <div style="text-align:center; color:#94a3b8; font-size:10px">© 2026 NoLSAF | All Rights Reserved</div>
             </div>
 
             <div style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%) rotate(-45deg); font-size:26px; color:rgba(15,23,42,0.06); pointer-events:none">NoLSAF Inc Limited</div>

@@ -73,7 +73,7 @@ function getGreetingName(user: { name?: string | null; email?: string | null }):
 // Helper: Generate email verification URL
 function getVerificationUrl(token: string): string {
   const appUrl = process.env.APP_URL || process.env.WEB_ORIGIN || "http://localhost:3000";
-  return `${appUrl}/api/public/email/verify?token=${token}`;
+  return `${appUrl.replace(/\/$/, "")}/email/verify?token=${encodeURIComponent(token)}`;
 }
 
 // Cleanup job: Remove expired tokens

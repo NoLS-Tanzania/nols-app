@@ -99,7 +99,7 @@ export default function InvoiceSendPage() {
               <div className="font-medium">{invoice.invoice_number || invoice.id}</div>
             </div>
             <div className="flex items-center space-x-3">
-              <button onClick={handleSend} disabled={sending} className="inline-flex items-center px-4 py-2 bg-emerald-600 text-white rounded disabled:opacity-60">{sending ? 'Sending…' : 'Send Invoice'}</button>
+              <button onClick={handleSend} disabled={sending} className="inline-flex items-center px-4 py-2 bg-emerald-600 text-white rounded disabled:opacity-60">{sending ? 'Sending...' : 'Send Invoice'}</button>
               <button onClick={() => router.push(`/driver/invoices/${id}`)} className="inline-flex items-center px-4 py-2 border rounded">Cancel</button>
             </div>
           </div>

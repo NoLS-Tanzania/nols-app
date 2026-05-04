@@ -156,8 +156,8 @@ export default function Receipt() {
   <div class="header">
     <div class="brand-row">
       <div class="brand-left">
-        ${logoDataUrl ? `<img class="brand-logo" src="${esc(logoDataUrl)}" alt="NolSAF"/>` : ""}
-        <span class="brand-name">NolSAF</span>
+        ${logoDataUrl ? `<img class="brand-logo" src="${esc(logoDataUrl)}" alt="NoLSAF"/>` : ""}
+        <span class="brand-name">NoLSAF</span>
       </div>
       <div class="verified-badge"><span>&#10003; Verified</span></div>
     </div>
@@ -226,8 +226,8 @@ export default function Receipt() {
     <div class="dots-inner"></div>
     <div class="seal-body">
       <div>
-        <div class="seal-badge-row"><div class="seal-dot"></div><span class="seal-title">NolSAF &middot; Certified Receipt</span></div>
-        <div class="seal-text">Thank you for partnering with NolSAF.<br/>Questions? Contact support.</div>
+        <div class="seal-badge-row"><div class="seal-dot"></div><span class="seal-title">NoLSAF &middot; Certified Receipt</span></div>
+        <div class="seal-text">Thank you for partnering with NoLSAF.<br/>Questions? Contact support.</div>
         <div class="seal-scan">Scan QR to verify this receipt.</div>
       </div>
       <div class="qr-wrap">
@@ -257,7 +257,7 @@ export default function Receipt() {
           <h2 className="text-xl font-semibold text-slate-900 mb-2">Error</h2>
           <p className="text-slate-600 mb-6">{error}</p>
           <Link href="/owner/revenue/paid" className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-[#02665e] text-white no-underline">
-            Back to revenue
+            Back to disbursed
           </Link>
         </div>
       </div>
@@ -337,7 +337,7 @@ export default function Receipt() {
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
           <Link href="/owner/revenue/paid" className="inline-flex items-center gap-1.5 text-[13px] font-medium text-slate-500 hover:text-[#02665e] transition-colors no-underline">
             <ChevronLeft className="w-4 h-4" />
-            Revenue
+            Disbursed
           </Link>
           <button
             onClick={handlePrint}
@@ -358,17 +358,17 @@ export default function Receipt() {
           style={{ border: "1px solid #e2eae9", boxShadow: "0 2px 8px rgba(2,102,94,0.06),0 12px 40px rgba(2,102,94,0.08)" }}
         >
 
-          {/* ══ TOP DOT ROW ══════════════════════════════════ */}
+          {/* ══ TOP DOT ROW ═════ */}
           <div className="w-full" style={{ height: "5px", backgroundImage: "radial-gradient(circle, #02665e 1.5px, transparent 1.5px)", backgroundSize: "10px 5px", backgroundRepeat: "repeat-x", backgroundPosition: "center" }} />
 
-          {/* ══ HEADER — white background ════════════════════ */}
+          {/* ══ HEADER — white background ═════ */}
           <div className="px-5 pt-4 pb-4 border-b" style={{ borderColor: "#edf4f3" }}>
             {/* Brand row */}
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2.5">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/assets/NoLS2025-04.png" alt="NolSAF" className="w-8 h-8 rounded-xl object-contain flex-shrink-0" style={{ background: "#edf7f6" }} />
-                <span className="text-[13px] font-black tracking-wide" style={{ color: "#024d47" }}>NolSAF</span>
+                <img src="/assets/NoLS2025-04.png" alt="NoLSAF" className="w-8 h-8 rounded-xl object-contain flex-shrink-0" style={{ background: "#edf7f6" }} />
+                <span className="text-[13px] font-black tracking-wide" style={{ color: "#024d47" }}>NoLSAF</span>
               </div>
               <div className="flex items-center gap-1.5 rounded-full px-2.5 py-1" style={{ background: "#edf7f6", border: "1px solid #c0dedd" }}>
                 <BadgeCheck className="w-3 h-3" style={{ color: "#02665e" }} />
@@ -399,7 +399,7 @@ export default function Receipt() {
             </div>
           </div>
 
-          {/* ══ REFERENCE STRIP ═════════════════════════════ */}
+          {/* ══ REFERENCE STRIP ═════ */}
           <div className="px-5 py-2 flex items-center justify-between gap-4 border-b" style={{ background: "#f7fbfa", borderColor: "#edf4f3" }}>
             <div className="min-w-0">
               <p className="text-[7.5px] font-bold uppercase tracking-[0.18em] mb-0.5" style={{ color: "#8aaca9" }}>Receipt Number</p>
@@ -412,7 +412,7 @@ export default function Receipt() {
             </div>
           </div>
 
-          {/* ══ BODY ════════════════════════════════════════ */}
+          {/* ══ BODY ═════ */}
           <div className="px-5 pt-3 pb-2 space-y-2.5">
 
             {/* Payment + Booking 2-col */}
@@ -507,7 +507,7 @@ export default function Receipt() {
             )}
           </div>
 
-          {/* ══ FOOTER SEAL ═════════════════════════════════ */}
+          {/* ══ FOOTER SEAL ════ */}
           <div className="mx-3 mb-3 mt-1 rounded-xl overflow-hidden" style={{ border: "1px solid #edf4f3" }}>
             <div className="w-full" style={{ height: "4px", backgroundImage: "radial-gradient(circle, rgba(2,102,94,0.55) 1.5px, transparent 1.5px)", backgroundSize: "9px 4px", backgroundRepeat: "repeat-x", backgroundPosition: "center" }} />
             <div className="px-3.5 py-3 grid grid-cols-[1fr,auto] gap-3 items-center" style={{ background: "#f7fbfa" }}>
@@ -516,10 +516,10 @@ export default function Receipt() {
                   <div className="w-3.5 h-3.5 rounded-full flex items-center justify-center" style={{ background: "#02665e" }}>
                     <BadgeCheck className="w-2 h-2 text-white" />
                   </div>
-                  <span className="text-[8.5px] font-black uppercase tracking-[0.15em]" style={{ color: "#024d47" }}>NolSAF · Certified Receipt</span>
+                  <span className="text-[8.5px] font-black uppercase tracking-[0.15em]" style={{ color: "#024d47" }}>NoLSAF · Certified Receipt</span>
                 </div>
                 <p className="text-[9px] leading-relaxed" style={{ color: "#5a9990" }}>
-                  Thank you for partnering with NolSAF.<br />
+                  Thank you for partnering with NoLSAF.<br />
                   Questions? Contact support.
                 </p>
                 <p className="text-[8px] mt-1" style={{ color: "#9ab8b6" }}>Scan QR to verify this receipt.</p>
@@ -544,13 +544,13 @@ export default function Receipt() {
             </div>
           </div>
 
-          {/* ══ BOTTOM DOT ROW ══════════════════════════════ */}
+          {/* ══ BOTTOM DOT ROW ═══ */}
           <div className="w-full" style={{ height: "5px", backgroundImage: "radial-gradient(circle, #02665e 1.5px, transparent 1.5px)", backgroundSize: "10px 5px", backgroundRepeat: "repeat-x", backgroundPosition: "center" }} />
 
         </div>
 
         <p className="no-print text-center text-[10px] mt-3" style={{ color: "#9ab8b6" }}>
-          NolSAF — Official Payment Document · Secure & Verified
+          NoLSAF | Official Payment Document · Secure & Verified
         </p>
       </div>
     </div>

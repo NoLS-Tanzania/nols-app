@@ -7,6 +7,7 @@ import { prisma } from "@nolsaf/prisma";
 import { AuthedRequest, requireAuth, requireRole } from "../middleware/auth.js";
 import { sanitizeText } from "../lib/sanitize.js";
 import { calculateAvailability } from "../lib/availabilityCalculator.js";
+import { AVAILABILITY_BLOCKING_BOOKING_STATUSES } from "../lib/bookingStatus.js";
 
 // Helper to emit availability updates via Socket.IO
 function emitAvailabilityUpdate(req: Request, propertyId: number, event: 'block_created' | 'block_updated' | 'block_deleted' | 'bulk_updated', data: any) {
@@ -542,6 +543,7 @@ router.get("/calendar", (async (req: AuthedRequest, res: Response) => {
     const bookings = await prisma.booking.findMany({
       where: {
         propertyId: propertyIdNum,
+        status: { in: [...AVAILABILITY_BLOCKING_BOOKING_STATUSES] },
         AND: [
           { checkIn: { lt: end } },
           { checkOut: { gt: start } },
@@ -744,7 +746,7 @@ router.post("/blocks/bulk", (async (req: AuthedRequest, res: Response) => {
  * Uses conflict avoidance principles:
  * - Date overlap detection (existingStart < requestedEnd AND existingEnd > requestedStart)
  * - Room type specificity (roomCode matching)
- * - Active booking status filtering (NEW, CONFIRMED, CHECKED_IN only)
+ * - Active booking status filtering (payment-confirmed/arrival-active bookings only)
  * - External booking blocks (all blocks are active)
  * 
  * Query: propertyId, startDate, endDate, roomCode?, excludeBlockId?
@@ -790,9 +792,7 @@ router.get("/check-conflicts", (async (req: AuthedRequest, res: Response) => {
     const conflictingBookings = await prisma.booking.findMany({
       where: {
         propertyId: propertyIdNum,
-        status: {
-          in: ["NEW", "CONFIRMED", "CHECKED_IN"],
-        },
+        status: { in: [...AVAILABILITY_BLOCKING_BOOKING_STATUSES] },
         AND: [
           { checkIn: { lt: end } },
           { checkOut: { gt: start } },

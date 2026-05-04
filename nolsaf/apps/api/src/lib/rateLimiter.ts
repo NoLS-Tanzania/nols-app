@@ -6,6 +6,20 @@ const rateLimiterCache = new Map<number, ReturnType<typeof rateLimit>>();
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes cache
 let lastCacheUpdate = 0;
 let cachedRateLimit = 100;
+const PUBLIC_READ_LIMIT_PER_MINUTE = 900;
+
+function isPublicReadRequest(req: any): boolean {
+  if (req.method !== "GET" && req.method !== "HEAD" && req.method !== "OPTIONS") return false;
+  const path = String(req.path || req.originalUrl || "");
+  return (
+    path.startsWith("/api/public/properties") ||
+    path.startsWith("/api/public/updates") ||
+    path.startsWith("/api/public/tourism-sites") ||
+    path.startsWith("/api/public/podcasts") ||
+    path.startsWith("/api/public/support") ||
+    path.startsWith("/api/public/availability")
+  );
+}
 
 /**
  * Get the current API rate limit from SystemSetting
@@ -66,6 +80,10 @@ getCurrentRateLimit().then(limit => {
 });
 
 export function dynamicRateLimiter(req: any, res: any, next: any) {
+  if (isPublicReadRequest(req)) {
+    return getRateLimiter(PUBLIC_READ_LIMIT_PER_MINUTE)(req, res, next);
+  }
+
   // Use initialized limiter if available, otherwise get one with current limit
   if (initializedLimiter) {
     // Refresh limit in background (non-blocking)

@@ -645,7 +645,7 @@ export default function AgentProfilePage() {
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20">
           <LogoSpinner size="lg" className="mb-4" ariaLabel="Loading profile" />
-          <p className="text-sm text-slate-600">Loading profile...</p>
+          <p className="text-sm text-slate-600">Loading profile</p>
         </div>
       ) : authRequired ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-card">

@@ -14,8 +14,8 @@
  *    - Room types are identified by matching roomCode patterns (e.g., "Single-1", "Double-2")
  * 
  * 3. BOOKING STATUS FILTERING:
- *    - Only active bookings count: NEW, CONFIRMED, CHECKED_IN
- *    - Cancelled, checked-out, or rejected bookings don't block availability
+ *    - Only payment-confirmed/arrival-active bookings count: CONFIRMED, PENDING_CHECKIN, CHECKED_IN
+ *    - Unpaid holds (NEW), cancelled, checked-out, or rejected bookings don't block availability
  * 
  * 4. AVAILABILITY BLOCKS (External Bookings):
  *    - All blocks are considered active (no status field)
@@ -35,6 +35,7 @@
  */
 
 import { prisma } from "@nolsaf/prisma";
+import { AVAILABILITY_BLOCKING_BOOKING_STATUSES } from "./bookingStatus.js";
 
 /** Normalize Prisma DateTime (Date or ISO string) to Date for .getTime() / .toISOString() */
 function toDate(x: unknown): Date {
@@ -146,9 +147,7 @@ export async function calculateAvailability(
   const bookings = await prisma.booking.findMany({
     where: {
       propertyId,
-      status: {
-        in: ["NEW", "CONFIRMED", "CHECKED_IN"], // Only active bookings
-      },
+      status: { in: [...AVAILABILITY_BLOCKING_BOOKING_STATUSES] },
       AND: [
         { checkIn: { lt: endDate } },
         { checkOut: { gt: startDate } },

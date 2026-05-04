@@ -5,6 +5,7 @@ import type { RequestHandler } from "express";
 import { z } from "zod";
 import { prisma } from "@nolsaf/prisma";
 import rateLimit from "express-rate-limit";
+import { AVAILABILITY_BLOCKING_BOOKING_STATUSES } from "../lib/bookingStatus.js";
 
 export const router = Router();
 
@@ -120,9 +121,7 @@ router.post("/check", availabilityLimiter, (async (req: Request, res: Response) 
     const conflictingBookings = await prisma.booking.findMany({
       where: {
         propertyId,
-        status: {
-          in: ["NEW", "CONFIRMED", "CHECKED_IN"],
-        },
+        status: { in: [...AVAILABILITY_BLOCKING_BOOKING_STATUSES] },
         AND: [
           {
             checkIn: { lt: checkOut },

@@ -249,7 +249,7 @@ export default function OwnerRevenueInvoiceView() {
           <InfoRow label="Property" value={propertyTitle} />
           <InfoRow label="NoLSAF Code" value={codeVisible} mono />
           <InfoRow label="Issued" value={issuedAt} />
-          {paidAt ? <InfoRow label="Paid" value={paidAt} /> : null}
+          {paidAt ? <InfoRow label="Disbursed" value={paidAt} /> : null}
         </div>
 
         {/* Payout total footer */}
@@ -263,7 +263,7 @@ export default function OwnerRevenueInvoiceView() {
             </div>
             <div className="text-right">
               <div className="text-2xl sm:text-3xl font-black text-white tracking-tight">{formattedTotal}</div>
-              <span className={`mt-1 inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${status.toUpperCase() === 'PAID' ? 'bg-emerald-400/20 text-emerald-200' : 'bg-white/15 text-white/70'}`}>{status}</span>
+              <span className={`mt-1 inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${status.toUpperCase() === 'PAID' ? 'bg-emerald-400/20 text-emerald-200' : 'bg-white/15 text-white/70'}`}>{status.toUpperCase() === "PAID" ? "DISBURSED" : status}</span>
             </div>
           </div>
         </div>
@@ -272,8 +272,8 @@ export default function OwnerRevenueInvoiceView() {
       {/* ── Paid notice ── */}
       {status.toUpperCase() === "PAID" ? (
         <div className="relative overflow-hidden rounded-2xl bg-emerald-950 border border-emerald-900 p-5">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-400/70 mb-1">Payment Confirmed</div>
-          <div className="text-sm font-bold text-emerald-300">This invoice has been paid. You can view the receipt from your Paid list.</div>
+          <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-400/70 mb-1">Disbursement Confirmed</div>
+          <div className="text-sm font-bold text-emerald-300">This invoice has been disbursed. You can view the receipt from your Disbursed list.</div>
         </div>
       ) : null}
 

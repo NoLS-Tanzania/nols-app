@@ -25,4 +25,16 @@ NOLSAF_STRATEGY.md
 # AWS deployment guides (contain credentials/endpoints)
 AWS_DEPLOYMENT_GUIDE.md
 AWS_QUICK_START.md
+AWS_RDS_MIGRATION_GUIDE.md
+MIGRATION_QUICK_REF.md
 *DEPLOYMENT_GUIDE*.md
+*_MIGRATION*.md
+
+# Security analysis and audit reports (contain vulnerability details)
+SECURITY_ANALYSIS.md
+SECURITY_FIXES_SUMMARY.md
+*SECURITY*.md
+*_AUDIT.md
+*_PENTEST.md
+.vercel
+.env*.local

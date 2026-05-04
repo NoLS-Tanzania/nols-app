@@ -436,8 +436,15 @@ export default function RegisterPage() {
         const data = await resp.json().catch(() => ({}));
         throw new Error(data?.message || 'OTP verification failed');
       }
-      setSuccess('Verified — account created');
+      setSuccess('Verified. Account created');
       setStep('done');
+      const nextPath = safeNextPath(nextParamRaw);
+      if (nextPath?.startsWith('/public/booking/payment')) {
+        setTimeout(() => {
+          window.location.href = nextPath;
+        }, 900);
+        return;
+      }
       // Include referral code in URL if present
       const onboardUrl = referralCode 
         ? `/account/onboard/${role}?ref=${encodeURIComponent(referralCode)}`

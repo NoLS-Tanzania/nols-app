@@ -12,6 +12,10 @@ const HOTEL_STAR_MAP: Record<string, number> = {
   luxury: 5,
 };
 
+function isShareableImageUrl(value: unknown): value is string {
+  return typeof value === "string" && /^https?:\/\//i.test(value.trim());
+}
+
 type Props = {
   params: Promise<{ slug: string }>;
   children: ReactNode;
@@ -26,7 +30,7 @@ const fetchProperty = cache(async (slug: string) => {
 
   const res = await fetch(
     `${apiBase}/api/public/properties/${encodeURIComponent(slug)}`,
-    { next: { revalidate: 3600 } }
+    { cache: "no-store" }
   );
   if (!res.ok) throw new Error("not found");
   const json = await res.json();
@@ -76,7 +80,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       .join(", ");
 
     const pageTitle = location ? `${title} | ${location}` : title;
-    const ogImage = (property.images as string[])?.[0];
+    const ogImage = (property.images as string[] | undefined)?.find(isShareableImageUrl);
     const canonicalUrl = `${SITE_URL}/public/properties/${slug}`;
 
     return {
@@ -165,8 +169,9 @@ export default async function PropertySlugLayout({ params, children }: Props) {
       }
 
       // Images
-      if ((property.images as string[])?.length) {
-        jsonLd.image = (property.images as string[]).slice(0, 3);
+      const shareableImages = ((property.images as string[] | undefined) || []).filter(isShareableImageUrl);
+      if (shareableImages.length) {
+        jsonLd.image = shareableImages.slice(0, 3);
       }
 
       // Hotel star rating

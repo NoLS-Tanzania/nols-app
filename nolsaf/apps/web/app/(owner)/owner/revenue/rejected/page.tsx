@@ -156,7 +156,7 @@ export default function Rejected() {
                 href="/owner/revenue/paid"
                 className="no-underline inline-flex items-center gap-1 h-7 px-3 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-[11px] font-semibold tracking-wide transition-all duration-200 active:scale-[0.97]"
               >
-                Paid
+                Disbursed
                 <ArrowUpRight className="h-3 w-3" aria-hidden />
               </Link>
               <button
@@ -255,7 +255,7 @@ export default function Rejected() {
               <XCircle className="h-8 w-8 text-red-400" aria-hidden />
             </div>
             <h2 className="text-lg font-bold text-slate-900 mb-1.5">No rejected invoices</h2>
-            <p className="text-sm text-slate-500">You&apos;re all clear &mdash; nothing has been rejected.</p>
+            <p className="text-sm text-slate-500">You&apos;re all clear. Nothing has been rejected.</p>
             <div className="mt-6 flex justify-center">
               <Link
                 href="/owner/revenue/requested"

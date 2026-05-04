@@ -73,7 +73,7 @@ export default function OwnerCheckoutPage() {
   const [auditItems, setAuditItems] = useState<AuditItem[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
 
-  const url = "/api/owner/bookings/for-checkout";
+  const url = "/api/owner/bookings/for-checkout?source=check-out-page";
 
   const load = async (opts?: { silent?: boolean }) => {
     const silent = Boolean(opts?.silent);

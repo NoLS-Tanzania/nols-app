@@ -556,7 +556,7 @@ export default function TwoFactorSettings({
                               }`}
                             >
                               {disabled ? <Lock className="h-4 w-4" aria-hidden /> : null}
-                              <span>{disabled ? "Sending…" : "Send code"}</span>
+                              <span>{disabled ? "Sending..." : "Send code"}</span>
                             </button>
                           )
                         })()}

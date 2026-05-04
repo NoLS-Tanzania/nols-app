@@ -5,6 +5,7 @@ import { AuthedRequest, requireAuth, requireRole } from "../middleware/auth.js";
 import { cleanHtml } from "../lib/sanitize";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
+import { auditLog } from "../lib/audit.js";
 
 // ✅ ADD THIS IMPORT NEAR THE TOP
 import { regenerateAndSaveLayout } from "../lib/autoLayout.js";
@@ -191,6 +192,37 @@ function cleanServices(services: unknown): any {
   }
   
   return [];
+}
+
+function normalizeRoomsSpec(value: unknown): any[] {
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function inferBasePriceFromRooms(roomsSpec: unknown): number | null {
+  const roomPrices = normalizeRoomsSpec(roomsSpec)
+    .map((room: any) => {
+      const raw = room?.pricePerNight ?? room?.price ?? null;
+      const value = Number(raw);
+      return Number.isFinite(value) && value > 0 ? value : null;
+    })
+    .filter((value: number | null): value is number => value != null);
+
+  return roomPrices.length ? Math.min(...roomPrices) : null;
+}
+
+function resolveSubmittedBasePrice(basePrice: unknown, roomsSpec: unknown): number | null {
+  const explicit = basePrice != null ? Number(basePrice) : NaN;
+  if (Number.isFinite(explicit) && explicit > 0) return explicit;
+  return inferBasePriceFromRooms(roomsSpec);
 }
 
 // Extra business validation hook used during submit; keep permissive for now
@@ -734,7 +766,7 @@ router.post("/", (async (req: AuthedRequest, res) => {
         roomsSpec: parsed.roomsSpec,
         services: servicesForSave,
         // pricing …
-        basePrice: parsed.basePrice ?? null,
+        basePrice: resolveSubmittedBasePrice(parsed.basePrice, parsed.roomsSpec),
         currency: parsed.currency,
 
         // tourism / park placement …
@@ -815,6 +847,10 @@ router.put("/:id", (async (req: AuthedRequest, res) => {
     });
     if (!exists) return res.status(404).json({ error: "Property not found" });
 
+    const beforeForAudit = await prisma.property.findFirst({
+      where: { id, ownerId },
+    });
+
     const parsed = baseBodySchema.parse(req.body);
 
     // Normalize tourism / park placement fields
@@ -879,7 +915,7 @@ router.put("/:id", (async (req: AuthedRequest, res) => {
         roomsSpec: parsed.roomsSpec,
         services: servicesForSave,
         // pricing …
-        basePrice: parsed.basePrice ?? null,
+        basePrice: resolveSubmittedBasePrice(parsed.basePrice, parsed.roomsSpec),
         currency: parsed.currency,
 
         // tourism / park placement …
@@ -943,6 +979,18 @@ router.put("/:id", (async (req: AuthedRequest, res) => {
       invalidateCache('properties:list:*'),
     ]).catch(() => {}); // Don't fail the request if cache invalidation fails
 
+    await auditLog({
+      actorId: ownerId,
+      actorRole: req.user!.role,
+      action: "PROPERTY_UPDATE",
+      entity: "PROPERTY",
+      entityId: id,
+      before: beforeForAudit,
+      after: updated,
+      ip: req.ip,
+      ua: req.headers["user-agent"] as string,
+    });
+
     res.json({ id: updated.id, status: updated.status, statusChanged: updated.status !== exists.status });
   } catch (e: any) {
     console.error("Error in PUT /api/owner/properties/:id:", e);
@@ -968,6 +1016,7 @@ router.post("/:id/submit", (async (req: AuthedRequest, res) => {
       select: {
         id: true,
         ownerId: true,
+        status: true,
         title: true,
         regionId: true,
         regionName: true,
@@ -1107,6 +1156,18 @@ router.post("/:id/submit", (async (req: AuthedRequest, res) => {
       console.error(`Failed to send notifications for property ${id}:`, notifyError);
     }
 
+    await auditLog({
+      actorId: ownerId,
+      actorRole: req.user!.role,
+      action: "PROPERTY_SUBMIT",
+      entity: "PROPERTY",
+      entityId: id,
+      before: { status: (p as any).status ?? null },
+      after: { status: "PENDING", title: p.title },
+      ip: req.ip,
+      ua: req.headers["user-agent"] as string,
+    });
+
     res.json({ ok: true, id: updated.id, status: updated.status });
   } catch (error: any) {
     console.error("Error in POST /:id/submit:", error);
@@ -1181,11 +1242,16 @@ router.get("/:id/audit-history", (async (req: AuthedRequest, res) => {
     });
 
     // Return simplified audit data (no sensitive admin details / IPs)
-    const result = audits.map((a) => ({
+    const visibleAudits = audits.filter((a) => !(a.action === "PROPERTY_UPDATE" && a.actorRole === "ADMIN"));
+
+    const result = visibleAudits.map((a) => ({
       id: Number(a.id),
       action: a.action,
       actorRole: a.actorRole,
-      actorName: a.actorRole === "ADMIN" ? "Admin" : (a.actor?.name || "Owner"),
+      actorName:
+        a.actorRole === "ADMIN"
+          ? "NoLSAF Review"
+          : (a.actor?.name || "You"),
       createdAt: a.createdAt,
     }));
 

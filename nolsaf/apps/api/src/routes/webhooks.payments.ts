@@ -243,6 +243,13 @@ async function markInvoicePaid(invId: number, method: string, paymentRef: string
     include: { booking: true },
   });
 
+  // A public booking is only confirmed after payment succeeds.
+  // Do not revive cancelled/expired bookings; only promote fresh NEW holds.
+  await prisma.booking.updateMany({
+    where: { id: updated.bookingId, status: "NEW" },
+    data: { status: "CONFIRMED" },
+  });
+
   // If the booking included scheduled transport, publish it to drivers now.
   try {
     const bookingId = Number(updated.bookingId);

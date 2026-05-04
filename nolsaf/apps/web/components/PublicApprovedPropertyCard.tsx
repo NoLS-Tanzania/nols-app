@@ -29,12 +29,48 @@ function fmtMoney(amount: number | null | undefined, currency?: string | null) {
   }
 }
 
+function PropertyCardImage({
+  src,
+  alt,
+  priorityImage,
+}: {
+  src: string;
+  alt: string;
+  priorityImage: boolean;
+}) {
+  if (/^data:image\//i.test(src)) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={src} alt={alt} className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.08]" loading={priorityImage ? "eager" : "lazy"} />;
+  }
+
+  return (
+    <Image
+      src={src}
+      alt={alt}
+      fill
+      sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+      className="object-cover transition-transform duration-500 ease-out group-hover:scale-[1.08]"
+      loading={priorityImage ? "eager" : "lazy"}
+      priority={priorityImage}
+      unoptimized={
+        !(
+          src.includes("cloudinary") ||
+          src.startsWith("http://localhost") ||
+          src.startsWith("http://127.0.0.1")
+        )
+      }
+    />
+  );
+}
+
 export default function PublicApprovedPropertyCard({
   p,
   systemCommission = 0,
+  priorityImage = false,
 }: {
   p: PublicApprovedPropertyCardData;
   systemCommission?: number;
+  priorityImage?: boolean;
 }) {
   const href = `/public/properties/${p.slug}`;
 
@@ -76,25 +112,7 @@ export default function PublicApprovedPropertyCard({
         <div className="px-3 mt-2 sm:px-4 sm:mt-3">
           <div className="relative aspect-square bg-slate-100 rounded-2xl overflow-hidden">
             {p.primaryImage ? (
-              <Image
-                src={p.primaryImage}
-                alt={p.title}
-                fill
-                sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
-                className="object-cover transition-transform duration-500 ease-out group-hover:scale-[1.08]"
-                priority={false}
-                unoptimized={
-                  // Cloudinary and localhost/127.0.0.1 URLs go through Next.js /_next/image proxy.
-                  // This ensures phones on the local network can load localhost-hosted images
-                  // (the Next.js server fetches from localhost internally and serves the result).
-                  // All other URLs (e.g. production CDN, S3) are passed directly to the browser.
-                  !(
-                    p.primaryImage.includes('cloudinary') ||
-                    p.primaryImage.startsWith('http://localhost') ||
-                    p.primaryImage.startsWith('http://127.0.0.1')
-                  )
-                }
-              />
+              <PropertyCardImage src={p.primaryImage} alt={p.title} priorityImage={priorityImage} />
             ) : (
               <PhotoPlaceholder />
             )}

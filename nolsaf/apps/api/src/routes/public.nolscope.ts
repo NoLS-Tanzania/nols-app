@@ -36,10 +36,7 @@ const limitNolScopeEstimate = rateLimit({
     message: 'Too many estimate requests. Please wait 15 minutes before creating another.' 
   },
   keyGenerator: (req) => {
-    // Key by IP for anonymous users
-    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() 
-               || req.socket?.remoteAddress 
-               || 'unknown';
+    const ip = req.ip || req.socket?.remoteAddress || 'unknown';
     return `nolscope-estimate:${ip}`;
   }
 });
@@ -51,14 +48,26 @@ const limitNolScopeList = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
-    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() 
-               || req.socket?.remoteAddress 
-               || 'unknown';
+    const ip = req.ip || req.socket?.remoteAddress || 'unknown';
     return `nolscope-read:${ip}`;
   }
 });
 
 // ─── validation schemas ───────────────────────────────────────────────────────
+
+const TransportPreferenceSchema = z.preprocess((value) => {
+  if (typeof value !== 'string') return value;
+
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return undefined;
+
+  if (normalized === 'private') return 'private-car';
+  if (normalized === 'shared') return 'shared-taxi';
+
+  return normalized;
+}, z.enum([
+  'flight', 'bus', 'private-car', 'ferry', 'shared-taxi', 'any'
+], { errorMap: () => ({ message: 'Invalid transport preference' }) }));
 
 const EstimateRequestSchema = z.object({
   nationality: z.string()
@@ -100,9 +109,7 @@ const EstimateRequestSchema = z.object({
       .default(0)
   }),
   
-  transportPreference: z.enum([
-    'flight', 'bus', 'private-car', 'ferry', 'shared-taxi', 'any'
-  ], { errorMap: () => ({ message: 'Invalid transport preference' }) })
+  transportPreference: TransportPreferenceSchema
     .optional()
     .default('any'),
   

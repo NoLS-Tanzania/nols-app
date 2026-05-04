@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import axios from "axios";
 import { useParams } from "next/navigation";
 import Link from "next/link";
@@ -912,28 +913,28 @@ export default function OwnerPropertyLayoutPage() {
       </div>
 
       {/* Room Details Modal */}
-      {selectedRoom && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+      {selectedRoom && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[999] flex items-center justify-center overflow-y-auto bg-black/60 p-3 py-[calc(1rem+env(safe-area-inset-top))] backdrop-blur-sm animate-in fade-in duration-200 sm:p-4 md:p-6">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full max-h-[calc(100dvh-2rem)] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
             {/* Header */}
-            <div className="px-4 sm:px-6 md:px-8 py-4 sm:py-5 md:py-6 border-b border-slate-200/60 bg-gradient-to-br from-white via-slate-50/30 to-white">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-start gap-3 min-w-0 flex-1">
-                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-sm shadow-emerald-500/20 flex-shrink-0">
-                    <Home className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+            <div className="px-4 py-3.5 border-b border-slate-200/60 bg-gradient-to-br from-white via-slate-50/30 to-white sm:px-5 sm:py-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-sm shadow-emerald-500/20 flex-shrink-0">
+                    <Home className="w-4 h-4 text-white" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <h2 className="text-lg sm:text-xl font-bold text-slate-900 leading-tight">
+                    <h2 className="text-base sm:text-lg font-bold text-slate-900 leading-tight">
                       {selectedRoom.room.name}
                     </h2>
-                    <p className="text-xs sm:text-sm text-slate-500 mt-1">
+                    <p className="text-xs text-slate-500 mt-0.5">
                       Room Code: {selectedRoom.room.code || "N/A"} • {selectedRoom.room.pricePerNight ? new Intl.NumberFormat(undefined,{style:"currency", currency:"TZS"}).format(selectedRoom.room.pricePerNight) : "Price N/A"} per night
                     </p>
                   </div>
                 </div>
                 <button
                   onClick={() => setSelectedRoom(null)}
-                  className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg hover:bg-slate-100 active:bg-slate-200 text-slate-500 hover:text-slate-700 transition-all flex-shrink-0"
+                  className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 active:bg-slate-200 text-slate-500 hover:text-slate-700 transition-all flex-shrink-0"
                   title="Close"
                   aria-label="Close room details"
                 >
@@ -943,7 +944,7 @@ export default function OwnerPropertyLayoutPage() {
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5">
               {/* Reservations in selected window (classified) */}
               {(() => {
                 const ws = new Date(`${blockStart}T00:00:00`);
@@ -1171,8 +1172,14 @@ export default function OwnerPropertyLayoutPage() {
                               type="checkbox"
                               checked={blockAgreed}
                               onChange={(e) => setBlockAgreed(e.target.checked)}
-                              className="mt-1 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500/30"
+                              className="peer sr-only"
                             />
+                            <span
+                              aria-hidden="true"
+                              className="mt-0.5 relative inline-flex h-7 w-12 flex-shrink-0 items-center rounded-full border border-slate-400 bg-slate-300 shadow-inner transition-colors peer-checked:border-emerald-600 peer-checked:bg-emerald-600 peer-focus-visible:ring-2 peer-focus-visible:ring-emerald-500/40"
+                            >
+                              <span className="inline-block h-5 w-5 translate-x-1 rounded-full bg-white shadow-sm ring-1 ring-slate-300 transition-transform peer-checked:translate-x-6 peer-checked:ring-emerald-700/20" />
+                            </span>
                             <div className="min-w-0">
                               <div className="text-xs font-bold text-slate-800">I agree to the external block terms</div>
                               <div className="mt-0.5 text-[11px] leading-relaxed text-slate-600">
@@ -1314,7 +1321,8 @@ export default function OwnerPropertyLayoutPage() {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

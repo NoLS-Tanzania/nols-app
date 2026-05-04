@@ -9,11 +9,10 @@ import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { checkPropertyAvailability, checkGuestCapacity } from "../lib/bookingAvailability.js";
 import { sanitizeText } from "../lib/sanitize.js";
-import { notifyAdmins, notifyOwner } from "../lib/notifications.js";
-import { invalidateOwnerReports } from "../lib/cache.js";
 import { maybeAuth } from "../middleware/auth.js";
 import { AUTO_DISPATCH_LOOKAHEAD_MS, MIN_TRANSPORT_LEAD_MS } from "../lib/transportPolicy.js";
 import { generateTransportTripCode } from "../lib/tripCode.js";
+import { AVAILABILITY_BLOCKING_BOOKING_STATUSES } from "../lib/bookingStatus.js";
 
 /** Sign a short-lived token proving the caller created this booking. */
 function signBookingAccessToken(bookingId: number): string {
@@ -481,9 +480,7 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
       const conflictingBookings = await tx.booking.findMany({
         where: {
           propertyId: data.propertyId,
-          status: {
-            in: ["NEW", "CONFIRMED", "CHECKED_IN"],
-          },
+          status: { in: [...AVAILABILITY_BLOCKING_BOOKING_STATUSES] },
           AND: [
             { checkIn: { lt: checkOut } },
             { checkOut: { gt: checkIn } },
@@ -919,7 +916,7 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
       const finalConflictingBookings = await tx.booking.findMany({
         where: {
           propertyId: data.propertyId,
-          status: { in: ["NEW", "CONFIRMED", "CHECKED_IN"] },
+          status: { in: [...AVAILABILITY_BLOCKING_BOOKING_STATUSES] },
           AND: [{ checkIn: { lt: checkOut } }, { checkOut: { gt: checkIn } }],
         },
       });
@@ -1277,58 +1274,8 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
         }
       }
 
-      // Generate booking code within transaction
-      // Check if code already exists
-      const existing = await tx.checkinCode.findUnique({
-        where: { bookingId: booking.id },
-      });
-
-      let codeResult;
-      if (existing && existing.status === "ACTIVE") {
-        codeResult = existing;
-      } else {
-        // Generate unique code
-        const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // No 0, O, I, 1
-        let code: string;
-        let attempts = 0;
-        const maxAttempts = 10;
-
-        while (attempts < maxAttempts) {
-          code = "";
-          for (let i = 0; i < 8; i++) {
-            code += alphabet[crypto.randomInt(0, alphabet.length)];
-          }
-          const codeHash = crypto.createHash("sha256").update(code).digest("hex");
-
-          try {
-            codeResult = await tx.checkinCode.create({
-              data: {
-                bookingId: booking.id,
-                code: code,
-                codeHash: codeHash,
-                codeVisible: code,
-                status: "ACTIVE",
-                generatedAt: new Date(),
-              },
-            });
-            break;
-          } catch (error: any) {
-            if (error?.code === "P2002" || error?.message?.includes("Unique constraint")) {
-              attempts++;
-              continue;
-            }
-            throw error;
-          }
-        }
-
-        if (!codeResult) {
-          throw new Error("Failed to generate unique booking code after multiple attempts");
-        }
-      }
-
       return {
         bookingId: booking.id,
-        bookingCode: codeResult.code,
         totalAmount: totalAmount,
         accommodationAmount: roundMoney(accommodationGross),
         transportFare: transportFare,
@@ -1342,20 +1289,12 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
     // NOTE: do not broadcast transport offers here.
     // The transport auto-dispatch worker issues targeted offers (top drivers) based on live locations.
 
-    // Notify owner + admin ASAP (booking created)
+    // Publish only availability holds for unpaid bookings.
+    // Owner/admin booking notifications and check-in codes are sent after payment succeeds.
     try {
-      const ownerId = Number((property as any).owner?.id || (property as any).ownerId || 0);
       const io = (req.app.get("io") as any) || (global as any).io;
       const checkInShort = result.checkIn?.toISOString?.().slice(0, 10) || "";
       const checkOutShort = result.checkOut?.toISOString?.().slice(0, 10) || "";
-      const payload = {
-        bookingId: result.bookingId,
-        propertyId: property.id,
-        propertyTitle: property.title,
-        checkIn: checkInShort,
-        checkOut: checkOutShort,
-        status: "NEW",
-      };
 
       // Real-time availability refresh for owner UI + public availability listeners
       try {
@@ -1382,22 +1321,6 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
           timestamp: new Date().toISOString(),
         });
       } catch {}
-
-      if (ownerId) {
-        try {
-          await invalidateOwnerReports(ownerId);
-        } catch {}
-        await notifyOwner(ownerId, "booking_created", payload);
-        try {
-          io?.to?.(`owner:${ownerId}`)?.emit?.("owner:bookings:updated", { bookingId: result.bookingId, propertyId: property.id });
-          io?.to?.(`owner:${ownerId}`)?.emit?.("notification:new", { type: "booking" });
-        } catch {}
-      }
-      await notifyAdmins("booking_created", payload);
-      try {
-        io?.emit?.("admin:bookings:updated", { bookingId: result.bookingId, propertyId: property.id });
-      } catch {}
-
     } catch {}
 
     // NOTE: Confirmation email (with PDF receipts) and SMS are sent AFTER payment is confirmed.
@@ -1411,7 +1334,7 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
       // Short-lived proof-of-creation token. Required by POST /api/public/invoices/from-booking
       // to prevent sequential-ID enumeration of other users' bookings.
       bookingAccessToken: signBookingAccessToken(result.bookingId),
-      bookingCode: result.bookingCode,
+      bookingCode: null,
       totalAmount: result.totalAmount,
       accommodationAmount: result.accommodationAmount,
       transportFare: result.transportFare,

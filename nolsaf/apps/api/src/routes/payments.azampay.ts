@@ -16,6 +16,7 @@ import { Router } from "express";
 import { prisma } from "@nolsaf/prisma";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
+import jwt from "jsonwebtoken";
 import { getAzamPayToken, invalidateAzamPayToken } from "../lib/azampay.auth.js";
 import { getRedis } from "../lib/redis.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -27,18 +28,88 @@ const router = Router();
 const AZAMPAY_API_URL = (process.env.AZAMPAY_API_URL || "https://api.azampay.co.tz").replace(/\/$/, "");
 const FETCH_TIMEOUT_MS = 10_000;
 const IDEM_TTL_SEC = 10 * 60; // 10 minutes
+const PAYMENT_USER_WINDOW_MS = 15 * 60 * 1000;
+const PAYMENT_USER_LIMIT = 5;
+const PAYMENT_TARGET_WINDOW_MS = 5 * 60 * 1000;
+const PAYMENT_TARGET_LIMIT = 3;
+
+type PublicInvoiceAccessPayload = {
+  typ: "PUBLIC_INVOICE_ACCESS";
+  invoiceId: number;
+  bookingId: number;
+};
+
+function getPublicInvoiceAccessSecret(): string {
+  const secret =
+    process.env.PUBLIC_LINK_TOKEN_SECRET ||
+    process.env.JWT_SECRET ||
+    (process.env.NODE_ENV !== "production" ? process.env.DEV_JWT_SECRET || "dev_jwt_secret" : "");
+
+  if (!secret) {
+    throw new Error("public_invoice_access_secret_missing");
+  }
+
+  return secret;
+}
+
+function verifyPublicInvoiceAccessToken(token: string | undefined, invoiceId: number, bookingId: number): boolean {
+  if (!token) return false;
+  try {
+    const decoded = jwt.verify(token, getPublicInvoiceAccessSecret(), {
+      issuer: "nolsaf-public",
+    }) as PublicInvoiceAccessPayload;
+
+    return (
+      decoded?.typ === "PUBLIC_INVOICE_ACCESS" &&
+      Number(decoded.invoiceId) === invoiceId &&
+      Number(decoded.bookingId) === bookingId
+    );
+  } catch {
+    return false;
+  }
+}
 
 // ── Rate limiter ──────────────────────────────────────────────────────────────
 
-const paymentLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 5,
+function retryAfterSeconds(req: any, fallbackMs: number) {
+  const resetTime = req.rateLimit?.resetTime;
+  if (resetTime instanceof Date) {
+    return Math.max(1, Math.ceil((resetTime.getTime() - Date.now()) / 1000));
+  }
+  return Math.ceil(fallbackMs / 1000);
+}
+
+function paymentRateLimitResponse(req: any, res: any, fallbackMs: number) {
+  const retryAfter = retryAfterSeconds(req, fallbackMs);
+  res.set("Retry-After", String(retryAfter));
+  res.status(429).json({
+    error: "rate_limited",
+    message: `Too many payment requests. Please try again in ${Math.ceil(retryAfter / 60)} minute(s).`,
+    retryAfterSeconds: retryAfter,
+  });
+}
+
+const paymentUserLimiter = rateLimit({
+  windowMs: PAYMENT_USER_WINDOW_MS,
+  limit: PAYMENT_USER_LIMIT,
   standardHeaders: true,
   legacyHeaders: false,
-  handler: (_req: any, res: any) => {
-    res.status(429).json({ error: "rate_limited", message: "Too many payment requests — please wait before retrying." });
-  },
+  handler: (req: any, res: any) => paymentRateLimitResponse(req, res, PAYMENT_USER_WINDOW_MS),
   keyGenerator: (req: any) => String(req.user?.id || req.ip || "anon"),
+});
+
+const paymentTargetLimiter = rateLimit({
+  windowMs: PAYMENT_TARGET_WINDOW_MS,
+  limit: PAYMENT_TARGET_LIMIT,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req: any, res: any) => paymentRateLimitResponse(req, res, PAYMENT_TARGET_WINDOW_MS),
+  keyGenerator: (req: any) => {
+    const invoiceId = req.body?.invoiceId ?? "unknown-invoice";
+    const phone = normalizePhone(String(req.body?.phoneNumber ?? "")) ?? String(req.body?.phoneNumber ?? "unknown-phone");
+    const user = req.user?.id || req.ip || "anon";
+    return `payment:${user}:${invoiceId}:${phone}`;
+  },
 });
 
 // ── Input schema ──────────────────────────────────────────────────────────────
@@ -54,6 +125,7 @@ const initiateSchema = z.object({
   ),
   provider:       z.enum(["Airtel", "Mixx", "M-Pesa", "Halopesa"]).default("Airtel"),
   idempotencyKey: z.string().min(8).max(128).optional(),
+  accessToken:    z.string().min(20).max(1024).optional(),
 });
 
 // ── Idempotency helpers (Redis → in-process LRU fallback) ─────────────────────
@@ -144,7 +216,7 @@ async function azampayPost(path: string, body: object, token: string): Promise<R
 
 // ── POST /api/payments/azampay/initiate ───────────────────────────────────────
 
-router.post("/initiate", requireAuth, paymentLimiter, async (req, res) => {
+router.post("/initiate", requireAuth, paymentUserLimiter, paymentTargetLimiter, async (req, res) => {
   try {
     // 1. Validate input
     const parsed = initiateSchema.safeParse(req.body);
@@ -154,7 +226,7 @@ router.post("/initiate", requireAuth, paymentLimiter, async (req, res) => {
         details: parsed.error.issues.map((i) => ({ path: i.path, message: i.message })),
       });
     }
-    const { invoiceId, phoneNumber, provider, idempotencyKey } = parsed.data;
+    const { invoiceId, phoneNumber, provider, idempotencyKey, accessToken } = parsed.data;
 
     // Normalise & validate phone before anything else (fast-fail)
     const normalizedPhone = normalizePhone(phoneNumber);
@@ -188,6 +260,32 @@ router.post("/initiate", requireAuth, paymentLimiter, async (req, res) => {
 
     if (!invoice) return res.status(404).json({ error: "not_found", message: "Invoice not found" });
 
+    const authedUserId = Number((req as any).user?.id);
+    const bookingId = Number(invoice.bookingId || invoice.booking?.id || 0);
+    const bookingUserId = invoice.booking?.userId ? Number(invoice.booking.userId) : null;
+    const hasPublicInvoiceAccess = verifyPublicInvoiceAccessToken(accessToken, invoice.id, bookingId);
+
+    if (bookingUserId && bookingUserId !== authedUserId) {
+      return res.status(403).json({
+        error: "booking_belongs_to_another_account",
+        message: "This booking belongs to another account.",
+      });
+    }
+
+    if (!bookingUserId && !hasPublicInvoiceAccess) {
+      return res.status(403).json({
+        error: "invoice_access_required",
+        message: "Please continue from your secure payment link.",
+      });
+    }
+
+    if (!bookingUserId && bookingId) {
+      await prisma.booking.update({
+        where: { id: bookingId },
+        data: { userId: authedUserId },
+      });
+    }
+
     if (String(invoice.invoiceNumber ?? "").startsWith("OINV-"))
       return res.status(400).json({ error: "invalid_invoice", message: "This invoice cannot be paid via this method" });
 
@@ -206,17 +304,7 @@ router.post("/initiate", requireAuth, paymentLimiter, async (req, res) => {
     // 5. Payment ref (normalizedPhone already computed and validated above)
     const paymentRef = invoice.paymentRef ?? `INV-${invoice.id}-${Date.now()}`;
 
-    // 6. Mark invoice as PROCESSING
-    await prisma.invoice.update({
-      where: { id: invoice.id },
-      data: {
-        paymentRef: invoice.paymentRef ?? paymentRef,
-        paymentMethod: provider,
-        status: invoice.status !== "PROCESSING" ? "PROCESSING" : invoice.status,
-      },
-    });
-
-    // 7. Build checkout payload (no secret material inside)
+    // 6. Build checkout payload (no secret material inside)
     // TZS has no fractional cents — always send as a rounded integer string.
     const azampayBody = {
       accountNumber: normalizedPhone,
@@ -230,7 +318,7 @@ router.post("/initiate", requireAuth, paymentLimiter, async (req, res) => {
       },
     };
 
-    // 8. Acquire Bearer token — fail fast with opaque 503 on error
+    // 7. Acquire Bearer token — fail fast with opaque 503 on error
     let token: string;
     try {
       token = await getAzamPayToken();
@@ -239,7 +327,7 @@ router.post("/initiate", requireAuth, paymentLimiter, async (req, res) => {
       return res.status(503).json({ error: "payment_unavailable", message: "Payment service temporarily unavailable" });
     }
 
-    // 9. Call AzamPay; retry once on 401 (stale token)
+    // 8. Call AzamPay; retry once on 401 (stale token)
     let apiRes = await azampayPost("/api/v1/Partner/PostCheckout", azampayBody, token);
     if (apiRes.status === 401) {
       await invalidateAzamPayToken();
@@ -259,6 +347,16 @@ router.post("/initiate", requireAuth, paymentLimiter, async (req, res) => {
       console.error("[AzamPay] Non-JSON response from checkout endpoint");
       return res.status(502).json({ error: "payment_failed", message: "Unexpected response from payment provider" });
     }
+
+    // 9. AzamPay accepted the checkout request — only now move invoice forward.
+    await prisma.invoice.update({
+      where: { id: invoice.id },
+      data: {
+        paymentRef: invoice.paymentRef ?? paymentRef,
+        paymentMethod: provider,
+        status: "PROCESSING",
+      },
+    });
 
     // 10. Record payment event (non-fatal)
     try {

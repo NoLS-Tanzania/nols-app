@@ -676,7 +676,7 @@ export default function AdminReportsPage() {
       <div class="company-left">
         <img class="logo" src="${escapeAttr(logoUrl)}" alt="NoLSAF" />
         <div style="min-width:0">
-          <div class="co-name">NoLS Africa Inc</div>
+          <div class="co-name">NoLS Africa Co Ltd</div>
           <div class="co-meta">
             <div><span>P.O BOX 23091</span> | <span>Dar es Salaam-Tanzania</span></div>
             <div><span>finance@nolsaf.com</span> | <span>+255736766726</span></div>

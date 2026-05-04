@@ -9,7 +9,7 @@
  *   - status is "NEW" (created, no code issued, no payment)
  *   - createdAt is older than STALE_BOOKING_TTL_MS (default: 30 minutes)
  *
- * Effect: set status = "CANCELLED", leaving an audit trail in the DB.
+ * Effect: set status = "CANCELED", leaving an audit trail in the DB.
  * Any associated PAYMENT_PENDING transport bookings are also cancelled.
  */
 import { prisma } from "@nolsaf/prisma";
@@ -52,7 +52,7 @@ async function expireStaleBookings(ttlMs: number): Promise<void> {
   // Cancel all stale bookings in one query
   await prisma.booking.updateMany({
     where: { id: { in: staleIds }, status: "NEW" },
-    data: { status: "CANCELLED" },
+    data: { status: "CANCELED" },
   });
 
   // Also cancel any PAYMENT_PENDING transport bookings linked to these bookings.
@@ -63,7 +63,7 @@ async function expireStaleBookings(ttlMs: number): Promise<void> {
       paymentRef: { in: paymentRefs },
       status: "PAYMENT_PENDING",
     },
-    data: { status: "CANCELLED" },
+    data: { status: "CANCELED" },
   });
 }
 

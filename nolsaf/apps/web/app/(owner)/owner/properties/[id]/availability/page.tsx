@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { createPortal } from "react-dom";
 import axios from "axios";
 import { 
   Calendar, 
@@ -438,6 +439,7 @@ export default function PropertyAvailabilityPage() {
   }, [calendarData?.property.roomTypes]);
 
   const submitBlock = useCallback(async () => {
+    if (saving) return;
     setSaving(true);
     setError(null);
 
@@ -570,11 +572,13 @@ export default function PropertyAvailabilityPage() {
     loadAvailabilitySummary,
     loadCalendarData,
     propertyId,
+    saving,
   ]);
 
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (saving || showConfirmModal) return;
     setError(null);
 
     if (!formData.roomCode || !formData.source || !formData.startDate || !formData.endDate) {
@@ -1602,8 +1606,8 @@ export default function PropertyAvailabilityPage() {
       </div>
 
       {/* Day Details Modal (opens when clicking a date) */}
-      {showDayDetails && dayDetails && (
-        <div className="fixed inset-0 z-[55] flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+      {showDayDetails && dayDetails && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[999] flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl max-w-3xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
             {/* Header */}
             <div className="px-4 sm:px-6 md:px-8 py-4 sm:py-5 border-b border-slate-200/60 bg-gradient-to-br from-white via-slate-50/40 to-white">
@@ -2029,12 +2033,13 @@ export default function PropertyAvailabilityPage() {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Range Insights Modal (opens from Bookings/Blocks tiles) */}
-      {showRangeInsights && calendarData && (
-        <div className="fixed inset-0 z-[56] flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+      {showRangeInsights && calendarData && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[999] flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl max-w-4xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
             <div className="px-4 sm:px-6 md:px-8 py-4 sm:py-5 border-b border-slate-200/60 bg-gradient-to-br from-white via-slate-50/40 to-white">
               <div className="flex items-start justify-between gap-4">
@@ -2221,25 +2226,26 @@ export default function PropertyAvailabilityPage() {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Block Form Modal */}
-      {showBlockForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl max-w-2xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+      {showBlockForm && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[999] flex items-center justify-center overflow-y-auto bg-black/60 p-3 py-[calc(1rem+env(safe-area-inset-top))] backdrop-blur-sm animate-in fade-in duration-200 sm:p-4 md:p-6">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full max-h-[calc(100dvh-2rem)] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
             {/* Header */}
-            <div className="px-4 sm:px-6 md:px-8 py-4 sm:py-5 md:py-6 border-b border-slate-200/60 bg-gradient-to-br from-white via-slate-50/30 to-white">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-start gap-3 min-w-0 flex-1">
-                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-sm shadow-emerald-500/20 flex-shrink-0">
+            <div className="px-4 py-3.5 border-b border-slate-200/60 bg-gradient-to-br from-white via-slate-50/30 to-white sm:px-5 sm:py-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-sm shadow-emerald-500/20 flex-shrink-0">
                     <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <h2 className="text-lg sm:text-xl font-bold text-slate-900 leading-tight">
+                    <h2 className="text-base sm:text-lg font-bold text-slate-900 leading-tight">
                       {editingBlock ? "Edit Availability Block" : "Add Availability Block"}
                     </h2>
-                    <p className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed">
+                    <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
                       {editingBlock ? "Update block details" : "Block rooms for a specific period"}
                     </p>
                   </div>
@@ -2259,7 +2265,7 @@ export default function PropertyAvailabilityPage() {
                       notes: "",
                     });
                   }}
-                  className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg hover:bg-slate-100 active:bg-slate-200 text-slate-500 hover:text-slate-700 transition-all flex-shrink-0"
+                  className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 active:bg-slate-200 text-slate-500 hover:text-slate-700 transition-all flex-shrink-0"
                   title="Close form"
                   aria-label="Close availability block form"
                 >
@@ -2270,7 +2276,7 @@ export default function PropertyAvailabilityPage() {
 
             {/* Form Content */}
             <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto">
-              <div className="p-4 sm:p-6 md:p-8 space-y-5 sm:space-y-6">
+              <div className="p-4 sm:p-5 space-y-4 sm:space-y-5">
                 {/* Date Range Section */}
                 <div className="space-y-3 sm:space-y-4">
                   <div className="flex items-center gap-2 pb-1">
@@ -2478,7 +2484,7 @@ export default function PropertyAvailabilityPage() {
               </div>
 
               {/* Footer Actions */}
-              <div className="px-4 sm:px-6 md:px-8 py-4 sm:py-5 md:py-6 border-t border-slate-200/60 bg-gradient-to-b from-slate-50/50 to-white">
+              <div className="px-4 py-3.5 sm:px-5 sm:py-4 border-t border-slate-200/60 bg-gradient-to-b from-slate-50/50 to-white">
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
                   <button
                     type="submit"
@@ -2519,7 +2525,8 @@ export default function PropertyAvailabilityPage() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Conflict Confirmation Modal */}
@@ -2688,8 +2695,8 @@ export default function PropertyAvailabilityPage() {
           </div>
         </div>
       )}
-      {showConfirmModal && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+      {showConfirmModal && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl max-w-lg w-full max-h-[95vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
             {/* Header */}
             <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-200 bg-gradient-to-r from-emerald-50 via-white to-sky-50 flex-shrink-0 rounded-t-2xl sm:rounded-t-3xl">
@@ -2764,22 +2771,30 @@ export default function PropertyAvailabilityPage() {
               </div>
 
               <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
-                <label className="flex cursor-pointer items-start gap-3 text-sm text-slate-800">
-                  <input
-                    type="checkbox"
-                    className="mt-1 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-2 focus:ring-emerald-500/40"
-                    checked={tosAccepted}
-                    onChange={(e) => setTosAccepted(e.target.checked)}
-                  />
-                  <span className="leading-relaxed">
-                    I agree to the{" "}
-                    <Link href="/terms" target="_blank" className="font-semibold text-emerald-700 underline hover:text-emerald-800">
-                      Terms of Service
-                    </Link>
-                    .
+                <label className="flex cursor-pointer items-center justify-between gap-4 text-sm text-slate-800">
+                  <span className="min-w-0 leading-relaxed">
+                    <span>
+                      I agree to the{" "}
+                      <Link href="/terms" target="_blank" className="font-semibold text-emerald-700 no-underline hover:text-emerald-800">
+                        Terms of Service
+                      </Link>
+                      .
+                    </span>
                     <span className="block text-xs text-slate-500 mt-1">
                       Required before you can {editingBlock ? "update" : "create"} this block.
                     </span>
+                  </span>
+                  <input
+                    type="checkbox"
+                    className="peer sr-only"
+                    checked={tosAccepted}
+                    onChange={(e) => setTosAccepted(e.target.checked)}
+                  />
+                  <span
+                    aria-hidden="true"
+                    className="relative inline-flex h-8 w-14 flex-shrink-0 items-center rounded-full border border-slate-300 bg-slate-200 shadow-inner transition-colors peer-checked:border-emerald-600 peer-checked:bg-emerald-600"
+                  >
+                    <span className="inline-block h-6 w-6 translate-x-1 rounded-full bg-white shadow-sm ring-1 ring-slate-200 transition-transform peer-checked:translate-x-7" />
                   </span>
                 </label>
               </div>
@@ -2813,7 +2828,8 @@ export default function PropertyAvailabilityPage() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

@@ -346,7 +346,7 @@ export default async function CountryTourismPage({
                 {[
                   { num: '01', label: 'Choose a park' },
                   { num: '02', label: 'Shortlist stays' },
-                  { num: '03', label: 'Book + coordinate transport' },
+                  { num: '03', label: 'Book + transport' },
                 ].map((step, i) => (
                   <div key={step.num} className="flex items-start">
                     <div className="flex flex-col items-center text-center w-28 sm:w-32">

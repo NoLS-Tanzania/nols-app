@@ -250,6 +250,46 @@ const confirmCheckin: RequestHandler = async (req, res) => {
   return (res as Response).json({ ok: true, bookingId: updated.id, status: updated.status, invoiceId, alreadyConfirmed: false });
 };
 router.post("/confirm-checkin", confirmCheckin);
+
+/** GET /owner/bookings/sidebar-counts - lightweight counts for owner navigation badges */
+const getSidebarBookingCounts: RequestHandler = async (req, res) => {
+  const r = req as AuthedRequest;
+  try {
+    const ownerId = r.user?.id;
+    if (!ownerId) return res.status(401).json({ error: "Unauthorized" });
+
+    const propertyIds = await prisma.property.findMany({
+      where: { ownerId },
+      select: { id: true },
+    });
+    const ids = propertyIds.map((p) => p.id);
+    if (ids.length === 0) return res.json({ checkedIn: 0, checkoutDue: 0 });
+
+    const cutoff = new Date(Date.now() + 7 * 60 * 60 * 1000);
+    const [checkedIn, checkoutDue] = await Promise.all([
+      prisma.booking.count({
+        where: {
+          propertyId: { in: ids },
+          status: "CHECKED_IN",
+        },
+      }),
+      prisma.booking.count({
+        where: {
+          propertyId: { in: ids },
+          status: "CHECKED_IN",
+          checkOut: { lte: cutoff },
+        },
+      }),
+    ]);
+
+    return res.json({ checkedIn, checkoutDue });
+  } catch (err: any) {
+    console.error("GET /owner/bookings/sidebar-counts error:", err);
+    return res.status(500).json({ error: "Failed to load booking counts" });
+  }
+};
+router.get("/sidebar-counts", getSidebarBookingCounts);
+
 /** GET /owner/bookings/checked-in - Get checked-in bookings for the owner */
 const getCheckedInBookings: RequestHandler = async (req, res) => {
   const r = req as AuthedRequest;
@@ -823,6 +863,8 @@ const getRecentBookings: RequestHandler = async (req, res) => {
   const bookings = await prisma.booking.findMany({
     where: {
       property: { ownerId },
+      status: { in: ["CONFIRMED", "CHECKED_IN", "CHECKED_OUT"] },
+      code: { isNot: null },
     },
     include: {
       property: {

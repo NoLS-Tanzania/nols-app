@@ -12,18 +12,13 @@ export default function MessagesPage() {
     const controller = new AbortController();
     (async () => {
       try {
-        const base = process.env.NEXT_PUBLIC_API_URL || '';
-        const baseUrl = base ? base.replace(/\/$/, '') : '';
-
-        const unreadUrl = baseUrl ? `${baseUrl}/api/owner/messages?tab=unread&page=1&pageSize=1` : '/api/owner/messages?tab=unread&page=1&pageSize=1';
-        const ru = await fetch(unreadUrl, { credentials: 'include', signal: controller.signal });
+        const ru = await fetch('/api/owner/notifications?tab=unread&page=1&pageSize=1', { credentials: 'include', signal: controller.signal });
         if (ru.ok) {
           const ju = await ru.json();
           if (mounted) setUnreadCount(Number(ju.total ?? 0));
         }
 
-        const viewedUrl = baseUrl ? `${baseUrl}/api/owner/messages?tab=viewed&page=1&pageSize=1` : '/api/owner/messages?tab=viewed&page=1&pageSize=1';
-        const rv = await fetch(viewedUrl, { credentials: 'include', signal: controller.signal });
+        const rv = await fetch('/api/owner/notifications?tab=viewed&page=1&pageSize=1', { credentials: 'include', signal: controller.signal });
         if (rv.ok) {
           const jv = await rv.json();
           if (mounted) setViewedCount(Number(jv.total ?? 0));

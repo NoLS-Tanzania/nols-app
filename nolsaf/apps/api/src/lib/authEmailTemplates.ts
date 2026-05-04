@@ -259,7 +259,7 @@ export function getLoginAlertEmail(data: LoginAlertEmailData): { subject: string
   };
 }
 
-// ─── 6. Agent account suspension ─────────────────────────────────────────────
+// ─── 6. Agent account suspension ──────
 export function getAgentSuspensionEmail(data: {
   name: string;
   reason: string;
@@ -328,7 +328,7 @@ export function getAgentSuspensionEmail(data: {
   };
 }
 
-// ─── 7. Agent account restoration ────────────────────────────────────────────
+// ─── 7. Agent account restoration ────
 export function getAgentRestorationEmail(data: {
   name: string;
   caseRef: string;

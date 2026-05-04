@@ -42,10 +42,7 @@ export default function UnreadNotificationsPage() {
       setLoading(true);
       setError(null);
       try {
-        const base = process.env.NEXT_PUBLIC_API_URL || '';
-        const url = base
-          ? `${base.replace(/\/$/, '')}/api/owner/notifications?tab=unread&page=1&pageSize=50`
-          : '/api/owner/notifications?tab=unread&page=1&pageSize=50';
+        const url = '/api/owner/notifications?tab=unread&page=1&pageSize=50';
         const r = await fetch(url, { credentials: 'include', signal: controller.signal });
         if (!mounted) return;
         if (!r.ok) throw new Error(`Fetch failed (${r.status})`);
@@ -70,10 +67,7 @@ export default function UnreadNotificationsPage() {
     const before = items;
     setItems((prev) => prev.filter((n) => n.id !== id));
     try {
-      const base = process.env.NEXT_PUBLIC_API_URL || '';
-      const ep = base
-        ? `${base.replace(/\/$/, '')}/api/owner/notifications/${encodeURIComponent(id)}/mark-read`
-        : `/api/owner/notifications/${encodeURIComponent(id)}/mark-read`;
+      const ep = `/api/owner/notifications/${encodeURIComponent(id)}/mark-read`;
       const r = await fetch(ep, { method: 'POST', credentials: 'include' });
       if (!r.ok) throw new Error(`${r.status}`);
     } catch (err) {
@@ -87,10 +81,7 @@ export default function UnreadNotificationsPage() {
     setItems([]);
     for (const id of ids) {
       try {
-        const base = process.env.NEXT_PUBLIC_API_URL || '';
-        const ep = base
-          ? `${base.replace(/\/$/, '')}/api/owner/notifications/${encodeURIComponent(id)}/mark-read`
-          : `/api/owner/notifications/${encodeURIComponent(id)}/mark-read`;
+        const ep = `/api/owner/notifications/${encodeURIComponent(id)}/mark-read`;
         await fetch(ep, { method: 'POST', credentials: 'include' });
       } catch { /* ignore */ }
     }
@@ -135,7 +126,7 @@ export default function UnreadNotificationsPage() {
               ? "Fetching your notifications…"
               : items.length > 0
                 ? `${items.length} notification${items.length === 1 ? "" : "s"} waiting for your attention`
-                : "You're all caught up — nothing pending!"}
+                : "You're all caught up - nothing pending!"}
           </p>
           <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
             <Link

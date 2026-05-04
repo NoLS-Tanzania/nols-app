@@ -8,6 +8,22 @@ import { getActiveSnapshot } from "../lib/activePresence.js";
 export const router = Router();
 router.use(requireAuth as unknown as RequestHandler, requireRole("ADMIN") as unknown as RequestHandler);
 
+const REAL_BOOKING_STATUSES = ['CONFIRMED', 'CHECKED_IN', 'PENDING_CHECKIN', 'CHECKED_OUT'] as const;
+
+function revenueVisibilityClause() {
+  return {
+    OR: [
+      { invoiceNumber: { startsWith: 'OINV-' } },
+      {
+        AND: [
+          { invoiceNumber: { startsWith: 'INV-' } },
+          { status: 'PAID' },
+        ],
+      },
+    ],
+  };
+}
+
 /**
  * GET /api/admin/summary
  * Returns small summary numbers used in the admin dashboard monitoring block.
@@ -43,14 +59,32 @@ router.get("/", async (_req, res) => {
               }
             })(),
             prisma.property.count({ where: { status: 'PENDING' } }),
-            prisma.invoice.count({ where: { createdAt: { gte: since24h } } }),
+            prisma.invoice.count({
+              where: {
+                AND: [
+                  revenueVisibilityClause(),
+                  { createdAt: { gte: since24h } },
+                ],
+              },
+            }),
             (async () => {
               try {
-                return await prisma.booking.count({ where: { createdAt: { gte: since24h } } });
+                return await prisma.booking.count({
+                  where: {
+                    createdAt: { gte: since24h },
+                    status: { in: [...REAL_BOOKING_STATUSES] },
+                    code: { isNot: null },
+                  },
+                });
               } catch (err) {
                 // If the Booking model doesn't have `createdAt` (older schema), fall back to a total count.
                 try {
-                  return await prisma.booking.count();
+                  return await prisma.booking.count({
+                    where: {
+                      status: { in: [...REAL_BOOKING_STATUSES] },
+                      code: { isNot: null },
+                    },
+                  });
                 } catch (err2) {
                   console.warn('Unable to count bookings (schema mismatch):', err2);
                   return 0;

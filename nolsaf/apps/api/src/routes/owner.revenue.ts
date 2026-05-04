@@ -8,6 +8,26 @@ import { getEffectiveCommissionPercent, resolveOwnerPayoutAmount } from "../lib/
 export const router = Router();
 router.use(requireAuth as RequestHandler, requireRole("OWNER") as RequestHandler);
 
+function revenueVisibilityClause() {
+  return {
+    OR: [
+      { invoiceNumber: { startsWith: "OINV-" } },
+      {
+        AND: [
+          { invoiceNumber: { startsWith: "INV-" } },
+          { status: "PAID" },
+        ],
+      },
+    ],
+  };
+}
+
+function applyRevenueVisibility(where: any) {
+  const currentAnd = Array.isArray(where?.AND) ? where.AND : [];
+  where.AND = [...currentAnd, revenueVisibilityClause()];
+  return where;
+}
+
 function extractPropertyCommissionPercent(propertyServices: unknown, fallbackPercent: number): number {
   const value = Number((propertyServices as any)?.commissionPercent);
   return Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : fallbackPercent;
@@ -24,7 +44,7 @@ router.get("/invoices", (async (req: AuthedRequest, res) => {
     const beforeId = Number.isFinite(beforeIdRaw as any) ? beforeIdRaw : undefined;
     const take = Math.min(Math.max(Number(req.query.take ?? 50), 1), 200);
 
-    const where: any = { ownerId };
+    const where: any = applyRevenueVisibility({ ownerId });
     if (status) {
       const parts = String(status)
         .split(",")
@@ -115,7 +135,7 @@ router.get("/stats", (async (req: AuthedRequest, res) => {
     const date_to = req.query.date_to ? new Date(String(req.query.date_to)) : undefined;
 
     const defaultCommissionPercent = await getEffectiveCommissionPercent(null);
-    const where: any = { ownerId };
+    const where: any = applyRevenueVisibility({ ownerId });
     if (status) {
       const parts = String(status)
         .split(",")
@@ -198,7 +218,7 @@ router.get("/invoices.csv", (async (req: AuthedRequest, res) => {
   const date_from = req.query.date_from ? new Date(String(req.query.date_from)) : undefined;
   const date_to = req.query.date_to ? new Date(String(req.query.date_to)) : undefined;
 
-  const where: any = { ownerId };
+  const where: any = applyRevenueVisibility({ ownerId });
   if (status) where.status = status as any;
   if (date_from || date_to) {
     where.issuedAt = {};
@@ -262,7 +282,7 @@ router.get("/invoices.csv", (async (req: AuthedRequest, res) => {
 router.get("/invoices/:id", (async (req: AuthedRequest, res) => {
   const id = Number(req.params.id);
   const inv = await prisma.invoice.findFirst({
-    where: { id, ownerId: req.user!.id },
+    where: applyRevenueVisibility({ id, ownerId: req.user!.id }),
     include: {
       booking: {
         include: {

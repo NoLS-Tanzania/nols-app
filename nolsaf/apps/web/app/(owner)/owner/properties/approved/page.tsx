@@ -104,7 +104,7 @@ export default function ApprovedProps() {
     let mounted = true;
     const load = async () => {
       try {
-        const response = await api.get("/api/admin/settings");
+        const response = await api.get("/api/public/support/system-settings");
         const settings = response.data?.data ?? response.data;
         if (mounted && settings?.commissionPercent !== undefined) {
           const commission = Number(settings.commissionPercent);

@@ -4,6 +4,7 @@ import crypto from "crypto";
 import { getRedis } from "../lib/redis.js";
 
 const CSRF_TTL_SEC = 60 * 60; // 1 hour
+const AUTH_COOKIE_NAMES = new Set(["nolsaf_token", "__Host-nolsaf_token", "token", "__Host-token"]);
 
 // ---------------------------------------------------------------------------
 // In-memory fallback (used when Redis is unavailable, e.g. local dev without Redis)
@@ -126,6 +127,53 @@ function getSessionId(req: Request): string {
   return crypto.createHash("sha256").update(`${ip}:${ua}`).digest("hex");
 }
 
+function hasBearerAuth(req: Request): boolean {
+  const auth = String(req.headers.authorization || "");
+  return auth.startsWith("Bearer ");
+}
+
+function hasAuthCookie(req: Request): boolean {
+  const cookieHeader = req.headers.cookie || "";
+  return cookieHeader
+    .split(";")
+    .map((part) => part.trim())
+    .some((part) => {
+      const eqIdx = part.indexOf("=");
+      if (eqIdx === -1) return false;
+      return AUTH_COOKIE_NAMES.has(part.slice(0, eqIdx).trim());
+    });
+}
+
+function parseOrigin(value: string): string | null {
+  if (!value) return null;
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
+}
+
+function getAllowedOrigins(): string[] {
+  return Array.from(
+    new Set(
+      [
+        process.env.WEB_ORIGIN,
+        process.env.APP_ORIGIN,
+        ...(process.env.CORS_ORIGIN || "").split(",").map((s) => s.trim()),
+      ].filter(Boolean) as string[]
+    )
+  );
+}
+
+function isTrustedOrigin(req: Request): boolean {
+  const origin = parseOrigin(String(req.get("origin") || "")) || parseOrigin(String(req.get("referer") || ""));
+  if (!origin) return false;
+
+  const host = String(req.get("host") || "").trim();
+  const sameHost = origin === `https://${host}` || origin === `http://${host}`;
+  return sameHost || getAllowedOrigins().includes(origin);
+}
+
 /**
  * CSRF protection middleware for state-changing operations
  * Only applies to POST, PUT, DELETE, PATCH methods
@@ -141,25 +189,37 @@ export async function csrfProtection(req: Request, res: Response, next: NextFunc
     return next();
   }
 
-  // Skip CSRF for public read-only endpoints
-  if (req.method === "GET" && req.path.startsWith("/api/public/")) {
+  // Bearer-token clients do not rely on ambient browser cookies.
+  if (hasBearerAuth(req)) {
+    return next();
+  }
+
+  // Public unauthenticated mutations are protected by validation/rate limits, not CSRF.
+  if (!hasAuthCookie(req)) {
     return next();
   }
 
   const sessionId = getSessionId(req);
   const token = req.headers["x-csrf-token"] as string;
 
-  if (!token) {
-    return res.status(403).json({
-      error: "CSRF token missing",
-      message: "Please include X-CSRF-Token header",
-    });
+  if (token) {
+    if (!(await verifyCsrfToken(sessionId, token))) {
+      return res.status(403).json({
+        error: "Invalid CSRF token",
+        message: "CSRF token verification failed",
+      });
+    }
+    return next();
   }
 
-  if (!(await verifyCsrfToken(sessionId, token))) {
+  const secFetchSite = String(req.get("sec-fetch-site") || "").toLowerCase();
+  const explicitlyCrossSite = secFetchSite === "cross-site";
+  const hasOriginHeaders = Boolean(req.get("origin") || req.get("referer"));
+
+  if (explicitlyCrossSite || (hasOriginHeaders && !isTrustedOrigin(req))) {
     return res.status(403).json({
-      error: "Invalid CSRF token",
-      message: "CSRF token verification failed",
+      error: "CSRF token missing",
+      message: "Cross-site cookie-auth requests must include X-CSRF-Token.",
     });
   }
 

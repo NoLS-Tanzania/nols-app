@@ -146,7 +146,7 @@ export default function NewInvoice() {
                     <div className="min-w-0">
                       <div className="text-xs font-bold tracking-wide text-slate-600 uppercase">Invoice preview</div>
                       <div className="mt-1 text-lg font-semibold text-slate-900 truncate">
-                        {preview.property?.title ?? `Booking #${bookingId}`} — Accommodation Invoice
+                        {preview.property?.title ?? `Booking #${bookingId}`} | Accommodation Invoice
                       </div>
                       {preview.property?.address ? (
                         <div className="text-sm text-slate-600 truncate">{preview.property.address}</div>

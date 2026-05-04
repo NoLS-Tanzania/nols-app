@@ -38,7 +38,6 @@ import { Readable } from 'stream';
 
           const thumb = await sharp(buf).resize(800, 600, { fit: 'inside' }).toBuffer();
           const webp = await sharp(buf).toFormat('webp').toBuffer();
-          const avif = await sharp(buf).toFormat('avif').toBuffer();
 
           const baseKey = (img.storageKey || `prop-${img.propertyId}-${Date.now()}`)
             .replace(/[^a-zA-Z0-9_.-]/g, '_');
@@ -51,11 +50,9 @@ import { Readable } from 'stream';
 
           const thumbKey = `thumbs/${baseKey}.jpg`;
           const webpKey = `converted/${baseKey}.webp`;
-          const avifKey = `converted/${baseKey}.avif`;
 
           const thumbUrl = await uploadBuffer(thumb, thumbKey, 'image/jpeg');
           const webpUrl = await uploadBuffer(webp, webpKey, 'image/webp');
-          const avifUrl = await uploadBuffer(avif, avifKey, 'image/avif');
 
           // update record
           await prisma.propertyImage.update({ where: { id: img.id }, data: { thumbnailKey: thumbKey, thumbnailUrl: thumbUrl, url: img.url, storageKey: img.storageKey, status: 'READY', width: img.width ?? null, height: img.height ?? null } });

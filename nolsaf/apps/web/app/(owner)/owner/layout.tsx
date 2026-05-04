@@ -81,9 +81,9 @@ export default function OwnerLayout({ children }: { children: ReactNode }) {
                 className="absolute inset-0 bg-black/20 backdrop-blur-sm nols-soft-overlay"
                 onClick={() => setMobileSidebarOpen(false)}
               />
-              <aside className="absolute left-0 top-16 h-[calc(100%-4rem)] w-[min(20rem,calc(100vw-1rem))] p-3 nols-soft-popover">
+              <aside className="absolute left-0 top-16 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] w-[min(20rem,calc(100vw-1rem))] p-3 nols-soft-popover">
                 <div
-                  className="h-full overflow-y-auto scroll-smooth rounded-3xl"
+                  className="h-full overflow-y-auto scroll-smooth rounded-3xl pb-4"
                   onClickCapture={(event) => {
                     const target = event.target as HTMLElement | null;
                     if (target?.closest("a[href]")) {

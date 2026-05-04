@@ -1,6 +1,6 @@
 "use client";
-import React, { useEffect, useState } from "react";
-import { Bell, CheckCheck, ArrowLeft, Loader2 } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
+import { ArrowLeft, Bell, CheckCheck, Loader2, Trash2 } from "lucide-react";
 import Link from "next/link";
 
 function relativeTime(v: string): string {
@@ -30,10 +30,21 @@ type Note = {
   createdAt: string;
 };
 
+function ownerApi(path: string) {
+  return path;
+}
+
 export default function ReadNotificationsPage() {
   const [items, setItems] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(() => new Set());
+  const [clearing, setClearing] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<
+    | { type: "one"; id: string; title: string }
+    | { type: "all"; count: number }
+    | null
+  >(null);
 
   useEffect(() => {
     let mounted = true;
@@ -42,22 +53,21 @@ export default function ReadNotificationsPage() {
       setLoading(true);
       setError(null);
       try {
-        const base = process.env.NEXT_PUBLIC_API_URL || '';
-        const url = base
-          ? `${base.replace(/\/$/, '')}/api/owner/notifications?tab=viewed&page=1&pageSize=50`
-          : '/api/owner/notifications?tab=viewed&page=1&pageSize=50';
-        const r = await fetch(url, { credentials: 'include', signal: controller.signal });
+        const r = await fetch(ownerApi("/api/owner/notifications?tab=viewed&page=1&pageSize=50"), {
+          credentials: "include",
+          signal: controller.signal,
+        });
         if (!mounted) return;
         if (!r.ok) throw new Error(`Fetch failed (${r.status})`);
         const j = await r.json();
         setItems((j?.items ?? []).map((it: any) => ({
           id: String(it.id),
-          title: it.title ?? '',
-          body: it.body ?? '',
+          title: it.title ?? "",
+          body: it.body ?? "",
           createdAt: it.createdAt ?? new Date().toISOString(),
         })));
       } catch (err: any) {
-        if (err?.name === 'AbortError') return;
+        if (err?.name === "AbortError") return;
         setError(String(err?.message ?? err));
       } finally {
         if (mounted) setLoading(false);
@@ -66,112 +76,219 @@ export default function ReadNotificationsPage() {
     return () => { mounted = false; controller.abort(); };
   }, []);
 
-  return (
-    <div className="space-y-4 pb-8">
+  const historyText = useMemo(() => {
+    if (loading) return "Fetching read notifications...";
+    if (items.length === 0) return "No read notifications to manage.";
+    return `${items.length} read notification${items.length === 1 ? "" : "s"} saved in history.`;
+  }, [items.length, loading]);
 
-      {/* ── Hero ── */}
-      <div className="relative overflow-hidden rounded-2xl bg-white border border-slate-200 shadow-xl shadow-slate-100/60">
-        <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-gradient-to-b from-teal-600 via-teal-300 to-transparent rounded-l-2xl" />
-        {!loading && items.length > 0 && (
-          <div
-            className="pointer-events-none select-none absolute right-[8%] top-1/2 -translate-y-1/2 font-black text-teal-50 leading-none"
-            style={{ fontSize: "clamp(72px,14vw,120px)" }}
-            aria-hidden
-          >
-            {items.length}
+  async function deleteOne(id: string) {
+    const before = items;
+    setDeletingIds((prev) => new Set(prev).add(id));
+    setItems((prev) => prev.filter((n) => n.id !== id));
+
+    try {
+      const r = await fetch(ownerApi(`/api/owner/notifications/${encodeURIComponent(id)}`), {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!r.ok) throw new Error(`${r.status}`);
+    } catch (err) {
+      console.error("delete notification failed", err);
+      setItems(before);
+      setError("Could not delete that notification. Please try again.");
+    } finally {
+      setDeletingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
+  }
+
+  async function clearReadHistory() {
+    if (items.length === 0 || clearing) return;
+
+    const before = items;
+    setClearing(true);
+    setItems([]);
+    setError(null);
+
+    try {
+      const r = await fetch(ownerApi("/api/owner/notifications/read"), {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!r.ok) throw new Error(`${r.status}`);
+    } catch (err) {
+      console.error("clear read notifications failed", err);
+      setItems(before);
+      setError("Could not clear read notifications. Please try again.");
+    } finally {
+      setClearing(false);
+    }
+  }
+
+  return (
+    <div className="space-y-5 pb-8">
+      <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl shadow-slate-200/70">
+        <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-teal-50 blur-3xl" />
+        <div className="pointer-events-none absolute right-8 top-8 h-24 w-24 rounded-full border border-teal-100/70" />
+
+        <div className="relative grid gap-5 px-5 py-7 sm:px-8 sm:py-9 lg:grid-cols-[1fr_auto] lg:items-center">
+          <div className="flex items-start gap-4">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-teal-100 bg-teal-50 text-[#02665e]">
+              <CheckCheck className="h-6 w-6" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#02665e]">Read history</p>
+              <h1 className="mt-2 text-3xl font-black leading-tight tracking-tight text-slate-950 sm:text-4xl">Read notifications</h1>
+              <p className="mt-2 max-w-xl text-sm leading-6 text-slate-600">{historyText}</p>
+            </div>
           </div>
-        )}
-        <div
-          className="pointer-events-none absolute right-0 top-0 h-full w-1/2 opacity-[0.03]"
-          style={{ backgroundImage: "radial-gradient(circle, #334155 1px, transparent 1px)", backgroundSize: "18px 18px" }}
-        />
-        <div className="relative px-6 pt-8 pb-9 sm:px-10 sm:pt-10 sm:pb-11 flex flex-col items-center text-center">
-          <div className="flex items-center justify-center h-14 w-14 rounded-2xl bg-gradient-to-br from-teal-50 to-teal-100 border border-teal-200 shadow-sm mb-4">
-            <CheckCheck className="h-6 w-6 text-teal-600" />
-          </div>
-          <p className="text-[9px] font-black uppercase tracking-[0.18em] text-teal-500 mb-2">Archive</p>
-          <h1 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight leading-none">Read</h1>
-          <p className="mt-2.5 text-sm text-slate-400 max-w-xs">
-            {loading
-              ? "Fetching your history…"
-              : items.length > 0
-                ? `${items.length} notification${items.length === 1 ? "" : "s"} already seen`
-                : "Your read history is empty."}
-          </p>
-          <div className="mt-5">
+
+          <div className="flex flex-wrap items-center gap-2">
             <Link
               href="/owner/notifications"
-              className="inline-flex items-center gap-1.5 h-8 px-4 rounded-xl border border-slate-200 bg-white text-slate-500 text-xs font-bold shadow-sm hover:border-slate-300 hover:text-slate-700 transition-all no-underline"
+              className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-600 no-underline shadow-sm transition hover:border-slate-300 hover:text-slate-900"
             >
-              <ArrowLeft className="h-3.5 w-3.5" /> Back
+              <ArrowLeft className="h-4 w-4" /> Back
             </Link>
+            {!loading && items.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setConfirmDelete({ type: "all", count: items.length })}
+                disabled={clearing}
+                className="inline-flex h-10 items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 text-sm font-bold text-rose-700 shadow-sm transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {clearing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                Clear read
+              </button>
+            )}
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* ── Content ── */}
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-20 gap-3">
-          <div className="flex items-center justify-center h-12 w-12 rounded-2xl bg-teal-50 border border-teal-100">
-            <Loader2 className="h-5 w-5 animate-spin text-teal-400" />
+        <div className="flex flex-col items-center justify-center gap-3 py-20">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-teal-100 bg-teal-50">
+            <Loader2 className="h-5 w-5 animate-spin text-[#02665e]" />
           </div>
-          <p className="text-sm text-slate-400 font-medium">Loading history…</p>
+          <p className="text-sm font-medium text-slate-400">Loading history...</p>
         </div>
       ) : error ? (
-        <div className="rounded-2xl bg-white border border-slate-200 shadow-sm py-14 flex flex-col items-center gap-2 px-6 text-center">
-          <div className="flex items-center justify-center h-12 w-12 rounded-2xl bg-rose-50 border border-rose-100 mb-1">
-            <Bell className="h-5 w-5 text-rose-400" />
+        <div className="rounded-3xl border border-rose-100 bg-white px-6 py-10 text-center shadow-sm">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl border border-rose-100 bg-rose-50">
+            <Bell className="h-5 w-5 text-rose-500" />
           </div>
           <p className="text-sm font-bold text-rose-600">Could not load notifications</p>
-          <p className="text-xs text-slate-400">{error}</p>
+          <p className="mt-1 text-xs text-slate-400">{error}</p>
         </div>
       ) : items.length === 0 ? (
-        <div className="rounded-2xl bg-white border border-slate-200 shadow-sm py-16 flex flex-col items-center gap-3 px-6 text-center">
-          <div className="flex items-center justify-center h-14 w-14 rounded-2xl bg-slate-50 border border-slate-100">
-            <Bell className="h-6 w-6 text-slate-300" />
+        <div className="rounded-3xl border border-slate-200 bg-white px-6 py-16 text-center shadow-sm">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-100 bg-slate-50">
+            <CheckCheck className="h-6 w-6 text-slate-300" />
           </div>
-          <p className="text-sm font-black text-slate-600">Nothing here yet</p>
-          <p className="text-xs text-slate-400 max-w-xs leading-relaxed">
-            Read notifications will appear here after you mark them as read.
+          <p className="text-sm font-black text-slate-700">No read notifications</p>
+          <p className="mx-auto mt-2 max-w-xs text-xs leading-relaxed text-slate-400">
+            Messages you mark as read will appear here until you delete them.
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {items.map((n) => (
-            <div
-              key={n.id}
-              className="relative rounded-2xl bg-white border border-slate-200 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden"
-            >
-              {/* left accent — muted for read state */}
-              <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-gradient-to-b from-teal-400 via-teal-200 to-transparent" />
-
-              <div className="pl-5 pr-6 pt-4 pb-0 sm:pl-6 sm:pr-7">
-                <div className="flex items-start gap-3.5">
-                  {/* icon tile — desaturated to signal "already read" */}
-                  <div className="flex-shrink-0 mt-0.5 flex items-center justify-center h-10 w-10 rounded-xl bg-slate-50 border border-slate-200">
-                    <CheckCheck className="h-4 w-4 text-slate-400" aria-hidden />
+        <div className="grid grid-cols-1 gap-3">
+          {items.map((n) => {
+            const deleting = deletingIds.has(n.id);
+            return (
+              <article
+                key={n.id}
+                className="group relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-teal-200 hover:shadow-lg"
+              >
+                <div className="pointer-events-none absolute -right-10 -top-12 h-32 w-32 rounded-full bg-teal-50 blur-2xl" />
+                <div className="grid gap-4 p-5 sm:grid-cols-[auto_1fr_auto] sm:items-start sm:p-6">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-400">
+                    <CheckCheck className="h-5 w-5" />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-baseline justify-between gap-3">
-                      <p className="text-[13px] font-bold text-slate-600 leading-snug">{n.title}</p>
-                      <span
-                        className="flex-shrink-0 text-[10px] text-slate-400 font-semibold whitespace-nowrap"
-                        title={fullDate(n.createdAt)}
-                      >
-                        {relativeTime(n.createdAt)}
+
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-sm font-black leading-snug text-slate-800">{n.title || "Notification"}</h2>
+                      <span className="rounded-full border border-teal-100 bg-teal-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-[#02665e]">
+                        Read
                       </span>
                     </div>
-                    <p className="mt-1 text-[13px] text-slate-400 leading-relaxed line-clamp-3">{n.body}</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-500">{n.body}</p>
+                    <p className="mt-3 text-xs font-semibold text-slate-400" title={fullDate(n.createdAt)}>
+                      {relativeTime(n.createdAt)}
+                    </p>
                   </div>
-                </div>
-              </div>
 
-              {/* footer bar */}
-              <div className="mt-3 px-5 sm:px-6 py-2.5 border-t border-slate-100 flex items-center">
-                <span className="text-[10px] font-bold text-slate-300 uppercase tracking-[0.12em]">Read</span>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDelete({ type: "one", id: n.id, title: n.title || "Notification" })}
+                    disabled={deleting}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-rose-100 bg-rose-50 px-3 text-xs font-black text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60 sm:self-start"
+                    aria-label="Delete read notification"
+                    title="Delete read notification"
+                  >
+                    {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                    Delete
+                  </button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+
+      {confirmDelete && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-3xl border border-slate-200 bg-white p-5 shadow-2xl shadow-slate-950/20">
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-rose-100 bg-rose-50 text-rose-600">
+                <Trash2 className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-base font-black text-slate-950">
+                  {confirmDelete.type === "all" ? "Clear read notifications?" : "Delete notification?"}
+                </h2>
+                <p className="mt-1 text-sm leading-6 text-slate-500">
+                  {confirmDelete.type === "all"
+                    ? `${confirmDelete.count} read notification${confirmDelete.count === 1 ? "" : "s"} will be removed. Unread notifications stay untouched.`
+                    : "This read notification will be removed from your history."}
+                </p>
+                {confirmDelete.type === "one" && (
+                  <p className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600 line-clamp-2">
+                    {confirmDelete.title}
+                  </p>
+                )}
               </div>
             </div>
-          ))}
+
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(null)}
+                className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const next = confirmDelete;
+                  setConfirmDelete(null);
+                  if (next.type === "all") {
+                    await clearReadHistory();
+                  } else {
+                    await deleteOne(next.id);
+                  }
+                }}
+                className="inline-flex h-11 items-center justify-center rounded-xl bg-rose-600 text-sm font-black text-white shadow-sm transition hover:bg-rose-700"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

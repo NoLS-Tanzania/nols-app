@@ -904,7 +904,7 @@ export default function BookingReportsClient() {
         <div class="company-left">
           <img class="logo" src="${escapeAttr(logoUrl)}" alt="NoLSAF" />
           <div style="min-width:0">
-            <div class="co-name">NoLS Africa Inc</div>
+            <div class="co-name">NoLS Africa Co Ltd</div>
             <div class="co-meta">
               <div>P.O BOX 23091 | Dar es Salaam-Tanzania</div>
               <div>finance@nolsaf.com | +255736766726</div>

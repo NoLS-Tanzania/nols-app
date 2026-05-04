@@ -198,23 +198,31 @@ export default function OwnerSidebar({ collapsed = false }: { collapsed?: boolea
     let mounted = true;
     const abortController = new AbortController();
     let intervalId: ReturnType<typeof setInterval> | null = null;
-
-    const normalizeArray = (raw: any) =>
-      Array.isArray(raw) ? raw : (Array.isArray(raw?.data) ? raw.data : (Array.isArray(raw?.items) ? raw.items : []));
+    let authFailed = false;
 
     const fetchCounts = async () => {
-      if (!mounted) return;
+      if (!mounted || authFailed) return;
       try {
-        const [r1, r2] = await Promise.all([
-          api.get("/api/owner/bookings/checked-in", { signal: abortController.signal, timeout: 10000 }),
-          api.get("/api/owner/bookings/for-checkout", { signal: abortController.signal, timeout: 10000 }),
-        ]);
+        const response = await api.get("/api/owner/bookings/sidebar-counts", {
+          signal: abortController.signal,
+          timeout: 10000,
+        });
         if (!mounted) return;
-        setCheckedInCount(normalizeArray((r1 as any).data).length);
-        setCheckoutDueCount(normalizeArray((r2 as any).data).length);
+        const data = response.data ?? {};
+        setCheckedInCount(Number(data.checkedIn ?? 0));
+        setCheckoutDueCount(Number(data.checkoutDue ?? 0));
       } catch (err: any) {
         if (!mounted) return;
         if (err.code === "ECONNABORTED" || err.name === "AbortError" || err.message === "Request aborted") return;
+        const status = err?.response?.status;
+        if (status === 401 || status === 403) {
+          authFailed = true;
+          if (intervalId) {
+            clearInterval(intervalId);
+            intervalId = null;
+          }
+          return;
+        }
       }
     };
 
@@ -272,9 +280,9 @@ export default function OwnerSidebar({ collapsed = false }: { collapsed?: boolea
       {/* Logo strip */}
       <div className="px-4 pt-4 pb-3.5 flex items-center gap-2.5 border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/assets/NoLS2025-04.png" alt="NolSAF" className="w-7 h-7 rounded-xl object-contain flex-shrink-0" />
+        <img src="/assets/NoLS2025-04.png" alt="NoLSAF" className="w-7 h-7 rounded-xl object-contain flex-shrink-0" />
         <div className="min-w-0">
-          <p className="text-[13px] font-black tracking-wide text-white leading-none">NolSAF</p>
+          <p className="text-[13px] font-black tracking-wide text-white leading-none">NoLSAF</p>
           <p className="text-[9.5px] font-medium mt-[3px] leading-none" style={{ color: "rgba(255,255,255,0.38)" }}>Owner Portal</p>
         </div>
       </div>

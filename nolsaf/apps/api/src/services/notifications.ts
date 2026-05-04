@@ -93,3 +93,48 @@ export async function markNotificationRead(id: number | string, ownerId?: number
     return { ok: false, error: String(err?.message ?? err) };
   }
 }
+
+export async function deleteReadNotification(id: number | string, ownerId?: number, userId?: number, opts?: { types?: string[] }) {
+  try {
+    const where: any = { id: Number(id), unread: false };
+    if (userId) {
+      where.userId = Number(userId);
+    } else if (ownerId) {
+      where.ownerId = Number(ownerId);
+    }
+
+    const types = Array.isArray(opts?.types) ? opts?.types.filter((t) => typeof t === 'string' && t.trim()) : undefined;
+    if (types && types.length > 0) {
+      where.type = { in: types };
+    }
+
+    const r = await prisma.notification.deleteMany({ where });
+    if (!r || (typeof r.count === 'number' && r.count === 0)) return { ok: false, error: 'not_found' };
+    return { ok: true, deleted: r.count };
+  } catch (err: any) {
+    console.warn('deleteReadNotification failed', err?.message ?? err);
+    return { ok: false, error: String(err?.message ?? err) };
+  }
+}
+
+export async function deleteReadNotifications(opts: { ownerId?: number; userId?: number; types?: string[] }) {
+  try {
+    const where: any = { unread: false };
+    if (opts.userId) {
+      where.userId = Number(opts.userId);
+    } else if (opts.ownerId) {
+      where.ownerId = Number(opts.ownerId);
+    }
+
+    const types = Array.isArray(opts.types) ? opts.types.filter((t) => typeof t === 'string' && t.trim()) : undefined;
+    if (types && types.length > 0) {
+      where.type = { in: types };
+    }
+
+    const r = await prisma.notification.deleteMany({ where });
+    return { ok: true, deleted: r.count };
+  } catch (err: any) {
+    console.warn('deleteReadNotifications failed', err?.message ?? err);
+    return { ok: false, error: String(err?.message ?? err) };
+  }
+}

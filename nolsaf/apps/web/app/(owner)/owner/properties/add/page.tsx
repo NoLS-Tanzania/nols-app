@@ -164,6 +164,23 @@ function cryptoId() {
   return Math.random().toString(36).slice(2);
 }
 
+function normalizePhotoUrls(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+  }
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed)
+        ? parsed.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+        : [];
+    } catch {
+      return value.trim() ? [value.trim()] : [];
+    }
+  }
+  return [];
+}
+
 type NearbyFacility = {
   id: string;
   type: FacilityType;
@@ -844,9 +861,13 @@ export default function AddProperty() {
               }
               
               // Load photos
-              if (property.images && Array.isArray(property.images)) {
-                const imageUrls = property.images.map((img: any) => img.url || img).filter(Boolean);
-                setPhotos(imageUrls);
+              const imageUrls = Array.isArray(property.images)
+                ? property.images.map((img: any) => img.url || img).filter(Boolean)
+                : [];
+              const legacyPhotoUrls = normalizePhotoUrls((property as any).photos);
+              const nextPhotoUrls = imageUrls.length ? imageUrls : legacyPhotoUrls;
+              if (nextPhotoUrls.length) {
+                applyLoadedPropertyPhotos(nextPhotoUrls);
               }
               
               // Load rooms
@@ -1620,7 +1641,67 @@ export default function AddProperty() {
     return (cloudRes.data as { secure_url: string }).secure_url;
   }
 
-  // PhotosStep handles file uploads internally, so pickPropertyPhotos is not needed
+  const applyLoadedPropertyPhotos = useCallback((nextPhotos: string[]) => {
+    setPhotos(nextPhotos);
+    setPhotosSaved(nextPhotos.map(() => true));
+    setPhotosUploading(nextPhotos.map(() => false));
+  }, []);
+
+  const onPickPropertyPhotos = async (files: FileList | null) => {
+    if (!files) return;
+    const chosen = Array.from(files);
+    if (!chosen.length) return;
+
+    const localBlobs = chosen.map((file) => URL.createObjectURL(file));
+    setPhotos((prev) => [...prev, ...localBlobs]);
+    setPhotosSaved((prev) => [...prev, ...Array(localBlobs.length).fill(false)]);
+    setPhotosUploading((prev) => [...prev, ...Array(localBlobs.length).fill(true)]);
+
+    chosen.forEach((file, i) => {
+      const blobUrl = localBlobs[i];
+      uploadToCloudinary(file, "properties").then((url) => {
+        setPhotos((prev) => {
+          const idx = prev.indexOf(blobUrl);
+          if (idx === -1) return prev;
+          const copy = [...prev];
+          copy[idx] = url;
+          return copy;
+        });
+        setPhotosSaved((prev) => {
+          const idx = photosRef.current.indexOf(blobUrl);
+          if (idx === -1) return prev;
+          const copy = [...prev];
+          copy[idx] = true;
+          return copy;
+        });
+        setPhotosUploading((prev) => {
+          const idx = photosRef.current.indexOf(blobUrl);
+          if (idx === -1) return prev;
+          const copy = [...prev];
+          copy[idx] = false;
+          return copy;
+        });
+      }).catch((err) => {
+        console.error("Property photo upload failed", err);
+        setPhotos((prev) => prev.filter((u) => u !== blobUrl));
+        setPhotosSaved((prev) => {
+          const idx = photosRef.current.indexOf(blobUrl);
+          return idx === -1 ? prev : prev.filter((_, j) => j !== idx);
+        });
+        setPhotosUploading((prev) => {
+          const idx = photosRef.current.indexOf(blobUrl);
+          return idx === -1 ? prev : prev.filter((_, j) => j !== idx);
+        });
+        if (err?.response?.status === 401) {
+          alert("Session expired. Please log in again to upload photos.");
+        } else {
+          alert("Property photo upload failed. Please try again.");
+        }
+      }).finally(() => {
+        try { URL.revokeObjectURL(blobUrl); } catch {}
+      });
+    });
+  };
 
   const onPickRoomImages = async (files: FileList | null) => {
     if (!files) return;
@@ -2010,7 +2091,7 @@ export default function AddProperty() {
         return { ...prevObj, ...(draft.houseRules as Record<string, any>) };
       });
     }
-    if (draft.photos && Array.isArray(draft.photos)) setPhotos(draft.photos);
+    if (draft.photos) applyLoadedPropertyPhotos(normalizePhotoUrls(draft.photos));
     if (draft.definedRooms && Array.isArray(draft.definedRooms)) setDefinedRooms(draft.definedRooms);
     if (draft.services) setServices(draft.services);
     if (draft.nearbyFacilities && Array.isArray(draft.nearbyFacilities)) setNearbyFacilities(draft.nearbyFacilities);
@@ -2387,6 +2468,7 @@ export default function AddProperty() {
           photos={photos}
           photosSaved={photosSaved}
           photosUploading={photosUploading}
+          pickPropertyPhotos={onPickPropertyPhotos}
           setPhotos={setPhotos}
           setPhotosSaved={setPhotosSaved}
           setPhotosUploading={setPhotosUploading}
