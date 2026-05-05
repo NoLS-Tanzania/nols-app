@@ -1,21 +1,23 @@
 /**
  * expireStaleBookings — background worker
  *
- * Automatically cancels bookings that were created but never paid.
- * This reclaims blocked availability dates and removes incentive for
- * bot-flooding the booking endpoint.
+ * Hard-deletes bookings that were created but never paid within the TTL window.
+ * Unpaid bookings have no right to persist — they reclaim blocked availability
+ * dates and are not shown to admins or owners as cancelled noise.
  *
  * A booking is considered stale when:
  *   - status is "NEW" (created, no code issued, no payment)
  *   - createdAt is older than STALE_BOOKING_TTL_MS (default: 30 minutes)
+ *   - has NO invoice currently PROCESSING, PAID, or CUSTOMER_PAID
+ *     (an active payment attempt protects the booking until it resolves)
  *
- * Effect: set status = "CANCELED", leaving an audit trail in the DB.
- * Any associated PAYMENT_PENDING transport bookings are also cancelled.
+ * Effect: hard DELETE from the database — no cancelled record left behind.
+ * Associated invoices (DRAFT/PENDING only) and transport bookings are also deleted.
  */
 import { prisma } from "@nolsaf/prisma";
 
 type StartOptions = {
-  /** How long before an unpaid NEW booking is expired. Default: 30 minutes. */
+  /** How long before an unpaid NEW booking is purged. Default: 30 minutes. */
   ttlMs?: number;
   /** How often the cleanup runs. Default: 5 minutes. */
   intervalMs?: number;
@@ -29,14 +31,16 @@ const DEFAULT_INTERVAL_MS = 5 * 60 * 1000;
 async function expireStaleBookings(ttlMs: number): Promise<void> {
   const cutoff = new Date(Date.now() - ttlMs);
 
-  // Find stale bookings — NEW status, no booking code, created before cutoff.
-  // We deliberately do NOT cancel bookings that have a code (paid or admin-issued).
+  // Find stale bookings — NEW status, no booking code, created before cutoff,
+  // and no in-flight or completed payment (those are protected).
   const stale = await prisma.booking.findMany({
     where: {
       status: "NEW",
       createdAt: { lt: cutoff },
-      // Ensure no code has been issued (extra safety guard)
       code: null,
+      invoices: {
+        none: { status: { in: ["PROCESSING", "PAID", "CUSTOMER_PAID"] } },
+      },
     },
     select: { id: true },
   });
@@ -44,26 +48,29 @@ async function expireStaleBookings(ttlMs: number): Promise<void> {
   if (stale.length === 0) return;
 
   const staleIds = stale.map((b) => b.id);
+  const paymentRefs = staleIds.map((id) => `BOOKING:${id}`);
 
   console.log(
-    `[expireStaleBookings] Expiring ${staleIds.length} stale unpaid booking(s): [${staleIds.join(", ")}]`
+    `[expireStaleBookings] Hard-deleting ${staleIds.length} stale unpaid booking(s): [${staleIds.join(", ")}]`
   );
 
-  // Cancel all stale bookings in one query
-  await prisma.booking.updateMany({
-    where: { id: { in: staleIds }, status: "NEW" },
-    data: { status: "CANCELED" },
+  // Delete child records first (FK constraints), then the bookings themselves.
+  // Only delete invoices that are not paid — paid invoices should never reach here
+  // due to the filter above, but guard anyway.
+  await prisma.invoice.deleteMany({
+    where: {
+      bookingId: { in: staleIds },
+      status: { notIn: ["PAID", "CUSTOMER_PAID"] },
+    },
   });
 
-  // Also cancel any PAYMENT_PENDING transport bookings linked to these bookings.
-  // paymentRef format: "BOOKING:{bookingId}"
-  const paymentRefs = staleIds.map((id) => `BOOKING:${id}`);
-  await prisma.transportBooking.updateMany({
-    where: {
-      paymentRef: { in: paymentRefs },
-      status: "PAYMENT_PENDING",
-    },
-    data: { status: "CANCELED" },
+  await prisma.transportBooking.deleteMany({
+    where: { paymentRef: { in: paymentRefs } },
+  });
+
+  // Hard delete the stale bookings
+  await prisma.booking.deleteMany({
+    where: { id: { in: staleIds }, status: "NEW" },
   });
 }
 
@@ -83,6 +90,6 @@ export function startExpireStaleBookings({
   }, intervalMs);
 
   console.log(
-    `[expireStaleBookings] Started — TTL: ${ttlMs / 60000}min, interval: ${intervalMs / 60000}min`
+    `[expireStaleBookings] Started — TTL: ${ttlMs / 60000}min, interval: ${intervalMs / 60000}min (hard-delete mode)`
   );
 }
