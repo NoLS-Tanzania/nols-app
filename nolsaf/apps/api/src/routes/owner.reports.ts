@@ -303,6 +303,7 @@ const bookingsHandler: RequestHandler = async (req, res, next) => {
         bs = await prisma.booking.findMany({
           where: {
             property: { ownerId },
+            status: { notIn: ['NEW', 'VOID'] },
             checkIn: { gte: from, lte: to },
             ...(propertyId ? { propertyId } : {}),
           },
@@ -323,6 +324,7 @@ const bookingsHandler: RequestHandler = async (req, res, next) => {
         bs = await prisma.booking.findMany({
           where: {
             property: { ownerId },
+            status: { notIn: ['NEW', 'VOID'] },
             checkIn: { gte: from, lte: to },
             ...(propertyId ? { propertyId } : {}),
           },
@@ -421,6 +423,7 @@ const bookingsHandler: RequestHandler = async (req, res, next) => {
         const bs: any[] = await prisma.booking.findMany({
           where: {
             property: { ownerId },
+            status: { notIn: ['NEW', 'VOID'] },
             checkIn: { gte: from, lte: to },
             ...(propertyId ? { propertyId } : {}),
           },
@@ -592,6 +595,7 @@ const staysHandler: RequestHandler = async (req, res) => {
       const bookings = await prisma.booking.findMany({
         where: {
           property: { ownerId, ...(propertyId ? { id: propertyId } : {}) },
+          status: { notIn: ['NEW', 'VOID'] },
           checkIn: { lt: rangeEndExclusive },
           checkOut: { gt: rangeStart },
         },
@@ -925,7 +929,7 @@ const occupancyHandler: RequestHandler = async (req, res) => {
             property: { ownerId, ...(propertyId ? { id: propertyId } : {}) },
             checkIn: { lte: d },
             checkOut: { gt: d },
-            status: { not: 'CANCELED' },
+            status: { notIn: ['NEW', 'VOID', 'CANCELED'] },
           },
           _sum: { roomsQty: true },
         });
@@ -995,6 +999,7 @@ router.get(
       const bs = await prisma.booking.findMany({
         where: {
           property: { ownerId },
+          status: { notIn: ['NEW', 'VOID'] },
           checkIn: { gte: from, lte: to },
           ...(propertyId ? { propertyId } : {}),
         },

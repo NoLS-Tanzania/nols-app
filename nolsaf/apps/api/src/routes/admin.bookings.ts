@@ -267,9 +267,9 @@ router.get("/counts", async (req, res) => {
   try {
     const { start, end, month } = req.query as any;
 
-    // If no date params, return simple status counts
+    // If no date params, return simple status counts (exclude NEW - unpaid bookings are never visible to admin)
     if (!start && !end && !month) {
-      const statuses = ["NEW", "CONFIRMED", "CHECKED_IN", "PENDING_CHECKIN", "CHECKED_OUT", "CANCELED"];
+      const statuses = ["CONFIRMED", "CHECKED_IN", "PENDING_CHECKIN", "CHECKED_OUT", "CANCELED"];
       const counts: Record<string, number> = {};
       
       for (const status of statuses) {
@@ -307,17 +307,19 @@ router.get("/counts", async (req, res) => {
 
   // Optimize by fetching all bookings that overlap the requested range once,
   // then aggregating per-day counts in-process. This avoids N * M DB count queries.
+  // NEW (unpaid) bookings are excluded — only paid bookings are visible to admin.
   const bookings = await prisma.booking.findMany({
     where: {
       AND: [
         { checkIn: { lt: new Date(e.getFullYear(), e.getMonth(), e.getDate() + 1) } },
         { checkOut: { gt: s } },
+        { status: { notIn: ['NEW', 'VOID'] } },
       ],
     },
     select: { checkIn: true, checkOut: true, status: true },
   });
 
-  const statuses = ["NEW", "CONFIRMED", "CHECKED_IN", "CHECKED_OUT", "CANCELED"];
+  const statuses = ["CONFIRMED", "CHECKED_IN", "CHECKED_OUT", "CANCELED"];
   const out: Record<string, { total: number; statuses: Record<string, number> }> = {};
 
   // initialize days
