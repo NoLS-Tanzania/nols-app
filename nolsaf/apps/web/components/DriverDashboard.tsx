@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect, useState, useRef } from "react";
 import Link from "next/link";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import { io, Socket } from "socket.io-client";
 
 // Add custom animations
@@ -59,7 +59,7 @@ import {
 } from "recharts";
 
 // Use same-origin calls + secure httpOnly cookie session.
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 type DashboardStats = {
   todayGoal: number;

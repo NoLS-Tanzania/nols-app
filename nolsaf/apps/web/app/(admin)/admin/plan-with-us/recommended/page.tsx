@@ -6,10 +6,10 @@ import {
   FileText, ChevronRight, Award,
 } from "lucide-react";
 import DatePicker from "@/components/ui/DatePicker";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import TripProposalReport from "@/components/TripProposalReport";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 function authify() {}
 
 type RecommendedRequest = {

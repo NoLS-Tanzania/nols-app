@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import {
   Search,
   Truck,
@@ -31,7 +31,7 @@ import {
 } from "lucide-react";
 
 // Use same-origin for HTTP calls so Next.js rewrites proxy to the API
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 function authify() {
   if (typeof window === "undefined") return;

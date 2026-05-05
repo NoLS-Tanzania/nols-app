@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 
 // Use same-origin calls + secure httpOnly cookie session.
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 export default function BookingDetail() {
   const routeParams = useParams<{ id?: string | string[] }>();

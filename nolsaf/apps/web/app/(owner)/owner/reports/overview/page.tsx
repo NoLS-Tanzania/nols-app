@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import ReportsFilter, { ReportsFilters } from "@/components/ReportsFilter";
 import {
   Area,
@@ -18,7 +18,7 @@ import {
 import { AlertTriangle, BarChart3, BedDouble, CalendarDays, Coins, TrendingUp } from "lucide-react";
 
 // Use same-origin requests to leverage Next.js rewrites and avoid CORS
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 export default function Overview() {
   const [filters, setFilters] = useState<ReportsFilters | null>(null);

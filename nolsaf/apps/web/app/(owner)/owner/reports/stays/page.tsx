@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import ReportsFilter, { ReportsFilters } from "@/components/ReportsFilter";
 import { Download, Printer, ShieldCheck, AlertTriangle } from "lucide-react";
 import { escapeHtml } from "@/utils/html";
 
 // Use same-origin requests to leverage Next.js rewrites and avoid CORS
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 type OwnerHeader = {
   id: number;

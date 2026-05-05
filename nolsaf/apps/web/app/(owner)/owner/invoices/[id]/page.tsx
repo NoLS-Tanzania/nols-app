@@ -1,12 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft, FileText, Send, CheckCircle2, Download, Clock, Loader2, User, Building2, Phone, MapPin } from "lucide-react";
 
 // Use same-origin calls + secure httpOnly cookie session.
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 export default function InvoiceView() {
   const routeParams = useParams<{ id?: string | string[] }>();

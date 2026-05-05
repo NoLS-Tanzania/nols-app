@@ -1,13 +1,13 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import io from 'socket.io-client';
 import Link from "next/link";
 import { Calendar, Eye, Check } from "lucide-react";
 import TableRow from "@/components/TableRow";
 
 // Use same-origin requests + secure httpOnly cookie session
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 export default function RecentBookings() {
   const [list, setList] = useState<any[] | null>(null);

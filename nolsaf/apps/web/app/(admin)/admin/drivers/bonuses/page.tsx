@@ -2,10 +2,10 @@
 import "./page.css";
 import { useEffect, useState, useCallback } from "react";
 import { Award, Truck, DollarSign, Eye, X, Calendar, FileText, CheckCircle2, Clock, Plus, Loader2, Trophy, BarChart3, Gem, Edit, ChevronDown } from "lucide-react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import { useSearchParams } from "next/navigation";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 function authify() {
   if (typeof window === "undefined") return;
 

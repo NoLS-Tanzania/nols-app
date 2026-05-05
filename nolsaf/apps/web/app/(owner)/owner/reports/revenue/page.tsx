@@ -1,11 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import TableRow from "@/components/TableRow";
 import ReportsFilter, { ReportsFilters } from "@/components/ReportsFilter";
 import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, CartesianGrid, ResponsiveContainer } from "recharts";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 export default function Revenue() {
   const [filters, setFilters] = useState<ReportsFilters | null>(null);

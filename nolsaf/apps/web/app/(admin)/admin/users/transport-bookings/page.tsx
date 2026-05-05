@@ -25,11 +25,11 @@ import {
   ArrowUp,
   ArrowDown,
 } from "lucide-react";
-import axios from "axios";
+import axios from "axios";import apiClient from "@/lib/apiClient";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 function authify() {
   // Auth tokens are forwarded automatically via httpOnly cookies (withCredentials: true on the axios instance).
   // Clear any stale bearer header to avoid unintended token leakage across user sessions.

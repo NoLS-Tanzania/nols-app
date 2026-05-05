@@ -1,10 +1,10 @@
 "use client";
 import { useEffect, useState, useCallback, useMemo } from "react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import { Users, Calendar, MapPin, User, CheckCircle, Loader2, Eye, XCircle, Filter, ChevronDown } from "lucide-react";
 import Link from "next/link";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 type GroupStay = {
   id: number;

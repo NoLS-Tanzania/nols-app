@@ -4,9 +4,9 @@ import React, { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { ChevronLeft, Smartphone, CheckCircle, XCircle, MessageSquare } from 'lucide-react'
-import axios from "axios"
+import apiClient from "@/lib/apiClient"
 
-const api = axios.create({ baseURL: "", withCredentials: true })
+const api = apiClient
 
 type Status = { totpEnabled: boolean; smsEnabled: boolean; phone?: string | null }
 

@@ -3,9 +3,9 @@
 import React, { useState, useEffect } from "react"
 import Link from "next/link"
 import { ChevronLeft, LogIn, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
-import axios from "axios"
+import apiClient from "@/lib/apiClient"
 
-const api = axios.create({ baseURL: "", withCredentials: true })
+const api = apiClient
 
 export default function OwnerSessionsPage() {
   const [sessions, setSessions] = useState<any[]>([])

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import axios from 'axios';
+import apiClient from "@/lib/apiClient";
 import { AlertCircle, Check, UserPlus, Lock, LogIn, User, Truck, Building2, Mail, ArrowLeft, Phone, Eye, EyeOff, Shield, Fingerprint, ShieldX, AlertTriangle, ChevronDown } from 'lucide-react';
 import { useRouter, useSearchParams } from "next/navigation";
 import LogoSpinner from "@/components/LogoSpinner";
@@ -144,7 +144,7 @@ export default function RegisterPage() {
   const roleParam = (searchParams?.get('role') || '').toLowerCase();
   const modeParam = (searchParams?.get('mode') || '').toLowerCase();
   const nextParamRaw = searchParams?.get('next');
-  const api = axios.create({ baseURL: "", withCredentials: true });
+  const api = apiClient;
 
   const safeNextPath = (raw: unknown): string | undefined => {
     if (typeof raw !== 'string') return undefined;

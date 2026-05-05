@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { Trophy, Truck, Search, Star, TrendingUp, Users, Target, Award, CheckCircle, Eye, X, BarChart3, PieChart as PieChartIcon, Car, Bike, CarTaxiFront, MessageSquare, Send, Clock, Bell } from "lucide-react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import { io, Socket } from "socket.io-client";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -18,7 +18,7 @@ import {
   CartesianGrid,
 } from "recharts";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 function authify() {
   if (typeof window === "undefined") return;
 

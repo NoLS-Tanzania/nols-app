@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import {
   Calendar, Download, CheckCircle, XCircle, Eye,
   ArrowRight, BookOpen, MapPin, Clock, CreditCard,
@@ -9,7 +9,7 @@ import {
 import Link from "next/link";
 import { sanitizeTrustedHtml } from "@/utils/html";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 type Booking = {
   id: number;

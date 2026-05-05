@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import Link from "next/link";
 import Image from "next/image";
 import { Heart, Share2, MapPin, ArrowLeft, ImageIcon } from "lucide-react";
 import VerifiedIcon from "../../../components/VerifiedIcon";
 import LogoSpinner from "@/components/LogoSpinner";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 type SavedProperty = {
   id: number;

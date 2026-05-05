@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import apiClient from "@/lib/apiClient";
 import { BarChart, Home, Wallet, Calendar } from 'lucide-react';
 
 export default function MetricsDocsPage() {
@@ -12,7 +12,7 @@ export default function MetricsDocsPage() {
   const [revenueByType, setRevenueByType] = useState<Array<{ label: string; value: number }>>([]);
 
   useEffect(() => {
-    const a = axios.create({ baseURL: "", withCredentials: true });
+    const a = apiClient;
 
     (async () => {
       try {

@@ -2,13 +2,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Building2, Search, X, Eye, Download, ArrowUpDown, ArrowUp, ArrowDown, User, Mail, Phone, Calendar, FileText, Filter, ChevronLeft, ChevronRight } from "lucide-react";
 import DatePicker from "@/components/ui/DatePicker";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import { io, Socket } from "socket.io-client";
 import TableRow from "@/components/TableRow";
 import Link from "next/link";
 
 // Use same-origin calls (Next rewrites proxy to API in dev). Use secure cookie session.
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 type Row = {
   id:number; name:string|null; email:string; phone:string|null;

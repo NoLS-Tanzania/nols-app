@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import {
   ArrowLeft,
   Building2,
@@ -29,7 +29,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 type BookingDetail = {
   id: number;

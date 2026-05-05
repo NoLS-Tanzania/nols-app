@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import PropertyPreview from "@/components/PropertyPreview";
 import { Loader2, ScanEye, MapPin, Star, Search, X, Filter } from "lucide-react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import Image from "next/image";
 import { 
   getPropertyCommission, 
@@ -12,7 +12,7 @@ import {
 import { REGIONS } from "@/lib/tzRegions";
 
 // Use same-origin calls + secure httpOnly cookie session.
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 type Property = {
   id: number;

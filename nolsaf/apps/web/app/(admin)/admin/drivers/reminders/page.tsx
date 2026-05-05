@@ -3,10 +3,10 @@
 "use client";
 import { useEffect, useState, useMemo } from "react";
 import { Bell, Truck, Search, AlertCircle, Info, AlertTriangle, Plus, X, Shield, FileWarning, Calendar, Car, Bike, CarTaxiFront, Target, RefreshCw, XCircle } from "lucide-react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import { useSearchParams } from "next/navigation";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 function authify() {
   if (typeof window === "undefined") return;
 

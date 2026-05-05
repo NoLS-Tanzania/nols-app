@@ -2,7 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import {
   AlertTriangle,
   ArrowDown,
@@ -27,7 +27,7 @@ import TableRow from "@/components/TableRow";
 import { useSocket } from "@/hooks/useSocket";
 
 // Use same-origin for HTTP calls so Next.js rewrites proxy to the API
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 function authify() {}
 
 type ScheduledTripRow = {

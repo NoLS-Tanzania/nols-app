@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft, Calendar, RefreshCw, Home, Sparkles, X, Users, Clock, CheckCircle2, ShieldBan, Trash2, ExternalLink, Layers, BedDouble } from "lucide-react";
@@ -9,7 +9,7 @@ import { io, type Socket } from "socket.io-client";
 import DatePicker from "@/components/ui/DatePicker";
 
 // Use same-origin calls + secure httpOnly cookie session.
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 type Door = { x:number; y:number; dir:"N"|"S"|"E"|"W" };
 type Rect = { w:number; h:number };

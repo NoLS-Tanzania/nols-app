@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useState, useCallback } from "react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import TableRow from "@/components/TableRow";
 import {
   ShieldCheck,
@@ -39,7 +39,7 @@ import {
   ArrowDown,
 } from "lucide-react";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 type KycStatus = "PENDING_KYC" | "APPROVED_KYC" | "REJECTED_KYC";
 type Tab = "PENDING_KYC" | "APPROVED_KYC" | "REJECTED_KYC" | "REVOKED";

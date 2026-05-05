@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import Image from "next/image";
 import PropertyPreview from "@/components/PropertyPreview";
 import {
@@ -27,7 +27,7 @@ import {
   FileCheck,
 } from "lucide-react";
 
-const api = axios.create({ baseURL: "", withCredentials: true, responseType: "json" });
+const api = apiClient;
 
 function fmtMoney(amount: number | null | undefined, currency?: string | null) {
   if (amount == null || !Number.isFinite(Number(amount))) return "—";

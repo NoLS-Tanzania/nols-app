@@ -1,10 +1,10 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
 import { Award, Plus, Edit, Trash2, Image as ImageIcon, ExternalLink, X, Loader2, Upload, Link2, Hash, Eye, EyeOff, Camera } from "lucide-react";
-import axios from "axios";
+import axios from "axios";import apiClient from "@/lib/apiClient";
 
 // Use same-origin for HTTP calls so Next.js rewrites proxy to the API
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 function authify() {}
 
 // Helper to get API path with /api prefix

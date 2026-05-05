@@ -1,13 +1,13 @@
 "use client";
 import React, { useEffect, useState, useCallback } from "react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft, Home, User, Calendar, CheckCircle2, Clock, DollarSign, Key, AlertCircle, AlertTriangle, Loader2, MessageSquare, RefreshCw, Star } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 
 // Use same-origin calls + secure httpOnly cookie session.
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 function authify() {
   if (typeof window === "undefined") return;

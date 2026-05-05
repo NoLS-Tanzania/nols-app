@@ -1,12 +1,12 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, FileText, Building2, User, Phone, Flag, CalendarDays, Hash } from "lucide-react";
 
 // Use same-origin calls + secure httpOnly cookie session.
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 export default function NewInvoice() {
   const sp = useSearchParams();

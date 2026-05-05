@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import NextImage from "next/image";
 
 // Use same-origin calls + secure httpOnly cookie session.
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 type Me = { id: number; name?: string | null; email?: string | null; role?: string | null };
 

@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 
 // Use same-origin for HTTP calls so Next.js rewrites proxy to the API in dev
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 type LngLat = { lng: number; lat: number };
 

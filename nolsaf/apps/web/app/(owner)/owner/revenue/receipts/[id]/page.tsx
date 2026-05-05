@@ -1,10 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft, Printer, MapPin, BadgeCheck, Building2, User, CalendarDays, Clock, Loader2 } from "lucide-react";
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 export default function Receipt() {
   const routeParams = useParams<{ id?: string | string[] }>();

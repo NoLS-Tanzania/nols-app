@@ -1,10 +1,10 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import Image from "next/image";
 import { User, Upload, X, CheckCircle, Save, Lock, LogOut, Mail, Phone, MapPin, Pencil, Shield } from 'lucide-react';
 // Use same-origin calls + secure httpOnly cookie session.
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 export default function AdminProfile() {
   const [form, setForm] = useState<any>({});

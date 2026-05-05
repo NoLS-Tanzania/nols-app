@@ -2,12 +2,12 @@
 import { useEffect, useRef, useState } from "react";
 import { Calendar, ChevronDown, User, Building2, CreditCard, Clock, ExternalLink, Search } from "lucide-react";
 import DatePicker from "@/components/ui/DatePicker";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import type { Socket } from "socket.io-client";
 import { io } from "socket.io-client";
 
 // Use same-origin for HTTP calls so Next.js rewrites proxy to the API
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 function authify() {
   if (typeof window === "undefined") return;
 

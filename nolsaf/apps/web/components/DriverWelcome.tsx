@@ -1,14 +1,14 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import RefreshButton from "@/components/RefreshButton";
 import { Calendar, DollarSign, Star } from 'lucide-react';
 import DriverAvailabilitySwitch from "@/components/DriverAvailabilitySwitch";
 import useDriverAvailability from "@/hooks/useDriverAvailability";
 
 // Use same-origin calls + secure httpOnly cookie session.
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 const unwrapAccountPayload = (payload: any) => {
   if (payload && typeof payload === "object" && "data" in payload && payload.data) {

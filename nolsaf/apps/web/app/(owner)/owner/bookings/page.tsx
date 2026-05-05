@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import { Calendar, Building2, Clock, CheckCircle, LogOut, XCircle, ChevronDown, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import LogoSpinner from "@/components/LogoSpinner";
 
 // Use same-origin calls + secure httpOnly cookie session.
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 type Booking = {
   id: number;

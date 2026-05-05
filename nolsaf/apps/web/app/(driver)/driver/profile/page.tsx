@@ -1,7 +1,7 @@
 ﻿"use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import axios from "axios";
+import axios from "axios";import apiClient from "@/lib/apiClient";
 import Image from "next/image";
 import {
   ArrowLeft, Car, CheckCircle, CheckCircle2, Clock, CreditCard, Eye, FileText,
@@ -40,7 +40,7 @@ function maskRef(v?: string | null) {
   return s.length <= 8 ? s.slice(0, 2) + "————" + s.slice(-2) : s.slice(0, 4) + "————" + s.slice(-4);
 }
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 // --- Shared display components -----------------------------------------------
 function InfoItem({

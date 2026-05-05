@@ -1,11 +1,11 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { BarChart3, Truck, Search, Calendar, DollarSign, Star, Loader2 } from "lucide-react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import { useSearchParams } from "next/navigation";
 import DatePicker from "@/components/ui/DatePicker";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 function authify() {
   if (typeof window === "undefined") return;
 

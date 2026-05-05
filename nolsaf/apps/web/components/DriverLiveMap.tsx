@@ -1,11 +1,11 @@
 "use client";
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { Check, X, Flag, CheckCircle } from 'lucide-react';
-import axios from "axios";
+import axios from "axios";import apiClient from "@/lib/apiClient";
 
 // Use same-origin for HTTP calls so Next.js rewrites proxy to the API in dev.
 // withCredentials ensures httpOnly auth cookies are forwarded automatically.
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 export default function DriverLiveMap({ liveOnly }: { liveOnly?: boolean } = {}) {
   const [data, setData] = useState<any | null>(null);

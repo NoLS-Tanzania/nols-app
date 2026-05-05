@@ -49,7 +49,7 @@ import {
   Calendar,
 } from "lucide-react";
 import LogoSpinner from "@/components/LogoSpinner";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import { motion } from "framer-motion";
 import NeighborhoodGuide from "./NeighborhoodGuide";
 import TableRow from "./TableRow";
@@ -79,7 +79,7 @@ import type {
 } from "../lib/types/property";
 
 // Use same-origin calls + secure httpOnly cookie session.
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 function canUseNextImageForSrc(src: string): boolean {
   if (!src) return false;

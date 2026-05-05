@@ -1,12 +1,12 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import TableRow from "@/components/TableRow";
 import DatePicker from "@/components/ui/DatePicker";
 import { KeyRound, ShieldCheck, ChevronLeft, ChevronRight, Search, X, CheckCircle2, Clock, Ban, Filter, Calendar } from "lucide-react";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 type OtpRow = {
   id: number;

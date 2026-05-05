@@ -1,10 +1,10 @@
 "use client";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import { FileText, Loader2, Users, MapPin, Calendar, CheckCircle, XCircle, Clock, Building2, Gift, ArrowRight, DollarSign } from "lucide-react";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 type Claim = {
   id: number;

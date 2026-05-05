@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { createPortal } from "react-dom";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import { 
   Calendar, 
   Plus, 
@@ -29,7 +29,7 @@ import {
 import { io, Socket } from "socket.io-client";
 import DatePicker from "@/components/ui/DatePicker";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 // Each room-type filter card gets its own accent colour so the owner can
 // instantly tell the filters apart. Cycles if there are more types than entries.

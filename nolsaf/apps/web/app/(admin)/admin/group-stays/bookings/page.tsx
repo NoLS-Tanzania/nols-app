@@ -2,14 +2,14 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { Users, Search, X, Calendar, MapPin, Clock, User, BarChart3, UsersRound, CheckCircle, AlertCircle, Loader2, XCircle, Mail, Phone, FileText, Truck, Bus, Coffee, Wrench, Send, MessageSquare, Edit, CheckCircle2, Building2, Plus, Trash2, Tag, ChevronDown, Globe, DollarSign, Sparkles, Gift, ArrowRight } from "lucide-react";
 import DatePicker from "@/components/ui/DatePicker";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import Chart from "@/components/Chart";
 import type { ChartData } from "chart.js";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 
 // Use same-origin for HTTP calls so Next.js rewrites proxy to the API
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 function authify() {
   if (typeof window === "undefined") return;

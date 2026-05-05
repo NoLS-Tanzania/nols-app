@@ -2,10 +2,10 @@
 import { useEffect, useState, useRef } from "react";
 import { Bell, AlertCircle, Info, AlertTriangle, Shield, Calendar, FileWarning, CheckCircle, X, ExternalLink, Clock } from "lucide-react";
 import { useRouter } from "next/navigation";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import { io, Socket } from "socket.io-client";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 type Reminder = {
   id: string;

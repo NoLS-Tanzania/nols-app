@@ -4,7 +4,7 @@ import { useMemo, useRef, useState, useEffect, useCallback } from "react";
 import { twMerge } from "tailwind-merge";
 import { Plus, Eye, Home, Building, Building2, TreePine, Hotel, HelpCircle, Car, Shield, Bus, Bed, BedDouble, BedSingle, CheckCircle2, AlertCircle, MapPin,
   Navigation, Crosshair, Users, X, ArrowRight, ImageIcon, Loader2, Hospital, Pill, Plane, Fuel, Route, Building as BuildingIcon, Lock, ExternalLink, Edit2, Clock, Bell } from "lucide-react";
-import axios from "axios";
+import axios from "axios";import apiClient from "@/lib/apiClient";
 import { REGIONS, REGION_BY_ID } from "@/lib/tzRegions";
 import { REGIONS_FULL_DATA } from "@/lib/tzRegionsFull";
 import { TotalsStep } from "./_components/TotalsStep";
@@ -16,7 +16,7 @@ import { BasicsStep } from "./_components/BasicsStep";
 import { ResumeDraftScreen } from "./_components/ResumeDraftScreen";
 import "@/styles/add-property.css";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 function authify() {
   if (typeof window === "undefined") return;
 
