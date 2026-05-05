@@ -126,7 +126,6 @@ export default function NeighborhoodGuide({ location }: NeighborhoodGuideProps) 
 
   return (
     <motion.section
-      initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
       className="border-b border-gray-200 pb-10"
@@ -145,7 +144,6 @@ export default function NeighborhoodGuide({ location }: NeighborhoodGuideProps) 
           return (
             <motion.div
               key={idx}
-              initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.3, delay: idx * 0.1 }}
               className="bg-gray-50 rounded-xl p-5 hover:shadow-md transition-shadow"
@@ -176,7 +174,6 @@ export default function NeighborhoodGuide({ location }: NeighborhoodGuideProps) 
           {neighborhoodData.nearbyAttractions.map((attraction, idx) => (
             <motion.div
               key={idx}
-              initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.4, delay: idx * 0.1 }}
               className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
@@ -226,7 +223,6 @@ export default function NeighborhoodGuide({ location }: NeighborhoodGuideProps) 
             {neighborhoodData.localInsights.map((insight, idx) => (
               <motion.li
                 key={idx}
-                initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.3, delay: idx * 0.1 }}
                 className="flex items-start gap-3 text-sm text-amber-900"

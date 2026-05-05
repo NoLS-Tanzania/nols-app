@@ -2,19 +2,31 @@ import { config } from "dotenv";
 import { resolve } from "path";
 import * as readline from "readline";
 
-// Load base .env first, then optionally .env.production to override DATABASE_URL / RESEND_API_KEY.
-// Usage:  npm run bootstrap:admin              → uses local .env (local DB)
-//         npm run bootstrap:admin -- --production → also loads .env.production (prod DB + keys)
+// Load base .env first, then optionally .env.staging / .env.production to override DATABASE_URL.
+// Usage:
+//   npx tsx src/dev/bootstrap-admin.ts              → local .env  (local DB)
+//   npx tsx src/dev/bootstrap-admin.ts --staging    → .env.staging (Aiven staging DB)
+//   npx tsx src/dev/bootstrap-admin.ts --production → .env.production (AWS RDS prod DB)
 const envPath = resolve(__dirname, "../../.env");
-config({ path: envPath, override: true });
+config({ path: envPath }); // no override: shell env vars take precedence
+
+// .env.local overrides .env (e.g. pointing DATABASE_URL at a staging DB)
+const envLocalPath = resolve(__dirname, "../../.env.local");
+config({ path: envLocalPath, override: true });
 
 const isProd = process.argv.includes("--production");
+const isStaging = process.argv.includes("--staging");
+
 if (isProd) {
   const prodEnvPath = resolve(__dirname, "../../.env.production");
   config({ path: prodEnvPath, override: true });
   console.log("[bootstrap] Mode: PRODUCTION (loaded .env.production)");
+} else if (isStaging) {
+  const stagingEnvPath = resolve(__dirname, "../../.env.staging");
+  config({ path: stagingEnvPath, override: true });
+  console.log("[bootstrap] Mode: STAGING (loaded .env.staging — Aiven DB)");
 } else {
-  console.log("[bootstrap] Mode: local dev  (tip: use --production flag to target prod DB)");
+  console.log("[bootstrap] Mode: local dev  (tip: use --staging or --production flag to target other DBs)");
 }
 
 import { prisma } from "@nolsaf/prisma";

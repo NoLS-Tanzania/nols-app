@@ -4,20 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Wallet, Calendar, Eye, DollarSign, Building2, Receipt, FileText, Download, ChevronLeft, ChevronRight, ArrowUpDown, CheckSquare, Square, Printer, Filter, X, CheckCircle2, ArrowUp, ArrowDown, HandCoins, CreditCard, Info } from "lucide-react";
 import DatePicker from "@/components/ui/DatePicker";
 import TableRow from "@/components/TableRow";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import { io, Socket } from "socket.io-client";
 import Link from "next/link";
 
 // Use same-origin calls + secure httpOnly cookie session.
-const api = axios.create({ 
-  baseURL: "", 
-  withCredentials: true,
-  headers: {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-  },
-  responseType: 'json',
-});
+const api = apiClient;
 
 type InvoiceRow = {
   id: number;

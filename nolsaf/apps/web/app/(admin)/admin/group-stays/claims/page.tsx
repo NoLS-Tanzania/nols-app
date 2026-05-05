@@ -7,12 +7,12 @@ import {
   Filter, Building2, Users as UsersIcon, ArrowRight, ArrowLeft, FileText, ChevronDown, ChevronUp
 } from "lucide-react";
 import Image from "next/image";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 
 // Use same-origin for HTTP calls so Next.js rewrites proxy to the API
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 function authify() {
   if (typeof window === "undefined") return;

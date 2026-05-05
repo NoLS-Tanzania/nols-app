@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import { Search, XCircle, X, FileX, Clock, CheckCircle, AlertCircle, TrendingUp } from "lucide-react";
 import CancellationTableRow from "@/components/admin/CancellationTableRow";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 type Row = {
   id: number;

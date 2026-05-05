@@ -5,10 +5,10 @@ import React, { useEffect, useState, useCallback } from "react";
 import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Save, Loader2, GraduationCap, MapPin, Languages, Briefcase, FileText, XCircle, UserPlus, AlertCircle, RefreshCw } from "lucide-react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import Link from "next/link";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 function authify() {
   if (typeof window === "undefined") return;

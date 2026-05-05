@@ -3,11 +3,11 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import { ArrowLeft, Calendar, CheckCircle, ClipboardList, Clock, User } from "lucide-react";
 import LogoSpinner from "@/components/LogoSpinner";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 type AssignmentDetail = {
   id: string | number;

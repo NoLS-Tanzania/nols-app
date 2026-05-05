@@ -4,12 +4,12 @@ import { useSearchParams } from "next/navigation";
 import { Search, X, Calendar, MapPin, Clock, User, BarChart3, TrendingUp, Loader2, FileText, AlertTriangle, Edit, Send, Eye, MessageSquare, ChevronDown, Star, Building2, Utensils, Car, Target, Ticket, Plane, Users, Gift } from "lucide-react";
 import DatePicker from "@/components/ui/DatePicker";
 import TripProposalReport from "@/components/TripProposalReport";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import Chart from "@/components/Chart";
 import type { ChartData } from "chart.js";
 
 // Use same-origin for HTTP calls so Next.js rewrites proxy to the API
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 function authify() {
   if (typeof window === "undefined") return;
 

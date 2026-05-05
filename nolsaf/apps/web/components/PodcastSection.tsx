@@ -70,8 +70,6 @@ export default function PodcastSection() {
       {/* ── Section header ──────────────────────────────────────────────── */}
       <motion.div
         initial={prefersReduced ? undefined : { opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, margin: "-40px" }}
         transition={{ duration: 0.4, ease: "easeOut" }}
         className="flex flex-col items-center text-center mb-10"
       >
@@ -124,8 +122,6 @@ export default function PodcastSection() {
             <motion.div
               key={ep.id}
               initial={prefersReduced ? undefined : { opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: '-20px' }}
               transition={{ duration: 0.35, delay: idx * 0.05, ease: "easeOut" }}
               className={isCenter ? "lg:-translate-y-3" : ""}
             >

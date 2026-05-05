@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft, Loader2, MessageSquare, Save, Send, CheckCircle, XCircle, AlertTriangle, CreditCard, FileText, Calendar, MapPin, User, Phone, Mail, Building, DollarSign, Shield, Clock, Lock } from "lucide-react";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 type Msg = { id: number; senderId: number; senderRole: string; body: string; createdAt: string };
 type PaymentEvent = {

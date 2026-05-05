@@ -2,7 +2,7 @@
 
 import { Wallet, CreditCard, Eye, Smartphone, Search, X, Clock, CheckCircle, User, Building, Download, CheckSquare, Square, AlertCircle } from "lucide-react";
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import axios from 'axios';
+import apiClient from "@/lib/apiClient";
 import Image from "next/image";
 import { escapeAttr, escapeHtml } from "@/utils/html";
 
@@ -69,7 +69,7 @@ export default function Page() {
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
 
-  const api = useMemo(() => axios.create({ baseURL: "", withCredentials: true }), []);
+  const api = apiClient;
 
   const formatDateOnly = (isoOrDate: string | Date) => {
     const d = typeof isoOrDate === 'string' ? new Date(isoOrDate) : isoOrDate;

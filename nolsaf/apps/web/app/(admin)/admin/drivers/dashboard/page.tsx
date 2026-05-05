@@ -3,12 +3,12 @@
 import { useEffect, useState, useMemo } from "react";
 import { Truck, LineChart, FileText, MessageCircle, Users, TrendingUp } from "lucide-react";
 import Link from "next/link";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import Chart from "@/components/Chart";
 import type { ChartData } from "chart.js";
 
 // Use same-origin for HTTP calls so Next.js rewrites proxy to the API
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 type SummaryData = {
   totalDrivers?: number;

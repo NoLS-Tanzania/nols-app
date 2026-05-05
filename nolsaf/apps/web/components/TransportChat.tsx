@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { io } from "socket.io-client";
 import { Send, Phone, MessageCircle } from "lucide-react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import LogoSpinner from "@/components/LogoSpinner";
 
 interface Message {
@@ -25,7 +25,7 @@ interface TransportChatProps {
   className?: string;
 }
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 export default function TransportChat({
   bookingId,

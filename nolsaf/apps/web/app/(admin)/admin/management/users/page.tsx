@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState, useCallback } from "react";
-import axios from "axios";
+import axios from "axios";import apiClient from "@/lib/apiClient";
 import TableRow from "@/components/TableRow";
 import { Users, ChevronLeft, ChevronRight, Eye, Search, X, Check } from "lucide-react";
 
@@ -15,7 +15,7 @@ type UserRow = {
   isDisabled?: boolean | null;
 };
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 type Notice = {
   tone: "success" | "error";

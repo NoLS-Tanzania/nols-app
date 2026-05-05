@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import {
   Car,
   Bike,
@@ -20,7 +20,7 @@ import {
 import { useToast } from "@/hooks/useToast";
 import AwardedTripCard from "@/components/AwardedTripCard";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 type ScheduledTrip = {
   id: number;

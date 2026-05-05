@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import PropertyPreview from "@/components/PropertyPreview";
 import { 
   MapPin, 
@@ -23,7 +23,7 @@ import {
 import VerifiedIcon from "@/components/VerifiedIcon";
 
 // Use same-origin calls + secure httpOnly cookie session.
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 type Property = {
   id: number;

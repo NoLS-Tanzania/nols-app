@@ -2,10 +2,10 @@
 import { useEffect, useState } from "react";
 import { Activity, Truck, UserPlus, Award, Trophy, Calendar, FileText,  ArrowRight } from "lucide-react";
 import Link from "next/link";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import { useSearchParams } from "next/navigation";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 function authify() {
   if (typeof window === "undefined") return;
 

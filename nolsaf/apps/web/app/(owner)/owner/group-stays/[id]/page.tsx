@@ -1,11 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft, CheckCircle, Calendar, User, Phone, Mail, Building2, MapPin, Users, X, Search, MessageSquare, Send, CheckCircle2, Info, Sparkles, Car, UtensilsCrossed, UserCheck, Wrench, FileText } from "lucide-react";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 type Passenger = {
   id: number;

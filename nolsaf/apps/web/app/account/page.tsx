@@ -1,11 +1,11 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import { User, Mail, Phone, CalendarDays, Car, Users, ArrowRight, ClipboardList, Shield, CheckCircle, AlertCircle, Share2, Copy, Check, Upload, Save, MessageCircle, Heart } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 function SkeletonLine({ w = "w-full", className = "" }: { w?: string; className?: string }) {
   return <div className={`h-4 ${w} rounded-full bg-slate-200/80 animate-pulse ${className}`} />;

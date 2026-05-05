@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import TableRow from "@/components/TableRow";
 import { Building2, Download, Eye, X, ExternalLink, RefreshCw, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 
 type Owner = {
   id: number;
@@ -26,7 +26,7 @@ type PayoutPreview = {
   rows: Array<{ bookingId: number; amount: number }>
 };
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 function computeOwnerStatus(input: {
   status?: string | null;

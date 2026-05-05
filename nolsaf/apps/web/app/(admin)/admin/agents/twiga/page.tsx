@@ -21,9 +21,9 @@ import {
   Loader2,
   RefreshCw,
 } from "lucide-react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 function authify() {
   if (typeof window === "undefined") return;

@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
 
 // For WebSocket connections, we need to connect directly to the API server
-// because Next.js rewrites don't support WebSocket upgrades
-// In production, use NEXT_PUBLIC_API_URL or NEXT_PUBLIC_SOCKET_URL env vars
+// because Next.js rewrites don't support WebSocket upgrades.
+// NEXT_PUBLIC_SOCKET_URL must be set explicitly in production/staging Vercel env vars.
 const getSocketUrl = () => {
   if (process.env.NEXT_PUBLIC_SOCKET_URL) {
     return process.env.NEXT_PUBLIC_SOCKET_URL;
@@ -14,21 +14,27 @@ const getSocketUrl = () => {
     return process.env.NEXT_PUBLIC_API_URL;
   }
 
-  // Dev default: use the same hostname as the current page.
-  // This avoids a common auth pitfall where cookies are set on `localhost` but the socket connects to `127.0.0.1`
-  // (or vice-versa), which results in sockets showing up as unauthenticated.
-  if (typeof window !== 'undefined') {
-    const host = window.location.hostname || 'localhost';
-    return `http://${host}:4000`;
+  // Dev only: fall back to localhost:4000.
+  // In production this env var must be set — returning "" disables the socket.
+  if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+    return `http://localhost:4000`;
   }
   return "";
 };
 
 // Helper function to get authentication token.
-// httpOnly auth cookies are forwarded automatically via withCredentials: true.
-// Only check readable cookies here as a transitional fallback; localStorage is not consulted.
+// Checks localStorage first (most reliable for cross-origin socket connections),
+// then falls back to readable cookies. httpOnly cookies cannot be read here but
+// are forwarded automatically via withCredentials: true for same-site requests.
 function getAuthToken(): string | null {
   if (typeof window === 'undefined') return null;
+  // localStorage is the primary store for the JWT in this app
+  const fromStorage =
+    localStorage.getItem("token") ||
+    localStorage.getItem("nolsaf_token") ||
+    localStorage.getItem("__Host-nolsaf_token");
+  if (fromStorage) return fromStorage;
+  // Fallback: readable (non-httpOnly) cookies
   const m = String(document.cookie || "").match(/(?:^|;\s*)(?:nolsaf_token|__Host-nolsaf_token|token)=([^;]+)/);
   return m?.[1] ? decodeURIComponent(m[1]) : null;
 }
@@ -96,7 +102,9 @@ export function useSocket(userId?: string | number, options?: UseSocketOptions) 
     });
 
     newSocket.on("connect_error", (error) => {
-      console.error("Socket connection error:", error);
+      // Suppress noisy errors in staging/production when socket server is unavailable.
+      // Socket.IO will retry automatically up to reconnectionAttempts.
+      console.warn("Socket connection error:", error.message);
       setConnected(false);
     });
 

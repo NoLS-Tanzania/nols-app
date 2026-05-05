@@ -2,11 +2,11 @@
 
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { Share2, Copy, CheckCircle, Users, Gift, Mail, MessageCircle, Link as LinkIcon, TrendingUp, UserPlus, Bell, AlertCircle, X, Wallet, ArrowUpRight, Eye } from "lucide-react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import ToastContainer from "@/components/ToastContainer";
 import { io, Socket } from "socket.io-client";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 interface ReferralData {
   referralCode: string;

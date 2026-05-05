@@ -1,10 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import { Car, MapPin, Star, User, CheckCircle, Calendar, ArrowRight, Phone, Navigation, Eye, Clock, Gauge, Route } from "lucide-react";
 import Link from "next/link";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 type Ride = {
   id: number;

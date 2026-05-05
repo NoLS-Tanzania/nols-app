@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import { ClipboardList, Calendar, User, ArrowRight, AlertCircle } from "lucide-react";
 import LogoSpinner from "@/components/LogoSpinner";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 type Assignment = {
   id: string | number;

@@ -1,14 +1,14 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { AlertTriangle, ArrowLeft, CheckCircle, Search, XCircle, Calendar, DollarSign, MapPin, Mail, Phone, ChevronRight, Ban } from "lucide-react";
 import LayoutFrame from "@/components/LayoutFrame";
 import LogoSpinner from "@/components/LogoSpinner";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 type LookupResponse = {
   booking: {

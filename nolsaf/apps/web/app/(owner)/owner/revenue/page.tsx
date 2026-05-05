@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import { DollarSign, Loader2, TrendingUp, FileText, CheckCircle, Check, Clock, XCircle, Search, X, RotateCcw, Calendar, Filter, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import DatePicker from "@/components/ui/DatePicker";
 
 // Use same-origin calls + secure httpOnly cookie session.
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 type Invoice = {
   id: number;

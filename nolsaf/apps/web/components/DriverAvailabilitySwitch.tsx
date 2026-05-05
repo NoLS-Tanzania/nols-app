@@ -1,12 +1,12 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import { LoaderCircle, Power } from "lucide-react";
 import { useSocket } from "@/hooks/useSocket";
 import useDriverAvailability from "@/hooks/useDriverAvailability";
 
 // Use same-origin calls + secure httpOnly cookie session.
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 export default function DriverAvailabilitySwitch({
   className = "",

@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 export type RevenueFilters = {
   status?: string;

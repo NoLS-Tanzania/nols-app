@@ -6,6 +6,13 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Disable browser scroll anchoring on all scroll containers.
+   Prevents the "Scroll anchoring disabled" console warning caused by
+   polling updates / lazy-loaded content making repeated tiny height adjustments. */
+* {
+  overflow-anchor: none;
+}
+
 /* ---------- Public: Supported payments strip ---------- */
 @keyframes nols-pay-strip-shift {
   0% { background-position: 0% 50%; }

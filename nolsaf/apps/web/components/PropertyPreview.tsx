@@ -49,7 +49,7 @@ import {
   Calendar,
 } from "lucide-react";
 import LogoSpinner from "@/components/LogoSpinner";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import { motion } from "framer-motion";
 import NeighborhoodGuide from "./NeighborhoodGuide";
 import TableRow from "./TableRow";
@@ -79,7 +79,7 @@ import type {
 } from "../lib/types/property";
 
 // Use same-origin calls + secure httpOnly cookie session.
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 function canUseNextImageForSrc(src: string): boolean {
   if (!src) return false;
@@ -839,18 +839,7 @@ export default function PropertyPreview({
   const servicesArray = Array.isArray(parsedServices) ? parsedServices : [];
   const servicesObj = typeof parsedServices === 'object' && parsedServices !== null && !Array.isArray(parsedServices) ? parsedServices : {};
   
-  // Debug logging for admin mode
-  if (mode === "admin") {
-    console.log('[PropertyPreview] Services Debug:', {
-      raw: servicesRaw,
-      parsed: parsedServices,
-      isArray: Array.isArray(parsedServices),
-      isObject: typeof parsedServices === 'object' && !Array.isArray(parsedServices),
-      servicesObjKeys: Object.keys(servicesObj),
-      servicesObj,
-      servicesArrayLength: servicesArray.length,
-    });
-  }
+
   
   // Normalize boolean values - handle both true/false and "true"/"false" strings
   // Also handle undefined values (when service wasn't selected, it won't be in the object)
@@ -936,28 +925,7 @@ export default function PropertyPreview({
     if (tags.some((t: string) => t.includes('sports') || t.includes('games'))) normalizedServicesObj.sportsGames = true;
     if (tags.some((t: string) => t.includes('gym'))) normalizedServicesObj.gym = true;
     
-    // Debug logging
-    if (mode === "admin") {
-      console.log('[PropertyPreview] Parsed services from tags:', {
-        tagsCount: tags.length,
-        parking: normalizedServicesObj.parking,
-        breakfastIncluded: normalizedServicesObj.breakfastIncluded,
-        restaurant: normalizedServicesObj.restaurant,
-        bar: normalizedServicesObj.bar,
-        pool: normalizedServicesObj.pool,
-        sauna: normalizedServicesObj.sauna,
-        laundry: normalizedServicesObj.laundry,
-        roomService: normalizedServicesObj.roomService,
-        security24: normalizedServicesObj.security24,
-        firstAid: normalizedServicesObj.firstAid,
-        fireExtinguisher: normalizedServicesObj.fireExtinguisher,
-        onSiteShop: normalizedServicesObj.onSiteShop,
-        nearbyMall: normalizedServicesObj.nearbyMall,
-        socialHall: normalizedServicesObj.socialHall,
-        sportsGames: normalizedServicesObj.sportsGames,
-        gym: normalizedServicesObj.gym,
-      });
-    }
+
   }
   
   // Extract nearby facilities - check both services array (as JSON string) and services object
@@ -1488,31 +1456,7 @@ export default function PropertyPreview({
                 servicesArray.length > 0 ||
                 (Array.isArray(normalizedServicesObj.tags) && normalizedServicesObj.tags.length > 0);
               
-              // Debug logging
-              if (mode === "admin") {
-                console.log('[PropertyPreview] hasServices check:', {
-                  hasServices,
-                  parking: normalizedServicesObj.parking,
-                  breakfastIncluded: normalizedServicesObj.breakfastIncluded,
-                  breakfastAvailable: normalizedServicesObj.breakfastAvailable,
-                  restaurant: normalizedServicesObj.restaurant,
-                  bar: normalizedServicesObj.bar,
-                  pool: normalizedServicesObj.pool,
-                  sauna: normalizedServicesObj.sauna,
-                  laundry: normalizedServicesObj.laundry,
-                  roomService: normalizedServicesObj.roomService,
-                  security24: normalizedServicesObj.security24,
-                  firstAid: normalizedServicesObj.firstAid,
-                  fireExtinguisher: normalizedServicesObj.fireExtinguisher,
-                  onSiteShop: normalizedServicesObj.onSiteShop,
-                  nearbyMall: normalizedServicesObj.nearbyMall,
-                  socialHall: normalizedServicesObj.socialHall,
-                  sportsGames: normalizedServicesObj.sportsGames,
-                  gym: normalizedServicesObj.gym,
-                  nearbyFacilitiesCount: nearbyFacilities.length,
-                  servicesArrayLength: servicesArray.length,
-                  tagsLength: Array.isArray(normalizedServicesObj.tags) ? normalizedServicesObj.tags.length : 0,
-                });
+              {
               }
               
               return hasServices || nearbyFacilities.length > 0;

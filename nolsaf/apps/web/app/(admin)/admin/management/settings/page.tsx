@@ -1,13 +1,13 @@
 "use client";
 // AdminPageHeader removed in favor of a centered, compact header for this page
 import { ChevronDown, Settings, Shield, Lock, AlertTriangle, Network, Clock } from "lucide-react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { sanitizeTrustedHtml } from "@/utils/html";
 import { AnimatePresence, motion } from "framer-motion";
 
 // Use same-origin calls + secure httpOnly cookie session.
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 export default function SystemSettingsPage(){
   const inputClass =

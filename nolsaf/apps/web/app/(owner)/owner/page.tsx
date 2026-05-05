@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Building2, MessageCircle, CalendarCheck, Eye, TrendingUp, Wallet, ChevronRight } from "lucide-react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import { io } from "socket.io-client";
 import {
   Area,
@@ -17,7 +17,7 @@ import {
 } from "recharts";
 
 // Use same-origin requests to leverage Next.js rewrites and avoid CORS
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 function readOwnerName(): string | null {
   if (typeof window === "undefined") return null;

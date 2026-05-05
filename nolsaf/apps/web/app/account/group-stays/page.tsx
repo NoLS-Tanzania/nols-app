@@ -1,12 +1,12 @@
 "use client";
 import { Fragment, useCallback, useEffect, useState } from "react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import { Users, Calendar, CheckCircle, XCircle, User, Phone, Globe, ArrowRight, Building2, Clock, ChevronDown, MessageSquare, DollarSign, Tag, FileText, Sparkles, Gift, Send } from "lucide-react";
 import Link from "next/link";
 import { io } from "socket.io-client";
 import LogoSpinner from "@/components/LogoSpinner";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 type GroupStay = {
   id: number;

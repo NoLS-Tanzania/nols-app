@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useMemo } from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
 import { Facebook, Instagram, Linkedin, Quote, MessageCircle, Download, X } from 'lucide-react';
 
 function stripHtml(html: string) {
@@ -72,7 +71,6 @@ const SOCIAL_LINKS = {
 };
 
 export default function Testimonials({ hideTitle = false }: { hideTitle?: boolean }) {
-  const prefersReduced = useReducedMotion();
   const cards = useMemo(() => TESTIMONIALS.map((t) => ({ ...t, snippet: stripHtml(t.text) })), []);
 
   return (
@@ -204,16 +202,10 @@ export default function Testimonials({ hideTitle = false }: { hideTitle?: boolea
               .join('')
               .toUpperCase();
 
-            const DesktopCard = prefersReduced ? 'figure' : motion.figure;
+            const DesktopCard = 'figure';
             return (
               <DesktopCard
                 key={t.name + t.title}
-                {...(!prefersReduced ? {
-                  initial: { opacity: 0, y: 24 },
-                  whileInView: { opacity: 1, y: 0 },
-                  viewport: { once: true, margin: '-60px' },
-                  transition: { duration: 0.5, delay: cards.indexOf(t) * 0.1, ease: [0.2, 0.8, 0.2, 1] },
-                } : {})}
                 className="group relative flex flex-col rounded-2xl overflow-hidden bg-white border border-slate-100 shadow-sm hover:-translate-y-1 transition-transform duration-300"
                 style={{ boxShadow: '0 2px 16px rgba(2,6,23,0.06)' }}
               >

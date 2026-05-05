@@ -20,7 +20,7 @@ import {
   Loader2,
   RefreshCw,
 } from "lucide-react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import {
   LineChart,
   Line,
@@ -37,7 +37,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 function authify() {
   if (typeof window === "undefined") return;

@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft, Send, MapPin, Calendar, DollarSign, MessageSquare } from "lucide-react";
 import LayoutFrame from "@/components/LayoutFrame";
 import LogoSpinner from "@/components/LogoSpinner";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 type Msg = { id: number; senderId: number; senderRole: string; body: string; createdAt: string };
 type Item = {

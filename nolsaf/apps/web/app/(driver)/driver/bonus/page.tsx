@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useRef } from "react";
 import { Gift, TrendingUp, Calendar, CheckCircle, Clock, AlertCircle, Download, FileText, Trophy, BarChart3, Gem, Star, Target, Bell, X } from "lucide-react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import { io, Socket } from "socket.io-client";
 import {
   LineChart,
@@ -14,7 +14,7 @@ import {
   CartesianGrid,
 } from "recharts";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 interface BonusHistory {
   id: string;

@@ -2,9 +2,9 @@
 import { useEffect, useState } from "react";
 import { Truck } from "lucide-react";
 import DriversDashboard from "./dashboard/page";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 type SummaryData = {
   totalDrivers?: number;

@@ -1,12 +1,12 @@
 ﻿"use client";
 import { useEffect, useState, useCallback } from "react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import { ClipboardList, Calendar, Users, DollarSign, CheckCircle, XCircle, Clock, ArrowRight, Truck, FileText, MessageSquare, Send, ChevronDown, MapPin, Eye, Printer } from "lucide-react";
 import Link from "next/link";
 import LogoSpinner from "@/components/LogoSpinner";
 import TripProposalReport from "@/components/TripProposalReport";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 
 type PlanRequest = {

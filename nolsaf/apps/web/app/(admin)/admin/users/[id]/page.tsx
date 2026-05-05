@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import Link from "next/link";
 import TableRow from "@/components/TableRow";
 import { 
@@ -12,7 +12,7 @@ import {
 
 // IMPORTANT: Use same-origin requests so Next.js can proxy via `rewrites()`.
 // Hardcoding `http://localhost:4000` from the browser triggers CORS failures.
-const api = axios.create({ withCredentials: true });
+const api = apiClient;
 
 type UserDetail = {
   id: number;

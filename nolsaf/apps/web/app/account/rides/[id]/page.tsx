@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import {
   MapPin,
   ArrowLeft,
@@ -29,7 +29,7 @@ import {
 import Link from "next/link";
 import TransportChat from "@/components/TransportChat";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 type Ride = {
   id: number;

@@ -2,12 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import axios from "axios";
+import axios from "axios";import apiClient from "@/lib/apiClient";
 import Image from "next/image";
 import { ArrowLeft, Briefcase, Clock, Globe, GraduationCap, Mail, MapPin, Phone, UserRound, ArrowRight, Pencil, Plus, Eye, X, Info } from "lucide-react";
 import LogoSpinner from "@/components/LogoSpinner";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 type AccountMe = {
   id: number;

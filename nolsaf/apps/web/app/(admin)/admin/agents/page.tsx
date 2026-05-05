@@ -2,10 +2,10 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { Search, X, User, CheckCircle, XCircle, Clock, Eye, Filter, GraduationCap, MapPin, Award, Languages, Briefcase, UsersRound, ChevronDown, Calendar, DollarSign, Star, CheckCircle2, Mail, Phone, TrendingUp, Target, Trophy, Loader2, AlertCircle, RefreshCw, ExternalLink, FileX, Check, Undo2, ShieldOff, ShieldCheck, AlertTriangle } from "lucide-react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import Link from "next/link";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 function unwrapApiData<T = any>(axiosData: any): T {
   // admin.agents endpoints respond as { ok: true, data: ... }

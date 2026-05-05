@@ -2,10 +2,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Camera, FileCheck2, X } from "lucide-react";
 import Support from "@/components/Support";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import { useRouter } from "next/navigation";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 type Preview = {
   bookingId: number;

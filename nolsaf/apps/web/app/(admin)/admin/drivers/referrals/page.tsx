@@ -2,11 +2,11 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { UserPlus, Truck, Search, ExternalLink, X, MapPin, Eye, AlertCircle, RefreshCw, Loader2 } from "lucide-react";
 import Link from "next/link";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import TableRow from "@/components/TableRow";
 import { useSearchParams } from "next/navigation";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 function authify() {
   if (typeof window === "undefined") return;

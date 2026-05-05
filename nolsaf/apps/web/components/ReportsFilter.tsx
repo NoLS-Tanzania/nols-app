@@ -1,13 +1,13 @@
 "use client";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import { Building2, Download, ChevronDown, Sliders } from "lucide-react";
 import DatePickerField from "./DatePickerField";
 import { Popover, Transition } from "@headlessui/react";
 
 // Use same-origin calls + secure httpOnly cookie session.
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 export type ReportsFilters = {
   from: string;

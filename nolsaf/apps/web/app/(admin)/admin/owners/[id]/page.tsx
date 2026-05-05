@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import { io, Socket } from "socket.io-client";
 import Link from "next/link";
 import Image from "next/image";
@@ -10,7 +10,7 @@ import VerifiedIcon from "@/components/VerifiedIcon";
 import TableRow from "@/components/TableRow";
 
 // Use same-origin calls + secure httpOnly cookie session.
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 type Owner = {
   id:number; name:string|null; email:string; phone:string|null;

@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import { Calendar, Building2, Clock, CheckCircle, LogOut, XCircle, ChevronDown, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import LogoSpinner from "@/components/LogoSpinner";
 
 // Use same-origin calls + secure httpOnly cookie session.
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 type Booking = {
   id: number;
@@ -210,7 +210,8 @@ export default function OwnerBookingsPage() {
       groups[key].bookings.push(booking);
       if (booking.status.toUpperCase() === 'CHECKED_IN') {
         groups[key].checkedIn.push(booking);
-      } else if (booking.status.toUpperCase() === 'CONFIRMED' || booking.status.toUpperCase() === 'NEW') {
+      } else if (booking.status.toUpperCase() === 'CONFIRMED') {
+        // Only paid (CONFIRMED) bookings appear in Awaiting Arrival — never NEW (unpaid)
         groups[key].notCheckedIn.push(booking);
       }
     });
@@ -245,7 +246,7 @@ export default function OwnerBookingsPage() {
   }
 
   const totalCheckedIn   = list.filter(b => b.status.toUpperCase() === 'CHECKED_IN').length;
-  const totalWaiting     = list.filter(b => b.status.toUpperCase() === 'CONFIRMED' || b.status.toUpperCase() === 'NEW').length;
+  const totalWaiting     = list.filter(b => b.status.toUpperCase() === 'CONFIRMED').length;
   const totalCheckedOut  = list.filter(b => b.status.toUpperCase() === 'CHECKED_OUT').length;
   const totalCancelled   = list.filter(b => b.status.toUpperCase() === 'CANCELLED' || b.status.toUpperCase() === 'CANCELED').length;
 
@@ -385,6 +386,7 @@ export default function OwnerBookingsPage() {
               const hasNotCheckedIn = group.notCheckedIn.length > 0;
               const otherBookings   = group.bookings.filter(b => {
                 const s = b.status.toUpperCase();
+                // NEW (unpaid) is excluded from all owner views entirely
                 return s !== 'CHECKED_IN' && s !== 'CONFIRMED' && s !== 'NEW';
               });
               const isLive = group.checkedIn.length > 0;

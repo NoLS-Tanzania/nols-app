@@ -2,10 +2,10 @@
 
 import React, { useEffect, useState, useRef } from "react";
 import { Trophy, Star, Target, Award, CheckCircle, Clock, AlertCircle, Users, DollarSign, MessageSquare, Send } from "lucide-react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import { io, Socket } from "socket.io-client";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 interface LevelData {
   currentLevel: number;

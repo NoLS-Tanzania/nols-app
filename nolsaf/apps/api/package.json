@@ -11,6 +11,8 @@
     "seed": "tsx src/dev/seed.ts",
     "seed:nolscope": "tsx src/dev/seed-nolscope.ts",
     "bootstrap:admin": "tsx src/dev/bootstrap-admin.ts",
+    "bootstrap:admin:staging": "tsx src/dev/bootstrap-admin.ts --staging",
+    "bootstrap:admin:production": "tsx src/dev/bootstrap-admin.ts --production",
     "revoke:admin": "tsx src/dev/revoke-admin.ts",
     "test": "vitest run",
     "test:watch": "vitest",

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import "mapbox-gl/dist/mapbox-gl.css";
 
@@ -1247,6 +1247,318 @@ function PropertyAvailabilityChecker({
 
 }
 
+// ─── Room Quick View Modal ────────────────────────────────────────────────────
+function RoomQuickViewModal({
+  roomType,
+  floor,
+  propertyId,
+  initialCheckIn,
+  initialCheckOut,
+  onClose,
+  router,
+}: {
+  roomType: string;
+  floor: number;
+  propertyId: number;
+  initialCheckIn: string;
+  initialCheckOut: string;
+  onClose: () => void;
+  router: ReturnType<typeof import("next/navigation").useRouter>;
+}) {
+  const [checkIn, setCheckIn] = useState(initialCheckIn);
+  const [checkOut, setCheckOut] = useState(initialCheckOut);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<{ available: number; checked: boolean }>({ available: 0, checked: false });
+  const inFlight = useRef(false);
+  const [pickerField, setPickerField] = useState<"checkIn" | "checkOut" | null>(null);
+
+  const today = localIsoDate();
+
+  const nightCount = useMemo(() => {
+    if (!checkIn || !checkOut) return 0;
+    const ci = parseBookingDateOnly(checkIn);
+    const co = parseBookingDateOnly(checkOut);
+    if (isNaN(ci.getTime()) || isNaN(co.getTime())) return 0;
+    return Math.max(0, Math.round((co.getTime() - ci.getTime()) / 86400000));
+  }, [checkIn, checkOut]);
+
+  // ciStr/coStr allow callers to pass freshly-picked values before React state settles
+  const check = useCallback(async (ciStr?: string, coStr?: string) => {
+    if (inFlight.current) return;
+    const ci_s = ciStr ?? checkIn;
+    const co_s = coStr ?? checkOut;
+    if (!ci_s || !co_s) { setError("Select both check-in and check-out dates"); return; }
+    const ci = parseBookingDateOnly(ci_s);
+    const co = parseBookingDateOnly(co_s);
+    if (isNaN(ci.getTime()) || isNaN(co.getTime())) { setError("Invalid dates"); return; }
+    if (ci < todayBookingDateOnly()) { setError("Check-in cannot be in the past"); return; }
+    if (co <= ci) { setError("Check-out must be after check-in"); return; }
+    inFlight.current = true;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/public/availability/check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          propertyId,
+          checkIn: ci.toISOString(),
+          checkOut: co.toISOString(),
+          roomCode: null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to check availability");
+      const byType = data?.byRoomType ?? {};
+      const total = Object.values(byType).reduce((sum: number, b: any) => sum + Number((b as any)?.availableRooms ?? 0), 0);
+      setResult({ available: total, checked: true });
+    } catch (e: any) {
+      setError(e?.message || "Failed to check availability");
+      setResult({ available: 0, checked: false });
+    } finally {
+      setLoading(false);
+      inFlight.current = false;
+    }
+  }, [checkIn, checkOut, propertyId]);
+
+  const canBook = result.checked && result.available > 0 && !!checkIn && !!checkOut;
+  const bookUrl = `/public/booking/confirm?property=${propertyId}&checkIn=${encodeURIComponent(checkIn)}&checkOut=${encodeURIComponent(checkOut)}`;
+
+  // Escape: close picker first, then modal
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (pickerField) setPickerField(null);
+        else onClose();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose, pickerField]);
+
+  const modal = (
+    <div
+      className="fixed inset-0 z-[90] flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Quick booking — ${roomType}`}
+    >
+      {/* Backdrop — clicking while picker is open closes picker, otherwise closes modal */}
+      <div
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        onClick={() => { if (pickerField) setPickerField(null); else onClose(); }}
+        aria-hidden="true"
+      />
+
+      {/* Card — relative so the picker overlay can be absolute inside it */}
+      <div
+        className="relative w-full max-w-md rounded-3xl bg-white shadow-2xl ring-1 ring-black/[0.08] flex flex-col overflow-hidden"
+        style={{ minHeight: pickerField ? 460 : undefined }}
+      >
+        {/* ── Inline date picker overlay ── */}
+        {pickerField && (
+          <div className="absolute inset-0 z-20 bg-white rounded-3xl flex flex-col">
+            {/* Mini-header */}
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 flex-shrink-0">
+              <span className="text-sm font-bold text-slate-700">
+                {pickerField === "checkIn" ? "Select check-in date" : "Select check-out date"}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPickerField(null)}
+                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors"
+                aria-label="Close date picker"
+              >
+                <X className="w-4 h-4 text-slate-500" />
+              </button>
+            </div>
+            {/* Calendar — centered in remaining space */}
+            <div className="flex-1 flex items-start justify-center pt-2 pb-4 px-3">
+              <DatePicker
+                selected={pickerField === "checkIn" ? (checkIn || undefined) : (checkOut || undefined)}
+                allowRange={false}
+                allowPast={false}
+                twoMonths={false}
+                minDate={pickerField === "checkIn" ? today : (checkIn || today)}
+                initialViewDate={pickerField === "checkIn" ? (checkIn || today) : (checkOut || checkIn || today)}
+                onSelectAction={(s) => {
+                  const v = String(Array.isArray(s) ? s[0] : s);
+                  if (pickerField === "checkIn") {
+                    setCheckIn(v);
+                    setResult({ available: 0, checked: false });
+                    setError(null);
+                    // Auto-advance to check-out if not set or now invalid
+                    if (!checkOut || checkOut <= v) setPickerField("checkOut");
+                    else setPickerField(null);
+                  } else {
+                    setCheckOut(v);
+                    setResult({ available: 0, checked: false });
+                    setError(null);
+                    setPickerField(null);
+                    // Pass fresh values directly — state hasn't settled yet
+                    check(checkIn, v);
+                  }
+                }}
+                onCloseAction={() => setPickerField(null)}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* ── Header ── */}
+        <div className="bg-[#02665e] px-6 py-5 relative overflow-hidden flex-shrink-0">
+          <div
+            className="pointer-events-none absolute inset-0 opacity-[0.07]"
+            style={{ backgroundImage: "repeating-linear-gradient(-55deg,rgba(255,255,255,1) 0px,rgba(255,255,255,1) 1.5px,transparent 1.5px,transparent 20px)" }}
+          />
+          <div className="relative z-10 flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-[10px] font-bold uppercase tracking-widest text-white/60 mb-1">Quick Booking</div>
+              <div className="text-2xl font-black text-white truncate leading-tight">{roomType}</div>
+              <div className="mt-1 text-sm text-white/70 flex items-center gap-1.5">
+                <span>{getFloorName(floor)} Floor</span>
+                {nightCount > 0 && (
+                  <>
+                    <span className="text-white/30">·</span>
+                    <span className="text-white/80 font-semibold">{nightCount} night{nightCount !== 1 ? "s" : ""}</span>
+                  </>
+                )}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-shrink-0 w-9 h-9 rounded-full bg-white/15 hover:bg-white/25 transition-colors flex items-center justify-center mt-0.5"
+              aria-label="Close"
+            >
+              <X className="w-4 h-4 text-white" />
+            </button>
+          </div>
+        </div>
+
+        {/* ── Body ── */}
+        <div className="px-6 py-5 flex flex-col gap-4">
+          {/* Date selector buttons */}
+          <div className="grid grid-cols-2 gap-3">
+            {/* Check-in */}
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">
+                Check-in
+              </label>
+              <button
+                type="button"
+                onClick={() => setPickerField("checkIn")}
+                className={
+                  "w-full h-12 rounded-xl border text-left text-sm relative pl-10 pr-3 transition-all focus:outline-none " +
+                  (pickerField === "checkIn"
+                    ? "border-[#02665e] ring-2 ring-[#02665e]/20 bg-[#02665e]/5"
+                    : "border-slate-200 bg-white hover:border-[#02665e]/50 hover:bg-slate-50")
+                }
+              >
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden />
+                <span className={checkIn ? "text-slate-800 font-semibold" : "text-slate-400 text-xs"}>
+                  {checkIn ? formatDateLabel(checkIn) : "Select date"}
+                </span>
+              </button>
+            </div>
+
+            {/* Check-out */}
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">
+                Check-out
+              </label>
+              <button
+                type="button"
+                onClick={() => setPickerField("checkOut")}
+                className={
+                  "w-full h-12 rounded-xl border text-left text-sm relative pl-10 pr-3 transition-all focus:outline-none " +
+                  (pickerField === "checkOut"
+                    ? "border-[#02665e] ring-2 ring-[#02665e]/20 bg-[#02665e]/5"
+                    : "border-slate-200 bg-white hover:border-[#02665e]/50 hover:bg-slate-50")
+                }
+              >
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden />
+                <span className={checkOut ? "text-slate-800 font-semibold" : "text-slate-400 text-xs"}>
+                  {checkOut ? formatDateLabel(checkOut) : "Select date"}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* Check availability button */}
+          <button
+            type="button"
+            onClick={() => check()}
+            disabled={loading || !checkIn || !checkOut}
+            className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#02665e] text-white py-3.5 text-sm font-bold hover:bg-[#014e47] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? (
+              <>
+                <LogoSpinner size="xs" ariaLabel="Checking" />
+                Checking...
+              </>
+            ) : (result.checked ? "Re-check availability" : "Check availability")}
+          </button>
+
+          {/* Error */}
+          {error && (
+            <div className="flex items-start gap-2 rounded-xl bg-rose-50 border border-rose-200 px-3.5 py-3">
+              <AlertCircle className="w-4 h-4 text-rose-500 flex-shrink-0 mt-0.5" />
+              <span className="text-xs font-semibold text-rose-700">{error}</span>
+            </div>
+          )}
+
+          {/* Result */}
+          {result.checked && !error && (
+            <div className={`rounded-2xl border px-4 py-3.5 ${result.available > 0 ? "bg-emerald-50 border-emerald-200" : "bg-amber-50 border-amber-200"}`}>
+              <div className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${result.available > 0 ? "text-emerald-600" : "text-amber-600"}`}>
+                {result.available > 0 ? "Great news!" : "Availability"}
+              </div>
+              <div className={`text-lg font-black ${result.available > 0 ? "text-emerald-800" : "text-amber-800"}`}>
+                {result.available > 0
+                  ? `${result.available} room${result.available !== 1 ? "s" : ""} available`
+                  : "No rooms available for these dates"}
+              </div>
+              {result.available > 0 && (
+                <div className="mt-1 text-xs text-emerald-600 font-medium">
+                  {formatDateLabel(checkIn)} {"\u2192"} {formatDateLabel(checkOut)}
+                  {nightCount > 0 && ` \u00b7 ${nightCount} night${nightCount !== 1 ? "s" : ""}`}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ── Footer ── */}
+        <div className="px-6 pb-6 pt-1 grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => router.push(bookUrl)}
+            disabled={!canBook}
+            className="inline-flex items-center justify-center rounded-xl bg-[#02665e] text-white py-3.5 text-sm font-bold hover:bg-[#014e47] active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Book now
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              onClose();
+              setTimeout(() => document.getElementById("roomsSection")?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+            }}
+            className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 py-3.5 text-sm font-semibold hover:bg-slate-50 active:scale-[0.98] transition-all"
+          >
+            View rooms
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  if (typeof document === "undefined") return null;
+  return createPortal(modal, document.body);
+}
+
 export default function PublicPropertyDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -1284,87 +1596,19 @@ export default function PublicPropertyDetailPage() {
   const [favoriteNotice, setFavoriteNotice] = useState<string | null>(null);
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [copyLinkSuccess, setCopyLinkSuccess] = useState(false);
-  // Availability + booking shortcut state for visualization tiles
   const [selectedDates, setSelectedDates] = useState<{ checkIn: string; checkOut: string }>({ checkIn: "", checkOut: "" });
-  const [availabilityData, setAvailabilityData] = useState<any | null>(null);
   const [roomQuickView, setRoomQuickView] = useState<null | { roomType: string; floor: number }>(null);
-  const [modalDates, setModalDates] = useState<{ checkIn: string; checkOut: string }>({ checkIn: "", checkOut: "" });
-  const [modalAvailLoading, setModalAvailLoading] = useState(false);
-  const [modalAvailError, setModalAvailError] = useState<string | null>(null);
-  const lastQuickViewKeyRef = useRef<string>("");
-  const [modalCheckInPickerOpen, setModalCheckInPickerOpen] = useState(false);
-  const [modalCheckOutPickerOpen, setModalCheckOutPickerOpen] = useState(false);
-  const [modalRoomsQty, setModalRoomsQty] = useState(1);
-  const [modalGuests, setModalGuests] = useState<{ adults: number; children: number; pets: number }>({ adults: 1, children: 0, pets: 0 });
-  const [quickBookingPage, setQuickBookingPage] = useState<"details" | "availability">("details");
+  const [availabilityData, setAvailabilityData] = useState<any | null>(null);
   const [, setAvailabilitySocket] = useState<Socket | null>(null);
   const [, setAvailabilityConnected] = useState(false);
   const [availabilityRefreshTick, setAvailabilityRefreshTick] = useState(0);
   const selectedDatesRef = useRef(selectedDates);
-  const modalInFlightRef = useRef(false);
   // Throttle socket-driven refresh signals so we don't spam the availability endpoint.
   const socketRefreshTimerRef = useRef<any>(null);
   const lastSocketRefreshAtRef = useRef<number>(0);
-  const qbScrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     selectedDatesRef.current = selectedDates;
   }, [selectedDates]);
-  const runAvailabilityCheck = useCallback(
-    async (propertyId: number, checkInStr: string, checkOutStr: string, roomCode?: string | null) => {
-      // Guard against double-fires (e.g., fast UI interactions)
-      if (modalInFlightRef.current) return;
-      if (!checkInStr || !checkOutStr) {
-        setModalAvailError("Select both check-in and check-out dates");
-        return;
-      }
-      const checkInDate = parseBookingDateOnly(checkInStr);
-      const checkOutDate = parseBookingDateOnly(checkOutStr);
-      if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) {
-        setModalAvailError("Please enter valid dates");
-        return;
-      }
-      if (checkInDate < todayBookingDateOnly()) {
-        setModalAvailError("Check-in date cannot be in the past");
-        return;
-      }
-      if (checkOutDate <= checkInDate) {
-        setModalAvailError("Check-out must be after check-in");
-        return;
-      }
-      modalInFlightRef.current = true;
-      setModalAvailLoading(true);
-      setModalAvailError(null);
-      try {
-        const response = await fetch(`/api/public/availability/check`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            propertyId,
-            checkIn: checkInDate.toISOString(),
-            checkOut: checkOutDate.toISOString(),
-            roomCode: roomCode ? String(roomCode).trim() : null,
-          }),
-        });
-        const data = await response.json();
-        if (!response.ok) {
-          throw new Error(data.error || "Failed to check availability");
-        }
-        setAvailabilityData(data);
-        setSelectedDates({ checkIn: checkInStr, checkOut: checkOutStr });
-      } catch (e: any) {
-        const msg = e?.message || "Failed to check availability";
-        setModalAvailError(msg);
-        // Keep last-known availability on 429 so the UI can still show room status.
-        if (!/Too many availability requests/i.test(msg)) {
-          setAvailabilityData(null);
-        }
-      } finally {
-        setModalAvailLoading(false);
-        modalInFlightRef.current = false;
-      }
-    },
-    []
-  );
   // Live updates: socket updates bump a refresh signal.
   // Socket.IO connection for real-time availability updates
   useEffect(() => {
@@ -1431,20 +1675,6 @@ export default function PublicPropertyDetailPage() {
       }
     };
   }, []);
-  useEffect(() => {
-    const key = roomQuickView ? `${roomQuickView.roomType}|${roomQuickView.floor}` : "";
-    if (roomQuickView && key !== lastQuickViewKeyRef.current) {
-      lastQuickViewKeyRef.current = key;
-      setModalDates({ checkIn: selectedDates.checkIn, checkOut: selectedDates.checkOut });
-      setModalAvailError(null);
-      setModalRoomsQty(1);
-      setModalGuests((g) => ({ adults: Math.max(1, g.adults || 1), children: 0, pets: 0 }));
-      setQuickBookingPage("details");
-    }
-  }, [roomQuickView, selectedDates.checkIn, selectedDates.checkOut]);
-  useEffect(() => {
-    if (!roomQuickView) return;
-  }, [quickBookingPage, roomQuickView]);
   // Load system commission settings
   useEffect(() => {
     let mounted = true;
@@ -2543,771 +2773,17 @@ export default function PublicPropertyDetailPage() {
             </div>
           </div>
         )}
-        {/* Room quick view modal (booking shortcut) */}
-        {roomQuickView ? (
-          <div className="fixed inset-0 z-[80]">
-            <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setRoomQuickView(null)} />
-            <div className="nls-flipbook absolute inset-x-0 top-14 sm:top-20 mx-auto w-[min(92vw,480px)]">
-              <div
-                className="rounded-[28px] border border-slate-200/80 bg-white shadow-2xl overflow-hidden flex flex-col ring-1 ring-slate-200/40 max-h-[min(82vh,660px)]"
-                data-qb-version="flip-v2"
-              >
-                <div className="relative overflow-hidden bg-[#02665e] px-4 py-4 shrink-0">
-                  <div className="pointer-events-none absolute inset-0 opacity-[0.08]"
-                    style={{ backgroundImage: "repeating-linear-gradient(-55deg, rgba(255,255,255,1) 0px, rgba(255,255,255,1) 1.5px, transparent 1.5px, transparent 20px)" }} />
-                  <div className="relative z-10 flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="inline-flex items-center gap-1.5 rounded-full bg-white/15 border border-white/25 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white mb-1.5">Quick booking</div>
-                      <div className="text-xl font-black text-white truncate leading-tight">{roomQuickView.roomType}</div>
-                      <div className="mt-1 text-[13px] text-white/70 font-medium">
-                        {getFloorName(roomQuickView.floor)} Floor
-                        {selectedDates.checkIn && selectedDates.checkOut ? (
-                          <span className="text-white/50"> · dates selected</span>
-                        ) : (
-                          <span className="text-amber-300/90"> · select dates to check availability</span>
-                        )}
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setRoomQuickView(null)}
-                      className="inline-flex items-center justify-center rounded-xl bg-white/15 border border-white/25 hover:bg-white/25 w-10 h-10 transition-colors flex-shrink-0"
-                      aria-label="Close"
-                    >
-                      <X className="w-5 h-5 text-white" aria-hidden />
-                    </button>
-                  </div>
-                </div>
-                <div ref={qbScrollRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-3" style={{ touchAction: "pan-y" }}>
-                  {(() => {
-                    const roomsSpec = Array.isArray(property.roomsSpec) ? property.roomsSpec : [];
-                    const normalizedRows = normalizeRoomsSpec(roomsSpec, property.currency, property.basePrice, property, systemCommission);
-                    const row = normalizedRows.find((r) => r.roomType === roomQuickView.roomType) || null;
-                    const codesForType = roomsSpec
-                      .filter((r: any) => String(r?.roomType || r?.name || r?.label || "").trim() === roomQuickView.roomType)
-                      .map((r: any) => String(r?.code || r?.roomCode || "").trim())
-                      .filter(Boolean);
-                    // Availability API buckets are room-type based (e.g. "Single-1" -> "Single")
-                    const bucketKeyFromCode = (s: string) => String(s || "").trim().replace(/-\d+$/, "");
-                    const bucketKeysForType = Array.from(
-                      new Set(
-                        [roomQuickView.roomType, ...codesForType]
-                          .map(bucketKeyFromCode)
-                          .map((k) => k.trim())
-                          .filter(Boolean)
-                      )
-                    );
-                    const byCode = availabilityData?.byRoomType || null;
-                    // Keep original calculation for debug log (do not change previously added log)
-                    const availableCodes = byCode
-                      ? bucketKeysForType.filter((c: string) => Number(byCode?.[c]?.availableRooms ?? 0) > 0)
-                      : [];
-                    const effectiveDates =
-                      modalDates.checkIn && modalDates.checkOut ? modalDates : selectedDates;
-                    const availabilityMatchesDates =
-                      !!byCode &&
-                      !!availabilityData?.checkIn &&
-                      !!availabilityData?.checkOut &&
-                      !!effectiveDates.checkIn &&
-                      !!effectiveDates.checkOut &&
-                      String(availabilityData.checkIn).startsWith(effectiveDates.checkIn) &&
-                      String(availabilityData.checkOut).startsWith(effectiveDates.checkOut);
-                    const roomIndex = roomsSpec.findIndex(
-                      (r: any) => String(r?.roomType || r?.name || r?.label || "").trim() === roomQuickView.roomType
-                    );
-                    const defaultAvail = byCode?.default || null;
-                    const availabilityMode: "none" | "per_code" | "default" =
-                      !byCode ? "none" : bucketKeysForType.length ? "per_code" : defaultAvail ? "default" : "none";
-                    const computedAvailableRooms =
-                      !byCode
-                        ? null
-                        : !availabilityMatchesDates
-                          ? null
-                          : availabilityMode === "per_code"
-                            ? bucketKeysForType.reduce((sum: number, c: string) => sum + Number(byCode?.[c]?.availableRooms ?? 0), 0)
-                            : availabilityMode === "default"
-                              ? Number(defaultAvail?.availableRooms ?? 0)
-                              : 0;
-                    const canBook =
-                      Boolean(effectiveDates.checkIn && effectiveDates.checkOut) &&
-                      (computedAvailableRooms == null ? false : computedAvailableRooms > 0) &&
-                      (codesForType.length > 0 || roomIndex >= 0);
-                    const buildBookingUrl = () => {
-                      const base = `/public/booking/confirm?property=${property.id}&checkIn=${encodeURIComponent(
-                        effectiveDates.checkIn
-                      )}&checkOut=${encodeURIComponent(effectiveDates.checkOut)}&floor=${roomQuickView.floor}&adults=${encodeURIComponent(
-                        String(Math.max(1, Number(modalGuests.adults || 1)))
-                      )}&children=${encodeURIComponent(String(Math.max(0, Number(modalGuests.children || 0))))}&pets=${encodeURIComponent(
-                        String(Math.max(0, Number(modalGuests.pets || 0)))
-                      )}&rooms=${encodeURIComponent(String(Math.max(1, Number(modalRoomsQty || 1))))}`;
-                      if (bucketKeysForType.length > 0) {
-                        // Use room-type key so availability + booking capacity stay consistent
-                        const code = availabilityMode === "per_code"
-                          ? (availableCodes[0] || bucketKeysForType[0])
-                          : bucketKeysForType[0];
-                        return `${base}&roomCode=${encodeURIComponent(code)}`;
-                      }
-                      if (roomIndex >= 0) {
-                        return `${base}&roomIndex=${roomIndex}`;
-                      }
-                      return base;
-                    };
-                    return (
-                      true ? (
-                      <>
-                          {/* Details panel */}
-                          {quickBookingPage === "details" && (
-                          <div data-qb-face="front">
-                              {(() => {
-                                const maxGuests = Number(property.maxGuests ?? 0) > 0 ? Number(property.maxGuests) : 100;
-                                const declaredRoomsCount =
-                                  typeof row?.roomsCount === "number" && row.roomsCount > 0
-                                    ? row.roomsCount
-                                    : (() => {
-                                        const rs = Array.isArray(property.roomsSpec) ? property.roomsSpec : [];
-                                        const found = rs.find(
-                                          (x: any) => String(x?.roomType || x?.name || x?.label || "").trim() === roomQuickView.roomType
-                                        );
-                                        const n = Number(found?.roomsCount ?? found?.count ?? found?.quantity ?? 0);
-                                        return Number.isFinite(n) && n > 0 ? n : 1;
-                                      })();
-                                const maxRooms =
-                                  computedAvailableRooms != null && availabilityMatchesDates
-                                    ? Math.max(1, computedAvailableRooms)
-                                    : Math.max(1, declaredRoomsCount);
-                                const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
-                                const setRooms = (next: number) => setModalRoomsQty(clamp(next, 1, maxRooms));
-                                const setAdults = (next: number) =>
-                                  setModalGuests((g) => ({ ...g, adults: clamp(next, 1, maxGuests) }));
-                                const Stepper = ({
-                                  value,
-                                  min,
-                                  max,
-                                  onChange,
-                                  label,
-                                }: {
-                                  value: number;
-                                  min: number;
-                                  max: number;
-                                  onChange: (n: number) => void;
-                                  label: string;
-                                }) => (
-                                  <div className="inline-flex items-center rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
-                                    <button
-                                      type="button"
-                                      onClick={() => onChange(value - 1)}
-                                      disabled={value <= min}
-                                      className="w-10 h-10 inline-flex items-center justify-center hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                      aria-label={`Decrease ${label}`}
-                                    >
-                                      <Minus className="w-4 h-4 text-slate-700" aria-hidden />
-                                    </button>
-                                    <div className="w-10 h-10 inline-flex items-center justify-center text-sm font-extrabold text-slate-900">
-                                      {value}
-                                    </div>
-                                    <button
-                                      type="button"
-                                      onClick={() => onChange(value + 1)}
-                                      disabled={value >= max}
-                                      className="w-10 h-10 inline-flex items-center justify-center hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                      aria-label={`Increase ${label}`}
-                                    >
-                                      <Plus className="w-4 h-4 text-slate-700" aria-hidden />
-                                    </button>
-                                  </div>
-                                );
-                                const canFlip = Boolean(modalDates.checkIn && modalDates.checkOut);
-                                const nights = canFlip
-                                  ? Math.max(1, Math.round(
-                                      (parseBookingDateOnly(modalDates.checkOut).getTime() - parseBookingDateOnly(modalDates.checkIn).getTime()) / 86400000
-                                    ))
-                                  : 0;
-                                const totalPrice = nights > 0 && typeof row?.pricePerNight === "number" && row.pricePerNight > 0
-                                  ? row.pricePerNight * nights * modalRoomsQty
-                                  : null;
-                                return (
-                                  <div className="space-y-3 pb-2">
-                                    {/* Beds + Price */}
-                                    <div className="flex items-center justify-between px-4 py-3 rounded-2xl bg-[#02665e]/[0.07] border border-[#02665e]/20">
-                                      <div>
-                                        <div className="text-[10px] font-bold text-[#02665e] uppercase tracking-widest">Beds</div>
-                                        <div className="mt-0.5 text-sm font-bold text-slate-900">{row?.bedsSummary || "—"}</div>
-                                      </div>
-                                      <div className="text-right">
-                                        <div className="text-[10px] font-bold text-[#02665e] uppercase tracking-widest">Per night</div>
-                                        <div className="mt-0.5 text-xl font-black text-slate-900">{fmtMoney(row?.pricePerNight ?? null, property.currency)}</div>
-                                      </div>
-                                    </div>
-
-                                    {/* Dates */}
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                      <div className="space-y-1">
-                                        <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">Check-in</label>
-                                        <div className="relative">
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              setModalCheckInPickerOpen(true);
-                                              setModalCheckOutPickerOpen(false);
-                                            }}
-                                            className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-300 bg-white flex items-center justify-between"
-                                            aria-label="Select check-in date"
-                                          >
-                                            <span className="inline-flex items-center gap-2 min-w-0">
-                                              <Calendar className="w-4 h-4 text-[#02665e]" aria-hidden />
-                                              <span className="text-slate-900 truncate">
-                                                {modalDates.checkIn ? formatDateLabel(modalDates.checkIn) : "Select date"}
-                                              </span>
-                                            </span>
-                                            <ChevronDown className="w-4 h-4 text-slate-400" aria-hidden />
-                                          </button>
-                                          {modalCheckInPickerOpen && (
-                                            <div className="fixed inset-0 z-[95] flex items-start justify-center p-4 sm:p-6">
-                                              <div
-                                                className="absolute inset-0 bg-black/15 backdrop-blur-[1px]"
-                                                onClick={() => setModalCheckInPickerOpen(false)}
-                                              />
-                                              <div className="relative mt-24 sm:mt-28 bg-white rounded-2xl border-2 border-slate-200 shadow-2xl p-3 transition-all duration-200">
-                                                <DatePicker
-                                                  selected={modalDates.checkIn}
-                                                  allowRange={false}
-                                                  onSelectAction={(s) => {
-                                                    const date = Array.isArray(s) ? s[0] : s;
-                                                    setModalDates((st) => ({ ...st, checkIn: date }));
-                                                    setModalAvailError(null);
-                                                    setModalCheckInPickerOpen(false);
-                                                    // Reset check-out if it is before/equals new check-in
-                                                    if (modalDates.checkOut && date && parseBookingDateOnly(modalDates.checkOut) <= parseBookingDateOnly(date)) {
-                                                      setModalDates((st) => ({ ...st, checkOut: "" }));
-                                                    }
-                                                  }}
-                                                  onCloseAction={() => setModalCheckInPickerOpen(false)}
-                                                  minDate={localIsoDate()}
-                                                />
-                                              </div>
-                                            </div>
-                                          )}
-                                        </div>
-                                      </div>
-                                      <div className="space-y-1">
-                                        <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">Check-out</label>
-                                        <div className="relative">
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              setModalCheckOutPickerOpen(true);
-                                              setModalCheckInPickerOpen(false);
-                                            }}
-                                            className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-300 bg-white flex items-center justify-between"
-                                            aria-label="Select check-out date"
-                                          >
-                                            <span className="inline-flex items-center gap-2 min-w-0">
-                                              <Calendar className="w-4 h-4 text-[#02665e]" aria-hidden />
-                                              <span className="text-slate-900 truncate">
-                                                {modalDates.checkOut ? formatDateLabel(modalDates.checkOut) : "Select date"}
-                                              </span>
-                                            </span>
-                                            <ChevronDown className="w-4 h-4 text-slate-400" aria-hidden />
-                                          </button>
-                                          {modalCheckOutPickerOpen && (
-                                            <div className="fixed inset-0 z-[95] flex items-start justify-center p-4 sm:p-6">
-                                              <div
-                                                className="absolute inset-0 bg-black/15 backdrop-blur-[1px]"
-                                                onClick={() => setModalCheckOutPickerOpen(false)}
-                                              />
-                                              <div className="relative mt-24 sm:mt-28 bg-white rounded-2xl border-2 border-slate-200 shadow-2xl p-3 transition-all duration-200">
-                                                <DatePicker
-                                                  selected={modalDates.checkOut}
-                                                  allowRange={false}
-                                                  onSelectAction={(s) => {
-                                                    const date = Array.isArray(s) ? s[0] : s;
-                                                    setModalDates((st) => ({ ...st, checkOut: date }));
-                                                    setModalAvailError(null);
-                                                    setModalCheckOutPickerOpen(false);
-                                                  }}
-                                                  onCloseAction={() => setModalCheckOutPickerOpen(false)}
-                                                  minDate={modalDates.checkIn || localIsoDate()}
-                                                />
-                                              </div>
-                                            </div>
-                                          )}
-                                        </div>
-                                      </div>
-                                    </div>
-                                    {/* Nights + Total */}
-                                    {canFlip ? (
-                                      <div className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200">
-                                        <span className="text-xs font-semibold text-slate-500">{nights} night{nights !== 1 ? "s" : ""}</span>
-                                        {totalPrice !== null && (
-                                          <span className="text-sm font-black text-slate-900">{fmtMoney(totalPrice, property.currency)}</span>
-                                        )}
-                                      </div>
-                                    ) : (
-                                      <div className="flex items-center px-3 py-2 rounded-xl bg-amber-50 border border-amber-200/80">
-                                        <span className="text-xs font-medium text-amber-700">Select check-in and check-out to continue</span>
-                                      </div>
-                                    )}
-
-                                    {/* Rooms + Adults */}
-                                    <div className="grid grid-cols-2 gap-2">
-                                      <div className="flex items-center justify-between px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/60">
-                                        <div>
-                                          <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Rooms</div>
-                                          <div className="text-[11px] text-slate-400 mt-0.5">Max {maxRooms}</div>
-                                        </div>
-                                        <Stepper value={modalRoomsQty} min={1} max={maxRooms} onChange={setRooms} label="rooms" />
-                                      </div>
-                                      <div className="flex items-center justify-between px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/60">
-                                        <div>
-                                          <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Adults</div>
-                                          <div className="text-[11px] text-slate-400 mt-0.5">Max {maxGuests}</div>
-                                        </div>
-                                        <Stepper value={modalGuests.adults} min={1} max={maxGuests} onChange={setAdults} label="adults" />
-                                      </div>
-                                    </div>
-
-                                    {/* CTAs */}
-                                    <div className="space-y-1.5 pt-0.5">
-                                      <button
-                                        type="button"
-                                        onClick={() => setQuickBookingPage("availability")}
-                                        disabled={!canFlip}
-                                        className="w-full rounded-xl bg-[#02665e] text-white py-3 text-sm font-bold hover:bg-[#014e47] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                      >
-                                        Check availability →
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          document.getElementById("roomsSection")?.scrollIntoView({ behavior: "smooth", block: "start" });
-                                          setRoomQuickView(null);
-                                        }}
-                                        className="w-full rounded-xl border border-slate-200 bg-white py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
-                                      >
-                                        View all rooms
-                                      </button>
-                                    </div>
-                                    {false ? (
-                                      <div className="hidden">placeholder</div>
-                                    ) : null}
-                                  </div>
-                                );
-                              })()}
-                            </div>
-                          )}
-                          {quickBookingPage === "availability" && (
-                          <div data-qb-face="back">
-                              <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                                <div className="flex items-start justify-between gap-3">
-                                  <div className="min-w-0">
-                                    <div className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Availability</div>
-                                    <div className="mt-1 text-sm text-slate-700">
-                                      {effectiveDates.checkIn && effectiveDates.checkOut
-                                        ? `${formatDateLabel(effectiveDates.checkIn)} ->' ${formatDateLabel(effectiveDates.checkOut)}`
-                                        : "Select dates first"}
-                                    </div>
-                                    <div className="mt-1 text-[11px] text-slate-500">
-                                      Rooms: {modalRoomsQty} . Adults: {modalGuests.adults}
-                                    </div>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setQuickBookingPage("details");
-                                    }}
-                                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50 transition-colors"
-                                  >
-                                    Back
-                                  </button>
-                                </div>
-                                <div className="mt-4 flex flex-col gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      runAvailabilityCheck(property.id, modalDates.checkIn, modalDates.checkOut, roomQuickView.roomType);
-                                    }}
-                                    disabled={modalAvailLoading}
-                                    className={`inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-bold text-white disabled:opacity-50 disabled:cursor-not-allowed${modalAvailLoading ? " bg-[#02665e]/70" : computedAvailableRooms != null ? " bg-[#02665e]" : " qb-avail-blink"}`}
-                                  >
-                                    {modalAvailLoading ? (
-                                      <span className="inline-flex items-center gap-2">
-                                        <LogoSpinner size="xs" ariaLabel="Checking availability" />
-                                        Checking...
-                                      </span>
-                                    ) : (
-                                      "Check availability"
-                                    )}
-                                  </button>
-                                  {modalAvailError ? (
-                                    <div className="text-xs font-semibold text-rose-700">{modalAvailError}</div>
-                                  ) : null}
-                                </div>
-                                <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                                  <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Result</div>
-                                  <div className="mt-1 text-sm font-semibold text-slate-900">
-                                    {computedAvailableRooms == null
-                                      ? "Select dates and check availability"
-                                      : computedAvailableRooms > 0
-                                        ? availabilityMode === "default"
-                                          ? `${computedAvailableRooms} available (overall)`
-                                          : `${computedAvailableRooms} available`
-                                        : "No availability for selected dates"}
-                                  </div>
-                                  {availabilityMode === "default" ? (
-                                    <div className="mt-1 text-[11px] text-slate-500">
-                                      This listing tracks availability at the property level (no per-room codes yet).
-                                    </div>
-                                  ) : null}
-                                  {byCode && !availabilityMatchesDates && (modalDates.checkIn && modalDates.checkOut) ? (
-                                    <div className="mt-1 text-[11px] text-amber-700">
-                                      Availability shown may be for different dates. Tap "Check availability".
-                                    </div>
-                                  ) : null}
-                                </div>
-                                <div className="mt-4 flex gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      router.push(buildBookingUrl());
-                                    }}
-                                    disabled={!canBook}
-                                    className={`flex-1 inline-flex items-center justify-center rounded-xl text-white py-2.5 text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed${computedAvailableRooms != null && !modalAvailLoading ? " qb-avail-blink" : " bg-[#02665e] hover:bg-[#014e47]"}`}
-                                  >
-                                    Book this room type
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      document.getElementById("roomsSection")?.scrollIntoView({ behavior: "smooth", block: "start" });
-                                      setRoomQuickView(null);
-                                    }}
-                                    className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 hover:bg-slate-50 transition-colors"
-                                  >
-                                    View rooms
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                      </>
-                      ) : (
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-                        {/* Left: compact premium summary + rooms/guests */}
-                        <div className="rounded-2xl border border-slate-200 bg-white p-4 nols-entrance">
-                          <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4">
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="min-w-0">
-                                <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Beds</div>
-                                <div className="mt-1 text-sm font-semibold text-slate-900">{row?.bedsSummary || "-"}</div>
-                              </div>
-                              <div className="text-right">
-                                <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Price / night</div>
-                                <div className="mt-1 text-base font-extrabold text-slate-900">
-                                  {fmtMoney(row?.pricePerNight ?? null, property!.currency)}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                          {(() => {
-                            const maxGuests = Number(property!.maxGuests ?? 0) > 0 ? Number(property!.maxGuests) : 100;
-                            const petsAllowed = houseRules?.pets === false ? false : true;
-                            const declaredRoomsCount =
-                              typeof row?.roomsCount === "number" && (row?.roomsCount ?? 0) > 0
-                                ? (row?.roomsCount ?? 0)
-                                : (() => {
-                                    const rs = Array.isArray(property!.roomsSpec) ? property!.roomsSpec : [];
-                                    const found = rs.find(
-                                      (x: any) => String(x?.roomType || x?.name || x?.label || "").trim() === roomQuickView!.roomType
-                                    );
-                                    const n = Number(found?.roomsCount ?? found?.count ?? found?.quantity ?? 0);
-                                    return Number.isFinite(n) && n > 0 ? n : 1;
-                                  })();
-                            const maxRooms =
-                              computedAvailableRooms != null ? Math.max(1, Number(computedAvailableRooms)) : Math.max(1, declaredRoomsCount);
-                            const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
-                            const setRooms = (next: number) => setModalRoomsQty(clamp(next, 1, maxRooms));
-                            const setAdults = (next: number) =>
-                              setModalGuests((g) => ({ ...g, adults: clamp(next, 1, maxGuests) }));
-                            const setChildren = (next: number) =>
-                              setModalGuests((g) => ({ ...g, children: clamp(next, 0, maxGuests) }));
-                            const setPets = (next: number) =>
-                              setModalGuests((g) => ({ ...g, pets: petsAllowed ? clamp(next, 0, 10) : 0 }));
-                            const Stepper = ({
-                              value,
-                              min,
-                              max,
-                              onChange,
-                              label,
-                              disabled,
-                            }: {
-                              value: number;
-                              min: number;
-                              max: number;
-                              onChange: (n: number) => void;
-                              label: string;
-                              disabled?: boolean;
-                            }) => (
-                              <div className="inline-flex items-center rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
-                                <button
-                                  type="button"
-                                  onClick={() => onChange(value - 1)}
-                                  disabled={disabled || value <= min}
-                                  className="w-10 h-10 inline-flex items-center justify-center hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                  aria-label={`Decrease ${label}`}
-                                >
-                                  <Minus className="w-4 h-4 text-slate-700" aria-hidden />
-                                </button>
-                                <div className="w-10 h-10 inline-flex items-center justify-center text-sm font-extrabold text-slate-900">
-                                  {disabled ? 0 : value}
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => onChange(value + 1)}
-                                  disabled={disabled || value >= max}
-                                  className="w-10 h-10 inline-flex items-center justify-center hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                  aria-label={`Increase ${label}`}
-                                >
-                                  <Plus className="w-4 h-4 text-slate-700" aria-hidden />
-                                </button>
-                              </div>
-                            );
-                            return (
-                              <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4 nols-entrance nols-delay-1">
-                                <div className="flex items-center justify-between gap-2">
-                                  <div className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide">
-                                    Customize
-                                  </div>
-                                  <div className="text-[11px] text-slate-500">Max guests: {maxGuests}</div>
-                                </div>
-                                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                  {/* Rooms tile */}
-                                  <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 hover:bg-white transition-colors">
-                                    <div className="flex items-center justify-between gap-3">
-                                      <div className="min-w-0">
-                                        <div className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide">Rooms</div>
-                                        <div className="mt-1 text-sm font-semibold text-slate-900">{modalRoomsQty}</div>
-                                        <div className="mt-1 text-[11px] text-slate-500">Max {maxRooms} for this type</div>
-                                      </div>
-                                      <Stepper value={modalRoomsQty} min={1} max={maxRooms} onChange={setRooms} label="rooms" />
-                                    </div>
-                                  </div>
-                                  {/* Adults tile */}
-                                  <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 hover:bg-white transition-colors">
-                                    <div className="flex items-center justify-between gap-3">
-                                      <div className="min-w-0">
-                                        <div className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide">Adults</div>
-                                        <div className="mt-1 text-sm font-semibold text-slate-900">{modalGuests.adults}</div>
-                                      </div>
-                                      <Stepper value={modalGuests.adults} min={1} max={maxGuests} onChange={setAdults} label="adults" />
-                                    </div>
-                                  </div>
-                                  {/* Children tile */}
-                                  <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 hover:bg-white transition-colors">
-                                    <div className="flex items-center justify-between gap-3">
-                                      <div className="min-w-0">
-                                        <div className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide">Children</div>
-                                        <div className="mt-1 text-sm font-semibold text-slate-900">{modalGuests.children}</div>
-                                      </div>
-                                      <Stepper value={modalGuests.children} min={0} max={maxGuests} onChange={setChildren} label="children" />
-                                    </div>
-                                  </div>
-                                  {/* Pets tile */}
-                                  <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 hover:bg-white transition-colors">
-                                    <div className="flex items-center justify-between gap-3">
-                                      <div className="min-w-0">
-                                        <div className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide">
-                                          Pets {petsAllowed ? "" : <span className="text-slate-500 font-medium">(not allowed)</span>}
-                                        </div>
-                                        <div className="mt-1 text-sm font-semibold text-slate-900">{petsAllowed ? modalGuests.pets : 0}</div>
-                                      </div>
-                                      <Stepper
-                                        value={modalGuests.pets}
-                                        min={0}
-                                        max={10}
-                                        onChange={setPets}
-                                        label="pets"
-                                        disabled={!petsAllowed}
-                                      />
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })()}
-                        </div>
-                        {/* Right: dates + availability + actions (premium compact) */}
-                        <div className="rounded-2xl border border-slate-200 bg-white p-4 nols-entrance nols-delay-2">
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div className="space-y-1">
-                              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">Check-in</label>
-                              <div className="relative">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setModalCheckInPickerOpen(true);
-                                    setModalCheckOutPickerOpen(false);
-                                  }}
-                                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-300 bg-white flex items-center justify-between"
-                                  aria-label="Select check-in date"
-                                >
-                                  <span className="inline-flex items-center gap-2 min-w-0">
-                                    <Calendar className="w-4 h-4 text-[#02665e]" aria-hidden />
-                                    <span className="text-slate-900 truncate">
-                                      {modalDates.checkIn ? formatDateLabel(modalDates.checkIn) : "Select date"}
-                                    </span>
-                                  </span>
-                                  <ChevronDown className="w-4 h-4 text-slate-400" aria-hidden />
-                                </button>
-                                {modalCheckInPickerOpen && (
-                                  <div className="fixed inset-0 z-[95] flex items-start justify-center p-4 sm:p-6">
-                                    <div
-                                      className="absolute inset-0 bg-black/15 backdrop-blur-[1px]"
-                                      onClick={() => setModalCheckInPickerOpen(false)}
-                                    />
-                                    <div className="relative mt-24 sm:mt-28 bg-white rounded-2xl border-2 border-slate-200 shadow-2xl p-3 transition-all duration-200">
-                                      <DatePicker
-                                        selected={modalDates.checkIn}
-                                        allowRange={false}
-                                        onSelectAction={(s) => {
-                                          const date = Array.isArray(s) ? s[0] : s;
-                                          setModalDates((st) => ({ ...st, checkIn: date }));
-                                          setModalAvailError(null);
-                                          setModalCheckInPickerOpen(false);
-                                          // Reset check-out if it is before/equals new check-in
-                                          if (modalDates.checkOut && date && parseBookingDateOnly(modalDates.checkOut) <= parseBookingDateOnly(date)) {
-                                            setModalDates((st) => ({ ...st, checkOut: "" }));
-                                          }
-                                        }}
-                                        onCloseAction={() => setModalCheckInPickerOpen(false)}
-                                        minDate={localIsoDate()}
-                                      />
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                            <div className="space-y-1">
-                              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">Check-out</label>
-                              <div className="relative">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setModalCheckOutPickerOpen(true);
-                                    setModalCheckInPickerOpen(false);
-                                  }}
-                                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] hover:border-slate-300 bg-white flex items-center justify-between"
-                                  aria-label="Select check-out date"
-                                >
-                                  <span className="inline-flex items-center gap-2 min-w-0">
-                                    <Calendar className="w-4 h-4 text-[#02665e]" aria-hidden />
-                                    <span className="text-slate-900 truncate">
-                                      {modalDates.checkOut ? formatDateLabel(modalDates.checkOut) : "Select date"}
-                                    </span>
-                                  </span>
-                                  <ChevronDown className="w-4 h-4 text-slate-400" aria-hidden />
-                                </button>
-                                {modalCheckOutPickerOpen && (
-                                  <div className="fixed inset-0 z-[95] flex items-start justify-center p-4 sm:p-6">
-                                    <div
-                                      className="absolute inset-0 bg-black/15 backdrop-blur-[1px]"
-                                      onClick={() => setModalCheckOutPickerOpen(false)}
-                                    />
-                                    <div className="relative mt-24 sm:mt-28 bg-white rounded-2xl border-2 border-slate-200 shadow-2xl p-3 transition-all duration-200">
-                                      <DatePicker
-                                        selected={modalDates.checkOut}
-                                        allowRange={false}
-                                        onSelectAction={(s) => {
-                                          const date = Array.isArray(s) ? s[0] : s;
-                                          setModalDates((st) => ({ ...st, checkOut: date }));
-                                          setModalAvailError(null);
-                                          setModalCheckOutPickerOpen(false);
-                                        }}
-                                        onCloseAction={() => setModalCheckOutPickerOpen(false)}
-                                        minDate={modalDates.checkIn || localIsoDate()}
-                                      />
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="mt-3 flex items-center justify-between gap-2">
-                            <button
-                              type="button"
-                              onClick={() => runAvailabilityCheck(property!.id, modalDates.checkIn, modalDates.checkOut)}
-                              disabled={modalAvailLoading}
-                              className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              {modalAvailLoading ? (
-                                <span className="inline-flex items-center gap-2">
-                                  <LogoSpinner size="xs" ariaLabel="Checking availability" />
-                                  Checking...
-                                </span>
-                              ) : (
-                                "Check availability"
-                              )}
-                            </button>
-                            {modalAvailError ? (
-                              <div className="text-xs font-semibold text-rose-700">{modalAvailError}</div>
-                            ) : null}
-                          </div>
-                          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Availability</div>
-                          <div className="mt-1 text-sm font-semibold text-slate-900">
-                            {computedAvailableRooms == null
-                              ? "Select dates and check availability"
-                              : Number(computedAvailableRooms) > 0
-                                ? availabilityMode === "default"
-                                  ? `${computedAvailableRooms} available (overall)`
-                                  : `${computedAvailableRooms} available`
-                                : "No availability for selected dates"}
-                          </div>
-                          {availabilityMode === "default" ? (
-                            <div className="mt-1 text-[11px] text-slate-500">
-                              This listing tracks availability at the property level (no per-room codes yet).
-                            </div>
-                          ) : null}
-                          {byCode && !availabilityMatchesDates && (modalDates.checkIn && modalDates.checkOut) ? (
-                            <div className="mt-1 text-[11px] text-amber-700">
-                              Availability shown may be for different dates. Tap "Check availability".
-                            </div>
-                          ) : null}
-                          <div className="mt-4 flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                router.push(buildBookingUrl());
-                              }}
-                              disabled={!canBook}
-                              className="flex-1 inline-flex items-center justify-center rounded-xl bg-[#02665e] text-white py-2.5 text-sm font-semibold hover:bg-[#014e47] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              Book this room type
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                document.getElementById("roomsSection")?.scrollIntoView({ behavior: "smooth", block: "start" });
-                                setRoomQuickView(null);
-                              }}
-                              className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 hover:bg-slate-50 transition-colors"
-                            >
-                              View rooms
-                            </button>
-                          </div>
-                          {!selectedDates.checkIn || !selectedDates.checkOut ? (
-                            <div className="mt-2 text-xs text-amber-700">
-                              Tip: select dates in ""Check Availability", then tap ""Check Availability".
-                            </div>
-                          ) : null}
-                        </div>
-                      </div>
-                      )
-                    );
-                  })()}
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : null}
+        {roomQuickView && (
+          <RoomQuickViewModal
+            roomType={roomQuickView.roomType}
+            floor={roomQuickView.floor}
+            propertyId={property.id}
+            initialCheckIn={selectedDates.checkIn}
+            initialCheckOut={selectedDates.checkOut}
+            onClose={() => setRoomQuickView(null)}
+            router={router}
+          />
+        )}
         {/* Rooms (full-width on large screens; no horizontal scroll) */}
         <div id="roomsSection" className="mt-6 rounded-2xl border border-slate-200 bg-white p-5">
           <div className="flex items-center gap-2">
@@ -3325,9 +2801,6 @@ export default function PublicPropertyDetailPage() {
                   return (
                     <motion.div
                       key={r.roomType + '-' + idx}
-                      initial={{ opacity: 0, y: 18 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true, margin: '-24px' }}
                       transition={{ duration: 0.42, delay: idx * 0.07, ease: [0.2, 0.8, 0.2, 1] }}
                       className="group relative flex rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition-shadow duration-300"
                     >

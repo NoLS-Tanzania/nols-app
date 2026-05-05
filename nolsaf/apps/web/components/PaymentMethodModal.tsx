@@ -1,9 +1,9 @@
 "use client";
 import { useState, useEffect } from "react";
 import { X, Smartphone, Wallet, Check } from "lucide-react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 interface PaymentMethodModalProps {
   isOpen: boolean;

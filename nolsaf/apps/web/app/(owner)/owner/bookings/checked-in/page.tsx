@@ -1,11 +1,11 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import { Calendar, Loader2, CheckCircle, User, Phone, FileText, ChevronDown } from "lucide-react";
 import Link from "next/link";
 
 // Use same-origin calls + secure httpOnly cookie session.
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 type CheckedInBooking = {
   id: number;

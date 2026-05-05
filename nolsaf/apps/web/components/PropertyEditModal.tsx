@@ -3,10 +3,10 @@
 import { useState, useEffect } from "react";
 import { X, Save, Percent, DollarSign, Calendar, Settings, AlertCircle, Lock } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 
 // Use same-origin calls (Next rewrites proxy to API in dev) + secure httpOnly cookie session.
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 interface PropertyEditModalProps {
   property: any;

@@ -1,13 +1,13 @@
 "use client";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import Link from "next/link";
 import Image from "next/image";
 import { useParams } from "next/navigation";
 import { ArrowLeft, Download, Mail, Phone, Calendar, Printer, User, Home, DollarSign, FileText, Star, X } from "lucide-react";
 import { sanitizeTrustedHtml } from "@/utils/html";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 type BookingDetail = {
   id: number;

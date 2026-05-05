@@ -1,13 +1,13 @@
 ﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import Link from "next/link";
 import { Calendar, Loader2, Search, RotateCw, X, History, CheckCircle2 } from "lucide-react";
 import TableRow from "@/components/TableRow";
 
 // Use same-origin calls + secure httpOnly cookie session.
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 type CheckedOutItem = {
   id: number;

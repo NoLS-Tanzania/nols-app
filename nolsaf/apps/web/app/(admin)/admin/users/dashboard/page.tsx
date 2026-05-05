@@ -3,11 +3,11 @@
 import { useEffect, useState, useMemo } from "react";
 import { Users, UserCheck, Mail, Phone, Lock, TrendingUp, DollarSign, ShoppingCart, Car, CheckCircle, Clock, Eye } from "lucide-react";
 import Link from "next/link";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import Chart from "@/components/Chart";
 import type { ChartData } from "chart.js";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 function authify() {}
 
 type SummaryData = {

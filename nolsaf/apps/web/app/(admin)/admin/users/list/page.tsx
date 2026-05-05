@@ -1,14 +1,14 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { Users, Search, X, Mail, Phone, Lock, ShoppingCart, DollarSign, Eye, MoreVertical, CheckCircle, XCircle, Loader2, Filter } from "lucide-react";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import { io, Socket } from "socket.io-client";
 import Link from "next/link";
 import Chart from "@/components/Chart";
 import TableRow from "@/components/TableRow";
 import type { ChartData } from "chart.js";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 type CustomerRow = {
   id: number;

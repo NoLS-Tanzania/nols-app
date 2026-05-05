@@ -2,7 +2,7 @@
 import { createPortal } from "react-dom";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import Link from "next/link";
-import axios from "axios";
+import axios from "axios";import apiClient from "@/lib/apiClient";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import {
@@ -14,7 +14,7 @@ import {
 import DatePickerField from "@/components/DatePickerField";
 
 // Use same-origin calls + secure httpOnly cookie session.
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 
 

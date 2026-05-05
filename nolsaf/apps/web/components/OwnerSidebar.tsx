@@ -2,14 +2,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
-import axios from "axios";
 import {
   Calendar, Wallet, FileText, PlusSquare, LayoutDashboard,
   ChevronDown, ChevronRight, Users, HandHeart, CalendarDays,
   CheckCircle2, Building2, BadgeCheck, TrendingUp, LogIn, LogOut, BarChart3,
 } from "lucide-react";
+import apiClient from "@/lib/apiClient";
 
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 
 /* 
    COLLAPSED ICON BUTTON

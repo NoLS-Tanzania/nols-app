@@ -2,12 +2,12 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { AlertCircle, Search, X, Calendar, MapPin, Clock, User, UsersRound, TrendingUp } from "lucide-react";
 import DatePicker from "@/components/ui/DatePicker";
-import axios from "axios";
+import apiClient from "@/lib/apiClient";
 import Chart from "@/components/Chart";
 import type { ChartData } from "chart.js";
 
 // Use same-origin for HTTP calls so Next.js rewrites (/api/*) proxy to the API
-const api = axios.create({ baseURL: "", withCredentials: true });
+const api = apiClient;
 function authify() {}
 
 type RequestRow = {
