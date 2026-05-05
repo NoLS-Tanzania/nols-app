@@ -2801,9 +2801,6 @@ export default function PublicPropertyDetailPage() {
                   return (
                     <motion.div
                       key={r.roomType + '-' + idx}
-                      initial={{ opacity: 0, y: 18 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true, margin: '-24px' }}
                       transition={{ duration: 0.42, delay: idx * 0.07, ease: [0.2, 0.8, 0.2, 1] }}
                       className="group relative flex rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition-shadow duration-300"
                     >

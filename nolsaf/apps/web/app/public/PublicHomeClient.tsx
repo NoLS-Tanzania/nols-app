@@ -1119,7 +1119,6 @@ export default function Page() {
           <div className="relative flex flex-col lg:flex-row lg:items-stretch gap-0">
               <div className="flex-1 px-5 sm:px-8 lg:px-10 pt-7 pb-6 lg:pb-7 flex flex-col items-center">
                 <motion.div
-                  initial={{ opacity: 0, y: 14 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6, ease: [0.2, 0.8, 0.2, 1] }}
                   className="max-w-4xl mx-auto text-center"
@@ -1137,7 +1136,6 @@ export default function Page() {
                 </motion.div>
 
                 <motion.div
-                  initial={{ opacity: 0, y: 18 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6, delay: 0.08, ease: [0.2, 0.8, 0.2, 1] }}
                   className="mt-5 sm:mt-8 w-full max-w-3xl lg:max-w-xl mx-auto"
@@ -1447,9 +1445,6 @@ export default function Page() {
 
           <motion.div
             className="mb-12 flex flex-col items-center text-center"
-            initial={{ opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: '-60px' }}
             transition={{ duration: 0.55, ease: [0.2, 0.8, 0.2, 1] }}
           >
             <div className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-[11px] font-semibold tracking-[0.12em] uppercase shadow-sm ring-1 bg-gradient-to-r from-emerald-50 via-white to-sky-50 ring-slate-200/80 text-slate-500">
@@ -1483,9 +1478,6 @@ export default function Page() {
               aria-label="Travelers - Browse stays"
               className="group relative min-w-0 h-full cursor-pointer rounded-3xl overflow-hidden transition-shadow duration-500 hover:shadow-[0_28px_70px_rgba(4,120,87,0.40)]"
               style={{ boxShadow: '0 8px 32px rgba(4,120,87,0.22)' }}
-              initial={{ opacity: 0, y: 32 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: '-40px' }}
               transition={{ duration: 0.5, delay: 0, ease: [0.2, 0.8, 0.2, 1] }}
               whileHover={{ y: -8 }}
             >
@@ -1527,9 +1519,6 @@ export default function Page() {
               aria-label="Drivers - Register as a driver"
               className="group relative min-w-0 h-full cursor-pointer rounded-3xl overflow-hidden transition-shadow duration-500 hover:shadow-[0_28px_70px_rgba(2,132,199,0.40)]"
               style={{ boxShadow: '0 8px 32px rgba(2,132,199,0.22)' }}
-              initial={{ opacity: 0, y: 32 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: '-40px' }}
               transition={{ duration: 0.5, delay: 0.1, ease: [0.2, 0.8, 0.2, 1] }}
               whileHover={{ y: -8 }}
             >
@@ -1571,9 +1560,6 @@ export default function Page() {
               aria-label="Property Owners - List your property"
               className="group relative min-w-0 col-span-1 min-[420px]:col-span-2 md:col-span-1 h-full sm:mt-0 cursor-pointer rounded-3xl overflow-hidden transition-shadow duration-500 hover:shadow-[0_28px_70px_rgba(109,40,217,0.40)]"
               style={{ boxShadow: '0 8px 32px rgba(109,40,217,0.22)' }}
-              initial={{ opacity: 0, y: 32 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: '-40px' }}
               transition={{ duration: 0.5, delay: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
               whileHover={{ y: -8 }}
             >
@@ -1646,9 +1632,6 @@ export default function Page() {
               return (
                 <motion.div
                   key={c.key}
-                  initial={{ opacity: 0, y: 24 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, margin: '-30px' }}
                   transition={{ duration: 0.45, delay: (idx % 5) * 0.07, ease: [0.2, 0.8, 0.2, 1] }}
                 >
                 <Link
@@ -1726,9 +1709,6 @@ export default function Page() {
           {/* ── Featured Destinations — left-aligned editorial heading ── */}
           <motion.div
             className="mt-14 sm:mt-16 relative"
-            initial={{ opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: '-50px' }}
             transition={{ duration: 0.55, ease: [0.2, 0.8, 0.2, 1] }}
           >
             {/* Gradient top accent */}
@@ -1887,9 +1867,6 @@ export default function Page() {
                   ].map(({ title, desc, Icon, href, accent }, idx) => (
                     <motion.div
                       key={title}
-                      initial={{ opacity: 0, y: 20 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true, margin: '-30px' }}
                       transition={{ duration: 0.45, delay: idx * 0.08, ease: [0.2, 0.8, 0.2, 1] }}
                     >
                     <Link
