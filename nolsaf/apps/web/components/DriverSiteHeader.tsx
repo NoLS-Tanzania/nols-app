@@ -3,6 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
+import { clearAuthToken } from "@/lib/apiClient";
 import dynamic from "next/dynamic";
 import {
   Bell,
@@ -375,6 +376,7 @@ export default function DriverSiteHeader({ unreadMessages = 0 }: { unreadMessage
                       onClick={async () => {
                         try {
                           await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+                          clearAuthToken();
                         } catch {}
                         window.location.href = logoutRedirect;
                       }}
@@ -470,6 +472,7 @@ export default function DriverSiteHeader({ unreadMessages = 0 }: { unreadMessage
                   setOpen(false);
                   try {
                     await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+                    clearAuthToken();
                   } catch {}
                   window.location.href = logoutRedirect;
                 }}

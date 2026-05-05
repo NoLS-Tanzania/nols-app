@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import Image from "next/image";
 import { Bell, LifeBuoy, Settings as SettingsIcon, RefreshCw, Download, Sliders, Sun, Moon, Plus, FileText, Shield, Lock, Truck, User, Gift, Calendar, LogOut, ChevronDown, Trophy, Share2, Building2, CheckCircle, Home, DollarSign, LayoutDashboard, Clock } from "lucide-react";
 import dynamic from 'next/dynamic';
+import { clearAuthToken } from "@/lib/apiClient";
 const LegalModal = dynamic(() => import('@/components/LegalModal'), { ssr: false });
 import ClientErrorBoundary from '@/components/ClientErrorBoundary';
 
@@ -704,7 +705,8 @@ export default function SiteHeader({
                         onClick={async () => {
                           try {
                             await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-                          } catch {}
+                            clearAuthToken();
+                          } catch {}  
                           window.location.href = logoutRedirect;
                         }}
                         className="group w-[calc(100%-1rem)] mx-2 flex items-center gap-3 rounded-xl px-3 py-2 text-sm text-rose-200 bg-transparent hover:bg-rose-500/10 active:bg-rose-500/10 transition-all duration-200 ease-out active:scale-[0.99] appearance-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/30"
@@ -949,6 +951,7 @@ export default function SiteHeader({
                       onClick={async () => {
                         try {
                           await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+                          clearAuthToken();
                         } catch {}
                         window.location.href = logoutRedirect;
                       }}
@@ -1126,6 +1129,7 @@ export default function SiteHeader({
                       onClick={async () => {
                         try {
                           await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+                          clearAuthToken();
                         } catch {}
                         window.location.href = logoutRedirect;
                       }}
@@ -1389,6 +1393,7 @@ export default function SiteHeader({
                     setOpen(false);
                     try {
                       await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+                      clearAuthToken();
                     } catch {}
                     window.location.href = logoutRedirect;
                   }}

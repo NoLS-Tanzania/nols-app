@@ -4,6 +4,7 @@ import Link from "next/link";
 import React, { useEffect, useState, useCallback } from "react";
 import { Home, Building2, PlusSquare, User, Car, Calendar, Users, ClipboardList, Settings as SettingsIcon, LogOut, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
+import { clearAuthToken } from "@/lib/apiClient";
 
 interface MeResponse {
   id: number;
@@ -279,6 +280,7 @@ export default function MobilePublicNav() {
               onClick={async () => {
                 setMenuOpen(false);
                 await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+                clearAuthToken();
                 window.location.href = "/account/login";
               }}
             >

@@ -383,7 +383,7 @@ router.post('/verify-otp', limitOtpVerify, async (req, res) => {
       });
       const token = await signUserJwt({ id: user.id, role: user.role, email: user.email });
       await setAuthCookie(res, token, user.role);
-      return res.json({ ok: true, message: "verified (master otp)", user: { id: user.id, phone: user.phone, role: user.role } });
+      return res.json({ ok: true, message: "verified (master otp)", token, user: { id: user.id, phone: user.phone, role: user.role } });
     } catch (e: any) {
       console.error("verify-otp (master otp) failed to issue JWT", e);
       return res.status(503).json({ error: 'database_unavailable', message: 'Unable to create account right now.' });
@@ -491,6 +491,7 @@ router.post('/verify-otp', limitOtpVerify, async (req, res) => {
       return res.json({
         ok: true,
         message: 'verified',
+        token,
         user: { id: existing.id, phone: existing.phone, role: existing.role },
       });
     } catch (e) {
@@ -552,7 +553,7 @@ router.post('/verify-otp', limitOtpVerify, async (req, res) => {
     });
     const token = await signUserJwt({ id: user.id, role: user.role, email: user.email });
     await setAuthCookie(res, token, user.role);
-    return res.json({ ok: true, message: "verified", user: { id: user.id, phone: user.phone, role: user.role } });
+    return res.json({ ok: true, message: "verified", token, user: { id: user.id, phone: user.phone, role: user.role } });
   } catch (e) {
     console.error("verify-otp failed to issue JWT", e);
     return res.status(503).json({ error: 'database_unavailable', message: "Unable to create account right now." });
@@ -890,7 +891,7 @@ router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res,
       }
     }
 
-    return res.status(200).json({ ok: true, user: { id: user.id, role: user.role, email: user.email } });
+    return res.status(200).json({ ok: true, token, user: { id: user.id, role: user.role, email: user.email } });
   } catch (e: any) {
     console.error("[LOGIN] login-password failed", e);
     

@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 
 import ClientErrorBoundary from "@/components/ClientErrorBoundary";
+import { clearAuthToken } from "@/lib/apiClient";
 
 const LegalModal = dynamic(() => import("@/components/LegalModal"), { ssr: false });
 
@@ -342,6 +343,7 @@ export default function OwnerSiteHeader({ unreadMessages = 0 }: { unreadMessages
                       onClick={async () => {
                         try {
                           await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+                          clearAuthToken();
                         } catch {}
                         window.location.href = logoutRedirect;
                       }}

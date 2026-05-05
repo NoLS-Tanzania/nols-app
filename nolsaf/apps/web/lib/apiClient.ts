@@ -30,4 +30,19 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
+/** Save auth token to localStorage after login/registration */
+export function saveAuthToken(token: string | null | undefined): void {
+  if (typeof localStorage === "undefined" || !token) return;
+  localStorage.setItem("token", token);
+  localStorage.setItem("nolsaf_token", token);
+}
+
+/** Remove auth token from localStorage on logout */
+export function clearAuthToken(): void {
+  if (typeof localStorage === "undefined") return;
+  localStorage.removeItem("token");
+  localStorage.removeItem("nolsaf_token");
+  localStorage.removeItem("__Host-nolsaf_token");
+}
+
 export default apiClient;

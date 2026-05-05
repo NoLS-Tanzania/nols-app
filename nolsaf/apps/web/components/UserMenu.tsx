@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { clearAuthToken } from "@/lib/apiClient";
 import { 
   User, 
   Calendar, 
@@ -199,6 +200,7 @@ export default function UserMenu({ variant = "dark" }: { variant?: "light" | "da
                 setOpen(false);
                 try {
                   await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+                  clearAuthToken();
                 } catch {}
                 window.location.href = logoutRedirect;
               }}

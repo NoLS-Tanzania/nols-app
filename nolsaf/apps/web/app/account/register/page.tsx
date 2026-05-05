@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import apiClient from "@/lib/apiClient";
+import apiClient, { saveAuthToken } from "@/lib/apiClient";
 import { AlertCircle, Check, UserPlus, Lock, LogIn, User, Truck, Building2, Mail, ArrowLeft, Phone, Eye, EyeOff, Shield, Fingerprint, ShieldX, AlertTriangle, ChevronDown } from 'lucide-react';
 import { useRouter, useSearchParams } from "next/navigation";
 import LogoSpinner from "@/components/LogoSpinner";
@@ -436,6 +436,8 @@ export default function RegisterPage() {
         const data = await resp.json().catch(() => ({}));
         throw new Error(data?.message || 'OTP verification failed');
       }
+      const data = await resp.json().catch(() => ({}));
+      saveAuthToken(data.token);
       setSuccess('Verified. Account created');
       setStep('done');
       const nextPath = safeNextPath(nextParamRaw);
@@ -1064,6 +1066,7 @@ export default function RegisterPage() {
                           setLockoutUntil(null);
                           setLockoutTotalSeconds(0);
                           setLockoutMessage(null);
+                          saveAuthToken(data.token);
                           await redirectAfterAuth();
                         } catch (e: any) {
                           setError(e?.message || 'Failed to sign in');
@@ -1150,6 +1153,7 @@ export default function RegisterPage() {
                           });
                           
                           if (response.status === 200) {
+                            saveAuthToken(response.data?.token);
                             // Auth cookie is set httpOnly by the API; redirect to authenticated area.
                             await redirectAfterAuth();
                           }
