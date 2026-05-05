@@ -23,10 +23,18 @@ const getSocketUrl = () => {
 };
 
 // Helper function to get authentication token.
-// httpOnly auth cookies are forwarded automatically via withCredentials: true.
-// Only check readable cookies here as a transitional fallback; localStorage is not consulted.
+// Checks localStorage first (most reliable for cross-origin socket connections),
+// then falls back to readable cookies. httpOnly cookies cannot be read here but
+// are forwarded automatically via withCredentials: true for same-site requests.
 function getAuthToken(): string | null {
   if (typeof window === 'undefined') return null;
+  // localStorage is the primary store for the JWT in this app
+  const fromStorage =
+    localStorage.getItem("token") ||
+    localStorage.getItem("nolsaf_token") ||
+    localStorage.getItem("__Host-nolsaf_token");
+  if (fromStorage) return fromStorage;
+  // Fallback: readable (non-httpOnly) cookies
   const m = String(document.cookie || "").match(/(?:^|;\s*)(?:nolsaf_token|__Host-nolsaf_token|token)=([^;]+)/);
   return m?.[1] ? decodeURIComponent(m[1]) : null;
 }
