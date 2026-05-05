@@ -2274,6 +2274,43 @@ export default function PropertyAvailabilityPage() {
               </div>
             </div>
 
+            {/* Inline capacity error banner — shown at top of form instead of a blocking overlay */}
+            {capacityError && (
+              <div className="mx-4 mt-3 sm:mx-5 rounded-xl border border-rose-200 bg-rose-50 p-3 sm:p-4 animate-in fade-in duration-200">
+                <div className="flex items-start gap-2.5">
+                  <div className="w-7 h-7 rounded-lg bg-rose-500 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <AlertCircle className="w-4 h-4 text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-rose-900">Rooms at capacity</p>
+                    <p className="text-xs text-rose-700 mt-0.5">
+                      <strong>{capacityError.roomType}</strong>: {capacityError.roomsLeft} room{capacityError.roomsLeft !== 1 ? "s" : ""} left
+                      {capacityError.totalRooms != null && (
+                        <span className="text-rose-600/80"> · Total {capacityError.totalRooms} · Booked {capacityError.bookedRooms ?? 0} · Blocked {capacityError.blockedRooms ?? 0}{capacityError.bedsRequested != null ? ` · Requested ${capacityError.bedsRequested}` : ""}</span>
+                      )}
+                    </p>
+                    {(capacityError.otherRoomTypes?.length ?? 0) > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {capacityError.otherRoomTypes!.map((o, i) => (
+                          <button
+                            key={`${o.type}-${i}`}
+                            type="button"
+                            onClick={() => selectRoomTypeFromCapacityModal(o.type)}
+                            className="text-xs px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-200 hover:bg-emerald-200 font-semibold transition"
+                          >
+                            {o.type}: {o.roomsLeft} left
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <button type="button" onClick={() => setCapacityError(null)} className="w-6 h-6 flex items-center justify-center rounded hover:bg-rose-200 text-rose-500 transition flex-shrink-0">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Form Content */}
             <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto">
               <div className="p-4 sm:p-5 space-y-4 sm:space-y-5">
@@ -2622,8 +2659,8 @@ export default function PropertyAvailabilityPage() {
         </div>
       )}
 
-      {/* Capacity Exceeded Modal — rooms at capacity for selected type */}
-      {capacityError && (
+      {/* Capacity Exceeded Modal removed — error now shown inline at top of block form */}
+      {false && capacityError && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
           <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl max-w-md sm:max-w-lg w-full my-auto animate-in zoom-in-95 duration-200 max-h-[95vh] flex flex-col overflow-hidden">
             <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-200 bg-gradient-to-r from-rose-50 to-red-50 flex-shrink-0 rounded-t-2xl sm:rounded-t-3xl">

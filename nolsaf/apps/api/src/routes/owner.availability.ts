@@ -186,24 +186,18 @@ router.post("/blocks", (async (req: AuthedRequest, res: Response) => {
       return;
     }
 
-    // Capacity check: do not allow booked+blocked to exceed total registered rooms for this type
+    // Capacity check: do not allow booked+blocked to exceed total registered rooms for this type.
+    // Single calculateAvailability call (no roomType filter) returns all room types at once,
+    // avoiding a second sequential DB call when we need to list alternatives.
     if (data.roomCode) {
       const roomType = (data.roomCode || "").replace(/-\d+$/, "") || data.roomCode || "";
-      const calculation = await calculateAvailability(
-        data.propertyId,
-        startDate,
-        endDate,
-        null,
-        roomType,
-        {}
-      );
+      const all = await calculateAvailability(data.propertyId, startDate, endDate, null, undefined, {});
       const rt =
-        calculation.byRoomType[roomType] ??
-        Object.entries(calculation.byRoomType).find(([k]) => k.toLowerCase() === (roomType || "").toLowerCase())?.[1];
+        all.byRoomType[roomType] ??
+        Object.entries(all.byRoomType).find(([k]) => k.toLowerCase() === (roomType || "").toLowerCase())?.[1];
       const beds = data.bedsBlocked ?? 1;
       const roomsLeft = rt?.availableRooms ?? 0;
       if (rt && beds > roomsLeft) {
-        const all = await calculateAvailability(data.propertyId, startDate, endDate, null, undefined);
         const otherRoomTypes = Object.entries(all.byRoomType)
           .filter(([k, v]) => v.availableRooms > 0 && k.toLowerCase() !== (roomType || "").toLowerCase())
           .map(([k, v]) => ({ type: k, roomsLeft: v.availableRooms }));
@@ -369,20 +363,19 @@ router.put("/blocks/:id", (async (req: AuthedRequest, res: Response) => {
     const effectiveEnd = updateData.endDate ?? existingBlock.endDate;
     if (effectiveRoomCode && effectiveEnd > effectiveStart) {
       const roomType = (effectiveRoomCode || "").replace(/-\d+$/, "") || effectiveRoomCode || "";
-      const calculation = await calculateAvailability(
+      const all = await calculateAvailability(
         existingBlock.propertyId,
         effectiveStart,
         effectiveEnd,
         null,
-        roomType,
+        undefined,
         { excludeBlockId: blockId }
       );
       const rt =
-        calculation.byRoomType[roomType] ??
-        Object.entries(calculation.byRoomType).find(([k]) => k.toLowerCase() === (roomType || "").toLowerCase())?.[1];
+        all.byRoomType[roomType] ??
+        Object.entries(all.byRoomType).find(([k]) => k.toLowerCase() === (roomType || "").toLowerCase())?.[1];
       const roomsLeft = rt?.availableRooms ?? 0;
       if (rt && effectiveBeds > roomsLeft) {
-        const all = await calculateAvailability(existingBlock.propertyId, effectiveStart, effectiveEnd, null, undefined);
         const otherRoomTypes = Object.entries(all.byRoomType)
           .filter(([k, v]) => v.availableRooms > 0 && k.toLowerCase() !== (roomType || "").toLowerCase())
           .map(([k, v]) => ({ type: k, roomsLeft: v.availableRooms }));
