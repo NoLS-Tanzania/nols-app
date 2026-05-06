@@ -6,6 +6,7 @@ import { useRouter, useParams } from "next/navigation";
 import { REGIONS } from "@/lib/tzRegions";
 import { REGIONS_FULL_DATA } from "@/lib/tzRegionsFull";
 import DatePickerField from "@/components/DatePickerField";
+import apiClient from "@/lib/apiClient";
 import * as Icons from 'lucide-react';
 import { User, Mail, UserCircle, Globe, CreditCard, FileText, Upload, CheckCircle2, Truck, MapPin, Phone, ChevronDown, AlertCircle, ChevronLeft, ChevronRight, Loader2, Car, X, Clock, Building2, UserCircle2, ArrowLeft, Star, Shield, Lock, AlertTriangle, Calendar } from 'lucide-react';
 
@@ -169,10 +170,8 @@ export default function OnboardRole() {
     let alive = true;
     (async () => {
       try {
-        const r = await fetch('/api/account/me', { credentials: 'include' });
-        if (!r.ok) return;
-        const json: any = await r.json().catch(() => null);
-        const me = json?.data ?? json;
+        const r = await apiClient.get('/api/account/me');
+        const me = r.data?.data ?? r.data;
         if (!alive) return;
 
         const actualRole = normalizeAccountRole(me?.role);
@@ -280,12 +279,11 @@ export default function OnboardRole() {
   };
 
   const uploadToCloudinary = async (file: File, folder: string) => {
-    const sigResp = await fetch(`/api/uploads/cloudinary/sign?folder=${encodeURIComponent(folder)}`, { credentials: 'include' });
-    if (!sigResp.ok) {
-      const data: any = await sigResp.json().catch(() => ({}));
-      throw new Error(data?.message || data?.error || 'Failed to prepare secure document upload.');
-    }
-    const sig = await sigResp.json() as CloudinarySig;
+    const sigResp = await apiClient.get('/api/uploads/cloudinary/sign', { params: { folder } }).catch((err: any) => {
+      const msg = err?.response?.data?.message || err?.response?.data?.error;
+      throw new Error(msg || 'Failed to prepare secure document upload.');
+    });
+    const sig = sigResp.data as CloudinarySig;
     const fd = new FormData();
     fd.append('file', file);
     fd.append('timestamp', String(sig.timestamp));
@@ -326,28 +324,22 @@ export default function OnboardRole() {
     setDocUploadState({ type, label });
     const url = await uploadToCloudinary(file, 'driver-documents');
     const expiresAtIso = requiresExpiry ? new Date(`${licenseExpiresOn}T23:59:59.999Z`).toISOString() : null;
-    const resp = await fetch('/api/account/documents', {
-      method: 'PUT',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type,
-        url,
-        metadata: {
-          fileName: file.name,
-          contentType: file.type,
-          size: file.size,
-          uploadedAt: new Date().toISOString(),
-          source: 'driver-onboarding',
-          ...(expiresAtIso ? { expiresAt: expiresAtIso, expiresOn: licenseExpiresOn } : null),
-        },
-      }),
+    const resp = await apiClient.put('/api/account/documents', {
+      type,
+      url,
+      metadata: {
+        fileName: file.name,
+        contentType: file.type,
+        size: file.size,
+        uploadedAt: new Date().toISOString(),
+        source: 'driver-onboarding',
+        ...(expiresAtIso ? { expiresAt: expiresAtIso, expiresOn: licenseExpiresOn } : null),
+      },
+    }).catch((err: any) => {
+      const msg = err?.response?.data?.message || err?.response?.data?.error;
+      throw new Error(msg || `Failed to save the ${label.toLowerCase()} record.`);
     });
-    if (!resp.ok) {
-      const data: any = await resp.json().catch(() => ({}));
-      throw new Error(data?.message || data?.error || `Failed to save the ${label.toLowerCase()} record.`);
-    }
-    const data: any = await resp.json().catch(() => ({}));
+    const data: any = resp.data;
     const saved = data?.data?.doc ?? data?.doc ?? null;
     if (saved) {
       setUploadedDriverDocs((prev) => [saved, ...prev.filter((doc) => String(doc?.type ?? '').toUpperCase() !== String(type).toUpperCase())]);
@@ -439,23 +431,7 @@ export default function OnboardRole() {
       fd.append('submitForReview', 'true');
       }
 
-      const resp = await fetch('/api/auth/profile', { method: 'POST', body: fd });
-      if (!resp.ok) {
-        const data: any = await resp.json().catch(() => ({}));
-        if (data?.error === 'weak_password') {
-          const reasons = Array.isArray(data?.reasons) ? data.reasons.filter((x: any) => typeof x === 'string' && x.trim()) : [];
-          setError('Your password is too weak. Please make it stronger and try again.');
-          setErrorReasons(reasons.length ? reasons : null);
-          return;
-        }
-        if (data?.error === 'role_mismatch') {
-          throw new Error(
-            data?.message ||
-              `You're signed in with a different account role and can't complete onboarding for “${role}”. Please sign in with the correct role account.`
-          );
-        }
-        throw new Error(data?.message || data?.error || 'Failed to save profile');
-      }
+      await apiClient.post('/api/auth/profile', fd);
       setSuccess(role === 'driver' ? 'Application submitted for professional review.' : 'Profile saved');
       // navigate to role dashboard or public account area
       setTimeout(() => {
@@ -464,7 +440,18 @@ export default function OnboardRole() {
         else router.push('/account');
       }, 800);
     } catch (err: any) {
-      setError(err?.message || 'Failed to save profile');
+      const apiErr = (err as any)?.response?.data;
+      if (apiErr?.error === 'weak_password') {
+        const reasons = Array.isArray(apiErr?.reasons) ? apiErr.reasons.filter((x: any) => typeof x === 'string' && x.trim()) : [];
+        setError('Your password is too weak. Please make it stronger and try again.');
+        setErrorReasons(reasons.length ? reasons : null);
+        return;
+      }
+      if (apiErr?.error === 'role_mismatch') {
+        setError(apiErr?.message || `You're signed in with a different account role and can't complete onboarding for “${role}”. Please sign in with the correct role account.`);
+        return;
+      }
+      setError(apiErr?.message || apiErr?.error || err?.message || 'Failed to save profile');
     } finally {
       setDocUploadState(null);
       setLoading(false);
@@ -712,15 +699,7 @@ export default function OnboardRole() {
     setPaymentLoading(true);
     try {
       // Call API to send payment verification OTP
-      const resp = await fetch('/api/auth/send-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: paymentPhone, role: 'driver' }),
-      });
-      if (!resp.ok) {
-        const data = await resp.json().catch(() => ({}));
-        throw new Error(data?.message || 'Failed to send OTP');
-      }
+      await apiClient.post('/api/auth/send-otp', { phone: paymentPhone, role: 'driver' });
       setPaymentSent(true);
       setPaymentMessage('OTP sent. Enter the code you received.');
       setPaymentCountdown(60);
@@ -733,7 +712,7 @@ export default function OnboardRole() {
       // focus OTP input shortly
       setTimeout(() => paymentOtpRef.current?.focus(), 200);
     } catch (err: any) {
-      setPaymentMessage(err?.message || 'Failed to send OTP');
+      setPaymentMessage((err as any)?.response?.data?.message || err?.message || 'Failed to send OTP');
     } finally {
       setPaymentLoading(false);
     }
@@ -750,20 +729,12 @@ export default function OnboardRole() {
     setPaymentLoading(true);
     try {
       // Verify payment OTP with API
-      const resp = await fetch('/api/auth/verify-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: paymentPhone, otp: paymentOtp, role: 'driver' }),
-      });
-      if (!resp.ok) {
-        const data = await resp.json().catch(() => ({}));
-        throw new Error(data?.message || 'OTP verification failed');
-      }
+      await apiClient.post('/api/auth/verify-otp', { phone: paymentPhone, otp: paymentOtp, role: 'driver' });
       setPaymentVerified(true);
       // don't show textual 'verified' message; the icon indicates verification
       setPaymentMessage(null);
     } catch (err: any) {
-      setPaymentMessage(err?.message || 'OTP verification failed');
+      setPaymentMessage((err as any)?.response?.data?.message || err?.message || 'OTP verification failed');
     } finally {
       setPaymentLoading(false);
     }
