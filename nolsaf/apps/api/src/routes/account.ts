@@ -188,19 +188,6 @@ const getMe: RequestHandler = async (req, res) => {
     stage = 'get_user_id';
     const userId = getUserId(req as AuthedRequest);
 
-    // Safe boolean: whether the account has a password set (never return passwordHash).
-    let hasPassword = false;
-    try {
-      const pw = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { passwordHash: true } as any,
-      });
-      hasPassword = Boolean((pw as any)?.passwordHash);
-    } catch {
-      // ignore - keep default
-      hasPassword = false;
-    }
-
     // Fail-soft: some local DBs may be missing newer columns that exist in Prisma schema.
     // Avoid `findUnique()` without `select` (Prisma will select all columns and can crash with P2022).
     let user: any = null;
@@ -217,6 +204,7 @@ const getMe: RequestHandler = async (req, res) => {
       phone: true,
       name: true,
       createdAt: true,
+      passwordHash: true,
     };
     // Common/profile fields
     if (hasField('fullName')) select.fullName = true;
@@ -290,6 +278,7 @@ const getMe: RequestHandler = async (req, res) => {
             phone: true,
             name: true,
             createdAt: true,
+            passwordHash: true,
           };
           // Always try to include payout, twoFactorEnabled, and twoFactorMethod even in minimal select
           minimalSelect.payout = true;
@@ -316,7 +305,7 @@ const getMe: RequestHandler = async (req, res) => {
             (user as any).tin = null;
             (user as any).address = null;
             // Try to fetch payout separately if not included
-            if (!(user as any).payout) {
+            if (typeof (user as any).payout === "undefined") {
               try {
                 const userWithPayout = await prisma.user.findUnique({
                   where: { id: userId },
@@ -337,7 +326,7 @@ const getMe: RequestHandler = async (req, res) => {
     }
     
     // Final fallback: if user exists but payout is missing, try to fetch it separately
-    if (user && !(user as any).payout) {
+    if (user && typeof (user as any).payout === "undefined") {
       try {
         const userWithPayout = await prisma.user.findUnique({
           where: { id: userId },
@@ -353,7 +342,7 @@ const getMe: RequestHandler = async (req, res) => {
     
     // Ensure twoFactorEnabled and twoFactorMethod are always fetched, even if main query didn't include them
     // Check if they're missing (undefined/null) or if we need to verify them from database
-    if (user && ((user as any).twoFactorEnabled === undefined || (user as any).twoFactorEnabled === null || (user as any).twoFactorMethod === undefined)) {
+    if (user && ((user as any).twoFactorEnabled === undefined || (user as any).twoFactorMethod === undefined)) {
       try {
         // Always try to fetch twoFactorEnabled and twoFactorMethod - they're critical fields
         const userWith2FA = await prisma.user.findUnique({
@@ -383,11 +372,12 @@ const getMe: RequestHandler = async (req, res) => {
       return sendError(res, 404, "User not found");
     }
 
-    // Attach safe derived fields
-    (user as any).hasPassword = hasPassword;
+    // Attach safe derived fields, then remove sensitive material before responding.
+    (user as any).hasPassword = Boolean((user as any).passwordHash);
+    delete (user as any).passwordHash;
     
     // Ensure payout is always attempted to be loaded, even if main query didn't include it
-    if (!(user as any).payout) {
+    if (typeof (user as any).payout === "undefined") {
       try {
         const payoutOnly = await prisma.user.findUnique({
           where: { id: userId },
@@ -403,7 +393,7 @@ const getMe: RequestHandler = async (req, res) => {
 
     // Best-effort: attach driver document URLs from UserDocument
     try {
-      if ((prisma as any).userDocument) {
+      if (String((user as any).role || "").toUpperCase() === "DRIVER" && (prisma as any).userDocument) {
         const docs = await prisma.userDocument.findMany({
           where: { userId },
           orderBy: { id: 'desc' },
