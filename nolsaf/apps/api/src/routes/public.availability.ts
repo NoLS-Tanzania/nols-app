@@ -9,6 +9,10 @@ import { AVAILABILITY_BLOCKING_BOOKING_STATUSES } from "../lib/bookingStatus.js"
 
 export const router = Router();
 
+const availabilityCache = new Map<string, { expiresAt: number; payload: any }>();
+const availabilityCacheTtlMs = 15_000;
+const maxAvailabilityCacheEntries = 500;
+
 /** Derive room-type key from roomCode (e.g. "Suite-1" -> "Suite", "Suite" -> "Suite") */
 function roomCodeToTypeKey(roomCode: string | null | undefined): string {
   const s = String(roomCode ?? "").trim();
@@ -85,6 +89,18 @@ router.post("/check", availabilityLimiter, (async (req: Request, res: Response) 
 
     if (checkOut <= checkIn) {
       res.status(400).json({ error: "Check-out date must be after check-in date" });
+      return;
+    }
+
+    const cacheKey = [
+      propertyId,
+      checkIn.toISOString(),
+      checkOut.toISOString(),
+      requestedRoomCode || "",
+    ].join("|");
+    const cached = availabilityCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      res.json(cached.payload);
       return;
     }
 
@@ -307,7 +323,7 @@ router.post("/check", availabilityLimiter, (async (req: Request, res: Response) 
 
     const isAvailable = totalAvailableRooms > 0 || totalAvailableBeds > 0;
 
-    res.json({
+    const payload = {
       available: isAvailable,
       propertyId,
       checkIn: checkIn.toISOString(),
@@ -322,7 +338,15 @@ router.post("/check", availabilityLimiter, (async (req: Request, res: Response) 
       byRoomType: availabilityByRoomType,
       conflictingBookings: conflictingBookings.length,
       availabilityBlocks: availabilityBlocks.length,
-    });
+    };
+
+    availabilityCache.set(cacheKey, { expiresAt: Date.now() + availabilityCacheTtlMs, payload });
+    if (availabilityCache.size > maxAvailabilityCacheEntries) {
+      const firstKey = availabilityCache.keys().next().value;
+      if (firstKey) availabilityCache.delete(firstKey);
+    }
+
+    res.json(payload);
   } catch (error: any) {
     console.error("POST /api/public/availability/check error:", error);
     res.status(500).json({ error: "Failed to check availability" });

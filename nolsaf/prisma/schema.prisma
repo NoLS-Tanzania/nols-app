@@ -416,6 +416,7 @@ model Booking {
   tripEstimates        TripEstimate[]
 
   @@index([propertyId])
+  @@index([propertyId, checkIn, checkOut])
   @@index([userId])
   @@index([driverId])
   @@index([status])

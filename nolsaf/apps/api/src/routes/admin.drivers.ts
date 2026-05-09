@@ -328,9 +328,6 @@ router.get("/", async (req, res) => {
     const skip = (Number(page) - 1) * Number(pageSize);
     const take = Math.min(Number(pageSize), 100);
 
-    console.log('[GET /admin/drivers] Query:', JSON.stringify(where, null, 2));
-    console.log('[GET /admin/drivers] Pagination:', { skip, take, page, pageSize });
-
     // Try querying without _count first to see if that's the issue
     let items: any[];
     let total: number;
@@ -365,7 +362,6 @@ router.get("/", async (req, res) => {
         prisma.user.count({ where }),
       ]);
       
-      console.log('[GET /admin/drivers] Found drivers:', total, 'items:', items.length);
     } catch (queryErr: any) {
       console.error('[GET /admin/drivers] Query error:', queryErr);
       // If the rich query fails, keep the same filters and retry with a reduced field set.
@@ -398,7 +394,6 @@ router.get("/", async (req, res) => {
           }),
           prisma.user.count({ where }),
         ]);
-        console.log('[GET /admin/drivers] Reduced-field fallback found:', total, 'drivers');
       } catch (fallbackErr: any) {
         console.error('[GET /admin/drivers] Fallback query also failed:', fallbackErr);
         throw fallbackErr;
@@ -423,7 +418,8 @@ router.get("/", async (req, res) => {
     // Aggregate transport performance for this page of drivers
     const driverIds = (items ?? []).map((x: any) => x?.id).filter((x: any) => Number.isFinite(Number(x))) as number[];
     const perfByDriver = new Map<number, { totalTrips: number; completedTrips: number; canceledTrips: number; avgRating: number | null; lastTripAt: string | null }>();
-    if (driverIds.length && (prisma as any).transportBooking) {
+    const includePerformance = String((req.query as any).includePerformance ?? "true") !== "false" && take > 1;
+    if (includePerformance && driverIds.length && (prisma as any).transportBooking) {
       const [overall, completed, canceled] = await Promise.all([
         (prisma as any).transportBooking.groupBy({
           by: ["driverId"],
@@ -499,7 +495,6 @@ router.get("/", async (req, res) => {
       performance: perfByDriver.get(Number(item.id)) ?? { totalTrips: 0, completedTrips: 0, canceledTrips: 0, avgRating: null, lastTripAt: null },
     }));
 
-    console.log('[GET /admin/drivers] Returning:', formattedItems.length, 'formatted items');
     return res.json({ total, page: Number(page), pageSize: take, items: formattedItems });
   } catch (err: any) {
     console.error('[GET /admin/drivers] Error details:', {

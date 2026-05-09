@@ -288,29 +288,19 @@ export default function AdminHome() {
     setLoadingApprovals(true);
     try {
       const pageSize = Number(limits.approvals) || 6;
-      const urls = {
-        new: `${API}/api/admin/properties?status=PENDING&page=1&pageSize=${pageSize}`,
-        pending: `${API}/api/admin/properties?status=SUSPENDED&page=1&pageSize=${pageSize}`,
-        approved: `${API}/api/admin/properties?status=APPROVED&page=1&pageSize=${pageSize}`,
-        rejected: `${API}/api/admin/properties?status=REJECTED&page=1&pageSize=${pageSize}`,
-      } as const;
+      const response = await fetch(`${API}/api/admin/properties?statuses=PENDING,SUSPENDED,APPROVED,REJECTED&page=1&pageSize=${pageSize * 4}&includeTotal=false`, { credentials: "include" });
+      const payload = await response.json();
+      const items = Array.isArray(payload?.items) ? payload.items : [];
+      const byStatus = (status: string) => items.filter((item: any) => String(item?.status || "").toUpperCase() === status).slice(0, pageSize);
 
-      const [rNew, rPending, rApproved, rRejected] = await Promise.all([
-        fetch(urls.new, { credentials: "include" }),
-        fetch(urls.pending, { credentials: "include" }),
-        fetch(urls.approved, { credentials: "include" }),
-        fetch(urls.rejected, { credentials: "include" }),
-      ]);
-
-      const jDraft = await rNew.json(); // actually PENDING (NEW)
-      const jPending = await rPending.json();
-      const jApproved = await rApproved.json();
-      const jRejected = await rRejected.json();
-
-      setPropNew(jDraft ?? { items: [], total: 0 });
-      setPropPending(jPending ?? { items: [], total: 0 });
-      setPropApproved(jApproved ?? { items: [], total: 0 });
-      setPropRejected(jRejected ?? { items: [], total: 0 });
+      const pendingItems = byStatus("PENDING");
+      const suspendedItems = byStatus("SUSPENDED");
+      const approvedItems = byStatus("APPROVED");
+      const rejectedItems = byStatus("REJECTED");
+      setPropNew({ items: pendingItems, total: pendingItems.length });
+      setPropPending({ items: suspendedItems, total: suspendedItems.length });
+      setPropApproved({ items: approvedItems, total: approvedItems.length });
+      setPropRejected({ items: rejectedItems, total: rejectedItems.length });
     } catch (e: any) {
       setPropNew({ items: [], total: 0 });
       setPropPending({ items: [], total: 0 });
@@ -324,22 +314,18 @@ export default function AdminHome() {
   const loadInvoices = useCallback(async () => {
     setLoadingInv(true);
     try {
-      // Fetch REQUESTED and VERIFIED and merge as 'New'
-      const [rRequested, rVerified, rApproved, rPaid, rRejected] = await Promise.all([
-        fetch(`${API}/admin/revenue/invoices?status=REQUESTED&page=1&pageSize=${Number(limits.invoices) || 5}`, { credentials: "include" }),
-        fetch(`${API}/admin/revenue/invoices?status=VERIFIED&page=1&pageSize=${Number(limits.invoices) || 5}`, { credentials: "include" }),
-        fetch(`${API}/admin/revenue/invoices?status=APPROVED&page=1&pageSize=${Number(limits.invoices) || 5}`, { credentials: "include" }),
-        fetch(`${API}/admin/revenue/invoices?status=PAID&page=1&pageSize=${Number(limits.invoices) || 5}`, { credentials: "include" }),
-        fetch(`${API}/admin/revenue/invoices?status=REJECTED&page=1&pageSize=${Number(limits.invoices) || 5}`, { credentials: "include" }),
+      const invoiceLimit = Number(limits.invoices) || 5;
+      const [rNew, rApproved, rPaid, rRejected] = await Promise.all([
+        fetch(`${API}/admin/revenue/invoices?statuses=REQUESTED,VERIFIED&page=1&pageSize=${invoiceLimit}&includeTotal=false`, { credentials: "include" }),
+        fetch(`${API}/admin/revenue/invoices?status=APPROVED&page=1&pageSize=${invoiceLimit}&includeTotal=false`, { credentials: "include" }),
+        fetch(`${API}/admin/revenue/invoices?status=PAID&page=1&pageSize=${invoiceLimit}&includeTotal=false`, { credentials: "include" }),
+        fetch(`${API}/admin/revenue/invoices?status=REJECTED&page=1&pageSize=${invoiceLimit}&includeTotal=false`, { credentials: "include" }),
       ]);
-      const jRequested = await rRequested.json();
-      const jVerified = await rVerified.json();
+      const jNew = await rNew.json();
       const jApproved = await rApproved.json();
       const jPaid = await rPaid.json();
       const jRejected = await rRejected.json();
-      // merge requested + verified into the New bucket
-      const newItems = [ ...(jRequested?.items || []), ...(jVerified?.items || []) ];
-      setInvNew({ items: newItems });
+      setInvNew(jNew ?? { items: [] });
       setInvApproved(jApproved ?? { items: [] });
       setInvPaid(jPaid ?? { items: [] });
       setInvRejected(jRejected ?? { items: [] });

@@ -151,14 +151,21 @@ router.get("/", (async (req: AuthedRequest, res) => {
     // Explicitly set Content-Type to JSON
     res.setHeader('Content-Type', 'application/json');
     
-    const { status, q, regionId, regionName, type, ownerId, page = "1", pageSize = "20" } =
+    const { status, statuses, q, regionId, regionName, type, ownerId, page = "1", pageSize = "20" } =
       req.query as any;
 
     const where: any = {};
     
     // Build base filters
-    if (status && status !== "ALL") {
-      where.status = status;
+    const statusList = String(statuses || status || "")
+      .split(",")
+      .map((value) => value.trim().toUpperCase())
+      .filter(Boolean)
+      .slice(0, 8);
+    if (statusList.length === 1 && statusList[0] !== "ALL") {
+      where.status = statusList[0];
+    } else if (statusList.length > 1) {
+      where.status = { in: statusList.filter((value) => value !== "ALL") };
     }
     if (regionId) {
       const regionIdNum = Number(regionId);
@@ -223,7 +230,7 @@ router.get("/", (async (req: AuthedRequest, res) => {
     }
 
     const skip = (Number(page) - 1) * Number(pageSize);
-    const take = Math.min(Number(pageSize), 5000);
+    const take = Math.min(Number(pageSize), 100);
 
     let items: any[] = [];
     let total = 0;
@@ -242,14 +249,6 @@ router.get("/", (async (req: AuthedRequest, res) => {
             regionName: true,
             district: true,
             photos: true,
-            images: {
-              select: {
-                url: true,
-                thumbnailUrl: true,
-              },
-              orderBy: { createdAt: "asc" },
-              take: 3,
-            },
             basePrice: true,
             currency: true,
             services: true,
@@ -259,9 +258,12 @@ router.get("/", (async (req: AuthedRequest, res) => {
           take,
         });
 
-      const countPromise = prisma.property.count({ where });
+      const shouldIncludeTotal = String((req.query as any).includeTotal ?? "true") !== "false";
+      const countPromise = shouldIncludeTotal ? prisma.property.count({ where }) : Promise.resolve(null);
 
-      [items, total] = await Promise.all([findManyPromise, countPromise]);
+      const [foundItems, foundTotal] = await Promise.all([findManyPromise, countPromise]);
+      items = foundItems;
+      total = foundTotal ?? items.length;
       
       // Safety check - ensure items is an array
       if (!Array.isArray(items)) {
@@ -309,7 +311,6 @@ router.get("/", (async (req: AuthedRequest, res) => {
       regionName?: string | null;
       district?: string | null;
       photos?: string[] | null;
-      images?: Array<{ url?: string | null; thumbnailUrl?: string | null }> | null;
       roomsSpec?: any;
       basePrice?: number | null;
       currency?: string | null;
@@ -450,12 +451,7 @@ router.get("/", (async (req: AuthedRequest, res) => {
         }
         
         const photosFromJson = normalizePhotoList(p.photos);
-        const photosFromImages = Array.isArray(p.images)
-          ? p.images
-              .map((image) => image?.thumbnailUrl || image?.url || "")
-              .filter((photo): photo is string => typeof photo === "string" && photo.trim().length > 0)
-          : [];
-        const mergedPhotos = (photosFromImages.length > 0 ? photosFromImages : photosFromJson).slice(0, 3);
+        const mergedPhotos = photosFromJson.slice(0, 3);
 
         const effectiveBasePrice = effectivePropertyBasePrice(p);
         const item: any = {
