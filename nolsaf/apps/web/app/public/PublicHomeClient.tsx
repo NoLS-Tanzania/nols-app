@@ -2090,7 +2090,7 @@ export default function Page() {
                 <div className="text-[10px] text-slate-400 tracking-wider">NOLSAF</div>
                 <div className="text-[11px] font-bold text-emerald-600 tracking-wider">EAST AFRICA</div>
                 <p className="mt-1.5 text-[11px] text-slate-400 max-w-[200px] text-right font-sans">
-                  Verified stays, integrated transport & group travel — built for every traveller.
+                  Verified stays, integrated transport & group travel. Built for every traveller.
                 </p>
               </div>
             </div>
