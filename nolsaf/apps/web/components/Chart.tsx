@@ -26,6 +26,11 @@ function normalizeOptions<T extends ChartType>(options?: ChartOptions<T>): Chart
   return (isPlainObject(options) ? options : ({} as any)) as ChartOptions<T>;
 }
 
+function normalizePlugins(plugins?: any[]) {
+  if (!Array.isArray(plugins)) return [];
+  return plugins.filter((plugin) => plugin && typeof plugin === "object" && typeof plugin.id === "string");
+}
+
 export default function Chart<T extends ChartType = ChartType>({
   type,
   data,
@@ -70,7 +75,8 @@ export default function Chart<T extends ChartType = ChartType>({
             data,
             options: normalizeOptions(options),
           } as ChartConfiguration<T>;
-          if (plugins && Array.isArray(plugins) && plugins.length) cfg.plugins = plugins as any;
+          const safePlugins = normalizePlugins(plugins);
+          if (safePlugins.length) cfg.plugins = safePlugins as any;
           chartRef.current = new ChartCtor(canvasRef.current, cfg) as unknown;
         }
 
@@ -117,9 +123,6 @@ export default function Chart<T extends ChartType = ChartType>({
           } catch {}
           try {
             chart._lastEvent = null;
-          } catch {}
-          try {
-            chart.update?.("none");
           } catch {}
           (chartRef.current as Destroyable).destroy();
         } catch {}
@@ -186,8 +189,9 @@ export default function Chart<T extends ChartType = ChartType>({
       if (applyOptions.plugins?.tooltip) applyOptions.plugins.tooltip.enabled = false;
       chart.config.options = applyOptions;
 
-      if (plugins && Array.isArray(plugins)) {
-        chart.config.plugins = plugins as any;
+      const safePlugins = normalizePlugins(plugins);
+      if (safePlugins.length) {
+        chart.config.plugins = safePlugins as any;
       }
       // Use a full update so controllers are rebuilt correctly.
       chart.update("none");

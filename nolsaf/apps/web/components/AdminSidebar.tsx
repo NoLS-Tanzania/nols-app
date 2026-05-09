@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React from "react";
-import { Home, LayoutDashboard, Users, Truck, LineChart, Building2, Calendar, FileText, Wallet, Settings, ChevronDown, ChevronRight, ShieldCheck, Receipt, ListFilter, CheckCircle, Award, Megaphone, UserPlus, Trophy, Bell, BarChart3, Activity, Eye, Briefcase, MessageSquare, Ban, Bot, Gift, KeyRound, Play, Calculator } from "lucide-react";
+import { Home, LayoutDashboard, Users, Truck, LineChart, Building2, Calendar, FileText, Wallet, Settings, ChevronDown, ChevronRight, ShieldCheck, Receipt, ListFilter, CheckCircle, Award, Megaphone, UserPlus, Trophy, Bell, BarChart3, Activity, Eye, Briefcase, MessageSquare, Ban, Bot, Gift, KeyRound, Play, Calculator, AlertTriangle } from "lucide-react";
 import { useEffect, useState } from "react";
 
 type Item = {
@@ -167,6 +167,7 @@ const userDetails: Item[] = [
 const managementDetails: Item[] = [
   { href: "/admin/management", label: "Dashboard", Icon: LayoutDashboard },
   { href: "/admin/observability", label: "Observability", Icon: Activity },
+  { href: "/admin/impact-center", label: "Impact Center", Icon: AlertTriangle },
   { href: "/admin/management/reports", label: "Reports", Icon: FileText },
   { href: "/admin/management/audit-log", label: "Audit Log", Icon: ShieldCheck },
   { href: "/admin/management/no4p-otp", label: "No4P OTP", Icon: KeyRound },
@@ -208,6 +209,7 @@ export default function AdminNav({ variant = "light", collapsed = false }: { var
     if (path.startsWith("/admin/agents")) return "No4P Agents";
     if (path.startsWith("/admin/cancellations")) return "Cancellations";
     if (path.startsWith("/admin/observability")) return "Management";
+    if (path.startsWith("/admin/impact-center")) return "Management";
     if (path.startsWith("/admin/management")) return "Management";
     if (
       path === "/admin" ||
@@ -258,6 +260,7 @@ export default function AdminNav({ variant = "light", collapsed = false }: { var
     const isDrivers = path.startsWith("/admin/drivers");
     const isManagement = path.startsWith("/admin/management");
     const isObservability = path.startsWith("/admin/observability");
+    const isImpactCenter = path.startsWith("/admin/impact-center");
     const isUsers = path.startsWith("/admin/users");
     const isGroupStay = path.startsWith("/admin/group-stays");
     const isPlanWithUs = path.startsWith("/admin/plan-with-us");
@@ -277,7 +280,7 @@ export default function AdminNav({ variant = "light", collapsed = false }: { var
     if (isDrivers) setDriverOpen(true);
     else setDriverOpen(false);
     // Management mini-sidebar: open when on management routes
-    if (isManagement || isObservability) setManagementOpen(true);
+    if (isManagement || isObservability || isImpactCenter) setManagementOpen(true);
     else setManagementOpen(false);
     // Group Stay mini-sidebar: open when on group stay routes
     if (isGroupStay) setGroupStayOpen(true);

@@ -9,6 +9,8 @@ export type ObservedRequest = {
   durationMs: number;
   ip: string | null;
   userAgent: string | null;
+  actorId?: number | null;
+  actorRole?: string | null;
   timestamp: string;
 };
 
@@ -42,6 +44,41 @@ export type ObservabilitySummary = {
     p95DurationMs: number;
     maxDurationMs: number;
   }>;
+};
+
+export type ImpactedUserSummary = {
+  key: string;
+  userId: number | null;
+  role: string | null;
+  name: string | null;
+  email: string | null;
+  label: string;
+  eventCount: number;
+  slowCount: number;
+  serverErrorCount: number;
+  clientErrorCount: number;
+  routes: string[];
+  lastSeenAt: string | null;
+  lastEvent: {
+    action: string;
+    route: string | null;
+    path: string | null;
+    statusCode: number | null;
+    durationMs: number | null;
+    message: string | null;
+    requestId: string | null;
+  } | null;
+  resolution: {
+    status: "open" | "restored";
+    note: string | null;
+    restoredAt: string | null;
+    restoredBy: {
+      id: number | null;
+      name: string | null;
+      email: string | null;
+      role: string | null;
+    } | null;
+  };
 };
 
 const maxRequests = 1000;
@@ -239,8 +276,8 @@ async function flushImportantRequests() {
   try {
     await prisma.auditLog.createMany({
       data: batch.map((entry) => ({
-        actorId: null,
-        actorRole: null,
+        actorId: entry.actorId ?? null,
+        actorRole: entry.actorRole ?? null,
         action: entry.statusCode >= 500 ? "OBSERVABILITY_5XX_REQUEST" : "OBSERVABILITY_SLOW_REQUEST",
         entity: "OBSERVABILITY",
         entityId: null,
@@ -255,6 +292,8 @@ async function flushImportantRequests() {
           statusCode: entry.statusCode,
           durationMs: Math.round(entry.durationMs * 100) / 100,
           timestamp: entry.timestamp,
+          actorId: entry.actorId ?? null,
+          actorRole: entry.actorRole ?? null,
         },
       })),
     });
@@ -269,6 +308,111 @@ async function flushImportantRequests() {
       }, importantRequestFlushDelayMs);
     }
   }
+}
+
+export async function getImpactedUsers(limit = 20): Promise<ImpactedUserSummary[]> {
+  const actions = ["OBSERVABILITY_5XX_REQUEST", "OBSERVABILITY_SLOW_REQUEST", "CLIENT_ERROR"];
+  const rows = await prisma.auditLog.findMany({
+    where: { action: { in: actions } },
+    orderBy: { createdAt: "desc" },
+    take: 300,
+    include: {
+      actor: { select: { id: true, name: true, email: true, role: true } },
+    },
+  });
+
+  const resolutionRows = await prisma.auditLog.findMany({
+    where: { action: "IMPACT_MARK_RESTORED", entity: "IMPACT_CENTER" },
+    orderBy: { createdAt: "desc" },
+    take: 300,
+    include: {
+      actor: { select: { id: true, name: true, email: true, role: true } },
+    },
+  });
+
+  const resolutions = new Map<string, ImpactedUserSummary["resolution"]>();
+  for (const row of resolutionRows) {
+    const after = normalizeJsonObject(row.afterJson);
+    const impactKey = textOrNull(after.impactKey);
+    if (!impactKey || resolutions.has(impactKey)) continue;
+    resolutions.set(impactKey, {
+      status: "restored",
+      note: textOrNull(after.note),
+      restoredAt: row.createdAt ? row.createdAt.toISOString() : null,
+      restoredBy: {
+        id: row.actor?.id ?? row.actorId ?? null,
+        name: row.actor?.name ?? null,
+        email: row.actor?.email ?? null,
+        role: row.actor?.role ?? row.actorRole ?? null,
+      },
+    });
+  }
+
+  const groups = new Map<string, ImpactedUserSummary>();
+
+  for (const row of rows) {
+    const after = normalizeJsonObject(row.afterJson);
+    const actorId = typeof row.actorId === "number" ? row.actorId : null;
+    const role = row.actorRole ?? row.actor?.role ?? null;
+    const key = actorId ? `user:${actorId}` : `anon:${row.ip ?? "unknown"}:${row.ua ?? "unknown"}`;
+    const route = textOrNull(after.route) ?? textOrNull(after.path);
+    const createdAt = row.createdAt ? row.createdAt.toISOString() : null;
+
+    const existing: ImpactedUserSummary =
+      groups.get(key) ??
+      ({
+        key,
+        userId: actorId,
+        role,
+        name: row.actor?.name ?? null,
+        email: row.actor?.email ?? null,
+        label: actorId
+          ? `${row.actor?.name || row.actor?.email || `User #${actorId}`}`
+          : "Visitor session",
+        eventCount: 0,
+        slowCount: 0,
+        serverErrorCount: 0,
+        clientErrorCount: 0,
+        routes: [],
+        lastSeenAt: createdAt,
+        lastEvent: null,
+        resolution: resolutions.get(key) ?? openImpactResolution(),
+      } satisfies ImpactedUserSummary);
+
+    existing.eventCount += 1;
+    if (row.action === "OBSERVABILITY_SLOW_REQUEST") existing.slowCount += 1;
+    if (row.action === "OBSERVABILITY_5XX_REQUEST") existing.serverErrorCount += 1;
+    if (row.action === "CLIENT_ERROR") existing.clientErrorCount += 1;
+    if (route && !existing.routes.includes(route)) existing.routes.push(route);
+    if (!existing.lastSeenAt && createdAt) existing.lastSeenAt = createdAt;
+    if (!existing.lastEvent) {
+      existing.lastEvent = {
+        action: row.action,
+        route: textOrNull(after.route),
+        path: textOrNull(after.path),
+        statusCode: numberOrNull(after.statusCode),
+        durationMs: numberOrNull(after.durationMs),
+        message: textOrNull(after.message),
+        requestId: textOrNull(after.requestId),
+      };
+    }
+
+    groups.set(key, existing);
+  }
+
+  return Array.from(groups.values())
+    .sort((a, b) => b.eventCount - a.eventCount || Date.parse(b.lastSeenAt ?? "0") - Date.parse(a.lastSeenAt ?? "0"))
+    .slice(0, clampLimit(limit))
+    .map((item) => ({ ...item, routes: item.routes.slice(0, 8) }));
+}
+
+function openImpactResolution(): ImpactedUserSummary["resolution"] {
+  return {
+    status: "open",
+    note: null,
+    restoredAt: null,
+    restoredBy: null,
+  };
 }
 
 async function maybeAlertRepeatedServerErrors(entry: ObservedRequest) {
@@ -344,4 +488,20 @@ function roundRatio(value: number) {
 
 function escapeLabel(value: string) {
   return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");
+}
+
+function normalizeJsonObject(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return value as Record<string, unknown>;
+}
+
+function textOrNull(value: unknown) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+function numberOrNull(value: unknown) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
 }
