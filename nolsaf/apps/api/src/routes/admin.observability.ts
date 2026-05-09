@@ -18,6 +18,19 @@ router.get("/summary", (_req, res) => {
   res.json({ ok: true, summary: getObservabilitySummary() });
 });
 
+router.get("/snapshot", (req, res) => {
+  const recentLimit = Number(req.query.recentLimit ?? 30);
+  const slowLimit = Number(req.query.slowLimit ?? 15);
+  const errorLimit = Number(req.query.errorLimit ?? 15);
+  res.json({
+    ok: true,
+    summary: getObservabilitySummary(),
+    recent: getRecentRequests(recentLimit),
+    slow: getRecentSlowRequests(slowLimit),
+    errors: getRecentErrorRequests(errorLimit),
+  });
+});
+
 router.get("/requests", (req, res) => {
   const limit = Number(req.query.limit ?? 100);
   res.json({ ok: true, items: getRecentRequests(limit) });

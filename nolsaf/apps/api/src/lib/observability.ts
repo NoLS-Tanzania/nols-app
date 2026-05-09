@@ -33,17 +33,32 @@ export type ObservabilitySummary = {
     averageDurationMs: number;
     p95DurationMs: number;
   }>;
+  slowRoutes: Array<{
+    route: string;
+    count: number;
+    slowCount: number;
+    errors: number;
+    averageDurationMs: number;
+    p95DurationMs: number;
+    maxDurationMs: number;
+  }>;
 };
 
 const maxRequests = 1000;
 const recentRequests: ObservedRequest[] = [];
+const pendingImportantRequests: ObservedRequest[] = [];
 let totalRequestsObserved = 0;
 let lastRepeatedErrorAlertAt = 0;
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
+let flushInFlight = false;
 
 export const slowRequestThresholdMs = 1000;
 const repeatedErrorWindowMs = 5 * 60 * 1000;
 const repeatedErrorThreshold = 5;
 const repeatedErrorAlertCooldownMs = 15 * 60 * 1000;
+const maxPendingImportantRequests = 500;
+const importantRequestFlushDelayMs = 2000;
+const importantRequestFlushBatchSize = 100;
 
 export function normalizeRoute(path: string): string {
   return path
@@ -57,7 +72,7 @@ export function recordObservedRequest(entry: ObservedRequest) {
   recentRequests.push(entry);
   if (recentRequests.length > maxRequests) recentRequests.shift();
   if (entry.statusCode >= 500 || entry.durationMs >= slowRequestThresholdMs) {
-    void persistImportantRequest(entry);
+    queueImportantRequest(entry);
   }
   if (entry.statusCode >= 500) {
     void maybeAlertRepeatedServerErrors(entry);
@@ -114,15 +129,35 @@ export function getObservabilitySummary(): ObservabilitySummary {
   const topRoutes = Array.from(routeBuckets.entries())
     .map(([route, bucket]) => {
       const routeDurations = bucket.map((request) => request.durationMs).sort((a, b) => a - b);
+      const slowCount = bucket.filter((request) => request.durationMs >= slowRequestThresholdMs).length;
       return {
         route,
         count: bucket.length,
+        slowCount,
         errors: bucket.filter((request) => request.statusCode >= 500).length,
         averageDurationMs: roundMs(average(routeDurations)),
         p95DurationMs: roundMs(percentile(routeDurations, 95)),
+        maxDurationMs: roundMs(routeDurations.at(-1) ?? 0),
       };
     })
     .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+  const slowRoutes = Array.from(routeBuckets.entries())
+    .map(([route, bucket]) => {
+      const routeDurations = bucket.map((request) => request.durationMs).sort((a, b) => a - b);
+      const slowCount = bucket.filter((request) => request.durationMs >= slowRequestThresholdMs).length;
+      return {
+        route,
+        count: bucket.length,
+        slowCount,
+        errors: bucket.filter((request) => request.statusCode >= 500).length,
+        averageDurationMs: roundMs(average(routeDurations)),
+        p95DurationMs: roundMs(percentile(routeDurations, 95)),
+        maxDurationMs: roundMs(routeDurations.at(-1) ?? 0),
+      };
+    })
+    .filter((route) => route.slowCount > 0)
+    .sort((a, b) => b.slowCount - a.slowCount || b.p95DurationMs - a.p95DurationMs)
     .slice(0, 10);
 
   return {
@@ -140,6 +175,7 @@ export function getObservabilitySummary(): ObservabilitySummary {
     statusCounts,
     methodCounts,
     topRoutes,
+    slowRoutes,
   };
 }
 
@@ -181,10 +217,28 @@ export function getPrometheusMetrics() {
   return `${lines.join("\n")}\n`;
 }
 
-async function persistImportantRequest(entry: ObservedRequest) {
+function queueImportantRequest(entry: ObservedRequest) {
+  pendingImportantRequests.push(entry);
+  if (pendingImportantRequests.length > maxPendingImportantRequests) {
+    pendingImportantRequests.splice(0, pendingImportantRequests.length - maxPendingImportantRequests);
+  }
+
+  if (!flushTimer) {
+    flushTimer = setTimeout(() => {
+      flushTimer = null;
+      void flushImportantRequests();
+    }, importantRequestFlushDelayMs);
+  }
+}
+
+async function flushImportantRequests() {
+  if (flushInFlight || pendingImportantRequests.length === 0) return;
+  flushInFlight = true;
+  const batch = pendingImportantRequests.splice(0, importantRequestFlushBatchSize);
+
   try {
-    await prisma.auditLog.create({
-      data: {
+    await prisma.auditLog.createMany({
+      data: batch.map((entry) => ({
         actorId: null,
         actorRole: null,
         action: entry.statusCode >= 500 ? "OBSERVABILITY_5XX_REQUEST" : "OBSERVABILITY_SLOW_REQUEST",
@@ -202,10 +256,18 @@ async function persistImportantRequest(entry: ObservedRequest) {
           durationMs: Math.round(entry.durationMs * 100) / 100,
           timestamp: entry.timestamp,
         },
-      },
+      })),
     });
   } catch (err: any) {
-    console.warn("[observability] failed to persist request event", err?.message || err);
+    console.warn("[observability] failed to persist request events", err?.message || err);
+  } finally {
+    flushInFlight = false;
+    if (pendingImportantRequests.length > 0 && !flushTimer) {
+      flushTimer = setTimeout(() => {
+        flushTimer = null;
+        void flushImportantRequests();
+      }, importantRequestFlushDelayMs);
+    }
   }
 }
 

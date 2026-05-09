@@ -33,9 +33,20 @@ type Summary = {
   topRoutes: Array<{
     route: string;
     count: number;
+    slowCount: number;
     errors: number;
     averageDurationMs: number;
     p95DurationMs: number;
+    maxDurationMs: number;
+  }>;
+  slowRoutes: Array<{
+    route: string;
+    count: number;
+    slowCount: number;
+    errors: number;
+    averageDurationMs: number;
+    p95DurationMs: number;
+    maxDurationMs: number;
   }>;
 };
 
@@ -66,18 +77,13 @@ export default function AdminObservabilityPage() {
     setError(null);
 
     try {
-      const [summaryRes, recentRes, slowRes, errorsRes] = await Promise.all([
-        apiClient.get("/api/admin/observability/summary"),
-        apiClient.get("/api/admin/observability/requests?limit=30"),
-        apiClient.get("/api/admin/observability/slow-requests?limit=15"),
-        apiClient.get("/api/admin/observability/errors?limit=15"),
-      ]);
+      const snapshotRes = await apiClient.get("/api/admin/observability/snapshot?recentLimit=30&slowLimit=15&errorLimit=15");
 
       setData({
-        summary: summaryRes.data?.summary ?? null,
-        recent: recentRes.data?.items ?? [],
-        slow: slowRes.data?.items ?? [],
-        errors: errorsRes.data?.items ?? [],
+        summary: snapshotRes.data?.summary ?? null,
+        recent: snapshotRes.data?.recent ?? [],
+        slow: snapshotRes.data?.slow ?? [],
+        errors: snapshotRes.data?.errors ?? [],
       });
     } catch (err: any) {
       setError(err?.response?.data?.error || err?.message || "Failed to load observability data");
@@ -177,26 +183,21 @@ export default function AdminObservabilityPage() {
           </section>
 
           <section className="xl:col-span-2 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-            <SectionHeader title="Top Routes" subtitle="By retained request volume" />
+            <SectionHeader title="Slowest Routes" subtitle="Most slow calls in the retained window" />
             <div className="divide-y divide-slate-100">
-              {(summary?.topRoutes ?? []).map((route) => (
-                <div key={route.route} className="px-4 py-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="truncate font-mono text-xs font-semibold text-slate-900">{route.route}</div>
-                      <div className="mt-1 text-xs text-slate-500">{route.count} requests</div>
-                    </div>
-                    <div className="text-right text-xs">
-                      <div className="font-semibold text-slate-900">{route.p95DurationMs}ms</div>
-                      <div className={route.errors ? "font-semibold text-red-600" : "text-slate-500"}>{route.errors} errors</div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-              {!loading && !summary?.topRoutes?.length ? <EmptyState label="No routes captured yet" /> : null}
+              {(summary?.slowRoutes ?? []).map((route) => <RouteHealthRow key={route.route} route={route} />)}
+              {!loading && !summary?.slowRoutes?.length ? <EmptyState label="No slow routes captured yet" /> : null}
             </div>
           </section>
         </div>
+
+        <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+          <SectionHeader title="Route Volume" subtitle="Most requested routes in the retained window" />
+          <div className="grid grid-cols-1 divide-y divide-slate-100 lg:grid-cols-2 lg:divide-x lg:divide-y-0">
+            {(summary?.topRoutes ?? []).slice(0, 8).map((route) => <RouteHealthRow key={route.route} route={route} compact />)}
+            {!loading && !summary?.topRoutes?.length ? <EmptyState label="No routes captured yet" /> : null}
+          </div>
+        </section>
 
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
           <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
@@ -246,6 +247,48 @@ export default function AdminObservabilityPage() {
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function RouteHealthRow({
+  route,
+  compact = false,
+}: {
+  route: {
+    route: string;
+    count: number;
+    slowCount: number;
+    errors: number;
+    averageDurationMs: number;
+    p95DurationMs: number;
+    maxDurationMs: number;
+  };
+  compact?: boolean;
+}) {
+  const severity = route.errors > 0 ? "red" : route.slowCount > 0 ? "amber" : "slate";
+  const barPct = Math.max(8, Math.min(100, Math.round((route.p95DurationMs / 5000) * 100)));
+  const barClass = severity === "red" ? "bg-red-500" : severity === "amber" ? "bg-amber-500" : "bg-slate-300";
+
+  return (
+    <div className="px-4 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="truncate font-mono text-xs font-semibold text-slate-900">{route.route}</div>
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+            <span>{route.count} requests</span>
+            <span className={route.slowCount > 0 ? "font-semibold text-amber-700" : ""}>{route.slowCount} slow</span>
+            <span className={route.errors > 0 ? "font-semibold text-red-700" : ""}>{route.errors} errors</span>
+          </div>
+        </div>
+        <div className="text-right text-xs">
+          <div className="font-semibold text-slate-900">p95 {route.p95DurationMs}ms</div>
+          {!compact ? <div className="text-slate-500">avg {route.averageDurationMs}ms</div> : null}
+        </div>
+      </div>
+      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100">
+        <div className={`h-full rounded-full ${barClass}`} style={{ width: `${barPct}%` }} />
+      </div>
     </div>
   );
 }
