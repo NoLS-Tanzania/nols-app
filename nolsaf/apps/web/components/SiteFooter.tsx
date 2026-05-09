@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
+import FooterBridge from "@/components/FooterBridge";
 
 function getCookie(name: string): string | null {
   if (typeof document === 'undefined') return null;
@@ -43,9 +44,10 @@ export default function SiteFooter({ withRail = true, topSeparator = true }: { w
   }, [pathname]);
 
   return (
-    <footer className={`w-full mt-12 page-bottom-buffer bg-slate-50`}> 
+    <footer className="w-full mt-12 page-bottom-buffer bg-slate-50">
+      <FooterBridge variant="plain" />
       {/* full-width separator line (brand color) - optional */}
-      {topSeparator ? <div className="w-full h-0.5 bg-[#02665e]" /> : null}
+      {topSeparator ? <div className="mx-auto h-px w-[min(74rem,calc(100%-2rem))] bg-slate-200" /> : null}
       <h2 className="sr-only">Footer</h2>
 
       <div className={`max-w-6xl mx-auto px-4 py-6 flex flex-col items-center gap-4 ${innerRailClass}`}>
@@ -80,7 +82,7 @@ export default function SiteFooter({ withRail = true, topSeparator = true }: { w
         {/* Centered logo and copyright below links */}
         <div className="w-full flex flex-col items-center gap-1 mt-1">
           <Image src="/assets/NoLS2025-04.png" alt="NoLSAF" width={120} height={30} className="object-contain" style={{ width: "auto", height: "auto" }} />
-          <div className="text-sm text-[#02665e] font-semibold">© {year} NoLSAF | All rights reserved</div>
+          <div className="text-sm text-[#02665e] font-semibold">&copy; {year} NoLSAF | All rights reserved</div>
         </div>
       </div>
     </footer>

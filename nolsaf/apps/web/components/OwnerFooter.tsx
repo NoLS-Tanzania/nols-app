@@ -35,7 +35,7 @@ export default function OwnerFooter() {
       policyBasePath="/owner"
       showDriverDisbursementPolicy={false}
       showPropertyOwnerDisbursementPolicy={true}
-      containerClassName="public-container pt-10 pb-9"
+      containerClassName="public-container pt-4 pb-9"
     />
   );
 }

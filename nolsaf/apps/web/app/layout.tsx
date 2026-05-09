@@ -11,6 +11,7 @@ import CookieConsent from "../components/CookieConsent";
 import GlobalAlertGuard from "../components/GlobalAlertGuard";
 import ClientErrorReporter from "../components/ClientErrorReporter";
 import PerformanceMeasureGuard from "../components/PerformanceMeasureGuard";
+import RouteChromeShell from "../components/RouteChromeShell";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -86,9 +87,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <GlobalAlertGuard />
         <ClientErrorReporter />
         <PerformanceMeasureGuard />
-        <div className="min-h-screen bg-neutral-50 pb-16 md:pb-0">
+        <RouteChromeShell>
           <Suspense fallback={null}>{children}</Suspense>
-        </div>
+        </RouteChromeShell>
         <Suspense fallback={null}>
           <SuspendedAccessOverlay />
         </Suspense>

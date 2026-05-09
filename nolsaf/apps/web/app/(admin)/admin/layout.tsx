@@ -6,7 +6,6 @@ import SiteHeader from "@/components/SiteHeader";
 import AdminFooter from "@/components/AdminFooter";
 import AdminNav from "@/components/AdminSidebar";
 import LayoutFrame from "@/components/LayoutFrame";
-import SectionSeparator from "@/components/SectionSeparator";
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     if (typeof window === "undefined") return true;
@@ -105,11 +104,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         </div>
       </div>
 
-      {/* Apply the same footer separator used on Owner pages */}
-      <SectionSeparator className="mt-6" />
       <AdminFooter
         policyBasePath="/admin"
-        containerClassName="public-container pt-10 pb-9"
+        containerClassName="public-container pt-4 pb-9"
       />
     </div>
   );
