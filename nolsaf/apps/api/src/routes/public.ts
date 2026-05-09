@@ -1,4 +1,5 @@
 import { type Express, type RequestHandler } from "express";
+import clientErrorsRouter from "./clientErrors";
 import publicAvailabilityRouter from "./public.availability";
 import publicBookingRouter from "./public.booking";
 import publicBookingsRouter from "./public.bookings";
@@ -24,6 +25,7 @@ export function registerPublicCareerRoutes(app: Express): void {
 }
 
 export function registerPublicContentRoutes(app: Express): void {
+  app.use("/api/client-errors", clientErrorsRouter);
   app.use("/api/public/support", publicSupportRouter);
   app.use("/api/public/updates", publicUpdatesRouter);
   app.use("/api/public/podcasts", publicPodcastsRouter);

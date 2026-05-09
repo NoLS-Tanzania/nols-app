@@ -2,7 +2,8 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { AlertTriangle, Printer, ShieldCheck, Sliders } from "lucide-react";
+import Link from "next/link";
+import { AlertTriangle, ArrowLeft, Printer, ShieldCheck, Sliders } from "lucide-react";
 import { Popover, Transition } from "@headlessui/react";
 
 import Chart from "@/components/Chart";
@@ -830,6 +831,13 @@ export default function AdminReportsPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 px-6 pt-6 sm:px-8 sm:pt-7">
           <div className="min-w-0">
+            <Link
+              href="/admin/management/reports"
+              className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs font-bold text-slate-200 no-underline shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:border-white/20 hover:bg-white/[0.10] focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/50"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
+              Back to reports
+            </Link>
             <div className="inline-flex items-center gap-2 rounded-full border border-[#02665e]/30 bg-[#02665e]/15 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.22em] text-emerald-300">
               <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
               Operational Export
@@ -838,7 +846,7 @@ export default function AdminReportsPage() {
               NoLSAF Finance &amp; Operations Report
             </h2>
             <p className="mt-1 text-sm leading-6 text-slate-400">
-              Select a date range, review the summary and details, then print a signed report with QR verification.
+              Choose a reporting period, review finance and operations totals, then print a signed report with QR verification.
             </p>
           </div>
 

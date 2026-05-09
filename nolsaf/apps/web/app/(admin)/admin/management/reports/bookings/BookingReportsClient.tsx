@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Fragment, useRef } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { AlertTriangle, ClipboardList, FileText, Printer, RefreshCw, Sliders, Users } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ClipboardList, FileText, Printer, RefreshCw, Sliders, Users } from "lucide-react";
 import { Popover, Transition } from "@headlessui/react";
 
 import Chart from "@/components/Chart";
@@ -1014,41 +1014,69 @@ export default function BookingReportsClient() {
     <div className="bg-slate-50 min-h-screen">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
         <div className="py-6 sm:py-8 space-y-5">
-          <div className="bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] px-6 py-5 sm:px-8 sm:py-6">
-            <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] items-start gap-3">
-              <div className="hidden sm:block" aria-hidden />
+          <div className="overflow-hidden rounded-[20px] border border-slate-200 bg-white shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)]">
+            <div className="px-6 py-5 sm:px-8 sm:py-6">
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0">
+                  <Link
+                    href="/admin/management/reports"
+                    className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 no-underline transition hover:border-slate-300 hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30"
+                  >
+                    <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
+                    Back to reports
+                  </Link>
 
-              <div className="min-w-0 text-center">
-                <div className="inline-flex items-center gap-2 rounded-full bg-[#02665e]/10 border border-[#02665e]/20 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-[#02665e]">
-                  <FileText className="h-3.5 w-3.5" aria-hidden />
-                  Operational Export
+                  <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-[#02665e]/20 bg-[#02665e]/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-[#02665e]">
+                    <FileText className="h-3.5 w-3.5" aria-hidden />
+                    Operational Export
+                  </div>
+                  <h2 className="mt-3 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Booking Reports</h2>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+                    Print-ready booking statistics across owner property bookings, group stays, and Plan With Us requests.
+                  </p>
                 </div>
-                <h2 className="mt-3 text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">Booking Reports</h2>
-                <p className="text-sm text-slate-500 mt-1.5 max-w-xl mx-auto">
-                  Printable statistics for owner bookings (standard property bookings), group stays, and Plan With Us requests.
-                </p>
-                <p className="text-xs text-slate-400 mt-1">
-                  Owner bookings = all property bookings that are not under Group stays and not under Plan With Us.
-                </p>
+
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={printReport}
+                    className="inline-flex items-center justify-center h-10 px-4 rounded-xl bg-[#02665e] text-white text-sm font-semibold shadow-[0_4px_16px_-4px_rgba(2,102,94,0.45)] hover:brightness-95 transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/40"
+                  >
+                    <Printer className="h-4 w-4 mr-2" aria-hidden />
+                    Print
+                  </button>
+                </div>
               </div>
 
-              <div className="flex items-center gap-2 justify-start sm:justify-end">
-                <button
-                  type="button"
-                  onClick={printReport}
-                  className="inline-flex items-center justify-center h-10 px-4 rounded-xl bg-[#02665e] text-white text-sm font-semibold shadow-[0_4px_16px_-4px_rgba(2,102,94,0.45)] hover:brightness-95 transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/40"
-                >
-                  <Printer className="h-4 w-4 mr-2" aria-hidden />
-                  Print
-                </button>
-                <Link
-                  href="/admin/management/reports"
-                  className="inline-flex items-center justify-center h-10 px-4 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-semibold hover:bg-slate-50 transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300/50 no-underline"
-                >
-                  Back
-                </Link>
+              <div className="mt-5 grid gap-3 lg:grid-cols-[1fr_1fr_1fr]">
+                <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-3">
+                  <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-emerald-800">
+                    <ClipboardList className="h-4 w-4" aria-hidden />
+                    Owner bookings
+                  </div>
+                  <p className="mt-2 text-sm leading-5 text-emerald-950/80">
+                    Standard property bookings, excluding Group stays and Plan With Us.
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 px-4 py-3">
+                  <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-indigo-800">
+                    <Users className="h-4 w-4" aria-hidden />
+                    Group stays
+                  </div>
+                  <p className="mt-2 text-sm leading-5 text-indigo-950/80">
+                    Multi-guest or special-arrangement booking requests.
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-sky-100 bg-sky-50/70 px-4 py-3">
+                  <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-sky-800">
+                    <Sliders className="h-4 w-4" aria-hidden />
+                    Plan With Us
+                  </div>
+                  <p className="mt-2 text-sm leading-5 text-sky-950/80">
+                    Custom planning requests tracked separately from direct bookings.
+                  </p>
+                </div>
               </div>
-            </div>
 
             {error ? (
               <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 flex items-start gap-2">
@@ -1121,6 +1149,7 @@ export default function BookingReportsClient() {
                   </button>
                 </div>
               </div>
+            </div>
             </div>
           </div>
 

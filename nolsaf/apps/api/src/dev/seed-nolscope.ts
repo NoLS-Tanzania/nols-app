@@ -13,13 +13,13 @@
  *
  * Run with:
  *   npm run seed:nolscope
- * ───────────────────────────────────────────────────────────────────────────
+ * ───────────────────────────────
  */
 
 import 'dotenv/config';
 import { prisma } from '@nolsaf/prisma';
 
-// ─── helpers ────────────────────────────────────────────────────────────────
+// ─── helpers ──────────
 
 const upsertLog = (model: string, key: string) =>
   console.log(`  ✅ [${model}] ${key}`);
@@ -27,7 +27,7 @@ const upsertLog = (model: string, key: string) =>
 const skipLog = (model: string, key: string, err: unknown) =>
   console.warn(`  ⚠️  [${model}] ${key} — ${(err as any)?.message ?? err}`);
 
-// ─── 1. DESTINATIONS ────────────────────────────────────────────────────────
+// ─── 1. DESTINATIONS ────────
 
 const destinations = [
   {

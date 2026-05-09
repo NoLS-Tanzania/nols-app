@@ -14,10 +14,8 @@ router.get("/", async (_req, res, next) => {
   res.setHeader('Content-Type', 'application/json');
   
   try {
-    // Raise sort buffer for this session so ORDER BY createdAt never OOMs
-    await prisma.$executeRaw`SET sort_buffer_size = 8388608`;
     const rows = await prisma.siteUpdate.findMany({
-      orderBy: { createdAt: "desc" },
+      orderBy: { id: "desc" },
       take: 20,
       select: { id: true, title: true, content: true, images: true, videos: true, createdAt: true, updatedAt: true },
     });

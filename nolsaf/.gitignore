@@ -1,4 +1,4 @@
-# Private strategy & internal docs — never commit
+# Private strategy & internal docs - never commit
 NOLSAF_STRATEGY.md
 *_STRATEGY.md
 *_PRIVATE.md
@@ -62,10 +62,19 @@ API_DEPLOYMENT_GUIDE.md
 # AWS scripts (contain RDS endpoints / sensitive params)
 scripts/create-rds-database.ps1
 scripts/deploy-api.ps1
+scripts/diagnose-and-fix-import.ps1
+scripts/diagnose-production-500.ps1
 scripts/export-database-for-aws.ps1
+scripts/import-large-table.ps1
 scripts/import-to-aws-rds.ps1
+scripts/per-table-import-rds.ps1
+scripts/quick-fix-chunked-import.ps1
+scripts/reexport-and-import-rds.ps1
 scripts/reset-rds-database.ps1
+scripts/smart-import-rds.ps1
 scripts/test-rds-connection.ps1
+scripts/verify-rds-import.ps1
+
 # Migration scripts that may contain local DB credentials
 scripts/migrate-database.ps1
 scripts/migrate-database.sh
@@ -77,5 +86,6 @@ scripts/migrate-base64-photos-to-cloudinary.mjs
 *.dump
 remote-backup.sql
 backups/
+archives/
 .vercel
 .env*.local
