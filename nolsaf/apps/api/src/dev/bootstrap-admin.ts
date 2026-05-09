@@ -2,38 +2,69 @@ import { config } from "dotenv";
 import { resolve } from "path";
 import * as readline from "readline";
 
-// Load base .env first, then optionally .env.staging / .env.production to override DATABASE_URL.
+// Load only the env files for the requested target.
 // Usage:
-//   npx tsx src/dev/bootstrap-admin.ts              → local .env  (local DB)
-//   npx tsx src/dev/bootstrap-admin.ts --staging    → .env.staging (Aiven staging DB)
-//   npx tsx src/dev/bootstrap-admin.ts --production → .env.production (AWS RDS prod DB)
-const envPath = resolve(__dirname, "../../.env");
-config({ path: envPath }); // no override: shell env vars take precedence
-
-// .env.local overrides .env (e.g. pointing DATABASE_URL at a staging DB)
-const envLocalPath = resolve(__dirname, "../../.env.local");
-config({ path: envLocalPath, override: true });
-
+//   npx tsx src/dev/bootstrap-admin.ts              -> local .env + optional .env.local
+//   npx tsx src/dev/bootstrap-admin.ts --staging    -> .env.staging + optional .env.staging.local
+//   npx tsx src/dev/bootstrap-admin.ts --production -> .env.production + optional .env.production.local
 const isProd = process.argv.includes("--production");
 const isStaging = process.argv.includes("--staging");
+const isLocal = !isProd && !isStaging;
 
-if (isProd) {
-  const prodEnvPath = resolve(__dirname, "../../.env.production");
-  config({ path: prodEnvPath, override: true });
-  console.log("[bootstrap] Mode: PRODUCTION (loaded .env.production)");
-} else if (isStaging) {
-  const stagingEnvPath = resolve(__dirname, "../../.env.staging");
-  config({ path: stagingEnvPath, override: true });
-  console.log("[bootstrap] Mode: STAGING (loaded .env.staging — Aiven DB)");
-} else {
-  console.log("[bootstrap] Mode: local dev  (tip: use --staging or --production flag to target other DBs)");
+if (isProd && isStaging) {
+  throw new Error("[bootstrap] Choose one target only: --staging or --production, not both.");
 }
 
-import { prisma } from "@nolsaf/prisma";
-import { hashPassword } from "../lib/crypto.js";
-import { sendSms } from "../lib/sms.js";
-import { sendMail } from "../lib/mailer.js";
-import { getAdminWelcomeEmail, getAdminWelcomeSms } from "../lib/adminEmailTemplates.js";
+function clearBootstrapEnv(): void {
+  for (const key of [
+    "DATABASE_URL",
+    "ENCRYPTION_KEY",
+    "JWT_SECRET",
+    "BOOTSTRAP_ADMIN_ALLOW_WHEN_ADMIN_EXISTS",
+    "BOOTSTRAP_ADMIN_PROMOTE_EXISTING",
+  ]) {
+    delete process.env[key];
+  }
+}
+
+function requireEnv(keys: string[], mode: string): void {
+  const missing = keys.filter((key) => !String(process.env[key] ?? "").trim());
+  if (missing.length > 0) {
+    throw new Error(`[bootstrap] ${mode} is missing required env: ${missing.join(", ")}`);
+  }
+}
+
+function loadEnvFiles(files: string[]): void {
+  for (const file of files) {
+    config({ path: resolve(__dirname, "../..", file), override: true });
+  }
+}
+
+if (isProd) {
+  clearBootstrapEnv();
+  process.env.NODE_ENV = "production";
+  loadEnvFiles([".env.production", ".env.production.local"]);
+  requireEnv(["DATABASE_URL", "ENCRYPTION_KEY", "JWT_SECRET"], "PRODUCTION");
+  console.log("[bootstrap] Target: PRODUCTION (.env.production + optional .env.production.local)");
+} else if (isStaging) {
+  clearBootstrapEnv();
+  process.env.NODE_ENV = "staging";
+  loadEnvFiles([".env.staging", ".env.staging.local"]);
+  requireEnv(["DATABASE_URL", "ENCRYPTION_KEY", "JWT_SECRET"], "STAGING");
+  console.log("[bootstrap] Target: STAGING (.env.staging + optional .env.staging.local)");
+} else if (isLocal) {
+  process.env.NODE_ENV = process.env.NODE_ENV || "development";
+  loadEnvFiles([".env", ".env.local"]);
+  requireEnv(["DATABASE_URL"], "LOCAL");
+  console.log("[bootstrap] Target: LOCAL (.env + optional .env.local)");
+}
+
+type NotificationDeps = {
+  sendSms: (phone: string, message: string) => Promise<any>;
+  sendMail: (to: string, subject: string, html: string) => Promise<any>;
+  getAdminWelcomeEmail: (args: { name: string; email: string; isNewlyCreated: boolean }) => { subject: string; html: string };
+  getAdminWelcomeSms: (args: { name: string; isNewlyCreated: boolean }) => string;
+};
 
 // ─── Prompt helpers ──────────────────────────────────────────────────────────
 
@@ -104,8 +135,10 @@ function askPassword(prompt: string): Promise<string> {
 
 async function sendAdminNotifications(
   user: { id: number; email: string; name: string | null; phone: string | null },
-  isNewlyCreated: boolean
+  isNewlyCreated: boolean,
+  deps: NotificationDeps
 ) {
+  const { sendSms, sendMail, getAdminWelcomeEmail, getAdminWelcomeSms } = deps;
   const adminName = user.name || "Admin";
   if (user.phone) {
     try {
@@ -127,6 +160,24 @@ async function sendAdminNotifications(
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
+  // Load app modules only after env files are loaded to avoid stale config.
+  const [prismaMod, cryptoMod, smsMod, mailerMod, templatesMod] = await Promise.all([
+    import("@nolsaf/prisma"),
+    import("../lib/crypto.js"),
+    import("../lib/sms.js"),
+    import("../lib/mailer.js"),
+    import("../lib/adminEmailTemplates.js"),
+  ]);
+
+  const prisma = prismaMod.prisma;
+  const hashPassword = cryptoMod.hashPassword;
+  const notifyDeps: NotificationDeps = {
+    sendSms: smsMod.sendSms,
+    sendMail: mailerMod.sendMail,
+    getAdminWelcomeEmail: templatesMod.getAdminWelcomeEmail,
+    getAdminWelcomeSms: templatesMod.getAdminWelcomeSms,
+  };
+
   console.log("\n╔══════════════════════════════════════════╗");
   console.log("║     NoLSAF  Bootstrap Admin Setup        ║");
   console.log("╚══════════════════════════════════════════╝\n");
@@ -268,7 +319,7 @@ async function main() {
     });
 
     console.log(`✅ Promoted userId=${existing.id} to ADMIN.`);
-    await sendAdminNotifications({ id: existing.id, email, name, phone }, false);
+    await sendAdminNotifications({ id: existing.id, email, name, phone }, false, notifyDeps);
     return;
   }
 
@@ -291,7 +342,8 @@ async function main() {
   console.log(`✅ Created ADMIN: userId=${created.id} | email=${created.email} | phone=${created.phone ?? "none"}`);
   await sendAdminNotifications(
     { id: created.id, email: created.email, name: created.name || name, phone: created.phone || phone },
-    true
+    true,
+    notifyDeps
   );
 }
 

@@ -239,10 +239,16 @@ router.get("/invoices", async (req, res) => {
     // Explicitly set Content-Type to JSON
     res.setHeader('Content-Type', 'application/json');
     
-    const { status, ownerId, propertyId, from, to, q, page = "1", pageSize = "50", sortBy, sortDir, amountMin, amountMax } = req.query as any;
+    const { status, statuses, ownerId, propertyId, from, to, q, page = "1", pageSize = "50", sortBy, sortDir, amountMin, amountMax } = req.query as any;
 
     const where: any = applyRevenueVisibility({});
-    if (status) where.status = status;
+    const statusList = String(statuses || status || "")
+      .split(",")
+      .map((s) => s.trim().toUpperCase())
+      .filter(Boolean)
+      .slice(0, 8);
+    if (statusList.length === 1) where.status = statusList[0];
+    else if (statusList.length > 1) where.status = { in: statusList };
     if (ownerId) where.ownerId = Number(ownerId);
     if (from || to) {
       where.issuedAt = {};
@@ -293,6 +299,7 @@ router.get("/invoices", async (req, res) => {
       }
     }
 
+    const shouldIncludeTotal = String((req.query as any).includeTotal ?? "true") !== "false";
     const [items, total] = await Promise.all([
       prisma.invoice.findMany({
         where,
@@ -328,7 +335,7 @@ router.get("/invoices", async (req, res) => {
         orderBy,
         skip, take,
       }),
-      prisma.invoice.count({ where }),
+      shouldIncludeTotal ? prisma.invoice.count({ where }) : Promise.resolve(null),
     ]);
 
     // Attach effective commission percent + computed preview breakdown so Admin list view can
@@ -371,7 +378,7 @@ router.get("/invoices", async (req, res) => {
       };
     });
 
-    return res.json({ total, page: Number(page), pageSize: take, items: withPreview });
+    return res.json({ total: total ?? withPreview.length, page: Number(page), pageSize: take, items: withPreview });
   } catch (err: any) {
     // Ensure error responses are JSON
     res.setHeader('Content-Type', 'application/json');

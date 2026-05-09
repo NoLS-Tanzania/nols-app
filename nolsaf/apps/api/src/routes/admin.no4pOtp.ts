@@ -5,9 +5,11 @@ import { z } from "zod";
 import { prisma } from "@nolsaf/prisma";
 import { asyncHandler } from "../middleware/errorHandler.js";
 import rateLimit from "express-rate-limit";
+import { safeJsonResponse } from "../lib/serializePrisma.js";
 
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 200;
+const OTP_RETENTION_DAYS = 30;
 
 const limitAdminNo4pOtpList = rateLimit({
   windowMs: 60_000,
@@ -84,6 +86,20 @@ function sanitizeProvider(value: unknown): string | null {
   return null;
 }
 
+function retentionCutoff(now = new Date()): Date {
+  return new Date(now.getTime() - OTP_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+}
+
+function maxDate(a: Date, b: Date): Date {
+  return a.getTime() >= b.getTime() ? a : b;
+}
+
+function csvCell(value: unknown): string {
+  if (value == null) return "";
+  const raw = value instanceof Date ? value.toISOString() : String(value);
+  return /[",\r\n]/.test(raw) ? `"${raw.replace(/"/g, '""')}"` : raw;
+}
+
 export const router = Router();
 
 // AuthN/AuthZ are mounted in index.ts with requireRole('ADMIN')
@@ -101,16 +117,18 @@ router.get(
     // We encode OTP correlation in AuditLog.entity as:
     // `OTP:${destinationType}:${destination}:${codeHash}`
     // NOTE: AuditLog.entity is non-nullable, so do not filter by `not: null`.
+    const cutoff = retentionCutoff();
     const baseWhere: any = {
       action: "NO4P_OTP_SENT",
       entity: { startsWith: "OTP:" },
+      createdAt: { gte: cutoff },
     };
 
     if (date) {
       const start = new Date(`${date}T00:00:00.000Z`);
       const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
       if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())) {
-        baseWhere.createdAt = { gte: start, lt: end };
+        baseWhere.createdAt = { gte: maxDate(start, cutoff), lt: end };
       }
     }
 
@@ -182,15 +200,133 @@ router.get(
       items = items.filter((i) => i.status === status);
     }
 
-    res.json({
+    res.json(safeJsonResponse({
       ok: true,
       data: items,
       meta: {
         page,
         pageSize,
         total,
+        retentionDays: OTP_RETENTION_DAYS,
       },
+    }));
+  })
+);
+
+router.get(
+  "/export.csv",
+  limitAdminNo4pOtpList as unknown as RequestHandler,
+  asyncHandler(async (req: any, res) => {
+    const parsed = listQuerySchema.safeParse({ ...req.query, page: "1", pageSize: String(MAX_PAGE_SIZE) });
+    if (!parsed.success) {
+      return sendError(res, 400, "Invalid request parameters", { errors: parsed.error.issues });
+    }
+
+    const { q, date, status } = parsed.data;
+    const cutoff = retentionCutoff();
+    const baseWhere: any = {
+      action: "NO4P_OTP_SENT",
+      entity: { startsWith: "OTP:" },
+      createdAt: { gte: cutoff },
+    };
+
+    if (date) {
+      const start = new Date(`${date}T00:00:00.000Z`);
+      const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+      if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())) {
+        baseWhere.createdAt = { gte: maxDate(start, cutoff), lt: end };
+      }
+    }
+
+    const where: any = q
+      ? {
+          AND: [
+            baseWhere,
+            {
+              entity: { contains: q },
+            },
+          ],
+        }
+      : baseWhere;
+
+    const sent = await prisma.auditLog.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      take: 10_000,
     });
+
+    const entities = sent.map((s: any) => s.entity).filter(Boolean);
+    const usedLogs = entities.length
+      ? await prisma.auditLog.findMany({
+          where: {
+            action: "NO4P_OTP_USED",
+            entity: { in: entities },
+          },
+          orderBy: { createdAt: "asc" },
+        })
+      : [];
+
+    const usedByEntity = new Map<string, any>();
+    for (const u of usedLogs as any[]) {
+      if (!u?.entity) continue;
+      if (!usedByEntity.has(u.entity)) usedByEntity.set(u.entity, u);
+    }
+
+    const now = new Date();
+    const rows = (sent as any[])
+      .map((row) => {
+        const after = (row.afterJson ?? {}) as any;
+        const used = row.entity ? usedByEntity.get(row.entity) : null;
+        const expiresAt: string | null = after.expiresAt ?? null;
+        const usedAt: Date | null = used?.createdAt ?? null;
+        const computedStatus = normalizeStatus(now, expiresAt, usedAt);
+
+        return {
+          id: row.id,
+          role: after.userRole ?? row.actorRole ?? null,
+          name: after.userName ?? null,
+          codeMasked: after.codeMasked ?? null,
+          destinationType: after.destinationType ?? null,
+          destination: after.destination ?? null,
+          requestedAt: row.createdAt,
+          expiresAt,
+          status: computedStatus,
+          usedAt,
+          usedFor: after.usedFor ?? null,
+          provider: sanitizeProvider(after.provider),
+          policyCompliant: after.policyCompliant ?? null,
+        };
+      })
+      .filter((row) => status === "all" || row.status === status);
+
+    const headers = [
+      "id",
+      "role",
+      "name",
+      "codeMasked",
+      "destinationType",
+      "destination",
+      "requestedAt",
+      "expiresAt",
+      "status",
+      "usedAt",
+      "usedFor",
+      "provider",
+      "policyCompliant",
+    ];
+    const csv = [
+      headers.join(","),
+      ...rows.map((row) =>
+        headers
+          .map((header) => csvCell((row as Record<string, unknown>)[header]))
+          .join(",")
+      ),
+    ].join("\r\n");
+
+    const stamp = new Date().toISOString().slice(0, 10);
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="no4p-otp-${stamp}.csv"`);
+    res.send(csv);
   })
 );
 

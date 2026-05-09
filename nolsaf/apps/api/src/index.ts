@@ -5,6 +5,7 @@ import morgan from "morgan";
 import { adminOriginGuard } from "./middleware/adminOriginGuard.js";
 import { csrfProtection, csrfTokenHeader } from "./middleware/csrf.js";
 import { performanceMiddleware } from "./middleware/performance.js";
+import { requestIdMiddleware } from "./middleware/requestId.js";
 import { getRedis } from "./lib/redis.js";
 import {
   registerApiRoutes,
@@ -20,6 +21,7 @@ export { emitReferralNotification, emitReferralUpdate } from "./sockets";
 
 const app = express();
 
+app.use(requestIdMiddleware);
 registerEarlyRoutes(app);
 
 // ─── MAINTENANCE MODE ─────────────────────────────────────────────────────────

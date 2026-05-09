@@ -46,16 +46,18 @@ function toApiDto(row: any) {
 }
 
 /** GET /api/admin/updates - List all updates */
-router.get("/", async (_req, res) => {
+router.get("/", async (req, res) => {
   try {
-    // Raise sort buffer for this session so ORDER BY createdAt never OOMs
-    await prisma.$executeRaw`SET sort_buffer_size = 8388608`;
+    const requestedLimit = Number(req.query.limit);
+    const take = Number.isFinite(requestedLimit) ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 200) : 100;
     const rows = await prisma.siteUpdate.findMany({
-      orderBy: { createdAt: "desc" },
+      orderBy: { id: "desc" },
+      take,
       select: { id: true, title: true, content: true, images: true, videos: true, createdAt: true, updatedAt: true },
     });
+    const total = await prisma.siteUpdate.count();
     const items = rows.map(toApiDto);
-    res.json({ items, total: items.length });
+    res.json({ items, total, limit: take });
   } catch (err: any) {
     console.error("Error fetching updates:", err);
     res.status(500).json({ error: "Failed to fetch updates", message: err?.message });

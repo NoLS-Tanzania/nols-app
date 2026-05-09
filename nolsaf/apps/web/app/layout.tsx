@@ -3,13 +3,15 @@
 import "@/styles/globals.css";
 import "@/styles/property-visualization.css";
 import { Suspense, type ReactNode } from "react";
-import Script from "next/script";
 import type { Metadata } from "next";
 import ToastContainer from "../components/ToastContainer";
 import SuspendedAccessOverlay from "../components/SuspendedAccessOverlay";
 import MobilePublicNav from "../components/MobilePublicNav";
 import CookieConsent from "../components/CookieConsent";
 import GlobalAlertGuard from "../components/GlobalAlertGuard";
+import ClientErrorReporter from "../components/ClientErrorReporter";
+import PerformanceMeasureGuard from "../components/PerformanceMeasureGuard";
+import RouteChromeShell from "../components/RouteChromeShell";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -83,39 +85,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
            injection (Grammarly, LastPass, etc.) from throwing React error #418. */}
       <body suppressHydrationWarning>
         <GlobalAlertGuard />
-        {process.env.NODE_ENV !== "production" && (
-          <Script id="performance-measure-guard" strategy="beforeInteractive">
-            {`
-(() => {
-  try {
-    if (typeof performance === 'undefined' || typeof performance.measure !== 'function') return;
-    const original = performance.measure.bind(performance);
-    performance.measure = function(name, optionsOrStart, end) {
-      try {
-        if (optionsOrStart && typeof optionsOrStart === 'object') {
-          const opts = optionsOrStart;
-          if ('end' in opts || 'start' in opts) {
-            const normalized = { ...opts };
-            if (typeof normalized.start === 'number' && normalized.start < 0) normalized.start = 0;
-            if (typeof normalized.end === 'number' && normalized.end < 0) normalized.end = 0;
-            return original(name, normalized);
-          }
-        }
-        return original(name, optionsOrStart, end);
-      } catch {
-        return;
-      }
-    };
-  } catch {
-    // ignore
-  }
-})();
-            `}
-          </Script>
-        )}
-        <div className="min-h-screen bg-neutral-50 pb-16 md:pb-0">
+        <ClientErrorReporter />
+        <PerformanceMeasureGuard />
+        <RouteChromeShell>
           <Suspense fallback={null}>{children}</Suspense>
-        </div>
+        </RouteChromeShell>
         <Suspense fallback={null}>
           <SuspendedAccessOverlay />
         </Suspense>

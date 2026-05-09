@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
-import { Award, Plus, Edit, Trash2, Image as ImageIcon, ExternalLink, X, Loader2, Upload, Link2, Hash, Eye, EyeOff, Camera } from "lucide-react";
+import { AlertTriangle, Award, Plus, Edit, Trash2, Image as ImageIcon, ExternalLink, X, Loader2, Upload, Link2, Hash, Eye, EyeOff, Camera } from "lucide-react";
 import axios from "axios";import apiClient from "@/lib/apiClient";
 
 // Use same-origin for HTTP calls so Next.js rewrites proxy to the API
@@ -71,6 +71,7 @@ export default function AdminTrustPartnersPage() {
   const [editingPartner, setEditingPartner] = useState<TrustPartner | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<TrustPartner | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -155,15 +156,18 @@ export default function AdminTrustPartnersPage() {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this trust partner?")) {
-      return;
-    }
-    setDeletingId(id);
+  const requestDelete = (partner: TrustPartner) => {
+    setDeleteTarget(partner);
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeletingId(deleteTarget.id);
     try {
       authify();
-      await api.delete(getApiPath(`/admin/trust-partners/${id}`));
+      await api.delete(getApiPath(`/admin/trust-partners/${deleteTarget.id}`));
       await load();
+      setDeleteTarget(null);
     } catch (err: any) {
       console.error("Failed to delete trust partner", err);
       alert(err.response?.data?.error || "Failed to delete trust partner");
@@ -457,7 +461,7 @@ export default function AdminTrustPartnersPage() {
                           <Edit className="h-4 w-4" />
                         </button>
                         <button
-                          onClick={() => handleDelete(partner.id)}
+                          onClick={() => requestDelete(partner)}
                           disabled={deletingId === partner.id}
                           className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           title="Delete Partner"
@@ -682,6 +686,60 @@ export default function AdminTrustPartnersPage() {
             </div>
           </div>
         </>
+      )}
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
+          <div className="absolute inset-0 bg-slate-950/45 backdrop-blur-sm" onClick={() => setDeleteTarget(null)} />
+          <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-start gap-4 border-b border-slate-100 px-6 py-5">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-50 text-red-600">
+                <AlertTriangle className="h-5 w-5" aria-hidden />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-lg font-black tracking-tight text-slate-950">Delete trust partner?</h2>
+                <p className="mt-1 text-sm leading-6 text-slate-600">
+                  This will remove <span className="font-bold text-slate-900">{deleteTarget.name}</span> from the Trusted by section.
+                </p>
+              </div>
+            </div>
+
+            <div className="px-6 py-4">
+              <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-800">
+                This action cannot be undone from this screen.
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 border-t border-slate-100 bg-slate-50 px-6 py-4">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                disabled={deletingId === deleteTarget.id}
+                className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deletingId === deleteTarget.id}
+                className="inline-flex h-10 items-center justify-center rounded-xl bg-red-600 px-4 text-sm font-bold text-white shadow-[0_8px_22px_-10px_rgba(220,38,38,0.8)] transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {deletingId === deleteTarget.id ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="mr-2 h-4 w-4" aria-hidden />
+                    Delete partner
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

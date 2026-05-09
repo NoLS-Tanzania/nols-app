@@ -4,12 +4,12 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import apiClient from "@/lib/apiClient";
 import TableRow from "@/components/TableRow";
 import DatePicker from "@/components/ui/DatePicker";
-import { KeyRound, ShieldCheck, ChevronLeft, ChevronRight, Search, X, CheckCircle2, Clock, Ban, Filter, Calendar } from "lucide-react";
+import { KeyRound, ShieldCheck, ChevronLeft, ChevronRight, Search, X, CheckCircle2, Clock, Ban, Filter, Calendar, Download } from "lucide-react";
 
 const api = apiClient;
 
 type OtpRow = {
-  id: number;
+  id: number | string;
   role: string | null;
   name: string | null;
   codeMasked: string | null;
@@ -129,6 +129,39 @@ export default function Page() {
     }
   }, [page, pageSize, q, status, date]);
 
+  const exportCsv = useCallback(async () => {
+    setNotice(null);
+    try {
+      const params: any = { status };
+      if (q) params.q = q;
+      if (date) params.date = date;
+      const res = await api.get("/api/admin/no4p-otp/export.csv", {
+        params,
+        responseType: "blob",
+      });
+      const url = URL.createObjectURL(res.data);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `no4p-otp-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      setNotice({
+        tone: "success",
+        title: "CSV export started",
+        message: "The export contains No4P OTP records still inside the 30-day hot database window.",
+      });
+    } catch (e) {
+      console.error(e);
+      setNotice({
+        tone: "error",
+        title: "Failed to export OTP CSV",
+        message: "Please try again in a moment.",
+      });
+    }
+  }, [q, status, date]);
+
   useEffect(() => {
     load();
   }, [load]);
@@ -139,75 +172,97 @@ export default function Page() {
 
   return (
     <div className="p-4 md:p-6">
-      <div className="mb-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm ring-1 ring-black/5 dark:border-white/15 dark:bg-slate-950/40 md:mb-6 md:p-7">
-        <div className="mx-auto max-w-4xl">
-          <div className="flex flex-col items-center gap-2 text-center">
-            <div className="grid h-14 w-14 place-items-center rounded-3xl bg-brand-600 ring-1 ring-brand-700/30 shadow-sm dark:bg-brand-600 dark:ring-brand-300/20">
-              <KeyRound className="h-7 w-7 text-white" aria-hidden="true" />
+      <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ring-1 ring-black/5 dark:border-white/15 dark:bg-slate-950/50 md:mb-6 md:p-5">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-600 text-white shadow-sm">
+                <KeyRound className="h-5 w-5" aria-hidden="true" />
+              </div>
+              <div className="min-w-0">
+                <h1 className="truncate text-xl font-black tracking-tight text-slate-950 dark:text-brand-50 md:text-2xl">No4P OTP</h1>
+                <p className="mt-0.5 max-w-3xl text-sm leading-5 text-slate-600 dark:text-slate-300">
+                  OTP requests, usage, expiry, and policy flags.
+                </p>
+              </div>
             </div>
-            <h1 className="text-3xl font-semibold tracking-tight text-brand-800 dark:text-brand-50">No4P OTP</h1>
-            <p className="text-base font-semibold text-slate-700 dark:text-slate-200">
-              Track OTP requests and usage across flows.
-            </p>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-brand/15 bg-brand/5 px-3 py-1 text-xs font-bold text-brand dark:border-brand-100/20 dark:bg-brand-100/10 dark:text-brand-100">
+                <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
+                Security log
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
+                <Clock className="h-3.5 w-3.5" aria-hidden />
+                30-day retention
+              </span>
+            </div>
           </div>
 
-          <div className="mt-6 flex w-full justify-center">
-            <div className="w-full max-w-3xl overflow-hidden rounded-2xl border border-slate-200/80 bg-white/70 shadow-sm backdrop-blur focus-within:border-brand/30 focus-within:ring-2 focus-within:ring-brand/20 dark:border-white/15 dark:bg-slate-950/50">
-              <div className="flex flex-col items-stretch sm:flex-row">
-                <div className="relative flex-1 min-w-0">
-                  <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-                  <input
-                    ref={searchInputRef}
-                    value={q}
-                    onChange={(e) => setQ(e.target.value)}
-                    placeholder="Search phone/email"
-                    className="w-full min-w-0 border-0 bg-transparent py-3.5 pl-11 pr-12 text-sm font-semibold text-slate-900 placeholder:text-slate-400 outline-none focus:ring-0 dark:text-slate-100 dark:placeholder:text-slate-400"
-                  />
-                  {q ? (
-                    <button
-                      onClick={() => {
-                        setQ("");
-                        setPage(1);
-                        requestAnimationFrame(() => searchInputRef.current?.focus());
-                      }}
-                      type="button"
-                      className="absolute right-3 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-xl border border-slate-200/80 bg-white/60 text-slate-500 transition hover:bg-white/80 hover:text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-slate-100"
-                      aria-label="Clear search"
-                      title="Clear"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  ) : null}
-                </div>
+          <button
+            type="button"
+            onClick={exportCsv}
+            className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 text-sm font-bold text-white shadow-sm transition hover:bg-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
+            title="Export current No4P OTP view to CSV"
+          >
+            <Download className="h-4 w-4" aria-hidden />
+            Export CSV
+          </button>
+        </div>
 
-                <div className="flex min-w-0 items-stretch border-t border-slate-200/80 sm:border-t-0 sm:border-l dark:border-white/10">
-                  <div className="relative w-full min-w-0 sm:w-56">
-                    <Filter className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-                    <select
-                      value={status}
-                      onChange={(e) => setStatus(e.target.value as any)}
-                      className="h-full w-full min-w-0 border-0 bg-transparent px-4 py-3.5 pl-11 pr-10 text-sm font-semibold text-slate-900 outline-none focus:ring-0 dark:text-slate-100"
-                    >
-                      <option value="all">All statuses</option>
-                      <option value="valid">Valid</option>
-                      <option value="expired">Expired</option>
-                      <option value="used">Used</option>
-                    </select>
-                  </div>
-                </div>
+        <div className="mt-4 border-t border-slate-100 pt-4 dark:border-white/10">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="relative w-full min-w-0 lg:w-72 lg:flex-none">
+              <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+              <input
+                ref={searchInputRef}
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search phone or email"
+                className="h-11 w-full min-w-0 rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-12 text-sm font-semibold text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-brand/30 focus:bg-white focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:focus:bg-white/10"
+              />
+              {q ? (
+                <button
+                  onClick={() => {
+                    setQ("");
+                    setPage(1);
+                    requestAnimationFrame(() => searchInputRef.current?.focus());
+                  }}
+                  type="button"
+                  className="absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-slate-100"
+                  aria-label="Clear search"
+                  title="Clear"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              ) : null}
+            </div>
 
-                <div className="flex min-w-0 items-stretch border-t border-slate-200/80 sm:border-t-0 sm:border-l dark:border-white/10">
-                  <button
-                    type="button"
-                    onClick={() => setPickerOpen((v) => !v)}
-                    className="relative w-full min-w-0 px-4 py-3.5 sm:w-16 grid place-items-center text-slate-600 transition hover:bg-white/60 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-white/5 dark:hover:text-slate-100"
-                    aria-label={date ? `Filter date: ${date}` : "Filter by date"}
-                    title={date ? `Date: ${date}` : "Pick a date"}
-                  >
-                    <Calendar className={date ? "h-5 w-5 text-brand" : "h-5 w-5 text-slate-400"} />
-                  </button>
-                </div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center lg:justify-end">
+              <div className="relative w-full min-w-0 sm:w-56 sm:flex-none">
+                <Filter className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as any)}
+                  className="h-11 w-full min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-4 pl-11 pr-10 text-sm font-semibold text-slate-900 outline-none transition focus:border-brand/30 focus:bg-white focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:focus:bg-white/10"
+                >
+                  <option value="all">All statuses</option>
+                  <option value="valid">Valid</option>
+                  <option value="expired">Expired</option>
+                  <option value="used">Used</option>
+                </select>
               </div>
+
+              <button
+                type="button"
+                onClick={() => setPickerOpen((v) => !v)}
+                className="inline-flex h-11 w-full min-w-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-700 transition hover:bg-white hover:text-slate-950 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/20 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10 sm:w-44 sm:flex-none"
+                aria-label={date ? `Filter date: ${date}` : "Filter by date"}
+                title={date ? `Date: ${date}` : "Pick a date"}
+              >
+                <Calendar className={date ? "h-5 w-5 text-brand" : "h-5 w-5 text-slate-400"} />
+                {date || "Date"}
+              </button>
             </div>
           </div>
 

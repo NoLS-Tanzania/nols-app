@@ -416,6 +416,7 @@ model Booking {
   tripEstimates        TripEstimate[]
 
   @@index([propertyId])
+  @@index([propertyId, checkIn, checkOut])
   @@index([userId])
   @@index([driverId])
   @@index([status])
@@ -588,6 +589,7 @@ model Session {
   user User @relation("UserSessions", fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([userId, revokedAt])
   @@index([revokedAt])
   @@index([lastSeenAt])
   @@map("session")

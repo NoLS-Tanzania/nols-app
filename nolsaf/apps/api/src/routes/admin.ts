@@ -32,6 +32,7 @@ import { router as adminNolScopeRouter } from "./admin.nolscope";
 import adminNo4pOtpRouter from "./admin.no4pOtp";
 import adminNotificationsRouter from "./admin.notifications";
 import adminOwnersRouter from "./admin.owners.js";
+import adminObservabilityRouter from "./admin.observability";
 import adminPaymentsRouter from "./admin.payments";
 import adminPerformanceHighlightsRouter from "./admin.performance.highlights";
 import adminPlanWithUsRequestsRouter from "./admin.planWithUs.requests";
@@ -101,6 +102,7 @@ export function registerAdminPrimaryRoutes(app: Express): void {
   app.use("/admin/trust-partners", adminTrustPartnersRouter);
   app.use("/api/admin/trust-partners", adminTrustPartnersRouter as RequestHandler);
   app.use("/admin/stats", adminStatsRouter);
+  app.use("/api/admin/stats", adminStatsRouter);
   app.use("/admin/users/summary", adminUsersSummaryRouter);
   app.use("/api/admin/users/summary", adminUsersSummaryRouter as RequestHandler);
   app.use("/admin/users/transport-bookings", adminUsersTransportBookingsRouter);
@@ -127,6 +129,7 @@ export function registerAdminPostPaymentRoutes(app: Express): void {
   app.use("/api/admin/integrations", adminIntegrationsRouter as RequestHandler);
   app.use("/api/admin/audits", requireRole("ADMIN") as RequestHandler, adminAuditsRouter as RequestHandler);
   app.use("/api/admin/notifications", requireRole("ADMIN") as RequestHandler, adminNotificationsRouter as RequestHandler);
+  app.use("/api/admin/observability", requireRole("ADMIN") as RequestHandler, adminObservabilityRouter as RequestHandler);
   app.use("/api/admin/cancellations", requireRole("ADMIN") as RequestHandler, adminCancellationsRouter as RequestHandler);
   app.use("/api/admin/no4p-otp", requireRole("ADMIN") as RequestHandler, adminNo4pOtpRouter as RequestHandler);
   app.use("/api/admin/updates", adminUpdatesRouter as RequestHandler);

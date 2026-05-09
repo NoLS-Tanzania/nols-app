@@ -40,8 +40,31 @@ router.get('/', asyncHandler(async (req, res) => {
       prisma.notification.count({ where: { unread: true } }),
     ]);
 
-    // Enrich notifications with property and owner info if available
-    const dto = await Promise.all(items.map(async (i: typeof items[number]) => {
+    const propertyIds = Array.from(
+      new Set(
+        items
+          .map((i: typeof items[number]) => {
+            const propertyId = i.meta && typeof i.meta === 'object' ? Number((i.meta as any).propertyId) : NaN;
+            return Number.isFinite(propertyId) ? propertyId : null;
+          })
+          .filter((id): id is number => id != null)
+      )
+    );
+    const properties = propertyIds.length
+      ? await prisma.property.findMany({
+          where: { id: { in: propertyIds } },
+          select: {
+            id: true,
+            title: true,
+            ownerId: true,
+            owner: { select: { id: true, name: true, email: true } },
+          },
+        })
+      : [];
+    const propertyById = new Map((properties as any[]).map((property) => [property.id, property]));
+
+    // Enrich notifications with property and owner info if available.
+    const dto = items.map((i: typeof items[number]) => {
       const baseDto: any = {
         id: i.id,
         title: i.title,
@@ -53,31 +76,19 @@ router.get('/', asyncHandler(async (req, res) => {
 
       // If meta contains propertyId, fetch property details
       if (i.meta && typeof i.meta === 'object' && (i.meta as any).propertyId) {
-        try {
-          const propertyId = Number((i.meta as any).propertyId);
-          if (Number.isFinite(propertyId)) {
-            const property = await prisma.property.findUnique({
-              where: { id: propertyId },
-              include: {
-                owner: { select: { id: true, name: true, email: true } },
-              },
-            });
+        const propertyId = Number((i.meta as any).propertyId);
+        const property = Number.isFinite(propertyId) ? propertyById.get(propertyId) : null;
 
-            if (property) {
-              // Enhance meta with property and owner info
-              baseDto.meta = {
-                ...(i.meta as any),
-                propertyTitle: property.title,
-                propertyId: property.id,
-                ownerId: property.ownerId,
-                ownerName: property.owner?.name || null,
-                ownerEmail: property.owner?.email || null,
-              };
-            }
-          }
-        } catch (err) {
-          // Silently fail - don't break notification display
-          console.warn('Failed to fetch property details for notification', err);
+        if (property) {
+          // Enhance meta with property and owner info
+          baseDto.meta = {
+            ...(i.meta as any),
+            propertyTitle: property.title,
+            propertyId: property.id,
+            ownerId: property.ownerId,
+            ownerName: property.owner?.name || null,
+            ownerEmail: property.owner?.email || null,
+          };
         }
       }
 
@@ -94,7 +105,7 @@ router.get('/', asyncHandler(async (req, res) => {
       }
 
       return baseDto;
-    }));
+    });
 
     res.json({ items: dto, total, totalUnread });
   } catch (err: any) {

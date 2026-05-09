@@ -24,6 +24,7 @@ const MAPBOX_STYLE_DARK = "mapbox://styles/mapbox/navigation-night-v1";
 const MAPBOX_STYLE_STREETS = "mapbox://styles/mapbox/streets-v12";
 const MAPBOX_STYLE_OUTDOORS = "mapbox://styles/mapbox/outdoors-v12";
 const MAPBOX_STYLE_SATELLITE = "mapbox://styles/mapbox/satellite-streets-v12";
+const DEFAULT_MAP_CENTER: LngLat = { lat: -6.7924, lng: 39.2083 };
 
 // Route styling: pickup and destination keep distinct colors; near-arrival only increases emphasis.
 const ROUTE_COLOR_PICKUP = "#2563eb";
@@ -151,6 +152,20 @@ function addSvgImageOnce(map: any, id: string, svg: string, pixelRatio = 2) {
   }
 }
 
+function emitRouteStatus(detail: {
+  state: "idle" | "locating" | "routing" | "ready" | "cached" | "unavailable";
+  type?: "pickup" | "destination";
+  message?: string;
+  distanceMeters?: number | null;
+  durationSec?: number | null;
+}) {
+  try {
+    window.dispatchEvent(new CustomEvent("nols:route:status", { detail }));
+  } catch {
+    // ignore
+  }
+}
+
 export default function DriverLiveMapCanvas({
   liveOnly,
   className,
@@ -213,8 +228,14 @@ export default function DriverLiveMapCanvas({
   const lastRouteFetchRef = useRef<{ key: string; at: number } | null>(null);
   const routeAbortRef = useRef<AbortController | null>(null);
   const routeRetryRef = useRef<{ attempts: number; timer?: number | null } | null>(null);
+  const routeFetchGateRef = useRef<{ type: "pickup" | "destination"; from: LngLat; to: LngLat; at: number; key: string } | null>(null);
+  const activeRouteIndexRef = useRef(0);
   const lastEmittedOptionsKeyRef = useRef<string | null>(null);
   const snappedRouteActiveRef = useRef(false);
+
+  useEffect(() => {
+    activeRouteIndexRef.current = activeRouteIndex;
+  }, [activeRouteIndex]);
 
   // NEXT_PUBLIC_* vars are baked at build time. Use a runtime fetch so newly-set
   // tokens on the host start working immediately without a rebuild.
@@ -251,15 +272,19 @@ export default function DriverLiveMapCanvas({
 
   const driverPos = useMemo((): LngLat => {
     if (allowServerDriverFallback && serverDriverPos) return serverDriverPos;
-    return startupDriverPos ?? { lat: -6.7924, lng: 39.2083 };
+    return startupDriverPos ?? DEFAULT_MAP_CENTER;
   }, [allowServerDriverFallback, serverDriverPos, startupDriverPos]);
+
+  const actualDriverPos = useMemo((): LngLat | null => {
+    return manualDriverPos ?? smoothedDriverPos ?? startupDriverPos ?? (allowServerDriverFallback ? serverDriverPos : null);
+  }, [allowServerDriverFallback, manualDriverPos, serverDriverPos, smoothedDriverPos, startupDriverPos]);
 
   const startupCenter = useMemo((): LngLat | null => {
     if (manualDriverPos) return manualDriverPos;
     if (startupDriverPos) return startupDriverPos;
-    if (allowServerDriverFallback) return serverDriverPos ?? { lat: -6.7924, lng: 39.2083 };
-    return null;
-  }, [allowServerDriverFallback, manualDriverPos, serverDriverPos, startupDriverPos]);
+    if (allowServerDriverFallback) return serverDriverPos ?? (liveOnly ? null : DEFAULT_MAP_CENTER);
+    return liveOnly ? null : DEFAULT_MAP_CENTER;
+  }, [allowServerDriverFallback, liveOnly, manualDriverPos, serverDriverPos, startupDriverPos]);
 
   const hasTrackedDriverPos = Boolean(
     manualDriverPos || snappedDriverPos || smoothedDriverPos || startupDriverPos || (allowServerDriverFallback && serverDriverPos)
@@ -357,21 +382,21 @@ export default function DriverLiveMapCanvas({
 
   const activeRouteFeature = useMemo(() => {
     // Fallback visual route (straight line) when Directions isn't available yet.
-    if (!pickupPos) return null;
+    if (!pickupPos || !actualDriverPos) return null;
     const stage = String(tripStage ?? "");
     const isTransit = stage === "picked_up" || stage === "in_transit" || stage === "arrived" || stage === "dropoff";
     const coords: [number, number][] = [];
     if (isTransit && dropoffPos) {
-      coords.push(toLonLat(driverPos), toLonLat(dropoffPos));
+      coords.push(toLonLat(actualDriverPos), toLonLat(dropoffPos));
     } else {
-      coords.push(toLonLat(driverPos), toLonLat(pickupPos));
+      coords.push(toLonLat(actualDriverPos), toLonLat(pickupPos));
     }
     return {
       type: "Feature",
       geometry: { type: "LineString", coordinates: coords },
       properties: { id: "active-route" },
     };
-  }, [driverPos, pickupPos, dropoffPos, tripStage]);
+  }, [actualDriverPos, pickupPos, dropoffPos, tripStage]);
 
   const selectedRouteFeature = useMemo(() => {
     if (routeFeatures.length === 0) return null;
@@ -1011,12 +1036,61 @@ export default function DriverLiveMapCanvas({
 
   // Directions-based route & ETA (Mapbox Directions API)
   useEffect(() => {
-    if (!mapboxToken) return;
-    if (!pickupPos) return;
+    if (!mapboxToken) {
+      emitRouteStatus({ state: "unavailable", message: "Map routing is not configured." });
+      return;
+    }
+    if (!pickupPos) {
+      emitRouteStatus({ state: "idle", message: "No pickup coordinates for this trip." });
+      return;
+    }
     const stage = String(tripStage ?? "");
     const inTransit = stage === "picked_up" || stage === "in_transit" || stage === "arrived" || stage === "dropoff";
     const to = inTransit && dropoffPos ? dropoffPos : pickupPos;
-    const from = manualDriverPos ?? smoothedDriverPos ?? driverPos;
+    const from = actualDriverPos;
+    const type = inTransit ? ("destination" as const) : ("pickup" as const);
+
+    if (!from) {
+      emitRouteStatus({
+        state: "locating",
+        type,
+        message: "Waiting for live driver location before building the route.",
+      });
+      return;
+    }
+
+    if (inTransit && !dropoffPos) {
+      emitRouteStatus({ state: "unavailable", type, message: "No destination coordinates for this trip." });
+      return;
+    }
+
+    const lastRouteGate = routeFetchGateRef.current;
+    const originMovedM = lastRouteGate ? haversineMeters(lastRouteGate.from, from) : Number.POSITIVE_INFINITY;
+    const destinationMovedM = lastRouteGate ? haversineMeters(lastRouteGate.to, to) : Number.POSITIVE_INFINITY;
+    const elapsedSinceRouteMs = lastRouteGate ? Date.now() - lastRouteGate.at : Number.POSITIVE_INFINITY;
+    const sameLeg = lastRouteGate?.type === type;
+    const shouldRefreshRoute =
+      !lastRouteGate ||
+      !sameLeg ||
+      originMovedM >= 120 ||
+      destinationMovedM >= 25 ||
+      elapsedSinceRouteMs >= 60_000;
+
+    if (!shouldRefreshRoute && lastRouteGate) {
+      setRouteKey(lastRouteGate.key);
+      if (routeMetas.length > 0) {
+        const idx = clamp(activeRouteIndexRef.current, 0, Math.max(0, routeMetas.length - 1));
+        const meta = routeMetas[idx] ?? routeMetas[0];
+        emitRouteStatus({
+          state: "ready",
+          type,
+          message: type === "destination" ? "Route to destination ready." : "Route to pickup ready.",
+          distanceMeters: meta?.distanceMeters ?? null,
+          durationSec: meta?.durationSec ?? null,
+        });
+      }
+      return;
+    }
 
     const key = `${from.lng.toFixed(5)},${from.lat.toFixed(5)}->${to.lng.toFixed(5)},${to.lat.toFixed(5)}`;
     setRouteKey(key);
@@ -1025,6 +1099,7 @@ export default function DriverLiveMapCanvas({
     // throttle: avoid hammering the API on rapid updates
     if (last && last.key === key && now - last.at < 15000) return;
     lastRouteFetchRef.current = { key, at: now };
+    routeFetchGateRef.current = { type, from, to, at: now, key };
 
     // cancel in-flight request
     try {
@@ -1032,8 +1107,16 @@ export default function DriverLiveMapCanvas({
     } catch {
       // ignore
     }
+    try {
+      const retry = routeRetryRef.current;
+      if (retry?.timer) window.clearTimeout(retry.timer);
+      routeRetryRef.current = { attempts: 0, timer: null };
+    } catch {
+      // ignore
+    }
     const ac = new AbortController();
     routeAbortRef.current = ac;
+    emitRouteStatus({ state: "routing", type, message: type === "destination" ? "Building route to destination..." : "Building route to pickup..." });
 
     (async () => {
       try {
@@ -1045,6 +1128,14 @@ export default function DriverLiveMapCanvas({
             if (Array.isArray(parsed?.features)) setRouteFeatures(parsed.features);
             if (Array.isArray(parsed?.metas)) setRouteMetas(parsed.metas);
             if (typeof parsed?.activeIndex === "number") setActiveRouteIndex(clamp(parsed.activeIndex, 0, 10));
+            const meta = Array.isArray(parsed?.metas) ? parsed.metas[0] : null;
+            emitRouteStatus({
+              state: "cached",
+              type,
+              message: "Using saved route while offline.",
+              distanceMeters: meta?.distanceMeters ?? null,
+              durationSec: meta?.durationSec ?? null,
+            });
             if (parsed?.nav) {
               try {
                 window.dispatchEvent(new CustomEvent("nols:route:nav", { detail: parsed.nav }));
@@ -1059,6 +1150,8 @@ export default function DriverLiveMapCanvas({
                 // ignore
               }
             }
+          } else {
+            emitRouteStatus({ state: "unavailable", type, message: "Offline and no saved route is available." });
           }
           return;
         }
@@ -1067,10 +1160,16 @@ export default function DriverLiveMapCanvas({
           mapboxToken
         )}`;
         const r = await fetch(url, { signal: ac.signal });
-        if (!r.ok) return;
+        if (!r.ok) {
+          emitRouteStatus({ state: "unavailable", type, message: "Route service is temporarily unavailable." });
+          return;
+        }
         const json = await r.json();
         const routesArr = Array.isArray(json?.routes) ? json.routes.slice(0, 3) : [];
-        if (routesArr.length === 0) return;
+        if (routesArr.length === 0) {
+          emitRouteStatus({ state: "unavailable", type, message: "No route found for these coordinates." });
+          return;
+        }
 
         const feats = routesArr
           .map((route: any, idx: number) => {
@@ -1083,11 +1182,14 @@ export default function DriverLiveMapCanvas({
             };
           })
           .filter(Boolean);
-        if (feats.length === 0) return;
+        if (feats.length === 0) {
+          emitRouteStatus({ state: "unavailable", type, message: "Route geometry is unavailable." });
+          return;
+        }
+        if (ac.signal.aborted) return;
         setRouteFeatures(feats);
 
         // emit route options for UI selection (avoid spamming)
-        const type = inTransit ? ("destination" as const) : ("pickup" as const);
         const metas: Array<{
           index: number;
           durationSec: number | null;
@@ -1113,6 +1215,20 @@ export default function DriverLiveMapCanvas({
           };
         });
         setRouteMetas(metas);
+        try {
+          const retry = routeRetryRef.current;
+          if (retry?.timer) window.clearTimeout(retry.timer);
+        } catch {
+          // ignore
+        }
+        routeRetryRef.current = { attempts: 0, timer: null };
+        emitRouteStatus({
+          state: "ready",
+          type,
+          message: type === "destination" ? "Route to destination ready." : "Route to pickup ready.",
+          distanceMeters: metas[0]?.distanceMeters ?? null,
+          durationSec: metas[0]?.durationSec ?? null,
+        });
         const options = metas.map((m) => ({ index: m.index, durationSec: m.durationSec, distanceMeters: m.distanceMeters }));
         if (lastEmittedOptionsKeyRef.current !== `${key}:${type}`) {
           lastEmittedOptionsKeyRef.current = `${key}:${type}`;
@@ -1135,11 +1251,13 @@ export default function DriverLiveMapCanvas({
 
         // cache routes + options (+ metas) for offline reuse
         try {
-          localStorage.setItem(`nols:route:${key}`, JSON.stringify({ at: Date.now(), type, features: feats, options, metas, activeIndex: clamp(activeRouteIndex, 0, feats.length - 1) }));
+          localStorage.setItem(`nols:route:${key}`, JSON.stringify({ at: Date.now(), type, features: feats, options, metas, activeIndex: clamp(activeRouteIndexRef.current, 0, feats.length - 1) }));
         } catch {
           // ignore
         }
-      } catch {
+      } catch (error: any) {
+        if (ac.signal.aborted || error?.name === "AbortError") return;
+        emitRouteStatus({ state: "unavailable", type, message: "Could not refresh the route. Retrying shortly." });
         // retry/backoff on weak network
         const state = routeRetryRef.current ?? { attempts: 0, timer: null };
         state.attempts += 1;
@@ -1159,7 +1277,25 @@ export default function DriverLiveMapCanvas({
         }
       }
     })();
-  }, [mapboxToken, driverPos, manualDriverPos, smoothedDriverPos, pickupPos, dropoffPos, tripStage, routeRetryNonce, activeRouteIndex]);
+  }, [mapboxToken, actualDriverPos, pickupPos, dropoffPos, tripStage, routeRetryNonce, routeMetas]);
+
+  useEffect(() => {
+    return () => {
+      try {
+        routeAbortRef.current?.abort();
+      } catch {
+        // ignore
+      }
+      try {
+        const retry = routeRetryRef.current;
+        if (retry?.timer) window.clearTimeout(retry.timer);
+      } catch {
+        // ignore
+      }
+      routeAbortRef.current = null;
+      routeRetryRef.current = null;
+    };
+  }, []);
 
   // Route snapping for the displayed driver dot
   useEffect(() => {

@@ -110,18 +110,21 @@ async function verifyToken(token: string): Promise<AuthedUser | null> {
     }
 
     // Check whether ALL sessions for this user have been revoked.
-    // This allows immediate forced logout when an admin is demoted or a user is removed.
-    // A zero count means either the user never had tracked sessions (legacy) or
-    // all were explicitly terminated, so we only block when at least one session
-    // exists and every one of them has been revoked.
-    const [totalSessions, activeSessions] = await Promise.all([
-      (prisma.session as any).count({ where: { userId } }),
-      (prisma.session as any).count({ where: { userId, revokedAt: null } }),
-    ]);
-    if (totalSessions > 0 && activeSessions === 0) {
-      const e: any = new Error("Session revoked");
-      e.code = "SESSION_REVOKED";
-      throw e;
+    // Use cheap existence checks instead of COUNT(*) on every authenticated request.
+    const activeSession = await (prisma.session as any).findFirst({
+      where: { userId, revokedAt: null },
+      select: { id: true },
+    });
+    if (!activeSession) {
+      const anySession = await (prisma.session as any).findFirst({
+        where: { userId },
+        select: { id: true },
+      });
+      if (anySession) {
+        const e: any = new Error("Session revoked");
+        e.code = "SESSION_REVOKED";
+        throw e;
+      }
     }
 
     // Map database role to Role type (handle case where role might be different format)

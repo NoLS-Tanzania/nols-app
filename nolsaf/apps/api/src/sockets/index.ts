@@ -191,6 +191,68 @@ function registerSocketHandlers(io: SocketServer): void {
       if (callback) callback({ status: "ok" });
     });
 
+    // Transport booking room: used for route-stage and linked driver-location events.
+    socket.on("join-transport-booking", async (data: { bookingId: string | number }, callback?: (response: any) => void) => {
+      try {
+        if (!data.bookingId) {
+          if (callback) callback({ error: "bookingId required" });
+          return;
+        }
+
+        const bookingId = Number(data.bookingId);
+        if (!Number.isFinite(bookingId)) {
+          if (callback) callback({ error: "Invalid bookingId" });
+          return;
+        }
+        if (!user) {
+          if (callback) callback({ error: "Unauthorized" });
+          return;
+        }
+
+        const booking = await prisma.transportBooking.findUnique({
+          where: { id: bookingId },
+          select: { id: true, userId: true, driverId: true },
+        });
+        if (!booking) {
+          if (callback) callback({ error: "not_found" });
+          return;
+        }
+
+        const role = String(user.role || "").toUpperCase();
+        const allowed =
+          role === "ADMIN" ||
+          Number(booking.userId) === Number(user.id) ||
+          (booking.driverId !== null && Number(booking.driverId) === Number(user.id));
+
+        if (!allowed) {
+          if (callback) callback({ error: "Unauthorized" });
+          return;
+        }
+
+        const room = `transport:${booking.id}`;
+        socket.join(room);
+        if (callback) callback({ status: "ok", room });
+      } catch {
+        if (callback) callback({ error: "failed" });
+      }
+    });
+
+    socket.on("leave-transport-booking", (data: { bookingId: string | number }, callback?: (response: any) => void) => {
+      if (!data.bookingId) {
+        if (callback) callback({ error: "bookingId required" });
+        return;
+      }
+
+      const bookingId = Number(data.bookingId);
+      if (!Number.isFinite(bookingId)) {
+        if (callback) callback({ error: "Invalid bookingId" });
+        return;
+      }
+
+      socket.leave(`transport:${bookingId}`);
+      if (callback) callback({ status: "ok" });
+    });
+
     // Handle property availability room joining (for real-time updates)
     socket.on("join-property-availability", async (data: { propertyId: string | number }, callback?: (response: any) => void) => {
       if (!data.propertyId) {

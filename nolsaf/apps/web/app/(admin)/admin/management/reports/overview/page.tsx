@@ -29,7 +29,7 @@ export default function ManagementReportsOverviewPage() {
               </div>
             </div>
             <p className="mt-3 max-w-xl text-sm leading-6 text-slate-500">
-              Two focused report lanes — pick the one that matches what you need to investigate.
+              Two focused report lanes. Pick the one that matches what you need to investigate.
             </p>
           </div>
 
@@ -73,7 +73,7 @@ export default function ManagementReportsOverviewPage() {
               <div>
                 <div className="text-[15px] font-bold text-slate-900">Bookings</div>
                 <div className="mt-1.5 text-sm leading-6 text-slate-500">
-                  Single bookings, group stays, and Plan With Us requests — booking flow, activity volume, and management follow-up.
+                  Single bookings, group stays, and Plan With Us requests, booking flow, activity volume, and management follow-up.
                 </div>
               </div>
               <div className="mt-auto flex items-center justify-between gap-3 border-t border-slate-100 pt-4">

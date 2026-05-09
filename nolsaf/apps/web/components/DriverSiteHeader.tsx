@@ -206,7 +206,16 @@ export default function DriverSiteHeader({ unreadMessages = 0 }: { unreadMessage
             </button>
 
             <Link href="/driver" className="inline-flex items-center transition-opacity duration-300 hover:opacity-80 no-underline" aria-label="Driver Home">
-              <Image src="/assets/NoLS2025-04.png" alt="NoLSAF" width={44} height={44} className="h-9 w-9 brightness-0 invert" />
+              <Image
+                src="/assets/NoLS2025-04.png"
+                alt="NoLSAF"
+                width={44}
+                height={44}
+                sizes="44px"
+                loading="eager"
+                priority
+                className="h-9 w-9 brightness-0 invert"
+              />
             </Link>
           </div>
 

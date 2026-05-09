@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Linkedin, Instagram, Youtube, X, Facebook, MapPin, Phone } from "lucide-react";
+import FooterBridge from "@/components/FooterBridge";
 
 const APP_VERSION = "v0.1.0";
 
@@ -143,7 +144,7 @@ export default function PublicFooter({ withRail = true }: { withRail?: boolean }
         body: JSON.stringify({ email }),
       });
       if (res.ok) {
-        setNewsletterStatus({ ok: true, message: 'Subscribed — check your inbox.' });
+        setNewsletterStatus({ ok: true, message: 'Subscribed - check your inbox.' });
         setNewsletterEmail('');
       } else {
         // show server message if available
@@ -168,10 +169,12 @@ export default function PublicFooter({ withRail = true }: { withRail?: boolean }
   return (
     <footer
       aria-label="Site footer"
-      className="relative w-full mt-10 page-bottom-buffer overflow-hidden border-t border-gray-200/70 bg-gradient-to-b from-white via-slate-50 to-white"
+      className="relative w-full mt-10 page-bottom-buffer overflow-hidden bg-gradient-to-b from-white via-slate-50 to-white"
     >
+      <FooterBridge variant="public" />
+
       {withRail ? (
-        <div aria-hidden className="absolute inset-x-0 top-0 h-1 flex">
+        <div aria-hidden className="absolute inset-x-0 top-10 h-1 flex">
           <span className="footer-rail-seg footer-rail-green w-[34%]" />
           <span className="footer-rail-seg footer-rail-yellow w-[8%]" />
           <span className="footer-rail-seg footer-rail-black w-[8%]" />
@@ -181,11 +184,11 @@ export default function PublicFooter({ withRail = true }: { withRail?: boolean }
 
       <div
         aria-hidden
-        className="pointer-events-none absolute -top-24 left-1/2 h-72 w-[900px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(2,102,94,0.22),transparent_70%)] blur-2xl"
+        className="pointer-events-none absolute top-4 left-1/2 h-72 w-[900px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(2,102,94,0.16),transparent_70%)] blur-2xl"
       />
 
-      <div className="public-container pt-10 pb-10 relative z-10">
-        <div className="rounded-3xl border border-white/12 bg-gradient-to-b from-slate-950/85 via-slate-900/80 to-slate-950/85 backdrop-blur-xl shadow-[0_18px_70px_rgba(0,0,0,0.45)] text-slate-200">
+      <div className="public-container pt-4 pb-10 relative z-10">
+        <div className="rounded-2xl border border-white/12 bg-gradient-to-b from-slate-950/85 via-slate-900/80 to-slate-950/85 backdrop-blur-xl shadow-[0_18px_58px_rgba(0,0,0,0.38)] text-slate-200">
           <div className="px-5 py-8 sm:px-8">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
               <div className="lg:col-span-5 space-y-4">
@@ -315,7 +318,7 @@ export default function PublicFooter({ withRail = true }: { withRail?: boolean }
                         {newsletterLoading ? (
                           <span className="flex items-center gap-2">
                             <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                            <span className="hidden sm:inline">Subscribing…</span>
+                            <span className="hidden sm:inline">Subscribing...</span>
                           </span>
                         ) : (
                           "Subscribe"
@@ -417,7 +420,7 @@ export default function PublicFooter({ withRail = true }: { withRail?: boolean }
               <div className="h-px w-full bg-gradient-to-r from-transparent via-white/15 to-transparent" />
               <div className="mt-5 flex flex-col items-center gap-2">
                 <div className="text-xs sm:text-sm text-slate-300 text-center">
-                  <span className="font-semibold text-slate-200">© {year} </span>
+                  <span className="font-semibold text-slate-200">&copy; {year} </span>
                   <span className="font-extrabold text-emerald-200 tracking-wide">NoLSAF</span>
                   <span className="text-slate-400"> | All rights reserved</span>
                 </div>

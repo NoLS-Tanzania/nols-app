@@ -1,12 +1,20 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect } from 'react';
 import DatePicker from '@/components/ui/DatePicker';
 import { REGIONS as TZ_REGIONS } from '@/lib/tzRegions';
 import { REGIONS_FULL_DATA } from '@/lib/tzRegionsFull';
 import Link from 'next/link';
-import { Calendar, ChevronDown, ChevronLeft, ChevronRight, Check, Truck, Bus, Coffee, Users, Wrench, Download, ArrowLeft, CheckCircle, ArrowRight, Trash2 } from 'lucide-react';
+import { Calendar, ChevronDown, ChevronLeft, ChevronRight, Check, Truck, Bus, Coffee, Users, Wrench, Download, ArrowLeft, CheckCircle, ArrowRight, Trash2, Lock, DoorOpen } from 'lucide-react';
 import Spinner from './Spinner';
+import ComingSoonGate from './ComingSoonGate';
+
+/** ── Service gate config ──────────────────────────────────────────────────
+ *  Set GATE_ENABLED to false when NoLSAF team is ready to open Group Stays.
+ *  Nothing else needs to change — the modal simply won't appear.
+ * ─────────────────────────────────────────────────────────────────────── */
+const GATE_ENABLED = true;
+const GATE_LAUNCH_DATE = new Date('2026-06-25T00:00:00');
 
 export default function GroupStaysCard({ onCloseAction }: { onCloseAction?: () => void }) {
   const DRAFT_KEY = 'groupStaysDraft.v1';
@@ -23,6 +31,9 @@ export default function GroupStaysCard({ onCloseAction }: { onCloseAction?: () =
   const [errors, setErrors] = useState<string[]>([]);
   const [hasSavedDraft, setHasSavedDraft] = useState<boolean>(false);
   const [draftNotice, setDraftNotice] = useState<string>('');
+
+  // Coming-soon gate — only the open/close state lives here now
+  const [showComingSoon, setShowComingSoon] = useState(false);
 
   // Use canonical TZ region/district data from `lib/tzRegions.ts`
   // `TZ_REGIONS` is an array of { id, name, districts }
@@ -477,7 +488,7 @@ export default function GroupStaysCard({ onCloseAction }: { onCloseAction?: () =
     return e.length === 0;
   };
 
-  const handleCreate = async () => {
+  const _handleCreate = async () => {
     if (!validate()) return;
     
     setIsCreating(true);
@@ -706,30 +717,81 @@ export default function GroupStaysCard({ onCloseAction }: { onCloseAction?: () =
   return (
     <section className="mt-4" aria-labelledby="group-stays-heading">
       <div className="public-container">
-        {/* Centered page heading */}
-        <div className="text-center mb-6">
-          <h3 id="group-stays-heading" className="text-2xl sm:text-3xl font-semibold">Group Stays Hub</h3>
-          <p className="mt-2 text-sm text-slate-600">Reserve rooms and manage group lodging for families, teams and events.</p>
+
+        {/* ── Coming-Soon Gate ── */}
+        <ComingSoonGate
+          enabled={GATE_ENABLED}
+          open={showComingSoon}
+          onClose={() => setShowComingSoon(false)}
+          serviceName="Group Stays"
+          launchDate={GATE_LAUNCH_DATE}
+        />
+
+        {/* Premium Hero Header */}
+        <div className="relative overflow-hidden rounded-2xl mb-6 shadow-[0_4px_32px_rgba(2,102,94,0.18)]"
+          style={{ background: "linear-gradient(135deg, #02665e 0%, #034d47 60%, #023a35 100%)" }}>
+          {/* Decorative background blobs */}
+          <div className="pointer-events-none absolute inset-0">
+            <div className="absolute -top-10 -right-10 h-48 w-48 rounded-full opacity-10"
+              style={{ background: "radial-gradient(circle, #ffffff, transparent 70%)" }} />
+            <div className="absolute -bottom-8 -left-8 h-40 w-40 rounded-full opacity-10"
+              style={{ background: "radial-gradient(circle, #ffffff, transparent 70%)" }} />
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-64 w-64 rounded-full opacity-5"
+              style={{ background: "radial-gradient(circle, #7fffd4, transparent 70%)" }} />
+          </div>
+
+          <div className="relative px-6 py-8 sm:py-10 sm:px-10">
+            {/* Return to public site — top right */}
+            <div className="absolute top-4 right-4 sm:top-5 sm:right-6">
+              <Link
+                href="/public"
+                onClick={() => { if (onCloseAction) onCloseAction(); }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white/70 hover:text-white hover:bg-white/10 transition-all duration-200 no-underline group"
+              >
+                <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
+                <span>Return to public site</span>
+              </Link>
+            </div>
+
+            {/* Icon + Title */}
+            <div className="flex flex-col items-center text-center gap-4">
+              {/* Glowing icon */}
+              <div className="relative">
+                <div className="absolute inset-0 rounded-2xl blur-lg scale-125 opacity-40"
+                  style={{ background: "rgba(255,255,255,0.3)" }} />
+                <div className="relative h-16 w-16 rounded-2xl flex items-center justify-center shadow-xl border border-white/20"
+                  style={{ background: "rgba(255,255,255,0.15)", backdropFilter: "blur(8px)" }}>
+                  <Users className="w-8 h-8 text-white drop-shadow-md" aria-hidden />
+                </div>
+              </div>
+
+              <div>
+                <h3 id="group-stays-heading"
+                  className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight drop-shadow-md">
+                  Group Stays Hub
+                </h3>
+                <p className="mt-2 text-sm sm:text-base text-white/70 font-medium max-w-md mx-auto leading-relaxed">
+                  Reserve rooms and manage group lodging for families, teams and events.
+                </p>
+              </div>
+
+              {/* Decorative divider */}
+              <div className="flex items-center gap-2 mt-1">
+                <div className="h-px w-10 rounded-full bg-white/30" />
+                <div className="h-1.5 w-1.5 rounded-full bg-white/50" />
+                <div className="h-px w-10 rounded-full bg-white/30" />
+              </div>
+            </div>
+          </div>
         </div>
 
         <article className="rounded-xl border bg-gradient-to-b from-white via-slate-50 to-white p-6 shadow-lg">
           <div className="flex items-start justify-between">
             <div>
               <div className="flex items-center gap-3">
-                <Calendar className="w-6 h-6 text-emerald-600" aria-hidden />
               </div>
             </div>
             <div className="ml-4">
-              <Link 
-                href="/public" 
-                onClick={() => {
-                  if (onCloseAction) onCloseAction();
-                }}
-                className="flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:text-[#02665e] hover:bg-slate-50 rounded-lg transition-all duration-200 font-medium group no-underline"
-              >
-                <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-                <span>Return to public site</span>
-              </Link>
             </div>
           </div>
 
@@ -737,37 +799,62 @@ export default function GroupStaysCard({ onCloseAction }: { onCloseAction?: () =
             {/* Stepper header */}
             <div className="sm:col-span-2">
               <div className="mb-3">
-                <nav className="flex items-center justify-center gap-1.5 sm:gap-4">
-                  {[1,2,3,4].map((s, i) => (
-                    <div key={s} className="flex items-center gap-1.5 sm:gap-3">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (s <= currentStep) {
-                            setErrors([]);
-                            setCurrentStep(s);
-                            return;
-                          }
-                          // Validate all steps up to the target step
-                          const ok = validateUpToStep(s - 1);
-                          if (ok) {
-                            setErrors([]);
-                            setCurrentStep(s);
-                          }
-                        }}
-                        className={`flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full text-xs sm:text-sm font-semibold transition-transform transform ${currentStep===s ? 'bg-emerald-600 text-white shadow-md scale-105' : 'bg-slate-100 text-slate-700 hover:scale-105'} focus:outline-none focus:ring-2 focus:ring-emerald-200`}
-                        aria-current={currentStep===s ? 'step' : undefined}
-                        aria-label={`Step ${s}`}
-                      >
-                        {s}
-                      </button>
-                      <div className="hidden sm:block text-sm text-slate-600">{s === 1 ? 'Details' : s === 2 ? 'Accommodation' : s === 3 ? 'Roster' : 'Review'}</div>
-                      {i < 3 ? <div className={`w-8 sm:w-14 h-1 rounded ${currentStep > s ? 'bg-emerald-500' : 'bg-slate-200'} transition-colors`} /> : null}
-                    </div>
-                  ))}
+                <nav className="flex items-center justify-center gap-0">
+                  {[1,2,3,4].map((s, i) => {
+                    const done   = currentStep > s;
+                    const active = currentStep === s;
+                    return (
+                      <div key={s} className="flex items-center">
+                        {/* Step node */}
+                        <div className="flex flex-col items-center">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (s <= currentStep) { setErrors([]); setCurrentStep(s); return; }
+                              const ok = validateUpToStep(s - 1);
+                              if (ok) { setErrors([]); setCurrentStep(s); }
+                            }}
+                            aria-current={active ? 'step' : undefined}
+                            aria-label={`Step ${s}`}
+                            className={[
+                              "flex items-center justify-center w-9 h-9 sm:w-11 sm:h-11 rounded-full text-xs sm:text-sm font-bold transition-all duration-300 focus:outline-none",
+                              active
+                                ? "bg-[#02665e] text-white shadow-[0_0_0_4px_rgba(2,102,94,0.18)] scale-110 border-2 border-[#02665e]"
+                                : done
+                                  ? "bg-white text-[#02665e] border-2 border-[#02665e]"
+                                  : "bg-white text-slate-400 border-2 border-slate-200 hover:border-[#02665e]/40 hover:text-[#02665e]/60",
+                            ].join(" ")}
+                          >
+                            {s}
+                          </button>
+                          <span className={[
+                            "hidden sm:block mt-1.5 text-xs font-medium tracking-wide transition-colors duration-200",
+                            active ? "text-[#02665e]" : done ? "text-[#02665e]/60" : "text-slate-400",
+                          ].join(" ")}>
+                            {s === 1 ? 'Details' : s === 2 ? 'Accommodation' : s === 3 ? 'Roster' : 'Review'}
+                          </span>
+                        </div>
+                        {/* Connector */}
+                        {i < 3 && (
+                          <div className="relative mb-4 mx-1.5 sm:mx-2.5 h-0.5 w-8 sm:w-14 rounded-full bg-slate-200 overflow-hidden">
+                            <div
+                              className="absolute inset-y-0 left-0 rounded-full transition-all duration-500"
+                              style={{ width: done ? '100%' : '0%', background: 'linear-gradient(90deg,#02665e,#059669)' }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </nav>
-                <div className="mt-3 h-1 bg-slate-100 rounded-full overflow-hidden">
-                  <div className={`h-full bg-emerald-500 ${currentStep === 1 ? 'w-0' : currentStep === 2 ? 'w-1/3' : currentStep === 3 ? 'w-2/3' : 'w-full'} transition-all`} />
+                <div className="mt-2 mx-auto max-w-xs h-1 bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{
+                      width: currentStep === 1 ? '0%' : currentStep === 2 ? '33%' : currentStep === 3 ? '66%' : '100%',
+                      background: 'linear-gradient(90deg,#02665e,#059669)',
+                    }}
+                  />
                 </div>
               </div>
             </div>
@@ -992,13 +1079,12 @@ export default function GroupStaysCard({ onCloseAction }: { onCloseAction?: () =
 
               {currentStep === 2 && (
                 <div>
-                  <div className="mb-3 flex items-center justify-between gap-3 text-xs">
-                    <div className="text-slate-500">
-                      {draftNotice ? (
-                        <span className="text-emerald-700">{draftNotice}</span>
-                      ) : (
-                        <span>Saved automatically (Steps 1–2)</span>
-                      )}
+                  <div className="mb-4 flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-[#02665e]/5 border border-[#02665e]/10">
+                    <div className="flex items-center gap-2">
+                      <div className="h-1.5 w-1.5 rounded-full bg-[#02665e] animate-pulse flex-shrink-0" />
+                      <span className="text-xs font-medium text-[#02665e]">
+                        {draftNotice ? draftNotice : 'Saved automatically (Steps 1–2)'}
+                      </span>
                     </div>
                     {hasSavedDraft ? (
                       <button
@@ -1006,21 +1092,19 @@ export default function GroupStaysCard({ onCloseAction }: { onCloseAction?: () =
                         onClick={clearSavedDraft}
                         aria-label="Clear saved draft"
                         title="Clear saved draft"
-                        className="inline-flex items-center justify-center h-8 w-8 rounded-md border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                        className="inline-flex items-center justify-center h-7 w-7 rounded-md border border-[#02665e]/20 bg-white text-slate-400 hover:text-red-500 hover:border-red-200 transition-colors"
                       >
-                        <Trash2 className="h-4 w-4" aria-hidden />
+                        <Trash2 className="h-3.5 w-3.5" aria-hidden />
                       </button>
                     ) : null}
                   </div>
                   {/* Accommodation, headcount and private-room controls moved to top of Step 2 */}
-                  <div className="rounded border p-3 mb-4 groupstays-section border-slate-100">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <div className="w-1.5 h-6 bg-emerald-500 rounded-sm" aria-hidden />
-                        <div>
-                          <div className="text-sm font-medium">Accommodation</div>
-                          <div className="text-xs text-slate-500">Choose style so we can recommend room sizes</div>
-                        </div>
+                  <div className="rounded-xl border border-[#02665e]/10 bg-gradient-to-br from-white to-emerald-50/30 p-4 mb-4 shadow-sm">
+                    <div className="flex items-center gap-3 mb-3 pb-2.5 border-b border-[#02665e]/10">
+                      <div className="h-2 w-2 rounded-full bg-[#02665e] ring-[3px] ring-[#02665e]/15 flex-shrink-0" aria-hidden />
+                      <div>
+                        <div className="text-sm font-semibold text-slate-800">Accommodation</div>
+                        <div className="text-xs text-slate-500">Choose style so we can recommend room sizes</div>
                       </div>
                     </div>
                     <div className="relative">
@@ -1075,19 +1159,19 @@ export default function GroupStaysCard({ onCloseAction }: { onCloseAction?: () =
                     ) : null}
                   </div>
 
-                  <div className="rounded border p-3 mb-4 groupstays-section border-slate-100">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-1.5 h-6 bg-emerald-500 rounded-sm" aria-hidden />
+                  <div className="rounded-xl border border-[#02665e]/10 bg-gradient-to-br from-white to-emerald-50/30 p-4 mb-4 shadow-sm">
+                    <div className="flex items-center gap-3 mb-3 pb-2.5 border-b border-[#02665e]/10">
+                      <div className="h-2 w-2 rounded-full bg-[#02665e] ring-[3px] ring-[#02665e]/15 flex-shrink-0" aria-hidden />
                       <div>
-                        <div className="text-sm font-medium">Headcount</div>
+                        <div className="text-sm font-semibold text-slate-800">Headcount</div>
                         <div className="text-xs text-slate-500">Number of people in your group (separated by gender)</div>
                       </div>
                     </div>
                     {/* Gender-based headcount breakdown */}
                     <div className="mt-3 space-y-3">
                       <div className="grid grid-cols-3 gap-3">
-                        <div>
-                          <label htmlFor="male-count" className="block text-xs text-slate-600 mb-1">Male</label>
+                        <div className="rounded-lg bg-sky-50/60 border border-sky-100 p-2.5 text-center">
+                          <label htmlFor="male-count" className="block text-xs font-semibold text-sky-700 mb-1.5">Male</label>
                           <input 
                             id="male-count" 
                             name="maleCount" 
@@ -1097,11 +1181,11 @@ export default function GroupStaysCard({ onCloseAction }: { onCloseAction?: () =
                             min={0} 
                             aria-label="Number of males" 
                             placeholder="0" 
-                            className="w-full rounded px-2 py-1 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200" 
+                            className="w-full rounded-md px-2 py-1.5 border border-sky-200 text-sm text-center font-bold text-sky-800 bg-white focus:outline-none focus:ring-2 focus:ring-sky-200" 
                           />
                         </div>
-                        <div>
-                          <label htmlFor="female-count" className="block text-xs text-slate-600 mb-1">Female</label>
+                        <div className="rounded-lg bg-pink-50/60 border border-pink-100 p-2.5 text-center">
+                          <label htmlFor="female-count" className="block text-xs font-semibold text-pink-700 mb-1.5">Female</label>
                           <input 
                             id="female-count" 
                             name="femaleCount" 
@@ -1111,11 +1195,11 @@ export default function GroupStaysCard({ onCloseAction }: { onCloseAction?: () =
                             min={0} 
                             aria-label="Number of females" 
                             placeholder="0" 
-                            className="w-full rounded px-2 py-1 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200" 
+                            className="w-full rounded-md px-2 py-1.5 border border-pink-200 text-sm text-center font-bold text-pink-800 bg-white focus:outline-none focus:ring-2 focus:ring-pink-200" 
                           />
                         </div>
-                        <div>
-                          <label htmlFor="other-count" className="block text-xs text-slate-600 mb-1">Other</label>
+                        <div className="rounded-lg bg-slate-50/80 border border-slate-200 p-2.5 text-center">
+                          <label htmlFor="other-count" className="block text-xs font-semibold text-slate-600 mb-1.5">Other</label>
                           <input 
                             id="other-count" 
                             name="otherCount" 
@@ -1125,7 +1209,7 @@ export default function GroupStaysCard({ onCloseAction }: { onCloseAction?: () =
                             min={0} 
                             aria-label="Number of other" 
                             placeholder="0" 
-                            className="w-full rounded px-2 py-1 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200" 
+                            className="w-full rounded-md px-2 py-1.5 border border-slate-200 text-sm text-center font-bold text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-slate-200" 
                           />
                         </div>
                       </div>
@@ -1136,51 +1220,110 @@ export default function GroupStaysCard({ onCloseAction }: { onCloseAction?: () =
                     </div>
                   </div>
 
-                  <div className="rounded border p-3 mb-4 groupstays-section border-slate-100">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-1.5 h-6 bg-emerald-500 rounded-sm" aria-hidden />
+                  <div className="rounded-xl border border-[#02665e]/10 bg-gradient-to-br from-white to-emerald-50/30 p-4 mb-4 shadow-sm">
+                    {/* Header */}
+                    <div className="flex items-start gap-3 pb-3 mb-4 border-b border-[#02665e]/10">
+                      <div className="h-2 w-2 rounded-full bg-[#02665e] ring-[3px] ring-[#02665e]/15 flex-shrink-0 mt-1.5" aria-hidden />
                       <div>
-                        <div className="text-sm font-medium">Private rooms</div>
-                        <div className="text-xs text-slate-500">Reserve private rooms for those who request them</div>
+                        <div className="text-sm font-semibold text-slate-800">Private rooms</div>
+                        <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                          Some guests prefer their own room. If any members of your group need privacy, tell us how many private rooms to reserve.
+                        </p>
                       </div>
                     </div>
-                    <div className="mt-2 flex items-center gap-4 private-room-row">
-                      <div className="flex items-center gap-4">
-                        <div role="group" aria-label="Private room options" className="inline-flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setNeedsPrivateRoom(true)}
-                            aria-pressed={needsPrivateRoom}
-                            className={`text-sm px-3 py-1 rounded border inline-flex items-center focus:outline-none focus:ring-2 focus:ring-emerald-200 ${needsPrivateRoom ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-700 border-slate-200'}`}
-                          >
-                            Yes
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { setNeedsPrivateRoom(false); setPrivateRoomCount(0); }}
-                            aria-pressed={!needsPrivateRoom}
-                            className={`text-sm px-3 py-1 rounded border inline-flex items-center focus:outline-none focus:ring-2 focus:ring-emerald-200 ${!needsPrivateRoom ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-700 border-slate-200'}`}
-                          >
-                            No
-                          </button>
-                        </div>
-                      </div>
 
-                      {needsPrivateRoom ? (
-                        <div className="flex items-center gap-2">
-                          <label htmlFor="private-room-count" className="text-xs text-slate-600">How many?</label>
-                          <input id="private-room-count" type="number" min={1} value={privateRoomCount} onChange={(e) => setPrivateRoomCount(Math.max(0, Number(e.target.value || 0)))} className="ml-2 w-20 rounded px-2 py-1 border" />
+                    {/* Two option cards side by side */}
+                    <div role="group" aria-label="Private room options" className="grid grid-cols-2 gap-3">
+                      {/* Yes card */}
+                      <button
+                        type="button"
+                        onClick={() => setNeedsPrivateRoom(true)}
+                        aria-pressed={needsPrivateRoom}
+                        className={[
+                          "relative flex flex-col items-start gap-2 rounded-xl border-2 p-4 text-left transition-all duration-200 focus:outline-none overflow-hidden",
+                          needsPrivateRoom
+                            ? "border-[#02665e] bg-[#02665e] shadow-lg shadow-[#02665e]/20"
+                            : "border-slate-200 bg-white hover:border-[#02665e]/40 hover:shadow-md",
+                        ].join(" ")}
+                      >
+                        {needsPrivateRoom && (
+                          <div className="absolute top-2 right-2">
+                            <div className="h-5 w-5 rounded-full bg-white/20 flex items-center justify-center">
+                              <Check className="w-3 h-3 text-white stroke-[3]" />
+                            </div>
+                          </div>
+                        )}
+                        <div className={["h-9 w-9 rounded-lg flex items-center justify-center", needsPrivateRoom ? "bg-white/20" : "bg-[#02665e]/10"].join(" ")}>
+                          <Lock className={["w-4 h-4", needsPrivateRoom ? "text-white" : "text-[#02665e]"].join(" ")} />
                         </div>
-                      ) : null}
+                        <div>
+                          <p className={["text-sm font-bold", needsPrivateRoom ? "text-white" : "text-slate-800"].join(" ")}>Yes</p>
+                          <p className={["text-xs mt-0.5 leading-tight", needsPrivateRoom ? "text-white/75" : "text-slate-500"].join(" ")}>Reserve private rooms for some guests</p>
+                        </div>
+                      </button>
+
+                      {/* No card */}
+                      <button
+                        type="button"
+                        onClick={() => { setNeedsPrivateRoom(false); setPrivateRoomCount(0); }}
+                        aria-pressed={!needsPrivateRoom}
+                        className={[
+                          "relative flex flex-col items-start gap-2 rounded-xl border-2 p-4 text-left transition-all duration-200 focus:outline-none overflow-hidden",
+                          !needsPrivateRoom
+                            ? "border-[#02665e] bg-[#02665e] shadow-lg shadow-[#02665e]/20"
+                            : "border-slate-200 bg-white hover:border-[#02665e]/40 hover:shadow-md",
+                        ].join(" ")}
+                      >
+                        {!needsPrivateRoom && (
+                          <div className="absolute top-2 right-2">
+                            <div className="h-5 w-5 rounded-full bg-white/20 flex items-center justify-center">
+                              <Check className="w-3 h-3 text-white stroke-[3]" />
+                            </div>
+                          </div>
+                        )}
+                        <div className={["h-9 w-9 rounded-lg flex items-center justify-center", !needsPrivateRoom ? "bg-white/20" : "bg-slate-100"].join(" ")}>
+                          <DoorOpen className={["w-4 h-4", !needsPrivateRoom ? "text-white" : "text-slate-500"].join(" ")} />
+                        </div>
+                        <div>
+                          <p className={["text-sm font-bold", !needsPrivateRoom ? "text-white" : "text-slate-800"].join(" ")}>No</p>
+                          <p className={["text-xs mt-0.5 leading-tight", !needsPrivateRoom ? "text-white/75" : "text-slate-500"].join(" ")}>Shared rooms are fine for everyone</p>
+                        </div>
+                      </button>
                     </div>
-                    <p className="mt-2 text-xs text-slate-500">If yes, we will reserve private rooms for those who request them.</p>
+
+                    {/* How many counter — shown only when Yes */}
+                    {needsPrivateRoom && (
+                      <div className="mt-4 pt-4 border-t border-[#02665e]/10">
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-800">How many private rooms?</p>
+                            <p className="text-xs text-slate-500 mt-0.5">We'll guarantee this number in your quote.</p>
+                          </div>
+                          <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1">
+                            <button
+                              type="button"
+                              onClick={() => setPrivateRoomCount((c) => Math.max(1, c - 1))}
+                              className="h-8 w-8 rounded-lg bg-white border border-slate-200 text-slate-600 text-base font-bold hover:border-[#02665e]/40 hover:text-[#02665e] transition-colors flex items-center justify-center focus:outline-none shadow-sm"
+                              aria-label="Decrease private room count"
+                            >−</button>
+                            <span className="w-10 text-center text-base font-extrabold text-[#02665e]">{privateRoomCount || 1}</span>
+                            <button
+                              type="button"
+                              onClick={() => setPrivateRoomCount((c) => (c || 0) + 1)}
+                              className="h-8 w-8 rounded-lg bg-white border border-slate-200 text-slate-600 text-base font-bold hover:border-[#02665e]/40 hover:text-[#02665e] transition-colors flex items-center justify-center focus:outline-none shadow-sm"
+                              aria-label="Increase private room count"
+                            >+</button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
-                  <div className="rounded border p-3 groupstays-section border-slate-100">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-1.5 h-6 bg-emerald-500 rounded-sm" aria-hidden />
+                  <div className="rounded-xl border border-[#02665e]/10 bg-gradient-to-br from-white to-emerald-50/30 p-4 mb-4 shadow-sm">
+                    <div className="flex items-center gap-3 mb-3 pb-2.5 border-b border-[#02665e]/10">
+                      <div className="h-2 w-2 rounded-full bg-[#02665e] ring-[3px] ring-[#02665e]/15 flex-shrink-0" aria-hidden />
                       <div>
-                        <div className="text-sm font-medium">Room configuration</div>
+                        <div className="text-sm font-semibold text-slate-800">Room configuration</div>
                         <div className="text-xs text-slate-500">Persons per room and estimated rooms needed</div>
                       </div>
                     </div>
@@ -1200,43 +1343,47 @@ export default function GroupStaysCard({ onCloseAction }: { onCloseAction?: () =
                     </div>
                   </div>
 
-                  <div className="rounded border p-3 mb-4 groupstays-section border-slate-100">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-1.5 h-6 bg-emerald-500 rounded-sm" aria-hidden />
+                  <div className="rounded-xl border border-[#02665e]/10 bg-gradient-to-br from-white to-emerald-50/30 p-4 mb-4 shadow-sm">
+                    <div className="flex items-center gap-3 mb-3 pb-2.5 border-b border-[#02665e]/10">
+                      <div className="h-2 w-2 rounded-full bg-[#02665e] ring-[3px] ring-[#02665e]/15 flex-shrink-0" aria-hidden />
                       <div>
-                        <div className="text-sm font-medium">Dates</div>
+                        <div className="text-sm font-semibold text-slate-800">Dates</div>
                         <div className="text-xs text-slate-500">Select check-in and check-out (nights shown when both set)</div>
                       </div>
                     </div>
                     <div className="mt-2">
                       {!useDates ? (
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-col items-center gap-3 py-3">
+                          <div className="flex items-center justify-center h-11 w-11 rounded-full bg-[#02665e]/10">
+                            <Calendar className="w-5 h-5 text-[#02665e]" />
+                          </div>
+                          <p className="text-xs text-slate-500 text-center">No dates selected. Add them to help us plan your stay.</p>
                           <button
                             type="button"
-                            onClick={() => {
-                              setUseDates(true);
-                            }}
-                            className="px-3 py-2 rounded border bg-white text-sm"
+                            onClick={() => setUseDates(true)}
+                            className="px-5 py-2 rounded-lg border-2 border-[#02665e] bg-white text-sm font-semibold text-[#02665e] hover:bg-[#02665e] hover:text-white transition-all duration-200 shadow-sm"
                           >
-                            Add dates
+                            + Add dates
                           </button>
-                          <span className="text-sm text-slate-500">Dates: Not specified</span>
                         </div>
                       ) : (
-                        <div className="w-full max-w-md mx-auto">
-                          <div className="grid grid-cols-2 gap-2">
+                        <div className="w-full">
+                          <div className="grid grid-cols-2 gap-3">
+                            {/* Check-in */}
                             <div className="relative">
                               <button
                                 type="button"
                                 onClick={() => setCheckInPickerOpen(true)}
-                                className="w-full text-left rounded px-3 py-2 border bg-white text-sm"
+                                className={[
+                                  "w-full text-left rounded-xl px-4 py-3 border-2 bg-white transition-all duration-200 group",
+                                  checkInIso ? "border-[#02665e]/30 shadow-sm" : "border-slate-200 hover:border-[#02665e]/40",
+                                ].join(" ")}
                               >
-                                <div className="text-xs text-slate-500">Check-in</div>
-                                <div className="font-medium text-slate-700">
-                                  {checkInIso ? new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(checkInIso)) : 'Select'}
+                                <div className="text-[10px] font-semibold uppercase tracking-widest text-[#02665e]/70 mb-0.5">Check-in</div>
+                                <div className={["text-base font-bold", checkInIso ? "text-slate-800" : "text-slate-400"].join(" ")}>
+                                  {checkInIso ? new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(checkInIso)) : '—'}
                                 </div>
                               </button>
-
                               {checkInPickerOpen && (
                                 <>
                                   <div className="fixed inset-0 z-40" onClick={() => setCheckInPickerOpen(false)} />
@@ -1259,19 +1406,23 @@ export default function GroupStaysCard({ onCloseAction }: { onCloseAction?: () =
                               )}
                             </div>
 
+                            {/* Check-out */}
                             <div className="relative">
                               <button
                                 type="button"
                                 onClick={() => setCheckOutPickerOpen(true)}
                                 disabled={!checkInIso}
-                                className="w-full text-left rounded px-3 py-2 border bg-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                className={[
+                                  "w-full text-left rounded-xl px-4 py-3 border-2 bg-white transition-all duration-200",
+                                  checkOutIso ? "border-[#02665e]/30 shadow-sm" : "border-slate-200 hover:border-[#02665e]/40",
+                                  !checkInIso ? "opacity-40 cursor-not-allowed" : "",
+                                ].join(" ")}
                               >
-                                <div className="text-xs text-slate-500">Check-out</div>
-                                <div className="font-medium text-slate-700">
-                                  {checkOutIso ? new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(checkOutIso)) : 'Select'}
+                                <div className="text-[10px] font-semibold uppercase tracking-widest text-[#02665e]/70 mb-0.5">Check-out</div>
+                                <div className={["text-base font-bold", checkOutIso ? "text-slate-800" : "text-slate-400"].join(" ")}>
+                                  {checkOutIso ? new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(checkOutIso)) : '—'}
                                 </div>
                               </button>
-
                               {checkOutPickerOpen && (
                                 <>
                                   <div className="fixed inset-0 z-40" onClick={() => setCheckOutPickerOpen(false)} />
@@ -1293,7 +1444,16 @@ export default function GroupStaysCard({ onCloseAction }: { onCloseAction?: () =
                             </div>
                           </div>
 
-                          <div className="mt-2 flex items-center justify-center gap-2">
+                          {/* Summary pill + remove */}
+                          <div className="mt-3 flex items-center justify-between gap-2">
+                            {checkInIso && checkOutIso ? (
+                              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#02665e]/8 border border-[#02665e]/15 text-xs font-medium text-[#02665e]">
+                                <Calendar className="w-3.5 h-3.5" />
+                                <span>{formatDateSummary()}</span>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-slate-400">Select both dates</span>
+                            )}
                             <button
                               type="button"
                               onClick={() => {
@@ -1303,7 +1463,7 @@ export default function GroupStaysCard({ onCloseAction }: { onCloseAction?: () =
                                 setCheckInPickerOpen(false);
                                 setCheckOutPickerOpen(false);
                               }}
-                              className="px-3 py-2 text-sm rounded border bg-slate-50 text-slate-600"
+                              className="text-xs text-slate-400 hover:text-red-500 underline underline-offset-2 transition-colors"
                             >
                               Remove dates
                             </button>
@@ -1311,62 +1471,84 @@ export default function GroupStaysCard({ onCloseAction }: { onCloseAction?: () =
                         </div>
                       )}
                     </div>
-                    <div className="mt-2 text-sm text-slate-600 text-center">Selected: <span className="font-medium">{formatDateSummary()}</span></div>
                   </div>
 
                     {/* Arrangements: group-level options for Step 2 */}
-                    <div className="rounded border p-3 mb-4 groupstays-section">
-                      <label className="block text-xs text-slate-600">Arrangements</label>
-                      <div className="mt-2">
-                        {/* summary badges */}
-                        <div className="arrangements-summary">
-                          {([['Pickup', arrPickup], ['Transport', arrTransport], ['Meals', arrMeals], ['Guide', arrGuide], ['Equipment', arrEquipment]] as [string, boolean][]).filter(s => s[1]).map((s) => (
-                            <div key={s[0]} className="pill-badge">{s[0]}</div>
-                          ))}
-                          <div className="text-xs text-slate-500">{[arrPickup, arrTransport, arrMeals, arrGuide, arrEquipment].filter(Boolean).length} selected</div>
-                        </div>
-
-                        <div className="arrangements-grid">
-                          <button type="button" onClick={() => setArrPickup((v) => !v)} aria-pressed={arrPickup} className={`arrangement-pill ${arrPickup ? 'selected' : ''}`}>
-                              <Truck className="w-5 h-5" aria-hidden />
-                            <span>Airport pick-up</span>
-                          </button>
-
-                          <button type="button" onClick={() => setArrTransport((v) => !v)} aria-pressed={arrTransport} className={`arrangement-pill ${arrTransport ? 'selected' : ''}`}>
-                            <Bus className="w-5 h-5" aria-hidden />
-                            <span>Transport between sites</span>
-                          </button>
-
-                          <button type="button" onClick={() => setArrMeals((v) => !v)} aria-pressed={arrMeals} className={`arrangement-pill ${arrMeals ? 'selected' : ''}`}>
-                            <Coffee className="w-5 h-5" aria-hidden />
-                            <span>Meals included</span>
-                          </button>
-
-                          <button type="button" onClick={() => setArrGuide((v) => !v)} aria-pressed={arrGuide} className={`arrangement-pill ${arrGuide ? 'selected' : ''}`}>
-                            <Users className="w-5 h-5" aria-hidden />
-                            <span>On-site guide/staff</span>
-                          </button>
-
-                          <button type="button" onClick={() => setArrEquipment((v) => !v)} aria-pressed={arrEquipment} className={`arrangement-pill ${arrEquipment ? 'selected' : ''}`}>
-                            <Wrench className="w-5 h-5" aria-hidden />
-                            <span>Special equipment</span>
-                          </button>
-                        </div>
-
-                        <div className="mt-3 arrangements-details grid grid-cols-1 gap-2">
-                          <label htmlFor="pickup-location" className="text-xs text-slate-600">Pickup location</label>
-                          <input id="pickup-location" type="text" value={pickupLocation} onChange={(e) => setPickupLocation(e.target.value)} placeholder="Airport terminal, hotel" className="mt-1 w-full rounded px-3 py-2 border" />
-
-                          <label htmlFor="pickup-time" className="text-xs text-slate-600">Pickup time</label>
-                          <div className="mt-1">
-                            <input id="pickup-time" type="time" value={pickupTime} onChange={(e) => setPickupTime(e.target.value)} className="w-36 rounded px-3 py-2 border" />
-                            <div className="text-xs text-slate-500 mt-1">Displayed and saved as 12-hour time (AM/PM)</div>
-                          </div>
-
-                          <label htmlFor="arrangement-notes" className="text-xs text-slate-600">Arrangement notes</label>
-                          <textarea id="arrangement-notes" value={arrangementNotes} onChange={(e) => setArrangementNotes(e.target.value)} placeholder="Any special requests or details" className="mt-1 w-full rounded px-3 py-2 border h-20 resize-y" />
+                    <div className="rounded-xl border border-[#02665e]/10 bg-gradient-to-br from-white to-emerald-50/30 p-4 mb-4 shadow-sm">
+                      {/* Header with explanation */}
+                      <div className="flex items-start gap-3 pb-3 mb-3 border-b border-[#02665e]/10">
+                        <div className="h-2 w-2 rounded-full bg-[#02665e] ring-[3px] ring-[#02665e]/15 flex-shrink-0 mt-1.5" aria-hidden />
+                        <div>
+                          <div className="text-sm font-semibold text-slate-800">Add-on Arrangements</div>
+                          <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                            These are <span className="font-medium text-slate-700">optional extras</span> we can coordinate for your group, such as airport transfers, meals, a local guide, or equipment hire. Select everything you need so we can include it in your quote.
+                          </p>
                         </div>
                       </div>
+
+                      {/* Selected count pill */}
+                      {[arrPickup, arrTransport, arrMeals, arrGuide, arrEquipment].filter(Boolean).length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mb-3">
+                          {([['Pickup', arrPickup], ['Transport', arrTransport], ['Meals', arrMeals], ['Guide', arrGuide], ['Equipment', arrEquipment]] as [string, boolean][]).filter(s => s[1]).map((s) => (
+                            <span key={s[0]} className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#02665e]/10 text-[#02665e] border border-[#02665e]/15">
+                              <Check className="w-3 h-3 stroke-[2.5]" />{s[0]}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Toggle buttons grid */}
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {([
+                          { key: 'pickup',    label: 'Airport pick-up',        desc: 'We arrange your airport transfer',   icon: <Truck className="w-4 h-4" />,  val: arrPickup,    set: setArrPickup },
+                          { key: 'transport', label: 'Transport between sites', desc: 'Shuttles between locations',          icon: <Bus className="w-4 h-4" />,    val: arrTransport, set: setArrTransport },
+                          { key: 'meals',     label: 'Meals included',          desc: 'Breakfast, lunch or dinner package',  icon: <Coffee className="w-4 h-4" />, val: arrMeals,     set: setArrMeals },
+                          { key: 'guide',     label: 'On-site guide/staff',     desc: 'A dedicated local guide or host',     icon: <Users className="w-4 h-4" />,  val: arrGuide,     set: setArrGuide },
+                          { key: 'equipment', label: 'Special equipment',       desc: 'Gear, tools or event equipment',      icon: <Wrench className="w-4 h-4" />, val: arrEquipment, set: setArrEquipment },
+                        ] as { key: string; label: string; desc: string; icon: React.ReactNode; val: boolean; set: (fn: (v: boolean) => boolean) => void }[]).map(({ key, label, desc, icon, val, set }) => (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => set((v) => !v)}
+                            aria-pressed={val}
+                            className={[
+                              "flex flex-col items-start gap-1 rounded-xl px-3 py-3 border-2 text-left transition-all duration-200 focus:outline-none",
+                              val
+                                ? "border-[#02665e] bg-[#02665e] text-white shadow-md"
+                                : "border-slate-200 bg-white text-slate-700 hover:border-[#02665e]/40 hover:bg-emerald-50/40",
+                            ].join(" ")}
+                          >
+                            <span className={val ? "text-white" : "text-[#02665e]"}>{icon}</span>
+                            <span className="text-xs font-semibold leading-tight">{label}</span>
+                            <span className={["text-[10px] leading-tight", val ? "text-white/75" : "text-slate-400"].join(" ")}>{desc}</span>
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Conditional detail fields */}
+                      {(arrPickup || arrTransport || arrMeals || arrGuide || arrEquipment) && (
+                        <div className="mt-4 pt-4 border-t border-[#02665e]/10 grid grid-cols-1 gap-3">
+                          <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wide">Details for selected arrangements</p>
+
+                          {arrPickup && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div>
+                                <label htmlFor="pickup-location" className="block text-xs font-semibold text-slate-600 mb-1">Pickup location</label>
+                                <input id="pickup-location" type="text" value={pickupLocation} onChange={(e) => setPickupLocation(e.target.value)} placeholder="e.g. Julius Nyerere Airport" className="w-full rounded-lg px-3 py-2 border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e]/40" />
+                              </div>
+                              <div>
+                                <label htmlFor="pickup-time" className="block text-xs font-semibold text-slate-600 mb-1">Pickup time <span className="text-slate-400 font-normal">(AM/PM)</span></label>
+                                <input id="pickup-time" type="time" value={pickupTime} onChange={(e) => setPickupTime(e.target.value)} className="w-full rounded-lg px-3 py-2 border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e]/40" />
+                              </div>
+                            </div>
+                          )}
+
+                          <div>
+                            <label htmlFor="arrangement-notes" className="block text-xs font-semibold text-slate-600 mb-1">Additional notes <span className="text-slate-400 font-normal">(optional)</span></label>
+                            <textarea id="arrangement-notes" value={arrangementNotes} onChange={(e) => setArrangementNotes(e.target.value)} placeholder="Any special requests, dietary needs, equipment specifics, timing details…" className="w-full rounded-lg px-3 py-2 border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e]/40 h-20 resize-y" />
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                   
@@ -1374,151 +1556,167 @@ export default function GroupStaysCard({ onCloseAction }: { onCloseAction?: () =
               )}
 
               {currentStep === 3 && (
-                <div>
-                  <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-5 shadow-sm">
-                    <div className="flex items-start justify-between gap-3">
+                <div className="space-y-4">
+                  {/* Hero header */}
+                  <div className="relative overflow-hidden rounded-2xl p-5 sm:p-6"
+                    style={{ background: "linear-gradient(135deg, #02665e 0%, #034d47 100%)" }}>
+                    <div className="pointer-events-none absolute -top-6 -right-6 h-32 w-32 rounded-full opacity-10"
+                      style={{ background: "radial-gradient(circle, #fff, transparent 70%)" }} />
+                    <div className="pointer-events-none absolute -bottom-4 -left-4 h-24 w-24 rounded-full opacity-10"
+                      style={{ background: "radial-gradient(circle, #fff, transparent 70%)" }} />
+                    <div className="relative flex items-start gap-4">
+                      <div className="h-11 w-11 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center flex-shrink-0">
+                        <Users className="w-5 h-5 text-white" />
+                      </div>
                       <div>
-                        <div className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Roster</div>
-                        <h4 className="mt-1 text-base sm:text-lg font-semibold text-slate-900">Passenger roster (CSV / Excel)</h4>
-                        <p className="mt-1 text-sm text-slate-600">
-                          To help us plan rooms and logistics, you can upload a passenger list. The easiest way is to download the template, fill it in Excel/Google Sheets, then upload the saved CSV.
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-white/60 mb-0.5">Step 3</p>
+                        <h4 className="text-base sm:text-lg font-bold text-white leading-snug">Passenger Roster</h4>
+                        <p className="mt-1.5 text-xs sm:text-sm text-white/70 leading-relaxed max-w-lg">
+                          Upload your group passenger list so we can plan rooms and logistics. Download the template, fill it in Excel or Google Sheets, then upload the CSV.
                         </p>
-                        <p className="mt-2 text-xs text-slate-500">Optional: If you don’t have the roster yet, you can continue without it.</p>
-                      </div>
-                      <div className="hidden sm:flex items-center justify-center h-10 w-10 rounded-lg bg-slate-50 border border-slate-200">
-                        <Users className="w-5 h-5 text-slate-600" aria-hidden />
-                      </div>
-                    </div>
-
-                    <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
-                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                        <div className="flex items-center gap-2">
-                          <div className="h-7 w-7 rounded-full bg-white border border-slate-200 flex items-center justify-center text-sm font-semibold text-slate-700">1</div>
-                          <div className="text-sm font-semibold text-slate-900">Download template</div>
-                        </div>
-                        <div className="mt-2 text-xs text-slate-600">Get the correct columns and formatting.</div>
-                      </div>
-                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                        <div className="flex items-center gap-2">
-                          <div className="h-7 w-7 rounded-full bg-white border border-slate-200 flex items-center justify-center text-sm font-semibold text-slate-700">2</div>
-                          <div className="text-sm font-semibold text-slate-900">Fill in Excel</div>
-                        </div>
-                        <div className="mt-2 text-xs text-slate-600">One passenger per row. Don’t change column names.</div>
-                      </div>
-                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                        <div className="flex items-center gap-2">
-                          <div className="h-7 w-7 rounded-full bg-white border border-slate-200 flex items-center justify-center text-sm font-semibold text-slate-700">3</div>
-                          <div className="text-sm font-semibold text-slate-900">Upload CSV</div>
-                        </div>
-                        <div className="mt-2 text-xs text-slate-600">Export/Save as CSV, then upload here.</div>
+                        <p className="mt-2 inline-flex items-center gap-1.5 text-xs text-white/50">
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          Optional — you can continue without it
+                        </p>
                       </div>
                     </div>
-
-                    <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <div className="rounded-lg border border-slate-200 p-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <div className="text-sm font-semibold text-slate-900">Template</div>
-                            <div className="text-xs text-slate-600">CSV template (opens in Excel)</div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={downloadTemplate}
-                            aria-label="Download roster template"
-                            className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold inline-flex items-center gap-2 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-200"
-                          >
-                            <Download className="w-4 h-4" aria-hidden />
-                            Download
-                          </button>
-                        </div>
-
-                        <div className="mt-3">
-                          <div className="text-xs text-slate-500">Expected columns</div>
-                          <div className="mt-2 flex flex-wrap gap-1.5">
-                            {templateColumns.map((c) => (
-                              <span key={c} className="px-2 py-1 rounded-full text-xs bg-slate-50 border border-slate-200 text-slate-700">
-                                {c}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="rounded-lg border border-slate-200 p-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <div className="text-sm font-semibold text-slate-900">Upload roster</div>
-                            <div className="text-xs text-slate-600">Upload a saved CSV file</div>
-                          </div>
-                        </div>
-
-                        <div className="mt-3">
-                          <label
-                            htmlFor="roster-file"
-                            className="w-full cursor-pointer rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-700 flex items-center justify-between gap-3 hover:bg-slate-100"
-                          >
-                            <span className="truncate">{rosterFileName ? rosterFileName : 'Choose CSV file to upload'}</span>
-                            <span className="text-xs font-semibold text-slate-600">Browse</span>
-                          </label>
-                          <input
-                            id="roster-file"
-                            type="file"
-                            accept=".csv,text/csv"
-                            aria-label="Upload roster CSV"
-                            onChange={(e) => handleRosterFile(e.target.files ? e.target.files[0] : undefined)}
-                            className="sr-only"
-                          />
-                          <div className="mt-2 text-xs text-slate-500">Tip: In Excel, use “Save As” → “CSV (Comma delimited)”.</div>
-                        </div>
-
-                        {rosterError ? <div className="mt-2 text-xs text-rose-600">{rosterError}</div> : null}
-                      </div>
-                    </div>
-
-                    {roster.length ? (
-                      <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-                            <Check className="w-4 h-4 text-emerald-600" aria-hidden />
-                            Imported roster
-                          </div>
-                          <div className="text-xs text-slate-600">Rows: <strong>{roster.length}</strong> (showing first 5)</div>
-                        </div>
-
-                        <div className="mt-3 overflow-x-auto">
-                          <table className="min-w-full text-left text-xs">
-                            <thead>
-                              <tr className="text-slate-600">
-                                {templateColumns.map((col, idx) => (
-                                  <th key={col + idx} className="pr-4 pb-2 font-semibold whitespace-nowrap">{col}</th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {roster.slice(0, 5).map((r, i) => (
-                                <tr key={i} className="border-t border-slate-200">
-                                  {templateColumns.map((col, ci) => {
-                                    const key = col.replace(/\s+/g, '').toLowerCase();
-                                    return <td key={ci} className="pr-4 py-2 text-slate-700 whitespace-nowrap">{r[key] ?? ''}</td>;
-                                  })}
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-
-                        <div className="mt-3 flex items-center justify-end">
-                          <button
-                            type="button"
-                            onClick={() => { setRoster([]); setRosterFileName(''); }}
-                            className="px-3 py-2 rounded-lg border bg-white text-sm text-slate-700 hover:bg-slate-50"
-                          >
-                            Clear roster
-                          </button>
-                        </div>
-                      </div>
-                    ) : null}
                   </div>
+
+                  {/* 3-step mini guide */}
+                  <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                    {[
+                      { n: '1', title: 'Download template', desc: 'Get the correct columns & formatting' },
+                      { n: '2', title: 'Fill in Excel',     desc: "One passenger per row. Don't rename columns" },
+                      { n: '3', title: 'Upload CSV',        desc: 'Export as CSV then upload below' },
+                    ].map(({ n, title, desc }) => (
+                      <div key={n} className="rounded-xl border border-[#02665e]/10 bg-gradient-to-br from-white to-emerald-50/30 p-3 shadow-sm">
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <div className="h-6 w-6 rounded-full bg-[#02665e] flex items-center justify-center text-xs font-bold text-white flex-shrink-0">{n}</div>
+                          <p className="text-xs font-semibold text-slate-800 leading-tight">{title}</p>
+                        </div>
+                        <p className="text-[10px] text-slate-500 leading-relaxed">{desc}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Template + Upload side by side */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {/* Template card */}
+                    <div className="rounded-xl border border-[#02665e]/10 bg-gradient-to-br from-white to-emerald-50/30 p-4 shadow-sm">
+                      <div className="flex items-start justify-between gap-3 mb-3 pb-3 border-b border-[#02665e]/10">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-800">CSV Template</p>
+                          <p className="text-xs text-slate-500 mt-0.5">Pre-formatted for Excel or Google Sheets</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={downloadTemplate}
+                          aria-label="Download roster template"
+                          className="flex-shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#02665e] text-white text-xs font-semibold hover:bg-[#034d47] transition-colors shadow-sm focus:outline-none animate-pulse hover:animate-none"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          Download
+                        </button>
+                      </div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-2">Expected columns</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {templateColumns.map((c) => (
+                          <span key={c} className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#02665e]/5 border border-[#02665e]/15 text-[#02665e]">
+                            {c}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Upload card */}
+                    <div className="rounded-xl border border-[#02665e]/10 bg-gradient-to-br from-white to-emerald-50/30 p-4 shadow-sm">
+                      <p className="text-sm font-semibold text-slate-800 mb-0.5">Upload Roster</p>
+                      <p className="text-xs text-slate-500 mb-3">Select your filled-in CSV file</p>
+
+                      <label
+                        htmlFor="roster-file"
+                        className={[
+                          "w-full cursor-pointer rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-2 py-6 transition-all duration-200",
+                          rosterFileName
+                            ? "border-[#02665e]/40 bg-[#02665e]/5"
+                            : "border-slate-200 bg-slate-50 hover:border-[#02665e]/40 hover:bg-emerald-50/30",
+                        ].join(" ")}
+                      >
+                        {rosterFileName ? (
+                          <>
+                            <div className="h-9 w-9 rounded-full bg-[#02665e]/10 flex items-center justify-center">
+                              <Check className="w-5 h-5 text-[#02665e]" />
+                            </div>
+                            <span className="text-xs font-semibold text-[#02665e] text-center px-2 truncate max-w-full">{rosterFileName}</span>
+                            <span className="text-[10px] text-slate-400">Click to replace</span>
+                          </>
+                        ) : (
+                          <>
+                            <div className="h-9 w-9 rounded-full bg-slate-100 flex items-center justify-center">
+                              <Download className="w-4 h-4 text-slate-400 rotate-180" />
+                            </div>
+                            <span className="text-xs font-medium text-slate-500">Click to choose CSV file</span>
+                            <span className="text-[10px] text-slate-400">or drag and drop</span>
+                          </>
+                        )}
+                      </label>
+                      <input
+                        id="roster-file"
+                        type="file"
+                        accept=".csv,text/csv"
+                        aria-label="Upload roster CSV"
+                        onChange={(e) => handleRosterFile(e.target.files ? e.target.files[0] : undefined)}
+                        className="sr-only"
+                      />
+                      <p className="mt-2 text-[10px] text-slate-400">In Excel: File → Save As → CSV (Comma delimited)</p>
+                      {rosterError ? <p className="mt-2 text-xs text-rose-600">{rosterError}</p> : null}
+                    </div>
+                  </div>
+
+                  {/* Imported roster preview */}
+                  {roster.length ? (
+                    <div className="rounded-xl border border-[#02665e]/15 bg-gradient-to-br from-white to-emerald-50/20 p-4 shadow-sm">
+                      <div className="flex items-center justify-between gap-3 mb-3 pb-2.5 border-b border-[#02665e]/10">
+                        <div className="flex items-center gap-2">
+                          <div className="h-6 w-6 rounded-full bg-[#02665e] flex items-center justify-center">
+                            <Check className="w-3.5 h-3.5 text-white stroke-[2.5]" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-slate-800">Roster imported</p>
+                            <p className="text-xs text-slate-500">{roster.length} passengers · showing first 5</p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => { setRoster([]); setRosterFileName(''); }}
+                          className="text-xs text-slate-400 hover:text-red-500 underline underline-offset-2 transition-colors"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                      <div className="overflow-x-auto rounded-lg border border-slate-100">
+                        <table className="min-w-full text-left text-xs">
+                          <thead className="bg-slate-50 border-b border-slate-100">
+                            <tr>
+                              {templateColumns.map((col, idx) => (
+                                <th key={col + idx} className="px-3 py-2 font-semibold text-slate-600 whitespace-nowrap">{col}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {roster.slice(0, 5).map((r, i) => (
+                              <tr key={i} className="hover:bg-slate-50 transition-colors">
+                                {templateColumns.map((col, ci) => {
+                                  const key = col.replace(/\s+/g, '').toLowerCase();
+                                  return <td key={ci} className="px-3 py-2 text-slate-700 whitespace-nowrap">{r[key] ?? '—'}</td>;
+                                })}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               )}
 
@@ -1836,7 +2034,7 @@ export default function GroupStaysCard({ onCloseAction }: { onCloseAction?: () =
                 <button type="button" onClick={() => { /* save draft local */ }} disabled={isCreating || !isFormComplete()} className="px-3 py-2 bg-slate-50 border rounded-lg transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-200 disabled:opacity-50 disabled:cursor-not-allowed">Save draft</button>
                 <button 
                   type="button" 
-                  onClick={handleCreate} 
+                  onClick={() => setShowComingSoon(true)} 
                   disabled={isCreating || !isFormComplete()}
                   className="px-4 py-2 bg-emerald-600 text-white rounded-lg shadow transition transform hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 focus:outline-none focus:ring-2 focus:ring-emerald-300 inline-flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none"
                   title={!isFormComplete() ? 'Please fill all required fields' : ''}

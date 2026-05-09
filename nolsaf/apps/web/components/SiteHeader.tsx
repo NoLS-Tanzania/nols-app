@@ -281,7 +281,7 @@ export default function SiteHeader({
     }
 
     loadSessionCountdown();
-    const refreshId = window.setInterval(loadSessionCountdown, 60_000);
+    const refreshId = window.setInterval(loadSessionCountdown, 5 * 60_000);
     return () => {
       cancelled = true;
       window.clearInterval(refreshId);

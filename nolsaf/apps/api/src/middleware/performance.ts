@@ -5,18 +5,14 @@
  */
 
 import type { Request, Response, NextFunction } from "express";
-
-interface PerformanceMetrics {
-  method: string;
-  path: string;
-  duration: number;
-  statusCode: number;
-  timestamp: number;
-}
-
-const slowRequestThreshold = 1000; // 1 second
-const metrics: PerformanceMetrics[] = [];
-const maxMetrics = 1000; // Keep last 1000 requests
+import {
+  getObservabilitySummary,
+  recordObservedRequest,
+  slowRequestThresholdMs,
+  normalizeRoute,
+  clearObservedRequests,
+  maskIpAddress,
+} from "../lib/observability.js";
 
 /**
  * Middleware to measure request/response time
@@ -28,24 +24,38 @@ export function performanceMiddleware(req: Request, res: Response, next: NextFun
   res.on('finish', () => {
     const duration = performance.now() - start;
     const statusCode = res.statusCode;
+    if (path.startsWith("/api/admin/observability")) return;
 
-    const metric: PerformanceMetrics = {
+    const metric = {
+      requestId: String((req as any).requestId || ""),
       method,
       path,
-      duration,
+      route: normalizeRoute(path),
       statusCode,
-      timestamp: Date.now(),
+      durationMs: duration,
+      ip: maskIpAddress(req.headers["x-forwarded-for"]?.toString()?.split(",")[0]?.trim() || req.socket.remoteAddress || null),
+      userAgent: req.headers["user-agent"]?.toString() || null,
+      timestamp: new Date().toISOString(),
     };
 
-    metrics.push(metric);
-    if (metrics.length > maxMetrics) {
-      metrics.shift();
-    }
+    recordObservedRequest(metric);
 
-    if (duration > slowRequestThreshold) {
-      console.warn(
-        `[PERF] Slow request: ${method} ${path} took ${duration.toFixed(2)}ms (status: ${statusCode})`
-      );
+    if (duration > slowRequestThresholdMs || statusCode >= 500) {
+      const level = statusCode >= 500 ? "error" : "warn";
+      const payload = {
+        level,
+        event: statusCode >= 500 ? "request_error" : "slow_request",
+        requestId: metric.requestId,
+        method,
+        path,
+        route: metric.route,
+        statusCode,
+        durationMs: Number(duration.toFixed(2)),
+        timestamp: metric.timestamp,
+      };
+      const line = JSON.stringify(payload);
+      if (level === "error") console.error(line);
+      else console.warn(line);
     }
   });
 
@@ -56,36 +66,14 @@ export function performanceMiddleware(req: Request, res: Response, next: NextFun
  * Get performance metrics
  */
 export function getPerformanceMetrics() {
-  const recent = metrics.slice(-100); // Last 100 requests
-  const avgDuration = recent.reduce((sum, m) => sum + m.duration, 0) / recent.length;
-  const slowRequests = recent.filter((m) => m.duration > slowRequestThreshold);
-  const statusCounts = recent.reduce((acc, m) => {
-    acc[m.statusCode] = (acc[m.statusCode] || 0) + 1;
-    return acc;
-  }, {} as Record<number, number>);
-
-  return {
-    totalRequests: metrics.length,
-    recentRequests: recent.length,
-    averageDuration: avgDuration,
-    slowRequests: slowRequests.length,
-    slowRequestThreshold,
-    statusCounts,
-    recentSlowRequests: slowRequests.slice(-10).map((m) => ({
-      method: m.method,
-      path: m.path,
-      duration: m.duration,
-      statusCode: m.statusCode,
-      timestamp: new Date(m.timestamp).toISOString(),
-    })),
-  };
+  return getObservabilitySummary();
 }
 
 /**
  * Clear performance metrics
  */
 export function clearPerformanceMetrics() {
-  metrics.length = 0;
+  clearObservedRequests();
 }
 
 

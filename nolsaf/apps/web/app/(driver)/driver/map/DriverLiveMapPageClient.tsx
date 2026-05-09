@@ -88,7 +88,14 @@ export default function DriverLiveMapPage() {
   const [destinationETA, setDestinationETA] = useState<number | null>(null);
   const etaIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [driverPos, setDriverPos] = useState<{ lat: number; lng: number; speedMps?: number } | null>(null);
-  const [, setNavBanner] = useState<{ instruction: string; distanceMeters?: number; durationSec?: number; type: "pickup" | "destination" } | null>(null);
+  const [navBanner, setNavBanner] = useState<{ instruction: string; distanceMeters?: number; durationSec?: number; type: "pickup" | "destination" } | null>(null);
+  const [routeStatus, setRouteStatus] = useState<{
+    state: "idle" | "locating" | "routing" | "ready" | "cached" | "unavailable";
+    type?: "pickup" | "destination";
+    message?: string;
+    distanceMeters?: number | null;
+    durationSec?: number | null;
+  } | null>(null);
   const [routesOpen, setRoutesOpen] = useState(false);
   const [routeOptions, setRouteOptions] = useState<{ key: string; type: "pickup" | "destination"; routes: Array<{ index: number; durationSec: number | null; distanceMeters: number | null }> } | null>(null);
   const [selectedRouteIndex, setSelectedRouteIndex] = useState<number>(0);
@@ -103,6 +110,8 @@ export default function DriverLiveMapPage() {
   const startupLocationResolvedRef = useRef(false);
   const lastAcceptedGpsRef = useRef<{ lat: number; lng: number; speedMps?: number; accuracyM?: number } | null>(null);
   const lastAcceptedGpsAtRef = useRef<number | null>(null);
+  const activeTripIdRef = useRef<string | number | null>(null);
+  const lastLocationPostAtRef = useRef<number | null>(null);
   const pickupDwellRef = useRef<number | null>(null);
   const destinationDwellRef = useRef<number | null>(null);
   const pickupAutoTriggeredRef = useRef(false);
@@ -601,23 +610,29 @@ export default function DriverLiveMapPage() {
     if (etaIntervalRef.current) {
       clearInterval(etaIntervalRef.current);
     }
+
+    const applyEta = (driverLat: number, driverLng: number) => {
+      const eta = calculateETA(driverLat, driverLng, targetLat, targetLng);
+      if (type === 'pickup') {
+        pickupEtaAtRef.current = Date.now();
+        setPickupETA(eta);
+      } else {
+        destinationEtaAtRef.current = Date.now();
+        setDestinationETA(eta);
+      }
+    };
     
     // Update ETA every 10 seconds
     etaIntervalRef.current = setInterval(() => {
+      const tracked = trackedDriverPosRef.current;
+      if (tracked) {
+        applyEta(tracked.lat, tracked.lng);
+        return;
+      }
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
           (position) => {
-            const driverLat = position.coords.latitude;
-            const driverLng = position.coords.longitude;
-            const eta = calculateETA(driverLat, driverLng, targetLat, targetLng);
-            
-            if (type === 'pickup') {
-              pickupEtaAtRef.current = Date.now();
-              setPickupETA(eta);
-            } else {
-              destinationEtaAtRef.current = Date.now();
-              setDestinationETA(eta);
-            }
+            applyEta(position.coords.latitude, position.coords.longitude);
           },
           (error) => {
             console.warn('Error getting location for ETA:', error);
@@ -634,6 +649,52 @@ export default function DriverLiveMapPage() {
       etaIntervalRef.current = null;
     }
   };
+
+  const formatRouteDistance = (meters?: number | null) => {
+    if (typeof meters !== "number" || !Number.isFinite(meters)) return null;
+    if (meters >= 1000) return `${(meters / 1000).toFixed(meters >= 10000 ? 0 : 1)} km`;
+    return `${Math.max(1, Math.round(meters))} m`;
+  };
+
+  const formatRouteTime = (seconds?: number | null) => {
+    if (typeof seconds !== "number" || !Number.isFinite(seconds)) return null;
+    const minutes = Math.max(1, Math.round(seconds / 60));
+    if (minutes < 60) return `${minutes} min`;
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return mins ? `${hours}h ${mins}m` : `${hours}h`;
+  };
+
+  const persistTripStage = useCallback(async (stage: string) => {
+    if (!activeTrip?.id) return;
+    const bookingId = Number(activeTrip.id);
+    if (!Number.isFinite(bookingId)) return;
+    const latestPos = lastAcceptedGpsRef.current ?? trackedDriverPosRef.current;
+    try {
+      await axios.post(
+        `/api/driver/trips/${bookingId}/stage`,
+        {
+          stage,
+          lat: latestPos?.lat,
+          lng: latestPos?.lng,
+          accuracyM: latestPos && "accuracyM" in latestPos ? latestPos.accuracyM : undefined,
+          route: routeStatus?.distanceMeters || routeStatus?.durationSec
+            ? {
+                type: routeStatus.type,
+                distanceMeters: routeStatus.distanceMeters ?? undefined,
+                durationSec: routeStatus.durationSec ?? undefined,
+                provider: "mapbox-directions",
+              }
+            : undefined,
+          clientEventId: `${bookingId}:${stage}:${Date.now()}`,
+        },
+        { withCredentials: true }
+      );
+    } catch (error) {
+      console.warn("Failed to persist trip stage", error);
+      warning("Trip stage not saved", "Your screen updated, but the server did not confirm the trip stage yet.");
+    }
+  }, [activeTrip?.id, routeStatus, warning]);
 
   // Prefer Mapbox Directions ETA when available (emitted from the map canvas)
   useEffect(() => {
@@ -742,6 +803,11 @@ export default function DriverLiveMapPage() {
     trackedDriverPosRef.current = driverPos;
   }, [driverPos]);
 
+  useEffect(() => {
+    activeTripIdRef.current = activeTrip?.id ?? null;
+    if (!activeTrip?.id) lastLocationPostAtRef.current = null;
+  }, [activeTrip?.id]);
+
   // Continuously bind the live map to the device's actual GPS position when permission is enabled.
   // The recenter button remains useful for restoring focus after the driver pans away manually.
   useEffect(() => {
@@ -796,6 +862,27 @@ export default function DriverLiveMapPage() {
         resolveStartupLocation();
         setDriverPos(next);
         emitSync(next);
+
+        const activeTransportBookingId = activeTripIdRef.current;
+        if (activeTransportBookingId && now - (lastLocationPostAtRef.current ?? 0) >= 10_000) {
+          const bookingId = Number(activeTransportBookingId);
+          if (Number.isFinite(bookingId)) {
+            lastLocationPostAtRef.current = now;
+            void axios.post(
+              "/api/driver/location",
+              {
+                lat: next.lat,
+                lng: next.lng,
+                speedMps: typeof next.speedMps === "number" ? next.speedMps : undefined,
+                accuracyM: typeof next.accuracyM === "number" ? next.accuracyM : undefined,
+                transportBookingId: bookingId,
+              },
+              { withCredentials: true }
+            ).catch(() => {
+              // keep the map live even when the network drops a location ping
+            });
+          }
+        }
       },
       () => {
         resolveStartupLocation();
@@ -886,6 +973,29 @@ export default function DriverLiveMapPage() {
     };
   }, []);
 
+  // Listen to route service status from the map canvas so the driver sees whether
+  // routing is ready, locating, cached, or unavailable.
+  useEffect(() => {
+    const handler = (ev: Event) => {
+      try {
+        const d = (ev as CustomEvent).detail || {};
+        const state = String(d.state || "");
+        if (!["idle", "locating", "routing", "ready", "cached", "unavailable"].includes(state)) return;
+        setRouteStatus({
+          state: state as "idle" | "locating" | "routing" | "ready" | "cached" | "unavailable",
+          type: d.type === "destination" ? "destination" : d.type === "pickup" ? "pickup" : undefined,
+          message: typeof d.message === "string" ? d.message : undefined,
+          distanceMeters: typeof d.distanceMeters === "number" ? d.distanceMeters : null,
+          durationSec: typeof d.durationSec === "number" ? d.durationSec : null,
+        });
+      } catch {
+        // ignore
+      }
+    };
+    window.addEventListener("nols:route:status", handler as EventListener);
+    return () => window.removeEventListener("nols:route:status", handler as EventListener);
+  }, []);
+
   // Listen for route alternatives/options from the map canvas
   useEffect(() => {
     const handler = (ev: Event) => {
@@ -946,8 +1056,9 @@ export default function DriverLiveMapPage() {
       setActiveTrip({ ...activeTrip, status: 'pickup' });
       setTripStage('pickup');
       setIsAtPickup(true);
+      void persistTripStage("arrived_at_pickup");
     }
-  }, [activeTrip]);
+  }, [activeTrip, persistTripStage]);
 
   // Automatic stage triggers using arrival geofence (pickup + dropoff)
   useEffect(() => {
@@ -1052,6 +1163,7 @@ export default function DriverLiveMapPage() {
     if (activeTrip) {
       setActiveTrip({ ...activeTrip, status: 'picked_up' });
       setTripStage('picked_up');
+      void persistTripStage("passenger_picked_up");
       
       // Stop pickup monitoring
       if (pickupMonitorRef.current) {
@@ -1066,6 +1178,7 @@ export default function DriverLiveMapPage() {
     if (activeTrip) {
       setActiveTrip({ ...activeTrip, status: 'in_transit' });
       setTripStage('in_transit');
+      void persistTripStage("in_transit");
       setIsAtDestination(false);
       setPickupETA(null); // Clear pickup ETA
       
@@ -1112,6 +1225,7 @@ export default function DriverLiveMapPage() {
     if (activeTrip) {
       setActiveTrip({ ...activeTrip, status: 'arrived' });
       setTripStage('arrived');
+      void persistTripStage("arrived_at_destination");
       // Stop destination monitoring
       if (destinationMonitorRef.current) {
         destinationMonitorRef.current.stopMonitoring();
@@ -1133,6 +1247,7 @@ export default function DriverLiveMapPage() {
     // Complete the trip
     if (activeTrip) {
       setTodayEarnings(prev => prev + 8500);
+      void persistTripStage("completed");
       setActiveTrip(null);
       setTripStage('completed');
       setBottomSheetCollapsed(true);
@@ -1221,6 +1336,20 @@ export default function DriverLiveMapPage() {
     );
     const arriveMin =
       destinationCountdownSec !== null ? Math.max(1, Math.round(destinationCountdownSec / 60)) : destinationETA;
+    const routeDistanceLabel = formatRouteDistance(routeStatus?.distanceMeters);
+    const routeTimeLabel = formatRouteTime(routeStatus?.durationSec);
+    const routeStatusTone =
+      routeStatus?.state === "ready"
+        ? "ready"
+        : routeStatus?.state === "cached"
+          ? "cached"
+          : routeStatus?.state === "unavailable"
+            ? "warning"
+            : routeStatus?.state === "routing" || routeStatus?.state === "locating"
+              ? "working"
+              : "idle";
+    const routeTargetLabel =
+      routeStatus?.type === "destination" ? "Destination" : routeStatus?.type === "pickup" ? "Pickup" : "Route";
 
     // Drag handlers for the admin trip card
     const handleAdminCardDragStart = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -1367,6 +1496,86 @@ export default function DriverLiveMapPage() {
           {connectionStatus !== 'online' && (
             <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-40 pointer-events-auto">
               <ConnectionStatusIndicator status={connectionStatus} />
+            </div>
+          )}
+
+          {/* Operational route banner: visible only when a real trip is active. */}
+          {activeTrip && tripStage !== "completed" && tripStage !== "waiting" && (
+            <div className="absolute left-1/2 top-4 z-40 w-[min(34rem,calc(100%-1.5rem))] -translate-x-1/2 pointer-events-auto">
+              <div
+                className={[
+                  "overflow-hidden rounded-2xl border shadow-2xl backdrop-blur-xl",
+                  mapTheme === "dark"
+                    ? "bg-slate-950/78 border-white/12 text-slate-50"
+                    : "bg-white/90 border-white/70 text-slate-950",
+                ].join(" ")}
+              >
+                <div
+                  className={[
+                    "h-1",
+                    routeStatusTone === "ready"
+                      ? "bg-emerald-500"
+                      : routeStatusTone === "cached"
+                        ? "bg-sky-500"
+                        : routeStatusTone === "warning"
+                          ? "bg-amber-500"
+                          : routeStatusTone === "working"
+                            ? "bg-violet-500"
+                            : "bg-slate-300",
+                  ].join(" ")}
+                />
+                <div className="flex items-center gap-3 px-4 py-3">
+                  <div
+                    className={[
+                      "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
+                      routeStatusTone === "ready"
+                        ? "bg-emerald-500/12 text-emerald-600"
+                        : routeStatusTone === "cached"
+                          ? "bg-sky-500/12 text-sky-600"
+                          : routeStatusTone === "warning"
+                            ? "bg-amber-500/14 text-amber-700"
+                            : "bg-violet-500/12 text-violet-600",
+                    ].join(" ")}
+                  >
+                    <Navigation className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <p className="text-sm font-black leading-tight">
+                        {navBanner?.instruction || routeStatus?.message || "Preparing route"}
+                      </p>
+                      <span
+                        className={[
+                          "rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em]",
+                          mapTheme === "dark" ? "bg-white/10 text-slate-200" : "bg-slate-100 text-slate-600",
+                        ].join(" ")}
+                      >
+                        {routeTargetLabel}
+                      </span>
+                    </div>
+                    <div className={["mt-1 flex flex-wrap items-center gap-2 text-xs", mapTheme === "dark" ? "text-slate-300" : "text-slate-600"].join(" ")}>
+                      {routeTimeLabel ? <span className="font-semibold">{routeTimeLabel}</span> : null}
+                      {routeDistanceLabel ? <span>{routeDistanceLabel}</span> : null}
+                      {routeStatus?.state === "locating" ? <span>Enable precise GPS for live routing.</span> : null}
+                      {routeStatus?.state === "cached" ? <span>Offline route cache</span> : null}
+                      {routeStatus?.state === "unavailable" ? <span>Use native maps fallback.</span> : null}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setRoutesOpen(true)}
+                    className={[
+                      "hidden sm:inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition-colors",
+                      mapTheme === "dark"
+                        ? "border-white/12 bg-white/8 text-slate-100 hover:bg-white/12"
+                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+                    ].join(" ")}
+                  >
+                    <RouteIcon className="h-3.5 w-3.5" />
+                    Routes
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 

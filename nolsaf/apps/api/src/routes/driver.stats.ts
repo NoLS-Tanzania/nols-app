@@ -28,6 +28,77 @@ async function audit(req: AuthedRequest, action: string, target: string, before?
   }
 }
 
+type TransportTripStage =
+  | "accepted"
+  | "arrived_at_pickup"
+  | "passenger_picked_up"
+  | "in_transit"
+  | "arrived_at_destination"
+  | "completed";
+
+const transportTripStageSchema = z
+  .object({
+    stage: z.enum([
+      "accepted",
+      "pickup",
+      "arrived_at_pickup",
+      "picked_up",
+      "passenger_picked_up",
+      "in_transit",
+      "arrived",
+      "arrived_at_destination",
+      "dropoff",
+      "completed",
+    ]),
+    lat: z.number().min(-90).max(90).optional(),
+    lng: z.number().min(-180).max(180).optional(),
+    accuracyM: z.number().min(0).max(10_000).optional(),
+    route: z
+      .object({
+        type: z.enum(["pickup", "destination"]).optional(),
+        distanceMeters: z.number().min(0).optional(),
+        durationSec: z.number().min(0).optional(),
+        provider: z.string().max(40).optional(),
+      })
+      .passthrough()
+      .optional(),
+    clientEventId: z.string().trim().max(120).optional(),
+  })
+  .strict();
+
+function normalizeTransportTripStage(stage: string): TransportTripStage {
+  if (stage === "pickup") return "arrived_at_pickup";
+  if (stage === "picked_up") return "passenger_picked_up";
+  if (stage === "arrived" || stage === "dropoff") return "arrived_at_destination";
+  return stage as TransportTripStage;
+}
+
+function stageToBookingStatus(stage: TransportTripStage): "CONFIRMED" | "IN_PROGRESS" | "COMPLETED" {
+  if (stage === "completed") return "COMPLETED";
+  if (stage === "passenger_picked_up" || stage === "in_transit" || stage === "arrived_at_destination") return "IN_PROGRESS";
+  return "CONFIRMED";
+}
+
+function requestIp(req: any): string | null {
+  return String(req.headers?.["x-forwarded-for"] || "")
+    .split(",")[0]
+    .trim() || req.socket?.remoteAddress || null;
+}
+
+function emitTransportTripEvent(req: any, booking: { id: number; userId: number; driverId?: number | null }, event: string, payload: any) {
+  try {
+    const io = (req.app && (req.app as any).get && (req.app as any).get("io")) || (global as any).io;
+    if (!io || typeof io.to !== "function") return;
+    const enriched = { transportBookingId: booking.id, ...payload };
+    io.to("admin").emit(event, enriched);
+    io.to(`transport:${booking.id}`).emit(event, enriched);
+    io.to(`user:${booking.userId}`).emit(event, enriched);
+    if (booking.driverId) io.to(`driver:${booking.driverId}`).emit(event, enriched);
+  } catch {
+    // realtime is best-effort
+  }
+}
+
 export const router = Router();
 router.use(requireAuth as unknown as RequestHandler);
 
@@ -456,8 +527,9 @@ const getMapData: RequestHandler = async (req, res) => {
       // ignore
     }
 
-    // If nothing found, return a small sample centered on Dar es Salaam
-    if (!driverLocation && assignments.length === 0 && nearbyDrivers.length === 0) {
+    // Development-only fallback. Production ride maps must never show synthetic
+    // driver positions, because fake coordinates can mislead routing decisions.
+    if (process.env.NODE_ENV !== "production" && !driverLocation && assignments.length === 0 && nearbyDrivers.length === 0) {
       driverLocation = { id: 'demo-self', lat: -6.7924, lng: 39.2083, updatedAt: new Date() };
       nearbyDrivers = [ { id: 'demo-1', lat: -6.79, lng: 39.21 }, { id: 'demo-2', lat: -6.795, lng: 39.205 } ];
     }
@@ -1027,11 +1099,168 @@ const postCancelTrip: RequestHandler = async (req, res) => {
   }
 };
 
+/**
+ * POST /driver/trips/:tripId/stage
+ * Persists driver trip-stage movement and records a server-side route/stage audit.
+ */
+const postTripStage: RequestHandler = async (req, res) => {
+  const user = (req as AuthedRequest).user!;
+  if (String(user.role || "").toUpperCase() !== "DRIVER") {
+    return res.status(403).json({ error: "Driver access required" });
+  }
+
+  const tripId = Number(req.params.tripId);
+  if (!Number.isFinite(tripId)) return res.status(400).json({ error: "invalid_trip_id" });
+
+  const parsed = transportTripStageSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid payload", issues: parsed.error.issues });
+  }
+
+  const stage = normalizeTransportTripStage(parsed.data.stage);
+  const nextStatus = stageToBookingStatus(stage);
+  const now = new Date();
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const existing = await tx.transportBooking.findUnique({
+        where: { id: tripId },
+        select: {
+          id: true,
+          userId: true,
+          driverId: true,
+          status: true,
+          pickupTime: true,
+          dropoffTime: true,
+        },
+      });
+
+      if (!existing) {
+        const err: any = new Error("not_found");
+        err.code = "NOT_FOUND";
+        throw err;
+      }
+      if (!existing.driverId || Number(existing.driverId) !== Number(user.id)) {
+        const err: any = new Error("not_assigned_to_you");
+        err.code = "NOT_ASSIGNED_TO_YOU";
+        throw err;
+      }
+      if (existing.status === "CANCELED") {
+        const err: any = new Error("trip_canceled");
+        err.code = "TRIP_CANCELED";
+        throw err;
+      }
+      if (existing.status === "COMPLETED" && stage !== "completed") {
+        const err: any = new Error("trip_completed");
+        err.code = "TRIP_COMPLETED";
+        throw err;
+      }
+
+      const data: any = { status: nextStatus };
+      if ((stage === "passenger_picked_up" || stage === "in_transit") && !existing.pickupTime) {
+        data.pickupTime = now;
+      }
+      if (stage === "completed" && !existing.dropoffTime) {
+        data.dropoffTime = now;
+      }
+
+      const updated = await tx.transportBooking.update({
+        where: { id: tripId },
+        data,
+        select: {
+          id: true,
+          userId: true,
+          driverId: true,
+          status: true,
+          pickupTime: true,
+          dropoffTime: true,
+        },
+      });
+
+      if (
+        typeof parsed.data.lat === "number" &&
+        typeof parsed.data.lng === "number" &&
+        (tx as any).driverLocationPing
+      ) {
+        await (tx as any).driverLocationPing.create({
+          data: {
+            driverId: Number(user.id),
+            transportBookingId: tripId,
+            lat: parsed.data.lat,
+            lng: parsed.data.lng,
+            accuracyM: typeof parsed.data.accuracyM === "number" ? parsed.data.accuracyM : undefined,
+          },
+        });
+      }
+
+      await (tx as any).auditLog?.create?.({
+        data: {
+          actorId: Number(user.id),
+          actorRole: "DRIVER",
+          action: "TRANSPORT_TRIP_STAGE_UPDATE",
+          entity: "TRANSPORT_BOOKING",
+          entityId: tripId,
+          beforeJson: {
+            status: existing.status,
+            pickupTime: existing.pickupTime,
+            dropoffTime: existing.dropoffTime,
+          },
+          afterJson: {
+            stage,
+            status: updated.status,
+            pickupTime: updated.pickupTime,
+            dropoffTime: updated.dropoffTime,
+            route: parsed.data.route ?? null,
+            clientEventId: parsed.data.clientEventId ?? null,
+          },
+          ip: requestIp(req),
+          ua: String(req.headers["user-agent"] || "") || null,
+        },
+      });
+
+      return updated;
+    });
+
+    const payload = {
+      id: result.id,
+      stage,
+      status: result.status,
+      pickupTime: result.pickupTime ? result.pickupTime.toISOString() : null,
+      dropoffTime: result.dropoffTime ? result.dropoffTime.toISOString() : null,
+      route: parsed.data.route ?? null,
+      at: now.toISOString(),
+    };
+
+    emitTransportTripEvent(
+      req,
+      { id: result.id, userId: result.userId, driverId: result.driverId },
+      "transport:trip:stage:update",
+      payload
+    );
+    emitTransportTripEvent(req, { id: result.id, userId: result.userId, driverId: result.driverId }, "trip:update", {
+      id: result.id,
+      status: result.status,
+      stage,
+    });
+
+    return res.json({ ok: true, trip: payload });
+  } catch (err: any) {
+    const msg = String(err?.message || "");
+    if (err?.code === "NOT_FOUND" || msg === "not_found") return res.status(404).json({ error: "not_found" });
+    if (err?.code === "NOT_ASSIGNED_TO_YOU" || msg === "not_assigned_to_you") return res.status(403).json({ error: "not_assigned_to_you" });
+    if (err?.code === "TRIP_CANCELED" || msg === "trip_canceled") return res.status(409).json({ error: "trip_canceled" });
+    if (err?.code === "TRIP_COMPLETED" || msg === "trip_completed") return res.status(409).json({ error: "trip_completed" });
+    console.error("driver.trip.stage failed", err);
+    return res.status(500).json({ error: "failed", details: err?.message || String(err) });
+  }
+};
+
 router.get('/trips', limitDriverTripsList, getTrips as unknown as RequestHandler);
 
 router.post("/trips/:tripId/accept", limitDriverTripAction, postAcceptTrip as unknown as RequestHandler);
 router.post("/trips/:tripId/decline", limitDriverTripAction, postDeclineTrip as unknown as RequestHandler);
 router.post("/trips/:tripId/cancel", limitDriverTripAction, postCancelTrip as unknown as RequestHandler);
+router.post("/trips/:tripId/stage", limitDriverTripAction, postTripStage as unknown as RequestHandler);
 
 /**
  * GET /driver/safety?date=...&start=...&end=...
@@ -1326,6 +1555,21 @@ const postLocation: RequestHandler = async (req, res) => {
   }
   const { lat, lng, headingDeg, speedMps, accuracyM, transportBookingId } = parsed.data;
   try {
+    let linkedBooking: { id: number; userId: number; driverId: number | null; status: string } | null = null;
+    if (typeof transportBookingId === "number") {
+      linkedBooking = await prisma.transportBooking.findUnique({
+        where: { id: transportBookingId },
+        select: { id: true, userId: true, driverId: true, status: true },
+      });
+      if (!linkedBooking) return res.status(404).json({ error: "transport_booking_not_found" });
+      if (!linkedBooking.driverId || Number(linkedBooking.driverId) !== Number(user.id)) {
+        return res.status(403).json({ error: "not_assigned_to_you" });
+      }
+      if (linkedBooking.status === "CANCELED") {
+        return res.status(409).json({ error: "trip_canceled" });
+      }
+    }
+
     if ((prisma as any).driverLiveLocation) {
       await (prisma as any).driverLiveLocation.upsert({
         where: { driverId: user.id },
@@ -1350,11 +1594,11 @@ const postLocation: RequestHandler = async (req, res) => {
 
     // Optional history ping (only write when linked to a booking to avoid excessive growth)
     try {
-      if ((prisma as any).driverLocationPing && typeof transportBookingId === "number") {
+      if ((prisma as any).driverLocationPing && linkedBooking) {
         await (prisma as any).driverLocationPing.create({
           data: {
             driverId: user.id,
-            transportBookingId,
+            transportBookingId: linkedBooking.id,
             lat,
             lng,
             headingDeg: typeof headingDeg === "number" ? Math.round(headingDeg) : undefined,
@@ -1370,10 +1614,24 @@ const postLocation: RequestHandler = async (req, res) => {
     try {
       const io = (req.app && (req.app as any).get && (req.app as any).get('io'));
       if (io && typeof io.to === 'function') {
+        const payload = {
+          driverId: user.id,
+          transportBookingId: linkedBooking?.id ?? null,
+          lat,
+          lng,
+          headingDeg,
+          speedMps,
+          accuracyM,
+          at: new Date().toISOString(),
+        };
         // Admin dispatch/map views
-        io.to('admin').emit('driver:location:update', { driverId: user.id, lat, lng, headingDeg, speedMps, accuracyM });
+        io.to('admin').emit('driver:location:update', payload);
         // Driver can update their own UI if needed
-        io.to(`driver:${user.id}`).emit('driver:location:update', { driverId: user.id, lat, lng, headingDeg, speedMps, accuracyM });
+        io.to(`driver:${user.id}`).emit('driver:location:update', payload);
+        if (linkedBooking) {
+          io.to(`transport:${linkedBooking.id}`).emit("transport:driver:location:update", payload);
+          io.to(`user:${linkedBooking.userId}`).emit("transport:driver:location:update", payload);
+        }
       }
     } catch (e) { /* ignore */ }
     res.json({ ok: true });

@@ -35,7 +35,7 @@ export default function DriverFooter() {
       policyBasePath="/driver"
       showDriverDisbursementPolicy={true}
       showPropertyOwnerDisbursementPolicy={false}
-      containerClassName="public-container pt-10 pb-9"
+      containerClassName="public-container pt-4 pb-9"
     />
   );
 }

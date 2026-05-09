@@ -3,6 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import FooterBridge from "@/components/FooterBridge";
 
 type FooterPillVariant = 'brand' | 'neutral';
 
@@ -144,26 +145,20 @@ export default function AdminFooter({
   return (
     <footer
       aria-label="Footer"
-      className="relative overflow-hidden border-t border-gray-200/70 bg-gradient-to-b from-white via-slate-50 to-white"
+      className="relative overflow-hidden bg-gradient-to-b from-white via-slate-50 to-white"
     >
       <h2 className="sr-only">Footer</h2>
 
-      {/* Tanzania rail */}
-      <div aria-hidden className="absolute inset-x-0 top-0 h-1 flex">
-        <span className="footer-rail-seg footer-rail-green w-[34%]" />
-        <span className="footer-rail-seg footer-rail-yellow w-[8%]" />
-        <span className="footer-rail-seg footer-rail-black w-[8%]" />
-        <span className="footer-rail-seg footer-rail-blue w-[50%]" />
-      </div>
+      <FooterBridge variant="portal" />
 
       {/* Ambient glow */}
       <div
         aria-hidden
-        className="pointer-events-none absolute -top-24 left-1/2 h-72 w-[900px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(2,102,94,0.16),transparent_70%)] blur-2xl"
+        className="pointer-events-none absolute top-4 left-1/2 h-64 w-[760px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(2,102,94,0.10),transparent_72%)] blur-2xl"
       />
 
-      <div className={containerClassName ?? "max-w-6xl mx-auto px-4 pt-10 pb-9"}>
-        <div className="rounded-3xl border border-gray-200/70 bg-white/75 backdrop-blur-xl shadow-[0_18px_70px_rgba(2,6,23,0.10)]">
+      <div className={containerClassName ?? "max-w-6xl mx-auto px-4 pt-4 pb-9"}>
+        <div className="rounded-2xl border border-gray-200/80 bg-white/80 backdrop-blur-xl shadow-[0_16px_52px_rgba(15,23,42,0.08)]">
           <div className="px-5 py-8 sm:px-8">
             {/* Header line */}
             <div className="flex flex-col items-center gap-3">
@@ -246,7 +241,7 @@ export default function AdminFooter({
                   />
                 </div>
                 <div className="text-xs sm:text-sm text-slate-600 text-center">
-                  <span className="font-semibold text-slate-800">© {year} </span>
+                  <span className="font-semibold text-slate-800">&copy; {year} </span>
                   <span className="font-extrabold text-[#02665e] tracking-wide">NoLSAF</span>
                   <span className="text-slate-500"> | All rights reserved</span>
                 </div>
