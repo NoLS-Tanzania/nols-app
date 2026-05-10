@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Activity, AlertTriangle, ArrowRight, Clock3, RefreshCw, Server, Trash2, UserRound, Zap } from "lucide-react";
+import { Activity, AlertTriangle, Clock3, RefreshCw, Server, Trash2, UserRound, Zap } from "lucide-react";
 import apiClient from "@/lib/apiClient";
 
 type ObservedRequest = {
@@ -81,6 +81,17 @@ type ImpactedUser = {
     message: string | null;
     requestId: string | null;
   } | null;
+  resolution?: {
+    status: "open" | "restored";
+    note: string | null;
+    restoredAt: string | null;
+    restoredBy: {
+      id: number | null;
+      name: string | null;
+      email: string | null;
+      role: string | null;
+    } | null;
+  };
 };
 
 const emptyData: ObservabilityData = {
@@ -324,45 +335,62 @@ function RouteHealthRow({
 }
 
 function ImpactCenterSummary({ items, loading }: { items: ImpactedUser[]; loading: boolean }) {
-  const totalEvents = items.reduce((sum, item) => sum + item.eventCount, 0);
-  const errorEvents = items.reduce((sum, item) => sum + item.serverErrorCount + item.clientErrorCount, 0);
-  const slowEvents = items.reduce((sum, item) => sum + item.slowCount, 0);
+  const activeItems = items.filter((item) => item.resolution?.status !== "restored");
+  const restoredItems = items.filter((item) => item.resolution?.status === "restored");
+  const activeEvents = activeItems.reduce((sum, item) => sum + item.eventCount, 0);
+  const errorEvents = activeItems.reduce((sum, item) => sum + item.serverErrorCount + item.clientErrorCount, 0);
+  const slowEvents = activeItems.reduce((sum, item) => sum + item.slowCount, 0);
   const hasCritical = errorEvents > 0;
+  const healthLabel = hasCritical ? "Needs review" : restoredItems.length > 0 ? "Recovering" : "Quiet";
+  const statusClass = hasCritical
+    ? "border-red-200 bg-red-50 text-red-700"
+    : restoredItems.length > 0
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+      : "border-slate-200 bg-slate-50 text-slate-700";
+  const statusDotClass = hasCritical ? "bg-red-500" : restoredItems.length > 0 ? "bg-emerald-500" : "bg-slate-400";
+  const statusDetail = hasCritical
+    ? `${errorEvents} active error ${errorEvents === 1 ? "event" : "events"}`
+    : restoredItems.length > 0
+      ? `${restoredItems.length} restored ${restoredItems.length === 1 ? "case" : "cases"}`
+      : "No active impact";
 
   return (
     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="grid gap-5 px-5 py-5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
-        <div className="flex min-w-0 gap-4">
+      <div className="grid gap-6 px-5 py-5 xl:grid-cols-[minmax(0,1fr)_minmax(420px,520px)] xl:items-center">
+        <div className="flex min-w-0 items-start gap-4">
           <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl border ${hasCritical ? "border-red-100 bg-red-50 text-red-700" : "border-emerald-100 bg-emerald-50 text-emerald-700"}`}>
             <UserRound className="h-5 w-5" />
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-lg font-black tracking-tight text-slate-950">Impact Center</h2>
+              <h2 className="whitespace-nowrap text-lg font-black tracking-tight text-slate-950">Impact Center</h2>
               <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-black ${hasCritical ? "border-red-200 bg-red-50 text-red-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
-                {hasCritical ? "Needs review" : "Quiet"}
+                {healthLabel}
               </span>
             </div>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+            <p className="mt-2 max-w-xl text-sm leading-6 text-slate-600">
               People-first view of users tied to slow calls, server errors, and frontend crashes.
             </p>
+            <div className={`mt-3 inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${statusClass}`}>
+              <span className={`h-2 w-2 shrink-0 rounded-full ${statusDotClass}`} />
+              <span className="font-black">Status: {healthLabel}</span>
+              <span className="hidden text-current/80 sm:inline">{statusDetail}</span>
+            </div>
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
-          <div className="grid grid-cols-3 gap-2 text-center">
-            <SummaryPill label="People" value={loading ? "..." : items.length} />
-            <SummaryPill label="Events" value={loading ? "..." : totalEvents} tone={hasCritical ? "red" : "slate"} />
+        <div className="grid min-w-0 gap-3">
+          <div className="grid min-w-0 grid-cols-2 gap-2 text-center sm:grid-cols-4">
+            <SummaryPill label="Active" value={loading ? "..." : activeItems.length} tone={hasCritical ? "red" : "slate"} />
+            <SummaryPill label="Resolved" value={loading ? "..." : restoredItems.length} tone={restoredItems.length > 0 ? "green" : "slate"} />
+            <SummaryPill label="Events" value={loading ? "..." : activeEvents} tone={hasCritical ? "red" : "slate"} />
             <SummaryPill label="Slow" value={loading ? "..." : slowEvents} tone={slowEvents > 0 ? "amber" : "slate"} />
           </div>
           <Link
             href="/admin/impact-center"
-            className="group inline-flex h-12 min-w-48 items-center justify-between gap-3 rounded-xl border border-slate-950 bg-slate-950 px-4 text-sm font-black text-white no-underline shadow-sm transition-all hover:-translate-y-0.5 hover:bg-slate-800 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
+            className="inline-flex h-10 w-fit justify-self-end items-center justify-center rounded-lg border border-emerald-200 bg-emerald-700 px-4 text-sm font-black text-white no-underline shadow-sm transition-all hover:-translate-y-0.5 hover:border-emerald-300 hover:bg-emerald-800 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200"
           >
             <span>Open Impact Center</span>
-            <span className="grid h-7 w-7 place-items-center rounded-lg bg-white/10 transition-colors group-hover:bg-white/15">
-              <ArrowRight className="h-4 w-4" />
-            </span>
           </Link>
         </div>
       </div>
@@ -370,10 +398,10 @@ function ImpactCenterSummary({ items, loading }: { items: ImpactedUser[]; loadin
   );
 }
 
-function SummaryPill({ label, value, tone = "slate" }: { label: string; value: string | number; tone?: "slate" | "amber" | "red" }) {
-  const valueClass = tone === "red" ? "text-red-700" : tone === "amber" ? "text-amber-700" : "text-slate-900";
+function SummaryPill({ label, value, tone = "slate" }: { label: string; value: string | number; tone?: "slate" | "amber" | "red" | "green" }) {
+  const valueClass = tone === "red" ? "text-red-700" : tone === "amber" ? "text-amber-700" : tone === "green" ? "text-emerald-700" : "text-slate-900";
   return (
-    <div className="min-w-24 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+    <div className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
       <div className={`text-xl font-black leading-none ${valueClass}`}>{value}</div>
       <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</div>
     </div>

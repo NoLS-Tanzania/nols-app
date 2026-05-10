@@ -321,6 +321,12 @@ export async function getImpactedUsers(limit = 20): Promise<ImpactedUserSummary[
     },
   });
 
+  const healthRows = await prisma.auditLog.findMany({
+    where: { action: "CLIENT_ROUTE_HEALTH", entity: "CLIENT" },
+    orderBy: { createdAt: "desc" },
+    take: 300,
+  });
+
   const resolutionRows = await prisma.auditLog.findMany({
     where: { action: "IMPACT_MARK_RESTORED", entity: "IMPACT_CENTER" },
     orderBy: { createdAt: "desc" },
@@ -354,7 +360,7 @@ export async function getImpactedUsers(limit = 20): Promise<ImpactedUserSummary[
     const after = normalizeJsonObject(row.afterJson);
     const actorId = typeof row.actorId === "number" ? row.actorId : null;
     const role = row.actorRole ?? row.actor?.role ?? null;
-    const key = actorId ? `user:${actorId}` : `anon:${row.ip ?? "unknown"}:${row.ua ?? "unknown"}`;
+    const key = impactKeyFor(actorId, row.ip, row.ua);
     const route = textOrNull(after.route) ?? textOrNull(after.path);
     const createdAt = row.createdAt ? row.createdAt.toISOString() : null;
 
@@ -400,10 +406,92 @@ export async function getImpactedUsers(limit = 20): Promise<ImpactedUserSummary[
     groups.set(key, existing);
   }
 
+  applyAutomaticImpactRecovery(groups, resolutions, healthRows);
+
   return Array.from(groups.values())
     .sort((a, b) => b.eventCount - a.eventCount || Date.parse(b.lastSeenAt ?? "0") - Date.parse(a.lastSeenAt ?? "0"))
     .slice(0, clampLimit(limit))
     .map((item) => ({ ...item, routes: item.routes.slice(0, 8) }));
+}
+
+function applyAutomaticImpactRecovery(
+  groups: Map<string, ImpactedUserSummary>,
+  manualResolutions: Map<string, ImpactedUserSummary["resolution"]>,
+  healthRows: Array<{ actorId: number | null; ip: string | null; ua: string | null; afterJson: unknown; createdAt: Date | null }>
+) {
+  const healthByKey = new Map<string, Array<{ route: string | null; path: string | null; createdAt: string }>>();
+
+  for (const row of healthRows) {
+    const key = impactKeyFor(typeof row.actorId === "number" ? row.actorId : null, row.ip, row.ua);
+    const after = normalizeJsonObject(row.afterJson);
+    const createdAt = row.createdAt ? row.createdAt.toISOString() : null;
+    if (!createdAt) continue;
+    const arr = healthByKey.get(key) ?? [];
+    arr.push({
+      route: textOrNull(after.route),
+      path: textOrNull(after.path),
+      createdAt,
+    });
+    healthByKey.set(key, arr);
+  }
+
+  for (const item of groups.values()) {
+    const lastImpactAt = Date.parse(item.lastSeenAt ?? "0");
+    const hasServerOrSlowImpact = item.serverErrorCount > 0 || item.slowCount > 0;
+    const hasClientImpact = item.clientErrorCount > 0;
+    const manual = manualResolutions.get(item.key);
+    if (manual?.status === "restored") {
+      const restoredAt = Date.parse(manual.restoredAt ?? "0");
+      item.resolution = Number.isFinite(restoredAt) && restoredAt >= lastImpactAt ? manual : openImpactResolution();
+    }
+
+    if (item.resolution.status === "restored") continue;
+
+    const routeSet = new Set(item.routes.filter(Boolean));
+    const healthyEvents = healthByKey.get(item.key) ?? [];
+    const healthy = healthyEvents.find((entry) => {
+      const healthyAt = Date.parse(entry.createdAt);
+      if (!Number.isFinite(healthyAt) || healthyAt <= lastImpactAt) return false;
+      const route = entry.route || entry.path;
+      if (!route) return false;
+      return routeSet.has(route) || routeSet.has(normalizeRoute(route));
+    });
+
+    const sharedClientHealth = !hasServerOrSlowImpact && hasClientImpact
+      ? healthyEvents.find((entry) => {
+          const healthyAt = Date.parse(entry.createdAt);
+          if (!Number.isFinite(healthyAt) || healthyAt <= lastImpactAt) return false;
+          const route = entry.route || entry.path || "";
+          return route.startsWith("/admin");
+        })
+      : null;
+
+    const healthyApiRequest = recentRequests
+      .slice()
+      .reverse()
+      .find((request) => {
+        if (request.statusCode >= 500 || request.durationMs >= slowRequestThresholdMs) return false;
+        const key = impactKeyFor(request.actorId ?? null, request.ip, request.userAgent);
+        if (key !== item.key) return false;
+        const requestAt = Date.parse(request.timestamp);
+        if (!Number.isFinite(requestAt) || requestAt <= lastImpactAt) return false;
+        return routeSet.has(request.route) || routeSet.has(request.path);
+      });
+
+    const restoredAt = healthy?.createdAt ?? sharedClientHealth?.createdAt ?? healthyApiRequest?.timestamp ?? null;
+    if (!restoredAt) continue;
+
+    item.resolution = {
+      status: "restored",
+      note: healthy
+        ? "Auto-restored after the same route mounted successfully without a client error."
+        : sharedClientHealth
+          ? "Auto-restored after a newer admin page mounted successfully without the same shared UI crash."
+        : "Auto-restored after a newer successful request on the affected route.",
+      restoredAt,
+      restoredBy: null,
+    };
+  }
 }
 
 function openImpactResolution(): ImpactedUserSummary["resolution"] {
@@ -413,6 +501,10 @@ function openImpactResolution(): ImpactedUserSummary["resolution"] {
     restoredAt: null,
     restoredBy: null,
   };
+}
+
+function impactKeyFor(actorId: number | null, ip: string | null | undefined, ua: string | null | undefined) {
+  return actorId ? `user:${actorId}` : `anon:${ip ?? "unknown"}:${ua ?? "unknown"}`;
 }
 
 async function maybeAlertRepeatedServerErrors(entry: ObservedRequest) {
