@@ -28,8 +28,8 @@ router.post("/", limitClientErrors, async (req, res) => {
 
     await prisma.auditLog.create({
       data: {
-        actorId: null,
-        actorRole: null,
+        actorId: (req as any).user?.id ?? null,
+        actorRole: (req as any).user?.role ?? null,
         action: "CLIENT_ERROR",
         entity: "CLIENT",
         entityId: null,

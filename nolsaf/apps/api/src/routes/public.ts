@@ -1,4 +1,5 @@
 import { type Express, type RequestHandler } from "express";
+import { maybeAuth } from "../middleware/auth.js";
 import clientErrorsRouter from "./clientErrors";
 import publicAvailabilityRouter from "./public.availability";
 import publicBookingRouter from "./public.booking";
@@ -25,7 +26,8 @@ export function registerPublicCareerRoutes(app: Express): void {
 }
 
 export function registerPublicContentRoutes(app: Express): void {
-  app.use("/api/client-errors", clientErrorsRouter);
+  app.use("/api/public", maybeAuth as RequestHandler);
+  app.use("/api/client-errors", maybeAuth as RequestHandler, clientErrorsRouter);
   app.use("/api/public/support", publicSupportRouter);
   app.use("/api/public/updates", publicUpdatesRouter);
   app.use("/api/public/podcasts", publicPodcastsRouter);
@@ -42,5 +44,5 @@ export function registerPublicPlanRequestRoute(app: Express): void {
 }
 
 export function registerPublicAvailabilityRoute(app: Express): void {
-  app.use("/api/public/availability", publicAvailabilityRouter as RequestHandler);
+  app.use("/api/public/availability", maybeAuth as RequestHandler, publicAvailabilityRouter as RequestHandler);
 }

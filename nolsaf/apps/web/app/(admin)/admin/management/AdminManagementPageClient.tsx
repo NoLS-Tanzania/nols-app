@@ -216,33 +216,6 @@ export default function AdminManagementPageClient() {
       line: { capBezierPoints: true },
     },
   };
-  const centerTotalPlugin = {
-    id: "centerTotal",
-    afterDraw: (chart: any) => {
-      const { ctx } = chart;
-      const meta = chart.getDatasetMeta(0);
-      const arc = meta?.data?.[0];
-      if (!arc) return;
-
-      const x = arc.x;
-      const y = arc.y;
-
-      ctx.save();
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-
-      ctx.fillStyle = "#0f172a";
-      ctx.font = "600 18px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial";
-      ctx.fillText(String(totalCount), x, y - 2);
-
-      ctx.fillStyle = "#64748b";
-      ctx.font = "500 11px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial";
-      ctx.fillText("Total", x, y + 14);
-
-      ctx.restore();
-    },
-  };
-
   const navCards: Array<{
     title: string;
     subtitle: string;
@@ -281,10 +254,13 @@ export default function AdminManagementPageClient() {
   ];
 
   return (
-    <div className="min-h-full w-full bg-[radial-gradient(1200px_circle_at_30%_-10%,rgba(2,102,94,0.10),transparent_55%),radial-gradient(900px_circle_at_90%_0%,rgba(15,23,42,0.05),transparent_55%)] px-4 py-6 sm:px-6 sm:py-8">
-      <div className="rounded-3xl border border-slate-200/70 bg-white/70 p-6 shadow-sm ring-1 ring-black/[0.04] backdrop-blur-xl">
+    <div className="min-h-full w-full bg-slate-50">
+      <div className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
+      <div className="relative overflow-hidden rounded-3xl border border-slate-200/60 bg-white/70 shadow-sm backdrop-blur">
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-white to-slate-50" />
+        <div className="relative p-6 sm:p-8">
         <div className="flex flex-col items-center gap-4 text-center">
-          <div className="rounded-2xl bg-[#02665e]/10 p-3 ring-1 ring-[#02665e]/15">
+          <div className="rounded-2xl border border-slate-200/60 bg-gradient-to-br from-emerald-50 to-slate-50 p-3 shadow-sm">
             <LayoutDashboard className="h-7 w-7 text-[#02665e]" />
           </div>
           <div>
@@ -292,9 +268,11 @@ export default function AdminManagementPageClient() {
             <p className="mt-1 text-sm text-slate-600">Administrative tools and controls</p>
           </div>
         </div>
+        </div>
       </div>
 
-      <div className="mt-6 grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="rounded-3xl border border-slate-200/60 bg-white/70 p-4 shadow-sm backdrop-blur">
+        <div className="mx-auto grid max-w-6xl min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {navCards.map((c) => (
           <Link
             key={c.href}
@@ -314,9 +292,10 @@ export default function AdminManagementPageClient() {
             </div>
           </Link>
         ))}
+        </div>
       </div>
 
-      <div className="mt-6 grid min-w-0 grid-cols-1 gap-6 md:grid-cols-2">
+      <div className="grid min-w-0 grid-cols-1 gap-6 md:grid-cols-2">
         <div className="group min-w-0 rounded-2xl border border-slate-200/70 bg-white/70 p-6 shadow-sm ring-1 ring-black/[0.03] backdrop-blur-xl transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
             <div className="mb-4">
               <div className="flex items-center gap-2 mb-1">
@@ -330,8 +309,14 @@ export default function AdminManagementPageClient() {
             {loading ? (
               <div className="h-48 flex items-center justify-center text-slate-500">Loading…</div>
             ) : (
-              <div className="h-56">
-                <Chart type="doughnut" data={bookingsVsPropertiesData as any} options={bookingsChartOptions as any} plugins={[centerTotalPlugin]} />
+              <div className="relative h-56">
+                <Chart type="doughnut" data={bookingsVsPropertiesData as any} options={bookingsChartOptions as any} />
+                <div className="pointer-events-none absolute inset-0 grid place-items-center">
+                  <div className="text-center">
+                    <div className="text-lg font-semibold text-slate-900">{totalCount}</div>
+                    <div className="text-[11px] font-medium text-slate-500">Total</div>
+                  </div>
+                </div>
               </div>
             )}
             <div className="mt-4 flex min-w-0 flex-wrap gap-4 text-sm">
@@ -516,6 +501,7 @@ export default function AdminManagementPageClient() {
             )}
           </div>
         </div>
+      </div>
       </div>
   );
 }

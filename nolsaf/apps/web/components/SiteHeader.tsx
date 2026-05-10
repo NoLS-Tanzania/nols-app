@@ -2,9 +2,9 @@
 import Link from "next/link";
 import { useState, useEffect, useRef, useMemo } from "react";
 import Image from "next/image";
-import { Bell, LifeBuoy, Settings as SettingsIcon, RefreshCw, Download, Sliders, Sun, Moon, Plus, FileText, Shield, Lock, Truck, User, Gift, Calendar, LogOut, ChevronDown, Trophy, Share2, Building2, CheckCircle, Home, DollarSign, LayoutDashboard, Clock } from "lucide-react";
+import { Bell, LifeBuoy, Settings as SettingsIcon, RefreshCw, Download, Sliders, Plus, FileText, Shield, Lock, Truck, User, Gift, Calendar, LogOut, ChevronDown, Trophy, Share2, Building2, CheckCircle, Home, DollarSign, LayoutDashboard, Clock } from "lucide-react";
 import dynamic from 'next/dynamic';
-import { clearAuthToken } from "@/lib/apiClient";
+import apiClient, { clearAuthToken } from "@/lib/apiClient";
 const LegalModal = dynamic(() => import('@/components/LegalModal'), { ssr: false });
 import ClientErrorBoundary from '@/components/ClientErrorBoundary';
 
@@ -120,7 +120,6 @@ export default function SiteHeader({
 }: { role?: "ADMIN" | "OWNER" | "DRIVER" | "CUSTOMER"; unreadMessages?: number; driverMode?: boolean }) {
   const [open, setOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const isAdmin = role === "ADMIN";
   const isOwner = role === "OWNER";
   const isDriver = driverMode || role === "DRIVER";
@@ -180,39 +179,22 @@ export default function SiteHeader({
       }
     })();
 
-    // fetch user profile to get avatar
+    // fetch user profile to get avatar/name/email
     (async () => {
-      const ac = new AbortController();
-      const t = window.setTimeout(() => ac.abort(), 8_000);
       try {
-        // Use cookie session (httpOnly) via API-prefixed account routes.
-        const url = '/api/account/me';
-        const r = await fetch(url, { credentials: 'include', signal: ac.signal });
-        if (!r.ok) return;
-        const data = await r.json();
-        if (data.avatarUrl) setAvatarUrl(data.avatarUrl);
-        if (data.fullName) setUserName(data.fullName);
-        if (data.email) setUserEmail(data.email);
+        const response = await apiClient.get("/api/account/me", { timeout: 8_000 });
+        const data = response.data?.data ?? response.data;
+        if (data?.avatarUrl) setAvatarUrl(data.avatarUrl);
+        const displayName = data?.fullName || data?.name || data?.email;
+        if (displayName) setUserName(displayName);
+        if (data?.email) setUserEmail(data.email);
       } catch {
         // ignore — 502 / timeout: avatar/name simply stays empty, non-critical
-      } finally {
-        window.clearTimeout(t);
       }
     })();
 
 
     if (typeof window === 'undefined') return;
-    try {
-      const saved = localStorage.getItem('theme');
-      const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-      const initial = saved === 'dark' || (saved === null && prefersDark) ? 'dark' : 'light';
-      setTheme(initial);
-      if (initial === 'dark') document.documentElement.classList.add('dark');
-      else document.documentElement.classList.remove('dark');
-    } catch (err) {
-      // ignore
-    }
-
     // Close settings dropdown when clicking outside
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
@@ -322,18 +304,6 @@ export default function SiteHeader({
 
   // Note: adminSidebarVisible state is no longer needed since menu icon is fixed
 
-  const toggleTheme = () => {
-    const next = theme === 'dark' ? 'light' : 'dark';
-    setTheme(next);
-    try {
-      localStorage.setItem('theme', next);
-      if (next === 'dark') document.documentElement.classList.add('dark');
-      else document.documentElement.classList.remove('dark');
-    } catch (err) {
-      // ignore
-    }
-  };
-
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
@@ -348,7 +318,7 @@ export default function SiteHeader({
     (async () => {
       try {
         // Use relative paths in browser to leverage Next.js rewrites (avoids CORS issues)
-        const defaultUrl = '/admin/invoices.csv';
+        const defaultUrl = '/api/owner/revenue/invoices.csv';
         const endpoint = process.env.NEXT_PUBLIC_EXPORT_INVOICES_ENDPOINT || defaultUrl;
 
         const filenameTemplate = process.env.NEXT_PUBLIC_EXPORT_INVOICES_FILENAME || 'invoices.csv';
@@ -543,34 +513,12 @@ export default function SiteHeader({
               </button>
 
               <button
-                onClick={handleExportInvoices}
-                className="group relative inline-flex items-center justify-center h-10 w-10 rounded-lg bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/15 hover:border-white/25 hover:scale-105 active:scale-95 transition-all duration-300 ease-out"
-                aria-label="Export Invoices CSV"
-                title="Export Invoices CSV"
-              >
-                <Download className="h-5 w-5 text-white opacity-90 group-hover:opacity-100 transition-all duration-300 group-hover:translate-y-0.5" />
-              </button>
-
-              <button
                 onClick={handleWidgetPreferences}
                 className="group relative inline-flex items-center justify-center h-10 w-10 rounded-lg bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/15 hover:border-white/25 hover:scale-105 active:scale-95 transition-all duration-300 ease-out"
                 aria-label="Widget Preferences"
                 title="Widget Preferences"
               >
                 <Sliders className="h-5 w-5 text-white opacity-90 group-hover:opacity-100 transition-all duration-300 group-hover:rotate-90" />
-              </button>
-
-              <button
-                onClick={toggleTheme}
-                className="group relative inline-flex items-center justify-center h-10 w-10 rounded-lg bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/15 hover:border-white/25 hover:scale-105 active:scale-95 transition-all duration-300 ease-out"
-                aria-label="Toggle theme"
-                title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-              >
-                {theme === 'dark' ? (
-                  <Sun className="h-5 w-5 text-white opacity-90 group-hover:opacity-100 transition-all duration-300 group-hover:rotate-180" />
-                ) : (
-                  <Moon className="h-5 w-5 text-white opacity-90 group-hover:opacity-100 transition-all duration-300 group-hover:-rotate-12" />
-                )}
               </button>
 
               <Link
@@ -618,8 +566,8 @@ export default function SiteHeader({
                   aria-expanded={profileDropdownOpen}
                 >
                   {avatarUrl ? (
-                    <div className="h-9 w-9 rounded-full overflow-hidden transition-all duration-300 ease-out group-hover:ring-2 group-hover:ring-white/10">
-                      <Image src={avatarUrl} alt="Profile" width={36} height={36} className="object-cover w-full h-full transition-transform duration-300 ease-out group-hover:scale-110" />
+                    <div className="relative h-9 w-9 rounded-full overflow-hidden transition-all duration-300 ease-out group-hover:ring-2 group-hover:ring-white/10">
+                      <Image src={avatarUrl} alt="Profile" fill sizes="36px" className="object-cover transition-transform duration-300 ease-out group-hover:scale-110" />
                     </div>
                   ) : (
                     <div className="h-9 w-9 rounded-full flex items-center justify-center transition-all duration-300 ease-out group-hover:ring-2 group-hover:ring-white/10 bg-white/10 border border-white/20">
@@ -640,8 +588,8 @@ export default function SiteHeader({
                     <div className="px-3.5 py-3 border-b border-white/10 bg-white/5">
                       <div className="flex items-center gap-3">
                         {avatarUrl ? (
-                          <div className="h-10 w-10 rounded-full border border-white/15 overflow-hidden flex-shrink-0">
-                            <Image src={avatarUrl} alt="Profile" width={48} height={48} className="object-cover w-full h-full" />
+                          <div className="relative h-10 w-10 rounded-full border border-white/15 overflow-hidden flex-shrink-0">
+                            <Image src={avatarUrl} alt="Profile" fill sizes="40px" className="object-cover" />
                           </div>
                         ) : (
                           <div className="h-10 w-10 rounded-full border border-white/15 bg-white/5 flex items-center justify-center flex-shrink-0">
@@ -853,8 +801,8 @@ export default function SiteHeader({
                 onTouchEnd={() => setTouchedIcon(null)}
               >
                 {avatarUrl ? (
-                  <div className="h-9 w-9 rounded-full overflow-hidden transition-all duration-300 ease-out group-hover:ring-2 group-hover:ring-white/10">
-                    <Image src={avatarUrl} alt="Profile" width={36} height={36} className="object-cover w-full h-full transition-transform duration-300 ease-out group-hover:scale-110" />
+                  <div className="relative h-9 w-9 rounded-full overflow-hidden transition-all duration-300 ease-out group-hover:ring-2 group-hover:ring-white/10">
+                    <Image src={avatarUrl} alt="Profile" fill sizes="36px" className="object-cover transition-transform duration-300 ease-out group-hover:scale-110" />
                   </div>
                 ) : (
                   <div className="h-9 w-9 rounded-full flex items-center justify-center transition-all duration-300 ease-out group-hover:ring-2 group-hover:ring-white/10">
@@ -870,8 +818,8 @@ export default function SiteHeader({
                   <div className="px-4 py-3 border-b border-gray-100/50 bg-gradient-to-r from-emerald-50/40 to-slate-50/40">
                     <div className="flex items-center gap-3">
                       {avatarUrl ? (
-                        <div className="h-10 w-10 rounded-full border-2 border-emerald-200 overflow-hidden flex-shrink-0 transition-transform duration-300 hover:scale-110 ring-2 ring-emerald-100">
-                          <Image src={avatarUrl} alt="Profile" width={40} height={40} className="object-cover w-full h-full" />
+                        <div className="relative h-10 w-10 rounded-full border-2 border-emerald-200 overflow-hidden flex-shrink-0 transition-transform duration-300 hover:scale-110 ring-2 ring-emerald-100">
+                          <Image src={avatarUrl} alt="Profile" fill sizes="40px" className="object-cover" />
                         </div>
                       ) : (
                         <div className="h-10 w-10 rounded-full border-2 border-emerald-200 bg-gradient-to-br from-emerald-100 to-emerald-50 flex items-center justify-center flex-shrink-0 transition-transform duration-300 hover:scale-110 ring-2 ring-emerald-100">
@@ -997,10 +945,6 @@ export default function SiteHeader({
               <Plus className="h-5 w-5 text-white" />
             </Link>
 
-            <button onClick={toggleTheme} className="inline-flex items-center justify-center rounded-md p-1.5 hover:bg-white/10" aria-label="Toggle theme">
-              {theme === 'dark' ? <Sun className="h-5 w-5 text-white" /> : <Moon className="h-5 w-5 text-white" />}
-            </button>
-
             <Link href="/owner/support" className={`inline-flex items-center justify-center rounded-md p-1.5 hover:bg-white/10 ${touchedIcon === 'support' ? 'bg-white/10' : ''}`} aria-label="Request assistance" title="Request assistance" onTouchStart={() => handleTouch('support')}>
               <LifeBuoy className="h-5 w-5 text-white" />
             </Link>
@@ -1026,8 +970,8 @@ export default function SiteHeader({
                 onTouchEnd={() => setTouchedIcon(null)}
               >
               {avatarUrl ? (
-                  <div className="h-9 w-9 rounded-full overflow-hidden transition-all duration-300 ease-out group-hover:ring-2 group-hover:ring-white/10">
-                    <Image src={avatarUrl} alt="Profile" width={36} height={36} className="object-cover w-full h-full transition-transform duration-300 ease-out group-hover:scale-110" />
+                  <div className="relative h-9 w-9 rounded-full overflow-hidden transition-all duration-300 ease-out group-hover:ring-2 group-hover:ring-white/10">
+                    <Image src={avatarUrl} alt="Profile" fill sizes="36px" className="object-cover transition-transform duration-300 ease-out group-hover:scale-110" />
                 </div>
               ) : (
                   <div className="h-9 w-9 rounded-full flex items-center justify-center transition-all duration-300 ease-out group-hover:ring-2 group-hover:ring-white/10">
@@ -1043,8 +987,8 @@ export default function SiteHeader({
                   <div className="px-4 py-4 border-b border-gray-100/50 bg-gradient-to-br from-emerald-50 via-emerald-50/50 to-slate-50/30">
                     <div className="flex items-center gap-3 mb-3">
                       {avatarUrl ? (
-                        <div className="h-12 w-12 rounded-full border-2 border-emerald-300 overflow-hidden flex-shrink-0 transition-transform duration-300 hover:scale-110 ring-2 ring-emerald-100">
-                          <Image src={avatarUrl} alt="Profile" width={48} height={48} className="object-cover w-full h-full" />
+                        <div className="relative h-12 w-12 rounded-full border-2 border-emerald-300 overflow-hidden flex-shrink-0 transition-transform duration-300 hover:scale-110 ring-2 ring-emerald-100">
+                          <Image src={avatarUrl} alt="Profile" fill sizes="48px" className="object-cover" />
                         </div>
                       ) : (
                         <div className="h-12 w-12 rounded-full border-2 border-emerald-300 bg-gradient-to-br from-emerald-100 to-emerald-50 flex items-center justify-center flex-shrink-0 transition-transform duration-300 hover:scale-110 ring-2 ring-emerald-100">
@@ -1288,28 +1232,6 @@ export default function SiteHeader({
                     disabled={isRefreshing}
                   >
                     <RefreshCw className={`h-5 w-5 text-white/90 group-hover:text-white transition-transform duration-300 ${isRefreshing ? 'animate-spin' : 'group-hover:rotate-180'}`} />
-                  </button>
-                  <button
-                    onClick={handleExportInvoices}
-                    aria-label="Export Invoices CSV"
-                    title="Export Invoices CSV"
-                    className="mobile-menu-item group inline-flex h-11 w-11 items-center justify-center rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out"
-                    style={{ '--delay': 1 } as React.CSSProperties}
-                  >
-                    <Download className="h-5 w-5 text-white/90 group-hover:text-white transition-transform duration-300 group-hover:translate-y-0.5" />
-                  </button>
-                  <button
-                    onClick={toggleTheme}
-                    aria-label="Toggle theme"
-                    title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-                    className="mobile-menu-item group inline-flex h-11 w-11 items-center justify-center rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out"
-                    style={{ '--delay': 3 } as React.CSSProperties}
-                  >
-                    {theme === 'dark' ? (
-                      <Sun className="h-5 w-5 text-white/90 group-hover:text-white transition-transform duration-300 group-hover:rotate-180" />
-                    ) : (
-                      <Moon className="h-5 w-5 text-white/90 group-hover:text-white transition-transform duration-300 group-hover:-rotate-12" />
-                    )}
                   </button>
                   <Link
                     href="/admin/messages"

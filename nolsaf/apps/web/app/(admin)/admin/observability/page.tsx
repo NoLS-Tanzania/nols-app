@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Activity, AlertTriangle, Clock3, RefreshCw, Server, Trash2, Zap } from "lucide-react";
+import Link from "next/link";
+import { Activity, AlertTriangle, ArrowRight, Clock3, RefreshCw, Server, Trash2, UserRound, Zap } from "lucide-react";
 import apiClient from "@/lib/apiClient";
 
 type ObservedRequest = {
@@ -55,6 +56,31 @@ type ObservabilityData = {
   recent: ObservedRequest[];
   slow: ObservedRequest[];
   errors: ObservedRequest[];
+  impactedUsers: ImpactedUser[];
+};
+
+type ImpactedUser = {
+  key: string;
+  userId: number | null;
+  role: string | null;
+  name: string | null;
+  email: string | null;
+  label: string;
+  eventCount: number;
+  slowCount: number;
+  serverErrorCount: number;
+  clientErrorCount: number;
+  routes: string[];
+  lastSeenAt: string | null;
+  lastEvent: {
+    action: string;
+    route: string | null;
+    path: string | null;
+    statusCode: number | null;
+    durationMs: number | null;
+    message: string | null;
+    requestId: string | null;
+  } | null;
 };
 
 const emptyData: ObservabilityData = {
@@ -62,6 +88,7 @@ const emptyData: ObservabilityData = {
   recent: [],
   slow: [],
   errors: [],
+  impactedUsers: [],
 };
 
 export default function AdminObservabilityPage() {
@@ -84,6 +111,7 @@ export default function AdminObservabilityPage() {
         recent: snapshotRes.data?.recent ?? [],
         slow: snapshotRes.data?.slow ?? [],
         errors: snapshotRes.data?.errors ?? [],
+        impactedUsers: snapshotRes.data?.impactedUsers ?? [],
       });
     } catch (err: any) {
       setError(err?.response?.data?.error || err?.message || "Failed to load observability data");
@@ -175,6 +203,8 @@ export default function AdminObservabilityPage() {
           <MetricTile icon={Zap} label="Slow requests" value={summary?.slowRequestsInWindow ?? 0} helper={`threshold ${summary?.slowRequestThresholdMs ?? 1000}ms`} status={summary && summary.slowRequestsInWindow > 0 ? "Attention" : "Clean"} tone={summary && summary.slowRequestsInWindow > 0 ? "amber" : "violet"} />
           <MetricTile icon={AlertTriangle} label="Error rate" value={errorRatePct} helper={`${data.errors.length} recent server errors`} status={summary && summary.errorRate > 0 ? "Alert" : "Healthy"} tone={summary && summary.errorRate > 0 ? "red" : "green"} />
         </div>
+
+        <ImpactCenterSummary items={data.impactedUsers} loading={loading} />
 
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
           <section className="xl:col-span-3 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
@@ -289,6 +319,63 @@ function RouteHealthRow({
       <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100">
         <div className={`h-full rounded-full ${barClass}`} style={{ width: `${barPct}%` }} />
       </div>
+    </div>
+  );
+}
+
+function ImpactCenterSummary({ items, loading }: { items: ImpactedUser[]; loading: boolean }) {
+  const totalEvents = items.reduce((sum, item) => sum + item.eventCount, 0);
+  const errorEvents = items.reduce((sum, item) => sum + item.serverErrorCount + item.clientErrorCount, 0);
+  const slowEvents = items.reduce((sum, item) => sum + item.slowCount, 0);
+  const hasCritical = errorEvents > 0;
+
+  return (
+    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="grid gap-5 px-5 py-5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
+        <div className="flex min-w-0 gap-4">
+          <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl border ${hasCritical ? "border-red-100 bg-red-50 text-red-700" : "border-emerald-100 bg-emerald-50 text-emerald-700"}`}>
+            <UserRound className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-lg font-black tracking-tight text-slate-950">Impact Center</h2>
+              <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-black ${hasCritical ? "border-red-200 bg-red-50 text-red-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
+                {hasCritical ? "Needs review" : "Quiet"}
+              </span>
+            </div>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+              People-first view of users tied to slow calls, server errors, and frontend crashes.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <SummaryPill label="People" value={loading ? "..." : items.length} />
+            <SummaryPill label="Events" value={loading ? "..." : totalEvents} tone={hasCritical ? "red" : "slate"} />
+            <SummaryPill label="Slow" value={loading ? "..." : slowEvents} tone={slowEvents > 0 ? "amber" : "slate"} />
+          </div>
+          <Link
+            href="/admin/impact-center"
+            className="group inline-flex h-12 min-w-48 items-center justify-between gap-3 rounded-xl border border-slate-950 bg-slate-950 px-4 text-sm font-black text-white no-underline shadow-sm transition-all hover:-translate-y-0.5 hover:bg-slate-800 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
+          >
+            <span>Open Impact Center</span>
+            <span className="grid h-7 w-7 place-items-center rounded-lg bg-white/10 transition-colors group-hover:bg-white/15">
+              <ArrowRight className="h-4 w-4" />
+            </span>
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function SummaryPill({ label, value, tone = "slate" }: { label: string; value: string | number; tone?: "slate" | "amber" | "red" }) {
+  const valueClass = tone === "red" ? "text-red-700" : tone === "amber" ? "text-amber-700" : "text-slate-900";
+  return (
+    <div className="min-w-24 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+      <div className={`text-xl font-black leading-none ${valueClass}`}>{value}</div>
+      <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</div>
     </div>
   );
 }

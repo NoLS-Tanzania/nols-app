@@ -35,6 +35,8 @@ export function performanceMiddleware(req: Request, res: Response, next: NextFun
       durationMs: duration,
       ip: maskIpAddress(req.headers["x-forwarded-for"]?.toString()?.split(",")[0]?.trim() || req.socket.remoteAddress || null),
       userAgent: req.headers["user-agent"]?.toString() || null,
+      actorId: (req as any).user?.id ?? null,
+      actorRole: (req as any).user?.role ?? null,
       timestamp: new Date().toISOString(),
     };
 
