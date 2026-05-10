@@ -1,7 +1,7 @@
 import { Router } from "express";
 import rateLimit from "express-rate-limit";
 import { prisma } from "@nolsaf/prisma";
-import { maskIpAddress } from "../lib/observability.js";
+import { maskIpAddress, normalizeRoute } from "../lib/observability.js";
 
 const router = Router();
 
@@ -49,6 +49,41 @@ router.post("/", limitClientErrors, async (req, res) => {
     res.status(202).json({ ok: true });
   } catch (err: any) {
     console.warn("[client-errors] failed to record client error", err?.message || err);
+    res.status(202).json({ ok: true });
+  }
+});
+
+router.post("/health", limitClientErrors, async (req, res) => {
+  try {
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const path = trimText(body.path, 300);
+    const userAgent = trimText(req.headers["user-agent"], 255);
+
+    if (!path) {
+      return res.status(400).json({ ok: false, error: "Missing route path" });
+    }
+
+    await prisma.auditLog.create({
+      data: {
+        actorId: (req as any).user?.id ?? null,
+        actorRole: (req as any).user?.role ?? null,
+        action: "CLIENT_ROUTE_HEALTH",
+        entity: "CLIENT",
+        entityId: null,
+        ip: maskIpAddress(req.headers["x-forwarded-for"]?.toString()?.split(",")[0]?.trim() || req.socket.remoteAddress || null),
+        ua: userAgent,
+        beforeJson: null,
+        afterJson: {
+          path,
+          route: normalizeRoute(path),
+          timestamp: new Date().toISOString(),
+        },
+      },
+    });
+
+    res.status(202).json({ ok: true });
+  } catch (err: any) {
+    console.warn("[client-errors] failed to record client route health", err?.message || err);
     res.status(202).json({ ok: true });
   }
 });

@@ -81,26 +81,28 @@ export default function AdminImpactCenterPage() {
   }, [filter, query]);
 
   const summary = useMemo(() => {
+    const activeItems = items.filter((item) => item.resolution?.status !== "restored");
     return {
       people: items.length,
-      critical: items.filter((item) => item.serverErrorCount > 0 || item.clientErrorCount > 0).length,
-      slow: items.filter((item) => item.slowCount > 0).length,
-      client: items.filter((item) => item.clientErrorCount > 0).length,
-      known: items.filter((item) => item.userId).length,
-      visitors: items.filter((item) => !item.userId).length,
+      critical: activeItems.filter((item) => item.serverErrorCount > 0 || item.clientErrorCount > 0).length,
+      slow: activeItems.filter((item) => item.slowCount > 0).length,
+      client: activeItems.filter((item) => item.clientErrorCount > 0).length,
+      known: activeItems.filter((item) => item.userId).length,
+      visitors: activeItems.filter((item) => !item.userId).length,
     };
   }, [items]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return items.filter((item) => {
+      if (filter === "restored" && item.resolution?.status !== "restored") return false;
+      if (filter !== "restored" && item.resolution?.status === "restored") return false;
       if (filter === "critical" && item.serverErrorCount + item.clientErrorCount === 0) return false;
       if (filter === "slow" && item.slowCount === 0) return false;
       if (filter === "client" && item.clientErrorCount === 0) return false;
       if (filter === "server" && item.serverErrorCount === 0) return false;
       if (filter === "known" && !item.userId) return false;
       if (filter === "visitors" && item.userId) return false;
-      if (filter === "restored" && item.resolution?.status !== "restored") return false;
       if (!q) return true;
       const haystack = [
         item.label,
@@ -303,7 +305,7 @@ function ImpactPersonCard({ item, onRestore }: { item: ImpactedUser; onRestore: 
   const critical = serverIssue || clientIssue;
   const restored = item.resolution?.status === "restored";
   const severity = restored ? "Restored" : critical ? "Critical" : item.slowCount > 0 ? "Warning" : "Reviewed";
-  const iconClass = critical ? "border-red-100 bg-red-50 text-red-700" : item.slowCount > 0 ? "border-amber-100 bg-amber-50 text-amber-700" : "border-emerald-100 bg-emerald-50 text-emerald-700";
+  const iconClass = restored ? "border-emerald-100 bg-emerald-50 text-emerald-700" : critical ? "border-red-100 bg-red-50 text-red-700" : item.slowCount > 0 ? "border-amber-100 bg-amber-50 text-amber-700" : "border-emerald-100 bg-emerald-50 text-emerald-700";
   const eventLabel = item.lastEvent?.message || item.lastEvent?.route || item.lastEvent?.path || item.lastEvent?.action || "Observed impact";
 
   return (
@@ -311,7 +313,7 @@ function ImpactPersonCard({ item, onRestore }: { item: ImpactedUser; onRestore: 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px] xl:items-start">
         <div className="flex min-w-0 gap-4">
           <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl border ${iconClass}`}>
-            {serverIssue ? <ServerCrash className="h-5 w-5" /> : clientIssue ? <Bug className="h-5 w-5" /> : <Clock3 className="h-5 w-5" />}
+            {restored ? <CheckCircle2 className="h-5 w-5" /> : serverIssue ? <ServerCrash className="h-5 w-5" /> : clientIssue ? <Bug className="h-5 w-5" /> : <Clock3 className="h-5 w-5" />}
           </div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
