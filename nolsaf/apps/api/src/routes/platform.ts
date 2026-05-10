@@ -1,5 +1,5 @@
 import { type Express, type RequestHandler } from "express";
-import requireRole from "../middleware/auth";
+import requireRole, { maybeAuth } from "../middleware/auth";
 import { router as account } from "./account";
 import authRoutes from "./auth";
 import azampayPaymentsRouter from "./payments.azampay.js";
@@ -46,5 +46,5 @@ export function registerChatbotRoute(app: Express): void {
 
 export function registerGroupAndReviewRoutes(app: Express): void {
   app.use("/api/group-bookings", requireRole() as RequestHandler, groupBookingsRouter);
-  app.use("/api/property-reviews", propertyReviewsRouter);
+  app.use("/api/property-reviews", maybeAuth as RequestHandler, propertyReviewsRouter);
 }

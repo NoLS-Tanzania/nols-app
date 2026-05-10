@@ -2487,22 +2487,6 @@ a[aria-label="Settings"].mobile {
   color: #ffffff;
 }
 
-/* Theme toggle: match Messages/Support/Settings background and hover behavior */
-button[aria-label="Toggle theme"],
-a[aria-label="Toggle theme"] {
-  @apply inline-flex items-center justify-center rounded-xl p-2 hover:bg-white/10;
-  background-color: transparent;
-  color: #ffffff; /* ensure icon is white */
-  border-color: transparent;
-}
-
-button[aria-label="Toggle theme"].mobile,
-a[aria-label="Toggle theme"].mobile {
-  @apply inline-flex h-10 w-10 items-center justify-center rounded-xl transition hover:bg-white/10 active:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40;
-  background-color: transparent;
-  color: #ffffff;
-}
-
 /* Header/Footer helpers */
 .nols-header { @apply bg-brand text-white; }
 .nols-footer { @apply bg-brand text-white; }

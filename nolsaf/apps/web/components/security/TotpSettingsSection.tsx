@@ -25,6 +25,7 @@ export default function TotpSettingsSection({
   verifyUrl,
   disableUrl,
   onStatusChangeAction,
+  embedded = false,
 }: TotpSettingsSectionProps) {
   const [setup, setSetup] = useState<SetupData | null>(null)
   const [code, setCode] = useState("")
@@ -132,16 +133,44 @@ export default function TotpSettingsSection({
     }
   }
 
+  const shellClass = embedded
+    ? "rounded-2xl border border-slate-200/70 bg-white shadow-sm transition-all duration-200 p-4 overflow-hidden break-words"
+    : "rounded-2xl border border-slate-700/60 bg-[#0f1923] shadow-lg transition-all duration-200 p-4 sm:p-6 overflow-hidden break-words"
+  const iconClass = embedded
+    ? "h-12 w-12 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center flex-shrink-0 transition-transform duration-200 hover:scale-105"
+    : "h-12 w-12 rounded-xl bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center flex-shrink-0 transition-transform duration-200 hover:scale-110"
+  const titleClass = embedded ? "font-semibold text-base text-slate-950" : "font-semibold text-lg text-slate-100"
+  const bodyClass = embedded ? "text-sm text-slate-600 mt-1" : "text-sm text-slate-400 mt-1"
+  const labelClass = embedded ? "font-medium text-slate-700" : "font-medium text-slate-300"
+  const inputClass = embedded
+    ? "border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:border-emerald-500/50 focus:outline-none focus:ring-1 focus:ring-emerald-500/20 transition-all duration-200 ease-out w-36 bg-slate-50 text-slate-950 placeholder:text-slate-400 min-w-0 max-w-full tracking-widest font-mono"
+    : "border border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:border-emerald-500/50 focus:outline-none focus:ring-1 focus:ring-emerald-500/20 transition-all duration-200 ease-out w-full bg-slate-800/60 text-slate-100 placeholder:text-slate-500 min-w-0 max-w-full"
+  const secondaryButtonClass = embedded
+    ? "inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition-all duration-200 hover:bg-slate-50 hover:border-slate-300 active:scale-[0.98] w-full sm:w-auto"
+    : "inline-flex items-center justify-center gap-2 px-4 sm:px-6 py-3 rounded-xl border border-slate-700 bg-slate-800 text-slate-300 font-semibold text-sm hover:bg-slate-700 hover:border-slate-600 active:scale-[0.98] transition-all duration-200 w-full sm:w-auto"
+  const qrClass = embedded
+    ? "h-36 w-36 rounded-2xl overflow-hidden border border-slate-200 bg-slate-50 flex items-center justify-center shadow-sm flex-shrink-0"
+    : "w-40 h-40 sm:w-48 sm:h-48 rounded-xl overflow-hidden border border-slate-700 bg-slate-800 flex items-center justify-center shadow-sm flex-shrink-0"
+  const primarySetupButtonClass = embedded
+    ? "inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#02665e] px-4 text-sm font-semibold text-white transition-all duration-200 hover:bg-[#014d47] hover:shadow-md active:scale-[0.98] disabled:opacity-60 w-full sm:w-auto"
+    : "inline-flex items-center justify-center gap-2 px-4 sm:px-6 py-3 rounded-xl bg-[#02665e] text-white font-semibold text-sm hover:bg-[#014d47] hover:shadow-md active:scale-[0.98] transition-all duration-200 disabled:opacity-60"
+  const codeInputClass = embedded
+    ? "block w-full max-w-full min-w-0 rounded-lg border-2 border-slate-200 bg-slate-50 text-slate-950 placeholder:text-slate-400 font-mono px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 text-xs sm:text-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20 transition-all duration-200 box-border"
+    : "block w-full max-w-full min-w-0 rounded-lg border-2 border-slate-700 bg-slate-800/60 text-slate-100 placeholder:text-slate-500 font-mono px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 text-xs sm:text-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/30 transition-all duration-200 box-border"
+  const cancelDisableClass = embedded
+    ? "sm:w-auto inline-flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 text-xs font-semibold text-slate-700 hover:text-slate-950 hover:bg-slate-50 rounded-lg transition-all duration-300 border-2 border-slate-200 hover:border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed min-w-0"
+    : "sm:w-auto inline-flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-all duration-300 border-2 border-slate-700 hover:border-slate-600 disabled:opacity-50 disabled:cursor-not-allowed min-w-0"
+
   return (
-    <section className="rounded-2xl border border-slate-700/60 bg-[#0f1923] shadow-lg transition-all duration-200 p-4 sm:p-6 overflow-hidden break-words">
-      <div className="flex flex-col sm:flex-row items-start sm:items-start justify-between gap-4 mb-6">
+    <section className={shellClass}>
+      <div className="flex flex-col sm:flex-row items-start sm:items-start justify-between gap-4 mb-6 min-w-0">
         <div className="flex items-start gap-4 flex-1 min-w-0">
-          <div className="h-12 w-12 rounded-xl bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center flex-shrink-0 transition-transform duration-200 hover:scale-110">
-            <Smartphone className="h-6 w-6 text-emerald-400" strokeWidth={2} />
+          <div className={iconClass}>
+            <Smartphone className={embedded ? "h-6 w-6 text-[#02665e]" : "h-6 w-6 text-emerald-400"} strokeWidth={2} />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="font-semibold text-lg text-slate-100">Two-Factor Authentication (TOTP)</div>
-            <p className="text-sm text-slate-400 mt-1">
+            <div className={`${titleClass} break-words`}>Two-Factor Authentication (TOTP)</div>
+            <p className={bodyClass}>
               Add an extra layer of security to your account using a TOTP app (Google Authenticator, Authy).
             </p>
           </div>
@@ -177,41 +206,41 @@ export default function TotpSettingsSection({
               disabled={loading}
             >
               <Key className="h-4 w-4" />
-              {loading ? "Starting…" : "Enable TOTP"}
+              {loading ? "Starting..." : "Enable TOTP"}
             </button>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4 items-start w-full">
-              <div className="flex justify-center md:justify-start w-full min-w-0">
-                <div className="w-40 h-40 sm:w-48 sm:h-48 rounded-xl overflow-hidden border border-slate-700 bg-slate-800 flex items-center justify-center shadow-sm flex-shrink-0">
+            <div className={`grid grid-cols-1 gap-4 mt-4 items-start w-full ${embedded ? "sm:grid-cols-[auto_minmax(0,1fr)]" : "md:grid-cols-2 md:gap-6"}`}>
+              <div className="flex justify-center sm:justify-start w-full min-w-0">
+                <div className={qrClass}>
                   {setup?.qrDataUrl ? (
-                    <Image src={setup.qrDataUrl} alt="TOTP QR" width={160} height={160} className="object-contain" />
+                    <Image src={setup.qrDataUrl} alt="TOTP QR" width={embedded ? 128 : 160} height={embedded ? 128 : 160} className="object-contain" />
                   ) : (
-                    <div className="w-40 h-40 sm:w-48 sm:h-48 flex items-center justify-center text-slate-400 text-sm">Loading QR...</div>
+                    <div className={embedded ? "h-36 w-36 flex items-center justify-center text-slate-400 text-sm" : "w-40 h-40 sm:w-48 sm:h-48 flex items-center justify-center text-slate-400 text-sm"}>Loading QR...</div>
                   )}
                 </div>
               </div>
               <div className="w-full min-w-0">
                 <label className="text-sm grid gap-2 w-full min-w-0">
-                  <span className="font-medium text-slate-300">Enter 6-digit code</span>
+                  <span className={labelClass}>Enter 6-digit code</span>
                   <input
-                    className="border border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:border-emerald-500/50 focus:outline-none focus:ring-1 focus:ring-emerald-500/20 transition-all duration-200 ease-out w-full bg-slate-800/60 text-slate-100 placeholder:text-slate-500 min-w-0 max-w-full"
+                    className={inputClass}
                     value={code}
                     onChange={(e) => setCode(e.target.value)}
                     placeholder="000000"
                   />
                 </label>
-                <div className="flex flex-col sm:flex-row gap-3 mt-4 w-full">
+                <div className="flex flex-col sm:flex-row gap-3 mt-4 w-full sm:items-center">
                   <button
-                    className="inline-flex items-center justify-center gap-2 px-4 sm:px-6 py-3 rounded-xl bg-[#02665e] text-white font-semibold text-sm hover:bg-[#014d47] hover:shadow-md active:scale-[0.98] transition-all duration-200 w-full sm:w-auto disabled:opacity-60"
+                    className={primarySetupButtonClass}
                     onClick={() => void verify()}
                     type="button"
                     disabled={loading || !code.trim()}
                   >
                     <CheckCircle className="h-4 w-4" />
-                    {loading ? "Verifying…" : "Verify & Enable"}
+                    {loading ? "Verifying..." : "Verify & Enable"}
                   </button>
                   <button
-                    className="inline-flex items-center justify-center gap-2 px-4 sm:px-6 py-3 rounded-xl border border-slate-700 bg-slate-800 text-slate-300 font-semibold text-sm hover:bg-slate-700 hover:border-slate-600 active:scale-[0.98] transition-all duration-200 w-full sm:w-auto"
+                    className={secondaryButtonClass}
                     onClick={() => setSetup(null)}
                     type="button"
                     disabled={loading}
@@ -237,13 +266,13 @@ export default function TotpSettingsSection({
         ) : (
           <div className="space-y-3 sm:space-y-4 w-full max-w-full">
             <div className="w-full max-w-full min-w-0">
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5 sm:mb-2">Enter TOTP code or backup code to disable</label>
+              <label className={`block text-xs font-semibold mb-1.5 sm:mb-2 ${embedded ? "text-slate-700" : "text-slate-300"}`}>Enter TOTP code or backup code to disable</label>
               <input
                 type="text"
                 value={disableCode}
                 onChange={(e) => setDisableCode(e.target.value)}
                 placeholder="Enter code"
-                className="block w-full max-w-full min-w-0 rounded-lg border-2 border-slate-700 bg-slate-800/60 text-slate-100 placeholder:text-slate-500 font-mono px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 text-xs sm:text-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/30 transition-all duration-200 box-border"
+                className={codeInputClass}
                 autoFocus
               />
               <p className="mt-1.5 text-xs text-slate-500">Enter a 6-digit TOTP code from your authenticator app or a backup code.</p>
@@ -256,14 +285,14 @@ export default function TotpSettingsSection({
                 className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-all duration-300 border-2 border-red-600 hover:border-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 type="button"
               >
-                {loading ? "Disabling…" : "Disable 2FA"}
+                {loading ? "Disabling..." : "Disable 2FA"}
               </button>
               <button
                 onClick={() => {
                   setShowDisableInput(false)
                   setDisableCode("")
                 }}
-                className="sm:w-auto inline-flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-all duration-300 border-2 border-slate-700 hover:border-slate-600 disabled:opacity-50 disabled:cursor-not-allowed min-w-0"
+                className={cancelDisableClass}
                 type="button"
                 disabled={loading}
               >

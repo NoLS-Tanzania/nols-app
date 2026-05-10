@@ -187,18 +187,18 @@ export default function AdminImpactCenterPage() {
           <SummaryCard icon={ShieldCheck} label="Visitors" value={summary.visitors} tone={summary.visitors > 0 ? "amber" : "slate"} />
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex flex-col items-center gap-4">
-            <div className="relative w-full max-w-sm">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+          <div className="mx-auto flex max-w-5xl flex-col items-center gap-3">
+            <div className="relative w-full max-w-xs">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search user or route..."
-                className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm font-semibold text-slate-800 outline-none transition-colors placeholder:text-slate-400 focus:border-[#02665e]/40 focus:bg-white focus:ring-2 focus:ring-[#02665e]/10"
+                placeholder="Search user or route"
+                className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 pl-8 pr-3 text-sm font-semibold text-slate-800 outline-none transition-colors placeholder:text-slate-400 focus:border-[#02665e]/40 focus:bg-white focus:ring-2 focus:ring-[#02665e]/10"
               />
             </div>
-            <div className="flex max-w-full flex-wrap justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-1.5">
+            <div className="flex max-w-full flex-wrap justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 p-1">
               <FilterButton active={filter === "all"} onClick={() => setFilter("all")}>All</FilterButton>
               <FilterButton active={filter === "critical"} onClick={() => setFilter("critical")}>Critical</FilterButton>
               <FilterButton active={filter === "server"} onClick={() => setFilter("server")}>5xx</FilterButton>
@@ -441,7 +441,7 @@ function FilterButton({ active, onClick, children }: { active: boolean; onClick:
     <button
       type="button"
       onClick={onClick}
-      className={`h-9 rounded-lg border px-3 text-sm font-bold transition-all ${
+      className={`h-8 rounded-lg border px-2.5 text-xs font-bold transition-all sm:px-3 sm:text-sm ${
         active
           ? "border-emerald-200 bg-emerald-700 text-white shadow-sm shadow-emerald-900/10"
           : "border-transparent bg-transparent text-slate-600 hover:border-slate-200 hover:bg-white hover:text-slate-950"
