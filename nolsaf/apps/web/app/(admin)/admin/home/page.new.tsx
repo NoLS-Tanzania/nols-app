@@ -249,7 +249,7 @@ export default function AdminHomePage() {
   const { driversPending, usersNew, paymentsWaiting } = useAdminHomeKpis();
   const { highlights } = useAdminPerformanceHighlights(30);
 
-  const [nowIso] = useState<string>(() => new Date().toISOString());
+  const [nowIso, setNowIso] = useState<string | null>(null);
 
   const [reduceMotion, setReduceMotion] = useState<boolean>(false);
   const [tilesInView, setTilesInView] = useState<boolean>(false);
@@ -344,6 +344,16 @@ export default function AdminHomePage() {
       setReduceMotion(false);
     }
   }, []);
+
+  useEffect(() => {
+    setNowIso(new Date().toISOString());
+  }, []);
+
+  const greetingLabel = useMemo(() => {
+    if (!nowIso) return "Welcome";
+    const hour = new Date(nowIso).getHours();
+    return hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  }, [nowIso]);
 
   function ClientTime({ iso }: { iso?: string | null }) {
     const [label, setLabel] = useState<string | null>(null);
@@ -910,7 +920,7 @@ export default function AdminHomePage() {
                   <ClientTime iso={nowIso} />
                 </div>
                 <h1 className="mt-1 text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
-                  {(() => { const h = new Date(nowIso).getHours(); return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening"; })()},&nbsp;Admin
+                  {greetingLabel},&nbsp;Admin
                 </h1>
                 <div className="mt-1 text-sm text-slate-400">Approvals · Payments · Bookings · Revenue all in one view</div>
               </div>
