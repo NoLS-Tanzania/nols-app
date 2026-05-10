@@ -156,6 +156,7 @@ export async function sendSms(to: string, text: string, options?: { bypassEligib
   }
 
   const phone = normaliseTo255(to);
+  const failures: string[] = [];
 
   // 1 — Africa's Talking
   if (process.env.AFRICASTALKING_API_KEY) {
@@ -163,8 +164,11 @@ export async function sendSms(to: string, text: string, options?: { bypassEligib
       const r = await sendViaAfricasTalking(phone, text);
       if (r.success) return r;
       console.warn('[SMS] Africa\'s Talking returned failure:', r.error);
+      if (r.error) failures.push(`africastalking: ${r.error}`);
     } catch (err: any) {
-      console.error('[SMS] Africa\'s Talking threw:', err?.message ?? err);
+      const message = String(err?.message ?? err);
+      failures.push(`africastalking: ${message}`);
+      console.error('[SMS] Africa\'s Talking threw:', message);
     }
   }
 
@@ -174,7 +178,9 @@ export async function sendSms(to: string, text: string, options?: { bypassEligib
       const r = await sendViaTwilio(phone, text);
       if (r.success) return r;
     } catch (err: any) {
-      console.error('[SMS] Twilio threw:', err?.message ?? err);
+      const message = String(err?.message ?? err);
+      failures.push(`twilio: ${message}`);
+      console.error('[SMS] Twilio threw:', message);
     }
   }
 
@@ -184,5 +190,5 @@ export async function sendSms(to: string, text: string, options?: { bypassEligib
     return { success: true, messageId: `dev-${Date.now()}`, provider: 'console' };
   }
 
-  return { success: false, error: 'No SMS provider delivered the message' };
+  return { success: false, error: failures.length ? failures.join(' | ') : 'No SMS provider delivered the message' };
 }

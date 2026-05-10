@@ -50,6 +50,16 @@ function maskOtp(code: string): string {
   return `••••${s.slice(-2)}`;
 }
 
+function maskPhoneForAudit(phone: string): string {
+  const value = String(phone || "");
+  if (value.length <= 4) return "******";
+  return `******${value.slice(-4)}`;
+}
+
+function authOtpUse(normalizedRole: string | null): "AUTH_LOGIN" | "AUTH_RESET" | "AUTH_SIGNUP" {
+  return normalizedRole === "RESET" ? "AUTH_RESET" : normalizedRole ? "AUTH_SIGNUP" : "AUTH_LOGIN";
+}
+
 function formatBlockedReason(note: string | null | undefined): string {
   const raw = String(note ?? '').trim();
   if (!raw) return 'Your NoLSAF driver access is currently inactive.';
@@ -280,6 +290,21 @@ router.post('/send-otp', limitOtpSend, async (req, res) => {
   const smsText = `Your NoLSAF verification code is ${otp}`;
   const smsResult = await sendSms(normalizedPhone, smsText);
   if (process.env.NODE_ENV === 'production' && !smsResult?.success) {
+    try {
+      await audit(req, "NO4P_OTP_SEND_FAILED", `OTP:PHONE:${hashCode(normalizedPhone)}:${codeHash}`, null, {
+        destinationType: "PHONE",
+        destinationMasked: maskPhoneForAudit(normalizedPhone),
+        destinationHash: hashCode(normalizedPhone),
+        codeHash,
+        usedFor: authOtpUse(normalizedRole),
+        provider: smsResult?.provider ?? null,
+        reason: smsResult?.error ?? "sms_failed",
+        requestId: String((req as any).requestId || ""),
+        policyCompliant: true,
+      });
+    } catch {
+      // Never let failure auditing block the user-facing response.
+    }
     return res.status(502).json({ error: 'sms_failed', message: 'Failed to send OTP. Please try again.' });
   }
 
@@ -304,7 +329,7 @@ router.post('/send-otp', limitOtpSend, async (req, res) => {
       codeHash,
       codeMasked: maskOtp(otp),
       expiresAt: expiresAt.toISOString(),
-      usedFor: normalizedRole === "RESET" ? "AUTH_RESET" : normalizedRole ? "AUTH_SIGNUP" : "AUTH_LOGIN",
+      usedFor: authOtpUse(normalizedRole),
       provider: smsResult?.provider ?? null,
       userRole,
       userName,
