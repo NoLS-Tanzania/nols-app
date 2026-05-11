@@ -8,7 +8,7 @@ import { REGIONS_FULL_DATA } from "@/lib/tzRegionsFull";
 import DatePickerField from "@/components/DatePickerField";
 import apiClient from "@/lib/apiClient";
 import * as Icons from 'lucide-react';
-import { User, Mail, UserCircle, Globe, CreditCard, FileText, Upload, CheckCircle2, Truck, MapPin, Phone, ChevronDown, AlertCircle, ChevronLeft, ChevronRight, Loader2, Car, X, Clock, Building2, UserCircle2, ArrowLeft, Star, Shield, Lock, AlertTriangle, Calendar } from 'lucide-react';
+import { User, Mail, UserCircle, Globe, CreditCard, FileText, Upload, CheckCircle2, Truck, MapPin, Phone, ChevronDown, AlertCircle, ChevronLeft, ChevronRight, Loader2, Car, X, Clock, Building2, UserCircle2, ArrowLeft, Star, Shield, Lock, AlertTriangle, Calendar, Check } from 'lucide-react';
 
 type CloudinarySig = {
   timestamp: number;
@@ -1004,22 +1004,22 @@ export default function OnboardRole() {
 
                   <div className="mx-auto grid max-w-4xl gap-4 lg:grid-cols-2 lg:gap-5">
                     {/* Full name */}
-                    <div className="group rounded-[12px] border border-slate-200/80 bg-[linear-gradient(180deg,#fcfdfd_0%,#f7faf9_100%)] p-3 shadow-[0_10px_30px_-26px_rgba(15,23,42,0.26)] sm:p-3.5">
-                      <label className="mb-3 flex items-center gap-1.5 text-xs font-semibold text-slate-700">
-                        <User className="h-3.5 w-3.5 text-slate-400" />
+                    <div className="rounded-lg bg-white p-4 border border-slate-100 shadow-sm transform transition hover:-translate-y-0.5 hover:shadow-lg">
+                      <label htmlFor="onboard-name" className="block text-sm font-medium text-slate-700">
                         Full name <span className="text-red-500">*</span>
                       </label>
                       <input
+                        id="onboard-name"
                         ref={nameRef}
                         value={name}
                         onChange={e => setName(e.target.value)}
                         onBlur={() => { setTouched(prev => ({ ...prev, name: true })); setFieldErrors(prev => ({ ...prev, name: validateField('name') })); }}
-                        className={`h-11 w-full rounded-[10px] border bg-white px-3.5 text-[14px] text-slate-900 placeholder:text-[#8b9ab4] shadow-[0_1px_0_rgba(255,255,255,0.8),0_8px_20px_-18px_rgba(15,23,42,0.18)] transition-all duration-200 focus:bg-white focus:outline-none focus:ring-2 ${
+                        className={`mt-1 w-full rounded-md px-3 py-2 border bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-200 transition-colors ${
                           touched.name && fieldErrors.name
-                            ? 'border-red-300 focus:border-red-400 focus:ring-red-100'
-                            : 'border-slate-200 hover:border-slate-300 focus:border-[#02665e] focus:ring-[#02665e]/10'
+                            ? 'border-red-300'
+                            : 'border-slate-200 hover:border-slate-300 focus:border-[#02665e]'
                         }`}
-                        placeholder="e.g. Amina Hassan"
+                        placeholder="e.g. Jane Doe"
                       />
                       {touched.name && fieldErrors.name && (
                         <p className="mt-1.5 flex items-center gap-1 text-[11px] text-red-600">
@@ -1029,21 +1029,21 @@ export default function OnboardRole() {
                     </div>
 
                     {/* Email */}
-                    <div className="group rounded-[12px] border border-slate-200/80 bg-[linear-gradient(180deg,#fcfdfd_0%,#f7faf9_100%)] p-3 shadow-[0_10px_30px_-26px_rgba(15,23,42,0.26)] sm:p-3.5">
-                      <label className="mb-3 flex items-center gap-1.5 text-xs font-semibold text-slate-700">
-                        <Mail className="h-3.5 w-3.5 text-slate-400" />
+                    <div className="rounded-lg bg-white p-4 border border-slate-100 shadow-sm transform transition hover:-translate-y-0.5 hover:shadow-lg">
+                      <label htmlFor="onboard-email" className="block text-sm font-medium text-slate-700">
                         Email address <span className="text-red-500">*</span>
                       </label>
                       <input
+                        id="onboard-email"
                         ref={emailRef}
                         type="email"
                         value={email}
                         onChange={e => setEmail(e.target.value)}
                         onBlur={() => { setTouched(prev => ({ ...prev, email: true })); setFieldErrors(prev => ({ ...prev, email: validateField('email') })); }}
-                        className={`h-11 w-full rounded-[10px] border bg-white px-3.5 text-[14px] text-slate-900 placeholder:text-[#8b9ab4] shadow-[0_1px_0_rgba(255,255,255,0.8),0_8px_20px_-18px_rgba(15,23,42,0.18)] transition-all duration-200 focus:bg-white focus:outline-none focus:ring-2 ${
+                        className={`mt-1 w-full rounded-md px-3 py-2 border bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-200 transition-colors ${
                           touched.email && fieldErrors.email
-                            ? 'border-red-300 focus:border-red-400 focus:ring-red-100'
-                            : 'border-slate-200 hover:border-slate-300 focus:border-[#02665e] focus:ring-[#02665e]/10'
+                            ? 'border-red-300'
+                            : 'border-slate-200 hover:border-slate-300 focus:border-[#02665e]'
                         }`}
                         placeholder="you@example.com"
                       />
@@ -1056,21 +1056,21 @@ export default function OnboardRole() {
 
                     {needsPasswordSetup && (
                       <>
-                        <div className="group rounded-[12px] border border-slate-200/80 bg-[linear-gradient(180deg,#fcfdfd_0%,#f7faf9_100%)] p-3 shadow-[0_10px_30px_-26px_rgba(15,23,42,0.26)] sm:p-3.5">
-                          <label className="mb-3 flex items-center gap-1.5 text-xs font-semibold text-slate-700">
-                            <Lock className="h-3.5 w-3.5 text-slate-400" />
+                        <div className="rounded-lg bg-white p-4 border border-slate-100 shadow-sm transform transition hover:-translate-y-0.5 hover:shadow-lg">
+                          <label htmlFor="onboard-password" className="block text-sm font-medium text-slate-700">
                             Password <span className="text-red-500">*</span>
                           </label>
                           <input
+                            id="onboard-password"
                             ref={passwordRef}
                             type="password"
                             value={password}
                             onChange={e => setPassword(e.target.value)}
                             onBlur={() => { setTouched(prev => ({ ...prev, password: true })); setFieldErrors(prev => ({ ...prev, password: validateField('password') })); }}
-                            className={`h-11 w-full rounded-[10px] border bg-white px-3.5 text-[14px] text-slate-900 placeholder:text-[#8b9ab4] shadow-[0_1px_0_rgba(255,255,255,0.8),0_8px_20px_-18px_rgba(15,23,42,0.18)] transition-all duration-200 focus:bg-white focus:outline-none focus:ring-2 ${
+                            className={`mt-1 w-full rounded-md px-3 py-2 border bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-200 transition-colors ${
                               touched.password && fieldErrors.password
-                                ? 'border-red-300 focus:border-red-400 focus:ring-red-100'
-                                : 'border-slate-200 hover:border-slate-300 focus:border-[#02665e] focus:ring-[#02665e]/10'
+                                ? 'border-red-300'
+                                : 'border-slate-200 hover:border-slate-300 focus:border-[#02665e]'
                             }`}
                             placeholder="Create a strong password"
                           />
@@ -1081,54 +1081,80 @@ export default function OnboardRole() {
                           )}
                           {password.trim().length > 0 && (() => {
                             const s = computePasswordStrength(password);
+                            const minLength = role === 'owner' ? 12 : 10;
+                            const checks = [
+                              { label: `At least ${minLength} characters`, pass: password.length >= minLength },
+                              { label: 'Uppercase letter (A–Z)', pass: /[A-Z]/.test(password) },
+                              { label: 'Lowercase letter (a–z)', pass: /[a-z]/.test(password) },
+                              { label: 'Number (0–9)', pass: /[0-9]/.test(password) },
+                              { label: 'Special character (!@#$…)', pass: /[!@#\$%\^&\*\(\)\-_=+\[\]{};:'"\\|,<.>/?`~]/.test(password) },
+                              { label: 'No spaces', pass: !/\s/.test(password) },
+                            ];
                             const label = s.strength === 'strong' ? 'Strong' : s.strength === 'medium' ? 'Medium' : 'Weak';
                             const barWidth = s.strength === 'strong' ? 'w-full' : s.strength === 'medium' ? 'w-2/3' : 'w-1/3';
-                            const barColor = s.strength === 'strong' ? 'bg-emerald-500' : s.strength === 'medium' ? 'bg-amber-500' : 'bg-red-500';
-                            const labelColor = s.strength === 'strong' ? 'text-emerald-600' : s.strength === 'medium' ? 'text-amber-600' : 'text-red-600';
-                            const tips = s.strength === 'strong' ? [] : s.reasons.slice(0, 3);
+                            const barColor = s.strength === 'strong' ? 'bg-emerald-500' : s.strength === 'medium' ? 'bg-amber-400' : 'bg-red-500';
+                            const labelColor = s.strength === 'strong' ? 'text-emerald-600' : s.strength === 'medium' ? 'text-amber-500' : 'text-red-500';
                             return (
                               <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                                <div className="flex items-center justify-between">
+                                <div className="flex items-center justify-between mb-2">
                                   <span className="text-[11px] font-semibold text-slate-600">Password strength</span>
                                   <span className={`text-[11px] font-bold ${labelColor}`}>{label}</span>
                                 </div>
-                                <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
-                                  <div className={`h-full ${barWidth} ${barColor} rounded-full transition-all duration-300`} />
+                                <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200 mb-3">
+                                  <div className={`h-full ${barWidth} ${barColor} rounded-full transition-all duration-500`} />
                                 </div>
-                                {tips.length > 0 && (
-                                  <ul className="mt-2 space-y-0.5">
-                                    {tips.map((t) => (
-                                      <li key={t} className="flex items-center gap-1.5 text-[11px] text-slate-500">
-                                        <AlertCircle className="h-2.5 w-2.5 flex-shrink-0 text-slate-400" />{t}
-                                      </li>
-                                    ))}
-                                  </ul>
-                                )}
+                                <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                                  {checks.map((c) => (
+                                    <div key={c.label} className="flex items-center gap-1.5">
+                                      <div className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full transition-colors ${
+                                        c.pass ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-300'
+                                      }`}>
+                                        {c.pass
+                                          ? <Check className="h-2.5 w-2.5" strokeWidth={3} />
+                                          : <span className="text-[9px] font-black leading-none">×</span>
+                                        }
+                                      </div>
+                                      <span className={`text-[11px] leading-tight ${
+                                        c.pass ? 'text-emerald-700 font-medium' : 'text-slate-400'
+                                      }`}>{c.label}</span>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
                             );
                           })()}
                         </div>
 
-                        <div className="group rounded-[12px] border border-slate-200/80 bg-[linear-gradient(180deg,#fcfdfd_0%,#f7faf9_100%)] p-3 shadow-[0_10px_30px_-26px_rgba(15,23,42,0.26)] sm:p-3.5">
-                          <label className="mb-3 flex items-center gap-1.5 text-xs font-semibold text-slate-700">
-                            <Lock className="h-3.5 w-3.5 text-slate-400" />
+                        <div className="rounded-lg bg-white p-4 border border-slate-100 shadow-sm transform transition hover:-translate-y-0.5 hover:shadow-lg">
+                          <label htmlFor="onboard-confirm-password" className="block text-sm font-medium text-slate-700">
                             Confirm password <span className="text-red-500">*</span>
                           </label>
                           <input
+                            id="onboard-confirm-password"
                             ref={confirmPasswordRef}
                             type="password"
                             value={confirmPassword}
                             onChange={e => setConfirmPassword(e.target.value)}
                             onBlur={() => { setTouched(prev => ({ ...prev, confirmPassword: true })); setFieldErrors(prev => ({ ...prev, confirmPassword: validateField('confirmPassword') })); }}
-                            className={`h-11 w-full rounded-[10px] border bg-white px-3.5 text-[14px] text-slate-900 placeholder:text-[#8b9ab4] shadow-[0_1px_0_rgba(255,255,255,0.8),0_8px_20px_-18px_rgba(15,23,42,0.18)] transition-all duration-200 focus:bg-white focus:outline-none focus:ring-2 ${
+                            className={`mt-1 w-full rounded-md px-3 py-2 border bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-colors ${
                               touched.confirmPassword && fieldErrors.confirmPassword
-                                ? 'border-red-300 focus:border-red-400 focus:ring-red-100'
+                                ? 'border-red-300 focus:ring-red-100'
                                 : confirmPassword && confirmPassword === password
-                                ? 'border-emerald-300 focus:border-emerald-400 focus:ring-emerald-100'
-                                : 'border-slate-200 hover:border-slate-300 focus:border-[#02665e] focus:ring-[#02665e]/10'
+                                ? 'border-emerald-300 focus:ring-emerald-100'
+                                : 'border-slate-200 hover:border-slate-300 focus:border-[#02665e] focus:ring-emerald-200'
                             }`}
                             placeholder="Re-enter your password"
                           />
+                          {confirmPassword.length > 0 && (
+                            <p className={`mt-1.5 flex items-center gap-1 text-[11px] font-medium ${
+                              confirmPassword === password ? 'text-emerald-600' : 'text-red-500'
+                            }`}>
+                              {confirmPassword === password
+                                ? <><Check className="h-3 w-3" strokeWidth={3} /> Passwords match</>
+                                : <><X className="h-3 w-3" strokeWidth={3} /> Passwords don&apos;t match</>
+                              }
+                            </p>
+                          )}
                           {touched.confirmPassword && fieldErrors.confirmPassword && (
                             <p className="mt-1.5 flex items-center gap-1 text-[11px] text-red-600">
                               <AlertCircle className="h-3 w-3" />{fieldErrors.confirmPassword}
@@ -1403,30 +1429,45 @@ export default function OnboardRole() {
 
                         {password.trim().length > 0 && (() => {
                           const s = computePasswordStrength(password);
+                          const minLength = 10;
+                          const checks = [
+                            { label: `At least ${minLength} characters`, pass: password.length >= minLength },
+                            { label: 'Uppercase letter (A–Z)', pass: /[A-Z]/.test(password) },
+                            { label: 'Lowercase letter (a–z)', pass: /[a-z]/.test(password) },
+                            { label: 'Number (0–9)', pass: /[0-9]/.test(password) },
+                            { label: 'Special character (!@#$…)', pass: /[!@#\$%\^&\*\(\)\-_=+\[\]{};:'"\\|,<.>/?`~]/.test(password) },
+                            { label: 'No spaces', pass: !/\s/.test(password) },
+                          ];
                           const label = s.strength === 'strong' ? 'Strong' : s.strength === 'medium' ? 'Medium' : 'Weak';
                           const barWidth = s.strength === 'strong' ? 'w-full' : s.strength === 'medium' ? 'w-2/3' : 'w-1/3';
-                          const barColor = s.strength === 'strong' ? 'bg-emerald-500' : s.strength === 'medium' ? 'bg-amber-500' : 'bg-red-500';
-                          const labelColor = s.strength === 'strong' ? 'text-emerald-700' : s.strength === 'medium' ? 'text-amber-700' : 'text-red-700';
-                          const tips = s.strength === 'strong' ? [] : s.reasons.slice(0, 3);
+                          const barColor = s.strength === 'strong' ? 'bg-emerald-500' : s.strength === 'medium' ? 'bg-amber-400' : 'bg-red-500';
+                          const labelColor = s.strength === 'strong' ? 'text-emerald-600' : s.strength === 'medium' ? 'text-amber-500' : 'text-red-500';
                           return (
                             <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50/60 p-3">
-                              <div className="flex items-center justify-between">
+                              <div className="flex items-center justify-between mb-2">
                                 <span className="text-xs font-semibold text-slate-700">Password strength</span>
-                                <span className={`text-xs font-semibold ${labelColor}`}>{label}</span>
+                                <span className={`text-xs font-bold ${labelColor}`}>{label}</span>
                               </div>
-                              <div className="mt-2 h-1.5 w-full rounded-full bg-slate-200 overflow-hidden">
-                                <div className={`h-full ${barWidth} ${barColor} rounded-full transition-all duration-300`} />
+                              <div className="h-1.5 w-full rounded-full bg-slate-200 overflow-hidden mb-3">
+                                <div className={`h-full ${barWidth} ${barColor} rounded-full transition-all duration-500`} />
                               </div>
-                              {tips.length > 0 && (
-                                <div className="mt-2 space-y-1">
-                                  {tips.map((t) => (
-                                    <div key={t} className="text-xs text-slate-700 flex items-start gap-1.5">
-                                      <AlertCircle className="w-3 h-3 text-slate-400 flex-shrink-0 mt-0.5" />
-                                      <span>{t}</span>
+                              <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                                {checks.map((c) => (
+                                  <div key={c.label} className="flex items-center gap-1.5">
+                                    <div className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full transition-colors ${
+                                      c.pass ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-300'
+                                    }`}>
+                                      {c.pass
+                                        ? <Check className="h-2.5 w-2.5" strokeWidth={3} />
+                                        : <span className="text-[9px] font-black leading-none">×</span>
+                                      }
                                     </div>
-                                  ))}
-                                </div>
-                              )}
+                                    <span className={`text-[11px] leading-tight ${
+                                      c.pass ? 'text-emerald-700 font-medium' : 'text-slate-400'
+                                    }`}>{c.label}</span>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
                           );
                         })()}
@@ -1451,6 +1492,16 @@ export default function OnboardRole() {
                           } bg-white shadow-sm hover:shadow-md text-sm`}
                           placeholder="Re-enter your password"
                         />
+                        {confirmPassword.length > 0 && (
+                          <p className={`mt-1.5 flex items-center gap-1 text-[11px] font-medium ${
+                            confirmPassword === password ? 'text-emerald-600' : 'text-red-500'
+                          }`}>
+                            {confirmPassword === password
+                              ? <><Check className="h-3 w-3" strokeWidth={3} /> Passwords match</>
+                              : <><X className="h-3 w-3" strokeWidth={3} /> Passwords don&apos;t match</>
+                            }
+                          </p>
+                        )}
                         {touched.confirmPassword && fieldErrors.confirmPassword && (
                           <div className="text-xs text-red-600 mt-2 flex items-center gap-1">
                             <AlertCircle className="w-3 h-3" />

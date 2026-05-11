@@ -84,14 +84,6 @@ router.get("/", (async (req: AuthedRequest, res) => {
         where: whereClause,
       }),
     ]);
-    
-    console.log('Plan request query results:', {
-      userId,
-      matchingCount: totalCount,
-      paginatedCount: paginatedRequests.length,
-      page: pageNum,
-      pageSize: pageSizeNum,
-    });
 
     const now = new Date();
     const requestsWithValidity = paginatedRequests.map((r: any) => {
