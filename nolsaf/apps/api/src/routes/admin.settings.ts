@@ -141,7 +141,7 @@ router.get("/", async (_req, res) => {
 router.get("/audit/session-policy", async (_req, res) => {
   const rows = await prisma.auditLog.findMany({
     where: {
-      action: "ADMIN_SESSION_POLICY_UPDATE",
+      action: { in: ["ADMIN_SESSION_POLICY_UPDATE", "ADMIN_SETTINGS_UPDATE"] },
       entity: "settings:system",
     },
     orderBy: { createdAt: "desc" },
@@ -173,21 +173,8 @@ router.put("/", async (req, res) => {
   const roleCols = await hasRoleTtlColumns();
   const currencyCol = await hasCurrencyColumn();
   const supportCols = await hasSupportColumns();
-  const before = await prisma.systemSetting.findUnique({
-    where: { id: 1 },
-    select: {
-      sessionIdleMinutes: true,
-      maxSessionDurationHours: true,
-      ...(roleCols
-        ? {
-            sessionMaxMinutesAdmin: true,
-            sessionMaxMinutesOwner: true,
-            sessionMaxMinutesDriver: true,
-            sessionMaxMinutesCustomer: true,
-          }
-        : {}),
-    } as any,
-  });
+  // Fetch full record so the audit diff covers ALL changed fields, not just session ones.
+  const before = await prisma.systemSetting.findUnique({ where: { id: 1 } });
 
   // Server-side validation/sanitization for security/session fields.
   const body = (req.body ?? {}) as Record<string, unknown>;
@@ -299,16 +286,40 @@ router.put("/", async (req, res) => {
     create: { id: 1, ...sanitizedUpdate },
   });
 
-  // Audit with an explicit diff so the admin can see exactly what changed.
-  const auditFields = [...sessionKeys, 'maxSessionDurationHours'] as const;
+  // Audit with an explicit diff over every field that was submitted.
   const changes: Record<string, { from: any; to: any }> = {};
-  for (const f of auditFields) {
+  for (const f of Object.keys(sanitizedUpdate)) {
     const from = (before as any)?.[f];
     const to = (s as any)?.[f];
-    if (from !== to) changes[f] = { from, to };
+    // Use loose comparison so null vs undefined doesn't create noise.
+    // eslint-disable-next-line eqeqeq
+    if (from != to) changes[f] = { from: from ?? null, to: to ?? null };
   }
-  const action = Object.keys(changes).length ? 'ADMIN_SESSION_POLICY_UPDATE' : 'ADMIN_SETTINGS_UPDATE';
-  await audit(req as any, action, "settings:system", { settings: before, changes: null }, { settings: s, changes });
+  const sessionPolicyFields = new Set(['sessionIdleMinutes', 'maxSessionDurationHours', 'sessionMaxMinutesAdmin', 'sessionMaxMinutesOwner', 'sessionMaxMinutesDriver', 'sessionMaxMinutesCustomer']);
+  const touchedSessionPolicy = Object.keys(changes).some((k) => sessionPolicyFields.has(k));
+  const action = touchedSessionPolicy ? 'ADMIN_SESSION_POLICY_UPDATE' : 'ADMIN_SETTINGS_UPDATE';
+
+  // Write audit directly so errors surface instead of being swallowed silently.
+  try {
+    const actorId: number | null = (req as any).user?.id ?? null;
+    const actorRole: string | null = (req as any).user?.role ?? null;
+    const ip = (req.headers["x-forwarded-for"]?.toString()?.split(",")[0]?.trim() || req.socket?.remoteAddress || "").slice(0, 64);
+    const ua = (req.headers["user-agent"] || "").slice(0, 255);
+    const auditRow = await prisma.auditLog.create({
+      data: {
+        actorId,
+        actorRole,
+        action,
+        entity: "settings:system",
+        ip,
+        ua,
+        beforeJson: null,
+        afterJson: { changes } as any,
+      } as any,
+    });
+  } catch (auditErr: any) {
+    console.error("[admin.settings] Audit write failed:", auditErr?.message ?? auditErr);
+  }
 
   res.json(mask(s));
 });

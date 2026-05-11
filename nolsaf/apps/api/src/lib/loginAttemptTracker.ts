@@ -1,121 +1,128 @@
 import { getMaxLoginAttempts, getAccountLockoutDurationMinutes, shouldLogFailedLoginAttempts } from './securitySettings.js';
+import { getRedis } from './redis.js';
 
-/**
- * In-memory login attempt tracker
- * Tracks failed login attempts by email and IP address
- * 
- * Structure:
- * - emailAttempts: { email: { count: number, lockedUntil: number | null, lastAttempt: number } }
- * - ipAttempts: { ip: { count: number, lastAttempt: number } }
- */
-interface EmailAttempt {
-  count: number;
-  lockedUntil: number | null; // timestamp when lockout expires
-  lastAttempt: number; // timestamp of last attempt
-}
+// Redis key prefixes
+const REDIS_ATTEMPT_PREFIX = 'login:attempt:';
+const REDIS_LOCK_PREFIX    = 'login:lock:';
+const REDIS_IP_PREFIX      = 'login:ip:';
 
-interface IpAttempt {
-  count: number;
-  lastAttempt: number;
-}
-
-const emailAttempts = new Map<string, EmailAttempt>();
-const ipAttempts = new Map<string, IpAttempt>();
-
-// Cleanup old entries every 5 minutes
+// ─── In-memory fallback (used when Redis is unavailable) ─────────────────────
+interface EmailAttempt { count: number; lockedUntil: number | null; lastAttempt: number; }
+interface IpAttempt    { count: number; lastAttempt: number; }
+const memEmail = new Map<string, EmailAttempt>();
+const memIp    = new Map<string, IpAttempt>();
 setInterval(() => {
   const now = Date.now();
-  const lockoutDuration = 5 * 60 * 1000; // 5 minutes default (matches default lockout duration)
-  
-  // Clean up email attempts older than lockout duration
-  for (const [email, attempt] of emailAttempts.entries()) {
-    if (attempt.lockedUntil && attempt.lockedUntil < now) {
-      // Lockout expired, reset count
-      emailAttempts.delete(email);
-    } else if (!attempt.lockedUntil && now - attempt.lastAttempt > lockoutDuration) {
-      // No lockout and last attempt was more than lockout duration ago, reset
-      emailAttempts.delete(email);
-    }
+  const STALE = 30 * 60 * 1000;
+  for (const [k, v] of memEmail.entries()) {
+    if ((v.lockedUntil && v.lockedUntil < now) || (!v.lockedUntil && now - v.lastAttempt > STALE))
+      memEmail.delete(k);
   }
-  
-  // Clean up IP attempts older than 1 hour
-  for (const [ip, attempt] of ipAttempts.entries()) {
-    if (now - attempt.lastAttempt > 60 * 60 * 1000) {
-      ipAttempts.delete(ip);
-    }
+  for (const [k, v] of memIp.entries()) {
+    if (now - v.lastAttempt > 60 * 60 * 1000) memIp.delete(k);
   }
-}, 5 * 60 * 1000); // Run every 5 minutes
+}, 5 * 60 * 1000);
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+async function redisAvailable(): Promise<boolean> {
+  try {
+    const r = getRedis();
+    if (!r) return false;
+    await r.ping();
+    return true;
+  } catch { return false; }
+}
 
 /**
  * Check if an email is locked out
  */
 export async function isEmailLocked(email: string): Promise<{ locked: boolean; lockedUntil: number | null }> {
+  const key = email.toLowerCase();
   try {
-    const attempt = emailAttempts.get(email.toLowerCase());
-    if (!attempt) {
+    const r = getRedis();
+    if (r && await redisAvailable()) {
+      const ttlMs = await r.pttl(`${REDIS_LOCK_PREFIX}${key}`);
+      if (ttlMs > 0) {
+        return { locked: true, lockedUntil: Date.now() + ttlMs };
+      }
       return { locked: false, lockedUntil: null };
     }
-    
-    const now = Date.now();
-    
-    // Check if lockout has expired
-    if (attempt.lockedUntil && attempt.lockedUntil > now) {
-      return { locked: true, lockedUntil: attempt.lockedUntil };
-    }
-    
-    // Lockout expired, clear it
-    if (attempt.lockedUntil && attempt.lockedUntil <= now) {
-      emailAttempts.delete(email.toLowerCase());
-      return { locked: false, lockedUntil: null };
-    }
-    
-    return { locked: false, lockedUntil: null };
   } catch (err) {
-    console.error('[isEmailLocked] Error:', err);
-    // Return safe default on error
-    return { locked: false, lockedUntil: null };
+    console.error('[isEmailLocked] Redis error, using fallback:', err);
   }
+
+  // Fallback
+  const attempt = memEmail.get(key);
+  if (!attempt) return { locked: false, lockedUntil: null };
+  const now = Date.now();
+  if (attempt.lockedUntil && attempt.lockedUntil > now) return { locked: true, lockedUntil: attempt.lockedUntil };
+  if (attempt.lockedUntil) memEmail.delete(key);
+  return { locked: false, lockedUntil: null };
 }
 
 /**
  * Record a failed login attempt
  */
 export async function recordFailedAttempt(email: string, ip: string): Promise<void> {
+  const key = email.toLowerCase();
   try {
     const maxAttempts = await getMaxLoginAttempts();
-    const lockoutDuration = (await getAccountLockoutDurationMinutes()) * 60 * 1000;
-    const shouldLog = await shouldLogFailedLoginAttempts();
-  
-  const emailKey = email.toLowerCase();
-  const now = Date.now();
-  
-  // Track email attempts
-  const emailAttempt = emailAttempts.get(emailKey) || { count: 0, lockedUntil: null, lastAttempt: now };
-  emailAttempt.count += 1;
-  emailAttempt.lastAttempt = now;
-  
-  // Lock account if max attempts reached
-  if (emailAttempt.count >= maxAttempts) {
-    emailAttempt.lockedUntil = now + lockoutDuration;
-    if (shouldLog) {
-      console.warn(`[SECURITY] Account locked: ${email} after ${emailAttempt.count} failed attempts. Locked until ${new Date(emailAttempt.lockedUntil).toISOString()}`);
+    const lockoutSec  = (await getAccountLockoutDurationMinutes()) * 60;
+    const shouldLog   = await shouldLogFailedLoginAttempts();
+    const windowSec   = lockoutSec || 300; // fallback 5 min window
+
+    const r = getRedis();
+    if (r && await redisAvailable()) {
+      const attemptKey = `${REDIS_ATTEMPT_PREFIX}${key}`;
+      const lockKey    = `${REDIS_LOCK_PREFIX}${key}`;
+      const ipKey      = `${REDIS_IP_PREFIX}${ip}`;
+
+      // Atomic increment; set expiry on first write
+      const count = await r.incr(attemptKey);
+      if (count === 1) await r.expire(attemptKey, windowSec);
+
+      if (shouldLog) {
+        console.warn(`[SECURITY] Failed login: ${email} from ${ip} (attempt ${count}/${maxAttempts})`);
+      }
+
+      if (count >= maxAttempts) {
+        await r.set(lockKey, '1', 'EX', lockoutSec || 300);
+        await r.del(attemptKey); // reset counter after locking
+        if (shouldLog) {
+          console.warn(`[SECURITY] Account locked: ${email} for ${lockoutSec}s after ${count} failed attempts`);
+        }
+      }
+
+      // IP tracking (informational, 1 h window)
+      await r.incr(ipKey);
+      await r.expire(ipKey, 3600);
+      return;
     }
-  }
-  
-  emailAttempts.set(emailKey, emailAttempt);
-  
-  // Track IP attempts (for monitoring)
-  const ipAttempt = ipAttempts.get(ip) || { count: 0, lastAttempt: now };
-  ipAttempt.count += 1;
-  ipAttempt.lastAttempt = now;
-  ipAttempts.set(ip, ipAttempt);
-  
-  if (shouldLog) {
-    console.warn(`[SECURITY] Failed login attempt: ${email} from IP ${ip} (attempt ${emailAttempt.count}/${maxAttempts})`);
-  }
   } catch (err) {
-    console.error('[recordFailedAttempt] Error:', err);
-    // Continue execution - don't block login flow on tracking errors
+    console.error('[recordFailedAttempt] Redis error, using fallback:', err);
+  }
+
+  // Fallback: in-memory
+  try {
+    const maxAttempts    = await getMaxLoginAttempts();
+    const lockoutMs      = (await getAccountLockoutDurationMinutes()) * 60 * 1000;
+    const shouldLog      = await shouldLogFailedLoginAttempts();
+    const now            = Date.now();
+    const emailAttempt   = memEmail.get(key) || { count: 0, lockedUntil: null, lastAttempt: now };
+    emailAttempt.count  += 1;
+    emailAttempt.lastAttempt = now;
+    if (emailAttempt.count >= maxAttempts) {
+      emailAttempt.lockedUntil = now + lockoutMs;
+      if (shouldLog) console.warn(`[SECURITY] Account locked (mem): ${email} until ${new Date(emailAttempt.lockedUntil).toISOString()}`);
+    }
+    memEmail.set(key, emailAttempt);
+    const ipAttempt = memIp.get(ip) || { count: 0, lastAttempt: now };
+    ipAttempt.count += 1;
+    ipAttempt.lastAttempt = now;
+    memIp.set(ip, ipAttempt);
+    if (shouldLog) console.warn(`[SECURITY] Failed login (mem): ${email} from ${ip} (attempt ${emailAttempt.count}/${maxAttempts})`);
+  } catch (err) {
+    console.error('[recordFailedAttempt] Fallback error:', err);
   }
 }
 
@@ -123,30 +130,35 @@ export async function recordFailedAttempt(email: string, ip: string): Promise<vo
  * Clear failed attempts for an email (on successful login)
  */
 export async function clearFailedAttempts(email: string): Promise<void> {
+  const key = email.toLowerCase();
   try {
-    emailAttempts.delete(email.toLowerCase());
+    const r = getRedis();
+    if (r && await redisAvailable()) {
+      await r.del(`${REDIS_ATTEMPT_PREFIX}${key}`, `${REDIS_LOCK_PREFIX}${key}`);
+      return;
+    }
   } catch (err) {
-    console.error('[clearFailedAttempts] Error:', err);
-    // Continue execution - don't block login flow on tracking errors
+    console.error('[clearFailedAttempts] Redis error:', err);
   }
+  memEmail.delete(key);
 }
 
 /**
  * Get remaining attempts before lockout
  */
 export async function getRemainingAttempts(email: string): Promise<number> {
+  const key = email.toLowerCase();
   try {
     const maxAttempts = await getMaxLoginAttempts();
-    const attempt = emailAttempts.get(email.toLowerCase());
-    
-    if (!attempt) {
-      return maxAttempts;
+    const r = getRedis();
+    if (r && await redisAvailable()) {
+      const raw = await r.get(`${REDIS_ATTEMPT_PREFIX}${key}`);
+      return Math.max(0, maxAttempts - (parseInt(raw ?? '0', 10) || 0));
     }
-    
-    return Math.max(0, maxAttempts - attempt.count);
+    const attempt = memEmail.get(key);
+    return Math.max(0, maxAttempts - (attempt?.count ?? 0));
   } catch (err) {
     console.error('[getRemainingAttempts] Error:', err);
-    // Return safe default
     return 5;
   }
 }
@@ -155,19 +167,8 @@ export async function getRemainingAttempts(email: string): Promise<number> {
  * Get lockout status and time remaining
  */
 export async function getLockoutStatus(email: string): Promise<{ locked: boolean; timeRemaining: number | null }> {
-  const attempt = emailAttempts.get(email.toLowerCase());
-  
-  if (!attempt || !attempt.lockedUntil) {
-    return { locked: false, timeRemaining: null };
-  }
-  
-  const now = Date.now();
-  if (attempt.lockedUntil > now) {
-    return { locked: true, timeRemaining: attempt.lockedUntil - now };
-  }
-  
-  // Lockout expired
-  emailAttempts.delete(email.toLowerCase());
-  return { locked: false, timeRemaining: null };
+  const { locked, lockedUntil } = await isEmailLocked(email);
+  if (!locked) return { locked: false, timeRemaining: null };
+  return { locked: true, timeRemaining: lockedUntil ? lockedUntil - Date.now() : null };
 }
 

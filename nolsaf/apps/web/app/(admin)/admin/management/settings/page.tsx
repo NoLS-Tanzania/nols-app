@@ -153,7 +153,7 @@ export default function SystemSettingsPage(){
   const load = useCallback(async ()=>{
     try {
       setLoading(true);
-      const r = await api.get('/admin/settings');
+      const r = await api.get('/api/admin/settings');
       if (r?.data) setS(r.data);
     } finally {
       setLoading(false);
@@ -163,7 +163,7 @@ export default function SystemSettingsPage(){
   const loadSessionPolicyAudit = useCallback(async ()=>{
     try {
       // Add cache-busting to ensure fresh audit data
-      const r = await api.get('/admin/settings/audit/session-policy', {
+      const r = await api.get('/api/admin/settings/audit/session-policy', {
         headers: {
           'Cache-Control': 'no-cache',
           'Pragma': 'no-cache',
@@ -344,7 +344,7 @@ export default function SystemSettingsPage(){
     };
     setSaving(true);
     try {
-      await api.put('/admin/settings', payload);
+      await api.put('/api/admin/settings', payload);
       setToast('System settings saved (audit recorded)');
       setLastSavedAt(new Date());
       await load();
@@ -365,7 +365,7 @@ export default function SystemSettingsPage(){
   const saveInvoicingSettings = async () => {
     // Save taxPercent and invoicePrefix (persisted via SystemSetting) and keep invoiceTemplate client-side
     try {
-      await api.put('/admin/settings', { taxPercent: Number(s.taxPercent || 0), invoicePrefix: s.invoicePrefix || 'INV-' });
+      await api.put('/api/admin/settings', { taxPercent: Number(s.taxPercent || 0), invoicePrefix: s.invoicePrefix || 'INV-' });
       setToast('Invoicing settings saved');
     } catch (err) {
       console.error(err);
@@ -508,16 +508,16 @@ export default function SystemSettingsPage(){
         <div className="space-y-5">
 
           {/* Header */}
-          <div className="bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] overflow-hidden">
-            <div className="h-1 w-full bg-gradient-to-r from-[#02665e] via-emerald-400 to-[#02665e]" />
-            <div className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
+          <div className="relative overflow-hidden rounded-3xl border border-slate-200/60 bg-white/70 shadow-sm backdrop-blur">
+            <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-white to-slate-50 pointer-events-none" />
+            <div className="relative flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
               <div className="flex items-center gap-4">
-                <div className="h-14 w-14 rounded-2xl bg-[#02665e]/10 flex items-center justify-center shrink-0">
+                <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-[#02665e]/10 to-slate-50 border border-slate-200/60 flex items-center justify-center shrink-0 shadow-sm">
                   <Settings className="h-7 w-7 text-[#02665e]" />
                 </div>
                 <div>
-                  <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">System Settings</h1>
-                  <p className="mt-0.5 text-sm text-slate-500">Premium controls for platform configuration and security.</p>
+                  <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-slate-900">System Settings</h1>
+                  <p className="mt-0.5 text-sm text-slate-600">Platform configuration and security controls.</p>
                   {loading && <p className="mt-1 text-xs text-[#02665e] animate-pulse">Syncing latest settings...</p>}
                 </div>
               </div>
@@ -543,8 +543,8 @@ export default function SystemSettingsPage(){
 
           {/* Settings Audit Trail */}
           <div className="bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] overflow-hidden">
-            <div className="h-1 w-full bg-gradient-to-r from-violet-500 via-purple-400 to-violet-500" />
             <div className="p-6 sm:p-8">
+              {/* Header */}
               <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
                 <div className="flex items-center gap-3">
                   <div className="h-10 w-10 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
@@ -552,87 +552,74 @@ export default function SystemSettingsPage(){
                   </div>
                   <div className="min-w-0">
                     <h3 className="text-base font-bold text-slate-900">Settings Audit Trail</h3>
-                    <p className="text-sm text-slate-500">Every settings save is recorded here with who changed what.</p>
+                    <p className="text-sm text-slate-500">Who changed what and when.</p>
                   </div>
                 </div>
-                <button
-                  onClick={loadSessionPolicyAudit}
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold uppercase tracking-[0.10em] text-slate-600 shadow-sm transition hover:bg-slate-50"
-                  type="button"
-                >
-                  Refresh
-                </button>
+                <div className="flex items-center gap-2">
+                  {sessionPolicyAudit.length > 0 && (
+                    <span className="inline-flex items-center rounded-xl bg-violet-50 border border-violet-200 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.10em] text-violet-700">
+                      {sessionPolicyAudit.length}
+                    </span>
+                  )}
+                  <button onClick={loadSessionPolicyAudit} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold uppercase tracking-[0.10em] text-slate-600 shadow-sm transition hover:bg-slate-50 active:scale-95" type="button">
+                    Refresh
+                  </button>
+                </div>
               </div>
+
               {sessionPolicyAudit.length === 0 ? (
-                <div className="rounded-[14px] border border-dashed border-slate-200 bg-slate-50 p-6 text-center">
-                  <p className="text-sm font-medium text-slate-400">No audit entries yet.</p>
-                  <p className="mt-1 text-xs text-slate-300">Save settings to start recording changes.</p>
+                <div className="rounded-[14px] border border-dashed border-slate-200 bg-slate-50 py-8 text-center">
+                  <p className="text-sm font-semibold text-slate-400">No audit entries yet.</p>
+                  <p className="mt-1 text-xs text-slate-300">Save settings above to start recording changes.</p>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {/* Latest applied banner */}
-                  <div className="rounded-[14px] border border-[#02665e]/20 bg-[#02665e]/[0.06] p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#02665e] mb-0.5">Last Applied</p>
-                        <p className="text-sm font-semibold text-slate-900">
-                          {new Date(sessionPolicyAudit[0].createdAt).toLocaleString()}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-[11px] font-medium text-slate-400">applied by</p>
-                        <p className="text-sm font-semibold text-slate-800">
-                          {sessionPolicyAudit[0].actor?.name || sessionPolicyAudit[0].actor?.email || sessionPolicyAudit[0].actorRole || "Admin"}
-                          {sessionPolicyAudit[0].actorId ? ` (#${sessionPolicyAudit[0].actorId})` : ""}
-                        </p>
-                        {sessionPolicyAudit[0].ip && <p className="text-[11px] text-slate-400">from IP {sessionPolicyAudit[0].ip}</p>}
-                      </div>
-                    </div>
-                    {sessionPolicyAudit[0].changes && Object.keys(sessionPolicyAudit[0].changes).length > 0 && (
-                      <div className="mt-3 pt-3 border-t border-[#02665e]/15">
-                        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#02665e] mb-2">Fields changed</p>
-                        <div className="flex flex-wrap gap-2">
-                          {Object.entries(sessionPolicyAudit[0].changes).slice(0, 8).map(([k, v]) => (
-                            <span key={k} className="inline-flex items-center gap-1 rounded-lg border border-[#02665e]/15 bg-white px-2.5 py-1 text-[11px] font-mono text-slate-700">
-                              <span className="font-bold text-[#02665e]">{k}</span>
-                              <span className="text-slate-400">{String(v?.from ?? "null")}</span>
-                              <span className="text-slate-300">&#8594;</span>
-                              <span className="font-semibold">{String(v?.to ?? "null")}</span>
+                <div className="rounded-[14px] border border-slate-100 overflow-hidden divide-y divide-slate-100 max-h-[420px] overflow-y-auto">
+                  {sessionPolicyAudit.map((row, idx) => {
+                    const isLatest = idx === 0;
+                    const isSession = (row as any).action === 'ADMIN_SESSION_POLICY_UPDATE';
+                    const actorName = row.actor?.name || row.actor?.email || row.actorRole || 'Admin';
+                    const changedEntries = row.changes ? Object.entries(row.changes).filter(([, v]) => String(v?.from ?? '') !== String(v?.to ?? '')) : [];
+                    return (
+                      <div key={row.id} className={`px-4 py-3 ${isLatest ? 'bg-violet-50/50' : 'bg-white hover:bg-slate-50/60'} transition-colors`}>
+                        {/* Top row: timestamp + actor + badges */}
+                        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+                          <div className="flex flex-wrap items-center gap-2 min-w-0">
+                            {isLatest && <span className="shrink-0 rounded bg-violet-500 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">Latest</span>}
+                            <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${isSession ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-slate-200 bg-white text-slate-500'}`}>
+                              {isSession ? 'Session' : 'General'}
                             </span>
-                          ))}
-                          {Object.keys(sessionPolicyAudit[0].changes).length > 8 && (
-                            <span className="text-[11px] text-slate-400">+{Object.keys(sessionPolicyAudit[0].changes).length - 8} more</span>
-                          )}
+                            <span className="text-xs font-semibold text-slate-700 tabular-nums">
+                              {new Date(row.createdAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-xs text-slate-500">{actorName}{row.actorId ? <span className="text-slate-400"> #{row.actorId}</span> : null}</span>
+                            {row.ip && <span className="hidden sm:inline text-[10px] text-slate-300 tabular-nums">{row.ip}</span>}
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                  {/* History rows */}
-                  {sessionPolicyAudit.slice(1).map((row) => (
-                    <div key={row.id} className="rounded-[14px] border border-slate-100 bg-slate-50/60 p-4">
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-                        <span className="font-semibold text-slate-700">{new Date(row.createdAt).toLocaleString()}</span>
-                        <span className="text-slate-300">&bull;</span>
-                        <span className="text-slate-500">{row.actor?.name || row.actor?.email || row.actorRole || "Admin"}{row.actorId ? ` (#${row.actorId})` : ""}</span>
-                        {row.ip && <><span className="text-slate-300">&bull;</span><span className="text-slate-400">IP {row.ip}</span></>}
-                        {row.changes && Object.keys(row.changes).length > 0 && (
-                          <><span className="text-slate-300">&bull;</span><span className="font-medium text-[#02665e]">{Object.keys(row.changes).length} fields changed</span></>
+
+                        {/* Changed fields — inline pills, max 4 shown then "+N more" */}
+                        {changedEntries.length > 0 && (
+                          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                            {changedEntries.slice(0, 4).map(([k, v]) => (
+                              <span key={k} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-0.5 font-mono text-[11px] text-slate-600">
+                                <span className={`font-semibold ${isLatest ? 'text-violet-600' : 'text-[#02665e]'}`}>{k}</span>
+                                <span className="text-slate-300 mx-0.5">·</span>
+                                <span className="text-red-400 line-through">{String(v?.from ?? '—')}</span>
+                                <span className="text-slate-300 mx-0.5">→</span>
+                                <span className="text-emerald-600 font-semibold">{String(v?.to ?? '—')}</span>
+                              </span>
+                            ))}
+                            {changedEntries.length > 4 && (
+                              <span className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-400">
+                                +{changedEntries.length - 4} more
+                              </span>
+                            )}
+                          </div>
                         )}
                       </div>
-                      {row.changes && Object.keys(row.changes).length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          {Object.entries(row.changes).slice(0, 5).map(([k, v]) => (
-                            <span key={k} className="rounded-md border border-slate-200 bg-white px-2 py-0.5 font-mono text-[10px] text-slate-600">
-                              {k}: {String(v?.from ?? "null")} &#8594; {String(v?.to ?? "null")}
-                            </span>
-                          ))}
-                          {Object.keys(row.changes).length > 5 && (
-                            <span className="text-[10px] text-slate-400">+{Object.keys(row.changes).length - 5} more</span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -640,7 +627,6 @@ export default function SystemSettingsPage(){
 
           {/* Payments */}
           <section id="payments" className="bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] overflow-hidden">
-            <div className="h-1 w-full bg-gradient-to-r from-[#02665e] via-emerald-400 to-[#02665e]" />
             <div className="p-6 sm:p-8">
               <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 mb-6">
                 <div className="flex items-center gap-3 min-w-0">
@@ -698,7 +684,6 @@ export default function SystemSettingsPage(){
 
           {/* Notifications */}
           <section id="notifications" className="bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] overflow-hidden">
-            <div className="h-1 w-full bg-gradient-to-r from-indigo-500 via-blue-400 to-indigo-500" />
             <div className="p-6 sm:p-8">
               <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 mb-6">
                 <div className="flex items-center gap-3 min-w-0">
@@ -749,7 +734,6 @@ export default function SystemSettingsPage(){
 
           {/* Feature Flags & Templates */}
           <section id="featureflags" className="bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] overflow-hidden">
-            <div className="h-1 w-full bg-gradient-to-r from-amber-400 via-orange-300 to-amber-400" />
             <div className="p-6 sm:p-8">
               <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 mb-6">
                 <div className="flex items-center gap-3 min-w-0">
@@ -758,7 +742,7 @@ export default function SystemSettingsPage(){
                   </div>
                   <div className="min-w-0">
                     <h3 className="text-base font-bold text-slate-900">Feature Flags &amp; Templates</h3>
-                    <p className="text-sm text-slate-500">Client-side preview only — backend persistence is pending.</p>
+                    <p className="text-sm text-slate-500">Client-side preview only, backend persistence is pending.</p>
                   </div>
                 </div>
                 <span className="inline-flex shrink-0 items-center rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.10em] text-amber-700">Preview</span>
@@ -781,7 +765,6 @@ export default function SystemSettingsPage(){
 
           {/* Security & Sessions */}
           <section id="security" className="bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] overflow-hidden">
-            <div className="h-1 w-full bg-gradient-to-r from-rose-500 via-red-400 to-rose-500" />
             <div className="p-6 sm:p-8">
               <div className="flex items-start justify-between gap-4 mb-6">
                 <div className="flex items-center gap-3">
@@ -891,7 +874,6 @@ export default function SystemSettingsPage(){
 
           {/* Password Requirements */}
           <section id="passwords" className="bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] overflow-hidden">
-            <div className="h-1 w-full bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500" />
             <div className="p-6 sm:p-8">
               <div className="flex items-center gap-3 mb-6">
                 <div className="h-10 w-10 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
@@ -942,7 +924,6 @@ export default function SystemSettingsPage(){
 
           {/* Network Security */}
           <section id="network" className="bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] overflow-hidden">
-            <div className="h-1 w-full bg-gradient-to-r from-orange-500 via-orange-400 to-orange-500" />
             <div className="p-6 sm:p-8">
               <div className="flex items-center gap-3 mb-6">
                 <div className="h-10 w-10 rounded-xl bg-orange-50 flex items-center justify-center shrink-0">
@@ -991,7 +972,6 @@ export default function SystemSettingsPage(){
 
           {/* Rate Limiting */}
           <section id="ratelimit" className="bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] overflow-hidden">
-            <div className="h-1 w-full bg-gradient-to-r from-red-600 via-rose-400 to-red-600" />
             <div className="p-6 sm:p-8">
               <div className="flex items-center gap-3 mb-6">
                 <div className="h-10 w-10 rounded-xl bg-red-50 flex items-center justify-center shrink-0">
@@ -1027,7 +1007,6 @@ export default function SystemSettingsPage(){
 
           {/* Security Audit & Monitoring */}
           <section id="auditmon" className="bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] overflow-hidden">
-            <div className="h-1 w-full bg-gradient-to-r from-purple-600 via-purple-400 to-purple-600" />
             <div className="p-6 sm:p-8">
               <div className="flex items-center gap-3 mb-6">
                 <div className="h-10 w-10 rounded-xl bg-purple-50 flex items-center justify-center shrink-0">
@@ -1090,7 +1069,6 @@ export default function SystemSettingsPage(){
 
           {/* Tax & Invoicing */}
           <section id="invoicing" className="bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] overflow-hidden">
-            <div className="h-1 w-full bg-gradient-to-r from-[#02665e] via-teal-400 to-[#02665e]" />
             <div className="p-6 sm:p-8">
               <div className="flex items-center gap-3 mb-6">
                 <div className="h-10 w-10 rounded-xl bg-[#02665e]/10 flex items-center justify-center shrink-0">
@@ -1129,7 +1107,6 @@ export default function SystemSettingsPage(){
 
           {/* Scheduling */}
           <section id="scheduling" className="bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] overflow-hidden">
-            <div className="h-1 w-full bg-gradient-to-r from-sky-500 via-cyan-400 to-sky-500" />
             <div className="p-6 sm:p-8">
               <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 mb-6">
                 <div className="flex items-center gap-3 min-w-0">
@@ -1159,7 +1136,6 @@ export default function SystemSettingsPage(){
 
           {/* Bonuses */}
           <section id="bonuses" className="bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] overflow-hidden">
-            <div className="h-1 w-full bg-gradient-to-r from-violet-600 via-purple-400 to-violet-600" />
             <div className="p-6 sm:p-8">
               <div className="flex items-center gap-3 mb-6">
                 <div className="h-10 w-10 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
