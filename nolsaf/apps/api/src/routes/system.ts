@@ -1,7 +1,19 @@
 import express, { type Express, type Request, type Response } from "express";
+import rateLimit from "express-rate-limit";
 import { errorHandler } from "../middleware/errorHandler.js";
 import { limitCodeSearch } from "../middleware/rateLimit.js";
 import { healthRouter } from "./health";
+
+// Tight limiter for unknown-route probes (scanner / recon traffic).
+// An IP hitting more than 20 unknown routes per minute is almost certainly a bot.
+const unknownRouteLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 20,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "Too many requests." },
+  skipSuccessfulRequests: false,
+});
 
 export function registerEarlyRoutes(app: Express): void {
   // Health check endpoints must stay before other routes for load balancer/probe access.
@@ -22,7 +34,7 @@ export function registerRouteBodyParsers(app: Express): void {
 }
 
 export function registerFallbackHandlers(app: Express): void {
-  app.use((req: Request, res: Response) => {
+  app.use(unknownRouteLimiter, (req: Request, res: Response) => {
     res.setHeader("Content-Type", "application/json");
     res.status(404).json({ error: "Not found" });
   });

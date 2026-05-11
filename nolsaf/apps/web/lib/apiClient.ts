@@ -63,15 +63,13 @@ apiClient.interceptors.response.use((response) => {
   return response;
 });
 
-/** Save auth token to localStorage after login/registration */
-export function saveAuthToken(token: string | null | undefined): void {
-  if (!token) return;
-  try {
-    localStorage.setItem("token", token);
-    localStorage.setItem("nolsaf_token", token);
-  } catch {
-    // localStorage unavailable in some mobile/WebView contexts — silently ignore.
-  }
+/**
+ * saveAuthToken is intentionally a no-op.
+ * JWTs are stored exclusively in httpOnly cookies set by the server.
+ * Never store JWTs in localStorage — they are readable by any JS and vulnerable to XSS.
+ */
+export function saveAuthToken(_token: string | null | undefined): void {
+  // no-op — cookie-only storage
 }
 
 /** Remove auth token from localStorage on logout */
