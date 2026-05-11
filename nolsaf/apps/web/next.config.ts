@@ -119,6 +119,13 @@ const nextConfig: NextConfig = {
         { source: '/api/health', destination: `${apiOrigin}/health` },
         { source: '/api/ready', destination: `${apiOrigin}/ready` },
         { source: '/api/live', destination: `${apiOrigin}/live` },
+
+        // Next.js 15/16 built-in client-error reporting — must NOT be proxied to Express.
+        // These requests are handled internally by the Next.js server.
+        // Listing them here before the catch-all ensures they pass through to the Next.js handler.
+        { source: '/api/client-errors', destination: '/api/client-errors' },
+        { source: '/api/client-errors/:path*', destination: '/api/client-errors/:path*' },
+
         { source: '/api/:path*', destination: `${apiOrigin}/api/:path*` },
 
         { source: '/uploads/:path*', destination: `${apiOrigin}/uploads/:path*` },
