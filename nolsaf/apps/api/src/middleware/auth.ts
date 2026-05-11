@@ -134,9 +134,10 @@ async function verifyToken(token: string): Promise<AuthedUser | null> {
 
     // Enforce dynamic per-role session TTL based on token issuance time.
     // This ensures that if admin reduces TTL, old tokens are also forced out.
+    // Use rawRole for TTL lookup so CUSTOMER maps to sessionMaxMinutesCustomer, not USER fallback.
     const issuedAtSec = typeof decoded.iat === 'number' ? decoded.iat : Number(decoded.iat);
     if (Number.isFinite(issuedAtSec) && issuedAtSec > 0) {
-      const maxMinutes = await getRoleSessionMaxMinutes(role);
+      const maxMinutes = await getRoleSessionMaxMinutes(rawRole);
       const ageSec = Math.floor(Date.now() / 1000) - issuedAtSec;
       if (ageSec > maxMinutes * 60) {
         const e: any = new Error('Session expired');

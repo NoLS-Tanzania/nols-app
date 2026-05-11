@@ -105,9 +105,13 @@ export default function AccountIndex() {
       if (status === 403 && code === "ACCOUNT_SUSPENDED") {
         return;
       }
-      try {
-        if (typeof window !== "undefined") window.location.href = "/account/login";
-      } catch {}
+      // Only redirect to login on auth errors (401/403), not network/server errors.
+      // This prevents a transient 503 or network blip from silently logging the user out.
+      if (status === 401 || status === 403) {
+        try {
+          if (typeof window !== "undefined") window.location.href = "/account/login";
+        } catch {}
+      }
     } finally {
       setLoading(false);
     }

@@ -19,6 +19,7 @@ import { limitOtpSend, limitOtpVerify, limitLoginAttempts, limitRegisterAttempts
 import { isEmailLocked, recordFailedAttempt, clearFailedAttempts, getRemainingAttempts, getLockoutStatus } from '../lib/loginAttemptTracker.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { buildDriverCaseRef } from '../lib/driverCaseRef.js';
+import { getRedis } from '../lib/redis.js';
 
 const router = Router();
 
@@ -33,15 +34,73 @@ const upload = multer({
   },
 });
 
-// Simple in-memory OTP store for dev/testing only
-const OTP_TTL_MS = 2 * 60 * 1000; // 2 minutes
-const otpStore: Record<string, { otp: string; expiresAt: number; role?: string }> = {};
+// OTP TTL: 5 minutes (reduced from 2 min for better UX, still short enough to be secure)
+const OTP_TTL_SEC = 5 * 60;
+const OTP_TTL_MS  = OTP_TTL_SEC * 1000;
+
+// Redis key prefix for OTP store
+const REDIS_OTP_PREFIX = 'otp:phone:';
+
+// ── In-memory OTP fallback (used when Redis is unavailable) ──────────────────
+// Stores ONLY the SHA-256 hash of the code, never the plain text.
+const otpStoreFallback: Record<string, { codeHash: string; expiresAt: number; role?: string }> = {};
 
 // In-memory reset token store (hashedToken -> { userId, expiresAt })
 const resetTokenStore: Record<string, { userId: string; expiresAt: number }> = {};
 
+// ── OTP store helpers ─────────────────────────────────────────────────────────
+
+async function storeOtp(phone: string, code: string, role: string | null | undefined): Promise<void> {
+  const codeHash = hashCode(code); // SHA-256 hash — never store plain text
+  const payload  = JSON.stringify({ codeHash, role: role ?? null });
+  try {
+    const r = getRedis();
+    if (r) {
+      await r.set(`${REDIS_OTP_PREFIX}${phone}`, payload, 'EX', OTP_TTL_SEC);
+      return;
+    }
+  } catch (err) {
+    console.error('[storeOtp] Redis error, using fallback:', err);
+  }
+  otpStoreFallback[phone] = { codeHash, expiresAt: Date.now() + OTP_TTL_MS, role: role ?? undefined };
+}
+
+async function getOtpEntry(phone: string): Promise<{ codeHash: string; role?: string | null } | null> {
+  try {
+    const r = getRedis();
+    if (r) {
+      const raw = await r.get(`${REDIS_OTP_PREFIX}${phone}`);
+      if (!raw) return null;
+      return JSON.parse(raw) as { codeHash: string; role?: string | null };
+    }
+  } catch (err) {
+    console.error('[getOtpEntry] Redis error, using fallback:', err);
+  }
+  const entry = otpStoreFallback[phone];
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) { delete otpStoreFallback[phone]; return null; }
+  return { codeHash: entry.codeHash, role: entry.role };
+}
+
+async function deleteOtp(phone: string): Promise<void> {
+  try {
+    const r = getRedis();
+    if (r) { await r.del(`${REDIS_OTP_PREFIX}${phone}`); return; }
+  } catch (err) {
+    console.error('[deleteOtp] Redis error:', err);
+  }
+  delete otpStoreFallback[phone];
+}
+
+function verifyOtpCode(code: string, codeHash: string): boolean {
+  const inputHash = Buffer.from(hashCode(String(code)), 'hex');
+  const storedHash = Buffer.from(codeHash, 'hex');
+  if (inputHash.length !== storedHash.length) return false;
+  return crypto.timingSafeEqual(inputHash, storedHash);
+}
+
 function generateOtp() {
-  return Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit
+  return crypto.randomInt(100000, 1000000).toString(); // 6-digit, CSPRNG
 }
 
 function maskOtp(code: string): string {
@@ -277,7 +336,7 @@ router.post('/send-otp', limitOtpSend, async (req, res) => {
   }
 
   const otp = generateOtp();
-  otpStore[normalizedPhone] = { otp, expiresAt: Date.now() + OTP_TTL_MS, role: normalizedRole || undefined };
+  await storeOtp(normalizedPhone, otp, normalizedRole);
   const expiresAt = new Date(Date.now() + OTP_TTL_MS);
   const codeHash = hashCode(String(otp));
   const entity = otpEntityKey("PHONE", normalizedPhone, codeHash);
@@ -363,8 +422,8 @@ router.post('/verify-otp', limitOtpVerify, async (req, res) => {
   const MASTER_OTP = isProduction ? null : (process.env.DEV_MASTER_OTP || '123456');
   if (!isProduction && MASTER_OTP && String(otp) === MASTER_OTP) {
     // allow even if there's no stored OTP (dev convenience)
-    const entry = otpStore[normalizedPhone] || { role: requestedRole || undefined };
-    delete otpStore[normalizedPhone];
+    const entry = await getOtpEntry(normalizedPhone) || { role: requestedRole || null };
+    await deleteOtp(normalizedPhone);
 
     const storedRole = normalizeSignupRole(entry.role);
     const effectiveRole = storedRole || requestedRole;
@@ -415,7 +474,7 @@ router.post('/verify-otp', limitOtpVerify, async (req, res) => {
     }
   }
 
-  const entry = otpStore[normalizedPhone];
+  const entry = await getOtpEntry(normalizedPhone);
   if (!entry) {
     try {
       const codeHash = hashCode(String(otp));
@@ -432,24 +491,8 @@ router.post('/verify-otp', limitOtpVerify, async (req, res) => {
     }
     return res.status(400).json({ message: 'no OTP found for this phone' });
   }
-  if (Date.now() > entry.expiresAt) {
-    try {
-      const codeHash = hashCode(String(otp));
-      const entity = otpEntityKey("PHONE", normalizedPhone, codeHash);
-      await audit(req, "NO4P_OTP_VERIFY_FAILED", entity, null, {
-        destinationType: "PHONE",
-        destination: normalizedPhone,
-        codeHash,
-        usedFor: requestedRole === "RESET" ? "AUTH_RESET" : requestedRole ? "AUTH_SIGNUP" : "AUTH_LOGIN",
-        reason: "expired",
-      });
-    } catch {
-      // swallow
-    }
-    delete otpStore[normalizedPhone];
-    return res.status(400).json({ message: 'OTP expired' });
-  }
-  if (entry.otp !== String(otp)) {
+  // OTP expiry is enforced by Redis TTL / fallback expiresAt — entry being present means it's valid.
+  if (!verifyOtpCode(String(otp), entry.codeHash)) {
     try {
       const codeHash = hashCode(String(otp));
       const entity = otpEntityKey("PHONE", normalizedPhone, codeHash);
@@ -471,8 +514,8 @@ router.post('/verify-otp', limitOtpVerify, async (req, res) => {
     return res.status(400).json({ message: 'role mismatch' });
   }
 
-  // success — remove OTP
-  delete otpStore[normalizedPhone];
+  // success — delete OTP immediately (single-use)
+  await deleteOtp(normalizedPhone);
 
   const effectiveRole = storedRole || requestedRole;
 
