@@ -106,14 +106,14 @@ function CountryCodePicker({ value, onChange }: { value: string; onChange: (v: s
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between gap-1.5 rounded-xl border-2 border-slate-800 bg-slate-900/50 px-3 py-2.5 text-sm font-medium text-slate-200 transition-all hover:border-slate-700 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e]"
+        className="flex w-full items-center justify-between gap-1.5 rounded-xl border-2 border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 transition-all hover:border-[#02665e]/40 focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] shadow-sm"
       >
         <span className="text-base leading-none">{selected.flag}</span>
         <span>{selected.code}</span>
         <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
-        <div className="absolute top-full left-0 mt-1.5 z-50 rounded-xl border border-slate-800 bg-slate-950 ring-1 ring-white/10 shadow-2xl overflow-hidden">
+        <div className="absolute top-full left-0 mt-1.5 z-50 rounded-xl border border-slate-200 bg-white ring-1 ring-black/5 shadow-xl overflow-hidden">
           <div className="max-h-[260px] overflow-y-auto overscroll-contain">
             {COUNTRY_CODES.map((c) => (
               <button
@@ -122,8 +122,8 @@ function CountryCodePicker({ value, onChange }: { value: string; onChange: (v: s
                 onClick={() => { onChange(c.code); close(); }}
                 className={`w-full flex items-center gap-2.5 px-3.5 py-2 text-sm transition-colors whitespace-nowrap ${
                   c.code === value
-                    ? 'bg-[#02665e]/15 text-[#02665e]'
-                    : 'text-slate-300 hover:bg-slate-900/80 hover:text-slate-100'
+                    ? 'bg-[#02665e]/10 text-[#02665e] font-semibold'
+                    : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
                 }`}
               >
                 <span className="text-base leading-none">{c.flag}</span>
@@ -477,47 +477,44 @@ export default function RegisterPage() {
   // Register Page
   const renderRegisterPage = () => {
     return (
-      <div className="w-full flex flex-col bg-slate-950 relative box-border">
-        <div className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur border-b border-slate-800">
-          <div className="h-1 bg-[#02665e]" />
-          
-          <div className="px-6 py-4 border-b border-slate-800">
+      <div className="w-full flex flex-col bg-white relative box-border">
+        <div className="sticky top-0 z-10 bg-[#02665e] shadow-md">
+          <div className="px-6 py-4">
             <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-lg bg-[#02665e]/10 flex items-center justify-center">
-                <UserPlus className="w-5 h-5 text-[#02665e]" />
+              <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center">
+                <UserPlus className="w-5 h-5 text-white" />
               </div>
               <div className="flex-1">
-                <h1 className="text-xl font-bold text-slate-50">Create Account</h1>
-                <p className="text-xs text-slate-400 mt-0.5">Sign up to get started</p>
+                <h1 className="text-xl font-bold text-white">Create Account</h1>
+                <p className="text-xs text-white/70 mt-0.5">Sign up to get started</p>
               </div>
               {step !== 'phone' && (
-                <div className="px-2.5 py-1 rounded-md bg-slate-900 text-xs font-medium text-slate-200 border border-slate-800">
-                  {step === 'otp' ? 'Step 2' : 'Done'}
+                <div className="px-2.5 py-1 rounded-md bg-white/15 text-xs font-semibold text-white border border-white/20">
+                  {step === 'otp' ? 'Step 2' : 'Done ✓'}
                 </div>
               )}
             </div>
           </div>
-
-          <div className="px-6 py-2.5 bg-slate-950">
-            <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
+          <div className="px-6 pb-3">
+            <div className="h-1.5 bg-white/20 rounded-full overflow-hidden">
               <div 
-                className={`h-full bg-[#02665e] rounded-full transition-all duration-500 ${step === 'phone' ? 'w-1/3' : step === 'otp' ? 'w-2/3' : 'w-full'}`} 
+                className={`h-full bg-white rounded-full transition-all duration-500 ${step === 'phone' ? 'w-1/3' : step === 'otp' ? 'w-2/3' : 'w-full'}`} 
               />
             </div>
           </div>
         </div>
 
-        <div className="px-6 py-4">
+        <div className="px-6 py-5">
           {error && (
-            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-2.5 text-sm text-red-200">
-              <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2.5 text-sm text-red-700">
+              <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-500" />
               <span className="flex-1">{error}</span>
             </div>
           )}
 
           {success && (
-            <div className="mb-4 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-start gap-2.5 text-sm text-emerald-200">
-              <Check className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-2.5 text-sm text-emerald-700">
+              <Check className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-500" />
               <span className="flex-1">{success}</span>
             </div>
           )}
@@ -526,84 +523,124 @@ export default function RegisterPage() {
             {step === 'phone' && (
               <>
                 <div className="space-y-3 min-w-0">
-                  <label className="block text-sm font-semibold text-slate-200">Phone Number</label>
-                  <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-2.5">
-                    <div className="flex items-center gap-2 w-full max-w-full box-border">
-                      <CountryCodePicker value={countryCode} onChange={setCountryCode} />
-                      <input
-                        type="tel"
-                        value={phone}
-                        onChange={(e) => setPhone(sanitizePhoneInput(e.target.value, countryCode))}
-                        placeholder={getPhonePlaceholder(countryCode)}
-                        maxLength={getPhoneMaxLength(countryCode)}
-                        className="flex-1 min-w-0 px-4 py-2.5 text-sm font-medium bg-slate-950 text-slate-100 border-2 border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] transition-all duration-200 shadow-sm hover:shadow-md placeholder:text-slate-500 box-border"
-                      />
-                    </div>
+                  <label className="block text-sm font-semibold text-slate-700">Phone Number</label>
+                  <div className="flex items-center gap-2 w-full">
+                    <CountryCodePicker value={countryCode} onChange={setCountryCode} />
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(sanitizePhoneInput(e.target.value, countryCode))}
+                      placeholder={getPhonePlaceholder(countryCode)}
+                      maxLength={getPhoneMaxLength(countryCode)}
+                      className="flex-1 min-w-0 px-4 py-2.5 text-sm bg-white text-slate-900 border-2 border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] transition-all duration-200 placeholder:text-slate-400 shadow-sm hover:border-slate-300 box-border"
+                    />
                   </div>
-                  <p className="text-xs text-slate-400 flex items-center gap-1.5">
-                    <span className="w-1 h-1 bg-slate-400 rounded-full flex-shrink-0" />
+                  <p className="text-xs text-slate-500 flex items-center gap-1.5">
+                    <span className="w-1 h-1 bg-[#02665e] rounded-full flex-shrink-0" />
                     <span>We&apos;ll send you a verification code</span>
                   </p>
-                  <p className="text-[11px] text-slate-500">
-                    Example for {getCountryLabel(countryCode)}: <span className="font-semibold text-slate-300">{getPhonePlaceholder(countryCode)}</span>
-                  </p>
                   {phone.length > 0 && !isPhoneLengthValid(phone, countryCode) ? (
-                    <p className="text-[11px] text-amber-300">{getPhoneLengthHint(countryCode)}</p>
+                    <p className="text-[11px] text-amber-600 font-medium">{getPhoneLengthHint(countryCode)}</p>
                   ) : null}
                 </div>
 
                 <div className="space-y-3">
-                  <label className="block text-sm font-medium text-slate-200">I am a</label>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <label className="block text-sm font-semibold text-slate-700">I am a</label>
+                  <div className="grid grid-cols-3 gap-2.5">
+                    {/* Traveller card */}
                     <button
                       type="button"
                       onClick={() => setRole('traveller')}
-                      className={`p-3.5 rounded-2xl border-2 transition-all flex items-center sm:flex-col sm:items-center text-left sm:text-center gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/20 ${
+                      aria-pressed={role === 'traveller'}
+                      style={role === 'traveller' ? {
+                        backgroundImage: `radial-gradient(circle, rgba(255,255,255,0.18) 1.5px, transparent 1.5px)`,
+                        backgroundSize: '16px 16px'
+                      } : undefined}
+                      className={[
+                        "relative flex flex-col items-start gap-2 rounded-xl border-2 p-4 text-left transition-all duration-200 focus:outline-none overflow-hidden",
                         role === 'traveller'
-                          ? 'bg-blue-500/10 border-blue-500/30 text-blue-100'
-                          : 'bg-slate-950 border-slate-800 text-slate-200 hover:border-slate-700'
-                      }`}
+                          ? "border-[#02665e] bg-[#02665e] shadow-lg shadow-[#02665e]/20"
+                          : "border-slate-200 bg-white hover:border-[#02665e]/40 hover:shadow-md",
+                      ].join(" ")}
                     >
-                      <User className={`w-5 h-5 flex-shrink-0 ${role === 'traveller' ? 'text-blue-300' : 'text-slate-400'}`} />
-                      <div className="min-w-0 flex-1 sm:flex-none">
-                        <div className="text-sm font-semibold">Traveller</div>
-                        <div className="text-[11px] text-slate-400">Book stays</div>
+                      {role === 'traveller' && (
+                        <div className="absolute top-2 right-2">
+                          <div className="h-5 w-5 rounded-full bg-white/25 flex items-center justify-center">
+                            <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                          </div>
+                        </div>
+                      )}
+                      <div className={["h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0", role === 'traveller' ? "bg-white/20" : "bg-[#02665e]/10"].join(" ")}>
+                        <User className={["w-4 h-4", role === 'traveller' ? "text-white" : "text-[#02665e]"].join(" ")} />
                       </div>
-                      {role === 'traveller' && <Check className="w-3.5 h-3.5 text-blue-300 sm:mt-1" />}
+                      <div>
+                        <p className={["text-sm font-bold", role === 'traveller' ? "text-white" : "text-slate-800"].join(" ")}>Traveller</p>
+                        <p className={["text-xs mt-0.5 leading-tight", role === 'traveller' ? "text-white/75" : "text-slate-500"].join(" ")}>Book stays &amp; tours</p>
+                      </div>
                     </button>
 
+                    {/* Driver card */}
                     <button
                       type="button"
                       onClick={() => setRole('driver')}
-                      className={`p-3.5 rounded-2xl border-2 transition-all flex items-center sm:flex-col sm:items-center text-left sm:text-center gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/20 ${
+                      aria-pressed={role === 'driver'}
+                      style={role === 'driver' ? {
+                        backgroundImage: `radial-gradient(circle, rgba(255,255,255,0.18) 1.5px, transparent 1.5px)`,
+                        backgroundSize: '16px 16px'
+                      } : undefined}
+                      className={[
+                        "relative flex flex-col items-start gap-2 rounded-xl border-2 p-4 text-left transition-all duration-200 focus:outline-none overflow-hidden",
                         role === 'driver'
-                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-100'
-                          : 'bg-slate-950 border-slate-800 text-slate-200 hover:border-slate-700'
-                      }`}
+                          ? "border-[#02665e] bg-[#02665e] shadow-lg shadow-[#02665e]/20"
+                          : "border-slate-200 bg-white hover:border-[#02665e]/40 hover:shadow-md",
+                      ].join(" ")}
                     >
-                      <Truck className={`w-5 h-5 flex-shrink-0 ${role === 'driver' ? 'text-emerald-300' : 'text-slate-400'}`} />
-                      <div className="min-w-0 flex-1 sm:flex-none">
-                        <div className="text-sm font-semibold">Driver</div>
-                        <div className="text-[11px] text-slate-400">Drive and earn</div>
+                      {role === 'driver' && (
+                        <div className="absolute top-2 right-2">
+                          <div className="h-5 w-5 rounded-full bg-white/25 flex items-center justify-center">
+                            <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                          </div>
+                        </div>
+                      )}
+                      <div className={["h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0", role === 'driver' ? "bg-white/20" : "bg-[#02665e]/10"].join(" ")}>
+                        <Truck className={["w-4 h-4", role === 'driver' ? "text-white" : "text-[#02665e]"].join(" ")} />
                       </div>
-                      {role === 'driver' && <Check className="w-3.5 h-3.5 text-emerald-300 sm:mt-1" />}
+                      <div>
+                        <p className={["text-sm font-bold", role === 'driver' ? "text-white" : "text-slate-800"].join(" ")}>Driver</p>
+                        <p className={["text-xs mt-0.5 leading-tight", role === 'driver' ? "text-white/75" : "text-slate-500"].join(" ")}>Drive and earn</p>
+                      </div>
                     </button>
 
+                    {/* Owner card */}
                     <button
                       type="button"
                       onClick={() => setRole('owner')}
-                      className={`p-3.5 rounded-2xl border-2 transition-all flex items-center sm:flex-col sm:items-center text-left sm:text-center gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/20 ${
+                      aria-pressed={role === 'owner'}
+                      style={role === 'owner' ? {
+                        backgroundImage: `radial-gradient(circle, rgba(255,255,255,0.18) 1.5px, transparent 1.5px)`,
+                        backgroundSize: '16px 16px'
+                      } : undefined}
+                      className={[
+                        "relative flex flex-col items-start gap-2 rounded-xl border-2 p-4 text-left transition-all duration-200 focus:outline-none overflow-hidden",
                         role === 'owner'
-                          ? 'bg-amber-500/10 border-amber-500/30 text-amber-100'
-                          : 'bg-slate-950 border-slate-800 text-slate-200 hover:border-slate-700'
-                      }`}
+                          ? "border-[#02665e] bg-[#02665e] shadow-lg shadow-[#02665e]/20"
+                          : "border-slate-200 bg-white hover:border-[#02665e]/40 hover:shadow-md",
+                      ].join(" ")}
                     >
-                      <Building2 className={`w-5 h-5 flex-shrink-0 ${role === 'owner' ? 'text-amber-300' : 'text-slate-400'}`} />
-                      <div className="min-w-0 flex-1 sm:flex-none">
-                        <div className="text-sm font-semibold">Owner</div>
-                        <div className="text-[11px] text-slate-400">List property</div>
+                      {role === 'owner' && (
+                        <div className="absolute top-2 right-2">
+                          <div className="h-5 w-5 rounded-full bg-white/25 flex items-center justify-center">
+                            <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                          </div>
+                        </div>
+                      )}
+                      <div className={["h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0", role === 'owner' ? "bg-white/20" : "bg-[#02665e]/10"].join(" ")}>
+                        <Building2 className={["w-4 h-4", role === 'owner' ? "text-white" : "text-[#02665e]"].join(" ")} />
                       </div>
-                      {role === 'owner' && <Check className="w-3.5 h-3.5 text-amber-300 sm:mt-1" />}
+                      <div>
+                        <p className={["text-sm font-bold", role === 'owner' ? "text-white" : "text-slate-800"].join(" ")}>Owner</p>
+                        <p className={["text-xs mt-0.5 leading-tight", role === 'owner' ? "text-white/75" : "text-slate-500"].join(" ")}>List property</p>
+                      </div>
                     </button>
                   </div>
                 </div>
@@ -636,8 +673,8 @@ export default function RegisterPage() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <h2 className="text-2xl font-bold text-slate-50 tracking-tight">Account Created!</h2>
-                  <p className="text-sm text-slate-400">Redirecting you to profile setup…</p>
+                  <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Account Created!</h2>
+                  <p className="text-sm text-slate-500">Redirecting you to profile setup…</p>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-[#02665e] animate-bounce" style={{ animationDelay: '0ms' }} />
@@ -650,7 +687,7 @@ export default function RegisterPage() {
             {step === 'otp' && (
               <>
                 <div className="space-y-2 min-w-0">
-                  <label className="block text-sm font-semibold text-slate-100">Enter OTP</label>
+                  <label className="block text-sm font-semibold text-slate-700">Enter OTP</label>
                   <input
                     type="text"
                     inputMode="numeric"
@@ -659,11 +696,11 @@ export default function RegisterPage() {
                     ref={otpRef}
                     placeholder="123456"
                     maxLength={6}
-                    className="w-full max-w-full px-4 py-3 text-xl tracking-[0.35em] text-center font-mono bg-slate-950 text-slate-50 border-2 border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#02665e]/25 focus:border-[#14b8a6] box-border placeholder:text-slate-500 shadow-sm"
+                    className="w-full max-w-full px-4 py-3 text-xl tracking-[0.35em] text-center font-mono bg-white text-slate-900 border-2 border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] box-border placeholder:text-slate-300 shadow-sm"
                   />
                 </div>
 
-                <div className="p-3 bg-slate-950 rounded-xl border-2 border-slate-700 hover:border-slate-600 transition-colors min-w-0 shadow-sm">
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 hover:border-[#02665e]/30 transition-colors min-w-0">
                   <label className="flex items-center gap-3 cursor-pointer min-w-0 group">
                     <div className="relative flex-shrink-0">
                       <input
@@ -674,15 +711,15 @@ export default function RegisterPage() {
                       />
                       <div className={`w-5 h-5 rounded border-2 transition-all duration-200 flex items-center justify-center ${
                         agreed 
-                          ? 'bg-[#02665e] border-[#02665e] shadow-sm' 
-                          : 'bg-slate-950 border-slate-600 group-hover:border-[#02665e] shadow-sm ring-1 ring-slate-800'
+                          ? 'bg-[#02665e] border-[#02665e]' 
+                          : 'bg-white border-slate-300 group-hover:border-[#02665e]'
                       }`}>
                         {agreed && (
                           <Check className="w-3.5 h-3.5 text-white" />
                         )}
                       </div>
                     </div>
-                    <span className="text-xs text-slate-200 leading-relaxed min-w-0 break-words flex-1">
+                    <span className="text-xs text-slate-700 leading-relaxed min-w-0 break-words flex-1">
                       I agree to the{' '}
                       <a 
                         href="/terms" 
@@ -698,7 +735,7 @@ export default function RegisterPage() {
                 </div>
 
                 <div className="flex items-center justify-between gap-3 min-w-0">
-                  <div className="text-xs text-slate-400 min-w-0 flex-shrink-0">
+                  <div className="text-xs text-slate-500 min-w-0 flex-shrink-0">
                     {countdown > 0 ? (
                       <span className="flex items-center gap-1.5">
                         <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-pulse flex-shrink-0" />
@@ -787,35 +824,30 @@ export default function RegisterPage() {
   // Login Page
   const renderLoginPage = () => {
     return (
-      <div className="w-full flex flex-col bg-slate-950 relative box-border">
-        {/* subtle background decoration */}
-        <div className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full bg-[#02665e]/25 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-32 -left-32 h-80 w-80 rounded-full bg-[#02b4f5]/10 blur-3xl" />
-        <div className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur border-b border-slate-800">
-          <div className="h-1 bg-[#02665e]" />
-          
-          <div className="px-6 py-5 border-b border-slate-800">
+      <div className="w-full flex flex-col bg-white relative box-border">
+        <div className="sticky top-0 z-10 bg-[#02665e] shadow-md">
+          <div className="px-6 py-4">
             <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-lg bg-[#02665e] flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center">
                 <LogIn className="w-5 h-5 text-white" />
               </div>
               <div className="flex-1">
-                <h1 className="text-xl font-bold text-slate-50">Sign In</h1>
+                <h1 className="text-xl font-bold text-white">Sign In</h1>
               </div>
               {loginSent && (
-                <div className="px-2.5 py-1 rounded-md bg-slate-900 text-xs font-medium text-slate-200 border border-slate-800">
+                <div className="px-2.5 py-1 rounded-md bg-white/15 text-xs font-semibold text-white border border-white/20">
                   Enter OTP
                 </div>
               )}
             </div>
 
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 text-emerald-200 px-2.5 py-1 text-[11px] font-semibold border border-emerald-500/20">
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-white/15 text-white px-2.5 py-1 text-[11px] font-semibold border border-white/20">
                 <Shield className="h-3.5 w-3.5" />
                 <span>Secure sign-in · we never share your details</span>
               </div>
               {!!roleParam && (
-                <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-900/60 text-slate-200 px-2.5 py-1 text-[11px] font-semibold border border-slate-800">
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-white/10 text-white px-2.5 py-1 text-[11px] font-semibold border border-white/15">
                   {roleParam === 'driver' ? (
                     <Truck className="h-3.5 w-3.5" />
                   ) : roleParam === 'owner' ? (
@@ -826,14 +858,12 @@ export default function RegisterPage() {
                   <span className="capitalize">{roleParam}</span>
                 </div>
               )}
-
             </div>
           </div>
-
-          <div className="px-6 py-3 bg-slate-950">
-            <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
+          <div className="px-6 pb-3">
+            <div className="h-1.5 bg-white/20 rounded-full overflow-hidden">
               <div 
-                className={`h-full bg-[#02665e] rounded-full transition-all duration-500 ${loginSent ? 'w-2/3' : 'w-1/3'}`} 
+                className={`h-full bg-white rounded-full transition-all duration-500 ${loginSent ? 'w-2/3' : 'w-1/3'}`} 
               />
             </div>
           </div>
@@ -843,25 +873,25 @@ export default function RegisterPage() {
           {renderBlockedAccountCard()}
 
           {isLockedOut && (
-            <div className="mb-4 rounded-xl border border-amber-500/20 bg-amber-500/10 p-4">
+            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
               <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-lg bg-amber-500/20 flex items-center justify-center">
-                  <Lock className="w-5 h-5 text-amber-300" />
+                <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
+                  <Lock className="w-5 h-5 text-amber-600" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-slate-50">Account temporarily locked</div>
-                  <div className="mt-1 text-xs text-slate-300 leading-relaxed">
+                  <div className="text-sm font-semibold text-slate-800">Account temporarily locked</div>
+                  <div className="mt-1 text-xs text-slate-600 leading-relaxed">
                     {lockoutMessage ?? 'Too many failed login attempts. Please wait before trying again.'}
                   </div>
 
                   <div className="mt-3 flex items-center justify-between gap-3">
-                    <div className="text-xs text-slate-400">Time remaining</div>
-                    <div className="font-mono text-sm font-semibold text-amber-300 tabular-nums">
+                    <div className="text-xs text-slate-500">Time remaining</div>
+                    <div className="font-mono text-sm font-semibold text-amber-600 tabular-nums">
                       {formatRemaining(lockoutRemainingSeconds)}
                     </div>
                   </div>
 
-                  <div className="mt-2 h-2 rounded-full bg-amber-900/40 overflow-hidden">
+                  <div className="mt-2 h-2 rounded-full bg-amber-200 overflow-hidden">
                     <div
                       className="h-full bg-amber-500 transition-all duration-500"
                       style={{
@@ -873,7 +903,7 @@ export default function RegisterPage() {
                     />
                   </div>
 
-                  <div className="mt-2 text-[11px] text-slate-500">
+                  <div className="mt-2 text-[11px] text-slate-400">
                     Tip: If you forgot your password, use “Forgot password?” below.
                   </div>
                 </div>
@@ -882,8 +912,8 @@ export default function RegisterPage() {
           )}
 
           {error && (
-            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-2.5 text-sm text-red-200">
-              <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2.5 text-sm text-red-700">
+              <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-500" />
               <span className="flex-1 min-w-0 break-words">{error}</span>
             </div>
           )}
@@ -891,7 +921,7 @@ export default function RegisterPage() {
           <div className={`space-y-4 transition-opacity duration-300 min-w-0 ${visible ? 'opacity-100' : 'opacity-0'}`}>
             {!loginSent ? (
               <>
-                <div className="flex gap-1.5 p-1.5 bg-slate-900/60 ring-1 ring-slate-800 rounded-xl">
+                <div className="flex gap-1.5 p-1.5 bg-slate-100 ring-1 ring-slate-200 rounded-xl">
                   <button
                     type="button"
                     onClick={() => {
@@ -903,7 +933,7 @@ export default function RegisterPage() {
                     className={`flex-1 px-3 py-2 text-xs font-semibold rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/20 ${
                       loginMethod === 'phone'
                         ? 'bg-[#02665e] text-white shadow-sm'
-                        : 'bg-slate-950 text-slate-200 hover:text-slate-50 border border-slate-800'
+                        : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200'
                     }`}
                   >
                     Phone
@@ -919,7 +949,7 @@ export default function RegisterPage() {
                     className={`flex-1 px-3 py-2 text-xs font-semibold rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/20 ${
                       loginMethod === 'credentials'
                         ? 'bg-[#02665e] text-white shadow-sm'
-                        : 'bg-slate-950 text-slate-200 hover:text-slate-50 border border-slate-800'
+                        : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200'
                     }`}
                   >
                     Email
@@ -929,26 +959,24 @@ export default function RegisterPage() {
                 {loginMethod === 'phone' ? (
                   <>
                     <div className="space-y-2.5 min-w-0">
-                      <label className="block text-sm font-semibold text-slate-200">Phone Number</label>
-                      <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-2.5">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <CountryCodePicker value={loginCountryCode} onChange={setLoginCountryCode} />
-                          <input
-                            type="tel"
-                            value={loginPhone}
-                            onChange={(e) => setLoginPhone(sanitizePhoneInput(e.target.value, loginCountryCode))}
-                            placeholder={getPhonePlaceholder(loginCountryCode)}
-                            maxLength={getPhoneMaxLength(loginCountryCode)}
-                            className="flex-1 min-w-0 px-4 py-2.5 text-sm font-medium bg-slate-950 text-slate-100 border-2 border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] transition-all duration-200 shadow-sm hover:shadow-md placeholder:text-slate-500 box-border"
-                          />
-                        </div>
+                      <label className="block text-sm font-semibold text-slate-700">Phone Number</label>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <CountryCodePicker value={loginCountryCode} onChange={setLoginCountryCode} />
+                        <input
+                          type="tel"
+                          value={loginPhone}
+                          onChange={(e) => setLoginPhone(sanitizePhoneInput(e.target.value, loginCountryCode))}
+                          placeholder={getPhonePlaceholder(loginCountryCode)}
+                          maxLength={getPhoneMaxLength(loginCountryCode)}
+                          className="flex-1 min-w-0 px-4 py-2.5 text-sm bg-white text-slate-900 border-2 border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] transition-all duration-200 placeholder:text-slate-400 shadow-sm hover:border-slate-300 box-border"
+                        />
                       </div>
-                      <p className="text-xs text-slate-400 flex items-center gap-1.5">
-                        <span className="w-1 h-1 bg-slate-400 rounded-full flex-shrink-0" />
+                      <p className="text-xs text-slate-500 flex items-center gap-1.5">
+                        <span className="w-1 h-1 bg-[#02665e] rounded-full flex-shrink-0" />
                         <span>We&apos;ll send you a verification code</span>
                       </p>
                       {loginPhone.length > 0 && !isPhoneLengthValid(loginPhone, loginCountryCode) ? (
-                        <p className="text-[11px] text-amber-300">{getPhoneLengthHint(loginCountryCode)}</p>
+                        <p className="text-[11px] text-amber-600 font-medium">{getPhoneLengthHint(loginCountryCode)}</p>
                       ) : null}
                     </div>
 
@@ -984,18 +1012,18 @@ export default function RegisterPage() {
                   <>
                     <div className="space-y-3 min-w-0">
                       <div className="space-y-2 min-w-0">
-                        <label className="block text-sm font-semibold text-slate-200">Email</label>
+                        <label className="block text-sm font-semibold text-slate-700">Email</label>
                         <input
                           type="email"
                           value={loginIdentifier}
                           onChange={(e) => setLoginIdentifier(e.target.value)}
                           placeholder="you@example.com"
                           disabled={isLockedOut}
-                          className="w-full max-w-full px-4 py-2.5 text-sm font-medium bg-slate-950 text-slate-100 border-2 border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] transition-all duration-200 shadow-sm hover:shadow-md placeholder:text-slate-500 box-border"
+                          className="w-full max-w-full px-4 py-2.5 text-sm bg-white text-slate-900 border-2 border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] transition-all duration-200 placeholder:text-slate-400 shadow-sm hover:border-slate-300 box-border"
                         />
                       </div>
                       <div className="space-y-2 min-w-0">
-                        <label className="block text-sm font-semibold text-slate-200">Password</label>
+                        <label className="block text-sm font-semibold text-slate-700">Password</label>
                         <div className="relative">
                           <input
                             type={showPassword ? 'text' : 'password'}
@@ -1003,7 +1031,7 @@ export default function RegisterPage() {
                             onChange={(e) => setLoginPassword(e.target.value)}
                             placeholder="••••••••"
                             disabled={isLockedOut}
-                            className="w-full max-w-full px-4 pr-11 py-2.5 text-sm font-medium bg-slate-950 text-slate-100 border-2 border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] transition-all duration-200 shadow-sm hover:shadow-md placeholder:text-slate-500 box-border"
+                            className="w-full max-w-full px-4 pr-11 py-2.5 text-sm bg-white text-slate-900 border-2 border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] transition-all duration-200 placeholder:text-slate-400 shadow-sm hover:border-slate-300 box-border"
                           />
                           <button
                             type="button"
@@ -1106,16 +1134,16 @@ export default function RegisterPage() {
                   <button
                   type="button"
                   onClick={() => setAuthMode('forgot')}
-                    className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-slate-800 bg-slate-900/40 py-2.5 text-xs font-semibold text-slate-200 hover:bg-slate-900/60 transition-colors"
+                    className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
                 >
                   <Lock className="w-3.5 h-3.5 flex-shrink-0" />
                   <span>Forgot password?</span>
                 </button>
 
                 <div className="relative flex items-center gap-3 my-1">
-                  <div className="flex-1 h-px bg-slate-800" />
-                  <span className="text-[11px] text-slate-500 font-medium">or</span>
-                  <div className="flex-1 h-px bg-slate-800" />
+                  <div className="flex-1 h-px bg-slate-200" />
+                  <span className="text-[11px] text-slate-400 font-medium">or</span>
+                  <div className="flex-1 h-px bg-slate-200" />
                 </div>
 
                 <div className="flex flex-col items-center gap-2 py-2">
@@ -1123,28 +1151,35 @@ export default function RegisterPage() {
                     type="button"
                     onClick={handlePasskeySignIn}
                     disabled={passkeyLoading || isLockedOut}
-                    className="w-24 h-24 rounded-2xl bg-slate-100/5 border border-slate-700/60 flex items-center justify-center hover:bg-slate-100/10 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+                    className="w-28 h-28 rounded-2xl bg-[#02665e] flex flex-col items-center justify-center gap-2 hover:bg-[#014e47] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-lg"
                     aria-label="Tap to login with biometrics"
                   >
                     {passkeyLoading ? (
-                      <LogoSpinner size="sm" ariaLabel="Authenticating" className="text-slate-300" />
+                      <LogoSpinner size="sm" ariaLabel="Authenticating" className="text-white" />
                     ) : (
-                      <Fingerprint className="w-12 h-12 text-slate-300" strokeWidth={1.25} />
+                      <Fingerprint className="w-12 h-12 text-white" strokeWidth={1.5} />
                     )}
+                    <span className="text-[10px] font-semibold text-white/80 tracking-wide uppercase">Biometrics</span>
                   </button>
-                  <span className="text-[13px] text-slate-400 font-medium">
+                  <span className="text-[13px] text-slate-600 font-medium">
                     {passkeyLoading ? 'Authenticating...' : 'Tap to login with biometrics'}
                   </span>
-                  <p className="text-center text-[11px] text-slate-600 leading-relaxed px-4">
-                    First time?{' '}
-                    <span className="text-slate-500">Log in then go to Account → Security → Passkeys to register.</span>
-                  </p>
+                  <div className="w-full mx-auto px-3 py-2.5 bg-[#02665e]/8 border border-[#02665e]/20 rounded-xl text-center">
+                    <p className="text-[12px] text-slate-700 leading-relaxed font-medium">
+                      First time using biometrics?
+                    </p>
+                    <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">
+                      Log in first, then go to{' '}
+                      <span className="font-semibold text-[#02665e]">Account → Security → Passkeys</span>
+                      {' '}to register your device.
+                    </p>
+                  </div>
                 </div>
               </>
             ) : (
               <>
                 <div className="space-y-2 min-w-0">
-                  <label className="block text-sm font-semibold text-slate-200">Enter OTP</label>
+                  <label className="block text-sm font-semibold text-slate-700">Enter OTP</label>
                   <input
                     type="text"
                     inputMode="numeric"
@@ -1152,13 +1187,13 @@ export default function RegisterPage() {
                     onChange={(e) => setLoginOtp(e.target.value.replace(/[^0-9]/g, ''))}
                     placeholder="123456"
                     maxLength={6}
-                    className="w-full max-w-full px-4 py-3 text-lg tracking-widest text-center font-mono bg-slate-950 text-slate-100 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] box-border"
+                    className="w-full max-w-full px-4 py-3 text-lg tracking-widest text-center font-mono bg-white text-slate-900 border-2 border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] box-border placeholder:text-slate-300"
                   />
                 </div>
                 <div className="flex items-center gap-3 min-w-0">
                   <button
                     onClick={() => setLoginSent(false)}
-                    className="flex-1 min-w-0 px-3 py-2 text-sm font-semibold text-slate-200 border border-slate-800 rounded-xl hover:bg-slate-900/40 transition-colors box-border"
+                    className="flex-1 min-w-0 px-3 py-2 text-sm font-semibold text-slate-700 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors box-border"
                   >
                     Edit phone
                   </button>
@@ -1209,13 +1244,13 @@ export default function RegisterPage() {
     if (authMode === 'register') {
       if (step !== 'phone') return null;
       return (
-        <div className="shrink-0 border-t border-slate-800 bg-slate-950/95 px-6 py-4 backdrop-blur">
-          <div className="flex flex-wrap items-center justify-center gap-2 text-sm text-slate-100">
-            <span className="font-medium text-slate-200">Already have an account?</span>
+        <div className="shrink-0 border-t border-slate-100 bg-white px-6 py-4">
+          <div className="flex flex-wrap items-center justify-center gap-2 text-sm text-slate-700">
+            <span className="font-medium text-slate-600">Already have an account?</span>
             <button
               type="button"
               onClick={() => setAuthMode('login')}
-              className="inline-flex items-center gap-1 rounded-lg border border-slate-600 bg-slate-800/90 px-3 py-1.5 font-semibold text-[#14b8a6] shadow-sm transition-colors hover:bg-slate-800"
+              className="inline-flex items-center gap-1 rounded-lg border border-[#02665e]/20 bg-[#02665e]/5 px-3 py-1.5 font-semibold text-[#02665e] shadow-sm transition-colors hover:bg-[#02665e]/10"
             >
               <span>Sign in</span>
               <LogIn className="h-3.5 w-3.5" />
@@ -1227,13 +1262,13 @@ export default function RegisterPage() {
 
     if (authMode === 'login') {
       return (
-        <div className="shrink-0 border-t border-slate-800 bg-slate-950/95 px-6 py-4 backdrop-blur">
-          <div className="flex flex-wrap items-center justify-center gap-2 text-sm text-slate-100">
-            <span className="font-medium text-slate-200">Don&apos;t have an account?</span>
+        <div className="shrink-0 border-t border-slate-100 bg-white px-6 py-4">
+          <div className="flex flex-wrap items-center justify-center gap-2 text-sm text-slate-700">
+            <span className="font-medium text-slate-600">Don&apos;t have an account?</span>
             <button
               type="button"
               onClick={() => setAuthMode('register')}
-              className="inline-flex items-center gap-1 rounded-lg border border-slate-600 bg-slate-800/90 px-3 py-1.5 font-semibold text-[#14b8a6] shadow-sm transition-colors hover:bg-slate-800"
+              className="inline-flex items-center gap-1 rounded-lg border border-[#02665e]/20 bg-[#02665e]/5 px-3 py-1.5 font-semibold text-[#02665e] shadow-sm transition-colors hover:bg-[#02665e]/10"
             >
               <span>Register</span>
               <UserPlus className="h-3.5 w-3.5" />
@@ -1364,11 +1399,9 @@ export default function RegisterPage() {
   // Forgot Password Page
   const renderForgotPasswordPage = () => {
     return (
-      <div className="w-full flex flex-col bg-slate-950 relative box-border">
-        <div className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur border-b border-slate-800">
-          <div className="h-1 bg-[#02665e]" />
-          
-          <div className="px-6 py-4 border-b border-slate-800">
+      <div className="w-full flex flex-col bg-white relative box-border">
+        <div className="sticky top-0 z-10 bg-[#02665e] shadow-md">
+          <div className="px-6 py-4">
             <div className="flex items-center gap-4">
               <button
                 onClick={() => {
@@ -1380,13 +1413,13 @@ export default function RegisterPage() {
                   setForgotOtp('');
                   setForgotSent(false);
                 }}
-                className="w-10 h-10 rounded-xl border border-slate-800 bg-slate-900/30 flex items-center justify-center hover:bg-slate-900/50 transition-colors flex-shrink-0"
+                className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center hover:bg-white/25 transition-colors flex-shrink-0"
               >
-                <ArrowLeft className="w-5 h-5 text-slate-200" />
+                <ArrowLeft className="w-5 h-5 text-white" />
               </button>
               <div className="flex-1 min-w-0">
-                <h1 className="text-xl font-bold text-slate-50">Reset Password</h1>
-                <p className="text-xs text-slate-400 mt-0.5">
+                <h1 className="text-xl font-bold text-white">Reset Password</h1>
+                <p className="text-xs text-white/70 mt-0.5">
                   {forgotMethod === 'email' ? 'Enter your email to reset' : 'Enter your phone to reset'}
                 </p>
               </div>
@@ -1396,29 +1429,29 @@ export default function RegisterPage() {
 
         <div className="px-6 py-4 min-w-0">
           {error && (
-            <div className="mb-3 p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-2.5 text-sm text-red-200">
-              <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2.5 text-sm text-red-700">
+              <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-500" />
               <span className="flex-1 min-w-0 break-words">{error}</span>
             </div>
           )}
 
           {success && !error && (
-            <div className="mb-3 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-start gap-2.5 text-sm text-emerald-200">
-              <Check className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            <div className="mb-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-2.5 text-sm text-emerald-700">
+              <Check className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-500" />
               <span className="flex-1 min-w-0 break-words">{success}</span>
             </div>
           )}
 
           {/* Method Selection */}
           {forgotStep === 'input' && !forgotSent && (
-            <div className="mb-4 flex gap-1.5 p-1.5 bg-slate-900/60 ring-1 ring-slate-800 rounded-xl">
+            <div className="mb-4 flex gap-1.5 p-1.5 bg-slate-100 ring-1 ring-slate-200 rounded-xl">
               <button
                 type="button"
                 onClick={() => setForgotMethod('email')}
                 className={`flex-1 px-3 py-2 text-xs font-semibold rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/20 ${
                   forgotMethod === 'email'
                     ? 'bg-[#02665e] text-white shadow-sm'
-                    : 'bg-slate-950 text-slate-200 hover:text-slate-50 border border-slate-800'
+                    : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200'
                 }`}
               >
                 <Mail className="w-3.5 h-3.5 inline-block mr-1.5" />
@@ -1430,7 +1463,7 @@ export default function RegisterPage() {
                 className={`flex-1 px-3 py-2 text-xs font-semibold rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/20 ${
                   forgotMethod === 'otp'
                     ? 'bg-[#02665e] text-white shadow-sm'
-                    : 'bg-slate-950 text-slate-200 hover:text-slate-50 border border-slate-800'
+                    : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200'
                 }`}
               >
                 <Phone className="w-3.5 h-3.5 inline-block mr-1.5" />
@@ -1441,10 +1474,10 @@ export default function RegisterPage() {
 
           {forgotStep === 'sent' && forgotMethod === 'email' ? (
             <div className="space-y-3 min-w-0">
-              <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-center min-w-0">
-                <Mail className="w-8 h-8 text-emerald-200 mx-auto mb-2" />
-                <h3 className="text-sm font-semibold text-emerald-100 mb-1">Check your email</h3>
-                <p className="text-xs text-emerald-200/90 break-words">
+              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-center min-w-0">
+                <Mail className="w-8 h-8 text-emerald-600 mx-auto mb-2" />
+                <h3 className="text-sm font-semibold text-emerald-800 mb-1">Check your email</h3>
+                <p className="text-xs text-emerald-700 break-words">
                   If an account with <span className="font-semibold">{forgotEmail}</span> exists, a reset link has been sent.
                 </p>
               </div>
@@ -1462,7 +1495,7 @@ export default function RegisterPage() {
           ) : forgotStep === 'otp' ? (
             <div className="space-y-3 min-w-0">
               <div className="space-y-2 min-w-0">
-                <label className="block text-sm font-semibold text-slate-200">Enter OTP</label>
+                <label className="block text-sm font-semibold text-slate-700">Enter OTP</label>
                 <input
                   ref={forgotOtpRef}
                   type="text"
@@ -1471,10 +1504,10 @@ export default function RegisterPage() {
                   onChange={(e) => setForgotOtp(e.target.value.replace(/[^0-9]/g, ''))}
                   placeholder="123456"
                   maxLength={6}
-                  className="w-full max-w-full px-4 py-3 text-lg tracking-widest text-center font-mono bg-slate-950 text-slate-100 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] box-border"
+                  className="w-full max-w-full px-4 py-3 text-lg tracking-widest text-center font-mono bg-white text-slate-900 border-2 border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] box-border placeholder:text-slate-300"
                 />
-                <p className="text-xs text-slate-400 text-center">
-                  Code sent to <span className="font-semibold text-slate-300">{forgotCountryCode}{forgotPhone}</span>
+                <p className="text-xs text-slate-500 text-center">
+                  Code sent to <span className="font-semibold text-slate-700">{forgotCountryCode}{forgotPhone}</span>
                 </p>
               </div>
               <div className="flex items-center gap-3 min-w-0">
@@ -1483,7 +1516,7 @@ export default function RegisterPage() {
                     setForgotStep('input');
                     setForgotOtp('');
                   }}
-                  className="flex-1 min-w-0 px-3 py-2 text-sm font-semibold text-slate-200 border border-slate-800 rounded-xl hover:bg-slate-900/40 transition-colors box-border"
+                  className="flex-1 min-w-0 px-3 py-2 text-sm font-semibold text-slate-700 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors box-border"
                 >
                   Edit phone
                 </button>
@@ -1499,7 +1532,7 @@ export default function RegisterPage() {
                 <button
                   type="button"
                   disabled={true}
-                  className="w-full text-xs text-slate-500 py-1"
+                  className="w-full text-xs text-slate-400 py-1"
                 >
                   Resend OTP in {forgotCountdown}s
                 </button>
@@ -1519,7 +1552,7 @@ export default function RegisterPage() {
               {forgotMethod === 'email' ? (
                 <>
                   <div className="space-y-2 min-w-0">
-                    <label className="block text-sm font-semibold text-slate-200">Email Address</label>
+                    <label className="block text-sm font-semibold text-slate-700">Email Address</label>
                     <input
                       type="email"
                       value={forgotEmail}
@@ -1528,10 +1561,10 @@ export default function RegisterPage() {
                         setError(null); // Clear error on input change
                       }}
                       placeholder="your@email.com"
-                        className={`w-full max-w-full px-4 py-2.5 text-sm font-medium bg-slate-950 text-slate-100 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 box-border transition-all shadow-sm hover:shadow-md placeholder:text-slate-500 ${
+                        className={`w-full max-w-full px-4 py-2.5 text-sm bg-white text-slate-900 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 box-border transition-all shadow-sm placeholder:text-slate-400 ${
                         forgotEmail && !isValidEmail(forgotEmail)
-                            ? 'border-red-500/40 focus:border-red-500'
-                            : 'border-slate-800 focus:border-[#02665e]'
+                            ? 'border-red-300 focus:border-red-500'
+                            : 'border-slate-200 focus:border-[#02665e] hover:border-slate-300'
                       }`}
                     />
                     {forgotEmail && !isValidEmail(forgotEmail) && (
@@ -1546,7 +1579,7 @@ export default function RegisterPage() {
                     disabled={forgotLoading || !isValidEmail(forgotEmail)}
                     className={`w-full max-w-full px-4 py-2.5 text-white text-sm font-medium rounded-lg transition-colors box-border ${
                       forgotLoading || !isValidEmail(forgotEmail)
-                        ? 'bg-slate-800 cursor-not-allowed opacity-60'
+                        ? 'bg-slate-300 cursor-not-allowed opacity-60'
                         : 'bg-[#02665e] hover:bg-[#014e47]'
                     }`}
                   >
@@ -1556,25 +1589,20 @@ export default function RegisterPage() {
               ) : (
                 <>
                   <div className="space-y-2.5 min-w-0">
-                    <label className="block text-sm font-semibold text-slate-200">Phone Number</label>
-                    <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-2.5">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <CountryCodePicker value={forgotCountryCode} onChange={setForgotCountryCode} />
-                        <input
-                          type="tel"
-                          value={forgotPhone}
-                          onChange={(e) => setForgotPhone(sanitizePhoneInput(e.target.value, forgotCountryCode))}
-                          placeholder={getPhonePlaceholder(forgotCountryCode)}
-                          maxLength={getPhoneMaxLength(forgotCountryCode)}
-                          className="flex-1 min-w-0 px-4 py-2.5 text-sm font-medium bg-slate-950 text-slate-100 border-2 border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] shadow-sm hover:shadow-md placeholder:text-slate-500 box-border"
-                        />
-                      </div>
+                    <label className="block text-sm font-semibold text-slate-700">Phone Number</label>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <CountryCodePicker value={forgotCountryCode} onChange={setForgotCountryCode} />
+                      <input
+                        type="tel"
+                        value={forgotPhone}
+                        onChange={(e) => setForgotPhone(sanitizePhoneInput(e.target.value, forgotCountryCode))}
+                        placeholder={getPhonePlaceholder(forgotCountryCode)}
+                        maxLength={getPhoneMaxLength(forgotCountryCode)}
+                        className="flex-1 min-w-0 px-4 py-2.5 text-sm bg-white text-slate-900 border-2 border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] shadow-sm hover:border-slate-300 placeholder:text-slate-400 box-border"
+                      />
                     </div>
-                    <p className="text-[11px] text-slate-500">
-                      Example for {getCountryLabel(forgotCountryCode)}: <span className="font-semibold text-slate-300">{getPhonePlaceholder(forgotCountryCode)}</span>
-                    </p>
                     {forgotPhone.length > 0 && !isPhoneLengthValid(forgotPhone, forgotCountryCode) ? (
-                      <p className="text-[11px] text-amber-300">{getPhoneLengthHint(forgotCountryCode)}</p>
+                      <p className="text-[11px] text-amber-600 font-medium">{getPhoneLengthHint(forgotCountryCode)}</p>
                     ) : null}
                   </div>
                   <button
@@ -1597,7 +1625,7 @@ export default function RegisterPage() {
                   setForgotOtp('');
                   setForgotSent(false);
                 }}
-                className="w-full max-w-full text-sm font-semibold text-slate-300 hover:text-slate-50 py-2.5 flex items-center justify-center gap-2 transition-colors box-border"
+                className="w-full max-w-full text-sm font-semibold text-slate-500 hover:text-slate-700 py-2.5 flex items-center justify-center gap-2 transition-colors box-border"
               >
                 <ArrowLeft className="w-4 h-4 flex-shrink-0" />
                 <span>Back to Sign In</span>
@@ -1610,25 +1638,89 @@ export default function RegisterPage() {
   };
 
     return (
-    <main className="min-h-screen flex items-start sm:items-center justify-center bg-gradient-to-br from-slate-100 to-white py-8 px-4">
-      <div className="w-full flex items-center justify-center">
-          <div className="w-full max-w-[460px]">
-            <div className="rounded-[28px] bg-gradient-to-b from-slate-700/30 via-slate-800/20 to-transparent p-px shadow-2xl">
-              <div
-                style={{ colorScheme: 'dark' }}
-                className="flex flex-col rounded-[28px] overflow-hidden bg-slate-950 ring-1 ring-white/10"
-              >
-                <div className="flex-1">
-                  {authMode === 'register'
-                    ? renderRegisterPage()
-                    : authMode === 'login'
-                      ? renderLoginPage()
-                      : renderForgotPasswordPage()}
-                </div>
-                {renderModeToggleFooter()}
-              </div>
+    <main
+      className="relative min-h-screen flex items-center justify-center py-8 px-4 overflow-hidden"
+      style={{ background: 'radial-gradient(ellipse at 50% 40%, #038a80 0%, #02665e 50%, #014e47 100%)' }}
+    >
+      {/* ── Compass rose — large ornamental mandala behind card ── */}
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center" aria-hidden="true">
+        <svg
+          viewBox="0 0 520 520"
+          fill="none"
+          className="w-[min(90vw,640px)] h-[min(90vw,640px)] opacity-[0.22]"
+          style={{ color: '#fff' }}
+        >
+          {/* concentric rings */}
+          <circle cx="260" cy="260" r="250" stroke="currentColor" strokeWidth="0.6" strokeDasharray="10 6"/>
+          <circle cx="260" cy="260" r="218" stroke="currentColor" strokeWidth="1"/>
+          <circle cx="260" cy="260" r="185" stroke="currentColor" strokeWidth="0.4" strokeDasharray="4 9"/>
+          <circle cx="260" cy="260" r="150" stroke="currentColor" strokeWidth="0.8"/>
+          <circle cx="260" cy="260" r="115" stroke="currentColor" strokeWidth="0.4" strokeDasharray="3 8"/>
+          <circle cx="260" cy="260" r="82"  stroke="currentColor" strokeWidth="0.7"/>
+          <circle cx="260" cy="260" r="50"  stroke="currentColor" strokeWidth="0.4" strokeDasharray="2 6"/>
+          <circle cx="260" cy="260" r="22"  stroke="currentColor" strokeWidth="0.8"/>
+          {/* 16 radial tick lines */}
+          {Array.from({ length: 16 }).map((_, i) => {
+            const angle = (i * 22.5 * Math.PI) / 180;
+            const x1 = 260 + 50 * Math.cos(angle);
+            const y1 = 260 + 50 * Math.sin(angle);
+            const x2 = 260 + 218 * Math.cos(angle);
+            const y2 = 260 + 218 * Math.sin(angle);
+            return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="currentColor" strokeWidth={i % 4 === 0 ? 0.9 : 0.3}/>;
+          })}
+          {/* rounded N petal */}
+          <path d="M260 240 C248 200 248 60 260 20 C272 60 272 200 260 240Z" fill="currentColor" fillOpacity="0.55"/>
+          {/* rounded S petal */}
+          <path d="M260 280 C248 320 248 460 260 500 C272 460 272 320 260 280Z" fill="currentColor" fillOpacity="0.28"/>
+          {/* rounded E petal */}
+          <path d="M280 260 C320 248 460 248 500 260 C460 272 320 272 280 260Z" fill="currentColor" fillOpacity="0.28"/>
+          {/* rounded W petal */}
+          <path d="M240 260 C200 248 60 248 20 260 C60 272 200 272 240 260Z" fill="currentColor" fillOpacity="0.28"/>
+          {/* diagonal minor petals */}
+          <path d="M260 240 C270 235 320 205 338 188 C321 206 291 256 280 260Z" fill="currentColor" fillOpacity="0.15"/>
+          <path d="M260 240 C250 235 200 205 182 188 C199 206 229 256 240 260Z" fill="currentColor" fillOpacity="0.15"/>
+          <path d="M260 280 C270 285 320 315 338 332 C321 314 291 264 280 260Z" fill="currentColor" fillOpacity="0.15"/>
+          <path d="M260 280 C250 285 200 315 182 332 C199 314 229 264 240 260Z" fill="currentColor" fillOpacity="0.15"/>
+          {/* center circle */}
+          <circle cx="260" cy="260" r="8" fill="currentColor" fillOpacity="0.6"/>
+          <circle cx="260" cy="260" r="4" fill="currentColor" fillOpacity="0.9"/>
+        </svg>
+      </div>
+
+      {/* ── Corner arc ornaments ── */}
+      <svg className="pointer-events-none absolute top-0 left-0 w-64 h-64 opacity-[0.08]" viewBox="0 0 256 256" fill="none" aria-hidden="true">
+        <path d="M0 200 Q0 0 200 0" stroke="white" strokeWidth="1" strokeDasharray="6 6"/>
+        <path d="M0 140 Q0 0 140 0" stroke="white" strokeWidth="0.7" strokeDasharray="4 8"/>
+        <path d="M0 80  Q0 0 80  0" stroke="white" strokeWidth="0.5" strokeDasharray="3 10"/>
+      </svg>
+      <svg className="pointer-events-none absolute bottom-0 right-0 w-64 h-64 opacity-[0.08]" viewBox="0 0 256 256" fill="none" aria-hidden="true">
+        <path d="M256 56 Q256 256 56 256" stroke="white" strokeWidth="1" strokeDasharray="6 6"/>
+        <path d="M256 116 Q256 256 116 256" stroke="white" strokeWidth="0.7" strokeDasharray="4 8"/>
+        <path d="M256 176 Q256 256 176 256" stroke="white" strokeWidth="0.5" strokeDasharray="3 10"/>
+      </svg>
+      <svg className="pointer-events-none absolute top-0 right-0 w-48 h-48 opacity-[0.05]" viewBox="0 0 192 192" fill="none" aria-hidden="true">
+        <path d="M192 160 Q192 0 32 0" stroke="white" strokeWidth="1" strokeDasharray="5 7"/>
+        <path d="M192 100 Q192 0 92 0" stroke="white" strokeWidth="0.6" strokeDasharray="3 9"/>
+      </svg>
+      <svg className="pointer-events-none absolute bottom-0 left-0 w-48 h-48 opacity-[0.05]" viewBox="0 0 192 192" fill="none" aria-hidden="true">
+        <path d="M0 32 Q0 192 160 192" stroke="white" strokeWidth="1" strokeDasharray="5 7"/>
+        <path d="M0 92  Q0 192 100 192" stroke="white" strokeWidth="0.6" strokeDasharray="3 9"/>
+      </svg>
+
+      {/* ── Card ── */}
+      <div className="relative z-10 w-full max-w-[460px]">
+        <div className="rounded-[32px] shadow-[0_40px_100px_rgba(0,0,0,0.45)] ring-1 ring-white/25">
+          <div className="flex flex-col rounded-[32px] overflow-hidden bg-white">
+            <div className="flex-1">
+              {authMode === 'register'
+                ? renderRegisterPage()
+                : authMode === 'login'
+                  ? renderLoginPage()
+                  : renderForgotPasswordPage()}
             </div>
+            {renderModeToggleFooter()}
           </div>
+        </div>
       </div>
     </main>
   );
