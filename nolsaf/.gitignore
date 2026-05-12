@@ -52,7 +52,6 @@ Thumbs.db
 !.elasticbeanstalk/*.cfg.yml
 !.elasticbeanstalk/*.global.yml
 .ebignore
-Procfile
 .platform/
 
 # AWS / Deployment guides with credentials
