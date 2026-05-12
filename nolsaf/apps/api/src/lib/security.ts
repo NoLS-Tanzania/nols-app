@@ -39,7 +39,7 @@ export async function verifyPassword(hash: string | null | undefined, password: 
 // contains human-friendly messages explaining why the password is weak.
 export function validatePasswordStrength(password: string, options?: { minLength?: number; requireUpper?: boolean; requireLower?: boolean; requireNumber?: boolean; requireSpecial?: boolean; noSpaces?: boolean; role?: string }) {
   const opts = {
-    minLength: 10,
+    minLength: 8,
     requireUpper: true,
     requireLower: true,
     requireNumber: true,
@@ -48,10 +48,8 @@ export function validatePasswordStrength(password: string, options?: { minLength
     ...(options || {}),
   } as Required<typeof options> & { minLength: number };
 
-  // For Admin/Owner, enforce a slightly higher min length by default
-  if (opts.role && (String(opts.role).toUpperCase() === 'ADMIN' || String(opts.role).toUpperCase() === 'OWNER')) {
-    opts.minLength = Math.max(opts.minLength, 12);
-  }
+  // minLength is controlled entirely by SystemSetting.minPasswordLength (passed in via options).
+  // No role-based override — the DB policy applies uniformly to all roles.
 
   const reasons: string[] = [];
   if (typeof password !== 'string') {
