@@ -6,10 +6,12 @@ import { ImageResponse } from 'next/og';
 export const runtime = 'nodejs';
 export const contentType = 'image/png';
 
+// Read once at module load — avoids synchronous file I/O on every request
+const _logoPath = path.join(process.cwd(), 'public', 'assets', 'NoLS2025-04.png');
+const _logoSrc = `data:image/png;base64,${fs.readFileSync(_logoPath).toString('base64')}`;
+
 export default function AppleIcon() {
-  const logoPath = path.join(process.cwd(), 'public', 'assets', 'NoLS2025-04.png');
-  const logoBase64 = fs.readFileSync(logoPath).toString('base64');
-  const logoSrc = `data:image/png;base64,${logoBase64}`;
+  const logoSrc = _logoSrc;
 
   return new ImageResponse(
     (
