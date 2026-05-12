@@ -701,7 +701,7 @@ export default function RegisterPage() {
                 </div>
 
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 hover:border-[#02665e]/30 transition-colors min-w-0">
-                  <label className="flex items-center gap-3 cursor-pointer min-w-0 group">
+                  <label className="flex items-center gap-3 cursor-pointer min-w-0">
                     <div className="relative flex-shrink-0">
                       <input
                         type="checkbox"
@@ -709,20 +709,15 @@ export default function RegisterPage() {
                         onChange={(e) => setAgreed(e.target.checked)}
                         className="sr-only peer"
                       />
-                      <div className={`w-5 h-5 rounded border-2 transition-all duration-200 flex items-center justify-center ${
-                        agreed 
-                          ? 'bg-[#02665e] border-[#02665e]' 
-                          : 'bg-white border-slate-300 group-hover:border-[#02665e]'
-                      }`}>
-                        {agreed && (
-                          <Check className="w-3.5 h-3.5 text-white" />
-                        )}
+                      {/* Toggle switch */}
+                      <div className={`w-10 h-6 rounded-full transition-colors duration-200 ${agreed ? 'bg-[#02665e]' : 'bg-slate-300'}`}>
+                        <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${agreed ? 'translate-x-4' : 'translate-x-0'}`} />
                       </div>
                     </div>
                     <span className="text-xs text-slate-700 leading-relaxed min-w-0 break-words flex-1">
                       I agree to the{' '}
-                      <a 
-                        href="/terms" 
+                      <a
+                        href="/terms"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-[#02665e] hover:underline font-semibold transition-colors"
@@ -1388,6 +1383,7 @@ export default function RegisterPage() {
       const data = await resp.json().catch(() => ({}));
       const msg = data?.message || 'If an account exists, an email has been sent.';
       setForgotSent(true);
+      setForgotStep('sent');
       setSuccess(msg);
     } catch (err: any) {
       setError(err?.message || 'Failed to send reset email');
