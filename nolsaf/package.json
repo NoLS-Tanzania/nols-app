@@ -43,13 +43,15 @@
     "no4p-otp:cleanup": "node scripts/cleanup-no4p-otp.mjs"
   },
   "dependencies": {
+    "axios": "^1.16.0",
     "dotenv": "^17.2.3",
     "pdf-parse": "^2.4.5",
     "prisma": "^7.3.0"
   },
   "pnpm": {
     "overrides": {
-      "axios": "^1.15.0",
+      "africastalking>axios": "1.16.0",
+      "africastalking>lodash": "4.18.1",
       "diff": "4.0.4",
       "fast-xml-parser": ">=5.7.0",
       "@aws-sdk/xml-builder": "3.972.17",
@@ -63,7 +65,7 @@
       "minimatch": ">=10.2.1",
       "jspdf": "4.2.1",
       "jws": "3.2.3",
-      "lodash": "^4.18.1",
+      "lodash": "4.18.1",
       "nodemailer": "8.0.5",
       "qs": "6.14.2",
       "postcss": "^8.5.10",
@@ -71,7 +73,10 @@
     }
   },
   "overrides": {
-    "axios": "^1.15.0",
+    "africastalking": {
+      "axios": "1.16.0",
+      "lodash": "4.18.1"
+    },
     "diff": "4.0.4",
     "fast-xml-parser": ">=5.7.0",
     "@aws-sdk/xml-builder": "3.972.17",
@@ -86,7 +91,7 @@
     "minimatch": ">=10.2.1",
     "jspdf": "4.2.1",
     "jws": "3.2.3",
-    "lodash": "^4.18.1",
+    "lodash": "4.18.1",
     "nodemailer": "8.0.5",
     "qs": "6.14.2",
     "postcss": "^8.5.10",

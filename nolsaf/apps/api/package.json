@@ -31,7 +31,7 @@
     "@types/pdfkit": "^0.17.5",
     "africastalking": "^0.7.9",
     "argon2": "^0.44.0",
-    "axios": "^1.15.0",
+    "axios": "^1.16.0",
     "body-parser": "^1.20.3",
     "cloudinary": "^2.7.0",
     "cors": "^2.8.5",
