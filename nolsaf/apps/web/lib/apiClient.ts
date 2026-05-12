@@ -10,13 +10,36 @@
  * CSRF: On mobile browsers localStorage can be partitioned/empty so the Bearer
  * token may be absent.  Without it the server sees a cookie-auth cross-site
  * request and returns 403 "X-CSRF-Token required".  To handle this we:
- *   1. Capture the X-CSRF-Token header the server sends on every GET response.
- *   2. Attach it on all state-changing requests (POST/PUT/PATCH/DELETE).
+ *   1. Capture the X-CSRF-Token header the server sends on every GET response
+ *      and persist it to sessionStorage so it survives mobile JS context resets.
+ *   2. Attach it on ALL state-changing requests (POST/PUT/PATCH/DELETE),
+ *      regardless of whether a Bearer token is also present.
  */
 import axios from "axios";
 
+const CSRF_SESSION_KEY = "nolsaf:csrf";
+
 // In-memory CSRF token cache — refreshed automatically from GET responses.
+// sessionStorage is used as a persistent fallback for mobile context resets.
 let _csrfToken: string | null = null;
+
+function readCsrfToken(): string | null {
+  if (_csrfToken) return _csrfToken;
+  try {
+    return sessionStorage.getItem(CSRF_SESSION_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeCsrfToken(token: string): void {
+  _csrfToken = token;
+  try {
+    sessionStorage.setItem(CSRF_SESSION_KEY, token);
+  } catch {
+    // sessionStorage unavailable in some mobile/WebView contexts.
+  }
+}
 
 function getStoredToken(): string | null {
   try {
@@ -45,10 +68,14 @@ apiClient.interceptors.request.use((config) => {
     config.headers["Authorization"] = `Bearer ${token}`;
   }
 
-  // Attach cached CSRF token on mutations when no Bearer token is available
-  // (protects mobile / cookie-only sessions).
-  if (!token && _csrfToken && MUTATION_METHODS.has((config.method ?? "").toLowerCase())) {
-    config.headers["X-CSRF-Token"] = _csrfToken;
+  // Always attach the CSRF token on mutations — mobile browsers may not send
+  // the Bearer token (localStorage partitioned/blocked) so the server falls
+  // back to cookie-auth and requires X-CSRF-Token on cross-site requests.
+  if (MUTATION_METHODS.has((config.method ?? "").toLowerCase())) {
+    const csrf = readCsrfToken();
+    if (csrf) {
+      config.headers["X-CSRF-Token"] = csrf;
+    }
   }
 
   return config;
@@ -58,7 +85,7 @@ apiClient.interceptors.request.use((config) => {
 apiClient.interceptors.response.use((response) => {
   const csrfHeader = response.headers["x-csrf-token"];
   if (csrfHeader) {
-    _csrfToken = csrfHeader;
+    writeCsrfToken(csrfHeader);
   }
   return response;
 });
@@ -77,6 +104,11 @@ export function saveAuthToken(token: string | null | undefined): void {
 /** Remove auth token from localStorage on logout */
 export function clearAuthToken(): void {
   _csrfToken = null;
+  try {
+    sessionStorage.removeItem(CSRF_SESSION_KEY);
+  } catch {
+    // ignore
+  }
   try {
     localStorage.removeItem("token");
     localStorage.removeItem("nolsaf_token");

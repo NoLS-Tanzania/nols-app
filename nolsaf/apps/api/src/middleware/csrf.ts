@@ -187,6 +187,23 @@ function isTrustedOrigin(req: Request): boolean {
   return sameHost || getAllowedOrigins().includes(origin);
 }
 
+// Pre-authentication endpoints: the user has no established session yet.
+// A stale auth cookie from a previous session may still be present in the
+// browser (especially on mobile after logout), causing hasAuthCookie() to
+// return true — which would incorrectly trigger CSRF enforcement on login.
+// These endpoints are already protected by rate-limiting; CSRF does not apply.
+const PRE_AUTH_PATHS = new Set([
+  "/api/auth/send-otp",
+  "/api/auth/verify-otp",
+  "/api/auth/login-password",
+  "/api/auth/login-otp",
+  "/api/auth/forgot-password",
+  "/api/auth/reset-password",
+  "/api/auth/register",
+  "/api/auth/passkeys/options",
+  "/api/auth/passkeys/verify",
+]);
+
 /**
  * CSRF protection middleware for state-changing operations
  * Only applies to POST, PUT, DELETE, PATCH methods
@@ -199,6 +216,29 @@ export async function csrfProtection(req: Request, res: Response, next: NextFunc
 
   // Skip CSRF for webhooks (they use signature verification)
   if (req.path.startsWith("/webhooks/")) {
+    return next();
+  }
+
+  // Skip CSRF for pre-authentication endpoints — stale cookies from a prior
+  // session must not block login on mobile browsers.
+  // Apply origin validation instead: if the browser sent an Origin header it
+  // must come from an allowed domain (same pattern as adminOriginGuard).
+  if (PRE_AUTH_PATHS.has(req.path)) {
+    const origin = req.get("origin");
+    if (origin) {
+      const allowedOrigins = [
+        process.env.WEB_ORIGIN,
+        process.env.APP_ORIGIN,
+        ...(process.env.CORS_ORIGIN || "").split(",").map((s) => s.trim()),
+      ].filter(Boolean) as string[];
+      const isAllowed =
+        allowedOrigins.some((o) => o === origin) ||
+        origin === `https://${req.get("host")}` ||
+        origin === `http://${req.get("host")}`;
+      if (!isAllowed) {
+        return res.status(403).json({ error: "Forbidden origin" });
+      }
+    }
     return next();
   }
 
