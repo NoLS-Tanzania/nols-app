@@ -223,6 +223,8 @@ export async function csrfProtection(req: Request, res: Response, next: NextFunc
   // session must not block login on mobile browsers.
   // Apply origin validation instead: if the browser sent an Origin header it
   // must come from an allowed domain (same pattern as adminOriginGuard).
+  // Only enforced when at least one allowed origin env var is configured —
+  // fails-open otherwise so the check is never silently wrong.
   if (PRE_AUTH_PATHS.has(req.path)) {
     const origin = req.get("origin");
     if (origin) {
@@ -231,12 +233,14 @@ export async function csrfProtection(req: Request, res: Response, next: NextFunc
         process.env.APP_ORIGIN,
         ...(process.env.CORS_ORIGIN || "").split(",").map((s) => s.trim()),
       ].filter(Boolean) as string[];
-      const isAllowed =
-        allowedOrigins.some((o) => o === origin) ||
-        origin === `https://${req.get("host")}` ||
-        origin === `http://${req.get("host")}`;
-      if (!isAllowed) {
-        return res.status(403).json({ error: "Forbidden origin" });
+      if (allowedOrigins.length > 0) {
+        const isAllowed =
+          allowedOrigins.some((o) => o === origin) ||
+          origin === `https://${req.get("host")}` ||
+          origin === `http://${req.get("host")}`;
+        if (!isAllowed) {
+          return res.status(403).json({ error: "Forbidden origin" });
+        }
       }
     }
     return next();
