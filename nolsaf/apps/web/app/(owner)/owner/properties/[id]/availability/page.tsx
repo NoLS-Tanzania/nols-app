@@ -142,15 +142,6 @@ function addDays(d: Date, days: number) {
   return copy;
 }
 
-// Helper to get auth token.
-// httpOnly cookies are forwarded automatically via withCredentials: true.
-function getAuthToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  // Only check readable cookies here as a transitional fallback.
-  const m = String(document.cookie || "").match(/(?:^|;\s*)(?:nolsaf_token|__Host-nolsaf_token|token)=([^;]+)/);
-  return m?.[1] ? decodeURIComponent(m[1]) : null;
-}
-
 type AvailabilityBlock = {
   id: number;
   propertyId: number;
@@ -372,20 +363,10 @@ export default function PropertyAvailabilityPage() {
     if (isNaN(propertyId)) return;
 
     const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000";
-    const token = getAuthToken();
 
     const newSocket = io(socketUrl.replace(/\/$/, ""), {
       transports: ["websocket", "polling"],
       withCredentials: true,
-      ...(token ? {
-        transportOptions: {
-          polling: {
-            extraHeaders: {
-              Authorization: `Bearer ${token}`
-            }
-          }
-        }
-      } : {}),
     });
 
     newSocket.on("connect", () => {

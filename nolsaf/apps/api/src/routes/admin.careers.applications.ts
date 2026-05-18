@@ -532,10 +532,6 @@ router.patch("/:id", async (req, res) => {
                 return Array.from(new Set(out));
               };
 
-              const applicationEducationLevel = (existingApplication as any).educationLevel
-                ? String((existingApplication as any).educationLevel)
-                : null;
-
               const applicationYearsOfExperience = (existingApplication as any).yearsOfExperience != null
                 ? Number((existingApplication as any).yearsOfExperience)
                 : null;
@@ -573,7 +569,6 @@ router.patch("/:id", async (req, res) => {
                   data: {
                     user: { connect: { id: user.id } },
                     status: agentData.status || "ACTIVE",
-                    educationLevel: applicationEducationLevel || agentData.educationLevel || null,
                     yearsOfExperience: applicationYearsOfExperience != null
                       ? applicationYearsOfExperience
                       : (agentData.yearsOfExperience != null ? Number(agentData.yearsOfExperience) : null),
@@ -599,7 +594,6 @@ router.patch("/:id", async (req, res) => {
                 const existingSpecs = Array.isArray((agentProfile as any).specializations) ? (agentProfile as any).specializations : null;
 
                 const existingLanguages = Array.isArray((agentProfile as any).languages) ? (agentProfile as any).languages : null;
-                const existingEducation = (agentProfile as any).educationLevel ? String((agentProfile as any).educationLevel) : null;
                 const existingYears = (agentProfile as any).yearsOfExperience != null ? Number((agentProfile as any).yearsOfExperience) : null;
 
                 // Areas of Operation must match the job advert when set.
@@ -612,10 +606,6 @@ router.patch("/:id", async (req, res) => {
                   agentUpdate.areasOfOperation = incomingAreas;
                 }
                 if ((!existingSpecs || existingSpecs.length === 0) && incomingSpecs.length > 0) agentUpdate.specializations = incomingSpecs;
-
-                if (!existingEducation && (applicationEducationLevel || agentData.educationLevel)) {
-                  agentUpdate.educationLevel = applicationEducationLevel || agentData.educationLevel;
-                }
 
                 if (existingYears == null) {
                   const incomingYears = applicationYearsOfExperience != null

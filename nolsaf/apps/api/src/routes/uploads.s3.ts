@@ -3,6 +3,7 @@ import { S3Client } from "@aws-sdk/client-s3";
 import { createPresignedPost } from "@aws-sdk/s3-presigned-post";
 import crypto from "crypto";
 import { requireAuth } from "../middleware/auth.js";
+import { limitUploadPresign } from "../middleware/rateLimit.js";
 
 const s3 = new S3Client({ region: process.env.AWS_REGION });
 
@@ -38,8 +39,22 @@ function isAllowedFolder(folder: string): boolean {
   return false;
 }
 
+function folderMatches(folder: string, base: string): boolean {
+  return folder === base || folder.startsWith(`${base}/`);
+}
+
+function isFolderAllowedForRole(req: any, folder: string): boolean {
+  const role = String(req.user?.role || "").toUpperCase();
+  if (role === "ADMIN") return true;
+  if (folder === "uploads" || folder === "avatars") return true;
+  if (role === "AGENT") return folderMatches(folder, "agent-documents");
+  if (role === "OWNER") return folderMatches(folder, "owner-documents") || folderMatches(folder, "properties");
+  if (role === "DRIVER") return folderMatches(folder, "driver-documents");
+  return false;
+}
+
 /** POST /uploads/s3/presign { folder: "avatars", contentType: "image/png" } */
-router.post("/presign", async (req, res) => {
+router.post("/presign", limitUploadPresign as any, async (req, res) => {
   const { folder = "uploads", contentType = "application/octet-stream" } = req.body ?? {};
   const normalizedFolder = String(folder || "").trim();
 
@@ -49,6 +64,10 @@ router.post("/presign", async (req, res) => {
 
   if (!isAllowedFolder(normalizedFolder)) {
     return res.status(400).json({ error: "Invalid upload folder" });
+  }
+
+  if (!isFolderAllowedForRole(req, normalizedFolder)) {
+    return res.status(403).json({ error: "Upload folder is not allowed for this account" });
   }
   
   // Validate MIME type - reject invalid types

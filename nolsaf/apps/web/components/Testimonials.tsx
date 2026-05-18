@@ -52,8 +52,8 @@ const TESTIMONIALS = [
     platform: 'ussd'
   },
   {
-    title: 'Plan With Us simplified planning',
-    text: 'I had planning paralysis. Plan With Us gave clear recommendations, friendly costs and a simple plan. Booking felt easy and affordable.',
+    title: 'Cost estimates made booking easier',
+    text: 'I compared likely stay, transport, and activity costs before booking. The estimate made the trip feel clear and affordable.',
     name: 'Grace T.',
     company: 'Planner',
     roleType: 'planner',

@@ -334,15 +334,15 @@ export default function MyEventPlansPage() {
               ? "You haven't completed any event plans yet."
               : filter === "expired"
               ? "You don't have any expired event plans."
-              : "When you submit a Plan with Us request, it will appear here for easy access."}
+              : "Legacy trip planning records will appear here for easy access."}
           </div>
           {filter === "all" && (
             <div className="mt-6 flex justify-center">
               <Link
-                href="/public/plan-with-us"
+                href="/public/nolscope"
                 className="group no-underline inline-flex items-center justify-center gap-2 rounded-xl bg-[#02665e] px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-[#014d47] hover:shadow-md active:scale-[0.99] transition"
               >
-                Plan with Us
+                Estimate a Trip
                 <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
               </Link>
             </div>

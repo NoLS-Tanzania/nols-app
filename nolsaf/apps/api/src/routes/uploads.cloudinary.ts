@@ -3,7 +3,7 @@ import { v2 as cloudinary } from "cloudinary";
 import multer from "multer";
 import { z } from "zod";
 import { requireAuth } from "../middleware/auth.js";
-import { limitCloudinarySign } from "../middleware/rateLimit.js";
+import { limitCloudinarySign, limitUploadPresign } from "../middleware/rateLimit.js";
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME!,
@@ -13,6 +13,7 @@ cloudinary.config({
 
 export const router = Router();
 router.use((req, _res, next) => {
+  if (process.env.NODE_ENV === "production") return next();
   const hasCookie = !!req.headers.cookie;
   const cookieKeys = hasCookie ? req.headers.cookie!.split(";").map(c => c.trim().split("=")[0]) : [];
   console.log(`[UPLOAD_DEBUG] ${req.method} ${req.path} | cookie header present: ${hasCookie} | cookie keys: [${cookieKeys.join(", ")}] | auth header: ${!!req.headers.authorization}`);
@@ -20,6 +21,19 @@ router.use((req, _res, next) => {
 });
 router.use(requireAuth);
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
+
+const ALLOWED_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "application/pdf",
+]);
+
+export function isCloudinaryFileTypeAllowed(mimetype: string): boolean {
+  return ALLOWED_MIME_TYPES.has(mimetype);
+}
 
 const signQuerySchema = z
   .object({
@@ -37,7 +51,10 @@ const signQuerySchema = z
 const allowedFolderPatterns: Array<{ type: "exact"; value: string } | { type: "prefix"; value: string }> = [
   { type: "exact", value: "uploads" },
   { type: "exact", value: "avatars" },
+  { type: "exact", value: "agent-operator" },
+  { type: "prefix", value: "agent-operator/" },
   { type: "exact", value: "agent-documents" },
+  { type: "prefix", value: "agent-documents/" },
   { type: "exact", value: "owner-documents" },
   { type: "exact", value: "driver-documents" },
   { type: "prefix", value: "driver-documents/" },
@@ -54,6 +71,20 @@ function isAllowedFolder(folder: string): boolean {
   return false;
 }
 
+function folderMatches(folder: string, base: string): boolean {
+  return folder === base || folder.startsWith(`${base}/`);
+}
+
+function isFolderAllowedForRole(req: any, folder: string): boolean {
+  const role = String(req.user?.role || "").toUpperCase();
+  if (role === "ADMIN") return true;
+  if (folder === "uploads" || folder === "avatars") return true;
+  if (role === "AGENT") return folderMatches(folder, "agent-operator") || folderMatches(folder, "agent-documents");
+  if (role === "OWNER") return folderMatches(folder, "owner-documents") || folderMatches(folder, "properties");
+  if (role === "DRIVER") return folderMatches(folder, "driver-documents");
+  return false;
+}
+
 /** GET /uploads/cloudinary/sign?folder=avatars */
 router.get("/sign", limitCloudinarySign as any, (req, res) => {
   const parsed = signQuerySchema.safeParse(req.query ?? {});
@@ -62,6 +93,9 @@ router.get("/sign", limitCloudinarySign as any, (req, res) => {
   const folder = parsed.data.folder || "uploads";
   if (!isAllowedFolder(folder)) {
     return res.status(400).json({ error: "invalid_folder" });
+  }
+  if (!isFolderAllowedForRole(req, folder)) {
+    return res.status(403).json({ error: "folder_forbidden" });
   }
 
   if (!process.env.CLOUDINARY_API_SECRET || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_CLOUD_NAME) {
@@ -84,13 +118,16 @@ router.get("/sign", limitCloudinarySign as any, (req, res) => {
 });
 
 /** POST /uploads/cloudinary/upload */
-router.post("/upload", upload.single("file"), async (req, res) => {
+router.post("/upload", limitUploadPresign as any, upload.single("file"), async (req, res) => {
   const parsed = signQuerySchema.safeParse({ folder: req.body?.folder });
   if (!parsed.success) return res.status(400).json({ error: "invalid_folder" });
 
   const folder = parsed.data.folder || "uploads";
   if (!isAllowedFolder(folder)) {
     return res.status(400).json({ error: "invalid_folder" });
+  }
+  if (!isFolderAllowedForRole(req, folder)) {
+    return res.status(403).json({ error: "folder_forbidden" });
   }
 
   if (!process.env.CLOUDINARY_API_SECRET || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_CLOUD_NAME) {
@@ -100,6 +137,9 @@ router.post("/upload", upload.single("file"), async (req, res) => {
   const file = req.file;
   if (!file?.buffer?.length) {
     return res.status(400).json({ error: "file_required" });
+  }
+  if (!isCloudinaryFileTypeAllowed(file.mimetype)) {
+    return res.status(400).json({ error: "invalid_file_type" });
   }
 
   try {

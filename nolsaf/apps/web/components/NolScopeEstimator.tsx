@@ -1722,13 +1722,13 @@ function ResultCard({ result, onRestart, nationality, availableDests }: { result
             )}
           </div>
           
-          {/* Request itinerary */}
+          {/* Direct booking follow-up */}
           <a
-            href="/public/plan-with-us"
+            href="/public/properties"
             className="flex items-center justify-center gap-2 px-4 py-3.5 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all duration-200 shadow-sm hover:shadow-md no-underline"
           >
             <Sparkles className="w-4 h-4" />
-            <span>Request plan</span>
+            <span>Browse stays</span>
           </a>
           
           {/* New estimate */}

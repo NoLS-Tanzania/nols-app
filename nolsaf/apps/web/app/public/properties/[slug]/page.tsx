@@ -1702,17 +1702,7 @@ export default function PublicPropertyDetailPage() {
     let mounted = true;
     const load = async () => {
       try {
-        const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-        if (!token) {
-          if (mounted) setIsOwner(false);
-          return;
-        }
-        
-
         const res = await fetch(`/api/account/me`, {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
           credentials: "include",
         });
         

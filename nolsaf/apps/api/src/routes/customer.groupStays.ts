@@ -38,7 +38,7 @@ router.get("/", async (req, res) => {
     // 1. Calculate accurate counts for filter buttons
     // 2. Show PENDING in "Pending" filter
     // 3. Hide PENDING from "All" filter (handled on frontend)
-    // This matches Plan With Us pattern - visibility is controlled on frontend
+    // Visibility is controlled on frontend.
 
     const pageNum = Number(page);
     const pageSizeNum = Number(pageSize);

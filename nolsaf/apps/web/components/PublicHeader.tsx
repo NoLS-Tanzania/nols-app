@@ -260,7 +260,6 @@ export default function PublicHeader({
     { href: '/public', label: 'Home' },
     { href: '/public/properties', label: 'Properties' },
     { href: '/public/group-stays', label: 'Group Stays' },
-    { href: '/public/plan-with-us', label: 'Plan With Us' },
     { href: '/public/nolscope', label: 'Cost Estimator' },
     { href: '/public/n-sat', label: 'N-SaT' },
   ], []);

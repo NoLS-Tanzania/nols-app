@@ -13,28 +13,7 @@ function unwrapApiData<T = any>(axiosData: any): T {
   return (axiosData && typeof axiosData === "object" && "data" in axiosData) ? (axiosData.data as T) : (axiosData as T);
 }
 
-function authify() {
-  if (typeof window === "undefined") return;
-
-  // Most of the app uses a Bearer token (often stored in localStorage).
-  // The API endpoints are protected by requireAuth, so we must attach it.
-  const lsToken =
-    window.localStorage.getItem("token") ||
-    window.localStorage.getItem("nolsaf_token") ||
-    window.localStorage.getItem("__Host-nolsaf_token");
-
-  if (lsToken) {
-    api.defaults.headers.common["Authorization"] = `Bearer ${lsToken}`;
-    return;
-  }
-
-  // Fallback: non-httpOnly cookie (if present)
-  const m = String(document.cookie || "").match(/(?:^|;\s*)(?:nolsaf_token|__Host-nolsaf_token)=([^;]+)/);
-  const cookieToken = m?.[1] ? decodeURIComponent(m[1]) : "";
-  if (cookieToken) {
-    api.defaults.headers.common["Authorization"] = `Bearer ${cookieToken}`;
-  }
-}
+function authify() {}
 
 // Input sanitization helper
 function sanitizeInput(input: string): string {
@@ -445,35 +424,91 @@ export default function AdminAgentsPage() {
 
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6">
+    <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 xl:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6 min-w-0">
       {/* Header */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-        <div className="flex flex-col items-center gap-4">
-          <div className="flex flex-col items-center gap-3">
-            <div className="h-16 w-16 rounded-full bg-[#02665e]/10 flex items-center justify-center">
-              <UsersRound className="h-8 w-8 text-[#02665e]" />
-            </div>
-            <div className="flex flex-col items-center gap-1">
-              <h1 className="text-2xl font-bold text-gray-900">Agents Management</h1>
-              <p className="text-sm text-gray-500 text-center">Manage hired agents and their assignments</p>
-            </div>
-          </div>
-          <Link
-            href="/admin/management/careers?tab=applications"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-[#02665e] text-white rounded-xl text-sm font-semibold hover:bg-[#014d47] transition-all duration-200 shadow-sm hover:shadow-md hover:scale-105 active:scale-95 no-underline"
-            title="Hire agents via job applications"
+      <div
+        className="relative rounded-2xl overflow-hidden shadow-2xl"
+        style={{ background: "linear-gradient(135deg, #171437 0%, #123d52 42%, #0c6457 100%)", boxShadow: "0 28px 65px -15px rgba(12,100,87,0.42), 0 8px 22px -8px rgba(23,20,55,0.50)" }}
+      >
+        <svg
+          aria-hidden
+          className="absolute inset-0 h-full w-full pointer-events-none select-none"
+          preserveAspectRatio="xMidYMid slice"
+          viewBox="0 0 900 220"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <circle cx="800" cy="42" r="185" stroke="white" strokeOpacity="0.055" strokeWidth="1" fill="none" />
+          <circle cx="110" cy="190" r="120" stroke="white" strokeOpacity="0.045" strokeWidth="1" fill="none" />
+          {[50, 96, 142, 188].map((y) => (
+            <line key={y} x1="0" y1={y} x2="900" y2={y} stroke="rgba(255,255,255,0.028)" strokeWidth="1" />
+          ))}
+          <polyline
+            points="0,170 100,145 210,156 330,118 460,138 590,94 710,116 830,78 900,88"
+            fill="none"
+            stroke="white"
+            strokeOpacity="0.15"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <polygon
+            points="0,170 100,145 210,156 330,118 460,138 590,94 710,116 830,78 900,88 900,220 0,220"
+            fill="white"
+            fillOpacity="0.024"
+          />
+          <radialGradient id="tourCompaniesHeaderGlow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="rgba(45,212,191,0.22)" />
+            <stop offset="100%" stopColor="rgba(45,212,191,0)" />
+          </radialGradient>
+          <ellipse cx="455" cy="112" rx="320" ry="145" fill="url(#tourCompaniesHeaderGlow)" />
+        </svg>
+
+        <div className="relative z-10 flex flex-col items-center text-center px-6 py-10 sm:py-14">
+          <div
+            className="mb-5 inline-flex items-center justify-center rounded-full"
+            style={{
+              width: 64,
+              height: 64,
+              background: "rgba(255,255,255,0.10)",
+              border: "1.5px solid rgba(255,255,255,0.18)",
+              boxShadow: "0 0 0 8px rgba(255,255,255,0.05), 0 8px 32px rgba(0,0,0,0.35)",
+            }}
           >
-            <ExternalLink className="h-4 w-4" />
-            Hire via Applications
-          </Link>
+            <UsersRound className="h-7 w-7" style={{ color: "rgba(255,255,255,0.92)" }} aria-hidden />
+          </div>
+          <div className="text-xs font-black uppercase tracking-widest text-teal-100">Company Operations</div>
+          <h1
+            className="mt-2 text-2xl sm:text-3xl font-bold tracking-tight"
+            style={{ color: "#ffffff", textShadow: "0 2px 12px rgba(0,0,0,0.4)" }}
+          >
+            Tours Companies Management
+          </h1>
+          <p className="mt-2 max-w-2xl text-sm sm:text-base" style={{ color: "rgba(255,255,255,0.60)" }}>
+            Manage hired tour companies, assignments, availability, documents and operating capacity.
+          </p>
+
+          <div className="mt-4">
+            <Link
+              href="/admin/management/careers?tab=applications"
+              className="inline-flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-medium text-white no-underline transition-all duration-150 hover:bg-white/15"
+              style={{ background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.15)" }}
+              title="Hire tour companies via job applications"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              Hire via Applications
+            </Link>
+          </div>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 shadow-sm overflow-hidden transition-all duration-300">
+      <div
+        className="rounded-xl p-4 sm:p-6 overflow-hidden transition-all duration-300 [&_label]:text-white/70"
+        style={{ background: "linear-gradient(135deg, #10182e 0%, #143541 52%, #0f4f45 100%)", border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 8px 32px rgba(0,0,0,0.38), inset 0 1px 0 rgba(255,255,255,0.06)" }}
+      >
         <div className="flex items-center gap-2 mb-5">
-          <Filter className="h-5 w-5 text-[#02665e] transition-transform duration-200" />
-          <h2 className="text-lg font-semibold text-gray-900">Filters</h2>
+          <Filter className="h-5 w-5 transition-transform duration-200" style={{ color: "#5eead4" }} />
+          <h2 className="text-lg font-semibold text-white">Filters</h2>
         </div>
         
         <div className="space-y-5 w-full">
@@ -482,7 +517,7 @@ export default function AdminAgentsPage() {
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none z-10 transition-colors duration-200" />
             <input
               type="text"
-              placeholder="Search agents by name, email, phone..."
+              placeholder="Search tour companies by name, email, phone..."
               value={q}
               onChange={(e) => {
                 const value = e.target.value;
@@ -490,8 +525,8 @@ export default function AdminAgentsPage() {
                   setQ(value);
                 }
               }}
-              aria-label="Search agents by name, email, phone, or other details"
-              title="Search agents"
+              aria-label="Search tour companies by name, email, phone, or other details"
+              title="Search tour companies"
               maxLength={200}
               className="w-full min-w-0 max-w-full pl-12 pr-10 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] outline-none text-sm transition-all duration-200 bg-white hover:border-gray-300 focus:bg-white box-border placeholder:text-gray-400"
             />
@@ -655,7 +690,7 @@ export default function AdminAgentsPage() {
                   setQ("");
                 }}
                 aria-label="Clear all filters"
-                className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-[#02665e] hover:bg-[#02665e]/5 rounded-lg transition-all duration-200"
+                className="px-4 py-2 text-sm font-medium text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-200"
               >
                 Clear all filters
               </button>
@@ -669,14 +704,14 @@ export default function AdminAgentsPage() {
         <div className="bg-white rounded-lg border border-gray-200 p-8 shadow-sm">
           <div className="text-center">
             <Loader2 className="h-6 w-6 text-[#02665e] animate-spin mx-auto mb-2" />
-            <p className="text-gray-500 text-sm">Loading agents...</p>
+            <p className="text-gray-500 text-sm">Loading tour companies...</p>
           </div>
         </div>
       ) : error ? (
         <div className="bg-white rounded-lg border border-red-200 p-8 shadow-sm">
           <div className="text-center">
             <AlertCircle className="h-8 w-8 text-red-600 mx-auto mb-3" />
-            <p className="text-red-800 font-medium mb-2">Failed to load agents</p>
+            <p className="text-red-800 font-medium mb-2">Failed to load tour companies</p>
             <p className="text-red-600 text-sm mb-4">{error}</p>
             <button
               onClick={load}
@@ -692,8 +727,8 @@ export default function AdminAgentsPage() {
         <div className="bg-white rounded-lg border border-gray-200 p-8 shadow-sm">
           <div className="text-center text-gray-500">
             {debouncedQ || status || educationLevel || available || areasOfOperation || specializations || languages
-              ? "No agents found matching your filters"
-              : "No agents found"}
+              ? "No tour companies found matching your filters"
+              : "No tour companies found"}
           </div>
         </div>
       ) : (
@@ -702,7 +737,7 @@ export default function AdminAgentsPage() {
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Agent</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Education</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Experience</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Areas of Operation</th>

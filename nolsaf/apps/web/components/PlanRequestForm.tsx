@@ -1310,7 +1310,7 @@ export default function PlanRequestForm({ selectedRole }: Props) {
         saveFormData();
         try { sessionStorage.setItem('nolsaf_plan_pending_submit', '1'); } catch {}
         setRedirectingToAuth(true);
-        router.push(`/register?next=${encodeURIComponent('/public/plan-with-us')}`);
+        router.push(`/register?next=${encodeURIComponent('/public/nolscope')}`);
         return;
       }
     } catch {

@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React from "react";
-import { Home, LayoutDashboard, Users, Truck, LineChart, Building2, Calendar, FileText, Wallet, Settings, ChevronDown, ChevronRight, ShieldCheck, Receipt, ListFilter, CheckCircle, Award, Megaphone, UserPlus, Trophy, Bell, BarChart3, Activity, Eye, Briefcase, MessageSquare, Ban, Bot, Gift, KeyRound, Play, Calculator, AlertTriangle } from "lucide-react";
+import { Home, LayoutDashboard, Users, Truck, LineChart, Building2, Calendar, FileText, Wallet, Settings, ChevronDown, ChevronRight, ShieldCheck, Receipt, ListFilter, Award, Megaphone, UserPlus, Trophy, Bell, BarChart3, Activity, Eye, Briefcase, MessageSquare, Ban, Bot, Gift, KeyRound, Play, Calculator, AlertTriangle, TrendingUp } from "lucide-react";
 import { useEffect, useState } from "react";
 
 type Item = {
@@ -142,13 +142,11 @@ const groupStayDetails: Item[] = [
   { href: "/admin/group-stays/arrangements", label: "Arrangements", Icon: Settings },
 ];
 
-const planWithUsDetails: Item[] = [
-  { href: "/admin/plan-with-us", label: "Dashboard", Icon: LayoutDashboard },
-  { href: "/admin/plan-with-us/requests", label: "Requests", Icon: FileText },
-  { href: "/admin/plan-with-us/recommended", label: "Recommended", Icon: CheckCircle },
-];
-
 const agentsDetails: Item[] = [
+  { href: "/admin/agents/dashboard", label: "Dashboard", Icon: LayoutDashboard },
+  { href: "/admin/agents/tour-operators", label: "Tour Operator", Icon: Building2 },
+  { href: "/admin/agents/tour-bookings", label: "Tour Booking", Icon: Calendar },
+  { href: "/admin/agents/tour-revenue", label: "Tour Revenue", Icon: TrendingUp },
   { href: "/admin/agents", label: "All Agents", Icon: Users },
   { href: "/admin/agents/ai", label: "Twiga", Icon: MessageSquare },
 ];
@@ -195,7 +193,6 @@ export default function AdminNav({ variant = "light", collapsed = false }: { var
   const [managementOpen, setManagementOpen] = useState(false);
   const [usersOpen, setUsersOpen] = useState(false);
   const [groupStayOpen, setGroupStayOpen] = useState(false);
-  const [planWithUsOpen, setPlanWithUsOpen] = useState(false);
   const [agentsOpen, setAgentsOpen] = useState(false);
   const [cancellationsOpen, setCancellationsOpen] = useState(false);
 
@@ -205,7 +202,6 @@ export default function AdminNav({ variant = "light", collapsed = false }: { var
     if (path.startsWith("/admin/drivers")) return "Drivers";
     if (path.startsWith("/admin/users")) return "Users";
     if (path.startsWith("/admin/group-stays")) return "Group Stay";
-    if (path.startsWith("/admin/plan-with-us")) return "Plan with US";
     if (path.startsWith("/admin/agents")) return "No4P Agents";
     if (path.startsWith("/admin/cancellations")) return "Cancellations";
     if (path.startsWith("/admin/observability")) return "Management";
@@ -263,7 +259,6 @@ export default function AdminNav({ variant = "light", collapsed = false }: { var
     const isImpactCenter = path.startsWith("/admin/impact-center");
     const isUsers = path.startsWith("/admin/users");
     const isGroupStay = path.startsWith("/admin/group-stays");
-    const isPlanWithUs = path.startsWith("/admin/plan-with-us");
     const isAgents = path.startsWith("/admin/agents");
     const isCancellations = path.startsWith("/admin/cancellations");
     // Owner (admin) mini-sidebar: open when on /admin (owners dashboard) or admin child routes
@@ -274,7 +269,7 @@ export default function AdminNav({ variant = "light", collapsed = false }: { var
                                 path === "/admin/properties" || path.startsWith("/admin/properties/") ||
                                 path === "/admin/payments" || path.startsWith("/admin/payments/") ||
                                 path === "/admin/revenue" || path.startsWith("/admin/revenue/")) &&
-                                !isAdminHome && !isDrivers && !isUsers && !isGroupStay && !isPlanWithUs && !isAgents && !isCancellations && !isManagement;
+                                !isAdminHome && !isDrivers && !isUsers && !isGroupStay && !isAgents && !isCancellations && !isManagement;
     setAdminOpen(isAdminChildRoute);
     // Driver mini-sidebar: open when on driver-related routes
     if (isDrivers) setDriverOpen(true);
@@ -285,9 +280,6 @@ export default function AdminNav({ variant = "light", collapsed = false }: { var
     // Group Stay mini-sidebar: open when on group stay routes
     if (isGroupStay) setGroupStayOpen(true);
     else setGroupStayOpen(false);
-    // Plan with US mini-sidebar: open when on plan-with-us routes
-    if (isPlanWithUs) setPlanWithUsOpen(true);
-    else setPlanWithUsOpen(false);
     // Agents mini-sidebar: open when on agents routes
     if (isAgents) setAgentsOpen(true);
     else setAgentsOpen(false);
@@ -493,35 +485,9 @@ export default function AdminNav({ variant = "light", collapsed = false }: { var
           </div>
         )}
 
-        {/* Plan with US */}
-        {collapsed ? (
-          <Item href="/admin/plan-with-us" label="Plan with US" Icon={ListFilter} collapsed={collapsed} path={path} variant={variant} />
-        ) : (
-          <div>
-            <CollapsibleButton 
-              label="Plan with US" 
-              Icon={ListFilter} 
-              isOpen={planWithUsOpen} 
-              onClick={() => setPlanWithUsOpen(v => !v)}
-              collapsed={collapsed}
-              active={activeSection === "Plan with US"}
-            />
-            {planWithUsOpen && (
-              <div className="mt-2">
-                <SectionHeader title="Plan with US" active={activeSection === "Plan with US"} />
-                <div className="mt-2 space-y-2">
-                  {planWithUsDetails.map(({ href: dHref, label: dLabel, Icon: DIcon }) => (
-                    <Item key={dHref} href={dHref} label={dLabel} Icon={DIcon} isSubItem collapsed={collapsed} path={path} variant={variant} />
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
         {/* Agents */}
         {collapsed ? (
-          <Item href="/admin/agents" label="No4P Agents" Icon={Bot} collapsed={collapsed} path={path} variant={variant} />
+          <Item href="/admin/agents/dashboard" label="No4P Agents" Icon={Bot} collapsed={collapsed} path={path} variant={variant} />
         ) : (
           <div>
             <CollapsibleButton 

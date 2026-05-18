@@ -38,9 +38,11 @@ export function middleware(req: NextRequest) {
 
   // Check for both cookie names for compatibility
   const token = req.cookies.get("token")?.value || req.cookies.get("nolsaf_token")?.value || "";
-  // Prefer an explicit role cookie; fallback to token decode stub
+  // Prefer the token role for page routing. Keep the legacy role cookie only as
+  // a fallback for sessions issued before role was included in the JWT.
+  const tokenRole = decodeRoleFromToken(token);
   const cookieRole = req.cookies.get("role")?.value || "";
-  const role = cookieRole || decodeRoleFromToken(token); // dev: we primarily rely on cookie
+  const role = tokenRole || cookieRole;
 
   if (path.startsWith("/admin")) {
     if (role !== "ADMIN") {
@@ -113,7 +115,16 @@ export const config = {
 };
 
 // stub — replace with real decode
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function decodeRoleFromToken(_token: string) {
-  return ""; // "ADMIN" | "OWNER" | ""
+function decodeRoleFromToken(token: string) {
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return "";
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), "=");
+    const decoded = atob(padded);
+    const role = String((JSON.parse(decoded) as { role?: unknown })?.role || "").toUpperCase();
+    return ["ADMIN", "OWNER", "DRIVER", "AGENT", "USER", "CUSTOMER"].includes(role) ? role : "";
+  } catch {
+    return "";
+  }
 }

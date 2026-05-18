@@ -603,7 +603,7 @@ export default function BookingReportsClient() {
       labels: planStatusOrder.map((s) => s.label),
       datasets: [
         {
-          label: "Plan With Us",
+          label: "Legacy planning",
           data: planStatusOrder.map((s) => normalizeCount(totals.planWithUs.byStatus[s.key])),
           backgroundColor: rgbaRamp("245, 158, 11", planStatusOrder.length, 0.22, 0.9),
           borderColor: "rgba(255, 255, 255, 0.95)",
@@ -921,7 +921,7 @@ export default function BookingReportsClient() {
         <div>
           <h1>Management Booking Reports</h1>
           <div class="sub">Range: ${escapeHtml(from)} → ${escapeHtml(to)} • Generated: ${escapeHtml(fmtDateTime(reportId))}</div>
-          <div class="sub">Owner bookings = standard property bookings (not Group stays, not Plan With Us).</div>
+          <div class="sub">Owner bookings = standard property bookings (not Group stays, not legacy planning requests).</div>
         </div>
       </div>
 
@@ -930,7 +930,7 @@ export default function BookingReportsClient() {
         <div class="grid">
           <div class="card"><div style="color:var(--muted); font-size:10px;">Owner bookings</div><div style="margin-top:2px; font-size:15px; font-weight:900; color: var(--brand);">${escapeHtml(fmt(kpiSingle))}</div></div>
           <div class="card"><div style="color:var(--muted); font-size:10px;">Group stays</div><div style="margin-top:2px; font-size:15px; font-weight:900; color: var(--brand);">${escapeHtml(fmt(kpiGroup))}</div></div>
-          <div class="card"><div style="color:var(--muted); font-size:10px;">Plan With Us</div><div style="margin-top:2px; font-size:15px; font-weight:900; color: var(--brand);">${escapeHtml(fmt(kpiPlan))}</div></div>
+          <div class="card"><div style="color:var(--muted); font-size:10px;">Legacy planning</div><div style="margin-top:2px; font-size:15px; font-weight:900; color: var(--brand);">${escapeHtml(fmt(kpiPlan))}</div></div>
         </div>
       </div>
 
@@ -949,8 +949,8 @@ export default function BookingReportsClient() {
             ${groupBarsHtml}
           </div>
           <div class="card">
-            <div style="color:var(--muted); font-size:10px; margin-bottom:6px;">Plan With Us by status</div>
-            ${planStatusImg ? `<img class="chartImg" src="${escapeAttr(planStatusImg)}" alt="Plan With Us chart" />` : ""}
+            <div style="color:var(--muted); font-size:10px; margin-bottom:6px;">Legacy planning by status</div>
+            ${planStatusImg ? `<img class="chartImg" src="${escapeAttr(planStatusImg)}" alt="Legacy planning chart" />` : ""}
           </div>
         </div>
       </div>`
@@ -972,7 +972,7 @@ export default function BookingReportsClient() {
       <div class="divider"></div>
 
       <div class="section">
-        <h2>Plan With Us details</h2>
+        <h2>Legacy planning details</h2>
         <table>${planDetailHead}<tbody>${planDetailRows}</tbody></table>
       </div>
 
@@ -1032,7 +1032,7 @@ export default function BookingReportsClient() {
                   </div>
                   <h2 className="mt-3 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Booking Reports</h2>
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-                    Print-ready booking statistics across owner property bookings, group stays, and Plan With Us requests.
+                    Print-ready booking statistics across owner property bookings, group stays, and legacy planning requests.
                   </p>
                 </div>
 
@@ -1055,7 +1055,7 @@ export default function BookingReportsClient() {
                     Owner bookings
                   </div>
                   <p className="mt-2 text-sm leading-5 text-emerald-950/80">
-                    Standard property bookings, excluding Group stays and Plan With Us.
+                    Standard property bookings, excluding Group stays and legacy planning requests.
                   </p>
                 </div>
                 <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 px-4 py-3">
@@ -1070,7 +1070,7 @@ export default function BookingReportsClient() {
                 <div className="rounded-2xl border border-sky-100 bg-sky-50/70 px-4 py-3">
                   <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-sky-800">
                     <Sliders className="h-4 w-4" aria-hidden />
-                    Plan With Us
+                    Legacy planning
                   </div>
                   <p className="mt-2 text-sm leading-5 text-sky-950/80">
                     Custom planning requests tracked separately from direct bookings.
@@ -1171,7 +1171,7 @@ export default function BookingReportsClient() {
             <div className="bg-white rounded-[18px] border border-slate-200 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.07)] px-5 py-4">
               <div className="flex items-center gap-2">
                 <span className="h-7 w-7 rounded-xl bg-amber-50 flex items-center justify-center"><ClipboardList className="h-3.5 w-3.5 text-amber-500" aria-hidden /></span>
-                <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Plan With Us</div>
+                <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Legacy planning</div>
               </div>
               <div className="mt-2.5 text-3xl font-black text-slate-900 tracking-tight">{fmtInt(kpiPlan)}</div>
             </div>
@@ -1219,7 +1219,7 @@ export default function BookingReportsClient() {
               </div>
 
               <div className="rounded-[16px] border border-slate-100 bg-slate-50/60 p-4">
-                <div className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500 mb-3">Plan With Us by status</div>
+                <div className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500 mb-3">Legacy planning by status</div>
                 <Chart
                   type="doughnut"
                   data={planStatusChartData as any}
@@ -1291,7 +1291,7 @@ export default function BookingReportsClient() {
             <div className="bg-white rounded-[18px] border border-slate-200 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.07)] px-5 py-4">
               <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
                 <span className="h-7 w-7 rounded-xl bg-amber-50 flex items-center justify-center"><ClipboardList className="h-3.5 w-3.5 text-amber-500" aria-hidden /></span>
-                <div className="text-sm font-black text-slate-900">Plan With Us</div>
+                <div className="text-sm font-black text-slate-900">Legacy planning</div>
               </div>
               <div className="mt-3 space-y-1.5">
                 {[
@@ -1434,7 +1434,7 @@ export default function BookingReportsClient() {
           </div>
 
           <div className="bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] px-6 py-5">
-            <div className="text-base font-black text-slate-900 tracking-tight pb-3 border-b border-slate-100">Plan With Us (details)</div>
+            <div className="text-base font-black text-slate-900 tracking-tight pb-3 border-b border-slate-100">Legacy planning (details)</div>
             <div className="mt-3 overflow-x-auto">
               <table className="min-w-full text-sm">
                 <thead>

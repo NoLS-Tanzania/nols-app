@@ -85,6 +85,7 @@ export async function signUserJwt(
     return jwt.sign(
       { 
         sub: String(user.id),
+        role: user.role ? String(user.role).toUpperCase() : undefined,
         iat: Math.floor(Date.now() / 1000), // Issued at time
       },
       JWT_SECRET,

@@ -205,27 +205,9 @@ export default function DriverDashboard({ className }: { className?: string }) {
 
   // Setup Socket.IO for real-time reminder updates
   useEffect(() => {
-    // Auth cookies are forwarded automatically via withCredentials: true.
-    // Only check readable cookies as a transitional fallback.
-    const token = typeof window !== 'undefined' ? (
-      (() => {
-        const m = String(document.cookie || "").match(/(?:^|;\s*)(?:nolsaf_token|__Host-nolsaf_token|token)=([^;]+)/);
-        return m?.[1] ? decodeURIComponent(m[1]) : null;
-      })()
-    ) : null;
-    
     const socket = io(process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000", {
       transports: ["websocket"],
       withCredentials: true, // Send cookies automatically
-      ...(token ? {
-        transportOptions: {
-          polling: {
-            extraHeaders: {
-              Authorization: `Bearer ${token}`
-            }
-          }
-        }
-      } : {}),
     });
 
     socket.on("connect", async () => {

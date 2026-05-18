@@ -1860,10 +1860,10 @@ export default function Page() {
                   {[
                     { title: "Verified Stays",     desc: "Browse and book verified properties with secure payments and instant confirmation codes.", Icon: Home,       href: "/public/properties?page=1", accent: "#38bdf8" },
                     { title: "Group Stays",         desc: "Submit requirements once owners compete with offers. You pick the best fit for your budget.", Icon: Gavel,      href: "/public/group-stays",        accent: "#2dd4bf" },
-                    { title: "Transport",           desc: "Coordinate pickup to your booked property with driver confirmation and safety checks.", Icon: Car,        href: "/public/plan-with-us",       accent: "#38bdf8" },
-                    { title: "Local Guides",        desc: "Connect solo travelers to authentic local experiences through one simple request.", Icon: Users,      href: "/public/plan-with-us",       accent: "#2dd4bf" },
-                    { title: "Plan With Us",        desc: "Let our team coordinate stays, transport, and experiences into one seamless trip.", Icon: Sparkles,   href: "/public/plan-with-us",       accent: "#38bdf8" },
-                    { title: "Support",             desc: "Real support from a real team before, during, and after your trip.", Icon: LifeBuoy,   href: "/public/plan-with-us",       accent: "#2dd4bf" },
+                    { title: "Transport",           desc: "Coordinate pickup to your booked property with driver confirmation and safety checks.", Icon: Car,        href: "/public/nolscope",          accent: "#38bdf8" },
+                    { title: "Local Guides",        desc: "Discover guided local experiences as verified tour operators come online.", Icon: Users,      href: "/public/nolscope",          accent: "#2dd4bf" },
+                    { title: "Cost Estimator",      desc: "Estimate stays, transport, and activities before moving into direct booking.", Icon: Sparkles,   href: "/public/nolscope",          accent: "#38bdf8" },
+                    { title: "Support",             desc: "Real support from a real team before, during, and after your trip.", Icon: LifeBuoy,   href: "/help",                     accent: "#2dd4bf" },
                   ].map(({ title, desc, Icon, href, accent }, idx) => (
                     <motion.div
                       key={title}

@@ -228,10 +228,10 @@ export default async function CountryTourismPage({
                   <ChevronRight className="h-4 w-4" aria-hidden />
                 </Link>
                 <Link
-                  href="/public/plan-with-us"
+                  href="/public/nolscope"
                   className="inline-flex items-center gap-2 rounded-full bg-white/75 ring-1 ring-slate-200/70 px-5 py-2.5 text-slate-900 text-sm font-semibold no-underline hover:no-underline"
                 >
-                  Full tour package
+                  Estimate full trip
                   <ChevronRight className="h-4 w-4" aria-hidden />
                 </Link>
               </div>
@@ -384,10 +384,10 @@ export default async function CountryTourismPage({
                   Accommodation only
                 </Link>
                 <Link
-                  href={`/public/plan-with-us?country=${encodeURIComponent(data.id)}`}
+                  href="/public/nolscope"
                   className="inline-flex items-center justify-center rounded-full px-8 h-11 bg-white/12 ring-1 ring-white/30 text-white text-sm font-semibold no-underline hover:no-underline motion-safe:transition hover:bg-white/18"
                 >
-                  Full tour package
+                  Estimate full trip
                 </Link>
               </div>
             </div>

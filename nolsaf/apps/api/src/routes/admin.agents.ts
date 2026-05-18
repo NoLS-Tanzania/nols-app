@@ -11,6 +11,7 @@ import rateLimit from "express-rate-limit";
 import { Prisma } from "@prisma/client";
 import { sendMail } from "../lib/mailer.js";
 import { getAgentSuspensionEmail, getAgentRestorationEmail } from "../lib/authEmailTemplates.js";
+import jwt from "jsonwebtoken";
 
 // ============================================================
 // Constants
@@ -73,6 +74,14 @@ interface AgentResponse {
   totalCompletedTrips?: number;
   totalRevenueGenerated?: number | string;
   promotionProgress?: any;
+  operatorProfile?: Prisma.JsonValue | null;
+  financialSummary?: {
+    paidCount: number;
+    grossSum: number;
+    commissionSum: number;
+    netSum: number;
+    commissionPercent: number;
+  };
   createdAt: Date;
   updatedAt: Date;
   user: {
@@ -216,6 +225,19 @@ const updateDocStatusSchema = z
   })
   .strict();
 
+const createAgentNoteSchema = z
+  .object({
+    text: z.string().min(1).max(4000),
+  })
+  .strict();
+
+const updateProfileReviewSchema = z
+  .object({
+    status: z.enum(["APPROVED", "REJECTED"]),
+    reason: z.string().max(2000).optional().nullable(),
+  })
+  .strict();
+
 // ============================================================
 // Helper Functions
 // ============================================================
@@ -257,6 +279,7 @@ function formatAgentResponse(agent: any): AgentResponse {
     level: agent.level || DEFAULT_AGENT_LEVEL,
     totalCompletedTrips: agent.totalCompletedTrips || 0,
     totalRevenueGenerated: agent.totalRevenueGenerated || 0,
+    operatorProfile: agent.operatorProfile ?? null,
     createdAt: agent.createdAt,
     updatedAt: agent.updatedAt,
     user: agent.user,
@@ -1031,6 +1054,8 @@ router.get("/:id", validate(getAgentParamsSchema, "params"), async (req: any, re
     // Calculate promotion progress
     const currentTrips = agent.totalCompletedTrips || 0;
     const currentRevenue = Number(agent.totalRevenueGenerated || 0);
+    const commissionAmount = Math.round((currentRevenue * commissionPercent) * 100) / 100;
+    const netRevenue = Math.round((currentRevenue - commissionAmount) * 100) / 100;
     const tripsProgress = Math.min(100, Math.round((currentTrips / minTrips) * 100));
     const revenueProgress = Math.min(100, Math.round((currentRevenue / minRevenue) * 100));
     const overallProgress = Math.min(100, Math.round((tripsProgress + revenueProgress) / 2));
@@ -1054,6 +1079,13 @@ router.get("/:id", validate(getAgentParamsSchema, "params"), async (req: any, re
       },
       assignedPlanRequests: agent.assignedPlanRequests || [],
       reviews: reviews,
+      financialSummary: {
+        paidCount: currentTrips,
+        grossSum: currentRevenue,
+        commissionSum: commissionAmount,
+        netSum: netRevenue,
+        commissionPercent,
+      },
     };
 
     sendSuccess(res, response);
@@ -1167,6 +1199,238 @@ router.patch(
     } catch (err: any) {
       console.error("[PATCH /admin/agents/:id/documents/:docId] Error:", err);
       return sendError(res, 500, "Failed to update document");
+    }
+  },
+);
+
+// ============================================================
+// GET /api/admin/agents/:id/notes
+// ============================================================
+router.get("/:id/notes", validate(getAgentParamsSchema, "params"), async (req: any, res) => {
+  try {
+    const { id } = req.validatedParams;
+    const agent = await prisma.agent.findUnique({ where: { id: Number(id) }, select: { id: true, userId: true } });
+    if (!agent) return sendError(res, 404, "Agent not found");
+
+    const notes = await prisma.adminNote.findMany({
+      where: { ownerId: agent.userId },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+      include: {
+        admin: { select: { id: true, name: true, fullName: true, email: true } },
+      },
+    } as any);
+
+    return sendSuccess(res, { notes });
+  } catch (err: any) {
+    console.error("[GET /admin/agents/:id/notes] Error:", err);
+    return sendError(res, 500, "Failed to fetch agent notes");
+  }
+});
+
+// ============================================================
+// POST /api/admin/agents/:id/notes
+// ============================================================
+router.post(
+  "/:id/notes",
+  validate(getAgentParamsSchema, "params"),
+  validate(createAgentNoteSchema, "body"),
+  async (req: any, res) => {
+    try {
+      const { id } = req.validatedParams;
+      const { text } = req.validatedData;
+      const adminId = getAdminId(req as AuthedRequest);
+
+      const agent = await prisma.agent.findUnique({ where: { id: Number(id) }, select: { id: true, userId: true } });
+      if (!agent) return sendError(res, 404, "Agent not found");
+
+      const cleanText = sanitizeText(String(text || "")).trim();
+      if (!cleanText) return sendError(res, 400, "Note required");
+
+      const note = await prisma.adminNote.create({
+        data: {
+          ownerId: agent.userId,
+          adminId,
+          text: cleanText,
+        },
+      } as any);
+
+      await prisma.adminAudit.create({
+        data: {
+          adminId,
+          targetUserId: agent.userId,
+          action: "ADD_NOTE",
+          details: `Agent note added: ${cleanText.substring(0, 100)}${cleanText.length > 100 ? "..." : ""}`,
+        },
+      });
+
+      await audit(req as AuthedRequest, "AGENT_NOTE_ADDED", `agent:${agent.id}`, null, {
+        text: cleanText.substring(0, 300),
+      });
+
+      return sendSuccess(res, { note }, "Note added successfully");
+    } catch (err: any) {
+      console.error("[POST /admin/agents/:id/notes] Error:", err);
+      return sendError(res, 500, "Failed to add agent note");
+    }
+  },
+);
+
+// ============================================================
+// PATCH /api/admin/agents/:id/profile-review
+// Approve or reject submitted operator profile.
+// ============================================================
+router.patch(
+  "/:id/profile-review",
+  validate(getAgentParamsSchema, "params"),
+  validate(updateProfileReviewSchema, "body"),
+  async (req: any, res) => {
+    try {
+      const { id } = req.validatedParams;
+      const { status, reason } = req.validatedData;
+      const adminId = getAdminId(req as AuthedRequest);
+
+      const agent = await prisma.agent.findUnique({
+        where: { id: Number(id) },
+        select: { id: true, userId: true, operatorProfile: true },
+      });
+      if (!agent) return sendError(res, 404, "Agent not found");
+
+      const cleanReason = sanitizeText(String(reason || "")).trim();
+      const nowIso = new Date().toISOString();
+      const currentProfile = agent.operatorProfile && typeof agent.operatorProfile === "object"
+        ? { ...(agent.operatorProfile as Record<string, any>) }
+        : {};
+
+      currentProfile.review = {
+        status,
+        reason: cleanReason || null,
+        reviewedAt: nowIso,
+        reviewedByAdminId: adminId,
+      };
+      currentProfile.reviewStatus = status;
+      currentProfile.reviewReason = cleanReason || null;
+      currentProfile.reviewedAt = nowIso;
+      currentProfile.reviewedByAdminId = adminId;
+
+      const updated = await prisma.agent.update({
+        where: { id: agent.id },
+        data: { operatorProfile: currentProfile as any },
+        select: { id: true, operatorProfile: true },
+      });
+
+      await prisma.adminAudit.create({
+        data: {
+          adminId,
+          targetUserId: agent.userId,
+          action: status === "APPROVED" ? "APPROVE_OPERATOR_PROFILE" : "REJECT_OPERATOR_PROFILE",
+          details:
+            status === "APPROVED"
+              ? "Submitted operator profile approved"
+              : `Submitted operator profile rejected${cleanReason ? `: ${cleanReason.substring(0, 300)}` : ""}`,
+        },
+      });
+
+      await audit(
+        req as AuthedRequest,
+        status === "APPROVED" ? "OPERATOR_PROFILE_APPROVED" : "OPERATOR_PROFILE_REJECTED",
+        `agent:${agent.id}`,
+        null,
+        {
+          status,
+          reason: cleanReason || null,
+        },
+      );
+
+      return sendSuccess(res, {
+        review: (updated.operatorProfile as any)?.review || null,
+      }, "Profile review updated");
+    } catch (err: any) {
+      console.error("[PATCH /admin/agents/:id/profile-review] Error:", err);
+      return sendError(res, 500, "Failed to update profile review");
+    }
+  },
+);
+
+// ============================================================
+// GET /api/admin/agents/:id/bookings
+// Fetch assigned tour requests with monetized financial details.
+// ============================================================
+router.get(
+  "/:id/bookings",
+  validate(getAgentParamsSchema, "params"),
+  async (req: any, res) => {
+    try {
+      const { id } = req.validatedParams;
+      
+      const agent = await prisma.agent.findUnique({ where: { id: Number(id) }, select: { id: true, userId: true } });
+      if (!agent) return sendError(res, 404, "Agent not found");
+
+      const page = Math.max(1, Number(req.query?.page) || 1);
+      const pageSize = Math.min(100, Math.max(1, Number(req.query?.pageSize) || 25));
+      const skip = (page - 1) * pageSize;
+      const status = String(req.query?.status || "").trim();
+      const search = sanitizeText(String(req.query?.search || "").trim());
+
+      const where: any = { assignedAgentId: agent.id };
+      if (status && status.toLowerCase() !== "all") where.status = status.toUpperCase();
+      if (search) {
+        const maybeId = Number(search);
+        where.OR = [
+          { fullName: { contains: search } },
+          { email: { contains: search } },
+          { phone: { contains: search } },
+          { destinations: { contains: search } },
+          { tripType: { contains: search } },
+          ...(Number.isInteger(maybeId) && maybeId > 0 ? [{ id: maybeId }] : []),
+        ];
+      }
+
+      const settings = await prisma.systemSetting.findFirst({ select: { agentCommissionPercent: true } });
+      const commissionPercent = Number(settings?.agentCommissionPercent ?? 15);
+
+      const [items, total] = await Promise.all([
+        prisma.planRequest.findMany({
+          where,
+          orderBy: { createdAt: "desc" },
+          skip,
+          take: pageSize,
+          select: {
+            id: true,
+            fullName: true,
+            tripType: true,
+            destinations: true,
+            dateFrom: true,
+            dateTo: true,
+            budget: true,
+            status: true,
+            createdAt: true,
+          },
+        }),
+        prisma.planRequest.count({ where }),
+      ]);
+
+      const bookings = items.map((item) => {
+        const amount = item.budget != null ? Number(item.budget) : 0;
+        const platformFee = amount > 0 ? Math.round((amount * commissionPercent) / 100) : 0;
+        return {
+          id: item.id,
+          guestName: item.fullName,
+          property: item.destinations || item.tripType || "Assigned tour request",
+          checkIn: item.dateFrom,
+          checkOut: item.dateTo,
+          amount,
+          platformFee,
+          operatorPayout: Math.max(0, amount - platformFee),
+          status: item.status,
+          createdAt: item.createdAt,
+        };
+      });
+
+      return sendSuccess(res, { bookings, total, page, pageSize });
+    } catch (err: any) {
+      console.error("[GET /admin/agents/:id/bookings] Error:", err);
+      return sendError(res, 500, "Failed to fetch agent bookings");
     }
   },
 );
@@ -1406,6 +1670,14 @@ router.post(
       });
 
       await audit(req as AuthedRequest, "AGENT_SUSPENDED", `agent:${agentId}`, existing, updated);
+      await prisma.adminAudit.create({
+        data: {
+          adminId,
+          targetUserId: existing.userId,
+          action: "AGENT_SUSPEND",
+          details: { reason, caseRef },
+        },
+      });
 
       // Non-blocking notification email
       const recipientEmail = (updated as any).user?.email;
@@ -1477,6 +1749,14 @@ router.post(
       });
 
       await audit(req as AuthedRequest, "AGENT_RESTORED", `agent:${agentId}`, existing, updated);
+      await prisma.adminAudit.create({
+        data: {
+          adminId,
+          targetUserId: existing.userId,
+          action: "AGENT_RESTORE",
+          details: { notes: notes || null, caseRef },
+        },
+      });
 
       // Non-blocking notification email
       const recipientEmail = (updated as any).user?.email;
@@ -1498,6 +1778,55 @@ router.post(
     } catch (err: any) {
       console.error("[POST /admin/agents/:id/restore] Error:", err);
       sendError(res, 500, "Failed to restore agent.");
+    }
+  }
+);
+
+// ============================================================
+// POST /api/admin/agents/:id/impersonate
+// Issue a short-lived AGENT JWT for support troubleshooting.
+// ============================================================
+router.post(
+  "/:id/impersonate",
+  limitAgentSuspendRestore,
+  validate(getAgentParamsSchema, "params"),
+  async (req: any, res) => {
+    try {
+      const { id } = req.validatedParams;
+      const agentId = Number(id);
+
+      const rawReason = String(req.body?.reason ?? "").trim();
+      if (!rawReason || rawReason.length < 10) {
+        return sendError(res, 400, "Impersonation reason must be at least 10 characters.");
+      }
+      if (rawReason.length > 1000) {
+        return sendError(res, 400, "Impersonation reason must not exceed 1000 characters.");
+      }
+      const reason = sanitizeText(rawReason);
+
+      const agent = await prisma.agent.findUnique({ where: { id: agentId }, select: { id: true, userId: true } });
+      if (!agent) return sendError(res, 404, "Agent not found");
+
+      const ttlSec = 10 * 60;
+      const secret = process.env.JWT_SECRET || (process.env.NODE_ENV !== "production" ? (process.env.DEV_JWT_SECRET || "dev_jwt_secret") : "");
+      if (!secret) return sendError(res, 500, "Server JWT secret not configured");
+
+      const token = jwt.sign({ sub: agent.userId, role: "AGENT", imp: true }, secret, { expiresIn: ttlSec });
+
+      await audit(req as AuthedRequest, "AGENT_IMPERSONATE_ISSUE", `agent:${agentId}`, { reason }, { ttlSec });
+      await prisma.adminAudit.create({
+        data: {
+          adminId: getAdminId(req as AuthedRequest),
+          targetUserId: agent.userId,
+          action: "AGENT_IMPERSONATE_ISSUE",
+          details: reason,
+        },
+      });
+
+      return sendSuccess(res, { token, expiresIn: ttlSec }, "Impersonation token issued.");
+    } catch (err: any) {
+      console.error("[POST /admin/agents/:id/impersonate] Error:", err);
+      sendError(res, 500, "Failed to issue impersonation token.");
     }
   }
 );

@@ -1,8 +1,9 @@
 "use client";
 import React, { useCallback, useEffect, useState } from 'react';
-import { Briefcase, Plus, Edit, Trash2, Eye, X, Calendar, MapPin, DollarSign, Clock, CheckCircle2, AlertCircle, FileText, Users, Mail, Phone, ExternalLink, Download, CheckSquare, Square, GraduationCap, Languages } from "lucide-react";
+import { Briefcase, Plus, Edit, Trash2, Eye, X, Calendar, MapPin, Clock, CheckCircle2, AlertCircle, FileText, Users, Mail, Phone, ExternalLink, Download, CheckSquare, Square, Languages, Building2, Handshake } from "lucide-react";
 import PDFViewer from "@/components/PDFViewer";
 import DatePicker from "@/components/ui/DatePicker";
+import { normalizePartnershipProfile } from "@/components/careers/partnershipProfile";
 import { useSearchParams } from "next/navigation";
 
 type Job = {
@@ -47,10 +48,6 @@ type JobFormData = {
   benefits: string[];
   experienceLevel: string;
   requiredEducationLevel: string;
-  salaryMin: string;
-  salaryMax: string;
-  salaryCurrency: string;
-  salaryPeriod: string;
   applicationDeadline: string;
   featured: boolean;
   status: string;
@@ -58,7 +55,9 @@ type JobFormData = {
 };
 
 const CATEGORIES = ["ENGINEERING", "DESIGN", "MARKETING", "SALES", "OPERATIONS", "SUPPORT", "MANAGEMENT", "OTHER"];
-const TYPES = ["FULL_TIME", "PART_TIME", "CONTRACT", "INTERNSHIP", "FREELANCE"];
+const EMPLOYMENT_TYPES = ["FULL_TIME", "PART_TIME", "CONTRACT", "INTERNSHIP", "FREELANCE"];
+const PARTNERSHIP_TYPES = ["PARTNERSHIP", "AGENCY_AGREEMENT", "RESELLER", "AFFILIATE", "WHITE_LABEL"];
+const TYPES = [...EMPLOYMENT_TYPES, ...PARTNERSHIP_TYPES];
 const LOCATIONS = ["REMOTE", "ONSITE", "HYBRID"];
 const EXPERIENCE_LEVELS = ["ENTRY", "MID", "SENIOR", "LEAD"];
 
@@ -115,10 +114,6 @@ export default function CareersManagement() {
     benefits: [""],
     experienceLevel: "ENTRY",
     requiredEducationLevel: "",
-    salaryMin: "",
-    salaryMax: "",
-    salaryCurrency: "TZS",
-    salaryPeriod: "MONTHLY",
     applicationDeadline: "",
     featured: false,
     status: "ACTIVE",
@@ -207,12 +202,12 @@ export default function CareersManagement() {
     try {
       const url = `${apiBase.replace(/\/$/, '')}/api/admin/careers?page=1&pageSize=100`;
       const r = await fetch(url, { credentials: 'include' });
-      if (!r.ok) throw new Error('Failed to fetch jobs');
+      if (!r.ok) throw new Error('Failed to fetch partnership forms');
       const data = await r.json();
       setJobs(data.jobs || []);
     } catch (e: any) {
-      console.error('Error loading jobs:', e);
-      setError(e.message || 'Failed to load jobs');
+      console.error('Error loading partnership forms:', e);
+      setError(e.message || 'Failed to load partnership forms');
     } finally {
       setLoading(false);
     }
@@ -244,10 +239,6 @@ export default function CareersManagement() {
       benefits: [""],
       experienceLevel: "ENTRY",
       requiredEducationLevel: "",
-      salaryMin: "",
-      salaryMax: "",
-      salaryCurrency: "TZS",
-      salaryPeriod: "MONTHLY",
       applicationDeadline: "",
       featured: false,
       status: "ACTIVE",
@@ -272,10 +263,6 @@ export default function CareersManagement() {
       benefits: job.benefits.length > 0 ? job.benefits : [""],
       experienceLevel: job.experienceLevel,
       requiredEducationLevel: job.requiredEducationLevel || "",
-      salaryMin: job.salary?.min ? String(job.salary.min) : "",
-      salaryMax: job.salary?.max ? String(job.salary.max) : "",
-      salaryCurrency: job.salary?.currency || "TZS",
-      salaryPeriod: job.salary?.period || "MONTHLY",
       applicationDeadline: job.applicationDeadline ? new Date(job.applicationDeadline).toISOString().split('T')[0] : "",
       featured: job.featured,
       status: job.status,
@@ -297,12 +284,12 @@ export default function CareersManagement() {
         method: 'DELETE',
         credentials: 'include'
       });
-      if (!r.ok) throw new Error('Failed to delete job');
-      setSuccess('Job deleted successfully');
+      if (!r.ok) throw new Error('Failed to delete partnership form');
+      setSuccess('Partnership form deleted successfully');
       loadJobs();
       setTimeout(() => setSuccess(null), 3000);
     } catch (e: any) {
-      setError(e.message || 'Failed to delete job');
+      setError(e.message || 'Failed to delete partnership form');
       setTimeout(() => setError(null), 5000);
     } finally {
       setIsDeleting(false);
@@ -317,13 +304,6 @@ export default function CareersManagement() {
     setSuccess(null);
 
     try {
-      const salary = (formData.salaryMin || formData.salaryMax) ? {
-        min: formData.salaryMin ? Number(formData.salaryMin) : undefined,
-        max: formData.salaryMax ? Number(formData.salaryMax) : undefined,
-        currency: formData.salaryCurrency,
-        period: formData.salaryPeriod as "MONTHLY" | "YEARLY"
-      } : null;
-
       const finalTitle = formData.title;
 
       const payload = {
@@ -339,7 +319,7 @@ export default function CareersManagement() {
         benefits: formData.benefits.filter(b => b.trim()),
         experienceLevel: formData.experienceLevel,
         requiredEducationLevel: formData.requiredEducationLevel || null,
-        salary,
+        salary: null,
         applicationDeadline: formData.applicationDeadline || null,
         featured: formData.featured,
         status: formData.status,
@@ -361,15 +341,15 @@ export default function CareersManagement() {
 
       if (!r.ok) {
         const errorData = await r.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to save job');
+        throw new Error(errorData.error || 'Failed to save partnership form');
       }
 
-      setSuccess(editingJob ? 'Job updated successfully' : 'Job created successfully');
+      setSuccess(editingJob ? 'Partnership form updated successfully' : 'Partnership form created successfully');
       resetForm();
       loadJobs();
       setTimeout(() => setSuccess(null), 3000);
     } catch (e: any) {
-      setError(e.message || 'Failed to save job');
+      setError(e.message || 'Failed to save partnership form');
       setTimeout(() => setError(null), 5000);
     } finally {
       setSaving(false);
@@ -401,14 +381,10 @@ export default function CareersManagement() {
     return new Date(dateString).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
   };
 
-  const formatSalary = (salary: Job['salary']) => {
-    if (!salary || (!salary.min && !salary.max)) return "Competitive";
-    const currency = salary.currency || "TZS";
-    const period = salary.period === "YEARLY" ? "year" : "month";
-    if (salary.min && salary.max) {
-      return `${(salary.min / 1000).toFixed(0)}K - ${(salary.max / 1000).toFixed(0)}K ${currency}/${period}`;
-    }
-    return `${((salary.min || salary.max || 0) / 1000).toFixed(0)}K ${currency}/${period}`;
+  const displayStatus = (status: string) => {
+    if (status === "HIRED") return "APPROVED";
+    if (status === "SHORTLISTED") return "QUALIFIED";
+    return status;
   };
 
   const updateApplicationStatus = async (applicationId: number, status: string, notes?: string) => {
@@ -433,14 +409,14 @@ export default function CareersManagement() {
         credentials: 'include',
         body: JSON.stringify({ status, adminNotes: notes })
       });
-      if (!r.ok) throw new Error('Failed to update application');
+      if (!r.ok) throw new Error('Failed to update company application');
       const updated = await r.json();
       if (updated.emailWarning) {
         setSuccess(`Status updated. Note: ${updated.emailWarning}`);
       } else if (updated.emailSent) {
-        setSuccess('Application status updated — email notification sent to applicant.');
+        setSuccess('Application status updated - email notification sent to company contact.');
       } else {
-        setSuccess('Application status updated successfully');
+        setSuccess('Company application status updated successfully');
       }
       loadApplications();
       if (viewingApplication?.id === applicationId) {
@@ -448,7 +424,7 @@ export default function CareersManagement() {
       }
       setTimeout(() => setSuccess(null), 5000);
     } catch (e: any) {
-      setError(e.message || 'Failed to update application');
+      setError(e.message || 'Failed to update company application');
       setTimeout(() => setError(null), 5000);
     } finally {
       setUpdatingStatus(null);
@@ -468,10 +444,10 @@ export default function CareersManagement() {
 
   const handleViewResume = async (applicationId: number) => {
     try {
-      // Check if application has resume data before attempting to fetch
+      // Check if application has document data before attempting to fetch
       const application = applications.find(app => app.id === applicationId) || viewingApplication;
       if (application && !application.resumeStorageKey && !application.resumeUrl) {
-        setError('Resume file is not available. The resume may not have been uploaded successfully.');
+        setError('Application document is not available. It may not have been uploaded successfully.');
         setTimeout(() => setError(null), 5000);
         return;
       }
@@ -482,19 +458,19 @@ export default function CareersManagement() {
         const errorData = await r.json().catch(() => ({}));
         const errorMessage = errorData.error || `Failed to get resume URL: ${r.status}`;
         if (errorMessage.includes('not available') || errorMessage.includes('Resume not available')) {
-          throw new Error('Resume file is not available. The resume may not have been uploaded successfully or may have been deleted.');
+          throw new Error('Application document is not available. It may not have been uploaded successfully or may have been deleted.');
         }
         throw new Error(errorMessage);
       }
       const data = await r.json();
       if (!data.url) {
-        throw new Error('Resume URL not available');
+        throw new Error('Application document URL not available');
       }
       setResumeViewUrl(data.url);
       setViewingResume(true);
     } catch (e: any) {
-      console.error('Error loading resume:', e);
-      setError(e.message || 'Failed to load resume');
+      console.error('Error loading application document:', e);
+      setError(e.message || 'Failed to load application document');
       setTimeout(() => setError(null), 5000);
     }
   };
@@ -504,7 +480,7 @@ export default function CareersManagement() {
       <div className="space-y-6">
         <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
           <div className="flex items-center justify-between mb-6">
-            <h1 className="text-2xl font-bold text-gray-900">Job Details</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Partnership Form Details</h1>
             <button
               onClick={() => setViewingJob(null)}
               className="p-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 hover:border-gray-300 rounded-lg transition-all duration-200 text-gray-600 hover:text-gray-900 group"
@@ -533,14 +509,14 @@ export default function CareersManagement() {
                 viewingJob.status === 'CLOSED' ? 'bg-gray-100 text-gray-800' :
                 'bg-yellow-100 text-yellow-800'
               }`}>
-                {viewingJob.status}
+                {displayStatus(viewingJob.status)}
               </span>
             </div>
             
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div className="flex items-center gap-2 text-gray-600">
                 <Calendar size={16} />
-                <span>Posted: {formatDate(viewingJob.postedDate)}</span>
+                <span>Opened: {formatDate(viewingJob.postedDate)}</span>
               </div>
               {viewingJob.applicationDeadline && (
                 <div className="flex items-center gap-2 text-gray-600">
@@ -548,10 +524,6 @@ export default function CareersManagement() {
                   <span>Expires: {formatDate(viewingJob.applicationDeadline)}</span>
                 </div>
               )}
-              <div className="flex items-center gap-2 text-gray-600">
-                <DollarSign size={16} />
-                <span>{formatSalary(viewingJob.salary)}</span>
-              </div>
               {viewingJob.locationDetail && (
                 <div className="flex items-center gap-2 text-gray-600">
                   <MapPin size={16} />
@@ -561,12 +533,12 @@ export default function CareersManagement() {
             </div>
             
             <div>
-              <h3 className="font-bold text-gray-900 mb-2">Description</h3>
+              <h3 className="font-bold text-gray-900 mb-2">Partnership Brief</h3>
               <p className="text-gray-700 whitespace-pre-wrap">{viewingJob.description}</p>
             </div>
             
             <div>
-              <h3 className="font-bold text-gray-900 mb-2">Responsibilities</h3>
+              <h3 className="font-bold text-gray-900 mb-2">Company Expectations</h3>
               <ul className="list-disc list-inside space-y-1 text-gray-700">
                 {viewingJob.responsibilities.map((r, i) => (
                   <li key={i}>{r}</li>
@@ -575,7 +547,7 @@ export default function CareersManagement() {
             </div>
             
             <div>
-              <h3 className="font-bold text-gray-900 mb-2">Requirements</h3>
+              <h3 className="font-bold text-gray-900 mb-2">Approval Requirements</h3>
               <ul className="list-disc list-inside space-y-1 text-gray-700">
                 {viewingJob.requirements.map((r, i) => (
                   <li key={i}>{r}</li>
@@ -585,7 +557,7 @@ export default function CareersManagement() {
             
             {viewingJob.benefits.length > 0 && (
               <div>
-                <h3 className="font-bold text-gray-900 mb-2">Benefits</h3>
+                <h3 className="font-bold text-gray-900 mb-2">Partnership Benefits</h3>
                 <ul className="list-disc list-inside space-y-1 text-gray-700">
                   {viewingJob.benefits.map((b, i) => (
                     <li key={i}>{b}</li>
@@ -602,26 +574,28 @@ export default function CareersManagement() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="group bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-        <div className="flex flex-col items-center text-center mb-4">
-          <Briefcase className="h-8 w-8 text-gray-400 mb-3" />
+      <div className="group overflow-hidden rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-cyan-50 p-6 shadow-sm">
+        <div className="flex flex-col items-center text-center mb-5">
+          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#02665e] text-white shadow-lg shadow-emerald-900/10">
+            <Handshake className="h-8 w-8" />
+          </div>
           <h1 className="relative text-2xl sm:text-3xl font-semibold tracking-tight">
             <span className="text-gray-900 transition-colors duration-300 group-focus-within:text-transparent">
-              Careers Management
+              Tour Partnerships Management
             </span>
             <span
               aria-hidden
               className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#02665e] via-gray-900 to-[#02665e] bg-clip-text text-transparent opacity-0 transition-opacity duration-500 group-focus-within:opacity-100"
             >
-              Careers Management
+              Tour Partnerships Management
             </span>
             <span
               aria-hidden
               className="pointer-events-none absolute left-1/2 top-full mt-2 h-[2px] w-0 -translate-x-1/2 bg-gradient-to-r from-transparent via-[#02665e]/60 to-transparent transition-[width] duration-500 group-focus-within:w-24"
             />
           </h1>
-          <p className="mt-1 text-sm text-gray-600">
-            Create, update, and manage job postings
+          <p className="mt-2 max-w-2xl text-sm text-gray-600">
+            Open partnership forms, review tour company applications, and approve operators into the tours workflow.
           </p>
         </div>
         
@@ -637,7 +611,7 @@ export default function CareersManagement() {
               }`}
             >
               <div className="flex items-center gap-2">
-                <Briefcase 
+                <Building2 
                   size={18} 
                   className={`transition-all duration-300 ${
                     activeTab === 'jobs' 
@@ -645,7 +619,7 @@ export default function CareersManagement() {
                       : 'group-hover:scale-110'
                   }`} 
                 />
-                <span className="relative z-10">Jobs</span>
+                <span className="relative z-10">Partnership Forms</span>
               </div>
             </button>
             <button
@@ -665,7 +639,7 @@ export default function CareersManagement() {
                       : 'group-hover:scale-110'
                   }`} 
                 />
-                <span className="relative z-10">Applications</span>
+                <span className="relative z-10">Company Applications</span>
               </div>
             </button>
           </div>
@@ -681,7 +655,7 @@ export default function CareersManagement() {
               className="flex items-center gap-2 px-4 py-2 bg-[#02665e] text-white rounded-lg font-semibold hover:bg-[#024d47] transition-colors"
             >
               <Plus size={20} />
-              New Job
+              Open Partnership Form
             </button>
           </div>
         )}
@@ -707,7 +681,7 @@ export default function CareersManagement() {
           <div className="bg-white rounded-2xl max-w-5xl w-full max-h-[95vh] overflow-hidden shadow-2xl flex flex-col">
             <div className="sticky top-0 bg-white border-b border-gray-200 p-4 sm:p-6 flex items-center justify-between z-10 flex-shrink-0">
               <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
-                {editingJob ? 'Edit Job' : 'Create New Job'}
+                {editingJob ? 'Edit Partnership Form' : 'Create Partnership Form'}
               </h2>
               <button
                 onClick={resetForm}
@@ -724,14 +698,14 @@ export default function CareersManagement() {
                 <div className="pb-2 border-b border-gray-200">
                   <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                     <Briefcase size={20} className="text-[#02665e]" />
-                    Basic Information
+                    Partnership Basics
                   </h3>
-                  <p className="text-sm text-gray-500 mt-1">Essential details about the job position</p>
+                  <p className="text-sm text-gray-500 mt-1">Essential details about the tour company partnership opening</p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="min-w-0">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Job Title <span className="text-red-500">*</span>
+                      Partnership Title <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -739,13 +713,13 @@ export default function CareersManagement() {
                       value={formData.title}
                       onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                       className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] transition-colors box-border"
-                      placeholder="e.g., Senior Full Stack Developer"
+                      placeholder="e.g., Zanzibar Tour Company Partnership"
                     />
                   </div>
 
                   <div className="min-w-0">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Department <span className="text-red-500">*</span>
+                      Program Owner <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -753,20 +727,20 @@ export default function CareersManagement() {
                       value={formData.department}
                       onChange={(e) => setFormData({ ...formData, department: e.target.value })}
                       className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] transition-colors box-border"
-                      placeholder="e.g., Engineering"
+                      placeholder="e.g., Tour Operations"
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Section 2: Job Classification */}
+              {/* Section 2: Partnership Classification */}
               <div className="space-y-4">
                 <div className="pb-2 border-b border-gray-200">
                   <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                     <FileText size={20} className="text-[#02665e]" />
-                    Job Classification
+                    Partnership Classification
                   </h3>
-                  <p className="text-sm text-gray-500 mt-1">Categorize and classify the job position</p>
+                  <p className="text-sm text-gray-500 mt-1">Categorize how this company partnership should be reviewed</p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="min-w-0">
@@ -787,7 +761,7 @@ export default function CareersManagement() {
 
                   <div className="min-w-0">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Job Type <span className="text-red-500">*</span>
+                      Engagement Type <span className="text-red-500">*</span>
                     </label>
                     <select
                       required
@@ -803,7 +777,7 @@ export default function CareersManagement() {
 
                   <div className="min-w-0">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Experience Level <span className="text-red-500">*</span>
+                      Readiness Level <span className="text-red-500">*</span>
                     </label>
                     <select
                       required
@@ -870,14 +844,14 @@ export default function CareersManagement() {
                 <div className="pb-2 border-b border-gray-200">
                   <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                     <MapPin size={20} className="text-[#02665e]" />
-                    Location Details
+                    Operating Area
                   </h3>
-                  <p className="text-sm text-gray-500 mt-1">Specify where the job will be performed</p>
+                  <p className="text-sm text-gray-500 mt-1">Specify where the tour company will operate</p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="min-w-0">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Location Type <span className="text-red-500">*</span>
+                      Partnership Mode <span className="text-red-500">*</span>
                     </label>
                     <select
                       required
@@ -901,87 +875,20 @@ export default function CareersManagement() {
                       value={formData.locationDetail}
                       onChange={(e) => setFormData({ ...formData, locationDetail: e.target.value })}
                       className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] transition-colors box-border"
-                      placeholder="e.g., Dar es Salaam, Tanzania"
+                      placeholder="e.g., Arusha, Zanzibar, Serengeti"
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Section 4: Compensation */}
-              <div className="space-y-4">
-                <div className="pb-2 border-b border-gray-200">
-                  <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                    <DollarSign size={20} className="text-[#02665e]" />
-                    Compensation
-                  </h3>
-                  <p className="text-sm text-gray-500 mt-1">Salary and compensation details</p>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div className="min-w-0">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Salary Min (TZS)
-                    </label>
-                    <input
-                      type="number"
-                      value={formData.salaryMin}
-                      onChange={(e) => setFormData({ ...formData, salaryMin: e.target.value })}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] transition-colors box-border"
-                      placeholder="e.g., 2000000"
-                    />
-                  </div>
-
-                  <div className="min-w-0">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Salary Max (TZS)
-                    </label>
-                    <input
-                      type="number"
-                      value={formData.salaryMax}
-                      onChange={(e) => setFormData({ ...formData, salaryMax: e.target.value })}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] transition-colors box-border"
-                      placeholder="e.g., 4000000"
-                    />
-                  </div>
-
-                  <div className="min-w-0">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Currency
-                    </label>
-                    <select
-                      value={formData.salaryCurrency}
-                      onChange={(e) => setFormData({ ...formData, salaryCurrency: e.target.value })}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] transition-colors bg-white box-border"
-                    >
-                      <option value="TZS">TZS</option>
-                      <option value="USD">USD</option>
-                      <option value="EUR">EUR</option>
-                    </select>
-                  </div>
-
-                  <div className="min-w-0">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Period
-                    </label>
-                    <select
-                      value={formData.salaryPeriod}
-                      onChange={(e) => setFormData({ ...formData, salaryPeriod: e.target.value })}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] transition-colors bg-white box-border"
-                    >
-                      <option value="MONTHLY">Monthly</option>
-                      <option value="YEARLY">Yearly</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {/* Section 5: Job Description */}
+              {/* Section 4: Partnership Brief */}
               <div className="space-y-4">
                 <div className="pb-2 border-b border-gray-200">
                   <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                     <FileText size={20} className="text-[#02665e]" />
-                    Job Description
+                    Partnership Brief
                   </h3>
-                  <p className="text-sm text-gray-500 mt-1">Provide a detailed description of the role</p>
+                  <p className="text-sm text-gray-500 mt-1">Describe the partnership opportunity and what kind of tour company should apply</p>
                 </div>
                 <div className="min-w-0">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -993,7 +900,7 @@ export default function CareersManagement() {
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] transition-colors resize-none box-border"
-                    placeholder="Provide a comprehensive description of the job role, responsibilities, and what makes this position unique..."
+                    placeholder="Describe the partnership, tour categories, operating expectations, and what makes this opportunity valuable..."
                   />
                 </div>
               </div>
@@ -1001,8 +908,8 @@ export default function CareersManagement() {
               {/* Section 6: Responsibilities */}
               <div className="space-y-4">
                 <div className="pb-2 border-b border-gray-200">
-                  <h3 className="text-lg font-semibold text-gray-900">Key Responsibilities</h3>
-                  <p className="text-sm text-gray-500 mt-1">List the main duties and responsibilities</p>
+                  <h3 className="text-lg font-semibold text-gray-900">Company Expectations</h3>
+                  <p className="text-sm text-gray-500 mt-1">List the operating expectations for partner tour companies</p>
                 </div>
                 <div className="space-y-3">
                   {formData.responsibilities.map((resp, idx) => (
@@ -1015,7 +922,7 @@ export default function CareersManagement() {
                         value={resp}
                         onChange={(e) => updateListItem('responsibilities', idx, e.target.value)}
                         className="flex-1 min-w-0 px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] transition-colors box-border"
-                        placeholder={`Enter responsibility ${idx + 1}...`}
+                        placeholder={`Enter expectation ${idx + 1}...`}
                       />
                       <button
                         type="button"
@@ -1032,7 +939,7 @@ export default function CareersManagement() {
                     className="text-sm font-medium text-[#02665e] hover:text-[#024d47] flex items-center gap-1 transition-colors"
                   >
                     <Plus size={16} />
-                    Add Responsibility
+                    Add Expectation
                   </button>
                 </div>
               </div>
@@ -1040,8 +947,8 @@ export default function CareersManagement() {
               {/* Section 7: Requirements */}
               <div className="space-y-4">
                 <div className="pb-2 border-b border-gray-200">
-                  <h3 className="text-lg font-semibold text-gray-900">Requirements</h3>
-                  <p className="text-sm text-gray-500 mt-1">Specify the skills and qualifications needed</p>
+                  <h3 className="text-lg font-semibold text-gray-900">Approval Requirements</h3>
+                  <p className="text-sm text-gray-500 mt-1">Specify documents, licences, and business requirements needed</p>
                 </div>
                 <div className="space-y-3">
                   {formData.requirements.map((req, idx) => (
@@ -1079,8 +986,8 @@ export default function CareersManagement() {
               {/* Section 8: Benefits */}
               <div className="space-y-4">
                 <div className="pb-2 border-b border-gray-200">
-                  <h3 className="text-lg font-semibold text-gray-900">Benefits</h3>
-                  <p className="text-sm text-gray-500 mt-1">List the benefits and perks offered</p>
+                  <h3 className="text-lg font-semibold text-gray-900">Partnership Benefits</h3>
+                  <p className="text-sm text-gray-500 mt-1">List benefits offered to approved tour companies</p>
                 </div>
                 <div className="space-y-3">
                   {formData.benefits.map((benefit, idx) => (
@@ -1123,18 +1030,29 @@ export default function CareersManagement() {
                 </div>
                 <div className="flex flex-col gap-6">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
-                    <label className="flex items-center gap-3 cursor-pointer group">
-                      <input
-                        type="checkbox"
-                        checked={formData.featured}
-                        onChange={(e) => setFormData({ ...formData, featured: e.target.checked })}
-                        className="w-5 h-5 text-[#02665e] border-gray-300 rounded focus:ring-[#02665e] focus:ring-2 cursor-pointer"
-                      />
+                    <div className="flex items-start gap-3">
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={formData.featured}
+                        onClick={() => setFormData((prev) => ({ ...prev, featured: !prev.featured }))}
+                        className={`mt-0.5 flex h-7 w-12 flex-shrink-0 items-center rounded-full border p-1 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e] focus-visible:ring-offset-2 ${
+                          formData.featured
+                            ? "border-[#02665e] bg-[#02665e]"
+                            : "border-gray-300 bg-gray-200"
+                        }`}
+                      >
+                        <span
+                          className={`h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                            formData.featured ? "translate-x-5" : "translate-x-0"
+                          }`}
+                        />
+                      </button>
                       <div>
-                        <span className="text-sm font-semibold text-gray-900 block">Featured Job</span>
-                        <span className="text-xs text-gray-500">Highlight this job on the careers page</span>
+                        <span className="text-sm font-semibold text-gray-900 block">Featured Partnership</span>
+                        <span className="text-xs text-gray-500">Highlight this opening on the public partnership page</span>
                       </div>
-                    </label>
+                    </div>
 
                     <div className="flex-1 max-w-xs">
                       <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1152,41 +1070,42 @@ export default function CareersManagement() {
                     </div>
                   </div>
 
-                  {/* Travel Agent Position Toggle */}
+                  {/* Tour Company Partnership Toggle */}
                   <div className="border-t border-gray-200 pt-4">
-                    <label className="flex items-start gap-3 cursor-pointer group">
-                      <input
-                        type="checkbox"
-                        checked={formData.isTravelAgentPosition}
-                        onChange={(e) => setFormData({ ...formData, isTravelAgentPosition: e.target.checked })}
-                        className="w-5 h-5 text-[#02665e] border-gray-300 rounded focus:ring-[#02665e] focus:ring-2 cursor-pointer mt-0.5"
-                      />
-                      <div>
-                        <span className="text-sm font-semibold text-gray-900 block">Travel Agent Position</span>
-                        <span className="text-xs text-gray-500">Enable this if this job is for a Travel Agent. Applicants will be asked to provide agent-specific information (education, areas of operation, languages, certifications, etc.). When approved, an Agent profile will be automatically created.</span>
-                      </div>
-                    </label>
+                    <div className="flex items-start gap-3">
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={formData.isTravelAgentPosition}
+                        onClick={() =>
+                          setFormData((prev) => {
+                            const nextIsPartnership = !prev.isTravelAgentPosition;
+                            const shouldNormalizeType =
+                              nextIsPartnership && EMPLOYMENT_TYPES.includes(prev.type);
 
-                    <div className="mt-4 max-w-xs">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Required Education Level (Optional)
-                      </label>
-                      <select
-                        value={formData.requiredEducationLevel}
-                        onChange={(e) => setFormData({ ...formData, requiredEducationLevel: e.target.value })}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] transition-colors bg-white"
+                            return {
+                              ...prev,
+                              isTravelAgentPosition: nextIsPartnership,
+                              type: shouldNormalizeType ? "PARTNERSHIP" : prev.type,
+                            };
+                          })
+                        }
+                        className={`mt-0.5 flex h-7 w-12 flex-shrink-0 items-center rounded-full border p-1 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e] focus-visible:ring-offset-2 ${
+                          formData.isTravelAgentPosition
+                            ? "border-[#02665e] bg-[#02665e]"
+                            : "border-gray-300 bg-gray-200"
+                        }`}
                       >
-                        <option value="">No requirement</option>
-                        <option value="HIGH_SCHOOL">High School</option>
-                        <option value="DIPLOMA">Diploma</option>
-                        <option value="BACHELORS">Bachelors</option>
-                        <option value="MASTERS">Masters</option>
-                        <option value="PHD">PhD</option>
-                        <option value="OTHER">Other</option>
-                      </select>
-                      <p className="text-xs text-gray-500 mt-1">
-                        If set, applicants must match this education level to apply.
-                      </p>
+                        <span
+                          className={`h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                            formData.isTravelAgentPosition ? "translate-x-5" : "translate-x-0"
+                          }`}
+                        />
+                      </button>
+                      <div>
+                        <span className="text-sm font-semibold text-gray-900 block">Tour Company Partnership</span>
+                        <span className="text-xs text-gray-500">Use this for tour-company onboarding. Approved applications will create an operator account for the company.</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1206,7 +1125,7 @@ export default function CareersManagement() {
                   disabled={saving}
                   className="flex-1 px-6 py-3 bg-[#02665e] text-white rounded-lg font-semibold hover:bg-[#024d47] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {saving ? 'Saving...' : editingJob ? 'Update Job' : 'Create Job'}
+                  {saving ? 'Saving...' : editingJob ? 'Update Partnership Form' : 'Create Partnership Form'}
                 </button>
               </div>
             </form>
@@ -1233,17 +1152,17 @@ export default function CareersManagement() {
                   <option value="REVIEWING">Reviewing</option>
                   <option value="SHORTLISTED">Shortlisted</option>
                   <option value="REJECTED">Rejected</option>
-                  <option value="HIRED">Hired</option>
+                  <option value="HIRED">Approved</option>
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Filter by Job</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Filter by Partnership Form</label>
                 <select
                   value={applicationJobFilter}
                   onChange={(e) => setApplicationJobFilter(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e]"
                 >
-                  <option value="ALL">All Jobs</option>
+                  <option value="ALL">All Partnership Forms</option>
                   {jobs.map(job => (
                     <option key={job.id} value={job.id}>{job.title}</option>
                   ))}
@@ -1255,11 +1174,11 @@ export default function CareersManagement() {
           {/* Applications List */}
           <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
             {applicationsLoading ? (
-              <div className="p-8 text-center text-gray-500">Loading applications...</div>
+              <div className="p-8 text-center text-gray-500">Loading company applications...</div>
             ) : applications.length === 0 ? (
               <div className="p-8 text-center text-gray-500">
                 <Users className="mx-auto mb-4 text-gray-400" size={48} />
-                <p>No applications found.</p>
+                <p>No company applications found.</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -1279,8 +1198,8 @@ export default function CareersManagement() {
                           )}
                         </button>
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Applicant</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Job</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company Contact</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Partnership Form</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Submitted</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
@@ -1320,7 +1239,7 @@ export default function CareersManagement() {
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap">
                           <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(app.status)}`}>
-                            {app.status}
+                            {displayStatus(app.status)}
                           </span>
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
@@ -1349,20 +1268,20 @@ export default function CareersManagement() {
       {activeTab === 'jobs' && (
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
           {loading ? (
-            <div className="p-8 text-center text-gray-500">Loading jobs...</div>
+            <div className="p-8 text-center text-gray-500">Loading partnership forms...</div>
           ) : jobs.length === 0 ? (
             <div className="p-8 text-center text-gray-500">
               <Briefcase className="mx-auto mb-4 text-gray-400" size={48} />
-              <p>No jobs found. Create your first job posting!</p>
+              <p>No partnership forms found. Open your first tour company partnership form.</p>
             </div>
           ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Partnership</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Program Owner</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Engagement</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Posted</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
@@ -1387,7 +1306,7 @@ export default function CareersManagement() {
                         job.status === 'CLOSED' ? 'bg-gray-100 text-gray-800' :
                         'bg-yellow-100 text-yellow-800'
                       }`}>
-                        {job.status}
+                        {displayStatus(job.status)}
                       </span>
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600">{formatDate(job.postedDate)}</td>
@@ -1427,11 +1346,12 @@ export default function CareersManagement() {
 
       {/* Application Detail Modal */}
       {viewingApplication && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
+        <div className="fixed inset-0 z-[1000] overflow-y-auto bg-black/55">
+          <div className="min-h-screen flex items-center justify-center p-1 sm:p-2">
+          <div className="relative bg-white rounded-xl w-[99vw] h-[96vh] max-w-none max-h-[96vh] overflow-hidden shadow-2xl flex flex-col">
             {/* Header */}
             <div className="bg-gradient-to-r from-[#02665e] to-[#024d47] px-6 py-4 flex items-center justify-between flex-shrink-0">
-              <h2 className="text-xl font-bold text-white">Application Details</h2>
+              <h2 className="text-xl font-bold text-white">Company Application Details</h2>
               <button
                 onClick={() => setViewingApplication(null)}
                 className="p-2 bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/30 rounded-lg transition-all duration-200 text-white group backdrop-blur-sm"
@@ -1443,257 +1363,428 @@ export default function CareersManagement() {
             
             {/* Content */}
             <div className="flex-1 overflow-y-auto bg-gray-50 min-w-0 min-h-0">
-              <div className="p-6 space-y-6">
-                {/* Applicant Info */}
-                <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
-                  <div className="flex items-center gap-2 mb-4">
-                    <Users size={18} className="text-[#02665e]" />
-                    <h3 className="text-base font-semibold text-gray-900">Applicant Information</h3>
+              <div className="p-6 space-y-4">
+                <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+                  {/* Company Contact Info */}
+                  <div className="xl:col-span-2 bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+                    <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-100">
+                      <Users size={18} className="text-[#02665e]" />
+                      <h3 className="text-base font-semibold text-gray-900">Company Contact Information</h3>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Full Name</label>
+                        <p className="text-sm font-medium text-gray-900">{viewingApplication.fullName || 'Not provided'}</p>
+                      </div>
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Email</label>
+                        <p className="text-sm text-gray-900 flex items-center gap-1.5 break-all">
+                          <Mail size={14} className="text-gray-400" />
+                          {viewingApplication.email || 'Not provided'}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Phone</label>
+                        <p className="text-sm text-gray-900 flex items-center gap-1.5">
+                          <Phone size={14} className="text-gray-400" />
+                          {viewingApplication.phone || 'Not provided'}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Nationality</label>
+                        <p className="text-sm text-gray-900">
+                          {(viewingApplication.agentApplicationData as any)?.nationality || (viewingApplication as any)?.nationality || 'Not provided'}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Status</label>
+                        <span className={`inline-block px-2.5 py-1 text-xs font-semibold rounded-full ${getStatusColor(viewingApplication.status)}`}>
+                          {displayStatus(viewingApplication.status)}
+                        </span>
+                      </div>
+                      {!viewingApplication.agentApplicationData && (
+                        <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                          <label className="block text-xs font-medium text-gray-500 mb-1">Company / Contact Link</label>
+                          {viewingApplication.linkedIn ? (
+                            <a
+                              href={viewingApplication.linkedIn}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1.5"
+                            >
+                              <ExternalLink size={14} />
+                              View Profile
+                            </a>
+                          ) : (
+                            <p className="text-sm text-gray-500">Not provided</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1.5">Full Name</label>
-                      <p className="text-sm font-medium text-gray-900">{viewingApplication.fullName}</p>
+
+                  {/* Partnership Info */}
+                  <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+                    <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-100">
+                      <Briefcase size={18} className="text-[#02665e]" />
+                      <h3 className="text-base font-semibold text-gray-900">Application Summary</h3>
                     </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1.5">Email</label>
-                      <p className="text-sm text-gray-900 flex items-center gap-1.5">
-                        <Mail size={14} className="text-gray-400" />
-                        {viewingApplication.email}
-                      </p>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1.5">Phone</label>
-                      <p className="text-sm text-gray-900 flex items-center gap-1.5">
-                        <Phone size={14} className="text-gray-400" />
-                        {viewingApplication.phone}
-                      </p>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1.5">Status</label>
-                      <span className={`inline-block px-2.5 py-1 text-xs font-semibold rounded-full ${getStatusColor(viewingApplication.status)}`}>
-                        {viewingApplication.status}
-                      </span>
-                    </div>
-                    {viewingApplication.linkedIn && (
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1.5">LinkedIn</label>
-                        <a 
-                          href={viewingApplication.linkedIn} 
-                          target="_blank" 
-                          rel="noopener noreferrer" 
-                          className="text-sm text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1.5"
-                        >
-                          <ExternalLink size={14} />
-                          View Profile
-                        </a>
+                    <div className="space-y-3">
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Partnership Form</label>
+                        <p className="text-sm font-medium text-gray-900">{viewingApplication.job?.title || 'N/A'}</p>
                       </div>
-                    )}
-                    {viewingApplication.portfolio && (
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1.5">Portfolio</label>
-                        <a 
-                          href={viewingApplication.portfolio} 
-                          target="_blank" 
-                          rel="noopener noreferrer" 
-                          className="text-sm text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1.5"
-                        >
-                          <ExternalLink size={14} />
-                          View Portfolio
-                        </a>
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Department</label>
+                        <p className="text-sm text-gray-900">{viewingApplication.job?.department || 'Not provided'}</p>
                       </div>
-                    )}
-                    {viewingApplication.referredBy && (
-                      <div className="md:col-span-2">
-                        <label className="block text-xs font-medium text-gray-500 mb-1.5">Referred By</label>
-                        <p className="text-sm text-gray-900">{viewingApplication.referredBy}</p>
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Submitted At</label>
+                        <p className="text-sm text-gray-900">
+                          {viewingApplication.createdAt ? new Date(viewingApplication.createdAt).toLocaleString() : 'Not available'}
+                        </p>
                       </div>
-                    )}
+                    </div>
                   </div>
                 </div>
 
-                {/* Job Info */}
-                <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Briefcase size={18} className="text-[#02665e]" />
-                    <h3 className="text-base font-semibold text-gray-900">Job Applied For</h3>
-                  </div>
-                  <p className="text-sm font-medium text-gray-900">{viewingApplication.job?.title || 'N/A'}</p>
-                  <p className="text-xs text-gray-600 mt-1">{viewingApplication.job?.department || ''}</p>
-                </div>
-
-                {/* Agent-Specific Information */}
+                {/* Tour Company Information */}
                 {viewingApplication.agentApplicationData && (
                   <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
                     <div className="flex items-center gap-2 mb-4">
                       <Users size={18} className="text-[#02665e]" />
-                      <h3 className="text-base font-semibold text-gray-900">Agent Profile Information</h3>
+                      <h3 className="text-base font-semibold text-gray-900">Tour Company Information</h3>
                     </div>
                     <div className="space-y-4">
-                      {/* Location */}
-                      {(viewingApplication.agentApplicationData.nationality || viewingApplication.agentApplicationData.region || viewingApplication.agentApplicationData.district) && (
-                        <div>
-                          <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                            <MapPin size={16} className="text-[#02665e]" />
-                            Location
-                          </h4>
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            {viewingApplication.agentApplicationData.nationality && (
-                              <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-1">Nationality</label>
-                                <p className="text-sm text-gray-900">{viewingApplication.agentApplicationData.nationality}</p>
-                              </div>
-                            )}
-                            {viewingApplication.agentApplicationData.region && (
-                              <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-1">Region</label>
-                                <p className="text-sm text-gray-900">{viewingApplication.agentApplicationData.region}</p>
-                              </div>
-                            )}
-                            {viewingApplication.agentApplicationData.district && (
-                              <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-1">District</label>
-                                <p className="text-sm text-gray-900">{viewingApplication.agentApplicationData.district}</p>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
+                      {(() => {
+                        const agentData = viewingApplication.agentApplicationData as any;
+                        const profile = normalizePartnershipProfile(
+                          agentData?.partnershipProfile && typeof agentData.partnershipProfile === "object"
+                            ? agentData.partnershipProfile
+                            : (agentData || {}),
+                        );
+                        const services = profile.services;
+                        const serviceClassification = profile.serviceClassification;
+                        const tourismTypes = profile.tourismTypes;
+                        const toolsAndAssets = profile.toolsAndAssets;
+                        const registeredSites = profile.registeredParks;
+                        const fleet = profile.fleet;
+                        const hasVehicles = profile.hasVehicles;
+                        const companyDescription = String(agentData?.bio || viewingApplication.coverLetter || "").trim();
+                        const region = agentData?.region ? String(agentData.region) : "";
+                        const district = agentData?.district ? String(agentData.district) : "";
+                        const languages = Array.isArray(agentData?.languages) ? agentData.languages : [];
+                        const specializations = Array.isArray(agentData?.specializations) ? agentData.specializations : [];
+                        const certifications = Array.isArray(agentData?.certifications) ? agentData.certifications : [];
 
-                      {/* Education & Experience */}
-                      {(viewingApplication.agentApplicationData.educationLevel || viewingApplication.agentApplicationData.yearsOfExperience) && (
-                        <div>
-                          <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                            <GraduationCap size={16} className="text-[#02665e]" />
-                            Education & Experience
-                          </h4>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            {viewingApplication.agentApplicationData.educationLevel && (
-                              <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-1">Education Level</label>
-                                <p className="text-sm text-gray-900">{viewingApplication.agentApplicationData.educationLevel.replace('_', ' ')}</p>
-                              </div>
-                            )}
-                            {viewingApplication.agentApplicationData.yearsOfExperience !== null && viewingApplication.agentApplicationData.yearsOfExperience !== undefined && (
-                              <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-1">Years of Experience</label>
-                                <p className="text-sm text-gray-900">{viewingApplication.agentApplicationData.yearsOfExperience} {viewingApplication.agentApplicationData.yearsOfExperience === 1 ? 'year' : 'years'}</p>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Bio */}
-                      {viewingApplication.agentApplicationData.bio && (
-                        <div>
-                          <h4 className="text-sm font-semibold text-gray-700 mb-2">Bio</h4>
-                          <p className="text-sm text-gray-700 whitespace-pre-wrap bg-gray-50 rounded-md p-3 border border-gray-100">{viewingApplication.agentApplicationData.bio}</p>
-                        </div>
-                      )}
-
-                      {/* Areas of Operation */}
-                      {viewingApplication.agentApplicationData.areasOfOperation && Array.isArray(viewingApplication.agentApplicationData.areasOfOperation) && viewingApplication.agentApplicationData.areasOfOperation.length > 0 && (
-                        <div>
-                          <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                            <MapPin size={16} className="text-[#02665e]" />
-                            Areas of Operation
-                          </h4>
-                          <div className="flex flex-wrap gap-2">
-                            {viewingApplication.agentApplicationData.areasOfOperation.map((area: string, idx: number) => (
-                              <span key={idx} className="inline-flex items-center px-3 py-1 bg-blue-50 text-blue-700 rounded-lg text-sm border border-blue-200">
-                                {area}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Languages */}
-                      {viewingApplication.agentApplicationData.languages && Array.isArray(viewingApplication.agentApplicationData.languages) && viewingApplication.agentApplicationData.languages.length > 0 && (
-                        <div>
-                          <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                            <Languages size={16} className="text-[#02665e]" />
-                            Languages
-                          </h4>
-                          <div className="flex flex-wrap gap-2">
-                            {viewingApplication.agentApplicationData.languages.map((lang: string, idx: number) => (
-                              <span key={idx} className="inline-flex items-center px-3 py-1 bg-purple-50 text-purple-700 rounded-lg text-sm border border-purple-200">
-                                {lang}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Specializations */}
-                      {viewingApplication.agentApplicationData.specializations && Array.isArray(viewingApplication.agentApplicationData.specializations) && viewingApplication.agentApplicationData.specializations.length > 0 && (
-                        <div>
-                          <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                            <Briefcase size={16} className="text-[#02665e]" />
-                            Specializations
-                          </h4>
-                          <div className="flex flex-wrap gap-2">
-                            {viewingApplication.agentApplicationData.specializations.map((spec: string, idx: number) => (
-                              <span key={idx} className="inline-flex items-center px-3 py-1 bg-green-50 text-green-700 rounded-lg text-sm border border-green-200">
-                                {spec}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Certifications */}
-                      {viewingApplication.agentApplicationData.certifications && Array.isArray(viewingApplication.agentApplicationData.certifications) && viewingApplication.agentApplicationData.certifications.length > 0 && (
-                        <div>
-                          <h4 className="text-sm font-semibold text-gray-700 mb-2">Certifications</h4>
-                          <div className="space-y-2">
-                            {viewingApplication.agentApplicationData.certifications.map((cert: any, idx: number) => (
-                              <div key={idx} className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                                <div className="font-medium text-amber-900">{cert.name}</div>
-                                <div className="text-sm text-amber-700">
-                                  {cert.issuer} • {cert.year}
-                                  {cert.expiryDate && ` • Expires: ${cert.expiryDate}`}
+                        return (
+                          <>
+                            {/* Company Profile */}
+                            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                              <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                                <Building2 size={16} className="text-[#02665e]" />
+                                1. Company Details
+                              </h4>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-500 mb-1">Company Name</label>
+                                  <p className="text-sm text-gray-900">{profile?.companyName || "Not provided"}</p>
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-500 mb-1">Company Email</label>
+                                  <p className="text-sm text-gray-900">{profile?.companyEmail || "Not provided"}</p>
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-500 mb-1">Company Phone</label>
+                                  <p className="text-sm text-gray-900">{profile?.companyPhone || "Not provided"}</p>
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-500 mb-1">Company Website</label>
+                                  <p className="text-sm text-gray-900 break-all">{profile?.companyWebsite || "Not provided"}</p>
+                                </div>
+                                <div className="sm:col-span-2">
+                                  <label className="block text-xs font-medium text-gray-500 mb-1">Business Address</label>
+                                  <p className="text-sm text-gray-900">{profile?.businessAddress || "Not provided"}</p>
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-500 mb-1">Years in Operation</label>
+                                  <p className="text-sm text-gray-900">
+                                    {profile?.yearsInOperation !== null && profile?.yearsInOperation !== undefined ? String(profile.yearsInOperation) : "Not provided"}
+                                  </p>
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-500 mb-1">Team Size</label>
+                                  <p className="text-sm text-gray-900">
+                                    {profile?.teamSize !== null && profile?.teamSize !== undefined ? String(profile.teamSize) : "Not provided"}
+                                  </p>
                                 </div>
                               </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+                            </div>
 
-                      {/* Agent Profile Created Indicator */}
+                            {/* Company Description */}
+                            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                              <h4 className="text-sm font-semibold text-gray-700 mb-2">1.1 Company Details - Company Narrative</h4>
+                              <p className="text-sm text-gray-700 whitespace-pre-wrap bg-gray-50 rounded-md p-3 border border-gray-100">
+                                {companyDescription || "Not provided"}
+                              </p>
+                            </div>
+
+                            {/* Languages */}
+                            {languages.length > 0 && (
+                              <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                                <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                                  <Languages size={16} className="text-[#02665e]" />
+                                  1.2 Company Details - Contact Languages
+                                </h4>
+                                <div className="flex flex-wrap gap-2">
+                                  {languages.map((lang: string, idx: number) => (
+                                    <span key={idx} className="inline-flex items-center px-3 py-1 bg-purple-50 text-purple-700 rounded-lg text-sm border border-purple-200">
+                                      {lang}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Tourism Types */}
+                            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                              <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                                <Briefcase size={16} className="text-[#02665e]" />
+                                2. Tourism Serving - Tourism Types
+                              </h4>
+                              {tourismTypes.length > 0 ? (
+                                <div className="flex flex-wrap gap-2">
+                                  {tourismTypes.map((tourismType: string, idx: number) => (
+                                    <span key={idx} className="inline-flex items-center px-3 py-1 bg-sky-50 text-sky-700 rounded-lg text-sm border border-sky-200">
+                                      {tourismType}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-sm text-gray-500">No tourism types submitted.</p>
+                              )}
+                            </div>
+
+                            {/* Company Services */}
+                            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                              <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                                <Handshake size={16} className="text-[#02665e]" />
+                                2.1 Tourism Serving - Services
+                              </h4>
+                              {Object.keys(serviceClassification).length > 0 ? (
+                                <div className="space-y-3">
+                                  {Object.entries(serviceClassification).map(([category, items]) => (
+                                    <div key={category} className="rounded-lg border border-slate-200 bg-white p-3">
+                                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-600 mb-2">{category}</p>
+                                      <div className="flex flex-wrap gap-2">
+                                        {items.map((service: string, idx: number) => (
+                                          <span
+                                            key={`${category}-${idx}-${service}`}
+                                            className="inline-flex items-center px-3 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-sm border border-emerald-200"
+                                          >
+                                            {service}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : services.length > 0 ? (
+                                <div className="flex flex-wrap gap-2">
+                                  {services.map((service: string, idx: number) => (
+                                    <span key={idx} className="inline-flex items-center px-3 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-sm border border-emerald-200">
+                                      {service}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-sm text-gray-500">No services submitted.</p>
+                              )}
+                            </div>
+
+                            {/* Specializations */}
+                            {specializations.length > 0 && (
+                              <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                                <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                                  <Briefcase size={16} className="text-[#02665e]" />
+                                  2.2 Tourism Serving - Specializations
+                                </h4>
+                                <div className="flex flex-wrap gap-2">
+                                  {specializations.map((spec: string, idx: number) => (
+                                    <span key={idx} className="inline-flex items-center px-3 py-1 bg-green-50 text-green-700 rounded-lg text-sm border border-green-200">
+                                      {spec}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Permitted Parks / Tour Sites */}
+                            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                              <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                                <MapPin size={16} className="text-[#02665e]" />
+                                3. Area of Operation - Permitted Parks &amp; Tour Sites
+                              </h4>
+                              {registeredSites.length > 0 ? (
+                                <div className="flex flex-wrap gap-2">
+                                  {registeredSites.map((site: string, idx: number) => (
+                                    <span key={idx} className="inline-flex items-center px-3 py-1 bg-cyan-50 text-cyan-700 rounded-lg text-sm border border-cyan-200">
+                                      {site}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-sm text-gray-500">No permitted parks/tour sites submitted.</p>
+                              )}
+                            </div>
+
+                            {/* Location */}
+                            {(region || district) && (
+                              <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                                <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                                  <MapPin size={16} className="text-[#02665e]" />
+                                  3.1 Area of Operation - Location
+                                </h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  {region && (
+                                    <div>
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">Region</label>
+                                      <p className="text-sm text-gray-900">{region}</p>
+                                    </div>
+                                  )}
+                                  {district && (
+                                    <div>
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">District</label>
+                                      <p className="text-sm text-gray-900">{district}</p>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Tools & Assets */}
+                            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                              <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                                <Briefcase size={16} className="text-[#02665e]" />
+                                4. Tools &amp; Fleet - Tools &amp; Assets
+                              </h4>
+                              {toolsAndAssets.length > 0 ? (
+                                <div className="flex flex-wrap gap-2">
+                                  {toolsAndAssets.map((tool: string, idx: number) => (
+                                    <span key={idx} className="inline-flex items-center px-3 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-sm border border-indigo-200">
+                                      {tool}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-sm text-gray-500">No tools/assets submitted.</p>
+                              )}
+                            </div>
+
+                            {/* Fleet / Vehicles */}
+                            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                              <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                                <Briefcase size={16} className="text-[#02665e]" />
+                                4.1 Tools &amp; Fleet - Fleet &amp; Vehicles
+                              </h4>
+                              <div className="mb-2">
+                                <label className="block text-xs font-medium text-gray-500 mb-1">Has Vehicles</label>
+                                <p className="text-sm text-gray-900">{hasVehicles ? "Yes" : "No"}</p>
+                              </div>
+                              {fleet.length > 0 ? (
+                                <div className="space-y-2">
+                                  {fleet.map((v: any, idx: number) => (
+                                    <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                                      <div className="font-medium text-slate-900 text-sm">{v?.type || "Vehicle type not provided"}</div>
+                                      <div className="text-sm text-slate-700 mt-1">
+                                        {v?.count ?? "-"} vehicle{Number(v?.count) === 1 ? "" : "s"} • {v?.capacity ?? "-"} seat{Number(v?.capacity) === 1 ? "" : "s"} each • {v?.ownership === "rented" ? "Rented" : v?.ownership === "leased" ? "Leased" : "Company Owned"}
+                                        {v?.registrationNumber ? ` • Reg: ${v.registrationNumber}` : ""}
+                                        {v?.serviceMode ? ` • Mode: ${v.serviceMode}` : ""}
+                                        {v?.condition ? ` • ${v.condition}` : ""}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-sm text-gray-500">No vehicle records submitted.</p>
+                              )}
+                            </div>
+
+                            {/* Compliance & Registration */}
+                            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                              <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                                <CheckCircle2 size={16} className="text-[#02665e]" />
+                                5. Compliance &amp; Submit - Registration Details
+                              </h4>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-500 mb-1">Business Registration Number (BRELA)</label>
+                                  <p className="text-sm text-gray-900">{profile?.businessRegistrationNumber || "Not provided"}</p>
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-500 mb-1">TIN Number</label>
+                                  <p className="text-sm text-gray-900">{profile?.tinNumber || "Not provided"}</p>
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-500 mb-1">Business License Number</label>
+                                  <p className="text-sm text-gray-900">{profile?.businessLicenseNumber || "Not provided"}</p>
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-500 mb-1">Tourism Permit Number</label>
+                                  <p className="text-sm text-gray-900">{profile?.tourismPermitNumber || "Not provided"}</p>
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-500 mb-1">Vehicle Permit Number</label>
+                                  <p className="text-sm text-gray-900">{profile?.vehiclePermitNumber || "Not provided"}</p>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Company Licenses & Certifications */}
+                            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                              <h4 className="text-sm font-semibold text-gray-700 mb-2">5.1 Compliance &amp; Submit - Licenses &amp; Certifications</h4>
+                              {certifications.length > 0 ? (
+                                <div className="space-y-2">
+                                  {certifications.map((cert: any, idx: number) => (
+                                    <div key={idx} className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                                      <div className="font-medium text-amber-900">{cert.name || "License/Certification"}</div>
+                                      <div className="text-sm text-amber-700">
+                                        {cert.issuer || "Issuer not provided"} - {cert.year || "Year not provided"}
+                                        {cert.expiryDate && ` - Expires: ${cert.expiryDate}`}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-sm text-gray-500">Not provided.</p>
+                              )}
+                            </div>
+                          </>
+                        );
+                      })()}
+
+                      {/* Operator Profile Created Indicator */}
                       {viewingApplication.agent && (
                         <div className="bg-green-50 border border-green-200 rounded-lg p-3">
                           <div className="flex items-center gap-2">
                             <CheckCircle2 size={16} className="text-green-600" />
-                            <span className="text-sm font-medium text-green-800">Agent profile has been created</span>
+                            <span className="text-sm font-medium text-green-800">Tour company operator account has been created</span>
                           </div>
-                          <p className="text-xs text-green-700 mt-1">This application was approved and an agent profile was automatically created.</p>
+                          <p className="text-xs text-green-700 mt-1">This application was approved and the existing operator engine created the company account.</p>
                         </div>
                       )}
                     </div>
                   </div>
                 )}
 
-                {/* Cover Letter */}
-                <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
-                  <div className="flex items-center gap-2 mb-3">
-                    <FileText size={18} className="text-[#02665e]" />
-                    <h3 className="text-base font-semibold text-gray-900">Cover Letter</h3>
-                  </div>
-                  <div className="bg-gray-50 rounded-md p-4 max-h-60 overflow-y-auto border border-gray-100">
-                    <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{viewingApplication.coverLetter}</p>
-                  </div>
-                </div>
-
-                {/* Resume */}
+                {/* Application Document */}
                 {(viewingApplication.resumeFileName || viewingApplication.resumeStorageKey || viewingApplication.resumeUrl) && (
                   <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
                     <div className="flex items-center gap-2 mb-3">
                       <FileText size={18} className="text-[#02665e]" />
-                      <h3 className="text-base font-semibold text-gray-900">Resume</h3>
+                      <h3 className="text-base font-semibold text-gray-900">Application Document</h3>
                     </div>
-                    {/* Check if resume is actually available (has storage key or URL) */}
+                    {/* Check if document is actually available (has storage key or URL) */}
                     {(viewingApplication.resumeStorageKey || viewingApplication.resumeUrl) ? (
                       <div 
                         onClick={() => handleViewResume(viewingApplication.id)}
@@ -1705,7 +1796,7 @@ export default function CareersManagement() {
                           </div>
                           <div className="min-w-0 flex-1">
                             <p className="text-sm font-medium text-gray-900 truncate group-hover:text-[#02665e] transition-colors">
-                              {viewingApplication.resumeFileName || 'Resume File'}
+                              {viewingApplication.resumeFileName || 'Application Document'}
                             </p>
                             {viewingApplication.resumeSize && (
                               <p className="text-xs text-gray-500 mt-0.5">
@@ -1737,12 +1828,12 @@ export default function CareersManagement() {
                                 }
                                 const data = await r.json();
                                 if (!data.url) {
-                                  throw new Error('Resume URL not available');
+                                  throw new Error('Application document URL not available');
                                 }
                                 window.open(data.url, '_blank');
                               } catch (err: any) {
-                                console.error('Error downloading resume:', err);
-                                setError(err.message || 'Failed to download resume');
+                                console.error('Error downloading application document:', err);
+                                setError(err.message || 'Failed to download application document');
                                 setTimeout(() => setError(null), 5000);
                               }
                             }}
@@ -1756,7 +1847,7 @@ export default function CareersManagement() {
                     ) : (
                       <div className="p-4 bg-yellow-50 rounded-md border border-yellow-200">
                         <p className="text-sm text-yellow-800">
-                          <strong>Resume not available:</strong> The resume file was not successfully uploaded or is no longer accessible.
+                          <strong>Document not available:</strong> The application document was not successfully uploaded or is no longer accessible.
                           {viewingApplication.resumeFileName && (
                             <span className="block mt-1 text-xs text-yellow-700">
                               Original filename: {viewingApplication.resumeFileName}
@@ -1790,7 +1881,7 @@ export default function CareersManagement() {
                     <div className="mb-4 pb-3 border-b border-gray-200">
                       <p className="text-sm text-gray-600 mb-1">Current status:</p>
                       <span className={`inline-block px-3 py-1 text-xs font-semibold rounded-full ${getStatusColor(viewingApplication.status)}`}>
-                        {viewingApplication.status}
+                        {displayStatus(viewingApplication.status)}
                       </span>
                     </div>
                   )}
@@ -1828,10 +1919,10 @@ export default function CareersManagement() {
                                 ? 'Updating status...'
                                 : isFinalized
                                 ? 'Finalized: status changes are disabled'
-                                : `Change status to ${status}`
+                                : `Change status to ${displayStatus(status)}`
                             }
                           >
-                            {status}
+                            {displayStatus(status)}
                           </button>
                         );
                       })}
@@ -1853,7 +1944,7 @@ export default function CareersManagement() {
                       {viewingApplication.usedStatuses.map((status: string, index: number) => (
                         <div key={index} className="flex items-center gap-3 p-2 bg-gray-50 rounded-md">
                           <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${getStatusColor(status)}`}>
-                            {status}
+                            {displayStatus(status)}
                           </span>
                           <span className="text-xs text-gray-500">
                             {index === viewingApplication.usedStatuses.length - 1 ? 'Current' : 'Previously used'}
@@ -1897,15 +1988,16 @@ export default function CareersManagement() {
               </button>
             </div>
           </div>
+          </div>
         </div>
       )}
 
-      {/* Resume Viewer Modal */}
+      {/* Application Document Viewer Modal */}
       {viewingResume && resumeViewUrl && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
           <div className="bg-white rounded-xl max-w-5xl w-full max-h-[95vh] overflow-hidden shadow-2xl flex flex-col">
             <div className="bg-gradient-to-r from-[#02665e] to-[#024d47] px-6 py-4 flex items-center justify-between flex-shrink-0">
-              <h2 className="text-xl font-bold text-white">Resume Viewer</h2>
+              <h2 className="text-xl font-bold text-white">Application Document Viewer</h2>
               <div className="flex items-center gap-3">
                 <a
                   href={resumeViewUrl}
@@ -1952,9 +2044,9 @@ export default function CareersManagement() {
                   </svg>
                 </div>
                 <div>
-                  <h2 id="delete-confirm-title" className="text-[15px] font-bold text-gray-900">Delete job posting?</h2>
+                  <h2 id="delete-confirm-title" className="text-[15px] font-bold text-gray-900">Delete partnership form?</h2>
                   <p className="mt-1 text-sm text-gray-500 leading-relaxed">
-                    This will permanently remove the job posting and cannot be undone.
+                    This will permanently remove the partnership form and cannot be undone.
                   </p>
                 </div>
               </div>

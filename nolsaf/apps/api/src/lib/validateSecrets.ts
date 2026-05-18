@@ -59,6 +59,57 @@ const REQUIRED_SECRETS: SecretConfig[] = [
   },
 ];
 
+const PRODUCTION_REQUIRED_SECRETS: SecretConfig[] = [
+  {
+    key: "ENCRYPTION_KEY",
+    required: true,
+    description: "Application encryption key",
+    validate: (v) => v.length >= 32,
+  },
+  {
+    key: "INTERNAL_PROXY_SECRET",
+    required: true,
+    description: "Shared secret between web proxy and API",
+    validate: (v) => v.length >= 32,
+  },
+  {
+    key: "WEB_ORIGIN",
+    required: true,
+    description: "Public web origin for CORS/CSRF allowlist",
+    validate: (v) => v.startsWith("https://"),
+  },
+  {
+    key: "APP_ORIGIN",
+    required: true,
+    description: "App origin for CORS/CSRF allowlist",
+    validate: (v) => v.startsWith("https://"),
+  },
+  {
+    key: "CORS_ORIGIN",
+    required: true,
+    description: "Comma-separated CORS allowlist",
+    validate: (v) => v.split(",").map((s) => s.trim()).filter(Boolean).every((origin) => origin.startsWith("https://")),
+  },
+  {
+    key: "CLOUDINARY_CLOUD_NAME",
+    required: true,
+    description: "Cloudinary cloud name for uploads",
+    validate: (v) => v.length >= 2,
+  },
+  {
+    key: "CLOUDINARY_API_KEY",
+    required: true,
+    description: "Cloudinary API key for uploads",
+    validate: (v) => v.length >= 6,
+  },
+  {
+    key: "CLOUDINARY_API_SECRET",
+    required: true,
+    description: "Cloudinary API secret for upload signing",
+    validate: (v) => v.length >= 16,
+  },
+];
+
 const OPTIONAL_SECRETS: SecretConfig[] = [
   // AzamPay optional overrides
   {
@@ -177,7 +228,12 @@ export function validateSecrets(): void {
   const invalid: Array<{ key: string; reason: string }> = [];
 
   // Check required secrets
-  for (const config of REQUIRED_SECRETS) {
+  const requiredSecrets =
+    process.env.NODE_ENV === "production"
+      ? [...REQUIRED_SECRETS, ...PRODUCTION_REQUIRED_SECRETS]
+      : REQUIRED_SECRETS;
+
+  for (const config of requiredSecrets) {
     const value = process.env[config.key];
     
     if (!value || value.trim() === "") {
@@ -232,11 +288,23 @@ export function validateSecrets(): void {
       "AZAMPAY_WEBHOOK_SECRET",
       "JWT_SECRET",
       "DATABASE_URL",
+      "ENCRYPTION_KEY",
+      "INTERNAL_PROXY_SECRET",
+      "CLOUDINARY_API_SECRET",
     ];
 
     for (const key of criticalSecrets) {
       const value = process.env[key];
-      if (value && (value.includes("example") || value.includes("placeholder") || value === "changeme")) {
+      const normalized = String(value || "").toLowerCase();
+      if (
+        value &&
+        (normalized.includes("example") ||
+          normalized.includes("placeholder") ||
+          normalized.includes("changeme") ||
+          normalized.includes("change_me") ||
+          normalized.includes("dev_") ||
+          value === "changeme")
+      ) {
         throw new Error(
           `Security Error: ${key} appears to be a placeholder value. ` +
           `This is not allowed in production. Please set a real secret.`

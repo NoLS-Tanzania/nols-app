@@ -9,6 +9,7 @@ import { getNewPlanRequestCustomerEmail, getNewPlanRequestAdminEmail } from "../
 import { notifyAdmins } from "../lib/notifications.js";
 
 const router = Router();
+const allowLegacyPlanRequests = String(process.env.ALLOW_LEGACY_PLAN_REQUESTS || "").toLowerCase() === "true";
 
 // Use multer to parse multipart/form-data (FormData from browser)
 // We don't actually store files, but multer is needed to parse the form data
@@ -24,6 +25,14 @@ router.post("/", limitPlanRequestSubmit, upload.none(), async (req: Request, res
   try {
     // Ensure Content-Type is set for response
     res.setHeader('Content-Type', 'application/json');
+
+    if (!allowLegacyPlanRequests) {
+      return res.status(410).json({
+        success: false,
+        error: "plan_requests_retired",
+        message: "This planning request form has been retired. Please use NoLSAF direct booking and trip cost tools.",
+      });
+    }
     
     // Parse form data (multipart/form-data) - now parsed by multer
     const formData = req.body;

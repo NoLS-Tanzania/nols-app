@@ -1143,7 +1143,7 @@ export default function MyGroupStaysPage() {
   );
 }
 
-// Messaging component for group stays (similar to Plan With Us)
+// Messaging component for group stays
 type ConversationMessage = {
   id: number;
   messageType: string;

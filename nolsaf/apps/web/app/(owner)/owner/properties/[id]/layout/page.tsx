@@ -64,14 +64,6 @@ const getSocketUrl = () => {
   return typeof window !== "undefined" ? "http://127.0.0.1:4000" : "";
 };
 
-function getAuthToken(): string | null {
-  if (typeof window === "undefined") return null;
-  // httpOnly cookies are forwarded automatically via withCredentials: true.
-  // Only check readable cookies here as a transitional fallback.
-  const m = String(document.cookie || "").match(/(?:^|;\s*)(?:nolsaf_token|__Host-nolsaf_token|token)=([^;]+)/);
-  return m?.[1] ? decodeURIComponent(m[1]) : null;
-}
-
 export default function OwnerPropertyLayoutPage() {
   const routeParams = useParams<{ id?: string | string[] }>();
   const idParam = Array.isArray(routeParams?.id) ? routeParams?.id?.[0] : routeParams?.id;
@@ -227,19 +219,9 @@ export default function OwnerPropertyLayoutPage() {
     const socketUrl = getSocketUrl();
     if (!socketUrl) return;
 
-    const token = getAuthToken();
     const s = io(socketUrl, {
       transports: ["websocket", "polling"],
       withCredentials: true,
-      ...(token
-        ? {
-            transportOptions: {
-              polling: {
-                extraHeaders: { Authorization: `Bearer ${token}` },
-              },
-            },
-          }
-        : {}),
     });
 
     socketRef.current = s;

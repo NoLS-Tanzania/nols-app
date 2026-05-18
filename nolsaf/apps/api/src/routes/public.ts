@@ -9,10 +9,12 @@ import publicCareersRouter from "./public.careers";
 import { router as publicEmailVerify } from "./public.email.verify";
 import publicInvoicesRouter from "./public.invoices";
 import publicNolScopeRouter from "./public.nolscope";
+import publicAgentsRouter from "./public.agents";
 import publicPlanRequestRouter from "./public.planRequest";
 import publicPodcastsRouter from "./public.podcasts";
 import publicPropertiesRouter from "./public.properties";
 import publicSupportRouter from "./public.support";
+import publicTourBookingsRouter from "./public.tourBookings";
 import publicTourismSitesRouter from "./public.tourismSites";
 import publicUpdatesRouter from "./public.updates";
 
@@ -37,6 +39,8 @@ export function registerPublicContentRoutes(app: Express): void {
   app.use("/api/public/properties", publicPropertiesRouter);
   app.use("/api/public/tourism-sites", publicTourismSitesRouter);
   app.use("/api/public/nolscope", publicNolScopeRouter);
+  app.use("/api/public/agents", publicAgentsRouter);
+  app.use("/api/public/tour-bookings", publicTourBookingsRouter);
 }
 
 export function registerPublicPlanRequestRoute(app: Express): void {

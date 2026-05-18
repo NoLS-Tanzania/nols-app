@@ -27,7 +27,7 @@ export default function MobileAgentNav() {
       notifications: path.startsWith("/account/agent/notifications"),
       account:
         path.startsWith("/account/agent/profile") ||
-        path.startsWith("/account/agent/settings") ||
+        path.startsWith("/account/agent/card") ||
         path.startsWith("/account/agent/security") ||
         path.startsWith("/account/agent/contract"),
     };
@@ -203,7 +203,7 @@ export default function MobileAgentNav() {
             {renderNavItem({
               href: "/account/agent/profile",
               slot: "account",
-              label: "Account",
+              label: "Editor",
               activeState: active.account,
               icon: (
                 <User

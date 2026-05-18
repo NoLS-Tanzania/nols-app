@@ -381,7 +381,9 @@ export default function AgentFooter({ withRail = true }: { withRail?: boolean })
                     { href: "/account/agent", label: "Agent Portal" },
                     { href: "/account/agent/assignments", label: "My Assignments" },
                     { href: "/account/agent/notifications", label: "Notifications" },
-                    { href: "/account/agent/profile", label: "Profile" },
+                    { href: "/account/agent/profile", label: "My Profile" },
+                    { href: "/account/agent/profile/preview", label: "Preview" },
+                    { href: "/account/agent/card", label: "My Card" },
                   ].map((item) => (
                     <li key={item.href}>
                       <FooterPolicyItem href={item.href}>{item.label}</FooterPolicyItem>
