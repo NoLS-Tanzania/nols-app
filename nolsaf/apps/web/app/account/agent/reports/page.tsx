@@ -32,7 +32,15 @@ import {
 const api = apiClient;
 
 type RevenueItem = {
+  source?: "PLAN_REQUEST" | "TOUR_BOOKING";
   id: string | number;
+  invoiceNumber?: string | null;
+  invoiceStatus?: string | null;
+  paymentStatus?: string | null;
+  payoutStatus?: string | null;
+  payoutRequestedAt?: string | null;
+  payoutApprovedAt?: string | null;
+  payoutPaidAt?: string | null;
   title: string;
   tripType: string;
   status: string;
@@ -59,8 +67,8 @@ type MeData = {
   district?: string | null;
 };
 
-function fmtMoney(n: number) {
-  return `TZS ${Math.round(Number(n || 0)).toLocaleString()}`;
+function fmtMoney(n: number, currency = "USD") {
+  return `${currency} ${Math.round(Number(n || 0)).toLocaleString()}`;
 }
 
 function toDateOnlyInput(d: Date) {
@@ -90,6 +98,23 @@ function fmtDateTime(d: Date) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+type InvoiceWorkflowStage = "NEW" | "CLAIMED" | "VERIFIED" | "APPROVED" | "DISBURSED" | "REJECTED";
+
+const INVOICE_STAGE_ORDER: InvoiceWorkflowStage[] = ["NEW", "CLAIMED", "VERIFIED", "APPROVED", "DISBURSED", "REJECTED"];
+
+function normalizedInvoiceStage(item: RevenueItem): InvoiceWorkflowStage {
+  const payment = String(item.paymentStatus || "").toUpperCase();
+  const payout = String(item.payoutStatus || "").toUpperCase();
+  const invoice = String(item.invoiceStatus || "").toUpperCase();
+
+  if (payment === "REJECTED" || payout === "REJECTED" || invoice === "REJECTED") return "REJECTED";
+  if (item.payoutPaidAt || payment === "DISBURSED" || payout === "DISBURSED" || payout === "PAID") return "DISBURSED";
+  if (item.payoutApprovedAt || payment === "APPROVED" || payout === "APPROVED" || invoice === "APPROVED") return "APPROVED";
+  if (payment === "PAID" || payment === "VERIFIED" || payout === "VERIFIED" || invoice === "VERIFIED") return "VERIFIED";
+  if (item.payoutRequestedAt || !!item.invoiceNumber || !!item.invoiceStatus) return "CLAIMED";
+  return "NEW";
 }
 
 export default function AgentReportsPage() {
@@ -234,6 +259,13 @@ export default function AgentReportsPage() {
     });
   }, [filteredItems]);
 
+  const reportCurrency = useMemo(() => {
+    const scope = filteredItems.length > 0 ? filteredItems : items;
+    if (scope.some((i) => i.source === "TOUR_BOOKING")) return "USD";
+    const first = scope.find((i) => typeof i.currency === "string" && i.currency.trim().length > 0);
+    return first?.currency || "USD";
+  }, [filteredItems, items]);
+
   const trendSeries = useMemo(() => {
     const totals = trend.buckets.map((b) => b.paid + b.pending);
     return trend.buckets.map((b, idx) => {
@@ -250,14 +282,12 @@ export default function AgentReportsPage() {
   }, [trend.buckets]);
 
   const statusData = useMemo(() => {
-    const base = ["PAID", "REQUESTED", "VERIFIED"];
-    const map = new Map<string, number>(base.map((k) => [k, 0]));
+    const map = new Map<InvoiceWorkflowStage, number>(INVOICE_STAGE_ORDER.map((k) => [k, 0]));
     for (const item of filteredItems) {
-      const raw = String(item.status || "").trim().toUpperCase();
-      const key = raw || (item.isCompleted ? "PAID" : "REQUESTED");
-      map.set(key, (map.get(key) || 0) + 1);
+      const stage = normalizedInvoiceStage(item);
+      map.set(stage, (map.get(stage) || 0) + 1);
     }
-    return Array.from(map.entries()).map(([name, value]) => ({ name, value }));
+    return INVOICE_STAGE_ORDER.map((name) => ({ name, value: map.get(name) || 0 }));
   }, [filteredItems]);
 
   const typeData = useMemo(() => {
@@ -278,7 +308,7 @@ export default function AgentReportsPage() {
     return { rows, total };
   }, [filteredItems]);
 
-  const statusColors = ["#02665e", "#f59e0b", "#4f46e5", "#16a34a", "#0ea5e9", "#ef4444"];
+  const statusColors = ["#64748b", "#4f46e5", "#f59e0b", "#06b6d4", "#16a34a", "#ef4444"];
 
   const printReport = () => {
     const generatedAt = new Date();
@@ -290,6 +320,40 @@ export default function AgentReportsPage() {
     const reportId = `AGT-${generatedAt.getFullYear()}${String(generatedAt.getMonth() + 1).padStart(2, "0")}${String(generatedAt.getDate()).padStart(2, "0")}-${String(Date.now()).slice(-6)}`;
     const verifyUrl = `${window.location.origin}/account/agent/reports?reportId=${encodeURIComponent(reportId)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
     const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(verifyUrl)}`;
+
+    const fmtPct = (value: number) => `${Math.round(Number(value || 0))}%`;
+
+    const reportStatusData = statusData.filter((entry) => Number(entry.value || 0) > 0);
+    const statusTotal = reportStatusData.reduce((sum, entry) => sum + Number(entry.value || 0), 0) || 1;
+    const statusLegend = reportStatusData
+      .map(
+        (entry, index) => `
+          <div class="legend-item">
+            <span class="legend-dot" style="background:${statusColors[index % statusColors.length]}"></span>
+            <span class="legend-label">${escapeHtml(String(entry.name || "Unknown"))}</span>
+            <span class="legend-value">${escapeHtml(fmtPct((Number(entry.value || 0) / statusTotal) * 100))}</span>
+          </div>
+        `
+      )
+      .join("");
+
+    const typeRowsHtml = typeData.rows
+      .map((row, index) => `
+        <div class="type-row">
+          <div class="type-head">
+            <span class="type-swatch" style="background:${statusColors[index % statusColors.length]}"></span>
+            <span class="type-name">${escapeHtml(String(row.name || "OTHER"))}</span>
+            <span class="type-pct">${escapeHtml(String(row.pct || 0))}%</span>
+            <span class="type-value">${escapeHtml(fmtMoney(row.value, reportCurrency))}</span>
+          </div>
+          <div class="type-bar"><span style="width:${Math.max(0, row.pct || 0)}%; background:${statusColors[index % statusColors.length]}"></span></div>
+        </div>
+      `)
+      .join("");
+
+    const trendLabelsHtml = trend.buckets
+      .map((bucket) => `<span>${escapeHtml(bucket.label)}</span>`)
+      .join("");
 
     const tableRows = rows
       .map((item) => {
@@ -305,10 +369,10 @@ export default function AgentReportsPage() {
             <td>${escapeHtml(String(item.title || "-"))}</td>
             <td>${escapeHtml(String(item.client || "-") + (item.nationality ? ` • ${String(item.nationality)}` : ""))}</td>
             <td>${escapeHtml(String(item.tripType || "-"))}</td>
-            <td>${escapeHtml(item.isCompleted ? "Completed" : "Pending")}</td>
-            <td>${escapeHtml(fmtMoney(item.budget))}</td>
-            <td>${escapeHtml(`${item.commissionPercent}% (${fmtMoney(item.commissionAmount)})`)}</td>
-            <td>${escapeHtml(fmtMoney(item.agentEarning))}</td>
+            <td>${escapeHtml(normalizedInvoiceStage(item))}</td>
+            <td>${escapeHtml(fmtMoney(item.budget, item.source === "TOUR_BOOKING" ? "USD" : (item.currency || reportCurrency)))}</td>
+            <td>${escapeHtml(`${item.commissionPercent}% (${fmtMoney(item.commissionAmount, item.source === "TOUR_BOOKING" ? "USD" : (item.currency || reportCurrency))})`)}</td>
+            <td>${escapeHtml(fmtMoney(item.agentEarning, item.source === "TOUR_BOOKING" ? "USD" : (item.currency || reportCurrency)))}</td>
             <td>${escapeHtml(dateTxt)}</td>
           </tr>
         `;
@@ -326,16 +390,53 @@ export default function AgentReportsPage() {
     * { box-sizing: border-box; }
     body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; color:var(--ink); background:#fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .page { padding: 20px; }
-    .sheet { border: 1px solid var(--line); border-radius: 14px; padding: 14px; }
-    .header { display:flex; justify-content:space-between; gap:12px; border-bottom:1px solid var(--line); padding-bottom:10px; }
+    .sheet { position:relative; overflow:hidden; border: 1px solid var(--line); border-radius: 14px; padding: 14px; background:#fff; }
+    .watermark { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; z-index:0; }
+    .watermark-inner { display:flex; flex-direction:column; align-items:center; gap:10px; transform:rotate(-18deg); opacity:.06; }
+    .watermark-inner img { width:320px; height:auto; filter:grayscale(1) contrast(1.05); }
+    .watermark-text { font-size:46px; font-weight:900; letter-spacing:.28em; color:#02665e; white-space:nowrap; }
+    .content { position:relative; z-index:1; }
+    .masthead { margin-bottom: 10px; border:1px solid #dbe3ea; border-radius:12px; padding:10px 12px; background:#f8fafc; }
+    .masthead-top { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+    .brand-wrap { display:flex; align-items:center; gap:10px; }
+    .brand-logo { width:38px; height:38px; border-radius:10px; object-fit:contain; background:#edf7f6; border:1px solid #dbe3ea; box-shadow:0 4px 14px rgba(2,102,94,.16); padding:4px; }
+    .brand { font-weight:900; font-size:14px; letter-spacing:.02em; color:#0b1220; }
+    .tag { font-size:10px; color:#475569; }
+    .doc-chip { display:inline-block; font-size:10px; color:#0f172a; background:#e2e8f0; border:1px solid #cbd5e1; border-radius:999px; padding:4px 8px; font-weight:700; }
+    .purpose { margin-top:8px; font-size:10px; color:#475569; line-height:1.45; }
+    .header { display:grid; grid-template-columns:1.3fr 1fr; gap:12px; border-bottom:1px solid var(--line); padding:10px 0 10px; }
     .title { font-weight:900; font-size:20px; letter-spacing:-0.02em; }
     .meta { margin-top:3px; font-size:11px; color:var(--muted); line-height:1.4; }
+    .report-meta { border:1px solid #e2e8f0; border-radius:10px; padding:8px 10px; background:#f8fafc; }
+    .report-meta .meta { margin-top:0; text-align:right; }
     .badges { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin-top:12px; }
     .badge { border:1px solid var(--line); border-radius:10px; padding:8px; }
     .badge .k { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
     .badge .v { margin-top:3px; font-weight:900; font-size:14px; color:var(--brand); }
     .section { margin-top:14px; }
     .section h2 { margin:0 0 8px; font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:#334155; }
+    .summary-grid { display:grid; grid-template-columns:1.2fr 0.9fr 1fr; gap:10px; }
+    .summary-card { border:1px solid var(--line); border-radius:12px; padding:10px; background:#fff; page-break-inside:avoid; }
+    .summary-card h3 { margin:0 0 8px; font-size:12px; font-weight:900; color:#0f172a; }
+    .trend-box { border:1px solid #eef2f7; border-radius:10px; padding:8px; background:#f8fafc; }
+    .trend-svg { width:100%; height:180px; display:block; }
+    .trend-axis { display:flex; justify-content:space-between; margin-top:6px; font-size:9px; color:#64748b; }
+    .trend-legend { display:flex; gap:10px; flex-wrap:wrap; margin-top:8px; font-size:10px; color:#334155; }
+    .trend-legend span { display:inline-flex; align-items:center; gap:5px; }
+    .dot { width:8px; height:8px; border-radius:999px; display:inline-block; }
+    .legend-list { display:grid; gap:6px; }
+    .legend-item { display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:6px; font-size:10px; color:#334155; }
+    .legend-dot { width:9px; height:9px; border-radius:999px; display:inline-block; }
+    .legend-label { font-weight:700; }
+    .legend-value { font-weight:800; color:#0f172a; }
+    .type-row { margin-bottom:8px; }
+    .type-head { display:grid; grid-template-columns:auto 1fr auto auto; gap:6px; align-items:center; font-size:10px; color:#334155; }
+    .type-swatch { width:9px; height:9px; border-radius:2px; display:inline-block; }
+    .type-name { font-weight:700; text-transform:uppercase; }
+    .type-pct { color:#64748b; font-weight:800; }
+    .type-value { font-weight:800; color:#0f172a; text-align:right; }
+    .type-bar { margin-top:4px; width:100%; height:10px; border-radius:999px; background:#edf2f7; overflow:hidden; }
+    .type-bar span { display:block; height:100%; border-radius:999px; }
     table { width:100%; border-collapse: collapse; border:1px solid var(--line); border-radius:12px; overflow:hidden; }
     th { font-size:10px; text-align:left; color:var(--muted); background:#f8fafc; padding:8px; border-bottom:1px solid var(--line); }
     td { font-size:11px; padding:8px; border-bottom:1px solid #eef2f7; vertical-align:top; }
@@ -360,23 +461,86 @@ export default function AgentReportsPage() {
 <body>
   <div class="page">
     <div class="sheet">
+      <div class="watermark" aria-hidden="true">
+        <div class="watermark-inner">
+          <img src="/assets/NoLS2025-04.png" alt="" />
+          <div class="watermark-text">NoLSAF</div>
+        </div>
+      </div>
+
+      <div class="content">
+      <div class="masthead">
+        <div class="masthead-top">
+          <div class="brand-wrap">
+            <img class="brand-logo" src="/assets/NoLS2025-04.png" alt="NoLSAF" />
+            <div>
+              <div class="brand">NoLSAF Platform</div>
+              <div class="tag">Tour Operations, Revenue Tracking, and Compliance Reporting</div>
+            </div>
+          </div>
+          <div class="doc-chip">Official System-Generated Document</div>
+        </div>
+        <div class="purpose">
+          This report is generated by the NoLSAF platform to summarize operator-assigned trip operations, earnings,
+          commissions, and status performance for the selected period. It can be used for internal management,
+          reconciliation, and compliance documentation.
+        </div>
+      </div>
+
       <div class="header">
         <div>
           <div class="title">Operator Report</div>
           <div class="meta">Operator: ${escapeHtml(operatorName)}<br/>Email: ${escapeHtml(operatorEmail)}<br/>Physical address: ${escapeHtml(operatorAddress)}</div>
         </div>
-        <div class="meta" style="text-align:right">
-          Report ID: ${escapeHtml(reportId)}<br/>
-          Range: ${escapeHtml(from)} to ${escapeHtml(to)}<br/>
-          Generated: ${escapeHtml(fmtDateTime(generatedAt))}
+        <div class="report-meta">
+          <div class="meta">
+            Report ID: ${escapeHtml(reportId)}<br/>
+            Range: ${escapeHtml(from)} to ${escapeHtml(to)}<br/>
+            Generated: ${escapeHtml(fmtDateTime(generatedAt))}
+          </div>
         </div>
       </div>
 
       <div class="badges">
         <div class="badge"><div class="k">Trips in range</div><div class="v">${escapeHtml(String(kpis.totalTrips))}</div></div>
-        <div class="badge"><div class="k">Paid earnings</div><div class="v">${escapeHtml(fmtMoney(kpis.paidEarnings))}</div></div>
-        <div class="badge"><div class="k">Pending earnings</div><div class="v">${escapeHtml(fmtMoney(kpis.pendingEarnings))}</div></div>
-        <div class="badge"><div class="k">Avg paid per trip</div><div class="v">${escapeHtml(fmtMoney(kpis.avgPerTrip))}</div></div>
+        <div class="badge"><div class="k">Paid earnings</div><div class="v">${escapeHtml(fmtMoney(kpis.paidEarnings, reportCurrency))}</div></div>
+        <div class="badge"><div class="k">Pending earnings</div><div class="v">${escapeHtml(fmtMoney(kpis.pendingEarnings, reportCurrency))}</div></div>
+        <div class="badge"><div class="k">Avg paid per trip</div><div class="v">${escapeHtml(fmtMoney(kpis.avgPerTrip, reportCurrency))}</div></div>
+      </div>
+
+      <div class="section">
+        <h2>Visual Summary</h2>
+        <div class="summary-grid">
+          <div class="summary-card">
+            <h3>Revenue trend</h3>
+            <div class="trend-box">
+              <svg class="trend-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-label="Revenue trend chart">
+                <line x1="0" y1="100" x2="100" y2="100" stroke="#cbd5e1" strokeWidth="0.7" />
+                <line x1="0" y1="66" x2="100" y2="66" stroke="#e2e8f0" strokeWidth="0.5" />
+                <line x1="0" y1="33" x2="100" y2="33" stroke="#e2e8f0" strokeWidth="0.5" />
+                <polyline fill="none" stroke="#0f766e" strokeWidth="2.2" points="${escapeHtml(trend.paidPoints)}" />
+                <polyline fill="none" stroke="#f59e0b" strokeWidth="2.2" points="${escapeHtml(trend.pendingPoints)}" />
+              </svg>
+              <div class="trend-axis">${trendLabelsHtml}</div>
+              <div class="trend-legend">
+                <span><i class="dot" style="background:#0f766e"></i>Revenue</span>
+                <span><i class="dot" style="background:#f59e0b"></i>Trend</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="summary-card">
+            <h3>Invoices by status</h3>
+            <div class="legend-list">
+              ${statusLegend || '<div class="legend-item"><span class="legend-label">No records</span><span></span><span class="legend-value">0%</span></div>'}
+            </div>
+          </div>
+
+          <div class="summary-card">
+            <h3>Revenue by tourism type</h3>
+            ${typeRowsHtml || '<div class="legend-item"><span class="legend-label">No records</span><span></span><span class="legend-value">'+escapeHtml(fmtMoney(0, reportCurrency))+'</span></div>'}
+          </div>
+        </div>
       </div>
 
       <div class="section">
@@ -422,6 +586,7 @@ export default function AgentReportsPage() {
           </div>
         </div>
         <div class="footer-bar"></div>
+      </div>
       </div>
     </div>
   </div>
@@ -599,7 +764,7 @@ export default function AgentReportsPage() {
             <div className="mb-2 inline-flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
               <DollarSign className="h-4 w-4" />
             </div>
-            <p className="text-xl font-extrabold text-slate-900">{fmtMoney(kpis.paidEarnings)}</p>
+            <p className="text-xl font-extrabold text-slate-900">{fmtMoney(kpis.paidEarnings, reportCurrency)}</p>
             <p className="text-xs font-semibold text-slate-500">Paid earnings</p>
           </div>
 
@@ -607,7 +772,7 @@ export default function AgentReportsPage() {
             <div className="mb-2 inline-flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
               <Clock className="h-4 w-4" />
             </div>
-            <p className="text-xl font-extrabold text-slate-900">{fmtMoney(kpis.pendingEarnings)}</p>
+            <p className="text-xl font-extrabold text-slate-900">{fmtMoney(kpis.pendingEarnings, reportCurrency)}</p>
             <p className="text-xs font-semibold text-slate-500">Pending earnings</p>
           </div>
 
@@ -615,7 +780,7 @@ export default function AgentReportsPage() {
             <div className="mb-2 inline-flex h-9 w-9 items-center justify-center rounded-xl bg-sky-50 text-sky-700">
               <TrendingUp className="h-4 w-4" />
             </div>
-            <p className="text-xl font-extrabold text-slate-900">{fmtMoney(kpis.avgPerTrip)}</p>
+            <p className="text-xl font-extrabold text-slate-900">{fmtMoney(kpis.avgPerTrip, reportCurrency)}</p>
             <p className="text-xs font-semibold text-slate-500">Avg paid per trip</p>
           </div>
         </div>
@@ -631,7 +796,7 @@ export default function AgentReportsPage() {
                     <CartesianGrid stroke="#e5e7eb" strokeDasharray="3 3" />
                     <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={{ stroke: "#e2e8f0" }} />
                     <YAxis tickFormatter={(v) => `${Math.round(Number(v) / 1000)}k`} tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={{ stroke: "#e2e8f0" }} />
-                    <Tooltip formatter={(value: any) => fmtMoney(Number(value || 0))} />
+                    <Tooltip formatter={(value: any) => fmtMoney(Number(value || 0), reportCurrency)} />
                     <Legend />
                     <Line type="monotone" dataKey="revenue" name="Revenue" stroke="#0f766e" strokeWidth={3} dot={false} />
                     <Line type="monotone" dataKey="trend" name="Trend" stroke="#f59e0b" strokeWidth={2.5} dot={false} />
@@ -658,7 +823,7 @@ export default function AgentReportsPage() {
             </div>
 
             <div className="rounded-2xl border border-slate-200 p-4">
-              <h3 className="text-xl font-extrabold text-slate-900">Revenue by property type</h3>
+              <h3 className="text-xl font-extrabold text-slate-900">Revenue by tourism type</h3>
               <div className="mt-4 space-y-3">
                 {typeData.rows.map((row, idx) => (
                   <div key={row.name} className="space-y-1.5">
@@ -674,7 +839,7 @@ export default function AgentReportsPage() {
                         {row.name}
                       </span>
                       <span>{row.pct}%</span>
-                      <span className="font-bold text-slate-900">{fmtMoney(row.value)}</span>
+                      <span className="font-bold text-slate-900">{fmtMoney(row.value, reportCurrency)}</span>
                     </div>
                   </div>
                 ))}
@@ -711,7 +876,9 @@ export default function AgentReportsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
-                  {rows.map((item) => (
+                  {rows.map((item) => {
+                    const rowCurrency = item.source === "TOUR_BOOKING" ? "USD" : (item.currency || reportCurrency);
+                    return (
                     <tr key={item.id} className="hover:bg-slate-50/50 transition-colors align-top">
                       <td className="px-4 py-3 min-w-[240px]">
                         <div className="font-semibold text-slate-900">{item.title}</div>
@@ -719,16 +886,29 @@ export default function AgentReportsPage() {
                         <div className="text-[11px] text-slate-400">{item.tripType}</div>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <span className={`inline-flex rounded-full px-2 py-1 text-[10px] font-bold uppercase ${item.isCompleted ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-                          {item.isCompleted ? "Completed" : "Pending"}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap font-semibold text-slate-800">{fmtMoney(item.budget)}</td>
+                          {(() => {
+                            const stage = normalizedInvoiceStage(item);
+                            const stageTone =
+                              stage === "DISBURSED"
+                                ? "bg-emerald-50 text-emerald-700"
+                                : stage === "APPROVED"
+                                  ? "bg-cyan-50 text-cyan-700"
+                                  : stage === "VERIFIED"
+                                    ? "bg-amber-50 text-amber-700"
+                                    : stage === "CLAIMED"
+                                      ? "bg-indigo-50 text-indigo-700"
+                                      : stage === "REJECTED"
+                                        ? "bg-rose-50 text-rose-700"
+                                        : "bg-slate-100 text-slate-700";
+                            return <span className={`inline-flex rounded-full px-2 py-1 text-[10px] font-bold uppercase ${stageTone}`}>{stage}</span>;
+                          })()}
+                        </td>
+                      <td className="px-4 py-3 whitespace-nowrap font-semibold text-slate-800">{fmtMoney(item.budget, rowCurrency)}</td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <div className="font-semibold text-slate-700">{item.commissionPercent}%</div>
-                        <div className="text-xs text-slate-400">{fmtMoney(item.commissionAmount)}</div>
+                        <div className="text-xs text-slate-400">{fmtMoney(item.commissionAmount, rowCurrency)}</div>
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap font-bold text-[#02665e]">{fmtMoney(item.agentEarning)}</td>
+                      <td className="px-4 py-3 whitespace-nowrap font-bold text-[#02665e]">{fmtMoney(item.agentEarning, rowCurrency)}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-500">
                         <div className="inline-flex items-center gap-1">
                           <CalendarDays className="h-3 w-3" />
@@ -740,7 +920,7 @@ export default function AgentReportsPage() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                  );})}
                 </tbody>
               </table>
             </div>

@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { Share2, Copy, CheckCircle, Users, Gift, Mail, MessageCircle, Link as LinkIcon, TrendingUp, UserPlus, Bell, AlertCircle, X, Wallet, ArrowUpRight, Eye } from "lucide-react";
 import apiClient from "@/lib/apiClient";
+import { fetchAccountSession } from "@/lib/accountSession";
 import ToastContainer from "@/components/ToastContainer";
 import { io, Socket } from "socket.io-client";
 
@@ -157,11 +158,10 @@ export default function DriverReferral() {
     let mounted = true;
     (async () => {
       try {
-        const r = await fetch("/api/account/me", { credentials: "include" });
+        const r = await fetchAccountSession();
         if (!mounted) return;
         if (!r.ok) return;
-        const me = await r.json();
-        if (me?.id) setUserId(me.id);
+        if (r.data?.id) setUserId(r.data.id);
       } catch {
         // ignore
       }
@@ -313,9 +313,10 @@ export default function DriverReferral() {
           socket.emit("join-driver-room", { driverId: perfRes.data.driver.id });
         } else {
           try {
-            const meRes = await fetch("/api/account/me", { credentials: "include" });
-            const me = meRes.ok ? await meRes.json() : null;
-            if (me?.id) socket.emit("join-driver-room", { driverId: me.id });
+            const meRes = await fetchAccountSession();
+            if (meRes.ok && meRes.data?.id) {
+              socket.emit("join-driver-room", { driverId: meRes.data.id });
+            }
           } catch {}
         }
       } catch (e) {

@@ -3,34 +3,10 @@
 import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Linkedin, Instagram, Youtube, X, Facebook, MapPin, Phone } from "lucide-react";
+import { BookOpen, BriefcaseBusiness, Building2, Compass, Linkedin, Instagram, Youtube, X, Facebook, Mail, MapPin, Phone, Sparkles } from "lucide-react";
 import FooterBridge from "@/components/FooterBridge";
 
 const APP_VERSION = "v0.1.0";
-
-function FooterPolicyItem({
-  children,
-  href,
-}: {
-  children: React.ReactNode;
-  href: string;
-}) {
-  const className =
-    "group relative inline-flex appearance-none items-center rounded-md border border-transparent bg-transparent px-2.5 py-1.5 text-sm font-semibold cursor-pointer " +
-    "text-slate-200 no-underline transition-all duration-300 ease-out " +
-    "hover:text-white hover:bg-white/10 " +
-    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 " +
-    "motion-reduce:transition-none";
-
-  return (
-    <Link href={href} className={className}>
-      <span className="relative">
-        {children}
-        <span className="pointer-events-none absolute -bottom-1 left-0 h-px w-0 bg-gradient-to-r from-[#02665e] to-sky-500 transition-all duration-300 group-hover:w-full" />
-      </span>
-    </Link>
-  );
-}
 
 function IconLinkButton({
   href,
@@ -205,22 +181,44 @@ export default function PublicFooter({ withRail = true }: { withRail?: boolean }
                     {APP_VERSION}
                   </span>
                 </div>
-                <p className="text-sm text-slate-300 leading-relaxed max-w-sm">
-                  NoLSAF connects travellers, owners and drivers with safe, local stays and services across East Africa.
+                <p className="text-sm text-slate-300 leading-relaxed max-w-md">
+                  NoLSAF connects travellers, property owners, tour operators, and trusted mobility partners across East Africa.
+                </p>
+                <p className="text-sm text-slate-400 leading-relaxed max-w-md">
+                  Find verified stays, tour packages, rides, and group travel support in one secure platform.
                 </p>
 
-                <div className="flex flex-col gap-1.5 text-[13px] text-slate-400">
-                  <span className="flex items-center gap-2">
-                    <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-500" />
-                    Ubungo, Dar es Salaam, Tanzania
-                  </span>
-                  <a
-                    href="tel:+255736766726"
-                    className="flex items-center gap-2 hover:text-slate-200 transition-colors no-underline"
-                  >
-                    <Phone className="h-3.5 w-3.5 shrink-0 text-slate-500" />
-                    +255 736 766 726
-                  </a>
+                <div className="rounded-2xl border border-white/12 bg-white/[0.045] p-4 shadow-inner shadow-white/[0.02]">
+                  <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-100">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
+                    NoLSAF Support
+                  </div>
+                  <div className="grid gap-2 text-[13px] text-slate-300">
+                    <span className="flex items-center gap-3 rounded-xl border border-white/8 bg-white/[0.035] px-3 py-2.5">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/8">
+                        <MapPin className="h-4 w-4 text-emerald-200" />
+                      </span>
+                      Dar es Salaam, Tanzania
+                    </span>
+                    <a
+                      href="tel:+255736766726"
+                      className="flex items-center gap-3 rounded-xl border border-white/8 bg-white/[0.035] px-3 py-2.5 text-slate-200 transition-colors hover:border-emerald-300/25 hover:bg-emerald-300/10 hover:text-white no-underline"
+                    >
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/8">
+                        <Phone className="h-4 w-4 text-emerald-200" />
+                      </span>
+                      +255 736 766 726
+                    </a>
+                    <a
+                      href="mailto:support@nolsaf.com"
+                      className="flex items-center gap-3 rounded-xl border border-white/8 bg-white/[0.035] px-3 py-2.5 text-slate-200 transition-colors hover:border-emerald-300/25 hover:bg-emerald-300/10 hover:text-white no-underline"
+                    >
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/8">
+                        <Mail className="h-4 w-4 text-emerald-200" />
+                      </span>
+                      support@nolsaf.com
+                    </a>
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-3 pt-2 flex-wrap">
@@ -278,7 +276,8 @@ export default function PublicFooter({ withRail = true }: { withRail?: boolean }
               </div>
 
               <div className="lg:col-span-7">
-                <div className="rounded-2xl border border-white/12 bg-white/6 backdrop-blur-sm p-5 shadow-sm shadow-black/20">
+                <div className="grid gap-4 lg:grid-cols-[1fr_0.72fr]">
+                  <div className="rounded-2xl border border-white/12 bg-white/6 backdrop-blur-sm p-5 shadow-sm shadow-black/20">
                   <div className="flex flex-col gap-1">
                     <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold tracking-wide text-slate-100 w-fit">
                       <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-300" />
@@ -336,80 +335,119 @@ export default function PublicFooter({ withRail = true }: { withRail?: boolean }
                       {newsletterStatus.message}
                     </div>
                   ) : null}
+                  </div>
+
+                  <div className="rounded-2xl border border-white/12 bg-white/[0.045] backdrop-blur-sm p-5 shadow-sm shadow-black/20">
+                    <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold tracking-wide text-slate-100">
+                      <span className="inline-block h-1.5 w-1.5 rounded-full bg-sky-300" />
+                      Portals
+                    </div>
+                    <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+                      {[
+                        { href: "/account/register?mode=register&role=owner&next=%2Fowner", label: "Owner Portal" },
+                        { href: "/account/register?mode=register&role=driver&next=%2Fdriver", label: "Driver Portal" },
+                      ].map((item) => (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          className="group flex items-center justify-between rounded-xl border border-white/8 bg-white/[0.035] px-3 py-2.5 text-sm font-semibold text-slate-200 no-underline transition-colors hover:border-sky-300/25 hover:bg-sky-300/10 hover:text-white"
+                        >
+                          <span>{item.label}</span>
+                          <span className="text-slate-500 transition-transform group-hover:translate-x-0.5 group-hover:text-sky-200">→</span>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="mt-8 grid grid-cols-2 lg:grid-cols-3 gap-8">
-              <div className="space-y-3">
-                <h3 className="text-base font-semibold text-white">About NoLSAF</h3>
-                <ul className="m-0 list-none p-0 space-y-1">
+            <div className="mt-8 grid gap-4 md:grid-cols-2">
+              <div className="rounded-2xl border border-white/12 bg-white/[0.045] p-5 shadow-sm shadow-black/20">
+                <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold tracking-wide text-slate-100">
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-300" />
+                  About NoLSAF
+                </div>
+                <ul className="m-0 grid list-none gap-2 p-0">
                   {[
-                    { href: "/about/who", label: "Who are we" },
-                    { href: "/about/what", label: "What we do" },
-                    { href: "/about/story", label: "Our Best Story" },
+                    { href: "/about/who", label: "Who are we", icon: Building2 },
+                    { href: "/about/what", label: "What we do", icon: Compass },
+                    { href: "/about/story", label: "Our Best Story", icon: Sparkles },
                   ].map((item) => (
                     <li key={item.href}>
-                      <FooterPolicyItem href={item.href}>{item.label}</FooterPolicyItem>
+                      <Link
+                        href={item.href}
+                        className="group flex items-center justify-between rounded-xl border border-white/8 bg-white/[0.035] px-3 py-2.5 text-sm font-semibold text-slate-200 no-underline transition-colors hover:border-emerald-300/25 hover:bg-emerald-300/10 hover:text-white"
+                      >
+                        <span className="flex items-center gap-2.5">
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-300/10 text-emerald-200">
+                            <item.icon className="h-4 w-4" />
+                          </span>
+                          {item.label}
+                        </span>
+                        <span className="text-slate-500 transition-transform group-hover:translate-x-0.5 group-hover:text-emerald-200" aria-hidden="true">&rarr;</span>
+                      </Link>
                     </li>
                   ))}
                 </ul>
               </div>
 
-              <div className="space-y-3">
-                <h3 className="text-base font-semibold text-white">Resources</h3>
-                <ul className="m-0 list-none p-0 space-y-1">
+              <div className="rounded-2xl border border-white/12 bg-white/[0.045] p-5 shadow-sm shadow-black/20">
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold tracking-wide text-slate-100">
+                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-sky-300" />
+                    Resources
+                  </div>
+                  <span className="rounded-full border border-white/10 bg-white/[0.035] px-3 py-1 text-[11px] font-semibold text-slate-300">
+                    Version {APP_VERSION}
+                  </span>
+                </div>
+                <ul className="m-0 grid list-none gap-2 p-0">
                   {[
-                    { href: "/help", label: "Help Center" },
-                    { href: "/careers", label: "Careers" },
+                    { href: "/help", label: "Help Center", icon: BookOpen },
+                    { href: "/careers", label: "Careers", icon: BriefcaseBusiness },
                   ].map((item) => (
                     <li key={item.href}>
-                      <FooterPolicyItem href={item.href}>{item.label}</FooterPolicyItem>
+                      <Link
+                        href={item.href}
+                        className="group flex items-center justify-between rounded-xl border border-white/8 bg-white/[0.035] px-3 py-2.5 text-sm font-semibold text-slate-200 no-underline transition-colors hover:border-sky-300/25 hover:bg-sky-300/10 hover:text-white"
+                      >
+                        <span className="flex items-center gap-2.5">
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sky-300/10 text-sky-200">
+                            <item.icon className="h-4 w-4" />
+                          </span>
+                          {item.label}
+                        </span>
+                        <span className="text-slate-500 transition-transform group-hover:translate-x-0.5 group-hover:text-sky-200" aria-hidden="true">&rarr;</span>
+                      </Link>
                     </li>
                   ))}
-                  <li>
-                    <span className="inline-flex items-center px-2.5 py-1.5 text-sm font-semibold text-slate-200">
-                      Version: <span className="ml-1 text-slate-400">{APP_VERSION}</span>
-                    </span>
-                  </li>
                 </ul>
               </div>
 
-              <div className="col-span-2 lg:col-span-1 space-y-3">
-                <h3 className="text-base font-semibold text-white">Portals</h3>
-                <ul className="m-0 list-none p-0 grid grid-cols-2 gap-x-6 gap-y-1">
-                  {[
-                    { href: "/account/register?mode=register&role=owner&next=%2Fowner", label: "Owner Portal" },
-                    { href: "/account/register?mode=register&role=driver&next=%2Fdriver", label: "Driver Portal" },
-                  ].map((item) => (
-                    <li key={item.href}>
-                      <FooterPolicyItem href={item.href}>{item.label}</FooterPolicyItem>
-                    </li>
-                  ))}
-                </ul>
-              </div>
             </div>
 
-            <div className="mt-8">
-              <div className="h-px w-full bg-gradient-to-r from-transparent via-white/15 to-transparent" />
-              <nav aria-label="Site footer navigation" className="mt-4">
-                <ul className="m-0 flex list-none flex-wrap items-center justify-center gap-2.5 p-0">
+            <div className="mt-5 rounded-2xl border border-white/12 bg-white/[0.035] p-4 shadow-sm shadow-black/20">
+              <nav aria-label="Site footer navigation">
+                <div className="mb-3 text-center text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">
+                  Platform standards
+                </div>
+                <ul className="m-0 flex list-none flex-wrap items-center justify-center gap-2 p-0">
                   {[
                     { href: "/terms", label: "Terms" },
                     { href: "/privacy", label: "Privacy" },
+                    { href: "/stay-safe", label: "Stay Safe" },
                     { href: "/cookies-policy", label: "Cookies" },
                     { href: "/verification-policy", label: "Verification" },
                     { href: "/cancellation-policy", label: "Cancellation" },
-                  ].map((item, index) => (
-                    <li
-                      key={item.href}
-                      className={
-                        index === 0
-                          ? ""
-                          : "lg:relative lg:pl-4 lg:before:content-[''] lg:before:absolute lg:before:left-1 lg:before:top-1/2 lg:before:-translate-y-1/2 lg:before:h-4 lg:before:w-px lg:before:bg-white/15"
-                      }
-                    >
-                      <FooterPolicyItem href={item.href}>{item.label}</FooterPolicyItem>
+                  ].map((item) => (
+                    <li key={item.href}>
+                      <Link
+                        href={item.href}
+                        className="inline-flex rounded-full border border-white/10 bg-white/[0.035] px-3.5 py-2 text-sm font-semibold text-slate-200 no-underline transition-colors hover:border-emerald-300/25 hover:bg-emerald-300/10 hover:text-white"
+                      >
+                        {item.label}
+                      </Link>
                     </li>
                   ))}
                 </ul>
@@ -421,7 +459,7 @@ export default function PublicFooter({ withRail = true }: { withRail?: boolean }
               <div className="mt-5 flex flex-col items-center gap-2">
                 <div className="text-xs sm:text-sm text-slate-300 text-center">
                   <span className="font-semibold text-slate-200">&copy; {year} </span>
-                  <span className="font-extrabold text-emerald-200 tracking-wide">NoLSAF</span>
+                  <span className="font-extrabold text-[#02665e] tracking-wide">NoLSAF</span>
                   <span className="text-slate-400"> | All rights reserved</span>
                 </div>
               </div>

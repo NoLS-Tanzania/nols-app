@@ -8,6 +8,7 @@ import { Popover, Transition } from "@headlessui/react";
 
 import Chart from "@/components/Chart";
 import DatePickerField from "@/components/DatePickerField";
+import { fetchAccountSession } from "@/lib/accountSession";
 import { escapeAttr, escapeHtml } from "@/utils/html";
 
 type Series = { labels: string[]; data: number[] };
@@ -228,10 +229,9 @@ export default function AdminReportsPage() {
   useEffect(() => {
     (async () => {
       try {
-        const r = await fetch("/api/account/me", { credentials: "include" });
+        const r = await fetchAccountSession();
         if (!r.ok) return;
-        const data = (await safeJson(r)) as MeResponse;
-        setMe(data || null);
+        setMe((r.data || null) as MeResponse | null);
       } catch {
         // ignore
       }

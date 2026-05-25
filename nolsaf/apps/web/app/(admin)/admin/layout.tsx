@@ -90,10 +90,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           {/* Main content: match Owner spacing and styling (no extra border/bg) */}
           <div className={`pt-16 pb-6 transition-all duration-300 ease-in-out ${sidebarOpen ? 'owner-content-gap' : 'md:ml-20'}`}>
             <div className="relative h-[calc(100vh-4rem)] rounded-3xl border border-slate-200/60 bg-gradient-to-b from-white/[0.035] via-white/[0.02] to-white/[0.01] backdrop-blur-xl overflow-hidden shadow-[0_18px_55px_rgba(0,0,0,0.30),0_0_46px_rgba(2,102,94,0.14)] ring-1 ring-black/[0.04] after:pointer-events-none after:absolute after:inset-0 after:rounded-3xl after:ring-1 after:ring-slate-200/50">
-              <div ref={mainRef} className="h-full overflow-y-auto">
-                <main>
-                  <div className="w-full">
-                    <div className="mx-auto w-full">
+              <div ref={mainRef} className="h-full overflow-y-auto overflow-x-hidden">
+                <main className="min-w-0 overflow-x-hidden">
+                  <div className="w-full min-w-0 overflow-x-hidden">
+                    <div className="mx-auto w-full min-w-0 overflow-x-hidden">
                       {children}
                     </div>
                   </div>

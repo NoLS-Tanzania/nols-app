@@ -479,7 +479,7 @@ router.get("/invoices/:id(\\d+)", async (req, res) => {
     try {
       response.relatedInvoices = await prisma.invoice.findMany({
         where: { bookingId: (inv as any).bookingId, id: { not: (inv as any).id } },
-        select: { id: true, invoiceNumber: true, status: true },
+        select: { id: true, invoiceNumber: true, status: true, receiptNumber: true, paymentRef: true, paidAt: true },
         orderBy: { id: "asc" },
       });
     } catch {

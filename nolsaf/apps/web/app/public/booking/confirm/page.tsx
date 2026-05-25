@@ -92,7 +92,24 @@ export default function BookingConfirmPage() {
   const specialRequests = "";
   
   // Transportation
-  const [includeTransport, setIncludeTransport] = useState(false);
+  const [includeTransport, _setIncludeTransport] = useState(false);
+  const [showTransportNotice, setShowTransportNotice] = useState(false);
+  const [transportCountdown, setTransportCountdown] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+  useEffect(() => {
+    function calcCountdown() {
+      const target = new Date("2026-06-30T00:00:00").getTime();
+      const diff = Math.max(0, target - Date.now());
+      setTransportCountdown({
+        days: Math.floor(diff / 86400000),
+        hours: Math.floor((diff % 86400000) / 3600000),
+        minutes: Math.floor((diff % 3600000) / 60000),
+        seconds: Math.floor((diff % 60000) / 1000),
+      });
+    }
+    calcCountdown();
+    const t = setInterval(calcCountdown, 1000);
+    return () => clearInterval(t);
+  }, []);
   const [transportVehicleType, setTransportVehicleType] = useState<TransportVehicleType>("CAR");
   const [pickupMode, setPickupMode] = useState<"current" | "arrival" | "manual">("current");
   const [pickupMethodChosen, setPickupMethodChosen] = useState(false);
@@ -408,22 +425,7 @@ export default function BookingConfirmPage() {
       }
       
       setProperty(propertyData);
-      setError(null); // Clear any previous errors
-      
-      // Debug: Log property data structure
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Property loaded successfully:', {
-          id: propertyData.id,
-          title: propertyData.title,
-          basePrice: propertyData.basePrice,
-          currency: propertyData.currency,
-          hasRoomsSpec: !!propertyData.roomsSpec,
-          roomsSpecType: typeof propertyData.roomsSpec,
-          roomsSpecIsArray: Array.isArray(propertyData.roomsSpec),
-          roomsSpecLength: Array.isArray(propertyData.roomsSpec) ? propertyData.roomsSpec.length : 0,
-          status: propertyData.status,
-        });
-      }
+      setError(null);
     } catch (err: any) {
       // Handle AbortError (timeout)
       if (err.name === 'AbortError') {
@@ -434,17 +436,6 @@ export default function BookingConfirmPage() {
         setError("Failed to load property. Please try again.");
       }
       
-      // Log error for debugging
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Property fetch error:', {
-          propertyId,
-          error: err?.message || err,
-          name: err?.name,
-          stack: err?.stack,
-        });
-      }
-      
-      // Set property to null so UI can handle error state
       setProperty(null);
     } finally {
       setLoading(false);
@@ -832,36 +823,6 @@ export default function BookingConfirmPage() {
   // Always show the room's price even when nights is 0, so users can see the price while selecting dates
   let basePricePerNight = property?.basePrice ? Number(property.basePrice) : 0;
   
-  // Debug logging - enhanced to help diagnose issues
-  if (process.env.NODE_ENV === 'development') {
-    console.log('Price calculation debug:', {
-      hasProperty: !!property,
-      propertyId: property?.id,
-      propertyTitle: property?.title,
-      basePrice: property?.basePrice,
-      basePriceType: typeof property?.basePrice,
-      currency: property?.currency,
-      selectedRoomCode,
-      selectedRoomIndex,
-      hasRoomsSpec: !!property?.roomsSpec,
-      roomsSpecType: typeof property?.roomsSpec,
-      roomsSpecIsArray: Array.isArray(property?.roomsSpec),
-      roomsSpecLength: Array.isArray(property?.roomsSpec) ? property?.roomsSpec.length : 0,
-      loading,
-      error,
-    });
-    
-    // Warn if property is missing basePrice
-    if (property && (property.basePrice === null || property.basePrice === undefined)) {
-      console.warn('⚠️ Property missing basePrice:', {
-        id: property.id,
-        title: property.title,
-        hasRoomsSpec: !!property.roomsSpec,
-        suggestion: 'Property may need basePrice set or roomsSpec with prices',
-      });
-    }
-  }
-  
   // If a room is selected, use that room's price (this takes priority over basePrice)
   if (property?.roomsSpec && (selectedRoomCode !== null || selectedRoomIndex !== null)) {
     let roomTypes: Array<any> = [];
@@ -877,22 +838,6 @@ export default function BookingConfirmPage() {
       }
     }
     
-    // Debug: Log room types found
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Room types extracted:', {
-        roomTypesCount: roomTypes.length,
-        roomTypes: roomTypes.map((rt: any, idx: number) => ({
-          idx,
-          code: rt?.code,
-          roomCode: rt?.roomCode,
-          roomType: rt?.roomType || rt?.name || rt?.label,
-          pricePerNight: rt?.pricePerNight,
-          price: rt?.price,
-          allKeys: Object.keys(rt || {}),
-        })),
-      });
-    }
-    
     let selectedRoom: any = null;
     
     // Try to find room by code first, then fall back to name/type match.
@@ -905,9 +850,6 @@ export default function BookingConfirmPage() {
         const rtType = String(rt?.roomType ?? rt?.type ?? rt?.name ?? rt?.label ?? "").trim();
         if (rtCode === selectedRoomCode || rtType === selectedRoomCode) {
           selectedRoom = rt;
-          if (process.env.NODE_ENV === 'development') {
-            console.log('Room found by code/type:', { code: selectedRoomCode, room: rt });
-          }
           break;
         }
       }
@@ -916,24 +858,11 @@ export default function BookingConfirmPage() {
     // If not found by code, try by index
     if (!selectedRoom && selectedRoomIndex !== null && selectedRoomIndex >= 0 && selectedRoomIndex < roomTypes.length) {
       selectedRoom = roomTypes[selectedRoomIndex];
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Room found by index:', { index: selectedRoomIndex, room: selectedRoom });
-      }
     }
     
     if (selectedRoom) {
       // Extract price using same logic as normalizeRoomSpec: r?.pricePerNight ?? r?.price
       const priceRaw = selectedRoom.pricePerNight ?? selectedRoom.price ?? null;
-      
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Selected room price extraction:', {
-          pricePerNight: selectedRoom.pricePerNight,
-          price: selectedRoom.price,
-          priceRaw,
-          allKeys: Object.keys(selectedRoom),
-        });
-      }
-      
       if (priceRaw !== null && priceRaw !== undefined) {
         const numPrice = Number(priceRaw);
         // Check if price is valid and greater than 0
@@ -950,14 +879,6 @@ export default function BookingConfirmPage() {
         }
       }
     } else {
-      // Room not found - fallback to basePrice
-      if (process.env.NODE_ENV === 'development') {
-        console.warn('Room not found!', {
-          selectedRoomCode,
-          selectedRoomIndex,
-          roomTypesCount: roomTypes.length,
-        });
-      }
       if (property?.basePrice) {
         basePricePerNight = Number(property.basePrice);
       }
@@ -965,11 +886,6 @@ export default function BookingConfirmPage() {
   }
 
   const pricePerNight = calculatePriceWithCommission(basePricePerNight, commissionPercent);
-  
-  // Final debug
-  if (process.env.NODE_ENV === 'development') {
-    console.log('Final pricePerNight:', pricePerNight);
-  }
   
   const roomsQty = Math.max(1, Number(bookingData?.rooms ?? 1));
   const subtotal = pricePerNight * nights * roomsQty;
@@ -1911,97 +1827,90 @@ export default function BookingConfirmPage() {
                 {/* Transportation Option */}
                 <div className="pt-6 border-t border-slate-200/60">
                   {/* Transport card header */}
-                  <div className="relative overflow-hidden rounded-2xl mb-4" style={{ background: "linear-gradient(135deg, #02665e 0%, #024d47 100%)" }}>
-                    {/* subtle diagonal slashes — brand pattern */}
-                    <div className="pointer-events-none absolute inset-0 opacity-[0.08]"
-                      style={{ backgroundImage: "repeating-linear-gradient(-55deg, rgba(255,255,255,1) 0px, rgba(255,255,255,1) 1.5px, transparent 1.5px, transparent 22px)" }} />
-                    {/* white dot grid — very subtle */}
-                    <div className="pointer-events-none absolute inset-0 opacity-[0.06]"
-                      style={{ backgroundImage: "radial-gradient(circle, #ffffff 1px, transparent 1px)", backgroundSize: "20px 20px" }} />
-                    {/* top-right radial highlight */}
-                    <div className="pointer-events-none absolute inset-0"
-                      style={{ background: "radial-gradient(ellipse at 100% 0%, rgba(2,180,245,0.25) 0%, transparent 55%)" }} />
+                  <div className="relative overflow-hidden rounded-2xl mb-4" style={{ background: "linear-gradient(135deg, #02665e 0%, #028570 100%)" }}>
+                    <div className="pointer-events-none absolute inset-0 opacity-[0.05]"
+                      style={{ backgroundImage: "repeating-linear-gradient(-55deg, rgba(255,255,255,1) 0px, rgba(255,255,255,1) 1.5px, transparent 1.5px, transparent 24px)" }} />
 
-                    <div className="relative z-10 p-5 sm:p-6">
-                      {/* top row: icon + title */}
-                      <div className="flex items-start gap-4">
-                        <div className="w-11 h-11 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                          <Car className="w-5 h-5 text-white" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-[15px] font-extrabold text-white tracking-tight">Include Transportation</span>
-                            <span className="bg-white/15 border border-white/25 rounded-full px-2.5 py-0.5 text-[10px] font-bold text-white/90 uppercase tracking-widest">
-                              Optional add-on
-                            </span>
-                          </div>
-                          <p className="mt-0.5 text-[12px] text-white/65 font-medium">
-                            Door-to-door pickup from anywhere to the property
-                          </p>
-                        </div>
+                    <div className="relative z-10 p-5 flex items-center gap-4">
+                      {/* Icon */}
+                      <div className="w-9 h-9 rounded-lg bg-white/15 border border-white/20 flex items-center justify-center flex-shrink-0">
+                        <Car className="w-4 h-4 text-white" />
                       </div>
 
-                      {/* switch row */}
-                      <div className="mt-4 pt-4 border-t border-white/10">
-                        {/* ON state — confirmation line */}
-                        {includeTransport && (
-                          <div className="flex items-center gap-2 text-[13px] font-semibold text-white/80">
-                            <svg className="w-4 h-4 text-[#4dd9ac] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                            Transportation included. Configure below
-                          </div>
-                        )}
+                      {/* Content */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[15px] font-bold text-white leading-snug">Include Transportation</p>
+                        <p className="text-[12px] text-white/65 leading-snug mt-0.5">
+                          Add transportation to your booking. We pick you up as you plan.
+                        </p>
+                      </div>
 
-                      {/* OFF state — button centred, hints below */}
-                      {!includeTransport && (
-                        <div className="flex flex-col items-center gap-3">
-                          {/* CTA button */}
-                          <div className="relative">
-                            <span className="absolute -inset-1 rounded-2xl animate-ping bg-white/30 pointer-events-none" style={{ animationDuration: "2s" }} />
-                            <button
-                              type="button"
-                              onClick={() => setIncludeTransport(true)}
-                              aria-label="Add transportation to booking"
-                              className="relative inline-flex items-center gap-2 rounded-xl bg-white text-[#02665e] px-6 py-3 text-[13px] font-extrabold tracking-wide shadow-xl shadow-black/20 hover:bg-white/90 active:scale-95 transition-all duration-200 select-none"
-                            >
-                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-                              Add to booking
-                              <svg className="w-3.5 h-3.5 ml-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
-                            </button>
-                          </div>
-                          {/* feature hints — below button on all sizes */}
-                          <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                            {[
-                              { icon: "🏍️", label: "Boda · Car · XL" },
-                              { icon: "📍", label: "GPS / Airport" },
-                              { icon: "💰", label: "Live fare" },
-                            ].map(({ icon, label }, i) => (
-                              <span key={label} className="inline-flex items-center gap-1 text-[11px] font-semibold text-white/60 whitespace-nowrap">
-                                {i > 0 && <span className="w-px h-3 bg-white/20 mx-0.5 flex-shrink-0" />}
-                                <span className="text-xs leading-none">{icon}</span>
-                                {label}
-                              </span>
-                            ))}
-                          </div>
+                      {/* Toggle — disabled, shows coming-soon notice */}
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={false}
+                        onClick={() => setShowTransportNotice(true) }
+                        className="flex-shrink-0 focus:outline-none active:scale-95 transition-transform duration-150"
+                      >
+                        <div className="relative w-14 h-7 rounded-full bg-black/30">
+                          <div className="absolute top-1 left-1 w-5 h-5 rounded-full bg-white/70 shadow" />
                         </div>
-                      )}
-
-                      {/* Remove button — only when ON */}
-                      {includeTransport && (
-                        <div className="flex justify-end">
-                          <button
-                            type="button"
-                            onClick={() => setIncludeTransport(false)}
-                            aria-label="Remove transportation"
-                            className="inline-flex items-center gap-2 rounded-xl bg-white/15 border border-white/30 text-white px-4 py-2.5 text-[13px] font-bold hover:bg-white/25 active:scale-95 transition-all duration-200 select-none"
-                          >
-                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                            Remove
-                          </button>
-                        </div>
-                      )}
+                      </button>
                     </div>
                   </div>
-                </div>
+
+                  {/* Coming-soon notice */}
+                  {showTransportNotice && (
+                    <div className="mb-4 rounded-2xl overflow-hidden shadow-md animate-in fade-in slide-in-from-top-2 duration-300" style={{ background: "linear-gradient(135deg, #02665e 0%, #028570 100%)" }}>
+                      <div className="px-5 pt-4 pb-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-[13px] font-bold text-white leading-snug">
+                              We&apos;re onboarding! 🎉 Transportation launches on <span className="text-[#4ecdc4]">30 June 2026</span>.
+                            </p>
+                            <p className="mt-1 text-[11px] text-white/65">
+                              Continue with other activated services for now.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setShowTransportNotice(false)}
+                            className="flex-shrink-0 w-7 h-7 rounded-full bg-white/20 hover:bg-white/35 flex items-center justify-center transition-colors duration-150 mt-0.5"
+                            aria-label="Close"
+                          >
+                            <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                          </button>
+                        </div>
+                        {/* Countdown */}
+                        <div className="mt-3 grid grid-cols-4 gap-2">
+                          {([
+                            { label: "Days", value: transportCountdown.days },
+                            { label: "Hours", value: transportCountdown.hours },
+                            { label: "Mins", value: transportCountdown.minutes },
+                            { label: "Secs", value: transportCountdown.seconds },
+                          ] as { label: string; value: number }[]).map(({ label, value }) => (
+                            <div key={label} className="bg-white/15 rounded-xl py-2 text-center border border-white/10">
+                              <div className="text-xl font-extrabold text-white tabular-nums">{String(value).padStart(2, "0")}</div>
+                              <div className="text-[10px] font-semibold text-white/55 uppercase tracking-wider">{label}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      {/* Auto-close progress bar */}
+                      <div className="mt-4 flex flex-col items-center gap-1.5">
+                        <div className="w-48 h-1.5 bg-white/15 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-[#4ecdc4] rounded-full"
+                            style={{ animation: "drainBar 10s linear forwards" }}
+                            onAnimationEnd={() => setShowTransportNotice(false)}
+                          />
+                        </div>
+                        <p className="text-[10px] text-white/40 tracking-wide">closes automatically</p>
+                      </div>
+                      <style>{`@keyframes drainBar { from { width: 100%; } to { width: 0%; } }`}</style>
+                    </div>
+                  )}
 
                   {includeTransport && (
                     <div className="space-y-5 mt-4 p-5 bg-white rounded-2xl border border-slate-200/80 shadow-md animate-in fade-in slide-in-from-top-2 duration-300">

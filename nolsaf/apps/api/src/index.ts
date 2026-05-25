@@ -19,12 +19,24 @@ import { startBackgroundWorkers } from "./workers";
 
 export { emitReferralNotification, emitReferralUpdate } from "./sockets";
 
+function isEnabled(value: string | undefined): boolean {
+  return ["1", "true", "yes", "on"].includes(String(value || "").trim().toLowerCase());
+}
+
+function shouldStartSocketServer(): boolean {
+  const configured = process.env.SOCKET_SERVER_ENABLED ?? process.env.RUN_SOCKET_SERVER;
+  if (configured == null || String(configured).trim() === "") {
+    return process.env.NODE_ENV !== "test";
+  }
+  return isEnabled(configured);
+}
+
 const app = express();
 
 app.use(requestIdMiddleware);
 registerEarlyRoutes(app);
 
-// ─── MAINTENANCE MODE ─────────────────────────────────────────────────────────
+// ─── MAINTENANCE MODE ───
 // Set MAINTENANCE_MODE=true in environment to block all non-health traffic.
 if (process.env.MAINTENANCE_MODE === "true") {
   app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -36,11 +48,19 @@ if (process.env.MAINTENANCE_MODE === "true") {
     });
   });
 }
-// ─────────────────────────────────────────────────────────────────────────────
+// ────
 
 const server = http.createServer(app);
-const io = createSocketServer(server, app);
-startBackgroundWorkers(io);
+const io = shouldStartSocketServer() ? createSocketServer(server, app) : null;
+
+if (io) {
+  startBackgroundWorkers(io);
+} else if (process.env.NODE_ENV !== "test") {
+  console.log("[socket] Socket server disabled for this process.");
+  if (String(process.env.RUN_BACKGROUND_WORKERS || "").trim().toLowerCase() === "true") {
+    console.warn("[workers] RUN_BACKGROUND_WORKERS=true but socket server is disabled, so background workers were not started.");
+  }
+}
 
 // Global security middleware (CSP, CORS, HPP, rate limit).
 configureSecurity(app);

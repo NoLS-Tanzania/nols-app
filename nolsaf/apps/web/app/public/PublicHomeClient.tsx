@@ -7,8 +7,6 @@ import {
   User,
   ChevronRight,
   X,
-  Calendar,
-  Eye,
   Sparkles,
   Gavel,
   Home,
@@ -26,45 +24,22 @@ import AttentionBlink from '../../components/AttentionBlink';
 import CountryCard from '../../components/CountryCard';
 import BookingFlowCard from '../../components/BookingFlowCard';
 import FounderStory from '../../components/FounderStory';
-import Testimonials from '../../components/Testimonials';
 import LatestUpdate from '../../components/LatestUpdate';
 import PodcastSection from '../../components/PodcastSection';
 import TrustedBySection from '../../components/TrustedBySection';
 import ScrollReveal from '../../components/ScrollReveal';
 import LayoutFrame from '../../components/LayoutFrame';
-import axios from 'axios';
 import DatePicker from '../../components/ui/DatePicker';
 
-// Component to fetch and display trust partners from API
-function TrustedBySectionWithData() {
-  const [brands, setBrands] = useState<Array<{ name: string; logoUrl?: string; href?: string }>>([]);
-  const [loading, setLoading] = useState(true);
+type TrustPartnerBrand = { name: string; logoUrl?: string; href?: string };
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const api = axios.create({ baseURL: "" });
-        const r = await api.get<{ items: Array<{ name: string; logoUrl: string | null; href: string | null }> }>("/api/admin/trust-partners/public");
-        const items = Array.isArray(r.data?.items) ? r.data.items : [];
-        const mapped = items
-          .map((item) => ({
-            name: item.name,
-            logoUrl: item.logoUrl || undefined,
-            href: item.href || undefined,
-          }))
-          .filter((b) => Boolean(b.name));
-
-        setBrands(mapped);
-      } catch (err) {
-        console.error("Failed to load trust partners", err);
-        setBrands([]);
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
-  }, []);
-
+function TrustedBySectionWithData({
+  brands,
+  loading,
+}: {
+  brands: TrustPartnerBrand[];
+  loading: boolean;
+}) {
   // Admin fully controls this section. If no partners are configured (or API fails), hide the section.
   if (!loading && brands.length === 0) return null;
   if (brands.length === 0) return null;
@@ -238,8 +213,32 @@ export default function Page() {
   const heroPointerRafRef = useRef<number | null>(null);
   const heroPointerPendingRef = useRef<{ x: number; y: number } | null>(null);
   const heroPressTimerRef = useRef<number | null>(null);
+  const audienceBucketTimerRef = useRef<number | null>(null);
   const [_heroPointerActive, setHeroPointerActive] = useState(false);
   const [_heroPressed, setHeroPressed] = useState(false);
+  const [audienceBucketOpen, setAudienceBucketOpen] = useState(false);
+  const [expandedAudienceRole, setExpandedAudienceRole] = useState<string | null>(null);
+
+  const scheduleAudienceBucketClose = useCallback(() => {
+    if (audienceBucketTimerRef.current != null) {
+      window.clearTimeout(audienceBucketTimerRef.current);
+    }
+    audienceBucketTimerRef.current = window.setTimeout(() => {
+      setAudienceBucketOpen(false);
+      setExpandedAudienceRole(null);
+      audienceBucketTimerRef.current = null;
+    }, 120000);
+  }, []);
+
+  const openAudienceBucket = useCallback(() => {
+    setAudienceBucketOpen(true);
+    scheduleAudienceBucketClose();
+  }, [scheduleAudienceBucketClose]);
+
+  const keepAudienceBucketOpen = useCallback(() => {
+    if (!audienceBucketOpen) return;
+    scheduleAudienceBucketClose();
+  }, [audienceBucketOpen, scheduleAudienceBucketClose]);
 
   const queueHeroPointer = useCallback((clientX: number, clientY: number) => {
     heroPointerPendingRef.current = { x: clientX, y: clientY };
@@ -269,6 +268,7 @@ export default function Page() {
     return () => {
       if (heroPointerRafRef.current != null) window.cancelAnimationFrame(heroPointerRafRef.current);
       if (heroPressTimerRef.current != null) window.clearTimeout(heroPressTimerRef.current);
+      if (audienceBucketTimerRef.current != null) window.clearTimeout(audienceBucketTimerRef.current);
     };
   }, []);
 
@@ -299,6 +299,19 @@ export default function Page() {
     currency: string | null;
   };
 
+  type PublicHomeSummary = {
+    trustPartners?: {
+      items?: Array<{ name: string; logoUrl?: string | null; href?: string | null }>;
+    };
+    propertyTypes?: {
+      counts?: Record<string, number | null>;
+      samples?: Record<string, PublicPropertyCardLite | null>;
+    };
+    featuredDestinations?: {
+      counts?: Record<string, number | null>;
+    };
+  };
+
   const PROPERTY_TYPE_CARDS: Array<{
     key: PropertyTypeKey;
     title: string;
@@ -320,6 +333,8 @@ export default function Page() {
   const [typeSamples, setTypeSamples] = useState<Record<string, PublicPropertyCardLite | null>>({});
   const [countsLoading, setCountsLoading] = useState(true);
   const [blinkCounts, setBlinkCounts] = useState(false);
+  const [trustBrands, setTrustBrands] = useState<TrustPartnerBrand[]>([]);
+  const [trustBrandsLoading, setTrustBrandsLoading] = useState(true);
 
   const FEATURED_DESTINATIONS = useMemo(
     () =>
@@ -480,89 +495,50 @@ export default function Page() {
 
   useEffect(() => {
     let cancelled = false;
-    async function loadCounts() {
+    async function loadHomeSummary() {
       setCountsLoading(true);
+      setFeaturedCitiesLoading(true);
+      setTrustBrandsLoading(true);
       try {
-        const pairs = await Promise.all(
-          PROPERTY_TYPE_CARDS.map(async (t) => {
-            const res = await fetch(`/api/public/properties?types=${encodeURIComponent(t.key)}&page=1&pageSize=1&sort=latest_approved`, {
-              cache: "no-store",
-            });
-            if (!res.ok) return [t.key, null, null] as const;
-            const json = (await res.json()) as any;
-            const total = typeof json?.total === "number" ? json.total : Number(json?.total);
-            const first = Array.isArray(json?.items) && json.items.length ? json.items[0] : null;
-            const sample: PublicPropertyCardLite | null = first
-              ? {
-                  title: String(first.title || ""),
-                  location: String(first.location || ""),
-                  primaryImage: typeof first.primaryImage === "string" ? first.primaryImage : null,
-                  basePrice: first.basePrice != null ? Number(first.basePrice) : null,
-                  currency: first.currency ?? null,
-                }
-              : null;
-            return [t.key, Number.isFinite(total) ? total : null, sample] as const;
-          })
-        );
+        const res = await fetch("/api/public/properties/home-summary", { cache: "no-store" });
+        if (!res.ok) throw new Error("home_summary_failed");
+        const summary = (await res.json()) as PublicHomeSummary;
         if (cancelled) return;
-        const next: Record<string, number | null> = {};
-        const nextSamples: Record<string, PublicPropertyCardLite | null> = {};
-        for (const [k, v, s] of pairs) {
-          next[k] = v;
-          nextSamples[k] = s;
-        }
-        setTypeCounts(next);
-        setTypeSamples(nextSamples);
+
+        const brands = Array.isArray(summary?.trustPartners?.items) ? summary.trustPartners.items : [];
+        setTrustBrands(
+          brands
+            .map((item) => ({
+              name: String(item.name || ""),
+              logoUrl: item.logoUrl || undefined,
+              href: item.href || undefined,
+            }))
+            .filter((item) => Boolean(item.name))
+        );
+        setTypeCounts(summary?.propertyTypes?.counts ?? {});
+        setTypeSamples(summary?.propertyTypes?.samples ?? {});
+        setFeaturedCityCounts(summary?.featuredDestinations?.counts ?? {});
         setBlinkCounts(true);
         window.setTimeout(() => setBlinkCounts(false), 1800);
       } catch {
         if (cancelled) return;
-      } finally {
-        if (!cancelled) setCountsLoading(false);
-      }
-    }
-    void loadCounts();
-    return () => {
-      cancelled = true;
-    };
-    // Intentionally run once per mount (counts can be refreshed on page reload)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function loadFeaturedCityCounts() {
-      setFeaturedCitiesLoading(true);
-      try {
-        const pairs = await Promise.all(
-          FEATURED_DESTINATIONS.map(async (d) => {
-            const filterParam = d.filterParam === "region" ? "region" : "city";
-            const res = await fetch(`/api/public/properties?${filterParam}=${encodeURIComponent(d.city)}&page=1&pageSize=1`, {
-              cache: "no-store",
-            });
-            if (!res.ok) return [d.city, null] as const;
-            const json = (await res.json()) as any;
-            const total = typeof json?.total === "number" ? json.total : Number(json?.total);
-            return [d.city, Number.isFinite(total) ? total : null] as const;
-          })
-        );
-        if (cancelled) return;
-        const next: Record<string, number | null> = {};
-        for (const [city, total] of pairs) next[city] = total;
-        setFeaturedCityCounts(next);
-      } catch {
-        if (cancelled) return;
-        // keep empty (UI will show placeholders)
+        setTrustBrands([]);
+        setTypeCounts({});
+        setTypeSamples({});
         setFeaturedCityCounts({});
       } finally {
-        if (!cancelled) setFeaturedCitiesLoading(false);
+        if (!cancelled) {
+          setCountsLoading(false);
+          setFeaturedCitiesLoading(false);
+          setTrustBrandsLoading(false);
+        }
       }
     }
-    void loadFeaturedCityCounts();
+    void loadHomeSummary();
     return () => {
       cancelled = true;
     };
-  }, [FEATURED_DESTINATIONS]);
+  }, []);
   
   // Search form state for hero (first slide)
   const [q, setQ] = useState('');
@@ -1464,134 +1440,297 @@ export default function Page() {
             </div>
 
             <p className="mt-4 text-sm sm:text-base leading-relaxed max-w-[62ch] text-slate-500">
-              Travelers, drivers, and property owners {" "}
+              Travellers, drivers, property owners, and tour operators {" "}
               <span className="text-slate-700 font-medium">connected by verified listings, clear policies, and dependable support.</span>
             </p>
           </motion.div>
 
-          <div className="grid grid-cols-1 min-[420px]:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-6 min-[420px]:gap-y-6 sm:gap-x-5 sm:gap-y-6 md:gap-y-0 mb-6 sm:mb-8">
-            <motion.div
-              onClick={() => router.push('/public/properties')}
-              onKeyDown={(e) => { if (e.key === 'Enter') router.push('/public/properties'); }}
-              role="link"
-              tabIndex={0}
-              aria-label="Travelers - Browse stays"
-              className="group relative min-w-0 h-full cursor-pointer rounded-3xl overflow-hidden transition-shadow duration-500 hover:shadow-[0_28px_70px_rgba(4,120,87,0.40)]"
-              style={{ boxShadow: '0 8px 32px rgba(4,120,87,0.22)' }}
-              transition={{ duration: 0.5, delay: 0, ease: [0.2, 0.8, 0.2, 1] }}
-              whileHover={{ y: -8 }}
-            >
-              <div className="absolute inset-0" style={{ background: 'linear-gradient(145deg, #022c22 0%, #064e3b 35%, #065f46 65%, #047857 100%)' }} />
-              <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.8) 1px, transparent 1px)', backgroundSize: '22px 22px' }} />
-              <div aria-hidden className="pointer-events-none absolute -top-14 -right-14 w-56 h-56 rounded-full opacity-[0.15] group-hover:opacity-[0.25] transition-opacity duration-500" style={{ border: '2px solid #34d399', boxShadow: 'inset 0 0 60px rgba(52,211,153,0.3)' }} />
-              <div aria-hidden className="pointer-events-none absolute -top-4 -right-4 w-32 h-32 rounded-full opacity-[0.10] group-hover:opacity-[0.18] transition-opacity duration-500" style={{ border: '1px solid #6ee7b7' }} />
-              <div aria-hidden className="pointer-events-none absolute bottom-0 left-0 right-0 h-32 opacity-40" style={{ background: 'linear-gradient(to top, rgba(16,185,129,0.25), transparent)' }} />
-              <div className="relative flex h-full flex-col p-5 sm:p-6 md:p-7 min-h-[260px]">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="inline-flex self-start items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold tracking-widest uppercase" style={{ background: 'rgba(52,211,153,0.18)', color: '#6ee7b7', border: '1px solid rgba(52,211,153,0.35)' }}>
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399]" />
-                    Travelers
+          <div className="mb-6 sm:mb-8">
+            <AnimatePresence mode="wait" initial={false}>
+              {!audienceBucketOpen ? (
+                <motion.button
+                  key="audience-bucket"
+                  type="button"
+                  onClick={openAudienceBucket}
+                  onFocus={openAudienceBucket}
+                  initial={{ opacity: 0, y: 18, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -18, scale: 0.98 }}
+                  transition={{ duration: 0.44, ease: [0.16, 1, 0.3, 1] }}
+                  whileHover={{ y: -3 }}
+                  className="group relative mx-auto block w-full max-w-4xl overflow-hidden rounded-[28px] border border-slate-900/10 bg-[#101316] p-4 text-left shadow-[0_24px_70px_rgba(15,23,42,0.18)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/45 sm:p-6"
+                  aria-label="Open audience lanes"
+                >
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_16%,rgba(110,231,183,0.18),transparent_32%),linear-gradient(145deg,#101316_0%,#15191d_55%,#0f2925_100%)]" />
+                  <div
+                    aria-hidden
+                    className="absolute inset-0 opacity-[0.08]"
+                    style={{
+                      backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.9) 1px, transparent 1px)",
+                      backgroundSize: "24px 24px",
+                    }}
+                  />
+                  <div className="relative grid items-center gap-6 md:grid-cols-[1.15fr_0.85fr]">
+                    <div className="relative h-[280px] sm:h-[300px] md:h-[320px] lg:h-[340px]">
+                      {[
+                        { label: "Travellers", Icon: Users, top: "0px", inset: "9%" },
+                        { label: "Drivers", Icon: Car, top: "calc(40px + 2%)", inset: "6%" },
+                        { label: "Owners", Icon: Home, top: "calc(80px + 4%)", inset: "3%" },
+                        { label: "Operators", Icon: Gavel, top: "calc(120px + 6%)", inset: "0%" },
+                      ].map(({ label, Icon, top, inset }, idx) => (
+                        <motion.div
+                          key={label}
+                          initial={{ opacity: 0, y: 12, scale: 0.98 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          transition={{ 
+                            duration: 0.5, 
+                            delay: idx * 0.08,
+                            ease: [0.23, 1, 0.320, 1]
+                          }}
+                          className="absolute left-0 right-0 flex h-[70px] items-start justify-between overflow-hidden rounded-[22px] border border-white/70 px-3.5 pt-2 shadow-[0_16px_34px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.72)] transition-all duration-300 ease-out group-hover:translate-y-[-4px] group-hover:shadow-[0_24px_48px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.76)] sm:h-[78px] sm:px-5 sm:pt-2.5"
+                          whileHover={{ scale: 1.01 }}
+                          style={{
+                            top,
+                            left: inset,
+                            right: inset,
+                            zIndex: idx + 1,
+                            background: "linear-gradient(135deg, #fbfdfd 0%, #ffffff 56%, #edf8f4 100%)",
+                          }}
+                        >
+                          <div
+                            aria-hidden
+                            className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-white/60 via-white/90 to-white/60"
+                          />
+                          <div className="relative flex items-center gap-3">
+                            <motion.span
+                              className="flex h-7 w-7 items-center justify-center rounded-full border border-[#02665e]/15 bg-[#f7fbf9] text-[#02665e] shadow-[0_8px_16px_rgba(2,102,94,0.10)] sm:h-8 sm:w-8"
+                              whileHover={{ scale: 1.15, boxShadow: "0 12px 24px rgba(2, 102, 94, 0.18)" }}
+                              transition={{ duration: 0.2 }}
+                            >
+                              <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                            </motion.span>
+                            <span className="text-[10px] font-black uppercase tracking-[0.10em] text-slate-800 min-[390px]:text-[11px] sm:text-xs sm:tracking-[0.14em]">{label}</span>
+                          </div>
+                          <motion.span 
+                            className="relative mt-2 h-2 w-2 rounded-full bg-[#02665e] shadow-[0_0_12px_rgba(2,102,94,0.42)]"
+                            animate={{ scale: [1, 1.2, 1] }}
+                            transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+                            style={{ originX: "50%", originY: "50%" }}
+                          />
+                        </motion.div>
+                      ))}
+
+                      {/* Decorative Cross Lines for Enhanced UI */}
+                      <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-[26px]">
+                        {/* Top horizontal line */}
+                        <div className="absolute left-[6%] right-[6%] top-[6%] h-px bg-gradient-to-r from-transparent via-white/50 to-transparent" />
+                        {/* Bottom horizontal line */}
+                        <div className="absolute left-[6%] right-[6%] bottom-[6%] h-px bg-gradient-to-r from-transparent via-white/50 to-transparent" />
+                        {/* Left vertical line */}
+                        <div className="absolute left-[6%] top-[8%] bottom-[8%] w-px bg-gradient-to-b from-transparent via-white/45 to-transparent" />
+                        {/* Right vertical line */}
+                        <div className="absolute right-[6%] top-[8%] bottom-[8%] w-px bg-gradient-to-b from-transparent via-white/45 to-transparent" />
+                        {/* Center vertical divider */}
+                        <div className="absolute left-1/2 top-[12%] bottom-[12%] w-px bg-gradient-to-b from-transparent via-white/35 to-transparent" />
+                      </div>
+
+                      <motion.div 
+                        className="absolute inset-x-0 bottom-0 z-10 overflow-hidden rounded-[26px] border border-white/10 bg-[#1b1f22] shadow-[0_-16px_42px_rgba(0,0,0,0.30),inset_0_1px_0_rgba(255,255,255,0.08)]"
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.6, delay: 0.32, ease: [0.23, 1, 0.320, 1] }}
+                      >
+                        <div className="mx-auto -mt-3 h-7 w-24 rounded-b-full border-x border-b border-white/10 bg-[#101316]" />
+                        <div className="flex min-h-[70px] items-end justify-between gap-3 px-4 pb-4 sm:min-h-[74px] sm:px-5">
+                          <div>
+                            <motion.p 
+                              className="text-[10px] font-black uppercase tracking-[0.16em] text-white/60 sm:text-[11px] sm:tracking-[0.18em]"
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              transition={{ duration: 0.5, delay: 0.40 }}
+                            >
+                              NoLSAF access
+                            </motion.p>
+                            <motion.p 
+                              className="mt-1.5 text-xl font-black tracking-tight text-white sm:mt-2 sm:text-2xl"
+                              initial={{ opacity: 0, y: 4 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ duration: 0.5, delay: 0.48, ease: [0.23, 1, 0.320, 1] }}
+                            >
+                              Four roles, one flow
+                            </motion.p>
+                          </div>
+                          <motion.div
+                            whileHover={{ x: 2 }}
+                            transition={{ duration: 0.2 }}
+                          >
+                            <ChevronRight className="h-5 w-5 text-white/70 transition-all duration-300 group-hover:text-white/100 sm:h-6 sm:w-6" />
+                          </motion.div>
+                        </div>
+                      </motion.div>
+                    </div>
+
+                    <motion.div 
+                      className="flex flex-col items-center text-center md:items-start md:text-left"
+                      initial={{ opacity: 0, x: 24 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.6, delay: 0.2, ease: [0.23, 1, 0.320, 1] }}
+                    >
+                      <motion.h3 
+                        className="text-2xl font-black leading-tight tracking-tight text-white sm:text-3xl md:text-[28px]"
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5, delay: 0.36, ease: [0.23, 1, 0.320, 1] }}
+                      >
+                        Travel roles, connected.
+                      </motion.h3>
+                      <motion.p 
+                        className="mt-4 max-w-md text-xs leading-relaxed text-white/60 sm:text-sm md:text-[13px]"
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5, delay: 0.44, ease: [0.23, 1, 0.320, 1] }}
+                      >
+                        Stays, tours, rides, payments, and support in one clear NoLSAF Platform.
+                      </motion.p>
+                    </motion.div>
                   </div>
-                  <div aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: 'rgba(52,211,153,0.15)', border: '1px solid rgba(52,211,153,0.25)', backdropFilter: 'blur(8px)' }}>
-                    <Users style={{ width: '1.125rem', height: '1.125rem', color: '#6ee7b7' }} />
+                </motion.button>
+              ) : (
+                <motion.div
+                  key="audience-grid"
+                  initial={{ opacity: 0, y: 24, scale: 0.97 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 18, scale: 0.97 }}
+                  transition={{ duration: 0.46, ease: [0.16, 1, 0.3, 1] }}
+                  onMouseMove={keepAudienceBucketOpen}
+                  onPointerDown={keepAudienceBucketOpen}
+                  onFocus={keepAudienceBucketOpen}
+                  className="grid grid-cols-1 items-start gap-3 min-[520px]:grid-cols-2 lg:grid-cols-4"
+                >
+            {[
+              {
+                role: "Travellers",
+                href: "/public/properties",
+                aria: "Travellers - Browse stays",
+                Icon: Users,
+                title: <>Trusted stays,<br />clear trips.</>,
+                body: "Find verified places, compare options, and keep the full travel trail in one account.",
+                detail: "Discover complete stays with transport and tours integrated. Verified listings, confirmations, and support in one flow.",
+                accent: "#6ee7b7",
+                glow: "rgba(16,185,129,0.30)",
+                background: "linear-gradient(145deg, #05251d 0%, #064536 46%, #02665e 100%)",
+              },
+              {
+                role: "Drivers",
+                href: "/account/register?role=driver",
+                aria: "Drivers - Register as a driver",
+                Icon: Car,
+                title: <>Airport runs,<br />scheduled work.</>,
+                body: "Automatic dispatch matching, airport pickups, scheduled trips, and competitive pay all in one platform.",
+                detail: "Drivers access verified airport runs, scheduled bookings, automatic trip matching, transparent earnings, and flexible work plans designed for serious income.",
+                accent: "#8ee8d8",
+                glow: "rgba(2,102,94,0.30)",
+                background: "linear-gradient(145deg, #071d1d 0%, #0d3a36 48%, #0f766e 100%)",
+              },
+              {
+                role: "Property Owners",
+                href: "/account/register?role=owner",
+                aria: "Property owners - List your property",
+                Icon: Home,
+                title: <>Grow bookings<br />with control.</>,
+                body: "Join stay auctions, manage availability, print reports, and handle cleaner booking requests.",
+                detail: "Owners publish stays, participate in group-stay auctions, manage availability, print reports, and keep guest communication organized.",
+                accent: "#b8f4df",
+                glow: "rgba(15,118,110,0.28)",
+                background: "linear-gradient(145deg, #10201b 0%, #153d32 48%, #047857 100%)",
+              },
+              {
+                role: "Tour Operators",
+                href: "/account/agent",
+                aria: "Tour operators - Manage tour packages",
+                Icon: Gavel,
+                title: <>Package tours,<br />prove delivery.</>,
+                body: "List packages, manage bookings, control timelines, and support travellers from meetup to completion.",
+                detail: "Operators list tour packages, manage bookings, control timelines, validate meetups, and track delivery through completion.",
+                accent: "#f4d38a",
+                glow: "rgba(180,83,9,0.24)",
+                background: "linear-gradient(145deg, #20170a 0%, #3a2810 48%, #7c4a03 100%)",
+              },
+            ].map(({ role, href, aria, Icon, title, body, detail, accent, glow, background }, idx) => {
+              const isExpanded = expandedAudienceRole === role;
+              return (
+              <motion.div
+                key={role}
+                onClick={() => {
+                  if (!isExpanded) {
+                    setExpandedAudienceRole(role);
+                    return;
+                  }
+                  router.push(href);
+                }}
+                onMouseEnter={() => setExpandedAudienceRole(role)}
+                onMouseLeave={() => setExpandedAudienceRole(null)}
+                onFocus={() => setExpandedAudienceRole(role)}
+                onKeyDown={(e) => {
+                  if (e.key !== 'Enter') return;
+                  if (!isExpanded) {
+                    setExpandedAudienceRole(role);
+                    return;
+                  }
+                  router.push(href);
+                }}
+                role="link"
+                tabIndex={0}
+                aria-label={aria}
+                className="group relative min-w-0 cursor-pointer overflow-hidden rounded-[24px] border border-white/12 transition-all duration-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/45"
+                style={{ boxShadow: `0 14px 34px ${glow}` }}
+                transition={{ duration: 0.42, delay: idx * 0.06, ease: [0.22, 1, 0.36, 1] }}
+                whileHover={{ y: -4, scale: 1.006 }}
+              >
+                <div className="absolute inset-0" style={{ background }} />
+                <div className="absolute inset-0 opacity-[0.045]" style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.75) 1px, transparent 1px)', backgroundSize: '22px 22px' }} />
+                <div aria-hidden className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full blur-2xl opacity-28 transition-opacity duration-500 group-hover:opacity-42" style={{ background: glow }} />
+                <div aria-hidden className="pointer-events-none absolute inset-x-5 top-0 h-px" style={{ background: `linear-gradient(90deg, transparent, ${accent}70, transparent)` }} />
+
+                <div className="relative flex h-[232px] flex-col p-4 sm:p-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="inline-flex max-w-full items-center gap-2 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em]" style={{ background: `${accent}1f`, color: accent, border: `1px solid ${accent}4d` }}>
+                      <span className="h-1.5 w-1.5 rounded-full" style={{ background: accent, boxShadow: `0 0 8px ${accent}` }} />
+                      <span className="truncate">{role}</span>
+                    </div>
+                    <div aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: `${accent}1f`, border: `1px solid ${accent}45`, color: accent, backdropFilter: 'blur(8px)' }}>
+                      <Icon className="h-[18px] w-[18px]" />
+                    </div>
                   </div>
+
+                  <h3 className="mt-5 text-lg font-black leading-[1.08] tracking-tight text-white sm:text-[1.15rem]">
+                    {title}
+                  </h3>
+                  <p className={["mt-3 text-[13px] leading-relaxed transition-all duration-300", isExpanded ? "translate-y-[-4px] text-white/36 blur-[1px]" : "translate-y-0 text-white/80 blur-0"].join(" ")}>
+                    {body}
+                  </p>
+
+                  <AnimatePresence initial={false}>
+                    {isExpanded ? (
+                      <motion.div
+                        initial={{ opacity: 0, y: 18, scale: 0.96 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 14, scale: 0.98 }}
+                        transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                        className="absolute inset-x-4 bottom-4 rounded-2xl border border-white/22 bg-black/38 p-3 text-left text-[12px] font-medium leading-relaxed text-white shadow-[0_18px_34px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-md sm:inset-x-5 sm:bottom-5"
+                        style={{ borderColor: `${accent}66` }}
+                      >
+                        {detail}
+                      </motion.div>
+                    ) : null}
+                  </AnimatePresence>
                 </div>
-
-                <h3 className="mt-5 text-xl sm:text-2xl font-bold text-white leading-tight tracking-tight">
-                  Trusted stays,<br/>simpler booking.
-                </h3>
-                <p className="mt-3 text-sm leading-relaxed" style={{ color: 'rgba(167,243,208,0.80)' }}>
-                  One platform for accommodation, transport, and tourism in one smooth booking flow.
-                </p>
-
-                <div className="mt-auto pt-5 flex flex-wrap gap-x-5 gap-y-2 text-xs" style={{ color: 'rgba(110,231,183,0.70)', borderTop: '1px solid rgba(52,211,153,0.15)' }}>
-                  <span className="flex items-center gap-1.5 pt-4"><Calendar className="w-3.5 h-3.5" style={{ color: '#34d399' }} aria-hidden />One checkout</span>
-                  <span className="flex items-center gap-1.5 pt-4"><Eye className="w-3.5 h-3.5" style={{ color: '#34d399' }} aria-hidden />Verified listings</span>
-                </div>
-              </div>
-            </motion.div>
-
-            <motion.div
-              onClick={() => router.push('/account/register?role=driver')}
-              onKeyDown={(e) => { if (e.key === 'Enter') router.push('/account/register?role=driver'); }}
-              role="link"
-              tabIndex={0}
-              aria-label="Drivers - Register as a driver"
-              className="group relative min-w-0 h-full cursor-pointer rounded-3xl overflow-hidden transition-shadow duration-500 hover:shadow-[0_28px_70px_rgba(2,132,199,0.40)]"
-              style={{ boxShadow: '0 8px 32px rgba(2,132,199,0.22)' }}
-              transition={{ duration: 0.5, delay: 0.1, ease: [0.2, 0.8, 0.2, 1] }}
-              whileHover={{ y: -8 }}
-            >
-              <div className="absolute inset-0" style={{ background: 'linear-gradient(145deg, #0c1a2e 0%, #0c4a6e 35%, #075985 65%, #0369a1 100%)' }} />
-              <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.8) 1px, transparent 1px)', backgroundSize: '22px 22px' }} />
-              <div aria-hidden className="pointer-events-none absolute -top-14 -right-14 w-56 h-56 rounded-full opacity-[0.15] group-hover:opacity-[0.25] transition-opacity duration-500" style={{ border: '2px solid #38bdf8', boxShadow: 'inset 0 0 60px rgba(56,189,248,0.3)' }} />
-              <div aria-hidden className="pointer-events-none absolute -top-4 -right-4 w-32 h-32 rounded-full opacity-[0.10] group-hover:opacity-[0.18] transition-opacity duration-500" style={{ border: '1px solid #7dd3fc' }} />
-              <div aria-hidden className="pointer-events-none absolute bottom-0 left-0 right-0 h-32 opacity-40" style={{ background: 'linear-gradient(to top, rgba(56,189,248,0.22), transparent)' }} />
-              <div className="relative flex h-full flex-col p-5 sm:p-6 md:p-7 min-h-[260px]">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="inline-flex self-start items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold tracking-widest uppercase" style={{ background: 'rgba(56,189,248,0.18)', color: '#7dd3fc', border: '1px solid rgba(56,189,248,0.35)' }}>
-                    <span className="w-1.5 h-1.5 rounded-full bg-sky-400 shadow-[0_0_6px_#38bdf8]" />
-                    Drivers
-                  </div>
-                  <div aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: 'rgba(56,189,248,0.15)', border: '1px solid rgba(56,189,248,0.25)', backdropFilter: 'blur(8px)' }}>
-                    <Car style={{ width: '1.125rem', height: '1.125rem', color: '#7dd3fc' }} />
-                  </div>
-                </div>
-
-                <h3 className="mt-5 text-xl sm:text-2xl font-bold text-white leading-tight tracking-tight">
-                  Get more rides,<br/>earn reliably.
-                </h3>
-                <p className="mt-3 text-sm leading-relaxed" style={{ color: 'rgba(186,230,253,0.80)' }}>
-                  Join NoLSAF to access more rides, reliable payouts, and practical driver tools.
-                </p>
-
-                <div className="mt-auto pt-5 flex flex-wrap gap-x-5 gap-y-2 text-xs" style={{ color: 'rgba(125,211,252,0.70)', borderTop: '1px solid rgba(56,189,248,0.15)' }}>
-                  <span className="flex items-center gap-1.5 pt-4"><Calendar className="w-3.5 h-3.5" style={{ color: '#38bdf8' }} aria-hidden />Quick onboarding</span>
-                  <span className="flex items-center gap-1.5 pt-4"><Eye className="w-3.5 h-3.5" style={{ color: '#38bdf8' }} aria-hidden />Driver dashboard</span>
-                </div>
-              </div>
-            </motion.div>
-
-            <motion.div
-              onClick={() => router.push('/account/register?role=owner')}
-              onKeyDown={(e) => { if (e.key === 'Enter') router.push('/account/register?role=owner'); }}
-              role="link"
-              tabIndex={0}
-              aria-label="Property Owners - List your property"
-              className="group relative min-w-0 col-span-1 min-[420px]:col-span-2 md:col-span-1 h-full sm:mt-0 cursor-pointer rounded-3xl overflow-hidden transition-shadow duration-500 hover:shadow-[0_28px_70px_rgba(109,40,217,0.40)]"
-              style={{ boxShadow: '0 8px 32px rgba(109,40,217,0.22)' }}
-              transition={{ duration: 0.5, delay: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
-              whileHover={{ y: -8 }}
-            >
-              <div className="absolute inset-0" style={{ background: 'linear-gradient(145deg, #130828 0%, #2e1065 35%, #3b0764 65%, #4c1d95 100%)' }} />
-              <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.8) 1px, transparent 1px)', backgroundSize: '22px 22px' }} />
-              <div aria-hidden className="pointer-events-none absolute -top-14 -right-14 w-56 h-56 rounded-full opacity-[0.15] group-hover:opacity-[0.25] transition-opacity duration-500" style={{ border: '2px solid #a78bfa', boxShadow: 'inset 0 0 60px rgba(167,139,250,0.3)' }} />
-              <div aria-hidden className="pointer-events-none absolute -top-4 -right-4 w-32 h-32 rounded-full opacity-[0.10] group-hover:opacity-[0.18] transition-opacity duration-500" style={{ border: '1px solid #c4b5fd' }} />
-              <div aria-hidden className="pointer-events-none absolute bottom-0 left-0 right-0 h-32 opacity-40" style={{ background: 'linear-gradient(to top, rgba(139,92,246,0.25), transparent)' }} />
-              <div className="relative flex h-full flex-col p-5 sm:p-6 md:p-7 min-h-[260px]">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="inline-flex self-start items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold tracking-widest uppercase" style={{ background: 'rgba(167,139,250,0.18)', color: '#c4b5fd', border: '1px solid rgba(167,139,250,0.35)' }}>
-                    <span className="w-1.5 h-1.5 rounded-full bg-violet-400 shadow-[0_0_6px_#a78bfa]" />
-                    Property Owners
-                  </div>
-                  <div aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: 'rgba(167,139,250,0.15)', border: '1px solid rgba(167,139,250,0.25)', backdropFilter: 'blur(8px)' }}>
-                    <Home style={{ width: '1.125rem', height: '1.125rem', color: '#c4b5fd' }} />
-                  </div>
-                </div>
-
-                <h3 className="mt-5 text-xl sm:text-2xl font-bold text-white leading-tight tracking-tight">
-                  Grow bookings<br/>with less work.
-                </h3>
-                <p className="mt-3 text-sm leading-relaxed" style={{ color: 'rgba(221,214,254,0.80)' }}>
-                  List your property, manage availability, and grow bookings with less manual work.
-                </p>
-
-                <div className="mt-auto pt-5 flex flex-wrap gap-x-5 gap-y-2 text-xs" style={{ color: 'rgba(196,181,253,0.70)', borderTop: '1px solid rgba(167,139,250,0.15)' }}>
-                  <span className="flex items-center gap-1.5 pt-4"><Calendar className="w-3.5 h-3.5" style={{ color: '#a78bfa' }} aria-hidden />Fast onboarding</span>
-                  <span className="flex items-center gap-1.5 pt-4"><Eye className="w-3.5 h-3.5" style={{ color: '#a78bfa' }} aria-hidden />Owner dashboard</span>
-                </div>
-              </div>
-            </motion.div>
+              </motion.div>
+            );
+            })}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           {/* ── Explore heading — left-aligned editorial ── */}
@@ -1602,7 +1741,7 @@ export default function Page() {
             <p className="text-[11px] font-semibold tracking-[0.14em] uppercase text-slate-400 mb-3">Property Types</p>
 
             <h2 className="text-3xl sm:text-4xl lg:text-[2.75rem] font-extrabold tracking-tight leading-[1.1] text-slate-900">
-              Explore <span className="bg-gradient-to-r from-[#02b4f5] to-[#02665e] bg-clip-text text-transparent">stays</span>
+              Explore <span className="text-[#02665e]">stays</span>
             </h2>
 
             <p className="mt-3 max-w-[52ch] text-sm sm:text-[15px] leading-relaxed text-slate-500">
@@ -1618,6 +1757,7 @@ export default function Page() {
               const sample = typeSamples[c.key];
               const href = `/public/properties?types=${encodeURIComponent(c.key)}&page=1`;
               const img = sample?.primaryImage || c.fallbackImageSrc;
+              const bypassOptimizer = Boolean(img && img.includes("cloudinary"));
 
               // Per-card accent — curated 5-colour cycle so adjacent cards never clash
               const accents = [
@@ -1651,6 +1791,7 @@ export default function Page() {
                         fill
                         sizes="(min-width:1024px) 20vw, (min-width:640px) 33vw, 50vw"
                         className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.07] group-hover:saturate-[1.08]"
+                        unoptimized={bypassOptimizer}
                       />
                     ) : (
                       <div className="absolute inset-0" style={{ background: '#012e29' }} />
@@ -1717,7 +1858,7 @@ export default function Page() {
             <p className="text-[11px] font-semibold tracking-[0.14em] uppercase text-slate-400 mb-3">East Africa</p>
 
             <h2 className="text-3xl sm:text-4xl lg:text-[2.75rem] font-extrabold tracking-tight leading-[1.1] text-slate-900">
-              Featured <span className="bg-gradient-to-r from-[#02b4f5] to-[#02665e] bg-clip-text text-transparent">Destinations</span>
+              Featured <span className="text-[#02665e]">Destinations</span>
             </h2>
 
             <p className="mt-3 max-w-[52ch] text-sm sm:text-[15px] leading-relaxed text-slate-500">
@@ -1836,59 +1977,167 @@ export default function Page() {
             </div>
 
           <ScrollReveal direction="up" distance={40} className="mt-12">
-            <div className="relative overflow-hidden rounded-[32px] bg-gradient-to-br from-slate-950 via-slate-950 to-slate-900 ring-1 ring-white/10 shadow-[0_22px_70px_rgba(2,6,23,0.22)]">
-              <div className="relative p-6 sm:p-8 lg:p-10">
+            <div className="relative overflow-hidden rounded-[34px] bg-[#090c12] ring-1 ring-white/12 shadow-[0_30px_90px_rgba(2,6,23,0.32)]">
+              <div aria-hidden className="absolute inset-x-0 top-0 h-1 bg-[#02665e]" />
+              <div
+                aria-hidden
+                className="absolute inset-0 opacity-[0.18]"
+                style={{
+                  backgroundImage:
+                    "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.22) 1px, transparent 0)",
+                  backgroundSize: "7px 7px",
+                }}
+              />
+              <div
+                aria-hidden
+                className="absolute inset-0"
+                style={{
+                  background:
+                    "radial-gradient(circle at 12% 56%, rgba(2,102,94,0.34), transparent 30%), radial-gradient(circle at 88% 56%, rgba(2,102,94,0.28), transparent 32%), linear-gradient(180deg, rgba(9,12,18,0.12), rgba(9,12,18,0.88) 78%)",
+                }}
+              />
+              <div
+                aria-hidden
+                className="absolute inset-x-0 bottom-0 h-52 bg-gradient-to-t from-[#090c12] via-[#090c12]/88 to-transparent"
+              />
+              <div className="relative p-5 sm:p-8 lg:p-10">
+                <div className="mx-auto flex min-h-[620px] max-w-7xl flex-col items-center justify-between text-center">
+                  <div className="mx-auto max-w-3xl pt-8 sm:pt-10">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/55">
+                      Trust Infrastructure
+                    </p>
+                    <h2 className="mx-auto mt-5 max-w-[13ch] text-4xl font-black leading-[0.96] tracking-tight text-white drop-shadow-[0_14px_32px_rgba(0,0,0,0.45)] sm:text-5xl lg:text-6xl">
+                      Protected travel flow
+                    </h2>
+                    <p className="mx-auto mt-5 max-w-[58ch] text-sm font-medium leading-relaxed text-white/80 sm:text-base">
+                      Verified stays, tour operators, transport, payments, confirmation codes, and support are linked into one accountable travel trail from search to arrival.
+                    </p>
+                  </div>
+
+                  <div className="relative my-8 flex h-48 w-48 items-center justify-center sm:h-56 sm:w-56">
+                    <div aria-hidden className="absolute inset-0 rounded-full bg-[#02665e]/18 blur-3xl" />
+                    <svg viewBox="0 0 220 240" className="relative h-full w-full drop-shadow-[0_26px_34px_rgba(0,0,0,0.34)]" role="img" aria-label="NoLSAF trust shield">
+                      <path d="M110 12 198 48v74c0 58-38 92-88 112-50-20-88-54-88-112V48L110 12Z" fill="rgba(255,255,255,0.055)" stroke="rgba(2,102,94,0.92)" strokeWidth="2" />
+                      <path d="M110 24 186 55v65c0 48-31 78-76 97-45-19-76-49-76-97V55l76-31Z" fill="rgba(255,255,255,0.045)" stroke="rgba(255,255,255,0.16)" strokeWidth="1" />
+                      <text x="110" y="125" textAnchor="middle" fill="rgba(255,255,255,0.68)" fontSize="28" fontWeight="800" letterSpacing="1">
+                        NoLSAF
+                      </text>
+                      <text x="110" y="151" textAnchor="middle" fill="rgba(255,255,255,0.40)" fontSize="10" fontWeight="700" letterSpacing="3">
+                        VERIFIED FLOW
+                      </text>
+                    </svg>
+                  </div>
+
+                  <div className="w-full overflow-visible">
+                    <div className="mx-auto grid max-w-6xl grid-cols-1 gap-3 overflow-visible sm:grid-cols-2 lg:grid-cols-5">
+                      {[
+                        { title: "Verified stays", desc: "Checked properties", Icon: Home, href: "/public/properties?page=1" },
+                        { title: "Tour trail", desc: "Timeline supported", Icon: Users, href: "/public/tour-packages" },
+                        { title: "Transport", desc: "Arrival linked", Icon: Car, href: "/public/nolscope" },
+                        { title: "Group stays", desc: "Offer-based booking", Icon: Gavel, href: "/public/group-stays" },
+                        { title: "Estimator", desc: "Planning clarity", Icon: Sparkles, href: "/public/nolscope" },
+                      ].map(({ title, desc, Icon, href }) => (
+                        <Link
+                          key={title}
+                          href={href}
+                          className="group relative flex min-h-[106px] flex-col items-center justify-center overflow-hidden rounded-2xl border border-white/13 bg-white/[0.055] px-3.5 py-4 text-center no-underline shadow-[inset_0_1px_0_rgba(255,255,255,0.10),0_18px_34px_rgba(0,0,0,0.22)] transition-all duration-300 hover:z-10 hover:-translate-y-1 hover:scale-[1.035] hover:border-[#02665e]/60 hover:bg-white/[0.085] hover:no-underline active:scale-[1.02] focus:outline-none focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-[#02665e]/45"
+                        >
+                          <span className="pointer-events-none absolute left-3 top-3 h-1 w-1 rounded-full bg-white/35" aria-hidden />
+                          <span className="pointer-events-none absolute right-3 top-3 h-1 w-1 rounded-full bg-white/35" aria-hidden />
+                          <span className="pointer-events-none absolute bottom-3 left-3 h-1 w-1 rounded-full bg-white/20" aria-hidden />
+                          <span className="pointer-events-none absolute bottom-3 right-3 h-1 w-1 rounded-full bg-white/20" aria-hidden />
+                          <span className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[#02665e]/70 to-transparent" aria-hidden />
+                          <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-[#02665e]/40 bg-[#02665e]/14 text-white shadow-[0_14px_28px_rgba(2,102,94,0.14)] transition-transform duration-300 group-hover:scale-110">
+                            <Icon className="h-4 w-4" aria-hidden />
+                          </span>
+                          <span className="mt-2.5 min-w-0">
+                            <span className="block text-[13px] font-black tracking-tight text-white">{title}</span>
+                            <span className="mt-1 block text-[10px] font-semibold uppercase tracking-[0.10em] text-white/60">{desc}</span>
+                          </span>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                </div>
                 {/* ── Connected Services heading — left-aligned editorial (dark) ── */}
-                <div className="mb-8">
+                <div className="hidden flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+                  <div className="max-w-2xl">
                   {/* Gradient top accent */}
-                  <div className="h-[3px] w-16 rounded-full bg-gradient-to-r from-[#02b4f5] to-[#02665e] mb-6" aria-hidden />
+                  <div className="mb-5 flex items-center gap-2" aria-hidden>
+                    <span className="h-1 w-10 rounded-full bg-white" />
+                    <span className="h-1 w-5 rounded-full bg-white/45" />
+                    <span className="h-1 w-2 rounded-full bg-white/25" />
+                  </div>
 
-                  <p className="text-[11px] font-semibold tracking-[0.14em] uppercase text-white/40 mb-3">Platform Overview</p>
+                  <p className="inline-flex rounded-full border border-[#02665e]/35 bg-[#02665e]/16 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-white/75">NoLSAF Advantage</p>
 
-                  <h2 className="text-3xl sm:text-4xl lg:text-[2.75rem] font-extrabold tracking-tight leading-[1.1]">
-                    <span className="text-white/40 font-light">Connected</span>{" "}
-                    <span className="text-white">Services</span>
+                  <h2 className="mt-4 max-w-[15ch] text-3xl font-black leading-[0.98] tracking-tight text-white sm:text-4xl lg:text-5xl">
+                    Trust that follows the whole trip
                   </h2>
 
-                  <p className="mt-3 max-w-[52ch] text-sm sm:text-[15px] leading-relaxed text-white/50">
+                  <p className="hidden" aria-hidden="true">
                     An end‑to‑end travel flow {" "}
                     <span className="font-medium text-white/75">stays, transport, and experiences coordinated around your booking.</span>
                   </p>
+                  <p className="mt-4 max-w-[58ch] text-sm font-medium leading-relaxed text-white/90 sm:text-[15px]">
+                    NoLSAF connects verified stays, tour operators, transport, payments, confirmation codes, and support so every journey has a clear trail from search to arrival.
+                  </p>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 sm:min-w-[420px]">
+                    {[
+                      ["Verified", "Checked services"],
+                      ["Linked", "One booking trail"],
+                      ["Supported", "Help stays close"],
+                    ].map(([label, desc]) => (
+                      <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.065] px-3 py-3 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+                        <p className="text-sm font-black text-white">{label}</p>
+                        <p className="mt-1 text-[11px] leading-snug text-white/70">{desc}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
+                <div className="hidden mt-7 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {[
-                    { title: "Verified Stays",     desc: "Browse and book verified properties with secure payments and instant confirmation codes.", Icon: Home,       href: "/public/properties?page=1", accent: "#38bdf8" },
-                    { title: "Group Stays",         desc: "Submit requirements once owners compete with offers. You pick the best fit for your budget.", Icon: Gavel,      href: "/public/group-stays",        accent: "#2dd4bf" },
-                    { title: "Transport",           desc: "Coordinate pickup to your booked property with driver confirmation and safety checks.", Icon: Car,        href: "/public/nolscope",          accent: "#38bdf8" },
-                    { title: "Local Guides",        desc: "Discover guided local experiences as verified tour operators come online.", Icon: Users,      href: "/public/nolscope",          accent: "#2dd4bf" },
-                    { title: "Cost Estimator",      desc: "Estimate stays, transport, and activities before moving into direct booking.", Icon: Sparkles,   href: "/public/nolscope",          accent: "#38bdf8" },
-                    { title: "Support",             desc: "Real support from a real team before, during, and after your trip.", Icon: LifeBuoy,   href: "/help",                     accent: "#2dd4bf" },
-                  ].map(({ title, desc, Icon, href, accent }, idx) => (
+                    { title: "Verified Stays", desc: "Book checked properties with secure payment and confirmation codes.", label: "Verified properties", Icon: Home, href: "/public/properties?page=1" },
+                    { title: "Tour Packages", desc: "Follow tour arrangements from meetup validation to completed timeline.", label: "Timeline supported", Icon: Users, href: "/public/tour-packages" },
+                    { title: "Transport", desc: "Keep pickup and driver confirmation connected to the booking.", label: "Arrival linked", Icon: Car, href: "/public/nolscope" },
+                    { title: "Group Stays", desc: "Send one group request and compare real owner responses.", label: "Offer-based booking", Icon: Gavel, href: "/public/group-stays" },
+                    { title: "Cost Estimator", desc: "Preview stay, transport, and activity costs before committing.", label: "Planning clarity", Icon: Sparkles, href: "/public/nolscope" },
+                    { title: "Support", desc: "Keep help attached to the booking trail instead of scattered messages.", label: "Booking-aware help", Icon: LifeBuoy, href: "/help" },
+                  ].map(({ title, desc, label, Icon, href }, idx) => (
                     <motion.div
                       key={title}
-                      transition={{ duration: 0.45, delay: idx * 0.08, ease: [0.2, 0.8, 0.2, 1] }}
+                      transition={{ duration: 0.38, delay: idx * 0.05, ease: [0.22, 1, 0.36, 1] }}
                     >
                     <Link
                       href={href}
-                      className="group relative block rounded-2xl p-[1px] no-underline hover:no-underline bg-gradient-to-br from-white/[0.08] to-white/[0.02] ring-1 ring-white/[0.08] transition-all duration-300 hover:-translate-y-0.5 hover:ring-white/[0.16]"
-                    >
-                      <div className="relative rounded-[calc(1rem-1px)] bg-white/[0.04] p-5 h-full">
-                        <div className="flex items-center gap-3 mb-3">
-                          <span
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl ring-1 ring-white/10"
-                            style={{ background: `${accent}15` }}
-                          >
-                            <Icon className="h-4 w-4" style={{ color: accent }} aria-hidden />
+                        className="group relative flex min-h-[168px] flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[0.065] p-4 no-underline shadow-[inset_0_1px_0_rgba(255,255,255,0.09),0_16px_34px_rgba(0,0,0,0.18)] transition-all duration-300 hover:-translate-y-1 hover:border-[#02665e]/55 hover:bg-white/[0.095] hover:no-underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/45"
+                      >
+                      <span className="pointer-events-none absolute inset-x-4 top-0 h-px bg-[#02665e]/60" aria-hidden />
+                      <div className="flex items-start justify-between gap-3">
+                          <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-[#02665e]/35 bg-[#02665e]/15 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]">
+                            <Icon className="h-[18px] w-[18px]" aria-hidden />
                           </span>
-                          <h3 className="text-white font-bold text-[15px] tracking-tight">{title}</h3>
+                          <span className="rounded-full bg-white/[0.07] px-2.5 py-1 text-[10px] font-black tracking-[0.16em] text-white/40">
+                            {String(idx + 1).padStart(2, "0")}
+                          </span>
                         </div>
-                        <p className="text-white/45 text-[13px] leading-relaxed">{desc}</p>
-                        <div className="mt-4 flex items-center gap-1 text-xs font-semibold transition-colors duration-200 group-hover:text-white/70" style={{ color: `${accent}99` }}>
-                          Learn more
-                          <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+
+                        <div className="mt-4">
+                          <h3 className="text-[16px] font-black tracking-tight text-white">{title}</h3>
+                          <p className="mt-2 text-[13px] leading-relaxed text-white/80">{desc}</p>
                         </div>
-                      </div>
+
+                        <div className="mt-auto flex items-center justify-between gap-3 pt-4">
+                          <span className="rounded-full border border-[#02665e]/30 bg-[#02665e]/12 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-white/70">
+                            {label}
+                          </span>
+                          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/12 bg-white/[0.08] text-white/75 transition-all duration-200 group-hover:translate-x-0.5 group-hover:border-[#02665e]/55 group-hover:bg-[#02665e]/18 group-hover:text-white">
+                            <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+                          </span>
+                        </div>
                     </Link>
                     </motion.div>
                   ))}
@@ -1902,23 +2151,25 @@ export default function Page() {
           <ScrollReveal direction="up" className="mt-12 relative overflow-hidden rounded-3xl">
             {/* Base */}
             <div aria-hidden className="absolute inset-0 bg-[#02665e]" />
-            {/* Deep shadow corner — gives the card depth */}
+            {/* Depth and soft brand glow */}
             <div aria-hidden className="absolute inset-0"
-              style={{ background: "radial-gradient(ellipse at 0% 100%, #01332e99 0%, transparent 55%), radial-gradient(ellipse at 100% 0%, #02b4f522 0%, transparent 50%)" }} />
+              style={{ background: "radial-gradient(ellipse at 0% 100%, rgba(1,51,46,0.62) 0%, transparent 58%), radial-gradient(ellipse at 100% 0%, rgba(255,255,255,0.08) 0%, transparent 48%)" }} />
 
-            {/* ── NEW: bold slash columns ── */}
-            {/* Large, widely-spaced thick slashes — structural, not decorative noise */}
-            <div aria-hidden className="absolute inset-0 overflow-hidden pointer-events-none">
-              {/* repeating thick slash columns: each column is a rotated narrow strip */}
-              <div className="absolute inset-0 opacity-[0.08]"
-                style={{ backgroundImage: "repeating-linear-gradient(-55deg, rgba(255,255,255,1) 0px, rgba(255,255,255,1) 8px, transparent 8px, transparent 48px)" }} />
-              {/* Second layer offset — creates a cross-hatch of varying weight */}
-              <div className="absolute inset-0 opacity-[0.04]"
-                style={{ backgroundImage: "repeating-linear-gradient(-55deg, rgba(255,255,255,1) 0px, rgba(255,255,255,1) 2px, transparent 2px, transparent 32px)" }} />
-              {/* Right-side mask so slashes fade out toward the country indicators */}
-              <div className="absolute inset-0"
-                style={{ background: "linear-gradient(to right, transparent 40%, #02665e 100%)" }} />
-            </div>
+            {/* White graph-paper overlay */}
+            <div aria-hidden className="absolute inset-0 pointer-events-none opacity-[0.3]"
+              style={{
+                backgroundImage:
+                  "linear-gradient(rgba(255,255,255,0.22) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.22) 1px, transparent 1px)",
+                backgroundSize: "22px 22px",
+              }} />
+            <div aria-hidden className="absolute inset-0 pointer-events-none opacity-[0.16]"
+              style={{
+                backgroundImage:
+                  "linear-gradient(rgba(255,255,255,0.34) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.34) 1px, transparent 1px)",
+                backgroundSize: "88px 88px",
+              }} />
+            <div aria-hidden className="absolute inset-0 pointer-events-none"
+              style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.05) 0%, transparent 34%, transparent 100%)" }} />
 
             <div className="relative z-10 px-6 py-8 sm:px-8 sm:py-10">
               {/* Top rule — bolder, dual-tone */}
@@ -2006,32 +2257,8 @@ export default function Page() {
             <FounderStory />
           </ScrollReveal>
 
-          {/* ── What people say — distinct quote-accent style ── */}
-          <ScrollReveal direction="up" className="mt-14 flex items-start gap-4">
-            {/* Large quote mark as a visual anchor */}
-            <span className="hidden sm:block text-[4.5rem] leading-none font-black bg-gradient-to-b from-[#02b4f5] to-[#02665e] bg-clip-text text-transparent -mt-3 select-none" aria-hidden>&ldquo;</span>
-
-            <div>
-              <p className="text-[11px] font-semibold tracking-[0.14em] uppercase text-slate-400 mb-2">Voices</p>
-
-              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight leading-[1.15] text-slate-900">
-                What people <span className="bg-gradient-to-r from-[#02b4f5] to-[#02665e] bg-clip-text text-transparent">say</span>
-              </h2>
-
-              <p className="mt-2 max-w-[52ch] text-sm sm:text-[15px] leading-relaxed text-slate-500">
-                Feedback from travelers and operators {" "}
-                <span className="font-medium text-slate-700">focused on what matters most.</span>
-              </p>
-            </div>
-          </ScrollReveal>
-          <ScrollReveal direction="up" delay={0.1}>
-            <Testimonials hideTitle />
-          </ScrollReveal>
-
           {/* ── Trusted by — authority / institutional heading ── */}
           <ScrollReveal direction="left" distance={24} className="mt-14 relative overflow-hidden">
-            {/* Gold horizontal band */}
-            <div aria-hidden className="absolute inset-y-0 left-0 w-1 rounded-r-full bg-gradient-to-b from-yellow-300 via-amber-400 to-yellow-300" />
             <div className="pl-6 py-1">
               {/* Top row: shield icon + spaced label */}
               <div className="flex items-center gap-3 mb-2">
@@ -2058,7 +2285,7 @@ export default function Page() {
             </div>
           </ScrollReveal>
           <ScrollReveal direction="up" delay={0.1}>
-            <TrustedBySectionWithData />
+            <TrustedBySectionWithData brands={trustBrands} loading={trustBrandsLoading} />
           </ScrollReveal>
 
           {/* ── Latest updates — changelog / terminal heading ── */}

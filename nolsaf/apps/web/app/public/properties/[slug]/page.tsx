@@ -13,9 +13,10 @@ import { motion } from "framer-motion";
 
 import type { Socket } from "socket.io-client";
 
-import type { ReactNode, ComponentType } from "react";
+import type { ComponentType } from "react";
 
 import { useParams, useRouter } from "next/navigation";
+import { fetchAccountSession } from "@/lib/accountSession";
 
 import {
   MapPin,
@@ -80,8 +81,6 @@ import {
   Twitter,
   Home,
   Calendar,
-  Plus,
-  Minus,
   LogIn,
   LogOut,
   Wifi,
@@ -1592,13 +1591,13 @@ export default function PublicPropertyDetailPage() {
   const [isOwner, setIsOwner] = useState<boolean>(false);
   const [isFavorite, setIsFavorite] = useState(false);
   const [favoriteLoading, setFavoriteLoading] = useState(false);
-  const [showSaveLoginPrompt, setShowSaveLoginPrompt] = useState(false);
-  const [favoriteNotice, setFavoriteNotice] = useState<string | null>(null);
+  const [, setShowSaveLoginPrompt] = useState(false);
+  const [, setFavoriteNotice] = useState<string | null>(null);
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [copyLinkSuccess, setCopyLinkSuccess] = useState(false);
   const [selectedDates, setSelectedDates] = useState<{ checkIn: string; checkOut: string }>({ checkIn: "", checkOut: "" });
   const [roomQuickView, setRoomQuickView] = useState<null | { roomType: string; floor: number }>(null);
-  const [availabilityData, setAvailabilityData] = useState<any | null>(null);
+  const [, setAvailabilityData] = useState<any | null>(null);
   const [, setAvailabilitySocket] = useState<Socket | null>(null);
   const [, setAvailabilityConnected] = useState(false);
   const [availabilityRefreshTick, setAvailabilityRefreshTick] = useState(0);
@@ -1614,6 +1613,7 @@ export default function PublicPropertyDetailPage() {
   useEffect(() => {
     const propertyId = property?.id;
     if (!propertyId) return;
+    if (!selectedDates.checkIn || !selectedDates.checkOut) return;
     let cancelled = false;
     let socket: Socket | null = null;
     (async () => {
@@ -1666,7 +1666,7 @@ export default function PublicPropertyDetailPage() {
         socket.disconnect();
       }
     };
-  }, [property?.id]);
+  }, [property?.id, selectedDates.checkIn, selectedDates.checkOut]);
   useEffect(() => {
     return () => {
       if (socketRefreshTimerRef.current) {
@@ -1702,13 +1702,11 @@ export default function PublicPropertyDetailPage() {
     let mounted = true;
     const load = async () => {
       try {
-        const res = await fetch(`/api/account/me`, {
-          credentials: "include",
-        });
+        const res = await fetchAccountSession();
         
 
         if (res.ok) {
-          const user = await res.json();
+          const user = res.data;
           if (mounted) {
             // Check if user is the owner of this property
             if (property?.ownerId && user?.id && Number(user.id) === Number(property.ownerId)) {
@@ -3745,19 +3743,6 @@ export default function PublicPropertyDetailPage() {
         </div>
       ), document.body) : null}
     </main>
-  );
-
-}
-
-function Fact({ icon, label, value }: { icon: ReactNode; label: string; value: any }) {
-  return (
-    <div className="rounded-xl bg-white border border-slate-200 p-3 shadow-sm">
-      <div className="flex items-center gap-2 text-slate-800">
-        <span className="text-slate-700">{icon}</span>
-        <span className="text-xs font-semibold text-slate-800">{label}</span>
-      </div>
-      <div className="mt-2 text-sm font-bold text-slate-950">{String(value)}</div>
-    </div>
   );
 
 }

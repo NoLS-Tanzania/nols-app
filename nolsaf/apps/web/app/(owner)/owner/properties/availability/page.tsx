@@ -420,7 +420,7 @@ export default function PropertyAvailabilitySelectionPage() {
               <p className="text-xs font-bold uppercase tracking-widest text-emerald-400/80 mb-1">Owner Dashboard</p>
               <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white">Room Availability</h1>
               <p className="mt-2 text-sm text-white/50 max-w-md">
-                Monitor bookings, block external reservations, and keep every room's calendar up to date — all in one place.
+                Monitor bookings, block external reservations, and keep every room's calendar up to date. All in one place.
               </p>
             </div>
             {/* quick stat pills */}

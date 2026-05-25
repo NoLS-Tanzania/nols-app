@@ -80,30 +80,32 @@ export default function CountryCard({ id, name, flag = '', imageSrc, subtitle, b
         'block relative overflow-hidden rounded-2xl country-card-article no-underline',
         'bg-white group',
         highlighted
-          ? 'ring-2 ring-emerald-300 shadow-[0_8px_30px_rgba(2,6,23,0.13)]'
-          : 'ring-1 ring-slate-200/80 shadow-[0_2px_12px_rgba(2,6,23,0.06)]',
-        'transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_28px_rgba(2,6,23,0.11)] active:translate-y-0 active:shadow-sm',
+          ? 'ring-2 ring-[#02665e]/24 shadow-[0_10px_34px_rgba(2,102,94,0.12)]'
+          : 'ring-1 ring-slate-200/90 shadow-[0_4px_18px_rgba(15,23,42,0.06)]',
+        'transition-all duration-300 hover:-translate-y-0.5 hover:ring-[#02665e]/20 hover:shadow-[0_12px_32px_rgba(15,23,42,0.10)] active:translate-y-0 active:shadow-sm',
         'cursor-pointer',
       ].join(' ')}
     >
       {/* Flag colour band — slides in on hover */}
-      <div className="h-0 group-hover:h-[4px] transition-all duration-200 w-full" style={{ background: topStrip }} aria-hidden />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_0%,rgba(2,102,94,0.045),transparent_32%),linear-gradient(180deg,rgba(248,250,252,0.56),rgba(255,255,255,0.96)_42%)]" aria-hidden />
+      <div className="pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-[#02665e]/30 to-transparent" aria-hidden />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[3px] opacity-0 transition-opacity duration-300 group-hover:opacity-90" style={{ background: topStrip }} aria-hidden />
 
       {/* Card body */}
-      <div className={['flex flex-col', isCompact ? 'px-4 pt-3.5 pb-4' : 'px-4 pt-4 pb-5'].join(' ')}>
+      <div className={['relative flex flex-col', isCompact ? 'px-4 pt-3.5 pb-4' : 'px-4 pt-4 pb-5'].join(' ')}>
 
         {/* ── Header: flag + name + subtitle ── */}
         <div className="flex items-center gap-3">
           <div
-            className="w-11 h-11 rounded-xl flex items-center justify-center text-2xl flex-shrink-0 bg-slate-50 ring-1 ring-slate-200/60"
+            className="relative flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-slate-50 text-2xl ring-1 ring-slate-200/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.82),0_6px_14px_rgba(15,23,42,0.05)] transition-transform duration-300 group-hover:scale-[1.03]"
             aria-hidden
           >
             {flag || '🏳️'}
           </div>
           <div className="min-w-0">
-            <h3 className="text-base font-bold leading-tight text-slate-900 tracking-tight">{name}</h3>
+            <h3 className="text-base font-extrabold leading-tight text-slate-950 tracking-tight">{name}</h3>
             {subtitle ? (
-              <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>
+              <p className="mt-0.5 text-xs font-medium text-slate-500">{subtitle}</p>
             ) : null}
           </div>
         </div>
@@ -122,12 +124,14 @@ export default function CountryCard({ id, name, flag = '', imageSrc, subtitle, b
 
         {/* ── Footer row: tag + arrow ── */}
         <div className="mt-4 flex items-center justify-between gap-2">
-          <span className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/60 whitespace-nowrap">
+          <span className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold bg-[#02665e]/8 text-[#02665e] ring-1 ring-[#02665e]/18 whitespace-nowrap">
             Parks &amp; recreation
           </span>
-          <svg className="w-4 h-4 text-slate-400 flex-shrink-0" viewBox="0 0 16 16" fill="none" aria-hidden>
-            <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 shadow-sm transition-all duration-300 group-hover:border-[#02665e]/30 group-hover:bg-[#02665e] group-hover:text-white">
+            <svg className="h-3.5 w-3.5 flex-shrink-0 transition-transform duration-300 group-hover:translate-x-0.5" viewBox="0 0 16 16" fill="none" aria-hidden>
+              <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </span>
         </div>
 
         {/* ── Payments row: optional ── */}

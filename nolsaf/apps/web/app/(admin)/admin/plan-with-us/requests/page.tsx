@@ -1131,8 +1131,8 @@ export default function AdminPlanWithUsRequestsPage() {
                   const fmtShort = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
                   const sameYear = from.getFullYear() === to.getFullYear();
                   return sameYear
-                    ? `${fmtShort(from)} – ${fmtShort(to)}, ${to.getFullYear()}`
-                    : `${fmtShort(from)} ${from.getFullYear()} – ${fmtShort(to)} ${to.getFullYear()}`;
+                    ? `${fmtShort(from)} - ${fmtShort(to)}, ${to.getFullYear()}`
+                    : `${fmtShort(from)} ${from.getFullYear()} - ${fmtShort(to)} ${to.getFullYear()}`;
                 })();
 
                 const isOverdue = request.hoursSinceCreation > 48 && request.status === "NEW";
@@ -1224,7 +1224,7 @@ export default function AdminPlanWithUsRequestsPage() {
                         )}
                         {agingLabel && (
                           <p className={`text-[10px] font-medium mt-1 ${agingColor}`}>
-                            {isOverdue ? "Overdue · " : ""}{agingLabel}
+                            {isOverdue ? "Overdue-- " : ""}{agingLabel}
                           </p>
                         )}
                       </div>
@@ -1284,7 +1284,7 @@ export default function AdminPlanWithUsRequestsPage() {
                             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${avatarColor} border-current/20`}>{request.role}</span>
                             {request.isUrgent && <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />}
                           </div>
-                          <p className="text-[11px] text-gray-400 truncate">{request.customer.email}{request.customer.phone ? ` · ${request.customer.phone}` : ""}</p>
+                          <p className="text-[11px] text-gray-400 truncate">{request.customer.email}{request.customer.phone ? ` - ${request.customer.phone}` : ""}</p>
                         </div>
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold rounded-full border shrink-0 ${statusMeta.pill}`}>
                           <span className={`h-1.5 w-1.5 rounded-full ${statusMeta.dot}`} />{statusMeta.label}
@@ -1321,7 +1321,7 @@ export default function AdminPlanWithUsRequestsPage() {
                       {/* Action row */}
                       <div className="flex items-center justify-between">
                         {agingLabel && (
-                          <span className={`text-[11px] font-medium ${agingColor}`}>{isOverdue ? "Overdue · " : ""}{agingLabel}</span>
+                          <span className={`text-[11px] font-medium ${agingColor}`}>{isOverdue ? "Overdue - " : ""}{agingLabel}</span>
                         )}
                         <div className="ml-auto flex gap-2">
                           {request.status === "NEW" && (
@@ -1737,7 +1737,7 @@ export default function AdminPlanWithUsRequestsPage() {
                         <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${selectedRequest.status === "COMPLETED" ? "bg-emerald-500/70 text-white" : selectedRequest.status === "IN_PROGRESS" ? "bg-blue-400/70 text-white" : "bg-amber-400/70 text-white"}`}>{selectedRequest.status === "NEW" ? "New" : selectedRequest.status === "IN_PROGRESS" ? "In Progress" : "Completed"}</span>
                       </div>
                       <p className="text-blue-200 text-xs mt-1">
-                        {selectedRequest.tripType} · {selectedRequest.role} · Group of {selectedRequest.groupSize ?? "?"}
+                        {selectedRequest.tripType} - {selectedRequest.role} - Group of {selectedRequest.groupSize ?? "?"}
                       </p>
                     </div>
                   </div>
@@ -1754,7 +1754,7 @@ export default function AdminPlanWithUsRequestsPage() {
               {/* -- Scrollable Content -- */}
               <div className="flex-1 min-h-0 overflow-y-scroll overflow-x-hidden px-5 py-5 space-y-4 bg-gray-50">
 
-                {/* Request Details - full context panel — hidden on COMPLETED (A4 report replaces all) */}
+                {/* Request Details - full context panel - hidden on COMPLETED (A4 report replaces all) */}
                 {selectedRequest.status !== "COMPLETED" && <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                   <div className="h-1 bg-gradient-to-r from-blue-400 to-indigo-500" />
                   <div className="p-5">
@@ -1781,7 +1781,7 @@ export default function AdminPlanWithUsRequestsPage() {
                         </div>
                       ))}
                     </div>
-                    {/* Travel Dates — premium card */}
+                    {/* Travel Dates - premium card */}
                     {(() => {
                       const fmtDate = (d: string) => {
                         const dt = new Date(d);
@@ -1858,7 +1858,7 @@ export default function AdminPlanWithUsRequestsPage() {
                           );
                         }
                         const totalNights = parts.reduce((sum: number, part: string) => {
-                          const m = part.match(/[-—]\s*(\d+)\s*nights?/i);
+                          const m = part.match(/[--]\s*(\d+)\s*nights?/i);
                           return sum + (m ? Number(m[1]) : 0);
                         }, 0);
                         return (
@@ -1885,9 +1885,9 @@ export default function AdminPlanWithUsRequestsPage() {
                                 )}
                                 <div className="flex flex-col gap-2.5">
                                   {parts.map((part: string, idx: number) => {
-                                    const nightsMatch = part.match(/[-—]\s*(\d+)\s*nights?/i);
+                                    const nightsMatch = part.match(/[--]\s*(\d+)\s*nights?/i);
                                     const nights = nightsMatch ? Number(nightsMatch[1]) : null;
-                                    const name = part.replace(/[-—]\s*\d+\s*nights?/i, "").trim().replace(/[,;]+$/, "");
+                                    const name = part.replace(/[--]\s*\d+\s*nights?/i, "").trim().replace(/[,;]+$/, "");
                                     const isLast = idx === parts.length - 1;
                                     return (
                                       <div key={idx} className="relative flex items-center gap-3 z-10">
@@ -1928,7 +1928,7 @@ export default function AdminPlanWithUsRequestsPage() {
                   </div>
                 </div>}
 
-                {/* Conversation History — hidden on COMPLETED (A4 report is shown instead) */}
+                {/* Conversation History - hidden on COMPLETED (A4 report is shown instead) */}
                 {selectedRequest.status !== "COMPLETED" && <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                   <div className="h-1 bg-gradient-to-r from-slate-400 to-gray-400" />
                   <div className="p-5">
@@ -2055,9 +2055,9 @@ export default function AdminPlanWithUsRequestsPage() {
                                       />
                                     </div>
                                     <div>
-                                      {/* Price mode toggle — admin must explicitly choose to avoid mistakes */}
+                                      {/* Price mode toggle - admin must explicitly choose to avoid mistakes */}
                                       <label className="text-[10px] font-bold uppercase tracking-wider text-gray-500 block mb-1">
-                                        {opt.priceMode === "night" ? "Price / Person / Night (TZS)" : "Price / Person — Full Stay (TZS)"}
+                                        {opt.priceMode === "night" ? "Price / Person / Night (TZS)" : "Price / Person - Full Stay (TZS)"}
                                       </label>
                                       <input
                                         type="text"
@@ -2090,7 +2090,7 @@ export default function AdminPlanWithUsRequestsPage() {
                                           : "bg-gray-50 text-gray-500 hover:bg-gray-100"
                                       }`}
                                     >
-                                      Per night × {opt.days} nights
+                                      Per night x {opt.days} nights
                                     </button>
                                   </div>
                                   {/* Live price computation */}
@@ -2102,7 +2102,7 @@ export default function AdminPlanWithUsRequestsPage() {
                                     const feesTotal = Object.values(opt.feeAmounts || {}).reduce((sum, v) => sum + (Number(String(v).replace(/[^0-9.]/g, "")) || 0), 0);
                                     const perPersonTotal = basePerPerson + feesTotal;
                                     const groupTotal = perPersonTotal * groupSize;
-                                    const fmt = (n: number) => n > 0 ? `TZS ${n.toLocaleString()}` : "—";
+                                    const fmt = (n: number) => n > 0 ? `TZS ${n.toLocaleString()}` : "-";
                                     if (!priceCleaned && !feesTotal) return null;
                                     return (
                                       <div className={`border rounded-xl p-3 ${
@@ -2113,7 +2113,7 @@ export default function AdminPlanWithUsRequestsPage() {
                                         <p className={`text-[10px] font-bold uppercase tracking-wider mb-2 ${
                                           opt.priceMode === "night" ? "text-amber-600" : "text-blue-500"
                                         }`}>
-                                          Price Summary — {opt.priceMode === "night" ? `${priceCleaned.toLocaleString()} × ${nights} nights` : "Full Stay Rate"}{feesTotal > 0 ? " + Fees" : ""}
+                                          Price Summary - {opt.priceMode === "night" ? `${priceCleaned.toLocaleString()} x ${nights} nights` : "Full Stay Rate"}{feesTotal > 0 ? " + Fees" : ""}
                                         </p>
                                         <div className="grid grid-cols-2 gap-2 mb-2">
                                           <div className="bg-white rounded-lg border border-gray-100 p-2 text-center">
@@ -2123,7 +2123,7 @@ export default function AdminPlanWithUsRequestsPage() {
                                           </div>
                                           <div className="bg-white rounded-lg border border-amber-100 p-2 text-center">
                                             <p className="text-[9px] text-gray-400 uppercase tracking-wider mb-0.5">?? Fees / person</p>
-                                            <p className="text-xs font-bold text-amber-600">{feesTotal > 0 ? fmt(feesTotal) : "—"}</p>
+                                            <p className="text-xs font-bold text-amber-600">{feesTotal > 0 ? fmt(feesTotal) : "-"}</p>
                                             <p className="text-[9px] text-gray-400 mt-0.5">park &amp; entry</p>
                                           </div>
                                         </div>
@@ -2144,7 +2144,7 @@ export default function AdminPlanWithUsRequestsPage() {
                                     );
                                   })()}
                                 </div>
-                                {/* Inclusions — Categorized */}
+                                {/* Inclusions - Categorized */}
                                 <div className="px-4 pb-4">
                                   <div className="flex items-center gap-2 mb-3">
                                     <label className="text-[10px] font-bold uppercase tracking-wider text-gray-500">What&apos;s Included</label>
@@ -2243,7 +2243,7 @@ export default function AdminPlanWithUsRequestsPage() {
                                                           >
                                                             {p.title}
                                                           </button>
-                                                          {p.regionName && <span className="text-purple-400 text-[10px]">· {p.regionName}</span>}
+                                                          {p.regionName && <span className="text-purple-400 text-[10px]">- {p.regionName}</span>}
                                                           <button
                                                             type="button"
                                                             onClick={() => unlinkProperty(opt.id, p.id)}
@@ -2274,7 +2274,7 @@ export default function AdminPlanWithUsRequestsPage() {
                                                     {propSearch?.optId === opt.id && (propSearch.results.length > 0 || (propSearch.query && !propSearch.loading)) && (
                                                       <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-white border border-purple-200 rounded-xl shadow-2xl overflow-hidden">
                                                         {propSearch.results.length === 0 ? (
-                                                          <div className="px-3 py-2.5 text-[11px] text-gray-400 italic">No approved properties found — describe it manually in the field below.</div>
+                                                          <div className="px-3 py-2.5 text-[11px] text-gray-400 italic">No approved properties found - describe it manually in the field below.</div>
                                                         ) : (
                                                           <div className="max-h-44 overflow-y-auto divide-y divide-gray-100">
                                                             {propSearch.results.map((p) => {
@@ -2292,7 +2292,7 @@ export default function AdminPlanWithUsRequestsPage() {
                                                                   <Building2 className="w-3.5 h-3.5 text-purple-400 shrink-0 mt-0.5" />
                                                                   <div className="min-w-0 flex-1">
                                                                     <p className="text-xs font-semibold text-gray-800 truncate">{p.title}</p>
-                                                                    <p className="text-[10px] text-gray-400">{[p.type, p.regionName].filter(Boolean).join(" · ")}{alreadyLinked ? " — already linked" : ""}</p>
+                                                                    <p className="text-[10px] text-gray-400">{[p.type, p.regionName].filter(Boolean).join(" - ")}{alreadyLinked ? " - already linked" : ""}</p>
                                                                   </div>
                                                                   {!alreadyLinked && <span className="shrink-0 text-[10px] text-purple-500 font-medium self-center">Link</span>}
                                                                 </button>
@@ -2402,7 +2402,7 @@ export default function AdminPlanWithUsRequestsPage() {
                                       onClick={() => togglePermit(p)}
                                       className="text-amber-500 hover:text-amber-700 ml-0.5 leading-none"
                                     >
-                                      ×
+                                      x
                                     </button>
                                   </span>
                                 ))}
@@ -2426,7 +2426,7 @@ export default function AdminPlanWithUsRequestsPage() {
                           </h3>
 
                           {/* Preset chips */}
-                          <p className="text-[11px] text-gray-400 mb-2">Quick presets — tap to apply</p>
+                          <p className="text-[11px] text-gray-400 mb-2">Quick presets - tap to apply</p>
                           <div className="flex flex-wrap gap-2 mb-5">
                             {TIMELINE_PRESETS.map(preset => (
                               <button
@@ -2597,7 +2597,7 @@ export default function AdminPlanWithUsRequestsPage() {
                                       <div className="flex items-center justify-between text-xs">
                                         <span className="text-gray-500">
                                           {opt.priceMode === "night"
-                                            ? `Base rate (${fmt(priceCleaned)} × ${nights} nights)`
+                                            ? `Base rate (${fmt(priceCleaned)} x ${nights} nights)`
                                             : "Base rate (full stay)"}
                                         </span>
                                         <span className="font-semibold text-gray-800">{fmt(basePerPerson)} <span className="font-normal text-gray-400">/person</span></span>
@@ -2634,8 +2634,8 @@ export default function AdminPlanWithUsRequestsPage() {
                               {pricedOptions.length > 1 && groupSize > 0 && (
                                 <div className="rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-4 py-3 flex items-center justify-between shadow-sm mt-1">
                                   <div>
-                                    <p className="text-[10px] font-bold text-indigo-200 uppercase tracking-wider">Grand Total — All Options Combined</p>
-                                    <p className="text-[11px] text-indigo-100 mt-0.5">{pricedOptions.length} options × {groupSize} {groupSize === 1 ? "person" : "people"}</p>
+                                    <p className="text-[10px] font-bold text-indigo-200 uppercase tracking-wider">Grand Total - All Options Combined</p>
+                                    <p className="text-[11px] text-indigo-100 mt-0.5">{pricedOptions.length} options x {groupSize} {groupSize === 1 ? "person" : "people"}</p>
                                   </div>
                                   <span className="text-lg font-black text-white">
                                     {fmt(pricedOptions.reduce((sum, opt) => {

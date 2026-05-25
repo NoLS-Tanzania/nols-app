@@ -45,8 +45,12 @@ const signQuerySchema = z
       // Cloudinary folder constraints (keep tight to avoid weird injection/abuse)
       .regex(/^[a-z0-9]+(?:[a-z0-9_-]*)(?:\/[a-z0-9]+(?:[a-z0-9_-]*))*$/i)
       .optional(),
+      maxBytes: z.string().regex(/^\d+$/).optional().transform((v) => (typeof v === "string" ? Number(v) : undefined)),
   })
   .strict();
+
+    const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
+    const MAX_TRAVELLER_DOCUMENT_BYTES = 2 * 1024 * 1024;
 
 const allowedFolderPatterns: Array<{ type: "exact"; value: string } | { type: "prefix"; value: string }> = [
   { type: "exact", value: "uploads" },
@@ -103,9 +107,22 @@ router.get("/sign", limitCloudinarySign as any, (req, res) => {
   }
 
   const timestamp = Math.floor(Date.now() / 1000);
+  const requestedMaxBytes = parsed.data.maxBytes;
+  let maxFileSize: number | undefined;
+
+  if (folderMatches(folder, "uploads")) {
+    // Traveller/customer documents under uploads are hard-limited to 2MB.
+    maxFileSize = MAX_TRAVELLER_DOCUMENT_BYTES;
+  } else if (typeof requestedMaxBytes === "number" && Number.isFinite(requestedMaxBytes) && requestedMaxBytes > 0) {
+    maxFileSize = Math.min(Math.floor(requestedMaxBytes), MAX_UPLOAD_BYTES);
+  }
+
   // Cloudinary signature is sensitive to exact param values.
   // Use string values to match what browsers send via FormData.
-  const params = { timestamp, folder, overwrite: "true" };
+  const params: Record<string, string | number> = { timestamp, folder, overwrite: "true" };
+  if (typeof maxFileSize === "number") {
+    params.max_file_size = String(maxFileSize);
+  }
   const signature = cloudinary.utils.api_sign_request(params as any, process.env.CLOUDINARY_API_SECRET!);
   res.setHeader("Cache-Control", "no-store");
   res.json({
@@ -113,6 +130,7 @@ router.get("/sign", limitCloudinarySign as any, (req, res) => {
     apiKey: process.env.CLOUDINARY_API_KEY,
     timestamp,
     folder,
+    maxFileSize: maxFileSize ?? null,
     signature,
   });
 });

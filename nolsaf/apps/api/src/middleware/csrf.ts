@@ -72,6 +72,12 @@ export async function generateCsrfToken(sessionId: string): Promise<string> {
   return token;
 }
 
+async function getOrCreateCsrfToken(sessionId: string): Promise<string> {
+  const existing = await retrieveToken(sessionId);
+  if (existing) return existing;
+  return generateCsrfToken(sessionId);
+}
+
 /**
  * Verify a submitted CSRF token against the stored value using
  * constant-time comparison to resist timing attacks.
@@ -252,7 +258,7 @@ export async function csrfProtection(req: Request, res: Response, next: NextFunc
 export async function csrfTokenHeader(req: Request, res: Response, next: NextFunction) {
   if (req.method === "GET") {
     const sessionId = getSessionId(req);
-    const token = await generateCsrfToken(sessionId);
+    const token = await getOrCreateCsrfToken(sessionId);
     res.setHeader("X-CSRF-Token", token);
   }
   next();

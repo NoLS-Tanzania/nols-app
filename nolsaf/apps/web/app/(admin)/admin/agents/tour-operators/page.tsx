@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Building2, Eye, Filter, Info, RefreshCw, Search, ShieldCheck, ShieldOff } from "lucide-react";
+import { ArrowRight, Building2, ChevronDown, ChevronsUpDown, ChevronUp, Eye, Filter, Info, RefreshCw, Search, ShieldCheck, ShieldOff } from "lucide-react";
 import apiClient from "@/lib/apiClient";
 import DatePickerField from "@/components/DatePickerField";
 
@@ -32,6 +32,8 @@ type ApplicationRow = {
   status: string;
   submittedAt?: string | null;
 };
+
+type TableSortKey = "company" | "contact" | "location" | "hiredAt" | "status";
 
 function authify() {}
 
@@ -67,6 +69,8 @@ export default function AdminAgentsTourOperatorsPage() {
   const [rejectedCount, setRejectedCount] = useState(0);
   const [activeCount, setActiveCount] = useState(0);
   const [suspendedCount, setSuspendedCount] = useState(0);
+  const [sortBy, setSortBy] = useState<TableSortKey>("hiredAt");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   const pageSize = 20;
 
@@ -206,6 +210,82 @@ export default function AdminAgentsTourOperatorsPage() {
     }
     return next;
   }, [applicationRows, hiredFrom, hiredTo]);
+
+  const sortedRows = useMemo(() => {
+    const next = [...filteredRows];
+    const readValue = (r: OperatorRow): string | number => {
+      switch (sortBy) {
+        case "company":
+          return String(r.user?.fullName || r.user?.name || "").toLowerCase();
+        case "contact":
+          return `${String(r.user?.email || "").toLowerCase()} ${String(r.user?.phone || "").toLowerCase()}`;
+        case "location":
+          return `${String(r.user?.region || "").toLowerCase()} ${String(r.user?.district || "").toLowerCase()}`;
+        case "hiredAt":
+          return new Date(r.createdAt || "").getTime() || 0;
+        case "status":
+          return String(r.status || "").toLowerCase();
+        default:
+          return "";
+      }
+    };
+
+    next.sort((a, b) => {
+      const av = readValue(a);
+      const bv = readValue(b);
+      if (typeof av === "number" && typeof bv === "number") return sortDir === "asc" ? av - bv : bv - av;
+      const cmp = String(av).localeCompare(String(bv));
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+
+    return next;
+  }, [filteredRows, sortBy, sortDir]);
+
+  const sortedApplicationRows = useMemo(() => {
+    const next = [...filteredApplicationRows];
+    const readValue = (r: ApplicationRow): string | number => {
+      switch (sortBy) {
+        case "company":
+          return String(r.fullName || "").toLowerCase();
+        case "contact":
+          return `${String(r.email || "").toLowerCase()} ${String(r.phone || "").toLowerCase()}`;
+        case "location":
+          return "";
+        case "hiredAt":
+          return new Date(r.submittedAt || "").getTime() || 0;
+        case "status":
+          return String(r.status || "").toLowerCase();
+        default:
+          return "";
+      }
+    };
+
+    next.sort((a, b) => {
+      const av = readValue(a);
+      const bv = readValue(b);
+      if (typeof av === "number" && typeof bv === "number") return sortDir === "asc" ? av - bv : bv - av;
+      const cmp = String(av).localeCompare(String(bv));
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+
+    return next;
+  }, [filteredApplicationRows, sortBy, sortDir]);
+
+  const handleSort = (field: TableSortKey) => {
+    if (sortBy === field) {
+      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortBy(field);
+    setSortDir(field === "hiredAt" ? "desc" : "asc");
+  };
+
+  const renderSortIcon = (field: TableSortKey) => {
+    if (sortBy !== field) return <ChevronsUpDown className="h-3.5 w-3.5 text-slate-400" />;
+    return sortDir === "asc"
+      ? <ChevronUp className="h-3.5 w-3.5 text-[#02665e]" />
+      : <ChevronDown className="h-3.5 w-3.5 text-[#02665e]" />;
+  };
 
   const showingApplications = accountFilter === "PENDING" || accountFilter === "REJECTED";
 
@@ -458,11 +538,31 @@ export default function AdminAgentsTourOperatorsPage() {
             <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
               <tr>
                 <th className="w-[88px] whitespace-nowrap px-4 py-3">S/N</th>
-                <th className="w-[220px] whitespace-nowrap px-4 py-3">Company</th>
-                <th className="w-[220px] whitespace-nowrap px-4 py-3">Contact</th>
-                <th className="whitespace-nowrap px-4 py-3">Location</th>
-                <th className="w-[130px] whitespace-nowrap px-4 py-3">Hired At</th>
-                <th className="whitespace-nowrap px-4 py-3">Status</th>
+                <th className="w-[220px] whitespace-nowrap px-4 py-3">
+                  <button type="button" onClick={() => handleSort("company")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 appearance-none hover:text-slate-900">
+                    Company {renderSortIcon("company")}
+                  </button>
+                </th>
+                <th className="w-[220px] whitespace-nowrap px-4 py-3">
+                  <button type="button" onClick={() => handleSort("contact")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 appearance-none hover:text-slate-900">
+                    Contact {renderSortIcon("contact")}
+                  </button>
+                </th>
+                <th className="whitespace-nowrap px-4 py-3">
+                  <button type="button" onClick={() => handleSort("location")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 appearance-none hover:text-slate-900">
+                    Location {renderSortIcon("location")}
+                  </button>
+                </th>
+                <th className="w-[130px] whitespace-nowrap px-4 py-3">
+                  <button type="button" onClick={() => handleSort("hiredAt")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 appearance-none hover:text-slate-900">
+                    Hired At {renderSortIcon("hiredAt")}
+                  </button>
+                </th>
+                <th className="whitespace-nowrap px-4 py-3">
+                  <button type="button" onClick={() => handleSort("status")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 appearance-none hover:text-slate-900">
+                    Status {renderSortIcon("status")}
+                  </button>
+                </th>
                 <th className="whitespace-nowrap px-4 py-3 text-center">Actions</th>
               </tr>
             </thead>
@@ -471,7 +571,7 @@ export default function AdminAgentsTourOperatorsPage() {
                 <tr>
                   <td colSpan={7} className="px-4 py-8 text-center text-slate-500">Loading tour operator records...</td>
                 </tr>
-              ) : (showingApplications ? filteredApplicationRows.length === 0 : filteredRows.length === 0) ? (
+              ) : (showingApplications ? sortedApplicationRows.length === 0 : sortedRows.length === 0) ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
                     {showingApplications
@@ -480,7 +580,7 @@ export default function AdminAgentsTourOperatorsPage() {
                   </td>
                 </tr>
               ) : showingApplications ? (
-                filteredApplicationRows.map((r, index) => (
+                sortedApplicationRows.map((r, index) => (
                   <tr key={`app-${r.id}`} className="hover:bg-slate-50/70">
                     <td className="px-4 py-3 text-slate-700">{String(index + 1).padStart(2, "0")}</td>
                     <td className="w-[220px] px-4 py-3 text-slate-700">Application Stage</td>
@@ -515,7 +615,7 @@ export default function AdminAgentsTourOperatorsPage() {
                   </tr>
                 ))
               ) : (
-                filteredRows.map((r, index) => (
+                sortedRows.map((r, index) => (
                   <tr key={r.id} className="hover:bg-slate-50/70">
                     <td className="px-4 py-3 text-slate-700">{String(index + 1).padStart(2, "0")}</td>
                     <td className="w-[220px] px-4 py-3 text-slate-700">{r.user?.fullName || r.user?.name || "Company profile pending"}</td>

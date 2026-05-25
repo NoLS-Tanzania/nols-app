@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useSyncExternalStore } from "react";
+import { fetchAccountSession } from "@/lib/accountSession";
 
 type DriverAvailabilitySnapshot = {
   available: boolean;
@@ -50,10 +51,9 @@ async function resolveMeId() {
 
   meIdPromise = (async () => {
     try {
-      const response = await fetch("/api/account/me", { credentials: "include" });
-      if (!response.ok) return undefined;
-      const payload = await response.json();
-      const meId = payload?.id ?? payload?.data?.id;
+      const session = await fetchAccountSession();
+      if (!session.ok) return undefined;
+      const meId = session.data?.id;
       if (meId !== undefined) {
         snapshot = { ...snapshot, meId };
         notifyListeners();

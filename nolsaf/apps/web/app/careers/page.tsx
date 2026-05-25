@@ -1065,11 +1065,11 @@ export default function CareersPage() {
       {selectedJob && showApplicationForm && (
         <CareersApplicationForm
           job={selectedJob}
-          onClose={() => {
+          onCloseAction={() => {
             setShowApplicationForm(false);
             setSelectedJob(null);
           }}
-          onSuccess={() => {
+          onSuccessAction={() => {
             setShowApplicationForm(false);
             setSelectedJob(null);
           }}

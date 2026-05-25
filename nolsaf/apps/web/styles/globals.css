@@ -819,6 +819,36 @@ html, body {
   .step-exit {
     animation: step-crossfade-out 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
   }
+  @keyframes step-panel-soft-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px) scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+  .step-panel-enter {
+    animation: step-panel-soft-in 0.46s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @keyframes step-active-pop {
+    0% {
+      opacity: 0.82;
+      transform: scale(0.86);
+    }
+    62% {
+      opacity: 1;
+      transform: scale(1.08);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+  .booking-step-active {
+    animation: step-active-pop 0.52s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
 
   /* Step highlight bar animation */
   @keyframes step-highlight-slide {

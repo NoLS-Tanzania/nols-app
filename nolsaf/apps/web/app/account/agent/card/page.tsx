@@ -35,9 +35,14 @@ type OperatorProfile = {
   companyName: string;
   companyLogoUrl: string;
   physicalLocation: string;
+  yearsInOperation?: number;
+  teamSize?: number;
+  languages?: string;
   contactPhone: string;
   description: string;
   services: string[];
+  serviceClassification?: Record<string, string[]>;
+  specializations: string[];
   packageItems: PackageItem[];
   classifiedPhotos: Record<string, string[]>;
 };
@@ -133,9 +138,22 @@ export default function OperatorCardPage() {
       if (raw && typeof raw === "object") {
         const toStringArr = (v: unknown) =>
           Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+        const yearsInOperation = Number((raw as any).yearsInOperation);
+        const teamSize = Number((raw as any).teamSize);
         const sanitized: OperatorProfile = {
           ...(raw as any),
           services: toStringArr((raw as any).services),
+          yearsInOperation: Number.isFinite(yearsInOperation) ? yearsInOperation : undefined,
+          teamSize: Number.isFinite(teamSize) ? teamSize : undefined,
+          languages: typeof (raw as any).languages === "string" ? (raw as any).languages : "",
+          specializations: toStringArr((raw as any).specializations),
+          serviceClassification:
+            raw && typeof (raw as any).serviceClassification === "object"
+              ? Object.entries((raw as any).serviceClassification).reduce((acc, [k, v]) => {
+                  acc[String(k)] = toStringArr(v);
+                  return acc;
+                }, {} as Record<string, string[]>)
+              : {},
           addOns: toStringArr((raw as any).addOns),
           tourismTypes: toStringArr((raw as any).tourismTypes),
           operatingRegions: toStringArr((raw as any).operatingRegions),
@@ -208,6 +226,9 @@ export default function OperatorCardPage() {
     .sort((a, b) => Number(a.pricePerPerson) - Number(b.pricePerPerson))[0] ?? null;
 
   const logoUrl = p?.companyLogoUrl || (p?.classifiedPhotos?.["logo"] ?? [])[0] || null;
+  const serviceGroups = Object.entries(p?.serviceClassification ?? {}).filter(([, list]) => list.length > 0);
+  const classifiedServices = new Set(serviceGroups.flatMap(([, list]) => list));
+  const uncategorizedServices = (p?.services ?? []).filter((svc) => !classifiedServices.has(svc));
 
   return (
     <div className="min-h-screen bg-slate-100">
@@ -221,7 +242,7 @@ export default function OperatorCardPage() {
           >
             <ArrowLeft className="h-5 w-5" />
           </Link>
-          <span className="text-xs font-semibold text-slate-400 uppercase tracking-widest">Operator card preview</span>
+          <span className="text-sm font-semibold text-slate-400 uppercase tracking-widest">Operator card preview</span>
           <div className="w-8" />{/* spacer to keep title centered */}
         </div>
       </div>
@@ -229,7 +250,7 @@ export default function OperatorCardPage() {
       {/* Card grid — 1 col mobile, 4 col large */}
       <div className="px-4 py-10">
         {/* Company name — above the card, outside */}
-        <p className="mb-3 truncate text-base font-bold text-slate-900">
+        <p className="mb-3 truncate text-lg font-bold text-slate-900">
           {p?.companyName || "Your company name"}
         </p>
 
@@ -245,7 +266,7 @@ export default function OperatorCardPage() {
           <div className="px-4 pb-4 pt-3">
             {/* Location + Price row */}
             <div className="flex items-center justify-between gap-2">
-              <div className="flex min-w-0 items-center gap-1 text-xs text-slate-500">
+              <div className="flex min-w-0 items-center gap-1 text-sm text-slate-500">
                 <MapPin className="h-3 w-3 shrink-0 text-[#02665e]" aria-hidden />
                 <span className="truncate">{p?.physicalLocation || "Location not set"}</span>
               </div>
@@ -254,11 +275,11 @@ export default function OperatorCardPage() {
                   <span className="text-sm font-bold text-[#02665e]">
                     {lowestPackage.currency} {Number(lowestPackage.pricePerPerson).toLocaleString()}
                   </span>
-                  <span className="text-[10px] text-slate-400">/ person</span>
+                  <span className="text-xs text-slate-400">/ person</span>
                 </div>
               )}
               {!lowestPackage && p?.contactPhone && (
-                <div className="flex shrink-0 items-center gap-1 text-xs font-semibold text-[#02665e]">
+                <div className="flex shrink-0 items-center gap-1 text-sm font-semibold text-[#02665e]">
                   <Phone className="h-3.5 w-3.5" aria-hidden />
                   {p.contactPhone}
                 </div>
@@ -268,28 +289,65 @@ export default function OperatorCardPage() {
             {/* Divider */}
             <div className="my-3 h-px bg-slate-100" />
 
-            {/* Services chips */}
-            {(p?.services?.length ?? 0) > 0 && (
-              <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
-                {(p?.services ?? []).slice(0, 4).map((s) => (
-                  <span
-                    key={s}
-                    className="truncate rounded-md border border-[#02665e]/20 bg-[#02665e]/5 px-2.5 py-1 text-[11px] font-medium text-[#02665e]"
-                  >
-                    {s}
-                  </span>
-                ))}
-                {(p?.services?.length ?? 0) > 4 && (
-                  <span className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-500">
-                    +{(p?.services?.length ?? 0) - 4} more
-                  </span>
-                )}
+            {/* Profile highlights */}
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="rounded-md border border-slate-200 bg-slate-50 px-2 py-2">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Years</div>
+                <div className="mt-1 text-sm font-extrabold text-slate-900 leading-none">
+                  {typeof p?.yearsInOperation === "number" ? `${p.yearsInOperation}+` : "—"}
+                </div>
               </div>
-            )}
+              <div className="rounded-md border border-slate-200 bg-slate-50 px-2 py-2">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Team</div>
+                <div className="mt-1 text-sm font-extrabold text-slate-900 leading-none">
+                  {typeof p?.teamSize === "number" ? p.teamSize : "—"}
+                </div>
+              </div>
+              <div className="rounded-md border border-slate-200 bg-slate-50 px-2 py-2">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Languages</div>
+                <div className="mt-1 truncate text-sm font-extrabold text-slate-900 leading-none">
+                  {p?.languages?.trim() ? p.languages : "—"}
+                </div>
+              </div>
+            </div>
+
+            {/* Compact summary */}
+            {(p?.specializations?.length ?? 0) > 0 || (p?.services?.length ?? 0) > 0 || serviceGroups.length > 0 ? (
+              <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
+                <div className="flex items-center justify-between gap-3 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                  <span>Specialties</span>
+                  <span>
+                    {(p?.specializations?.length ?? 0) + (p?.services?.length ?? 0)} items
+                  </span>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {p?.specializations?.[0] && (
+                    <span className="rounded-md border border-[#02665e]/20 bg-[#02665e]/5 px-2.5 py-1 text-[11px] font-medium text-[#02665e]">
+                      {p.specializations[0]}
+                    </span>
+                  )}
+                  {p?.specializations?.[1] && (
+                    <span className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700">
+                      {p.specializations[1]}
+                    </span>
+                  )}
+                  {(p?.specializations?.length ?? 0) > 2 && (
+                    <span className="rounded-md border border-slate-200 bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-500">
+                      +{(p?.specializations?.length ?? 0) - 2}
+                    </span>
+                  )}
+                  {serviceGroups.length > 0 && (
+                    <span className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-500">
+                      {serviceGroups.length} service groups
+                    </span>
+                  )}
+                </div>
+              </div>
+            ) : null}
 
             {/* Packages */}
             {(p?.packageItems?.length ?? 0) > 0 && (
-              <div className="mt-2.5 flex items-center gap-1.5 text-[10px] font-semibold text-slate-400">
+              <div className="mt-2.5 flex items-center gap-1.5 text-xs font-semibold text-slate-400">
                 <Package className="h-3 w-3 text-[#02665e]" aria-hidden />
                 {p?.packageItems?.length} tour package{(p?.packageItems?.length ?? 0) !== 1 ? "s" : ""} available
               </div>
@@ -300,7 +358,7 @@ export default function OperatorCardPage() {
           <div className="px-4 pb-4">
             <Link
               href="/account/agent/profile/preview"
-              className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-[#02665e] py-2.5 text-xs font-bold text-white no-underline transition hover:bg-[#024d47]"
+              className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-[#02665e] py-2.5 text-sm font-bold text-white no-underline transition hover:bg-[#024d47]"
             >
               View full profile
               <ExternalLink className="h-3.5 w-3.5" aria-hidden />
@@ -315,11 +373,11 @@ export default function OperatorCardPage() {
             <div className="relative h-14 w-14 overflow-hidden rounded-full border-2 border-white shadow-md ring-2 ring-[#02665e]/20">
               <Image src={logoUrl} alt="Company logo" fill sizes="56px" className="object-cover" />
             </div>
-            <span className="text-xs font-semibold text-slate-500">{p?.companyName}</span>
+            <span className="text-sm font-semibold text-slate-500">{p?.companyName}</span>
           </div>
         )}
 
-        <p className="mt-4 text-xs text-slate-400">
+        <p className="mt-4 text-sm text-slate-400">
           This is how your operator card appears to customers browsing the platform.
         </p>
       </div>

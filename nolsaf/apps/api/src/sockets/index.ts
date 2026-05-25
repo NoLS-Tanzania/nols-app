@@ -1,6 +1,8 @@
 import type { Express } from "express";
 import type { Server as HttpServer } from "http";
 import { Server as SocketServer } from "socket.io";
+import { createAdapter } from "@socket.io/redis-adapter";
+import Redis from "ioredis";
 import { prisma } from "@nolsaf/prisma";
 import { socketAuthMiddleware, type AuthenticatedSocket } from "../middleware/socketAuth.js";
 import {
@@ -10,6 +12,10 @@ import {
 } from "../lib/driverAccess.js";
 
 let ioRef: SocketServer | null = null;
+let warnedAboutMissingIo = false;
+function isEnabled(value: string | undefined): boolean {
+  return ["1", "true", "yes", "on", "redis"].includes(String(value || "").trim().toLowerCase());
+}
 
 function buildSocketAllowedOrigins(): string[] {
   const localOrigins = [
@@ -36,6 +42,47 @@ function isSocketOriginAllowed(origin: string | null | undefined, allowedOrigins
   return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
 }
 
+function shouldUseSocketRedisAdapter(): boolean {
+  return isEnabled(process.env.SOCKET_IO_REDIS_ADAPTER) || isEnabled(process.env.SOCKET_IO_ADAPTER);
+}
+
+function getSocketRedisUrl(): string | null {
+  return process.env.SOCKET_IO_REDIS_URL || process.env.REDIS_URL || null;
+}
+
+async function configureSocketRedisAdapter(io: SocketServer): Promise<void> {
+  if (!shouldUseSocketRedisAdapter()) return;
+
+  const redisUrl = getSocketRedisUrl();
+  if (!redisUrl) {
+    console.warn("[SOCKET] Redis adapter requested but SOCKET_IO_REDIS_URL/REDIS_URL is not configured.");
+    return;
+  }
+
+  const pubClient = new Redis(redisUrl, {
+    lazyConnect: true,
+    maxRetriesPerRequest: null,
+  });
+  const subClient = pubClient.duplicate();
+
+  const onError = (label: string) => (err: Error) => {
+    console.error(`[SOCKET] Redis ${label} error:`, err.message);
+  };
+
+  pubClient.on("error", onError("pub"));
+  subClient.on("error", onError("sub"));
+
+  try {
+    await Promise.all([pubClient.connect(), subClient.connect()]);
+    io.adapter(createAdapter(pubClient, subClient));
+    console.log("[SOCKET] Redis adapter enabled for multi-instance Socket.IO.");
+  } catch (err: any) {
+    console.error("[SOCKET] Redis adapter failed to start; using local in-memory Socket.IO adapter.", err?.message || err);
+    try { pubClient.disconnect(); } catch {}
+    try { subClient.disconnect(); } catch {}
+  }
+}
+
 export function createSocketServer(server: HttpServer, app: Express): SocketServer {
   const socketAllowedOrigins = buildSocketAllowedOrigins();
   const io = new SocketServer(server, {
@@ -54,6 +101,7 @@ export function createSocketServer(server: HttpServer, app: Express): SocketServ
   app.set("io", io);
 
   io.use(socketAuthMiddleware);
+  void configureSocketRedisAdapter(io);
   registerSocketHandlers(io);
 
   return io;
@@ -430,13 +478,20 @@ function registerSocketHandlers(io: SocketServer): void {
   });
 }
 
-function getIo(): SocketServer {
-  if (!ioRef) throw new Error("Socket.IO server has not been initialized");
+function getIo(): SocketServer | null {
   return ioRef;
 }
 
 export function emitReferralUpdate(driverId: string | number, referralData: any): void {
-  getIo().to(`driver:${driverId}`).emit("referral-update", referralData);
+  const io = getIo();
+  if (!io) {
+    if (!warnedAboutMissingIo && process.env.NODE_ENV !== "test") {
+      warnedAboutMissingIo = true;
+      console.warn("[socket] Referral emit skipped because Socket.IO is not enabled on this process.");
+    }
+    return;
+  }
+  io.to(`driver:${driverId}`).emit("referral-update", referralData);
 }
 
 export function emitReferralNotification(driverId: string | number, notification: {
@@ -444,5 +499,13 @@ export function emitReferralNotification(driverId: string | number, notification
   message: string;
   referralData?: any;
 }): void {
-  getIo().to(`driver:${driverId}`).emit("referral-notification", notification);
+  const io = getIo();
+  if (!io) {
+    if (!warnedAboutMissingIo && process.env.NODE_ENV !== "test") {
+      warnedAboutMissingIo = true;
+      console.warn("[socket] Referral emit skipped because Socket.IO is not enabled on this process.");
+    }
+    return;
+  }
+  io.to(`driver:${driverId}`).emit("referral-notification", notification);
 }

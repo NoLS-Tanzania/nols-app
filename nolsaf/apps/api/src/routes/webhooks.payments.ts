@@ -513,12 +513,37 @@ router.post("/azampay", webhookLimiter, async (req: any, res) => {
       });
     }
 
+    // Also find tour booking by paymentRef (runs in parallel path when no invoice found)
+    let tourBooking = null as any;
+    if (!invoice && paymentRef) {
+      tourBooking = await prisma.tourBooking.findFirst({
+        where: { paymentRef: paymentRef.toString() },
+        select: {
+          id: true,
+          bookingCode: true,
+          grossAmount: true,
+          currency: true,
+          guestName: true,
+          guestPhone: true,
+          guestEmail: true,
+          paymentStatus: true,
+          status: true,
+          operatorAgentId: true,
+          title: true,
+          destination: true,
+          startDate: true,
+          travelerCount: true,
+        },
+      });
+    }
+
     // Record the payment event (only if not already existing)
     const recorded = existing ?? await prisma.paymentEvent.create({
       data: {
         provider: "AZAMPAY",
         eventId: eventId.toString(),
         invoiceId: invoice?.id ?? null,
+        tourBookingId: tourBooking?.id ?? null,
         amount: amount,
         currency: payload.currency || "TZS",
         status: normalizedStatus,
@@ -648,6 +673,68 @@ router.post("/azampay", webhookLimiter, async (req: any, res) => {
           `[WEBHOOK] Amount mismatch on invoice ${invoice?.id ?? "?"}: ` +
           `expected ${want} TZS, received ${amount} TZS ` +
           `(diff ${Math.abs(amount - want)} TZS). Invoice NOT marked paid.`
+        );
+      }
+    }
+
+    // ── Tour booking payment success ──────────────────────────────────────────
+    if (tourBooking && normalizedStatus === "SUCCESS" && tourBooking.paymentStatus !== "PAID") {
+      const want = Math.round(Number(tourBooking.grossAmount));
+      if (near(amount, want)) {
+        try {
+          await prisma.tourBooking.update({
+            where: { id: tourBooking.id },
+            data: {
+              paymentStatus: "PAID",
+              status: "CONFIRMED",
+              paidAt: new Date(),
+              paymentProvider: "AZAMPAY",
+            },
+          });
+
+          // Notify agent (operator)
+          const agent = await prisma.agent.findUnique({
+            where: { id: tourBooking.operatorAgentId },
+            select: { userId: true },
+          });
+          if (agent?.userId) {
+            try {
+              await prisma.notification.create({
+                data: {
+                  userId: agent.userId,
+                  title: "New paid tour booking",
+                  body:
+                    `Tour booking ${tourBooking.bookingCode} has been paid. ` +
+                    `Guest: ${tourBooking.guestName || "Unknown"}. ` +
+                    `Amount: ${tourBooking.currency} ${want.toLocaleString("en-US")}.`,
+                  type: "tour_booking",
+                  meta: { kind: "tour_booking_paid", tourBookingId: tourBooking.id, bookingCode: tourBooking.bookingCode },
+                },
+              });
+            } catch { /* non-fatal */ }
+          }
+
+          // SMS to guest
+          if (tourBooking.guestPhone) {
+            try {
+              const smsText =
+                `NoLSAF: Tour Booking Confirmed!\n` +
+                `Ref: ${tourBooking.bookingCode}\n` +
+                `Tour: ${String(tourBooking.title || "").slice(0, 40)}\n` +
+                (tourBooking.destination ? `Destination: ${String(tourBooking.destination).slice(0, 30)}\n` : "") +
+                `Travelers: ${tourBooking.travelerCount}\n` +
+                `Paid: ${tourBooking.currency} ${want.toLocaleString("en-US")}\n` +
+                `Keep this ref. support@nolsaf.com`;
+              await sendSms(tourBooking.guestPhone, smsText);
+            } catch { /* non-fatal */ }
+          }
+        } catch (tourErr) {
+          console.error(`[WEBHOOK] Failed to mark tour booking ${tourBooking.id} as paid:`, (tourErr as any)?.message ?? tourErr);
+        }
+      } else {
+        console.warn(
+          `[WEBHOOK] Amount mismatch on tour booking ${tourBooking.id}: ` +
+          `expected ${want} TZS, received ${amount} TZS.`
         );
       }
     }

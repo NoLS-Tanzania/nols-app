@@ -8,6 +8,28 @@ import { REAL_BOOKING_STATUSES } from "../lib/bookingStatus.js";
 
 const router = Router();
 
+const HOME_PROPERTY_TYPE_CARDS = [
+  { key: "HOTEL" },
+  { key: "LODGE" },
+  { key: "APARTMENT" },
+  { key: "VILLA" },
+  { key: "GUEST_HOUSE" },
+  { key: "BUNGALOW" },
+  { key: "CABIN" },
+  { key: "HOMESTAY" },
+  { key: "CONDO" },
+  { key: "HOUSE" },
+] as const;
+
+const HOME_FEATURED_DESTINATIONS = [
+  { city: "Dar es Salaam", filterParam: "region" },
+  { city: "Nairobi", filterParam: "city" },
+  { city: "Zanzibar", filterParam: "region" },
+  { city: "Arusha", filterParam: "region" },
+  { city: "Mwanza", filterParam: "region" },
+  { city: "Dodoma", filterParam: "region" },
+] as const;
+
 function isMysqlSortMemoryError(err: any) {
   const code = err?.cause?.originalCode ?? err?.cause?.code ?? err?.code;
   const msg = err?.cause?.originalMessage ?? err?.message;
@@ -876,6 +898,201 @@ const getPublicProperty: RequestHandler = async (req, res) => {
 };
 
 router.get("/", listPublicProperties);
+
+/**
+ * GET /api/public/properties/home-summary
+ * Batches public-home counters/samples so the landing page does not fan out
+ * into many browser API calls on every load.
+ */
+const homeSummary: RequestHandler = async (_req, res) => {
+  try {
+    const { result, duration } = await measureTime("public.properties.homeSummary", async () => {
+      return await withCache(
+        "properties:home-summary:v1",
+        async () => {
+          const aliasesByKey = new Map<string, Set<string>>();
+          const allTypeAliases = new Set<string>();
+          for (const card of HOME_PROPERTY_TYPE_CARDS) {
+            const aliases = new Set(expandPropertyTypeFilters([card.key]));
+            aliasesByKey.set(card.key, aliases);
+            for (const alias of aliases) allTypeAliases.add(alias);
+          }
+
+          const allTypeAliasList = Array.from(allTypeAliases);
+
+          const trustPartnersPromise = prisma.trustPartner
+            .findMany({
+              where: { isActive: true },
+              orderBy: [{ displayOrder: "asc" }, { createdAt: "asc" }],
+              select: {
+                id: true,
+                name: true,
+                logoUrl: true,
+                href: true,
+              },
+            })
+            .catch((err: any) => {
+              if (err instanceof Prisma.PrismaClientKnownRequestError && (err.code === "P2021" || err.code === "P2022")) {
+                return [];
+              }
+              throw err;
+            });
+
+          const groupedTypesPromise = allTypeAliasList.length
+            ? prisma.property.groupBy({
+                by: ["type"],
+                where: {
+                  status: "APPROVED",
+                  type: { in: allTypeAliasList },
+                },
+                _count: { type: true },
+              })
+            : Promise.resolve([]);
+
+          const typeSampleRowsPromise = allTypeAliasList.length
+            ? (prisma.$queryRaw(
+                Prisma.sql`
+                  SELECT
+                    p.id, p.title, p.type, p.parkPlacement, p.regionName,
+                    p.district, p.ward, p.street, p.city, p.country,
+                    p.services, p.basePrice, p.currency, p.roomsSpec,
+                    p.maxGuests, p.totalBedrooms, p.totalBathrooms,
+                    COALESCE(
+                      (SELECT pi.thumbnailUrl FROM \`property_images\` pi
+                        WHERE pi.propertyId = p.id
+                          AND pi.status IN ('READY','PROCESSING')
+                          AND pi.thumbnailUrl IS NOT NULL
+                        ORDER BY pi.id ASC LIMIT 1),
+                      (SELECT pi.url FROM \`property_images\` pi
+                        WHERE pi.propertyId = p.id
+                          AND pi.url IS NOT NULL
+                        ORDER BY pi.id ASC LIMIT 1),
+                      CASE
+                        WHEN JSON_EXTRACT(p.photos, '$[0]') IS NOT NULL
+                          AND JSON_UNQUOTE(JSON_EXTRACT(p.photos, '$[0]')) != ''
+                        THEN JSON_UNQUOTE(JSON_EXTRACT(p.photos, '$[0]'))
+                        ELSE NULL
+                      END
+                    ) AS primaryImage
+                  FROM \`property\` p
+                  LEFT JOIN (
+                    SELECT entityId, MAX(createdAt) AS approvedAt
+                    FROM \`auditlog\`
+                    WHERE entity = 'PROPERTY'
+                      AND action IN ('PROPERTY_APPROVE', 'PROPERTY_UNSUSPEND')
+                    GROUP BY entityId
+                  ) latestApproval ON latestApproval.entityId = p.id
+                  WHERE p.status = 'APPROVED'
+                    AND p.type IN (${Prisma.join(allTypeAliasList.map((t) => Prisma.sql`${t}`))})
+                  ORDER BY COALESCE(latestApproval.approvedAt, p.updatedAt, p.createdAt) DESC, p.id DESC
+                  LIMIT ${HOME_PROPERTY_TYPE_CARDS.length * 12}
+                `
+              ) as Promise<any[]>)
+            : Promise.resolve([] as any[]);
+
+          const destinationCountsPromise = Promise.all(
+            HOME_FEATURED_DESTINATIONS.map(async (destination) => {
+              const field = destination.filterParam === "region" ? "regionName" : "city";
+              const total = await prisma.property.count({
+                where: {
+                  status: "APPROVED",
+                  AND: [
+                    {
+                      OR: locationContainsClauses(field, destination.city),
+                    },
+                  ],
+                },
+              });
+              return [destination.city, total] as const;
+            })
+          );
+
+          const [trustPartners, groupedTypes, typeSampleRows, destinationCounts] = await Promise.all([
+            trustPartnersPromise,
+            groupedTypesPromise,
+            typeSampleRowsPromise,
+            destinationCountsPromise,
+          ]);
+
+          const typeCounts: Record<string, number | null> = {};
+          const typeSamples: Record<string, PublicHomeSample | null> = {};
+          for (const card of HOME_PROPERTY_TYPE_CARDS) {
+            const aliases = aliasesByKey.get(card.key) ?? new Set<string>();
+            typeCounts[card.key] = (groupedTypes as any[]).reduce((sum, row: any) => {
+              return aliases.has(String(row.type || "")) ? sum + Number(row._count?.type ?? 0) : sum;
+            }, 0);
+            typeSamples[card.key] = null;
+          }
+
+          for (const row of typeSampleRows || []) {
+            const rowType = String(row?.type || "");
+            for (const card of HOME_PROPERTY_TYPE_CARDS) {
+              if (typeSamples[card.key]) continue;
+              const aliases = aliasesByKey.get(card.key);
+              if (!aliases?.has(rowType)) continue;
+              const cardDto = toPublicCard(row);
+              typeSamples[card.key] = {
+                title: cardDto.title,
+                location: cardDto.location,
+                primaryImage: cardDto.primaryImage,
+                basePrice: cardDto.basePrice,
+                currency: cardDto.currency,
+              };
+            }
+          }
+
+          const featuredCityCounts: Record<string, number | null> = {};
+          for (const [city, total] of destinationCounts) {
+            featuredCityCounts[city] = Number.isFinite(total) ? total : null;
+          }
+
+          return {
+            trustPartners: {
+              items: trustPartners,
+            },
+            propertyTypes: {
+              counts: typeCounts,
+              samples: typeSamples,
+            },
+            featuredDestinations: {
+              counts: featuredCityCounts,
+            },
+          };
+        },
+        {
+          ttl: 300,
+          tags: [cacheTags.propertyList],
+        }
+      );
+    });
+
+    res.set("X-Response-Time", `${duration.toFixed(2)}ms`);
+    res.set("Cache-Control", "no-store");
+    return res.json(result);
+  } catch (err: any) {
+    console.error("public.properties.homeSummary failed", err);
+    if (err instanceof Prisma.PrismaClientKnownRequestError && (err.code === "P2021" || err.code === "P2022")) {
+      return res.json({
+        trustPartners: { items: [] },
+        propertyTypes: { counts: {}, samples: {} },
+        featuredDestinations: { counts: {} },
+        warning: "db_not_migrated",
+      });
+    }
+    return res.status(500).json({ error: "failed", message: err?.message || String(err) });
+  }
+};
+
+type PublicHomeSample = {
+  title: string;
+  location: string;
+  primaryImage: string | null;
+  basePrice: number | null;
+  currency: string | null;
+};
+
+router.get("/home-summary", homeSummary);
+
 /**
  * GET /api/public/properties/top-cities?take=8
  * Returns the top cities by number of APPROVED listings, plus a representative listing card.

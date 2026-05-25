@@ -1,0 +1,6 @@
+Contact: mailto:security@nolsaf.com
+Contact: https://nolsaf.com/contact
+Expires: 2027-05-23T23:59:59Z
+Preferred-Languages: en
+Canonical: https://nolsaf.com/.well-known/security.txt
+Policy: https://nolsaf.com/security

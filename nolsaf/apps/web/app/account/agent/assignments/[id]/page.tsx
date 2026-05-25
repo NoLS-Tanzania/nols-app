@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import apiClient from "@/lib/apiClient";
+import { fetchAccountSession } from "@/lib/accountSession";
 import { ArrowLeft, Calendar, CheckCircle, ClipboardList, Clock, User } from "lucide-react";
 import LogoSpinner from "@/components/LogoSpinner";
 
@@ -53,7 +54,12 @@ export default function AgentAssignmentDetailPage() {
         setError(null);
         setAuthRequired(false);
 
-        await api.get("/api/account/me");
+        const session = await fetchAccountSession();
+        if (!session.ok) {
+          setAuthRequired(true);
+          setItem(null);
+          return;
+        }
 
         const res = await api.get(`/api/agent/assignments/${encodeURIComponent(assignmentId)}`);
         if (!alive) return;

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import apiClient from "@/lib/apiClient";
+import { fetchAccountSession } from "@/lib/accountSession";
 import {
   MapPin,
   ArrowLeft,
@@ -144,7 +145,7 @@ export default function RideDetailPage() {
   const [cardFlipped, setCardFlipped] = useState(false);
 
   useEffect(() => {
-    api.get("/api/account/me").then((res) => setCurrentUserId(res.data?.id || null)).catch(() => {});
+    fetchAccountSession().then((res) => setCurrentUserId(res.data?.id || null)).catch(() => {});
     if (rideId) {
       api.get(`/api/transport-bookings/${rideId}`)
         .then((res) => setRide(res.data))

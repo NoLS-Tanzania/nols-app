@@ -40,11 +40,11 @@ export type CareersApplicationJob = {
 
 type CareersApplicationFormProps = {
   job: CareersApplicationJob;
-  onClose: () => void;
-  onSuccess?: () => void;
+  onCloseAction: () => void;
+  onSuccessAction?: () => void;
 };
 
-export default function CareersApplicationForm({ job, onClose, onSuccess }: CareersApplicationFormProps) {
+export default function CareersApplicationForm({ job, onCloseAction, onSuccessAction }: CareersApplicationFormProps) {
   const isTravelAgentPosition =
     Boolean((job as any).isTravelAgentPosition) ||
     ["PARTNERSHIP", "AGENCY_AGREEMENT", "RESELLER", "AFFILIATE", "WHITE_LABEL"].includes(
@@ -158,11 +158,6 @@ export default function CareersApplicationForm({ job, onClose, onSuccess }: Care
   const aboutTooShort = aboutWords > 0 && aboutWords < ABOUT_MIN_WORDS;
   const aboutTooLong = aboutWords > ABOUT_MAX_WORDS;
   const aboutInvalid = aboutWords < ABOUT_MIN_WORDS || aboutWords > ABOUT_MAX_WORDS;
-  const availableServiceOptions = useMemo(
-    () => getServiceOptionsForTypes(formData.tourismTypes),
-    [formData.tourismTypes],
-  );
-
   const serviceOptionsForCategory = useMemo(() => {
     if (!serviceCategoryInput) return [] as string[];
     if (serviceCategoryInput === "COMMON") return COMMON_SERVICES;
@@ -614,8 +609,8 @@ export default function CareersApplicationForm({ job, onClose, onSuccess }: Care
 
       setSuccess(true);
       setTimeout(() => {
-        onSuccess?.();
-        onClose();
+        onSuccessAction?.();
+        onCloseAction();
       }, 2000);
     } catch (err: any) {
       console.error("Application submission failed", err);
@@ -635,7 +630,7 @@ export default function CareersApplicationForm({ job, onClose, onSuccess }: Care
             Thank you for applying to {job.title}. We'll review your application and get back to you soon.
           </p>
           <button type="button"
-            onClick={onClose}
+            onClick={onCloseAction}
             className="w-full bg-[#02665e] text-white py-3 rounded-lg font-semibold hover:bg-[#024d47] transition-colors"
           >
             Close
@@ -653,7 +648,7 @@ export default function CareersApplicationForm({ job, onClose, onSuccess }: Care
             <p className="text-xs uppercase tracking-[0.18em] text-[#02665e] font-semibold">Partnership Application</p>
             <h2 className="text-xl sm:text-2xl font-bold text-slate-900 break-words">Apply for {job.title}</h2>
           </div>
-          <button type="button" onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors flex-shrink-0 border border-slate-200">
+          <button type="button" onClick={onCloseAction} className="p-2 hover:bg-slate-100 rounded-full transition-colors flex-shrink-0 border border-slate-200">
             <X size={24} />
           </button>
         </div>
@@ -1746,7 +1741,7 @@ export default function CareersApplicationForm({ job, onClose, onSuccess }: Care
 
           <div className="flex flex-col sm:flex-row gap-4 pt-4 w-full box-border">
             <button type="button"
-              onClick={onClose}
+              onClick={onCloseAction}
               className="flex-1 px-4 sm:px-6 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-colors min-w-0"
             >
               Cancel

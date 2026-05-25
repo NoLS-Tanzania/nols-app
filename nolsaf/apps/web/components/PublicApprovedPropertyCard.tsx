@@ -52,13 +52,7 @@ function PropertyCardImage({
       className="object-cover transition-transform duration-500 ease-out group-hover:scale-[1.08]"
       loading={priorityImage ? "eager" : "lazy"}
       priority={priorityImage}
-      unoptimized={
-        !(
-          src.includes("cloudinary") ||
-          src.startsWith("http://localhost") ||
-          src.startsWith("http://127.0.0.1")
-        )
-      }
+      unoptimized={src.includes("cloudinary")}
     />
   );
 }

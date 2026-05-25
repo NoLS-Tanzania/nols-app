@@ -212,12 +212,46 @@ function IconLinkButton({
 
 export default function AgentFooter({ withRail = true }: { withRail?: boolean }) {
   const year = new Date().getFullYear();
+  const [hasContractAccess, setHasContractAccess] = useState(false);
 
   // Keep the same navigation context behavior as the existing footer.
   useEffect(() => {
     if (typeof window !== "undefined") {
       sessionStorage.setItem("navigationContext", "agent");
     }
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    const controller = new AbortController();
+
+    const loadContractAccess = async () => {
+      try {
+        const res = await fetch("/api/agent/me", {
+          credentials: "include",
+          signal: controller.signal,
+        });
+        if (!res.ok) return;
+
+        const data = await res.json();
+        if (!mounted) return;
+
+        const applicationStatus = String(data?.agent?.application?.status || "").toUpperCase();
+        const hasEmploymentDate = Boolean(data?.agent?.employmentCommencedAt);
+        const hired = applicationStatus === "HIRED" || (hasEmploymentDate && applicationStatus.length === 0);
+
+        setHasContractAccess(hired);
+      } catch {
+        // ignore and keep contract entry hidden when status cannot be verified
+      }
+    };
+
+    void loadContractAccess();
+
+    return () => {
+      mounted = false;
+      controller.abort();
+    };
   }, []);
 
   return (
@@ -402,7 +436,9 @@ export default function AgentFooter({ withRail = true }: { withRail?: boolean })
                       { kind: "modal" as const, type: "terms" as const, label: "Terms" },
                       { kind: "modal" as const, type: "privacy" as const, label: "Privacy" },
                       { kind: "modal" as const, type: "cookies" as const, label: "Cookies" },
-                      { kind: "modal" as const, type: "contract" as const, label: "My Contract" },
+                      ...(hasContractAccess
+                        ? [{ kind: "modal" as const, type: "contract" as const, label: "Partnership Contract" }]
+                        : []),
                     ]
                   ).map((item, index) => (
                     <li

@@ -27,11 +27,15 @@ import {
   FileText,
   ChevronLeft,
   ChevronRight,
+  ChevronsUpDown,
+  ChevronUp,
+  ChevronDown,
   ExternalLink,
   MapPin,
   Package,
 } from "lucide-react";
 import apiClient from "@/lib/apiClient";
+import TableRow from "@/components/TableRow";
 
 const api = apiClient;
 
@@ -92,6 +96,7 @@ type Agent = {
     commissionSum: number;
     netSum: number;
     commissionPercent: number;
+    currency?: string;
   };
   suspendedAt?: string | null;
   createdAt: string;
@@ -160,9 +165,18 @@ function fmtTime(iso?: string | null) {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
-function fmtTsh(value?: number | null) {
+function fmtMoney(value?: number | null, currency: string = "USD") {
   const n = Number(value ?? 0);
-  return `TSh ${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(n);
+  } catch {
+    return `${currency} ${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
 }
 
 function initials(name: string | null | undefined) {
@@ -205,9 +219,13 @@ function slugifyProfile(name: string, agentId?: number | null) {
 function SubmittedProfileCard({
   profile,
   reviewHref,
+  reviewStatus,
+  commissionPercent,
 }: {
   profile: Record<string, any>;
   reviewHref: string;
+  reviewStatus?: string;
+  commissionPercent?: number | null;
 }) {
   const [currentPhoto, setCurrentPhoto] = useState(0);
   const trackRef = useRef<HTMLDivElement>(null);
@@ -216,12 +234,32 @@ function SubmittedProfileCard({
   const photos = [...stringList(classified.attractions), ...stringList(classified.proof), ...stringList(classified.office), ...stringList(classified.vehicles)].slice(0, 6);
   const services = [...stringList(profile.services), ...stringList(profile.addOns), ...stringList(profile.tourismTypes)].filter((item, index, arr) => item && arr.indexOf(item) === index);
   const packages = Array.isArray(profile.packageItems) ? profile.packageItems : [];
-  const lowest = packages
-    .map((pkg: any) => ({ currency: String(pkg?.currency || "USD"), price: Number(pkg?.pricePerPerson || pkg?.price || 0) }))
-    .filter((pkg) => Number.isFinite(pkg.price) && pkg.price > 0)
-    .sort((a, b) => a.price - b.price)[0] || null;
+  const packagePrices = packages
+    .map((pkg: any) => ({ currency: String(pkg?.currency || "USD"), basePrice: Number(pkg?.pricePerPerson || pkg?.price || 0) }))
+    .filter((pkg) => Number.isFinite(pkg.basePrice) && pkg.basePrice > 0)
+    .sort((a, b) => a.basePrice - b.basePrice);
+  const lowestBase = packagePrices[0] || null;
+  const profileCommission = Number(
+    profile?.commissionPercent ??
+    (profile?.services && typeof profile.services === "object" ? (profile.services as any).commissionPercent : undefined)
+  );
+  const localCommissionRaw = Number(
+    (Number.isFinite(profileCommission) ? profileCommission : undefined) ?? commissionPercent ?? 0
+  );
+  const effectiveCommissionPercent = Number.isFinite(localCommissionRaw) && localCommissionRaw > 0 ? localCommissionRaw : 0;
+  const lowest = lowestBase
+    ? {
+        currency: lowestBase.currency,
+        price: Math.round(lowestBase.basePrice * (1 + effectiveCommissionPercent / 100)),
+        basePrice: lowestBase.basePrice,
+      }
+    : null;
   const contactPhone = String(profile.contactPhone || "").trim();
   const location = String(profile.physicalLocation || profile.businessAddress || stringList(profile.operatingRegions)[0] || "Location not set");
+  const localReviewState = String(
+    reviewStatus || profile.reviewStatus || (profile.review && (profile.review as Record<string, unknown>).status) || ""
+  ).toUpperCase();
+  const isVerified = localReviewState === "APPROVED";
 
   const goToPhoto = (nextIndex: number) => {
     const el = trackRef.current;
@@ -242,7 +280,7 @@ function SubmittedProfileCard({
       <div className="mb-3">
         <div>
           <div className="text-xs font-bold uppercase tracking-wide text-slate-500">Submitted card preview</div>
-          <h3 className="mt-1 text-xl font-black text-slate-950">{companyName}</h3>
+          <h3 className="mt-1 min-w-0 truncate text-xl font-black text-slate-950">{companyName}</h3>
         </div>
       </div>
 
@@ -346,9 +384,17 @@ function SubmittedProfileCard({
           ) : null}
 
           {packages.length > 0 ? (
-            <div className="mt-2.5 flex items-center gap-1.5 text-[10px] font-semibold text-slate-400">
-              <Package className="h-3 w-3 text-[#02665e]" aria-hidden />
-              {packages.length} tour package{packages.length === 1 ? "" : "s"} available
+            <div className="mt-2.5 flex items-center justify-between gap-2 text-[10px] font-semibold text-slate-400">
+              <div className="flex min-w-0 items-center gap-1.5">
+                <Package className="h-3 w-3 shrink-0 text-[#02665e]" aria-hidden />
+                <span className="truncate">{packages.length} tour package{packages.length === 1 ? "" : "s"} available</span>
+              </div>
+              {isVerified ? (
+                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                  <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
+                  Verified
+                </span>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -406,8 +452,10 @@ export default function AdminAgentDetailPage() {
   const [bookingStatus, setBookingStatus] = useState("all");
   const [bookingPage, setBookingPage] = useState(1);
   const [bookingTotal, setBookingTotal] = useState(0);
-  const [_bookingSortBy, _setBookingSortBy] = useState("createdAt");
-  const [_bookingSortDir, _setBookingSortDir] = useState<"asc" | "desc">("desc");
+  const [adminCommissionPercent, setAdminCommissionPercent] = useState<number | null>(null);
+  const [tourCurrency, setTourCurrency] = useState<string>("USD");
+  const [bookingSortBy, setBookingSortBy] = useState("createdAt");
+  const [bookingSortDir, setBookingSortDir] = useState<"asc" | "desc">("desc");
   const pageSize = 25;
 
   const load = useCallback(async () => {
@@ -423,6 +471,12 @@ export default function AdminAgentDetailPage() {
       authify();
       const r = await api.get<Agent>(`/api/admin/agents/${agentId}`);
       setAgent(unwrapApiData<Agent>(r.data));
+      const settingsResp = await api.get("/api/admin/settings");
+      const settingsData = unwrapApiData<any>(settingsResp.data);
+      const settingsPct = Number(settingsData?.agentCommissionPercent ?? settingsData?.commissionPercent);
+      setAdminCommissionPercent(Number.isFinite(settingsPct) ? settingsPct : null);
+      const settingsCurrency = String(settingsData?.agentCommissionCurrency || "").trim().toUpperCase();
+      if (settingsCurrency) setTourCurrency(settingsCurrency);
     } catch (err: any) {
       setError(err?.response?.data?.error || err?.message || "Failed to load tour operator details");
     } finally {
@@ -562,7 +616,6 @@ export default function AdminAgentDetailPage() {
     const gradients: Record<string, string> = {
       all: "bg-gradient-to-r from-blue-500 to-blue-600",
       new: "bg-gradient-to-r from-sky-500 to-blue-600",
-      pending: "bg-gradient-to-r from-amber-500 to-orange-600",
       in_progress: "bg-gradient-to-r from-cyan-500 to-blue-600",
       completed: "bg-gradient-to-r from-emerald-500 to-teal-600",
       cancelled: "bg-gradient-to-r from-red-500 to-rose-600",
@@ -570,15 +623,61 @@ export default function AdminAgentDetailPage() {
     return gradients[status] || "bg-gradient-to-r from-gray-500 to-gray-600";
   };
 
-  const handleBookingSortClick = (_field: string) => {
-    // Sorting disabled for now - can be re-enabled when needed
-    // if (_bookingSortBy === _field) {
-    //   _setBookingSortDir(_bookingSortDir === "asc" ? "desc" : "asc");
-    // } else {
-    //   _setBookingSortBy(_field);
-    //   _setBookingSortDir("desc");
-    // }
-    setBookingPage(1);
+  const sortedBookings = useMemo(() => {
+    const rows = [...bookings];
+    const read = (b: Booking) => {
+      switch (bookingSortBy) {
+        case "id":
+          return Number(b.id || 0);
+        case "guest":
+          return String(b.guestName || "").toLowerCase();
+        case "property":
+          return String(b.property || "").toLowerCase();
+        case "checkIn":
+          return new Date(b.checkIn || "").getTime() || 0;
+        case "checkOut":
+          return new Date(b.checkOut || "").getTime() || 0;
+        case "amount":
+          return Number(b.amount || 0);
+        case "operatorPayout":
+          return Number(b.operatorPayout || 0);
+        case "platformFee":
+          return Number(b.platformFee || 0);
+        case "status":
+          return String(b.status || "").toLowerCase();
+        case "createdAt":
+        default:
+          return new Date(b.createdAt || "").getTime() || 0;
+      }
+    };
+
+    rows.sort((a, b) => {
+      const av = read(a);
+      const bv = read(b);
+      if (typeof av === "number" && typeof bv === "number") {
+        return bookingSortDir === "asc" ? av - bv : bv - av;
+      }
+      const cmp = String(av).localeCompare(String(bv));
+      return bookingSortDir === "asc" ? cmp : -cmp;
+    });
+
+    return rows;
+  }, [bookings, bookingSortBy, bookingSortDir]);
+
+  const handleBookingSortClick = (field: string) => {
+    if (bookingSortBy === field) {
+      setBookingSortDir((dir) => (dir === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setBookingSortBy(field);
+    setBookingSortDir(field === "id" ? "desc" : "asc");
+  };
+
+  const renderBookingSortIcon = (field: string) => {
+    if (bookingSortBy !== field) return <ChevronsUpDown className="h-3.5 w-3.5 text-gray-400" />;
+    return bookingSortDir === "asc"
+      ? <ChevronUp className="h-3.5 w-3.5 text-blue-600" />
+      : <ChevronDown className="h-3.5 w-3.5 text-blue-600" />;
   };
 
   async function approveDocument(docId: number) {
@@ -803,8 +902,10 @@ export default function AdminAgentDetailPage() {
       commissionSum: commission,
       netSum: Math.round((gross - commission) * 100) / 100,
       commissionPercent: fallbackCommissionPercent,
+      currency: tourCurrency,
     };
-  }, [agent]);
+  }, [agent, tourCurrency]);
+  const financialCurrency = String(financialSummary.currency || tourCurrency || "USD").toUpperCase();
   const submittedProfileReviewStatus = String(
     (agent?.operatorProfile as any)?.reviewStatus || (agent?.operatorProfile as any)?.review?.status || "PENDING",
   ).toUpperCase();
@@ -828,7 +929,7 @@ export default function AdminAgentDetailPage() {
   return (
     <div className="space-y-6 p-4 sm:p-6">
       {loading ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-gray-600">Loading tour operator details...</div>
+        <AgentDetailSkeleton />
       ) : error || !agent ? (
         <div className="bg-red-50 rounded-xl border border-red-200 p-6 text-red-700">
           <div className="font-semibold">Failed to load tour operator details</div>
@@ -923,15 +1024,15 @@ export default function AdminAgentDetailPage() {
               >
                 <div className="space-y-3 sm:space-y-4">
                   <MetricRow label="Paid Invoices" value={String(financialSummary.paidCount)} />
-                  <MetricRow label="Gross Revenue" value={fmtTsh(financialSummary.grossSum)} />
+                  <MetricRow label="Gross Revenue" value={fmtMoney(financialSummary.grossSum, financialCurrency)} />
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                     <div className="p-3 sm:p-4 bg-blue-50 rounded-lg min-w-0">
                       <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Commission</div>
-                      <div className="text-base sm:text-lg font-bold text-blue-900 mt-1 break-words">{fmtTsh(financialSummary.commissionSum)}</div>
+                      <div className="text-base sm:text-lg font-bold text-blue-900 mt-1 break-words">{fmtMoney(financialSummary.commissionSum, financialCurrency)}</div>
                     </div>
                     <div className="p-3 sm:p-4 bg-emerald-50 rounded-lg border-2 border-emerald-200 min-w-0">
                       <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Net Revenue</div>
-                      <div className="text-base sm:text-lg font-bold text-emerald-900 mt-1 break-words">{fmtTsh(financialSummary.netSum)}</div>
+                      <div className="text-base sm:text-lg font-bold text-emerald-900 mt-1 break-words">{fmtMoney(financialSummary.netSum, financialCurrency)}</div>
                     </div>
                   </div>
                 </div>
@@ -1148,6 +1249,7 @@ export default function AdminAgentDetailPage() {
                         </div>
                       ) : null}
                     </div>
+
                   </div>
                 </div>
               </div>
@@ -1470,6 +1572,8 @@ export default function AdminAgentDetailPage() {
                 <SubmittedProfileCard
                   profile={submittedProfileRaw}
                   reviewHref={submittedProfileReviewHref}
+                  reviewStatus={submittedProfileReviewStatus}
+                  commissionPercent={adminCommissionPercent}
                 />
               </div>
             </Card>
@@ -1491,7 +1595,7 @@ export default function AdminAgentDetailPage() {
               </div>
 
               <div className="flex flex-wrap gap-2 justify-center">
-                {["all", "new", "pending", "in_progress", "completed", "cancelled"].map((s) => (
+                {["all", "new", "in_progress", "completed", "cancelled"].map((s) => (
                   <button
                     key={s}
                     onClick={() => {
@@ -1523,46 +1627,79 @@ export default function AdminAgentDetailPage() {
                     <table className="w-full text-sm">
                       <thead className="bg-gray-50 border-b border-gray-200">
                         <tr>
-                          <th className="text-left px-4 py-3 font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleBookingSortClick("id")}>
-                            Request ID
+                          <th className="text-left px-4 py-3 font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleBookingSortClick("id")}>
+                            <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                              Request ID
+                              {renderBookingSortIcon("id")}
+                            </span>
                           </th>
-                          <th className="text-left px-4 py-3 font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleBookingSortClick("guest")}>
-                            Requester
+                          <th className="text-left px-4 py-3 font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleBookingSortClick("guest")}>
+                            <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                              Requester
+                              {renderBookingSortIcon("guest")}
+                            </span>
                           </th>
-                          <th className="text-left px-4 py-3 font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleBookingSortClick("property")}>
-                            Destination / Trip
+                          <th className="text-left px-4 py-3 font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleBookingSortClick("property")}>
+                            <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                              Destination/Trip
+                              {renderBookingSortIcon("property")}
+                            </span>
                           </th>
-                          <th className="text-left px-4 py-3 font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleBookingSortClick("checkIn")}>
-                            Start Date
+                          <th className="text-left px-4 py-3 font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleBookingSortClick("checkIn")}>
+                            <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                              Start Date
+                              {renderBookingSortIcon("checkIn")}
+                            </span>
                           </th>
-                          <th className="text-left px-4 py-3 font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleBookingSortClick("checkOut")}>
-                            End Date
+                          <th className="text-left px-4 py-3 font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleBookingSortClick("checkOut")}>
+                            <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                              End Date
+                              {renderBookingSortIcon("checkOut")}
+                            </span>
                           </th>
-                          <th className="text-right px-4 py-3 font-semibold text-gray-700">Amount</th>
-                          <th className="text-right px-4 py-3 font-semibold text-gray-700">Op. Payout</th>
-                          <th className="text-right px-4 py-3 font-semibold text-gray-700">Platform Fee</th>
-                          <th className="text-left px-4 py-3 font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleBookingSortClick("status")}>
-                            Status
+                          <th className="text-right px-4 py-3 font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleBookingSortClick("amount")}>
+                            <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                              Amount
+                              {renderBookingSortIcon("amount")}
+                            </span>
+                          </th>
+                          <th className="text-right px-4 py-3 font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleBookingSortClick("operatorPayout")}>
+                            <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                              Op. Payout
+                              {renderBookingSortIcon("operatorPayout")}
+                            </span>
+                          </th>
+                          <th className="text-right px-4 py-3 font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleBookingSortClick("platformFee")}>
+                            <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                              Platform Fee
+                              {renderBookingSortIcon("platformFee")}
+                            </span>
+                          </th>
+                          <th className="text-left px-4 py-3 font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleBookingSortClick("status")}>
+                            <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                              Status
+                              {renderBookingSortIcon("status")}
+                            </span>
                           </th>
                         </tr>
                       </thead>
                       <tbody>
-                        {bookings.map((booking) => (
-                          <tr key={booking.id} className="border-b border-gray-200 hover:bg-gray-50 transition-colors">
-                            <td className="px-4 py-3 text-gray-900 font-mono text-xs">{String(booking.id).slice(0, 8)}...</td>
-                            <td className="px-4 py-3 text-gray-900">{booking.guestName}</td>
-                            <td className="px-4 py-3 text-gray-600 text-xs">{booking.property}</td>
-                            <td className="px-4 py-3 text-gray-600 text-xs">{booking.checkIn}</td>
-                            <td className="px-4 py-3 text-gray-600 text-xs">{booking.checkOut}</td>
-                            <td className="px-4 py-3 text-right font-semibold text-gray-900">TZS {booking.amount.toLocaleString()}</td>
-                            <td className="px-4 py-3 text-right font-semibold text-green-600">TZS {booking.operatorPayout.toLocaleString()}</td>
-                            <td className="px-4 py-3 text-right font-semibold text-gray-600">TZS {booking.platformFee.toLocaleString()}</td>
-                            <td className="px-4 py-3">
+                        {sortedBookings.map((booking) => (
+                          <TableRow key={booking.id} className="border-b border-gray-200">
+                            <td className="px-4 py-3 text-gray-900 font-mono text-xs whitespace-nowrap">{String(booking.id).slice(0, 8)}...</td>
+                            <td className="px-4 py-3 text-gray-900 whitespace-nowrap">{booking.guestName}</td>
+                            <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{booking.property}</td>
+                            <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{fmtDate(booking.checkIn)}</td>
+                            <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{fmtDate(booking.checkOut)}</td>
+                            <td className="px-4 py-3 text-right font-semibold text-gray-900 whitespace-nowrap">{fmtMoney(booking.amount, financialCurrency)}</td>
+                            <td className="px-4 py-3 text-right font-semibold text-green-600 whitespace-nowrap">{fmtMoney(booking.operatorPayout, financialCurrency)}</td>
+                            <td className="px-4 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">{fmtMoney(booking.platformFee, financialCurrency)}</td>
+                            <td className="px-4 py-3 whitespace-nowrap">
                               <span className="inline-block px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
                                 {booking.status.replace(/_/g, " ")}
                               </span>
                             </td>
-                          </tr>
+                          </TableRow>
                         ))}
                       </tbody>
                     </table>
@@ -1633,6 +1770,81 @@ function MetricRow({ label, value }: { label: string; value: string }) {
     <div className="flex items-center justify-between p-3 sm:p-4 bg-gray-50 rounded-lg min-w-0">
       <span className="text-xs sm:text-sm font-medium text-gray-700 truncate pr-2">{label}</span>
       <span className="text-base sm:text-lg font-bold text-gray-900 flex-shrink-0">{value}</span>
+    </div>
+  );
+}
+
+function AgentDetailSkeleton() {
+  return (
+    <div className="space-y-6 animate-pulse" aria-label="Loading operator details">
+      <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 shadow-sm">
+        <div className="flex items-center gap-4">
+          <div className="h-9 w-9 rounded-lg bg-gray-200" />
+          <div className="h-10 w-10 rounded-lg bg-gray-200" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="h-6 w-56 rounded bg-gray-200" />
+            <div className="h-4 w-36 rounded bg-gray-100" />
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 shadow-sm">
+            <div className="h-5 w-56 rounded bg-gray-200 mb-2" />
+            <div className="h-4 w-72 rounded bg-gray-100 mb-6" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="space-y-2">
+                  <div className="h-3 w-24 rounded bg-gray-100" />
+                  <div className="h-4 w-full rounded bg-gray-200" />
+                </div>
+              ))}
+            </div>
+            <div className="mt-5 h-24 w-full rounded-lg bg-gray-100" />
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 shadow-sm">
+            <div className="h-5 w-40 rounded bg-gray-200 mb-2" />
+            <div className="h-4 w-60 rounded bg-gray-100 mb-5" />
+            <div className="space-y-3">
+              <div className="h-12 w-full rounded-lg bg-gray-100" />
+              <div className="h-12 w-full rounded-lg bg-gray-100" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="h-16 w-full rounded-lg bg-gray-100" />
+                <div className="h-16 w-full rounded-lg bg-gray-100" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 shadow-sm">
+            <div className="h-5 w-36 rounded bg-gray-200 mb-4" />
+            <div className="space-y-3">
+              <div className="h-10 w-full rounded-lg bg-gray-100" />
+              <div className="h-10 w-full rounded-lg bg-gray-100" />
+              <div className="h-10 w-full rounded-lg bg-gray-100" />
+            </div>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 shadow-sm">
+            <div className="h-5 w-28 rounded bg-gray-200 mb-4" />
+            <div className="space-y-2">
+              <div className="h-4 w-full rounded bg-gray-100" />
+              <div className="h-4 w-4/5 rounded bg-gray-100" />
+              <div className="h-4 w-3/5 rounded bg-gray-100" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <div className="flex flex-wrap gap-2">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="h-10 w-32 rounded-full bg-gray-100" />
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

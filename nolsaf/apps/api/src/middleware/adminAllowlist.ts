@@ -1,6 +1,5 @@
 import { Request, Response, NextFunction } from "express";
 import { prisma } from "@nolsaf/prisma";
-import CIDR from "ip-cidr";
 import ipaddr from "ipaddr.js";
 
 const CACHE_TTL_MS = 30_000;
@@ -15,6 +14,41 @@ function getIp(req: Request): string {
   return req.ip || req.socket.remoteAddress || "";
 }
 
+function normalizeIp(value: string): string {
+  try {
+    const addr = ipaddr.parse(value);
+    if (addr.kind() === "ipv6" && (addr as any).isIPv4MappedAddress && (addr as any).isIPv4MappedAddress()) {
+      return (addr as any).toIPv4Address().toString();
+    }
+    return addr.toString();
+  } catch {
+    return value;
+  }
+}
+
+function cidrContains(cidrStr: string, ip: string): boolean {
+  try {
+    const [range, prefix] = ipaddr.parseCIDR(String(cidrStr || "").trim());
+    const parsedIp = ipaddr.parse(ip);
+
+    if (parsedIp.kind() === range.kind()) {
+      return parsedIp.match(range, prefix);
+    }
+
+    if (parsedIp.kind() === "ipv6" && (parsedIp as any).isIPv4MappedAddress && (parsedIp as any).isIPv4MappedAddress() && range.kind() === "ipv4") {
+      return (parsedIp as any).toIPv4Address().match(range as any, prefix);
+    }
+
+    if (parsedIp.kind() === "ipv4" && range.kind() === "ipv6" && (range as any).isIPv4MappedAddress && (range as any).isIPv4MappedAddress()) {
+      return parsedIp.match((range as any).toIPv4Address(), prefix);
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 export async function adminAllowlist(req: Request, res: Response, next: NextFunction) {
   try {
     const now = Date.now();
@@ -27,24 +61,8 @@ export async function adminAllowlist(req: Request, res: Response, next: NextFunc
       if (!ip) return res.status(403).json({ error: "IP blocked" });
 
       // Normalize IPv6/IPv4
-      let normalized = ip;
-      try {
-        const addr = ipaddr.parse(ip);
-        if (addr.kind() === "ipv6" && (addr as any).isIPv4MappedAddress && (addr as any).isIPv4MappedAddress()) {
-          normalized = (addr as any).toIPv4Address().toString();
-        } else {
-          normalized = ip;
-        }
-      } catch {}
-
-      const ok: boolean = list.some((cidrStr: string): boolean => {
-        try {
-          const cidr: InstanceType<typeof CIDR> = new CIDR(cidrStr);
-          return cidr.contains(normalized);
-        } catch {
-          return false;
-        }
-      });
+      const normalized = normalizeIp(ip);
+      const ok: boolean = list.some((cidrStr: string): boolean => cidrContains(cidrStr, normalized));
 
       if (!ok) return res.status(403).json({ error: "IP not allowed" });
       return next();
@@ -72,24 +90,8 @@ export async function adminAllowlist(req: Request, res: Response, next: NextFunc
     if (!ip) return res.status(403).json({ error: "IP blocked" });
 
     // Normalize IPv6/IPv4
-    let normalized = ip;
-    try {
-      const addr = ipaddr.parse(ip);
-      if (addr.kind() === "ipv6" && (addr as any).isIPv4MappedAddress && (addr as any).isIPv4MappedAddress()) {
-        normalized = (addr as any).toIPv4Address().toString();
-      } else {
-        normalized = ip;
-      }
-    } catch {}
-
-    const ok: boolean = list.some((cidrStr: string): boolean => {
-      try {
-      const cidr: InstanceType<typeof CIDR> = new CIDR(cidrStr);
-      return cidr.contains(normalized);
-      } catch {
-      return false;
-      }
-    });
+    const normalized = normalizeIp(ip);
+    const ok: boolean = list.some((cidrStr: string): boolean => cidrContains(cidrStr, normalized));
 
     if (!ok) return res.status(403).json({ error: "IP not allowed" });
     next();

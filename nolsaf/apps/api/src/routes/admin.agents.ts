@@ -7,6 +7,7 @@ import { AuthedRequest, requireAuth, requireRole } from "../middleware/auth.js";
 import { audit } from "../lib/audit.js";
 import { sanitizeText } from "../lib/sanitize.js";
 import { sanitizeUserDocument } from "../lib/userDocumentSecurity.js";
+import { buildOperatorProfileSeed, mergeOperatorProfileSeed } from "../lib/operatorProfileSeed.js";
 import rateLimit from "express-rate-limit";
 import { Prisma } from "@prisma/client";
 import { sendMail } from "../lib/mailer.js";
@@ -81,6 +82,7 @@ interface AgentResponse {
     commissionSum: number;
     netSum: number;
     commissionPercent: number;
+    currency: string;
   };
   createdAt: Date;
   updatedAt: Date;
@@ -235,6 +237,12 @@ const updateProfileReviewSchema = z
   .object({
     status: z.enum(["APPROVED", "REJECTED"]),
     reason: z.string().max(2000).optional().nullable(),
+  })
+  .strict();
+
+const syncTourRevenueSchema = z
+  .object({
+    dryRun: z.boolean().optional().default(false),
   })
   .strict();
 
@@ -517,7 +525,7 @@ async function ensureAgentsFromHiredApplications(req: AuthedRequest): Promise<vo
 
     let agent = await prisma.agent.findUnique({
       where: { userId: user.id },
-      select: { id: true, areasOfOperation: true, specializations: true, educationLevel: true, yearsOfExperience: true, languages: true },
+      select: { id: true, areasOfOperation: true, specializations: true, educationLevel: true, yearsOfExperience: true, languages: true, operatorProfile: true },
     });
 
     if (!agent) {
@@ -540,6 +548,13 @@ async function ensureAgentsFromHiredApplications(req: AuthedRequest): Promise<vo
         const applicationYearsOfExperience = (app as any).yearsOfExperience != null ? Number((app as any).yearsOfExperience) : null;
         const applicationLanguages = normalizeLanguageStrings((app as any).languages);
         const agentDataLanguages = normalizeLanguageStrings(d.languages);
+        const operatorProfileSeed = buildOperatorProfileSeed(app.agentApplicationData, {
+          fullName: app.fullName,
+          email: app.email,
+          phone: app.phone,
+          region: app.region,
+          district: app.district,
+        });
 
         agent = await prisma.agent.create({
           data: {
@@ -601,6 +616,13 @@ async function ensureAgentsFromHiredApplications(req: AuthedRequest): Promise<vo
         const applicationYearsOfExperience = (app as any).yearsOfExperience != null ? Number((app as any).yearsOfExperience) : null;
         const applicationLanguages = normalizeLanguageStrings((app as any).languages);
         const agentDataLanguages = normalizeLanguageStrings(d.languages);
+        const operatorProfileSeed = buildOperatorProfileSeed(app.agentApplicationData, {
+          fullName: app.fullName,
+          email: app.email,
+          phone: app.phone,
+          region: app.region,
+          district: app.district,
+        });
 
         const incomingAreas = Array.isArray(d.areasOfOperation) ? d.areasOfOperation : [];
         const incomingSpecs = Array.isArray(d.specializations) ? d.specializations : [];
@@ -638,6 +660,10 @@ async function ensureAgentsFromHiredApplications(req: AuthedRequest): Promise<vo
             ? applicationLanguages
             : (agentDataLanguages.length > 0 ? agentDataLanguages : []);
           if (incomingLanguages.length > 0) agentUpdate.languages = incomingLanguages;
+        }
+
+        if (Object.keys(operatorProfileSeed).length > 0) {
+          agentUpdate.operatorProfile = mergeOperatorProfileSeed((agent as any).operatorProfile, operatorProfileSeed) as any;
         }
 
         if (Object.keys(agentUpdate).length > 0) {
@@ -716,6 +742,13 @@ async function ensureAgentsFromHiredApplications(req: AuthedRequest): Promise<vo
       const applicationYearsOfExperience = (app as any).yearsOfExperience != null ? Number((app as any).yearsOfExperience) : null;
       const applicationLanguages = normalizeLanguageStrings((app as any).languages);
       const agentDataLanguages = normalizeLanguageStrings(d.languages);
+      const operatorProfileSeed = buildOperatorProfileSeed(app.agentApplicationData, {
+        fullName: app.fullName,
+        email: app.email,
+        phone: app.phone,
+        region: app.region,
+        district: app.district,
+      });
 
       const incomingAreas = Array.isArray(d.areasOfOperation) ? d.areasOfOperation : [];
       const incomingSpecs = Array.isArray(d.specializations) ? d.specializations : [];
@@ -753,6 +786,10 @@ async function ensureAgentsFromHiredApplications(req: AuthedRequest): Promise<vo
           ? applicationLanguages
           : (agentDataLanguages.length > 0 ? agentDataLanguages : []);
         if (incomingLanguages.length > 0) agentUpdate.languages = incomingLanguages;
+      }
+
+      if (Object.keys(operatorProfileSeed).length > 0) {
+        agentUpdate.operatorProfile = mergeOperatorProfileSeed(agent.operatorProfile, operatorProfileSeed) as any;
       }
 
       if (Object.keys(agentUpdate).length > 0) {
@@ -949,6 +986,120 @@ router.get("/", validate(listAgentsQuerySchema, "query"), async (req: any, res) 
 });
 
 // ============================================================
+// POST /api/admin/agents/sync-tour-revenue
+// Recalculate denormalized agent counters from TourBooking source-of-truth.
+// ============================================================
+router.post("/sync-tour-revenue", validate(syncTourRevenueSchema, "body"), async (req: any, res) => {
+  try {
+    const { dryRun } = req.validatedData;
+
+    const [agents, grouped] = await Promise.all([
+      prisma.agent.findMany({
+        select: {
+          id: true,
+          totalCompletedTrips: true,
+          totalRevenueGenerated: true,
+        },
+      }),
+      prisma.tourBooking.groupBy({
+        by: ["operatorAgentId"],
+        where: {
+          paymentStatus: {
+            in: ["PAID", "APPROVED", "DISBURSED"],
+          },
+        },
+        _count: {
+          _all: true,
+        },
+        _sum: {
+          grossAmount: true,
+        },
+      }),
+    ]);
+
+    const aggregateByAgentId = new Map<number, { trips: number; revenue: number }>();
+    for (const row of grouped) {
+      const agentId = Number((row as any).operatorAgentId);
+      if (!Number.isFinite(agentId) || agentId <= 0) continue;
+      aggregateByAgentId.set(agentId, {
+        trips: Number((row as any)?._count?._all ?? 0),
+        revenue: Number((row as any)?._sum?.grossAmount ?? 0),
+      });
+    }
+
+    const changes: Array<{
+      agentId: number;
+      fromTrips: number;
+      toTrips: number;
+      fromRevenue: number;
+      toRevenue: number;
+    }> = [];
+
+    for (const agent of agents) {
+      const aggregate = aggregateByAgentId.get(agent.id) || { trips: 0, revenue: 0 };
+      const fromTrips = Number(agent.totalCompletedTrips ?? 0);
+      const fromRevenue = Number(agent.totalRevenueGenerated ?? 0);
+      const toTrips = Number(aggregate.trips || 0);
+      const toRevenue = Math.round(Number(aggregate.revenue || 0) * 100) / 100;
+
+      if (fromTrips !== toTrips || Math.round(fromRevenue * 100) / 100 !== toRevenue) {
+        changes.push({
+          agentId: agent.id,
+          fromTrips,
+          toTrips,
+          fromRevenue,
+          toRevenue,
+        });
+      }
+    }
+
+    if (!dryRun) {
+      for (const change of changes) {
+        await prisma.agent.update({
+          where: { id: change.agentId },
+          data: {
+            totalCompletedTrips: change.toTrips,
+            totalRevenueGenerated: change.toRevenue as any,
+          },
+          select: { id: true },
+        });
+      }
+    }
+
+    try {
+      await audit(
+        req as AuthedRequest,
+        "AGENT_TOUR_REVENUE_SYNC",
+        "agents",
+        null,
+        {
+          dryRun: Boolean(dryRun),
+          scannedAgents: agents.length,
+          changedAgents: changes.length,
+          sampleChanges: changes.slice(0, 20),
+        }
+      );
+    } catch {
+      // best effort
+    }
+
+    return sendSuccess(
+      res,
+      {
+        dryRun: Boolean(dryRun),
+        scannedAgents: agents.length,
+        changedAgents: changes.length,
+        changes,
+      },
+      dryRun ? "Dry-run completed" : "Agent revenue metrics synchronized"
+    );
+  } catch (err: any) {
+    console.error("[POST /admin/agents/sync-tour-revenue] Error:", err);
+    return sendError(res, 500, "Failed to sync agent tour revenue metrics");
+  }
+});
+
+// ============================================================
 // GET /api/admin/agents/:id
 // ============================================================
 router.get("/:id", validate(getAgentParamsSchema, "params"), async (req: any, res) => {
@@ -1044,12 +1195,39 @@ router.get("/:id", validate(getAgentParamsSchema, "params"), async (req: any, re
     performanceMetrics.communicationRating = avgCommunicationRating;
     performanceMetrics.totalReviews = totalReviews;
 
-    // Get promotion thresholds from system settings
+    // Get promotion thresholds and commission settings
     const systemSettings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
     const minTrips = systemSettings?.agentPromotionMinTrips || DEFAULT_PROMOTION_MIN_TRIPS;
     const maxTrips = systemSettings?.agentPromotionMaxTrips || DEFAULT_PROMOTION_MAX_TRIPS;
     const minRevenue = systemSettings?.agentPromotionMinRevenue || DEFAULT_PROMOTION_MIN_REVENUE;
     const commissionPercent = systemSettings?.agentCommissionPercent || DEFAULT_COMMISSION_PERCENT;
+
+    // Financial summary split:
+    // - Gross/commission/net: from bookings as soon as bookings are made.
+    // - Paid invoices: only invoices that are actually paid/disbursed.
+    const paidInvoiceStatuses = ["PAID", "DISBURSED"];
+    const [bookingRevenue, paidInvoicesCount] = await Promise.all([
+      prisma.tourBooking.aggregate({
+        where: { operatorAgentId: agent.id },
+        _sum: {
+          grossAmount: true,
+          commissionAmount: true,
+          operatorPayoutAmount: true,
+        },
+      }),
+      prisma.invoice.count({
+        where: {
+          ownerId: agent.userId,
+          status: { in: paidInvoiceStatuses },
+        },
+      }),
+    ]);
+
+    const grossFromBookings = Number(bookingRevenue._sum.grossAmount ?? 0);
+    const commissionFromBookings = Number(bookingRevenue._sum.commissionAmount ?? 0);
+    const netFromBookingsRaw = Number(bookingRevenue._sum.operatorPayoutAmount ?? 0);
+    const netFromBookings =
+      netFromBookingsRaw > 0 ? netFromBookingsRaw : Math.max(0, grossFromBookings - commissionFromBookings);
 
     // Calculate promotion progress
     const currentTrips = agent.totalCompletedTrips || 0;
@@ -1080,11 +1258,12 @@ router.get("/:id", validate(getAgentParamsSchema, "params"), async (req: any, re
       assignedPlanRequests: agent.assignedPlanRequests || [],
       reviews: reviews,
       financialSummary: {
-        paidCount: currentTrips,
-        grossSum: currentRevenue,
-        commissionSum: commissionAmount,
-        netSum: netRevenue,
+        paidCount: paidInvoicesCount,
+        grossSum: Math.round(grossFromBookings * 100) / 100,
+        commissionSum: Math.round(commissionFromBookings * 100) / 100,
+        netSum: Math.round(netFromBookings * 100) / 100,
         commissionPercent,
+        currency: String(systemSettings?.agentCommissionCurrency || "USD"),
       },
     };
 
@@ -1313,6 +1492,19 @@ router.patch(
       currentProfile.reviewedAt = nowIso;
       currentProfile.reviewedByAdminId = adminId;
 
+      // If approving, save a snapshot for future change detection
+      if (status === "APPROVED") {
+        // Remove review metadata from snapshot so we compare data cleanly
+        const snapshot = { ...currentProfile };
+        delete snapshot.review;
+        delete snapshot.reviewStatus;
+        delete snapshot.reviewReason;
+        delete snapshot.reviewedAt;
+        delete snapshot.reviewedByAdminId;
+        currentProfile.approvedSnapshot = snapshot;
+        currentProfile.approvedAt = nowIso;
+      }
+
       const updated = await prisma.agent.update({
         where: { id: agent.id },
         data: { operatorProfile: currentProfile as any },
@@ -1368,15 +1560,14 @@ router.get(
 
       const page = Math.max(1, Number(req.query?.page) || 1);
       const pageSize = Math.min(100, Math.max(1, Number(req.query?.pageSize) || 25));
-      const skip = (page - 1) * pageSize;
       const status = String(req.query?.status || "").trim();
       const search = sanitizeText(String(req.query?.search || "").trim());
 
-      const where: any = { assignedAgentId: agent.id };
-      if (status && status.toLowerCase() !== "all") where.status = status.toUpperCase();
+      const planWhere: any = { assignedAgentId: agent.id };
+      const tourWhere: any = { operatorAgentId: agent.id };
       if (search) {
         const maybeId = Number(search);
-        where.OR = [
+        planWhere.OR = [
           { fullName: { contains: search } },
           { email: { contains: search } },
           { phone: { contains: search } },
@@ -1384,17 +1575,24 @@ router.get(
           { tripType: { contains: search } },
           ...(Number.isInteger(maybeId) && maybeId > 0 ? [{ id: maybeId }] : []),
         ];
+        tourWhere.OR = [
+          { bookingCode: { contains: search } },
+          { guestName: { contains: search } },
+          { guestEmail: { contains: search } },
+          { guestPhone: { contains: search } },
+          { destination: { contains: search } },
+          { title: { contains: search } },
+          ...(Number.isInteger(maybeId) && maybeId > 0 ? [{ id: maybeId }] : []),
+        ];
       }
 
       const settings = await prisma.systemSetting.findFirst({ select: { agentCommissionPercent: true } });
       const commissionPercent = Number(settings?.agentCommissionPercent ?? 15);
 
-      const [items, total] = await Promise.all([
+      const [planItems, tourItems] = await Promise.all([
         prisma.planRequest.findMany({
-          where,
+          where: planWhere,
           orderBy: { createdAt: "desc" },
-          skip,
-          take: pageSize,
           select: {
             id: true,
             fullName: true,
@@ -1407,10 +1605,37 @@ router.get(
             createdAt: true,
           },
         }),
-        prisma.planRequest.count({ where }),
+        prisma.tourBooking.findMany({
+          where: tourWhere,
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            bookingCode: true,
+            title: true,
+            destination: true,
+            startDate: true,
+            endDate: true,
+            guestName: true,
+            grossAmount: true,
+            commissionAmount: true,
+            operatorPayoutAmount: true,
+            metadata: true,
+            status: true,
+            createdAt: true,
+          },
+        }),
       ]);
 
-      const bookings = items.map((item) => {
+      const normalizePlanStatus = (rawStatus: string) => {
+        const s = String(rawStatus || "").toUpperCase();
+        if (s === "COMPLETED" || s === "DONE" || s === "FINISHED") return "COMPLETED";
+        if (s === "CANCELED" || s === "CANCELLED" || s === "REFUNDED" || s === "REJECTED") return "CANCELLED";
+        if (s === "IN_PROGRESS" || s === "CONFIRMED" || s === "ACTIVE" || s === "ONGOING") return "IN_PROGRESS";
+        if (s === "PENDING" || s === "REQUESTED" || s === "APPROVED" || s === "VERIFIED") return "PENDING";
+        return "NEW";
+      };
+
+      const planBookings = planItems.map((item) => {
         const amount = item.budget != null ? Number(item.budget) : 0;
         const platformFee = amount > 0 ? Math.round((amount * commissionPercent) / 100) : 0;
         return {
@@ -1422,10 +1647,50 @@ router.get(
           amount,
           platformFee,
           operatorPayout: Math.max(0, amount - platformFee),
-          status: item.status,
+          status: normalizePlanStatus(item.status),
           createdAt: item.createdAt,
         };
       });
+
+      const normalizeTourStatus = (rawStatus: string, metadata: unknown) => {
+        const s = String(rawStatus || "").toUpperCase();
+        const md = metadata && typeof metadata === "object" ? (metadata as any) : null;
+        const pickupValidated = Boolean(md?.pickupValidation?.validated);
+        if (pickupValidated) return "IN_PROGRESS";
+        if (s === "COMPLETED") return "COMPLETED";
+        if (s === "CANCELED" || s === "CANCELLED" || s === "REFUNDED") return "CANCELLED";
+        if (s === "CONFIRMED" || s === "IN_PROGRESS") return "IN_PROGRESS";
+        if (s === "PENDING") return "PENDING";
+        if (s === "PAID" || s === "PENDING_PAYMENT" || s === "UNPAID" || s === "NEW") return "NEW";
+        return "NEW";
+      };
+
+      const tourBookings = tourItems.map((item) => ({
+        id: item.id,
+        guestName: item.guestName || "-",
+        property: item.destination || item.title || item.bookingCode || "Tour booking",
+        checkIn: item.startDate,
+        checkOut: item.endDate,
+        amount: Number(item.grossAmount || 0),
+        platformFee: Number(item.commissionAmount || 0),
+        operatorPayout: Number(item.operatorPayoutAmount || 0),
+        status: normalizeTourStatus(item.status, item.metadata),
+        createdAt: item.createdAt,
+      }));
+
+      const requestedStatus = String(status || "").trim().toUpperCase();
+      const normalizedRequestedStatus = requestedStatus === "CANCELED" ? "CANCELLED" : requestedStatus;
+      const combined = [...planBookings, ...tourBookings]
+        .filter((row) => !normalizedRequestedStatus || normalizedRequestedStatus === "ALL" || row.status === normalizedRequestedStatus)
+        .sort((a, b) => {
+          const at = new Date(a.createdAt as any).getTime();
+          const bt = new Date(b.createdAt as any).getTime();
+          return bt - at;
+        });
+
+      const total = combined.length;
+      const skip = (page - 1) * pageSize;
+      const bookings = combined.slice(skip, skip + pageSize);
 
       return sendSuccess(res, { bookings, total, page, pageSize });
     } catch (err: any) {

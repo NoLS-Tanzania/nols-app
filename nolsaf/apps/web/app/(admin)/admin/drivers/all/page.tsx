@@ -28,6 +28,9 @@ import {
   ShieldX,
   AlertTriangle,
   Loader2,
+  ChevronUp,
+  ChevronDown,
+  ChevronsUpDown,
 } from "lucide-react";
 
 // Use same-origin for HTTP calls so Next.js rewrites proxy to the API
@@ -94,6 +97,8 @@ type DriverBonusesData = {
   pageSize: number;
   items: Array<{ id: string; date: string; amount: number; status?: string; period?: string; reason?: string | null }>;
 };
+
+type DriverSortKey = "driver" | "status" | "kyc" | "vehicle" | "area" | "trips" | "rating" | "joined";
 
 function statusLabel(d: DriverRow) {
   if (d.isDisabled) return "Disabled";
@@ -166,6 +171,10 @@ export default function AdminAllDriversPage() {
 
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<"" | "ACTIVE" | "SUSPENDED" | "DISABLED" | "UNAVAILABLE">("");
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+  const [sortBy, setSortBy] = useState<DriverSortKey>("joined");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   const [overviewOpen, setOverviewOpen] = useState(false);
   const [overviewDriver, setOverviewDriver] = useState<DriverRow | null>(null);
@@ -372,7 +381,70 @@ export default function AdminAllDriversPage() {
     };
   }, [q, status]);
 
-  const rows = useMemo(() => items, [items]);
+  useEffect(() => {
+    setPage(1);
+  }, [q, status, sortBy, sortDir]);
+
+  const sortedRows = useMemo(() => {
+    const next = [...items];
+    const readValue = (d: DriverRow): string | number => {
+      switch (sortBy) {
+        case "driver":
+          return `${d.name || ""} ${d.email || ""}`.toLowerCase();
+        case "status":
+          return statusLabel(d).toLowerCase();
+        case "kyc":
+          return String(d.suspendedAt ? "REVOKED" : (d.kycStatus || "")).toLowerCase();
+        case "vehicle":
+          return `${d.vehicleType || ""} ${d.plateNumber || ""}`.toLowerCase();
+        case "area":
+          return `${d.region || ""} ${d.operationArea || ""}`.toLowerCase();
+        case "trips":
+          return Number(d.performance?.totalTrips ?? 0);
+        case "rating":
+          return Number(d.performance?.avgRating ?? d.rating ?? -1);
+        case "joined":
+          return new Date(d.createdAt || "").getTime() || 0;
+        default:
+          return "";
+      }
+    };
+
+    next.sort((a, b) => {
+      const av = readValue(a);
+      const bv = readValue(b);
+      if (typeof av === "number" && typeof bv === "number") {
+        return sortDir === "asc" ? av - bv : bv - av;
+      }
+      const cmp = String(av).localeCompare(String(bv));
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+
+    return next;
+  }, [items, sortBy, sortDir]);
+
+  const rows = sortedRows;
+  const totalFiltered = rows.length;
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const startIndex = (safePage - 1) * pageSize;
+  const pagedRows = rows.slice(startIndex, startIndex + pageSize);
+
+  function handleSort(field: DriverSortKey) {
+    if (sortBy === field) {
+      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortBy(field);
+    setSortDir(field === "joined" || field === "trips" || field === "rating" ? "desc" : "asc");
+  }
+
+  function renderSortIcon(field: DriverSortKey) {
+    if (sortBy !== field) return <ChevronsUpDown className="h-3.5 w-3.5 text-gray-400" />;
+    return sortDir === "asc"
+      ? <ChevronUp className="h-3.5 w-3.5 text-blue-600" />
+      : <ChevronDown className="h-3.5 w-3.5 text-blue-600" />;
+  }
 
   return (
     <div className="space-y-6">
@@ -392,7 +464,10 @@ export default function AdminAllDriversPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" aria-hidden />
             <input
               value={q}
-              onChange={(e) => setQ(e.target.value)}
+              onChange={(e) => {
+                setPage(1);
+                setQ(e.target.value);
+              }}
               placeholder="Search drivers by name, email, phone…"
               className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
             />
@@ -402,7 +477,10 @@ export default function AdminAllDriversPage() {
             <label className="text-xs font-medium text-gray-600">Status</label>
             <select
               value={status}
-              onChange={(e) => setStatus(e.target.value as any)}
+              onChange={(e) => {
+                setPage(1);
+                setStatus(e.target.value as any);
+              }}
               className="border border-gray-300 rounded-lg text-sm px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
             >
               <option value="">All</option>
@@ -426,24 +504,57 @@ export default function AdminAllDriversPage() {
         ) : rows.length === 0 ? (
           <div className="p-6 text-sm text-gray-600">No drivers found.</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
+          <>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
               <thead className="bg-gray-50 text-gray-600">
                 <tr>
-                  <th className="text-left font-semibold px-4 py-3">Driver</th>
-                  <th className="text-left font-semibold px-4 py-3">Status</th>
-                  <th className="text-left font-semibold px-4 py-3">KYC</th>
-                  <th className="text-left font-semibold px-4 py-3">Vehicle</th>
-                  <th className="text-left font-semibold px-4 py-3">Area</th>
-                  <th className="text-left font-semibold px-4 py-3">Trips</th>
-                  <th className="text-left font-semibold px-4 py-3">Rating</th>
-                  <th className="text-left font-semibold px-4 py-3">Joined</th>
+                  <th className="text-left font-semibold px-4 py-3">
+                    <button type="button" onClick={() => handleSort("driver")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 appearance-none hover:text-gray-900">
+                      Driver {renderSortIcon("driver")}
+                    </button>
+                  </th>
+                  <th className="text-left font-semibold px-4 py-3">
+                    <button type="button" onClick={() => handleSort("status")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 appearance-none hover:text-gray-900">
+                      Status {renderSortIcon("status")}
+                    </button>
+                  </th>
+                  <th className="text-left font-semibold px-4 py-3">
+                    <button type="button" onClick={() => handleSort("kyc")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 appearance-none hover:text-gray-900">
+                      KYC {renderSortIcon("kyc")}
+                    </button>
+                  </th>
+                  <th className="text-left font-semibold px-4 py-3">
+                    <button type="button" onClick={() => handleSort("vehicle")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 appearance-none hover:text-gray-900">
+                      Vehicle {renderSortIcon("vehicle")}
+                    </button>
+                  </th>
+                  <th className="text-left font-semibold px-4 py-3">
+                    <button type="button" onClick={() => handleSort("area")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 appearance-none hover:text-gray-900">
+                      Area {renderSortIcon("area")}
+                    </button>
+                  </th>
+                  <th className="text-left font-semibold px-4 py-3">
+                    <button type="button" onClick={() => handleSort("trips")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 appearance-none hover:text-gray-900">
+                      Trips {renderSortIcon("trips")}
+                    </button>
+                  </th>
+                  <th className="text-left font-semibold px-4 py-3">
+                    <button type="button" onClick={() => handleSort("rating")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 appearance-none hover:text-gray-900">
+                      Rating {renderSortIcon("rating")}
+                    </button>
+                  </th>
+                  <th className="text-left font-semibold px-4 py-3">
+                    <button type="button" onClick={() => handleSort("joined")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 appearance-none hover:text-gray-900">
+                      Joined {renderSortIcon("joined")}
+                    </button>
+                  </th>
                   <th className="text-left font-semibold px-4 py-3">Activities</th>
                   <th className="text-right font-semibold px-4 py-3">View</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {rows.map((d) => {
+                {pagedRows.map((d) => {
                   const trips = d.performance?.totalTrips ?? 0;
                   const completed = d.performance?.completedTrips ?? 0;
                   const canceled = d.performance?.canceledTrips ?? 0;
@@ -652,8 +763,33 @@ export default function AdminAllDriversPage() {
                   );
                 })}
               </tbody>
-            </table>
-          </div>
+              </table>
+            </div>
+            <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+              <div className="text-xs text-gray-500">
+                Showing {totalFiltered === 0 ? 0 : startIndex + 1}-{Math.min(startIndex + pageSize, totalFiltered)} of {totalFiltered}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={safePage <= 1}
+                  className="px-3 py-1 text-sm border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+                >
+                  Previous
+                </button>
+                <span className="text-xs font-semibold text-gray-600">Page {safePage} of {totalPages}</span>
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={safePage >= totalPages}
+                  className="px-3 py-1 text-sm border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </>
         )}
       </div>
 

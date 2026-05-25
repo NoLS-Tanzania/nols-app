@@ -1382,6 +1382,20 @@ function roundMoney(amount: number) {
   return Math.round((Number(amount) || 0) * 100) / 100;
 }
 
+/** Read driverCommissionPercent from SystemSetting; falls back to the hardcoded default. */
+async function getDriverCommissionPercent(): Promise<number> {
+  try {
+    const setting = await prisma.systemSetting.findUnique({
+      where: { id: 1 },
+      select: { driverCommissionPercent: true } as any,
+    });
+    const pct = Number((setting as any)?.driverCommissionPercent ?? DEFAULT_TRANSPORT_DRIVER_COMMISSION_PERCENT);
+    return Number.isFinite(pct) ? Math.max(0, Math.min(100, pct)) : DEFAULT_TRANSPORT_DRIVER_COMMISSION_PERCENT;
+  } catch {
+    return DEFAULT_TRANSPORT_DRIVER_COMMISSION_PERCENT;
+  }
+}
+
 /**
  * POST /admin/drivers/trips/:id/payout/approve
  * Body: { acknowledgeCommission?: boolean }
@@ -1413,7 +1427,7 @@ router.post("/trips/:id(\\d+)/payout/approve", async (req, res) => {
     if (!Number.isFinite(grossAmount) || grossAmount <= 0) return res.status(409).json({ error: "Trip amount is not set" });
     const currency = booking.currency ?? 'TZS';
 
-    const commissionPercent = DEFAULT_TRANSPORT_DRIVER_COMMISSION_PERCENT;
+    const commissionPercent = await getDriverCommissionPercent();
     const commissionAmount = roundMoney((grossAmount * commissionPercent) / 100);
     const netPaid = roundMoney(grossAmount - commissionAmount);
 
@@ -1546,7 +1560,7 @@ router.post("/trips/:id(\\d+)/payout/pay", async (req, res) => {
     if (!Number.isFinite(grossAmount) || grossAmount <= 0) return res.status(409).json({ error: "Trip amount is not set" });
     const currency = booking.currency ?? 'TZS';
 
-    const commissionPercent = DEFAULT_TRANSPORT_DRIVER_COMMISSION_PERCENT;
+    const commissionPercent = await getDriverCommissionPercent();
     const commissionAmount = roundMoney((grossAmount * commissionPercent) / 100);
     const netPaid = roundMoney(grossAmount - commissionAmount);
 

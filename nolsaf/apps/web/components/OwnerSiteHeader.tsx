@@ -22,6 +22,7 @@ import {
 
 import ClientErrorBoundary from "@/components/ClientErrorBoundary";
 import { clearAuthToken } from "@/lib/apiClient";
+import { fetchAccountSession } from "@/lib/accountSession";
 
 const LegalModal = dynamic(() => import("@/components/LegalModal"), { ssr: false });
 
@@ -86,13 +87,11 @@ export default function OwnerSiteHeader({ unreadMessages = 0 }: { unreadMessages
 
     (async () => {
       try {
-        const url = "/api/account/me";
-        const r = await fetch(url, { credentials: "include" });
+        const r = await fetchAccountSession();
         if (!r.ok) return;
-        const json = await r.json();
-        const me = json?.data ?? json;
+        const me = r.data;
         if (me?.avatarUrl) setAvatarUrl(me.avatarUrl);
-        if (me?.fullName) setUserName(me.fullName);
+        if (me?.displayName || me?.fullName || me?.name) setUserName(me.displayName || me.fullName || me.name || null);
         if (me?.email) setUserEmail(me.email);
       } catch {
         // ignore

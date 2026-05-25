@@ -118,7 +118,7 @@ export default function AdminPlanWithUsRecommendedPage() {
                 </span>
               )}
             </div>
-            <p className="text-teal-300/80 text-sm mt-1 font-medium">Completed proposals sent to customers — full A4 report preview</p>
+            <p className="text-teal-300/80 text-sm mt-1 font-medium">Completed proposals sent to customers - full A4 report preview</p>
           </div>
         </div>
       </div>
@@ -241,7 +241,7 @@ export default function AdminPlanWithUsRecommendedPage() {
                           <div className="text-[13px] font-bold text-gray-900 truncate">{req.customer.name}</div>
                           <div className="flex items-center gap-1 text-[10px] text-gray-400 mt-0.5">
                             <MapPin className="w-2.5 h-2.5 flex-shrink-0" />
-                            <span className="truncate">{req.destinations || "—"}</span>
+                            <span className="truncate">{req.destinations || "-"}</span>
                           </div>
                         </div>
                       </div>
@@ -259,9 +259,9 @@ export default function AdminPlanWithUsRecommendedPage() {
                       {/* Group */}
                       <div className="flex items-center gap-1 text-[12px] text-gray-600">
                         <Users className="w-3.5 h-3.5 text-gray-400" />
-                        {req.groupSize ?? "—"}
+                        {req.groupSize ?? "-"}
                       </div>
-                      {/* Responded at — date + time */}
+                      {/* Responded at - date + time */}
                       <div>
                         {req.respondedAt ? (
                           <div>
@@ -271,7 +271,7 @@ export default function AdminPlanWithUsRecommendedPage() {
                               {new Date(req.respondedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
                             </div>
                           </div>
-                        ) : <span className="text-[11px] text-gray-400">—</span>}
+                        ) : <span className="text-[11px] text-gray-400">-</span>}
                       </div>
                       {/* Action */}
                       <div className="flex justify-end">
@@ -296,7 +296,7 @@ export default function AdminPlanWithUsRecommendedPage() {
                           <div className="text-[13px] font-bold text-gray-900">{req.customer.name}</div>
                           <span className="inline-flex items-center gap-1 bg-emerald-50 border border-emerald-200 text-emerald-700 text-[9px] font-black rounded-full px-2 py-0.5">Completed</span>
                         </div>
-                        <div className="flex items-center gap-1 text-[10px] text-gray-400 mt-0.5"><MapPin className="w-2.5 h-2.5"/>{req.destinations || "—"}</div>
+                        <div className="flex items-center gap-1 text-[10px] text-gray-400 mt-0.5"><MapPin className="w-2.5 h-2.5"/>{req.destinations || "-"}</div>
                         <div className="flex flex-wrap gap-2 mt-2">
                           <span className={`text-[10px] font-bold rounded-full border px-2 py-0.5 ${roleColor}`}>{req.role}</span>
                           <span className="flex items-center gap-1 text-[10px] text-gray-500 bg-gray-50 border border-gray-200 rounded-full px-2 py-0.5"><TripIcon className="w-2.5 h-2.5"/>{req.tripType}</span>
@@ -343,10 +343,10 @@ export default function AdminPlanWithUsRecommendedPage() {
                 <div className="sticky top-0 z-10 flex-shrink-0 rounded-t-2xl overflow-hidden" style={{ background: "linear-gradient(135deg,#0e2a7a 0%,#0a5c82 50%,#02665e 100%)" }}>
                   <div className="flex items-center justify-between px-6 py-4">
                     <div>
-                      <div className="text-white font-black text-base">Trip Proposal — NLS-{String(req.id).padStart(5, "0")}</div>
+                      <div className="text-white font-black text-base">Trip Proposal - NLS-{String(req.id).padStart(5, "0")}</div>
                       <div className="text-teal-300 text-[10px] mt-0.5 flex items-center gap-2">
                         <span>{req.customer.name}</span>
-                        <span className="opacity-50">·</span>
+                        <span className="opacity-50">-</span>
                         <Clock className="w-3 h-3" />
                         <span>Sent {sentDate}{sentTime ? ` at ${sentTime}` : ""}</span>
                       </div>

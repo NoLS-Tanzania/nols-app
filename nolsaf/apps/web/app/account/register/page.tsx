@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import apiClient, { saveAuthToken } from "@/lib/apiClient";
+import { fetchAccountSession } from "@/lib/accountSession";
 import { AlertCircle, Check, UserPlus, Lock, LogIn, User, Truck, Building2, Mail, ArrowLeft, Phone, Eye, EyeOff, Shield, Fingerprint, ShieldX, AlertTriangle, ChevronDown } from 'lucide-react';
 import { useRouter, useSearchParams } from "next/navigation";
 import LogoSpinner from "@/components/LogoSpinner";
@@ -261,13 +262,16 @@ export default function RegisterPage() {
       });
       if (!verifyRes.ok) {
         const d = await verifyRes.json().catch(() => ({}));
-        throw new Error((d as any)?.error || 'Passkey verification failed');
+        const serverError = (d as any)?.error;
+        const serverDetails = (d as any)?.details;
+        const composed = [serverError, serverDetails].filter(Boolean).join(': ');
+        throw new Error(composed || 'Passkey verification failed');
       }
 
       await redirectAfterAuth();
     } catch (e: any) {
       if (e?.name === 'NotAllowedError') {
-        setError('No passkey found for this device. Log in with phone or email first, then register your fingerprint under Account → Security → Passkeys.');
+        setError('You dont have the Passkey try signing with another option and add passkey after login');
       } else {
         setError(e?.message || 'Passkey sign-in failed');
       }
@@ -315,9 +319,8 @@ export default function RegisterPage() {
 
   const resolveRoleHome = async () => {
     try {
-      const meRes = await fetch('/api/account/me', { credentials: 'include' });
-      const meJson = await meRes.json().catch(() => ({}));
-      const role = String(meJson?.role || meJson?.data?.role || '').toUpperCase();
+      const me = await fetchAccountSession();
+      const role = String(me.data?.role || '').toUpperCase();
       if (role === 'ADMIN') return '/admin/home';
       if (role === 'OWNER') return '/owner';
       if (role === 'DRIVER') return '/driver';

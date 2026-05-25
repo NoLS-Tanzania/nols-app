@@ -32,7 +32,9 @@ export const limitAgentNotifyAdmin = rateLimit({
 
 export const limitAgentProfileWrite = rateLimit({
   windowMs: 15 * 60_000,
-  limit: 20,
+  // Autosave + manual edits can legitimately produce frequent writes for active operator sessions.
+  // Keep abuse protection, but allow normal editing without hitting 429.
+  limit: 300,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many profile updates. Please wait before saving again." },

@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import apiClient from "@/lib/apiClient";
+import { fetchAccountSession } from "@/lib/accountSession";
 import { io, Socket } from "socket.io-client";
 
 // Add custom animations
@@ -213,10 +214,8 @@ export default function DriverDashboard({ className }: { className?: string }) {
     socket.on("connect", async () => {
       console.log("Socket connected for reminders");
       try {
-        const r = await fetch("/api/account/me", { credentials: "include" });
-        if (!r.ok) return;
-        const me = unwrapAccountPayload(await r.json());
-        if (me?.id) socket.emit("join-driver-room", { driverId: me.id });
+        const session = await fetchAccountSession();
+        if (session.data?.id) socket.emit("join-driver-room", { driverId: session.data.id });
       } catch {
         // ignore
       }
@@ -279,9 +278,8 @@ export default function DriverDashboard({ className }: { className?: string }) {
   // Fetch user profile
   useEffect(() => {
     try {
-      api
-        .get("/api/account/me")
-        .then((r) => setMe(unwrapAccountPayload(r.data)))
+      fetchAccountSession()
+        .then((r) => setMe(r.data))
         .catch(() => setMe(null));
     } catch (err) {
       setMe(null);

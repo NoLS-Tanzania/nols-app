@@ -12,6 +12,7 @@ import adminCareersApplicationsRouter from "./admin.careers.applications";
 import adminCareersStatsRouter from "./admin.careers.stats";
 import { router as adminCareersRouter } from "./admin.careers";
 import adminChatbotRouter from "./admin.chatbot";
+import adminContractTemplatesRouter from "./admin.contractTemplates";
 import adminDriversLevelMessagesRouter from "./admin.drivers.level-messages";
 import adminDriversLevelsRouter from "./admin.drivers.levels";
 import adminDriversSummaryRouter from "./admin.drivers.summary";
@@ -47,6 +48,7 @@ import adminStatsRouter from "./admin.stats";
 import adminSummaryRouter from "./admin.summary";
 import adminTrustPartnersRouter from "./admin.trustPartners";
 import adminTourCommerceRouter from "./admin.tourCommerce";
+import adminTourExperienceRouter from "./admin.tourExperience";
 import adminTourRevenueRouter from "./admin.tourRevenue";
 import adminUpdatesRouter from "./admin.updates";
 import adminUsersSummaryRouter from "./admin.users.summary";
@@ -103,6 +105,8 @@ export function registerAdminPrimaryRoutes(app: Express): void {
   app.use("/api/admin/agents", adminAgentsRouter);
   app.use("/admin/tour-commerce", adminTourCommerceRouter);
   app.use("/api/admin/tour-commerce", adminTourCommerceRouter as RequestHandler);
+  app.use("/admin/tour-experience", adminTourExperienceRouter as RequestHandler);
+  app.use("/api/admin/tour-experience", adminTourExperienceRouter as RequestHandler);
   app.use("/admin/agents/tour-revenue", adminTourRevenueRouter as RequestHandler);
   app.use("/api/admin/tour-revenue", adminTourRevenueRouter as RequestHandler);
   app.use("/admin/trust-partners", adminTrustPartnersRouter);
@@ -140,6 +144,8 @@ export function registerAdminPostPaymentRoutes(app: Express): void {
   app.use("/api/admin/no4p-otp", requireRole("ADMIN") as RequestHandler, adminNo4pOtpRouter as RequestHandler);
   app.use("/api/admin/updates", adminUpdatesRouter as RequestHandler);
   app.use("/api/admin/podcasts", adminPodcastsRouter as RequestHandler);
+  app.use("/admin/contracts/templates", adminContractTemplatesRouter as RequestHandler);
+  app.use("/api/admin/contracts/templates", adminContractTemplatesRouter as RequestHandler);
 }
 
 export function registerAdminCareerRoutes(app: Express): void {

@@ -1,6 +1,6 @@
 "use client";
-import React, { useCallback, useEffect, useState } from 'react';
-import { Briefcase, Plus, Edit, Trash2, Eye, X, Calendar, MapPin, Clock, CheckCircle2, AlertCircle, FileText, Users, Mail, Phone, ExternalLink, Download, CheckSquare, Square, Languages, Building2, Handshake } from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Briefcase, Plus, Edit, Trash2, Eye, X, Calendar, MapPin, Clock, CheckCircle2, AlertCircle, FileText, Users, Mail, Phone, ExternalLink, Download, CheckSquare, Square, Languages, Building2, Handshake, ChevronDown, ChevronUp, ChevronsUpDown } from "lucide-react";
 import PDFViewer from "@/components/PDFViewer";
 import DatePicker from "@/components/ui/DatePicker";
 import { normalizePartnershipProfile } from "@/components/careers/partnershipProfile";
@@ -54,6 +54,33 @@ type JobFormData = {
   isTravelAgentPosition: boolean;
 };
 
+type ContractWorkflowStatus = "PENDING_NOLSAF_SIGNATURE" | "PENDING_AGENT_SIGNATURE" | "EXECUTED";
+
+type ContractWorkflow = {
+  status: ContractWorkflowStatus;
+  contractId: string;
+  version: string;
+  createdAt: string;
+  preparedAt?: string;
+  sentAt?: string;
+  nolsafSignedAt?: string;
+  nolsafSignatoryName?: string;
+  nolsafSignatoryTitle?: string;
+  agentSignedAt?: string;
+  agentSignerName?: string;
+};
+
+type AuditTimelineItem = {
+  id: number;
+  action: string;
+  createdAt: string;
+  actorId?: number | null;
+  actorRole?: string | null;
+  actorName?: string | null;
+  before?: Record<string, any> | null;
+  after?: Record<string, any> | null;
+};
+
 const CATEGORIES = ["ENGINEERING", "DESIGN", "MARKETING", "SALES", "OPERATIONS", "SUPPORT", "MANAGEMENT", "OTHER"];
 const EMPLOYMENT_TYPES = ["FULL_TIME", "PART_TIME", "CONTRACT", "INTERNSHIP", "FREELANCE"];
 const PARTNERSHIP_TYPES = ["PARTNERSHIP", "AGENCY_AGREEMENT", "RESELLER", "AFFILIATE", "WHITE_LABEL"];
@@ -83,10 +110,18 @@ export default function CareersManagement() {
   const [applications, setApplications] = useState<any[]>([]);
   const [applicationsLoading, setApplicationsLoading] = useState(false);
   const [viewingApplication, setViewingApplication] = useState<any | null>(null);
+  const [contractWorkflow, setContractWorkflow] = useState<ContractWorkflow | null>(null);
+  const [contractWorkflowLoading, setContractWorkflowLoading] = useState(false);
+  const [contractActionLoading, setContractActionLoading] = useState<"prepare" | "sign" | null>(null);
+  const [auditTimeline, setAuditTimeline] = useState<AuditTimelineItem[]>([]);
+  const [auditTimelineLoading, setAuditTimelineLoading] = useState(false);
   const [applicationStatusFilter, setApplicationStatusFilter] = useState<string>('ALL');
   const [applicationJobFilter, setApplicationJobFilter] = useState<string>('ALL');
   const applicationSearch = '';
   const [selectedApplications, setSelectedApplications] = useState<number[]>([]);
+  const [applicationsPage, setApplicationsPage] = useState(1);
+  const [applicationSortBy, setApplicationSortBy] = useState<"companyContact" | "partnershipForm" | "status" | "submitted">("submitted");
+  const [applicationSortDir, setApplicationSortDir] = useState<"asc" | "desc">("desc");
   
   const [, setStatistics] = useState<any>(null);
   const [, setStatisticsLoading] = useState(false);
@@ -94,6 +129,7 @@ export default function CareersManagement() {
   const [viewingResume, setViewingResume] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const applicationsPageSize = 10;
 
   useEffect(() => {
     const tab = String(searchParams?.get("tab") || "").toLowerCase();
@@ -153,6 +189,92 @@ export default function CareersManagement() {
     }
   };
 
+  const loadContractWorkflow = useCallback(async (applicationId: number) => {
+    setContractWorkflowLoading(true);
+    try {
+      const url = `${apiBase.replace(/\/$/, '')}/api/admin/careers/applications/${applicationId}/contract/workflow`;
+      const r = await fetch(url, { credentials: 'include' });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        setContractWorkflow(null);
+        return;
+      }
+      setContractWorkflow((data?.workflow as ContractWorkflow) || null);
+    } catch {
+      setContractWorkflow(null);
+    } finally {
+      setContractWorkflowLoading(false);
+    }
+  }, [apiBase]);
+
+  const loadAuditTimeline = useCallback(async (applicationId: number) => {
+    setAuditTimelineLoading(true);
+    try {
+      const url = `${apiBase.replace(/\/$/, '')}/api/admin/careers/applications/${applicationId}/audit-timeline`;
+      const r = await fetch(url, { credentials: 'include' });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        setAuditTimeline([]);
+        return;
+      }
+      setAuditTimeline(Array.isArray(data?.items) ? (data.items as AuditTimelineItem[]) : []);
+    } catch {
+      setAuditTimeline([]);
+    } finally {
+      setAuditTimelineLoading(false);
+    }
+  }, [apiBase]);
+
+  const handlePrepareContractWorkflow = async () => {
+    if (!viewingApplication?.id || contractActionLoading) return;
+    setContractActionLoading('prepare');
+    try {
+      const url = `${apiBase.replace(/\/$/, '')}/api/admin/careers/applications/${viewingApplication.id}/contract/prepare`;
+      const r = await fetch(url, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        throw new Error(data?.message || data?.error || 'Failed to prepare contract workflow');
+      }
+      setContractWorkflow((data?.workflow as ContractWorkflow) || null);
+      await loadAuditTimeline(viewingApplication.id);
+      setSuccess('Contract workflow prepared for NoLSAF signature.');
+      setTimeout(() => setSuccess(null), 4000);
+    } catch (e: any) {
+      setError(e?.message || 'Failed to prepare contract workflow');
+      setTimeout(() => setError(null), 5000);
+    } finally {
+      setContractActionLoading(null);
+    }
+  };
+
+  const handleAdminSignContract = async () => {
+    if (!viewingApplication?.id || contractActionLoading) return;
+    setContractActionLoading('sign');
+    try {
+      const url = `${apiBase.replace(/\/$/, '')}/api/admin/careers/applications/${viewingApplication.id}/contract/sign`;
+      const r = await fetch(url, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        throw new Error(data?.message || data?.error || 'Failed to sign contract');
+      }
+      setContractWorkflow((data?.workflow as ContractWorkflow) || null);
+      await loadAuditTimeline(viewingApplication.id);
+      setSuccess('NoLSAF signature applied. Contract now awaits operator countersignature.');
+      setTimeout(() => setSuccess(null), 5000);
+    } catch (e: any) {
+      setError(e?.message || 'Failed to sign contract');
+      setTimeout(() => setError(null), 5000);
+    } finally {
+      setContractActionLoading(null);
+    }
+  };
+
   const loadStatistics = async () => {
     setStatisticsLoading(true);
     try {
@@ -188,12 +310,70 @@ export default function CareersManagement() {
     );
   };
 
+  const sortedApplications = useMemo(() => {
+    const rows = [...applications];
+    const readValue = (app: any): string | number => {
+      switch (applicationSortBy) {
+        case "companyContact":
+          return `${String(app.fullName || "").toLowerCase()} ${String(app.email || "").toLowerCase()} ${String(app.phone || "").toLowerCase()}`;
+        case "partnershipForm":
+          return `${String(app.job?.title || "").toLowerCase()} ${String(app.job?.department || "").toLowerCase()}`;
+        case "status":
+          return String(app.status || "").toLowerCase();
+        case "submitted":
+          return new Date(app.submittedAt || "").getTime() || 0;
+        default:
+          return "";
+      }
+    };
+
+    rows.sort((a, b) => {
+      const av = readValue(a);
+      const bv = readValue(b);
+      if (typeof av === "number" && typeof bv === "number") {
+        return applicationSortDir === "asc" ? av - bv : bv - av;
+      }
+      const cmp = String(av).localeCompare(String(bv));
+      return applicationSortDir === "asc" ? cmp : -cmp;
+    });
+
+    return rows;
+  }, [applications, applicationSortBy, applicationSortDir]);
+
+  const totalApplicationPages = Math.max(1, Math.ceil(sortedApplications.length / applicationsPageSize));
+  const safeApplicationsPage = Math.min(applicationsPage, totalApplicationPages);
+  const applicationsStart = (safeApplicationsPage - 1) * applicationsPageSize;
+  const applicationsEnd = applicationsStart + applicationsPageSize;
+  const pagedApplications = sortedApplications.slice(applicationsStart, applicationsEnd);
+
+  const allVisibleSelected = pagedApplications.length > 0 && pagedApplications.every((app) => selectedApplications.includes(app.id));
+
   const toggleSelectAll = () => {
-    if (selectedApplications.length === applications.length) {
-      setSelectedApplications([]);
-    } else {
-      setSelectedApplications(applications.map(app => app.id));
+    const visibleIds = pagedApplications.map((app) => app.id);
+    if (visibleIds.length === 0) return;
+
+    if (allVisibleSelected) {
+      setSelectedApplications((prev) => prev.filter((id) => !visibleIds.includes(id)));
+      return;
     }
+
+    setSelectedApplications((prev) => Array.from(new Set([...prev, ...visibleIds])));
+  };
+
+  const handleApplicationSort = (field: "companyContact" | "partnershipForm" | "status" | "submitted") => {
+    if (applicationSortBy === field) {
+      setApplicationSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setApplicationSortBy(field);
+    setApplicationSortDir(field === "submitted" ? "desc" : "asc");
+  };
+
+  const renderApplicationSortIcon = (field: "companyContact" | "partnershipForm" | "status" | "submitted") => {
+    if (applicationSortBy !== field) return <ChevronsUpDown size={14} className="text-gray-400" />;
+    return applicationSortDir === "asc"
+      ? <ChevronUp size={14} className="text-[#02665e]" />
+      : <ChevronDown size={14} className="text-[#02665e]" />;
   };
 
   const loadJobs = useCallback(async () => {
@@ -224,6 +404,20 @@ export default function CareersManagement() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, applicationStatusFilter, applicationJobFilter, applicationSearch]);
+
+  useEffect(() => {
+    setApplicationsPage(1);
+  }, [applicationStatusFilter, applicationJobFilter, applicationSearch, applicationSortBy, applicationSortDir, applications.length]);
+
+  useEffect(() => {
+    if (!viewingApplication?.id) {
+      setContractWorkflow(null);
+      setAuditTimeline([]);
+      return;
+    }
+    void loadContractWorkflow(viewingApplication.id);
+    void loadAuditTimeline(viewingApplication.id);
+  }, [viewingApplication?.id, loadContractWorkflow, loadAuditTimeline]);
 
   const resetForm = () => {
     setFormData({
@@ -387,6 +581,42 @@ export default function CareersManagement() {
     return status;
   };
 
+  const formatAuditAction = (action: string) => {
+    const map: Record<string, string> = {
+      JOB_APPLICATION_UPDATE: 'Application Updated',
+      ADMIN_AGENT_CONTRACT_PREPARED: 'Contract Draft Prepared',
+      ADMIN_AGENT_CONTRACT_SIGNED: 'NoLSAF Signed Contract',
+      AGENT_CONTRACT_SIGNED: 'Operator Signed Contract',
+      JOB_APPLICATION_DELETE: 'Application Deleted',
+      JOB_APPLICATION_BULK_UPDATE: 'Bulk Application Update',
+      JOB_APPLICATION_BULK_DELETE: 'Bulk Application Delete',
+    };
+    return map[action] || action.replace(/_/g, ' ');
+  };
+
+  const summarizeAuditEvent = (entry: AuditTimelineItem) => {
+    const beforeStatus = typeof entry.before?.status === 'string' ? entry.before.status : null;
+    const afterStatus = typeof entry.after?.status === 'string' ? entry.after.status : null;
+
+    if (beforeStatus && afterStatus && beforeStatus !== afterStatus) {
+      return `Status changed from ${displayStatus(beforeStatus)} to ${displayStatus(afterStatus)}`;
+    }
+
+    if (entry.action === 'ADMIN_AGENT_CONTRACT_PREPARED') {
+      return 'Contract workflow initialized for legal review.';
+    }
+
+    if (entry.action === 'ADMIN_AGENT_CONTRACT_SIGNED') {
+      return 'NoLSAF signature completed, waiting for operator countersignature.';
+    }
+
+    if (entry.action === 'AGENT_CONTRACT_SIGNED') {
+      return 'Operator countersigned the contract.';
+    }
+
+    return 'Administrative record captured for legal traceability.';
+  };
+
   const updateApplicationStatus = async (applicationId: number, status: string, notes?: string) => {
     // Prevent duplicate updates
     if (updatingStatus === applicationId) {
@@ -421,6 +651,10 @@ export default function CareersManagement() {
       loadApplications();
       if (viewingApplication?.id === applicationId) {
         setViewingApplication(updated);
+        await loadAuditTimeline(applicationId);
+        if (String(updated?.status || "").toUpperCase() === "HIRED") {
+          void loadContractWorkflow(applicationId);
+        }
       }
       setTimeout(() => setSuccess(null), 5000);
     } catch (e: any) {
@@ -1191,22 +1425,38 @@ export default function CareersManagement() {
                           className="p-1.5 bg-white border border-gray-300 hover:border-[#02665e] hover:bg-[#02665e]/5 rounded-md transition-all duration-300 ease-in-out hover:scale-110 active:scale-95 group"
                           title="Select All"
                         >
-                          {selectedApplications.length === applications.length ? (
+                          {allVisibleSelected ? (
                             <CheckSquare size={18} className="text-[#02665e] transition-all duration-300 group-hover:scale-110" />
                           ) : (
                             <Square size={18} className="text-gray-400 transition-all duration-300 group-hover:text-[#02665e] group-hover:scale-110" />
                           )}
                         </button>
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company Contact</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Partnership Form</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Submitted</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <button type="button" onClick={() => handleApplicationSort("companyContact")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 appearance-none hover:text-gray-700">
+                          Company Contact {renderApplicationSortIcon("companyContact")}
+                        </button>
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <button type="button" onClick={() => handleApplicationSort("partnershipForm")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 appearance-none hover:text-gray-700">
+                          Partnership Form {renderApplicationSortIcon("partnershipForm")}
+                        </button>
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <button type="button" onClick={() => handleApplicationSort("status")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 appearance-none hover:text-gray-700">
+                          Status {renderApplicationSortIcon("status")}
+                        </button>
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <button type="button" onClick={() => handleApplicationSort("submitted")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 appearance-none hover:text-gray-700">
+                          Submitted {renderApplicationSortIcon("submitted")}
+                        </button>
+                      </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {applications.map((app) => (
+                    {pagedApplications.map((app) => (
                       <tr key={app.id} className={`hover:bg-gray-50 ${selectedApplications.includes(app.id) ? 'bg-blue-50' : ''}`}>
                         <td className="px-4 py-4">
                           <button
@@ -1258,6 +1508,32 @@ export default function CareersManagement() {
                     ))}
                   </tbody>
                 </table>
+                <div className="flex flex-col gap-3 border-t border-gray-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="text-xs text-gray-500">
+                    Showing {applicationsStart + 1}-{Math.min(applicationsEnd, sortedApplications.length)} of {sortedApplications.length}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setApplicationsPage((p) => Math.max(1, p - 1))}
+                      disabled={safeApplicationsPage <= 1}
+                      className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Previous
+                    </button>
+                    <span className="text-xs font-semibold text-gray-600">
+                      Page {safeApplicationsPage} of {totalApplicationPages}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setApplicationsPage((p) => Math.min(totalApplicationPages, p + 1))}
+                      disabled={safeApplicationsPage >= totalApplicationPages}
+                      className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -1931,6 +2207,99 @@ export default function CareersManagement() {
                       Note: Email notifications are sent only when the status actually changes.
                     </p>
                   </div>
+                </div>
+
+                {/* Contract Workflow */}
+                <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
+                  <h3 className="text-base font-semibold text-gray-900 mb-3">Contract Workflow</h3>
+                  {String(viewingApplication.status || '').toUpperCase() !== 'HIRED' ? (
+                    <p className="text-sm text-gray-600">Contract controls become available after the application is approved.</p>
+                  ) : contractWorkflowLoading ? (
+                    <p className="text-sm text-gray-600">Loading contract workflow...</p>
+                  ) : (
+                    <>
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                        <p className="text-xs text-gray-500 mb-1">Current Contract State</p>
+                        <p className="text-sm font-semibold text-gray-900">
+                          {contractWorkflow?.status === 'PENDING_NOLSAF_SIGNATURE'
+                            ? 'Awaiting NoLSAF signature'
+                            : contractWorkflow?.status === 'PENDING_AGENT_SIGNATURE'
+                              ? 'Awaiting operator countersignature'
+                              : contractWorkflow?.status === 'EXECUTED'
+                                ? 'Executed'
+                                : 'Not prepared'}
+                        </p>
+                        {contractWorkflow?.contractId ? (
+                          <p className="text-xs text-gray-500 mt-1">Contract ID: {contractWorkflow.contractId}</p>
+                        ) : null}
+                        {contractWorkflow?.nolsafSignedAt ? (
+                          <p className="text-xs text-gray-500 mt-1">
+                            NoLSAF signed at: {new Date(contractWorkflow.nolsafSignedAt).toLocaleString()}
+                          </p>
+                        ) : null}
+                        {contractWorkflow?.agentSignedAt ? (
+                          <p className="text-xs text-gray-500 mt-1">
+                            Operator signed at: {new Date(contractWorkflow.agentSignedAt).toLocaleString()}
+                          </p>
+                        ) : null}
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={handlePrepareContractWorkflow}
+                          disabled={Boolean(contractWorkflow) || contractActionLoading !== null}
+                          className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors ${
+                            Boolean(contractWorkflow) || contractActionLoading !== null
+                              ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                              : 'bg-slate-900 text-white hover:bg-slate-800'
+                          }`}
+                        >
+                          {contractActionLoading === 'prepare' ? 'Preparing...' : 'Prepare Draft'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleAdminSignContract}
+                          disabled={contractWorkflow?.status !== 'PENDING_NOLSAF_SIGNATURE' || contractActionLoading !== null}
+                          className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors ${
+                            contractWorkflow?.status !== 'PENDING_NOLSAF_SIGNATURE' || contractActionLoading !== null
+                              ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                              : 'bg-[#02665e] text-white hover:bg-[#024d47]'
+                          }`}
+                        >
+                          {contractActionLoading === 'sign' ? 'Signing...' : 'Sign As NoLSAF'}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Legal Audit Timeline */}
+                <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Clock size={18} className="text-[#02665e]" />
+                    <h3 className="text-base font-semibold text-gray-900">Legal Audit Timeline</h3>
+                  </div>
+
+                  {auditTimelineLoading ? (
+                    <p className="text-sm text-gray-600">Loading legal traceability events...</p>
+                  ) : auditTimeline.length === 0 ? (
+                    <p className="text-sm text-gray-600">No audit events available yet for this application.</p>
+                  ) : (
+                    <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                      {auditTimeline.slice(0, 12).map((entry) => (
+                        <div key={entry.id} className="relative pl-6 pb-3 border-l border-gray-200 last:pb-0">
+                          <span className="absolute -left-[7px] top-1.5 h-3.5 w-3.5 rounded-full bg-[#02665e] ring-2 ring-white" />
+                          <div className="text-sm font-semibold text-gray-900">{formatAuditAction(entry.action)}</div>
+                          <div className="text-xs text-gray-500 mt-0.5">
+                            {new Date(entry.createdAt).toLocaleString()} • {entry.actorName || 'System'}
+                            {entry.actorRole ? ` (${entry.actorRole})` : ''}
+                          </div>
+                          <div className="text-sm text-gray-700 mt-1">{summarizeAuditEvent(entry)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Status History */}

@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
-import { Users, Search, X, Mail, Phone, Lock, ShoppingCart, DollarSign, Eye, MoreVertical, CheckCircle, XCircle, Loader2, Filter } from "lucide-react";
+import { Users, Search, X, Mail, Phone, Lock, ShoppingCart, DollarSign, Eye, MoreVertical, CheckCircle, XCircle, Loader2, Filter, ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 import apiClient from "@/lib/apiClient";
 import { io, Socket } from "socket.io-client";
 import Link from "next/link";
@@ -35,6 +35,8 @@ type CustomersSummary = {
   verifiedPhoneCount?: number;
 };
 
+type CustomerSortKey = "customer" | "accountId" | "contact" | "verification" | "status" | "bookings" | "totalSpent" | "lastBooking" | "joined";
+
 export default function AdminUsersListPage(){
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
@@ -42,6 +44,8 @@ export default function AdminUsersListPage(){
   const [items, setItems] = useState<CustomerRow[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [sortBy, setSortBy] = useState<CustomerSortKey>("joined");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [stats, setStats] = useState({
     totalCustomers: 0,
     activeCustomers: 0,
@@ -126,6 +130,65 @@ export default function AdminUsersListPage(){
   }, [load]);
 
   const pages = useMemo(()=> Math.max(1, Math.ceil(total / pageSize)), [total]);
+
+  const sortedItems = useMemo(() => {
+    const next = [...items];
+    const verificationScore = (c: CustomerRow) =>
+      (c.emailVerifiedAt ? 1 : 0) + (c.phoneVerifiedAt ? 1 : 0) + (c.twoFactorEnabled ? 1 : 0);
+
+    const readValue = (c: CustomerRow): string | number => {
+      switch (sortBy) {
+        case "customer":
+          return `${c.name || ""} ${c.email || ""}`.toLowerCase();
+        case "accountId":
+          return c.id;
+        case "contact":
+          return `${c.phone || ""}`.toLowerCase();
+        case "verification":
+          return verificationScore(c);
+        case "status":
+          return isCustomerSuspended(c) ? "suspended" : "active";
+        case "bookings":
+          return Number(c.bookingCount || 0);
+        case "totalSpent":
+          return Number(c.totalSpent || 0);
+        case "lastBooking":
+          return c.lastBookingDate ? new Date(c.lastBookingDate).getTime() : 0;
+        case "joined":
+          return c.createdAt ? new Date(c.createdAt).getTime() : 0;
+        default:
+          return "";
+      }
+    };
+
+    next.sort((a, b) => {
+      const av = readValue(a);
+      const bv = readValue(b);
+      if (typeof av === "number" && typeof bv === "number") {
+        return sortDir === "asc" ? av - bv : bv - av;
+      }
+      const cmp = String(av).localeCompare(String(bv));
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+
+    return next;
+  }, [items, sortBy, sortDir, isCustomerSuspended]);
+
+  function handleSort(field: CustomerSortKey) {
+    if (sortBy === field) {
+      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortBy(field);
+    setSortDir(field === "accountId" || field === "bookings" || field === "totalSpent" || field === "lastBooking" || field === "joined" || field === "verification" ? "desc" : "asc");
+  }
+
+  function renderSortIcon(field: CustomerSortKey) {
+    if (sortBy !== field) return <ChevronsUpDown className="h-3.5 w-3.5 text-gray-400" />;
+    return sortDir === "asc"
+      ? <ChevronUp className="h-3.5 w-3.5 text-emerald-600" />
+      : <ChevronDown className="h-3.5 w-3.5 text-emerald-600" />;
+  }
 
   // Chart data for customer engagement
   const engagementChartData = useMemo<ChartData<"doughnut">>(() => {
@@ -353,14 +416,56 @@ export default function AdminUsersListPage(){
               <table className="w-full">
                 <thead className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200 sticky top-0 z-10">
                   <tr>
-                    {["Customer","Account ID","Contact","Verification","Status","Bookings","Total Spent","Last Booking","Joined"].map(h => (
-                      <th key={h} className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
-                    ))}
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      <button type="button" onClick={() => handleSort("customer")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 appearance-none hover:text-gray-700">
+                        Customer {renderSortIcon("customer")}
+                      </button>
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      <button type="button" onClick={() => handleSort("accountId")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 appearance-none hover:text-gray-700">
+                        Account ID {renderSortIcon("accountId")}
+                      </button>
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      <button type="button" onClick={() => handleSort("contact")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 appearance-none hover:text-gray-700">
+                        Contact {renderSortIcon("contact")}
+                      </button>
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      <button type="button" onClick={() => handleSort("verification")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 appearance-none hover:text-gray-700">
+                        Verification {renderSortIcon("verification")}
+                      </button>
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      <button type="button" onClick={() => handleSort("status")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 appearance-none hover:text-gray-700">
+                        Status {renderSortIcon("status")}
+                      </button>
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      <button type="button" onClick={() => handleSort("bookings")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 appearance-none hover:text-gray-700">
+                        Bookings {renderSortIcon("bookings")}
+                      </button>
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      <button type="button" onClick={() => handleSort("totalSpent")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 appearance-none hover:text-gray-700">
+                        Total Spent {renderSortIcon("totalSpent")}
+                      </button>
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      <button type="button" onClick={() => handleSort("lastBooking")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 appearance-none hover:text-gray-700">
+                        Last Booking {renderSortIcon("lastBooking")}
+                      </button>
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      <button type="button" onClick={() => handleSort("joined")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 appearance-none hover:text-gray-700">
+                        Joined {renderSortIcon("joined")}
+                      </button>
+                    </th>
                     <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-100">
-                  {items.map((customer) => (
+                  {sortedItems.map((customer) => (
                     <TableRow key={customer.id} className="align-middle hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="font-semibold text-gray-900">{customer.name || "N/A"}</div>

@@ -16,6 +16,12 @@ interface JwtTokenPayload {
   role?: string;
 }
 
+function authError(code: "SESSION_EXPIRED" | "SESSION_REVOKED" | "ACCOUNT_SUSPENDED", message: string) {
+  const e: any = new Error(message);
+  e.code = code;
+  return e;
+}
+
 export interface AuthedUser {
   id: number;
   role: Role;
@@ -95,36 +101,44 @@ async function verifyToken(token: string): Promise<AuthedUser | null> {
     const decoded = jwt.verify(token, secret) as JwtTokenPayload;
     if (!decoded || decoded.sub == null) return null;
 
-    // Try to get user from database to verify role
     const userId = Number(decoded.sub);
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, role: true, email: true, suspendedAt: true },
+
+    // The common path is an active session. Fetch the session and user in one query
+    // instead of querying user + session separately on every authenticated request.
+    const activeSession = await (prisma.session as any).findFirst({
+      where: { userId, revokedAt: null },
+      select: {
+        id: true,
+        user: {
+          select: { id: true, role: true, email: true, suspendedAt: true },
+        },
+      },
     });
+
+    let user = activeSession?.user ?? null;
+
+    if (!activeSession) {
+      const [dbUser, anySession] = await Promise.all([
+        prisma.user.findUnique({
+          where: { id: userId },
+          select: { id: true, role: true, email: true, suspendedAt: true },
+        }),
+        (prisma.session as any).findFirst({
+          where: { userId },
+          select: { id: true },
+        }),
+      ]);
+      user = dbUser;
+      if (anySession) {
+        throw authError("SESSION_REVOKED", "Session revoked");
+      }
+    }
 
     if (!user) return null;
 
-    // Check if account is suspended - suspended users cannot access their account
+    // Check if account is suspended - suspended users cannot access their account.
     if (user.suspendedAt) {
-      return null; // Return null to deny access
-    }
-
-    // Check whether ALL sessions for this user have been revoked.
-    // Use cheap existence checks instead of COUNT(*) on every authenticated request.
-    const activeSession = await (prisma.session as any).findFirst({
-      where: { userId, revokedAt: null },
-      select: { id: true },
-    });
-    if (!activeSession) {
-      const anySession = await (prisma.session as any).findFirst({
-        where: { userId },
-        select: { id: true },
-      });
-      if (anySession) {
-        const e: any = new Error("Session revoked");
-        e.code = "SESSION_REVOKED";
-        throw e;
-      }
+      throw authError("ACCOUNT_SUSPENDED", "Account suspended");
     }
 
     // Map database role to Role type (handle case where role might be different format)
@@ -140,9 +154,7 @@ async function verifyToken(token: string): Promise<AuthedUser | null> {
       const maxMinutes = await getRoleSessionMaxMinutes(rawRole);
       const ageSec = Math.floor(Date.now() / 1000) - issuedAtSec;
       if (ageSec > maxMinutes * 60) {
-        const e: any = new Error('Session expired');
-        e.code = 'SESSION_EXPIRED';
-        throw e;
+        throw authError("SESSION_EXPIRED", "Session expired");
       }
     }
     
@@ -200,26 +212,10 @@ export const requireAuth: RequestHandler = async (req, res, next) => {
         clearAuthCookie(res);
         return res.status(401).json({ error: 'Session revoked', code: 'SESSION_REVOKED' });
       }
-      // fallthrough to suspended/unauthorized logic
-    }
-    // Check if token is valid but user is suspended
-    try {
-      const secret = process.env.JWT_SECRET || (process.env.NODE_ENV !== "production" ? (process.env.DEV_JWT_SECRET || "dev_jwt_secret") : "");
-      if (secret) {
-        const decoded = jwt.verify(token, secret) as JwtTokenPayload;
-        if (decoded?.sub != null) {
-          const userId = Number(decoded.sub);
-          const dbUser = await prisma.user.findUnique({
-            where: { id: userId },
-            select: { suspendedAt: true },
-          });
-          if (dbUser?.suspendedAt) {
-            return res.status(403).json({ error: "Account suspended", code: "ACCOUNT_SUSPENDED" });
-          }
-        }
+      if (err?.code === 'ACCOUNT_SUSPENDED') {
+        return res.status(403).json({ error: "Account suspended", code: "ACCOUNT_SUSPENDED" });
       }
-    } catch (e) {
-      // Token invalid or other error - continue to unauthorized
+      // fallthrough to unauthorized logic
     }
   }
 
@@ -263,24 +259,8 @@ export function requireRole(required?: Role) {
             clearAuthCookie(res);
             return res.status(401).json({ error: 'Session revoked', code: 'SESSION_REVOKED' });
           }
-          // Check if token is valid but user is suspended
-          try {
-            const secret = process.env.JWT_SECRET || (process.env.NODE_ENV !== "production" ? (process.env.DEV_JWT_SECRET || "dev_jwt_secret") : "");
-            if (secret) {
-              const decoded = jwt.verify(token, secret) as JwtTokenPayload;
-              if (decoded?.sub != null) {
-                const userId = Number(decoded.sub);
-                const dbUser = await prisma.user.findUnique({
-                  where: { id: userId },
-                  select: { suspendedAt: true },
-                });
-                if (dbUser?.suspendedAt) {
-                  return res.status(403).json({ error: "Account suspended", code: "ACCOUNT_SUSPENDED" });
-                }
-              }
-            }
-          } catch (e) {
-            // Token invalid or other error - continue to unauthorized
+          if (err?.code === 'ACCOUNT_SUSPENDED') {
+            return res.status(403).json({ error: "Account suspended", code: "ACCOUNT_SUSPENDED" });
           }
         }
       }

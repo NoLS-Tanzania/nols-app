@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { OperatorProfilePreviewScreen } from "@/app/account/agent/profile/preview/page";
+import { OperatorProfilePreviewScreen } from "@/app/account/agent/profile/preview/OperatorProfilePreviewScreen";
 import LogoSpinner from "@/components/LogoSpinner";
 
 export default function SubmittedProfileSlugPage() {

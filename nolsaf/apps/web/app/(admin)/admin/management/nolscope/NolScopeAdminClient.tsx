@@ -1,11 +1,13 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity,
   AlertTriangle,
   CheckCircle2,
+  ChevronDown,
   ChevronUp,
+  ChevronsUpDown,
   Edit2,
   Globe,
   Loader2,
@@ -302,9 +304,13 @@ function ActivitiesTab() {
   const [saveError, setSaveError] = useState("");
   const [filter, setFilter]       = useState("");
   const [destFilter, setDestFilter] = useState("");
+  const [page, setPage]           = useState(1);
+  const [sortBy, setSortBy]       = useState<"activity" | "category" | "destination" | "min" | "avg" | "max" | "status">("activity");
+  const [sortDir, setSortDir]     = useState<"asc" | "desc">("asc");
   const [showAdd, setShowAdd]     = useState(false);
   const [newRow, setNewRow]       = useState({ activityCode: "", activityName: "", category: "safari", destination: "", minCost: "0", maxCost: "0", averageCost: "0", description: "" });
   const [adding, setAdding]       = useState(false);
+  const pageSize = 10;
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -319,12 +325,64 @@ function ActivitiesTab() {
 
   const destinations = [...new Set(rows.map((r) => r.destination))].sort();
 
-  const visible = rows.filter((r) => {
+  const filteredRows = rows.filter((r) => {
     const q = filter.toLowerCase();
     const matchQ = !q || r.activityName.toLowerCase().includes(q) || r.activityCode.toLowerCase().includes(q) || r.description?.toLowerCase().includes(q);
     const matchD = !destFilter || r.destination === destFilter;
     return matchQ && matchD;
   });
+
+  const sortedRows = useMemo(() => {
+    const list = [...filteredRows];
+    const valueOf = (row: any): string | number => {
+      switch (sortBy) {
+        case "activity": return `${String(row.activityName ?? "").toLowerCase()} ${String(row.activityCode ?? "").toLowerCase()}`;
+        case "category": return String(row.category ?? "").toLowerCase();
+        case "destination": return String(row.destination ?? "").toLowerCase();
+        case "min": return Number(row.minCost ?? 0);
+        case "avg": return Number(row.averageCost ?? 0);
+        case "max": return Number(row.maxCost ?? 0);
+        case "status": return row.isActive ? 1 : 0;
+        default: return "";
+      }
+    };
+    list.sort((a, b) => {
+      const av = valueOf(a);
+      const bv = valueOf(b);
+      if (typeof av === "number" && typeof bv === "number") {
+        return sortDir === "asc" ? av - bv : bv - av;
+      }
+      const cmp = String(av).localeCompare(String(bv));
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return list;
+  }, [filteredRows, sortBy, sortDir]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedRows.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const start = (safePage - 1) * pageSize;
+  const end = start + pageSize;
+  const pagedRows = sortedRows.slice(start, end);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filter, destFilter, sortBy, sortDir, rows.length]);
+
+  const handleSort = (field: "activity" | "category" | "destination" | "min" | "avg" | "max" | "status") => {
+    if (sortBy === field) {
+      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortBy(field);
+    setSortDir("asc");
+  };
+
+  const renderSortIcon = (field: "activity" | "category" | "destination" | "min" | "avg" | "max" | "status") => {
+    if (sortBy !== field) return <ChevronsUpDown className="w-3.5 h-3.5 text-slate-400" />;
+    return sortDir === "asc"
+      ? <ChevronUp className="w-3.5 h-3.5 text-[#02665e]" />
+      : <ChevronDown className="w-3.5 h-3.5 text-[#02665e]" />;
+  };
 
   function openEdit(row: any) {
     setExpanded(row.id);
@@ -394,7 +452,7 @@ function ActivitiesTab() {
         </button>
       </div>
 
-      <p className="text-xs text-slate-400">{visible.length} of {rows.length} activities</p>
+      <p className="text-xs text-slate-400">{sortedRows.length} of {rows.length} activities</p>
 
       {/* add form */}
       {showAdd && (
@@ -442,18 +500,51 @@ function ActivitiesTab() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-100 bg-slate-50">
-              <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#02665e] uppercase tracking-wider">Activity</th>
-              <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#02665e] uppercase tracking-wider">Category</th>
-              <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#02665e] uppercase tracking-wider">Destination</th>
-              <th className="px-4 py-2.5 text-right text-[10px] font-bold text-[#02665e] uppercase tracking-wider">Min</th>
-              <th className="px-4 py-2.5 text-right text-[10px] font-bold text-[#02665e] uppercase tracking-wider">Avg</th>
-              <th className="px-4 py-2.5 text-right text-[10px] font-bold text-[#02665e] uppercase tracking-wider">Max</th>
-              <th className="px-4 py-2.5 text-center text-[10px] font-bold text-[#02665e] uppercase tracking-wider">Status</th>
+              <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#02665e] uppercase tracking-wider">
+                <button type="button" onClick={() => handleSort("activity")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">
+                  Activity {renderSortIcon("activity")}
+                </button>
+              </th>
+              <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#02665e] uppercase tracking-wider">
+                <button type="button" onClick={() => handleSort("category")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">
+                  Category {renderSortIcon("category")}
+                </button>
+              </th>
+              <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#02665e] uppercase tracking-wider">
+                <button type="button" onClick={() => handleSort("destination")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">
+                  Destination {renderSortIcon("destination")}
+                </button>
+              </th>
+              <th className="px-4 py-2.5 text-right text-[10px] font-bold text-[#02665e] uppercase tracking-wider">
+                <button type="button" onClick={() => handleSort("min")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">
+                  Min {renderSortIcon("min")}
+                </button>
+              </th>
+              <th className="px-4 py-2.5 text-right text-[10px] font-bold text-[#02665e] uppercase tracking-wider">
+                <button type="button" onClick={() => handleSort("avg")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">
+                  Avg {renderSortIcon("avg")}
+                </button>
+              </th>
+              <th className="px-4 py-2.5 text-right text-[10px] font-bold text-[#02665e] uppercase tracking-wider">
+                <button type="button" onClick={() => handleSort("max")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">
+                  Max {renderSortIcon("max")}
+                </button>
+              </th>
+              <th className="px-4 py-2.5 text-center text-[10px] font-bold text-[#02665e] uppercase tracking-wider">
+                <button type="button" onClick={() => handleSort("status")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">
+                  Status {renderSortIcon("status")}
+                </button>
+              </th>
               <th className="px-3 py-2.5 text-right text-[10px] font-bold text-[#02665e] uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
-            {visible.map((row) => (
+            {sortedRows.length === 0 && (
+              <tr>
+                <td colSpan={8} className="px-4 py-10 text-center text-sm text-slate-400">No activities found</td>
+              </tr>
+            )}
+            {pagedRows.map((row) => (
               <React.Fragment key={row.id}>
                 <tr className="hover:bg-slate-50/60 transition-colors">
                   <td className="px-4 py-3">
@@ -533,6 +624,16 @@ function ActivitiesTab() {
           </tbody>
         </table>
       </div>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border border-slate-100 rounded-xl px-3 py-2 bg-white">
+        <span className="text-xs text-slate-500">Showing {sortedRows.length === 0 ? 0 : start + 1}-{Math.min(end, sortedRows.length)} of {sortedRows.length}</span>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage <= 1}
+            className="px-2.5 py-1.5 text-xs font-semibold text-slate-700 border border-slate-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">Previous</button>
+          <span className="text-xs font-semibold text-slate-600">Page {safePage} of {totalPages}</span>
+          <button type="button" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage >= totalPages}
+            className="px-2.5 py-1.5 text-xs font-semibold text-slate-700 border border-slate-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">Next</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -549,8 +650,12 @@ function ParkFeesTab() {
   const [saving, setSaving]       = useState(false);
   const [saveError, setSaveError] = useState("");
   const [showAdd, setShowAdd]     = useState(false);
+  const [page, setPage]           = useState(1);
+  const [sortBy, setSortBy]       = useState<"park" | "region" | "adultIntl" | "adultRes" | "vehicle" | "status">("park");
+  const [sortDir, setSortDir]     = useState<"asc" | "desc">("asc");
   const [newRow, setNewRow]       = useState({ parkCode: "", parkName: "", category: "national-park", region: "", adultForeignerFee: "0", adultResidentFee: "0", childForeignerFee: "", vehicleFee: "", campingFee: "", description: "" });
   const [adding, setAdding]       = useState(false);
+  const pageSize = 10;
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -560,6 +665,57 @@ function ParkFeesTab() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  const sortedRows = useMemo(() => {
+    const list = [...rows];
+    const valueOf = (row: any): string | number => {
+      switch (sortBy) {
+        case "park": return `${String(row.parkName ?? "").toLowerCase()} ${String(row.parkCode ?? "").toLowerCase()}`;
+        case "region": return String(row.region ?? "").toLowerCase();
+        case "adultIntl": return Number(row.adultForeignerFee ?? 0);
+        case "adultRes": return Number(row.adultResidentFee ?? 0);
+        case "vehicle": return Number(row.vehicleFee ?? 0);
+        case "status": return row.isActive ? 1 : 0;
+        default: return "";
+      }
+    };
+    list.sort((a, b) => {
+      const av = valueOf(a);
+      const bv = valueOf(b);
+      if (typeof av === "number" && typeof bv === "number") {
+        return sortDir === "asc" ? av - bv : bv - av;
+      }
+      const cmp = String(av).localeCompare(String(bv));
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return list;
+  }, [rows, sortBy, sortDir]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedRows.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const start = (safePage - 1) * pageSize;
+  const end = start + pageSize;
+  const pagedRows = sortedRows.slice(start, end);
+
+  useEffect(() => {
+    setPage(1);
+  }, [sortBy, sortDir, rows.length]);
+
+  const handleSort = (field: "park" | "region" | "adultIntl" | "adultRes" | "vehicle" | "status") => {
+    if (sortBy === field) {
+      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortBy(field);
+    setSortDir("asc");
+  };
+
+  const renderSortIcon = (field: "park" | "region" | "adultIntl" | "adultRes" | "vehicle" | "status") => {
+    if (sortBy !== field) return <ChevronsUpDown className="w-3.5 h-3.5 text-slate-400" />;
+    return sortDir === "asc"
+      ? <ChevronUp className="w-3.5 h-3.5 text-[#02665e]" />
+      : <ChevronDown className="w-3.5 h-3.5 text-[#02665e]" />;
+  };
 
   function openEdit(row: any) { setExpanded(row.id); setDraft({ ...row }); setSaveError(""); }
   function closeEdit() { setExpanded(null); setDraft(null); }
@@ -594,7 +750,7 @@ function ParkFeesTab() {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-xs text-slate-400">{rows.length} park fee records</p>
+        <p className="text-xs text-slate-400">{sortedRows.length} park fee records</p>
         <div className="flex items-center gap-2">
           <button onClick={() => setShowAdd(true)} className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold bg-[#02665e] text-white rounded-xl hover:bg-[#015a52]">
             <Plus className="w-4 h-4" /> Add park
@@ -639,17 +795,46 @@ function ParkFeesTab() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-100 bg-slate-50">
-              <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#02665e] uppercase tracking-wider">Park</th>
-              <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#02665e] uppercase tracking-wider">Region</th>
-              <th className="px-4 py-2.5 text-right text-[10px] font-bold text-[#02665e] uppercase tracking-wider">Adult (intl)</th>
-              <th className="px-4 py-2.5 text-right text-[10px] font-bold text-[#02665e] uppercase tracking-wider">Adult (res.)</th>
-              <th className="px-4 py-2.5 text-right text-[10px] font-bold text-[#02665e] uppercase tracking-wider">Vehicle</th>
-              <th className="px-4 py-2.5 text-center text-[10px] font-bold text-[#02665e] uppercase tracking-wider">Status</th>
+              <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#02665e] uppercase tracking-wider">
+                <button type="button" onClick={() => handleSort("park")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">
+                  Park {renderSortIcon("park")}
+                </button>
+              </th>
+              <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#02665e] uppercase tracking-wider">
+                <button type="button" onClick={() => handleSort("region")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">
+                  Region {renderSortIcon("region")}
+                </button>
+              </th>
+              <th className="px-4 py-2.5 text-right text-[10px] font-bold text-[#02665e] uppercase tracking-wider">
+                <button type="button" onClick={() => handleSort("adultIntl")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">
+                  Adult (intl) {renderSortIcon("adultIntl")}
+                </button>
+              </th>
+              <th className="px-4 py-2.5 text-right text-[10px] font-bold text-[#02665e] uppercase tracking-wider">
+                <button type="button" onClick={() => handleSort("adultRes")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">
+                  Adult (res.) {renderSortIcon("adultRes")}
+                </button>
+              </th>
+              <th className="px-4 py-2.5 text-right text-[10px] font-bold text-[#02665e] uppercase tracking-wider">
+                <button type="button" onClick={() => handleSort("vehicle")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">
+                  Vehicle {renderSortIcon("vehicle")}
+                </button>
+              </th>
+              <th className="px-4 py-2.5 text-center text-[10px] font-bold text-[#02665e] uppercase tracking-wider">
+                <button type="button" onClick={() => handleSort("status")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">
+                  Status {renderSortIcon("status")}
+                </button>
+              </th>
               <th className="px-3 py-2.5 text-right text-[10px] font-bold text-[#02665e] uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
-            {rows.map((row) => (
+            {sortedRows.length === 0 && (
+              <tr>
+                <td colSpan={7} className="px-4 py-10 text-center text-sm text-slate-400">No park fee records found</td>
+              </tr>
+            )}
+            {pagedRows.map((row) => (
               <React.Fragment key={row.id}>
                 <tr className="hover:bg-slate-50/60 transition-colors">
                   <td className="px-4 py-3">
@@ -720,6 +905,16 @@ function ParkFeesTab() {
           </tbody>
         </table>
       </div>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border border-slate-100 rounded-xl px-3 py-2 bg-white">
+        <span className="text-xs text-slate-500">Showing {sortedRows.length === 0 ? 0 : start + 1}-{Math.min(end, sortedRows.length)} of {sortedRows.length}</span>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage <= 1}
+            className="px-2.5 py-1.5 text-xs font-semibold text-slate-700 border border-slate-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">Previous</button>
+          <span className="text-xs font-semibold text-slate-600">Page {safePage} of {totalPages}</span>
+          <button type="button" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage >= totalPages}
+            className="px-2.5 py-1.5 text-xs font-semibold text-slate-700 border border-slate-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">Next</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -736,9 +931,13 @@ function VisaFeesTab() {
   const [saving, setSaving]       = useState(false);
   const [saveError, setSaveError] = useState("");
   const [filter, setFilter]       = useState("");
+  const [page, setPage]           = useState(1);
+  const [sortBy, setSortBy]       = useState<"code" | "fee" | "type" | "entries" | "processing" | "status">("code");
+  const [sortDir, setSortDir]     = useState<"asc" | "desc">("asc");
   const [showAdd, setShowAdd]     = useState(false);
   const [newRow, setNewRow]       = useState({ nationality: "", amount: "50", visaType: "tourist", entries: "single", durationDays: "90", processingTime: "on-arrival", description: "" });
   const [adding, setAdding]       = useState(false);
+  const pageSize = 10;
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -776,10 +975,61 @@ function VisaFeesTab() {
     finally { setAdding(false); }
   }
 
-  const visible = rows.filter((r) => {
+  const filteredRows = rows.filter((r) => {
     const q = filter.toLowerCase();
     return !q || r.nationality.toLowerCase().includes(q) || r.description?.toLowerCase().includes(q);
   });
+
+  const sortedRows = useMemo(() => {
+    const list = [...filteredRows];
+    const valueOf = (row: any): string | number => {
+      switch (sortBy) {
+        case "code": return String(row.nationality ?? "").toLowerCase();
+        case "fee": return Number(row.amount ?? 0);
+        case "type": return String(row.visaType ?? "").toLowerCase();
+        case "entries": return String(row.entries ?? "").toLowerCase();
+        case "processing": return String(row.processingTime ?? "").toLowerCase();
+        case "status": return row.isActive ? 1 : 0;
+        default: return "";
+      }
+    };
+    list.sort((a, b) => {
+      const av = valueOf(a);
+      const bv = valueOf(b);
+      if (typeof av === "number" && typeof bv === "number") {
+        return sortDir === "asc" ? av - bv : bv - av;
+      }
+      const cmp = String(av).localeCompare(String(bv));
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return list;
+  }, [filteredRows, sortBy, sortDir]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedRows.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const start = (safePage - 1) * pageSize;
+  const end = start + pageSize;
+  const pagedRows = sortedRows.slice(start, end);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filter, sortBy, sortDir, rows.length]);
+
+  const handleSort = (field: "code" | "fee" | "type" | "entries" | "processing" | "status") => {
+    if (sortBy === field) {
+      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortBy(field);
+    setSortDir("asc");
+  };
+
+  const renderSortIcon = (field: "code" | "fee" | "type" | "entries" | "processing" | "status") => {
+    if (sortBy !== field) return <ChevronsUpDown className="w-3.5 h-3.5 text-slate-400" />;
+    return sortDir === "asc"
+      ? <ChevronUp className="w-3.5 h-3.5 text-[#02665e]" />
+      : <ChevronDown className="w-3.5 h-3.5 text-[#02665e]" />;
+  };
 
   if (loading) return <Loader2 className="w-5 h-5 animate-spin text-[#02665e] mx-auto mt-8" />;
   if (error)   return <p className="text-sm text-red-600 p-4">{error}</p>;
@@ -794,7 +1044,7 @@ function VisaFeesTab() {
         </button>
         <button onClick={load} className="p-2 text-slate-400 hover:text-[#02665e] border border-slate-200 rounded-xl"><RefreshCw className="w-4 h-4" /></button>
       </div>
-      <p className="text-xs text-slate-400">{visible.length} of {rows.length} visa fee rules</p>
+      <p className="text-xs text-slate-400">{sortedRows.length} of {rows.length} visa fee rules</p>
 
       {/* add form */}
       {showAdd && (
@@ -844,17 +1094,46 @@ function VisaFeesTab() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-100 bg-slate-50">
-              <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#02665e] uppercase tracking-wider">Code</th>
-              <th className="px-4 py-2.5 text-right text-[10px] font-bold text-[#02665e] uppercase tracking-wider">Fee (USD)</th>
-              <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#02665e] uppercase tracking-wider">Type</th>
-              <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#02665e] uppercase tracking-wider">Entries</th>
-              <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#02665e] uppercase tracking-wider">Processing</th>
-              <th className="px-4 py-2.5 text-center text-[10px] font-bold text-[#02665e] uppercase tracking-wider">Status</th>
+              <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#02665e] uppercase tracking-wider">
+                <button type="button" onClick={() => handleSort("code")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">
+                  Code {renderSortIcon("code")}
+                </button>
+              </th>
+              <th className="px-4 py-2.5 text-right text-[10px] font-bold text-[#02665e] uppercase tracking-wider">
+                <button type="button" onClick={() => handleSort("fee")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">
+                  Fee (USD) {renderSortIcon("fee")}
+                </button>
+              </th>
+              <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#02665e] uppercase tracking-wider">
+                <button type="button" onClick={() => handleSort("type")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">
+                  Type {renderSortIcon("type")}
+                </button>
+              </th>
+              <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#02665e] uppercase tracking-wider">
+                <button type="button" onClick={() => handleSort("entries")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">
+                  Entries {renderSortIcon("entries")}
+                </button>
+              </th>
+              <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#02665e] uppercase tracking-wider">
+                <button type="button" onClick={() => handleSort("processing")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">
+                  Processing {renderSortIcon("processing")}
+                </button>
+              </th>
+              <th className="px-4 py-2.5 text-center text-[10px] font-bold text-[#02665e] uppercase tracking-wider">
+                <button type="button" onClick={() => handleSort("status")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">
+                  Status {renderSortIcon("status")}
+                </button>
+              </th>
               <th className="px-3 py-2.5 text-right text-[10px] font-bold text-[#02665e] uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
-            {visible.map((row) => (
+            {sortedRows.length === 0 && (
+              <tr>
+                <td colSpan={7} className="px-4 py-10 text-center text-sm text-slate-400">No visa fee rules found</td>
+              </tr>
+            )}
+            {pagedRows.map((row) => (
               <React.Fragment key={row.id}>
                 <tr className="hover:bg-slate-50/60 transition-colors">
                   <td className="px-4 py-3">
@@ -918,6 +1197,16 @@ function VisaFeesTab() {
           </tbody>
         </table>
       </div>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border border-slate-100 rounded-xl px-3 py-2 bg-white">
+        <span className="text-xs text-slate-500">Showing {sortedRows.length === 0 ? 0 : start + 1}-{Math.min(end, sortedRows.length)} of {sortedRows.length}</span>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage <= 1}
+            className="px-2.5 py-1.5 text-xs font-semibold text-slate-700 border border-slate-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">Previous</button>
+          <span className="text-xs font-semibold text-slate-600">Page {safePage} of {totalPages}</span>
+          <button type="button" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage >= totalPages}
+            className="px-2.5 py-1.5 text-xs font-semibold text-slate-700 border border-slate-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">Next</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -934,9 +1223,13 @@ function TransportTab() {
   const [saving, setSaving]       = useState(false);
   const [saveError, setSaveError] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
+  const [page, setPage]           = useState(1);
+  const [sortBy, setSortBy]       = useState<"from" | "to" | "type" | "min" | "avg" | "max" | "provider" | "status">("from");
+  const [sortDir, setSortDir]     = useState<"asc" | "desc">("asc");
   const [showAdd, setShowAdd]     = useState(false);
   const [newRow, setNewRow]       = useState({ fromLocation: "", toLocation: "", transportType: "flight", minCost: "0", maxCost: "0", averageCost: "0", provider: "", description: "" });
   const [adding, setAdding]       = useState(false);
+  const pageSize = 10;
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -975,7 +1268,60 @@ function TransportTab() {
   }
 
   const types = [...new Set(rows.map((r) => r.transportType))].sort();
-  const visible = typeFilter ? rows.filter((r) => r.transportType === typeFilter) : rows;
+  const filteredRows = typeFilter ? rows.filter((r) => r.transportType === typeFilter) : rows;
+
+  const sortedRows = useMemo(() => {
+    const list = [...filteredRows];
+    const valueOf = (row: any): string | number => {
+      switch (sortBy) {
+        case "from": return String(row.fromLocation ?? "").toLowerCase();
+        case "to": return String(row.toLocation ?? "").toLowerCase();
+        case "type": return String(row.transportType ?? "").toLowerCase();
+        case "min": return Number(row.minCost ?? 0);
+        case "avg": return Number(row.averageCost ?? 0);
+        case "max": return Number(row.maxCost ?? 0);
+        case "provider": return String(row.provider ?? "").toLowerCase();
+        case "status": return row.isActive ? 1 : 0;
+        default: return "";
+      }
+    };
+    list.sort((a, b) => {
+      const av = valueOf(a);
+      const bv = valueOf(b);
+      if (typeof av === "number" && typeof bv === "number") {
+        return sortDir === "asc" ? av - bv : bv - av;
+      }
+      const cmp = String(av).localeCompare(String(bv));
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return list;
+  }, [filteredRows, sortBy, sortDir]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedRows.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const start = (safePage - 1) * pageSize;
+  const end = start + pageSize;
+  const pagedRows = sortedRows.slice(start, end);
+
+  useEffect(() => {
+    setPage(1);
+  }, [typeFilter, sortBy, sortDir, rows.length]);
+
+  const handleSort = (field: "from" | "to" | "type" | "min" | "avg" | "max" | "provider" | "status") => {
+    if (sortBy === field) {
+      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortBy(field);
+    setSortDir("asc");
+  };
+
+  const renderSortIcon = (field: "from" | "to" | "type" | "min" | "avg" | "max" | "provider" | "status") => {
+    if (sortBy !== field) return <ChevronsUpDown className="w-3.5 h-3.5 text-slate-400" />;
+    return sortDir === "asc"
+      ? <ChevronUp className="w-3.5 h-3.5 text-[#02665e]" />
+      : <ChevronDown className="w-3.5 h-3.5 text-[#02665e]" />;
+  };
 
   if (loading) return <Loader2 className="w-5 h-5 animate-spin text-[#02665e] mx-auto mt-8" />;
   if (error)   return <p className="text-sm text-red-600 p-4">{error}</p>;
@@ -992,7 +1338,7 @@ function TransportTab() {
           <Plus className="w-4 h-4" /> Add route
         </button>
         <button onClick={load} className="p-2 text-slate-400 hover:text-[#02665e] border border-slate-200 rounded-xl"><RefreshCw className="w-4 h-4" /></button>
-        <p className="text-xs text-slate-400">{visible.length} routes</p>
+        <p className="text-xs text-slate-400">{sortedRows.length} routes</p>
       </div>
 
       {/* add form */}
@@ -1030,19 +1376,40 @@ function TransportTab() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-100 bg-slate-50">
-              <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#02665e] uppercase tracking-wider">From</th>
-              <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#02665e] uppercase tracking-wider">To</th>
-              <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#02665e] uppercase tracking-wider">Type</th>
-              <th className="px-4 py-2.5 text-right text-[10px] font-bold text-[#02665e] uppercase tracking-wider">Min</th>
-              <th className="px-4 py-2.5 text-right text-[10px] font-bold text-[#02665e] uppercase tracking-wider">Avg</th>
-              <th className="px-4 py-2.5 text-right text-[10px] font-bold text-[#02665e] uppercase tracking-wider">Max</th>
-              <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#02665e] uppercase tracking-wider">Provider</th>
-              <th className="px-4 py-2.5 text-center text-[10px] font-bold text-[#02665e] uppercase tracking-wider">Status</th>
+              <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#02665e] uppercase tracking-wider">
+                <button type="button" onClick={() => handleSort("from")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">From {renderSortIcon("from")}</button>
+              </th>
+              <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#02665e] uppercase tracking-wider">
+                <button type="button" onClick={() => handleSort("to")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">To {renderSortIcon("to")}</button>
+              </th>
+              <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#02665e] uppercase tracking-wider">
+                <button type="button" onClick={() => handleSort("type")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">Type {renderSortIcon("type")}</button>
+              </th>
+              <th className="px-4 py-2.5 text-right text-[10px] font-bold text-[#02665e] uppercase tracking-wider">
+                <button type="button" onClick={() => handleSort("min")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">Min {renderSortIcon("min")}</button>
+              </th>
+              <th className="px-4 py-2.5 text-right text-[10px] font-bold text-[#02665e] uppercase tracking-wider">
+                <button type="button" onClick={() => handleSort("avg")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">Avg {renderSortIcon("avg")}</button>
+              </th>
+              <th className="px-4 py-2.5 text-right text-[10px] font-bold text-[#02665e] uppercase tracking-wider">
+                <button type="button" onClick={() => handleSort("max")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">Max {renderSortIcon("max")}</button>
+              </th>
+              <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#02665e] uppercase tracking-wider">
+                <button type="button" onClick={() => handleSort("provider")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">Provider {renderSortIcon("provider")}</button>
+              </th>
+              <th className="px-4 py-2.5 text-center text-[10px] font-bold text-[#02665e] uppercase tracking-wider">
+                <button type="button" onClick={() => handleSort("status")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">Status {renderSortIcon("status")}</button>
+              </th>
               <th className="px-3 py-2.5 text-right text-[10px] font-bold text-[#02665e] uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
-            {visible.map((row) => (
+            {sortedRows.length === 0 && (
+              <tr>
+                <td colSpan={9} className="px-4 py-10 text-center text-sm text-slate-400">No transport routes found</td>
+              </tr>
+            )}
+            {pagedRows.map((row) => (
               <React.Fragment key={row.id}>
                 <tr className="hover:bg-slate-50/60 transition-colors">
                   <td className="px-4 py-3">
@@ -1119,6 +1486,16 @@ function TransportTab() {
           </tbody>
         </table>
       </div>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border border-slate-100 rounded-xl px-3 py-2 bg-white">
+        <span className="text-xs text-slate-500">Showing {sortedRows.length === 0 ? 0 : start + 1}-{Math.min(end, sortedRows.length)} of {sortedRows.length}</span>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage <= 1}
+            className="px-2.5 py-1.5 text-xs font-semibold text-slate-700 border border-slate-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">Previous</button>
+          <span className="text-xs font-semibold text-slate-600">Page {safePage} of {totalPages}</span>
+          <button type="button" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage >= totalPages}
+            className="px-2.5 py-1.5 text-xs font-semibold text-slate-700 border border-slate-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">Next</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1136,6 +1513,10 @@ function SeasonalTab() {
   const [draft, setDraft]         = useState<any>(null);
   const [saving, setSaving]       = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [page, setPage]           = useState(1);
+  const [sortBy, setSortBy]       = useState<"season" | "multiplier" | "months" | "destination" | "status">("season");
+  const [sortDir, setSortDir]     = useState<"asc" | "desc">("asc");
+  const pageSize = 10;
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -1145,6 +1526,61 @@ function SeasonalTab() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  const sortedRows = useMemo(() => {
+    const list = [...rows];
+    const monthRangeValue = (row: any) => {
+      const sm = Number(row.startMonth || 0);
+      const em = Number(row.endMonth || 0);
+      return sm * 100 + em;
+    };
+    const valueOf = (row: any): string | number => {
+      switch (sortBy) {
+        case "season": return String(row.seasonName ?? row.ruleName ?? "").toLowerCase();
+        case "multiplier": return Number(row.priceMultiplier ?? 0);
+        case "months": return monthRangeValue(row);
+        case "destination": return String(row.destination ?? "").toLowerCase();
+        case "status": return row.isActive ? 1 : 0;
+        default: return "";
+      }
+    };
+    list.sort((a, b) => {
+      const av = valueOf(a);
+      const bv = valueOf(b);
+      if (typeof av === "number" && typeof bv === "number") {
+        return sortDir === "asc" ? av - bv : bv - av;
+      }
+      const cmp = String(av).localeCompare(String(bv));
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return list;
+  }, [rows, sortBy, sortDir]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedRows.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const start = (safePage - 1) * pageSize;
+  const end = start + pageSize;
+  const pagedRows = sortedRows.slice(start, end);
+
+  useEffect(() => {
+    setPage(1);
+  }, [sortBy, sortDir, rows.length]);
+
+  const handleSort = (field: "season" | "multiplier" | "months" | "destination" | "status") => {
+    if (sortBy === field) {
+      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortBy(field);
+    setSortDir("asc");
+  };
+
+  const renderSortIcon = (field: "season" | "multiplier" | "months" | "destination" | "status") => {
+    if (sortBy !== field) return <ChevronsUpDown className="w-3.5 h-3.5 text-slate-400" />;
+    return sortDir === "asc"
+      ? <ChevronUp className="w-3.5 h-3.5 text-[#02665e]" />
+      : <ChevronDown className="w-3.5 h-3.5 text-[#02665e]" />;
+  };
 
   function openEdit(row: any) { setExpanded(row.id); setDraft({ ...row }); setSaveError(""); }
   function closeEdit() { setExpanded(null); setDraft(null); }
@@ -1167,23 +1603,38 @@ function SeasonalTab() {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-xs text-slate-400">{rows.length} pricing rules</p>
+        <p className="text-xs text-slate-400">{sortedRows.length} pricing rules</p>
         <button onClick={load} className="p-2 text-slate-400 hover:text-[#02665e] border border-slate-200 rounded-xl"><RefreshCw className="w-4 h-4" /></button>
       </div>
       <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white shadow-sm">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-100 bg-slate-50">
-              <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#02665e] uppercase tracking-wider">Season</th>
-              <th className="px-4 py-2.5 text-right text-[10px] font-bold text-[#02665e] uppercase tracking-wider">Multiplier</th>
-              <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#02665e] uppercase tracking-wider">Months</th>
-              <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#02665e] uppercase tracking-wider">Destination</th>
-              <th className="px-4 py-2.5 text-center text-[10px] font-bold text-[#02665e] uppercase tracking-wider">Status</th>
+              <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#02665e] uppercase tracking-wider">
+                <button type="button" onClick={() => handleSort("season")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">Season {renderSortIcon("season")}</button>
+              </th>
+              <th className="px-4 py-2.5 text-right text-[10px] font-bold text-[#02665e] uppercase tracking-wider">
+                <button type="button" onClick={() => handleSort("multiplier")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">Multiplier {renderSortIcon("multiplier")}</button>
+              </th>
+              <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#02665e] uppercase tracking-wider">
+                <button type="button" onClick={() => handleSort("months")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">Months {renderSortIcon("months")}</button>
+              </th>
+              <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#02665e] uppercase tracking-wider">
+                <button type="button" onClick={() => handleSort("destination")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">Destination {renderSortIcon("destination")}</button>
+              </th>
+              <th className="px-4 py-2.5 text-center text-[10px] font-bold text-[#02665e] uppercase tracking-wider">
+                <button type="button" onClick={() => handleSort("status")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">Status {renderSortIcon("status")}</button>
+              </th>
               <th className="px-3 py-2.5 text-right text-[10px] font-bold text-[#02665e] uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
-            {rows.map((row) => {
+            {sortedRows.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-4 py-10 text-center text-sm text-slate-400">No pricing rules found</td>
+              </tr>
+            )}
+            {pagedRows.map((row) => {
               const sm = Number(row.startMonth); const em = Number(row.endMonth);
               const monthRange = sm && em ? `${MONTHS[sm-1]} – ${MONTHS[em-1]}` : "—";
               return (
@@ -1273,6 +1724,16 @@ function SeasonalTab() {
           </tbody>
         </table>
       </div>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border border-slate-100 rounded-xl px-3 py-2 bg-white">
+        <span className="text-xs text-slate-500">Showing {sortedRows.length === 0 ? 0 : start + 1}-{Math.min(end, sortedRows.length)} of {sortedRows.length}</span>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage <= 1}
+            className="px-2.5 py-1.5 text-xs font-semibold text-slate-700 border border-slate-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">Previous</button>
+          <span className="text-xs font-semibold text-slate-600">Page {safePage} of {totalPages}</span>
+          <button type="button" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage >= totalPages}
+            className="px-2.5 py-1.5 text-xs font-semibold text-slate-700 border border-slate-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">Next</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1291,6 +1752,9 @@ function DestinationsTab() {
   const [filter, setFilter]       = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [showAdd, setShowAdd]     = useState(false);
+  const [page, setPage]           = useState(1);
+  const [sortBy, setSortBy]       = useState<"code" | "name" | "type" | "region" | "acc" | "pop" | "status">("name");
+  const [sortDir, setSortDir]     = useState<"asc" | "desc">("asc");
   const [newRow, setNewRow]       = useState({
     destinationCode: "", destinationName: "", displayName: "",
     destinationType: "national-park", region: "", nearestCity: "",
@@ -1299,6 +1763,7 @@ function DestinationsTab() {
     description: "",
   });
   const [adding, setAdding] = useState(false);
+  const pageSize = 10;
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -1313,12 +1778,64 @@ function DestinationsTab() {
 
   const destTypes = [...new Set(rows.map((r) => r.destinationType))].sort();
 
-  const visible = rows.filter((r) => {
+  const filteredRows = rows.filter((r) => {
     const q = filter.toLowerCase();
     const matchQ = !q || r.destinationName.toLowerCase().includes(q) || r.destinationCode.toLowerCase().includes(q) || r.region?.toLowerCase().includes(q);
     const matchT = !typeFilter || r.destinationType === typeFilter;
     return matchQ && matchT;
   });
+
+  const sortedRows = useMemo(() => {
+    const list = [...filteredRows];
+    const valueOf = (row: any): string | number => {
+      switch (sortBy) {
+        case "code": return String(row.destinationCode ?? "").toLowerCase();
+        case "name": return String(row.destinationName ?? "").toLowerCase();
+        case "type": return String(row.destinationType ?? "").toLowerCase();
+        case "region": return String(row.region ?? "").toLowerCase();
+        case "acc": return Number(row.accommodationMultiplier ?? 0);
+        case "pop": return Number(row.popularity ?? 0);
+        case "status": return row.isActive ? 1 : 0;
+        default: return "";
+      }
+    };
+    list.sort((a, b) => {
+      const av = valueOf(a);
+      const bv = valueOf(b);
+      if (typeof av === "number" && typeof bv === "number") {
+        return sortDir === "asc" ? av - bv : bv - av;
+      }
+      const cmp = String(av).localeCompare(String(bv));
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return list;
+  }, [filteredRows, sortBy, sortDir]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedRows.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const start = (safePage - 1) * pageSize;
+  const end = start + pageSize;
+  const pagedRows = sortedRows.slice(start, end);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filter, typeFilter, sortBy, sortDir, rows.length]);
+
+  const handleSort = (field: "code" | "name" | "type" | "region" | "acc" | "pop" | "status") => {
+    if (sortBy === field) {
+      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortBy(field);
+    setSortDir("asc");
+  };
+
+  const renderSortIcon = (field: "code" | "name" | "type" | "region" | "acc" | "pop" | "status") => {
+    if (sortBy !== field) return <ChevronsUpDown className="w-3.5 h-3.5 text-slate-400" />;
+    return sortDir === "asc"
+      ? <ChevronUp className="w-3.5 h-3.5 text-[#02665e]" />
+      : <ChevronDown className="w-3.5 h-3.5 text-[#02665e]" />;
+  };
 
   function openEdit(row: any) { setExpanded(row.id); setDraft({ ...row }); setSaveError(""); }
   function closeEdit() { setExpanded(null); setDraft(null); }
@@ -1393,7 +1910,7 @@ function DestinationsTab() {
         </button>
       </div>
 
-      <p className="text-xs text-slate-400">{visible.length} of {rows.length} destinations</p>
+      <p className="text-xs text-slate-400">{sortedRows.length} of {rows.length} destinations</p>
 
       {/* add form */}
       {showAdd && (
@@ -1444,18 +1961,51 @@ function DestinationsTab() {
         <table className="w-full text-sm min-w-[700px]">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-100 text-left">
-              <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Code</th>
-              <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Name</th>
-              <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Type</th>
-              <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Region</th>
-              <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Acc.×</th>
-              <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Pop.</th>
-              <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+              <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                <button type="button" onClick={() => handleSort("code")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">
+                  Code {renderSortIcon("code")}
+                </button>
+              </th>
+              <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                <button type="button" onClick={() => handleSort("name")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">
+                  Name {renderSortIcon("name")}
+                </button>
+              </th>
+              <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                <button type="button" onClick={() => handleSort("type")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">
+                  Type {renderSortIcon("type")}
+                </button>
+              </th>
+              <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                <button type="button" onClick={() => handleSort("region")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">
+                  Region {renderSortIcon("region")}
+                </button>
+              </th>
+              <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                <button type="button" onClick={() => handleSort("acc")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">
+                  Acc.× {renderSortIcon("acc")}
+                </button>
+              </th>
+              <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                <button type="button" onClick={() => handleSort("pop")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">
+                  Pop. {renderSortIcon("pop")}
+                </button>
+              </th>
+              <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                <button type="button" onClick={() => handleSort("status")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">
+                  Status {renderSortIcon("status")}
+                </button>
+              </th>
               <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
-            {visible.map((row) => (
+            {sortedRows.length === 0 && (
+              <tr>
+                <td colSpan={8} className="px-4 py-10 text-center text-sm text-slate-400">No destinations found</td>
+              </tr>
+            )}
+            {pagedRows.map((row) => (
               <React.Fragment key={row.id}>
                 <tr className={`group transition-colors ${!row.isActive ? "opacity-50" : "hover:bg-slate-50/60"}`}>
                   <td className="px-4 py-3">
@@ -1545,6 +2095,30 @@ function DestinationsTab() {
           </tbody>
         </table>
       </div>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border border-slate-100 rounded-xl px-3 py-2 bg-white">
+        <span className="text-xs text-slate-500">
+          Showing {sortedRows.length === 0 ? 0 : start + 1}-{Math.min(end, sortedRows.length)} of {sortedRows.length}
+        </span>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={safePage <= 1}
+            className="px-2.5 py-1.5 text-xs font-semibold text-slate-700 border border-slate-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Previous
+          </button>
+          <span className="text-xs font-semibold text-slate-600">Page {safePage} of {totalPages}</span>
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={safePage >= totalPages}
+            className="px-2.5 py-1.5 text-xs font-semibold text-slate-700 border border-slate-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Next
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1567,6 +2141,10 @@ function TourismSitesTab() {
   const [deleteId, setDeleteId]     = useState<number | null>(null);
   const [deleting, setDeleting]     = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  const [page, setPage]             = useState(1);
+  const [sortBy, setSortBy]         = useState<"name" | "slug" | "country" | "properties" | "coordinates">("name");
+  const [sortDir, setSortDir]       = useState<"asc" | "desc">("asc");
+  const pageSize = 10;
 
   const load = useCallback(() => {
     setLoading(true); setError("");
@@ -1578,9 +2156,63 @@ function TourismSitesTab() {
 
   useEffect(() => { load(); }, [load]);
 
-  const visible = rows.filter((r) =>
+  const filteredRows = rows.filter((r) =>
     !search || r.name.toLowerCase().includes(search.toLowerCase()) || r.country.toLowerCase().includes(search.toLowerCase())
   );
+
+  const sortedRows = useMemo(() => {
+    const list = [...filteredRows];
+    const coordValue = (row: any) => {
+      if (row.latitude === null || row.latitude === undefined || row.longitude === null || row.longitude === undefined) return "";
+      return `${Number(row.latitude).toFixed(4)},${Number(row.longitude).toFixed(4)}`;
+    };
+    const valueOf = (row: any): string | number => {
+      switch (sortBy) {
+        case "name": return String(row.name ?? "").toLowerCase();
+        case "slug": return String(row.slug ?? "").toLowerCase();
+        case "country": return String(row.country ?? "").toLowerCase();
+        case "properties": return Number(row.propertyCount ?? 0);
+        case "coordinates": return coordValue(row);
+        default: return "";
+      }
+    };
+    list.sort((a, b) => {
+      const av = valueOf(a);
+      const bv = valueOf(b);
+      if (typeof av === "number" && typeof bv === "number") {
+        return sortDir === "asc" ? av - bv : bv - av;
+      }
+      const cmp = String(av).localeCompare(String(bv));
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return list;
+  }, [filteredRows, sortBy, sortDir]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedRows.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const start = (safePage - 1) * pageSize;
+  const end = start + pageSize;
+  const pagedRows = sortedRows.slice(start, end);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, sortBy, sortDir, rows.length]);
+
+  const handleSort = (field: "name" | "slug" | "country" | "properties" | "coordinates") => {
+    if (sortBy === field) {
+      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortBy(field);
+    setSortDir("asc");
+  };
+
+  const renderSortIcon = (field: "name" | "slug" | "country" | "properties" | "coordinates") => {
+    if (sortBy !== field) return <ChevronsUpDown className="w-3.5 h-3.5 text-slate-400" />;
+    return sortDir === "asc"
+      ? <ChevronUp className="w-3.5 h-3.5 text-[#02665e]" />
+      : <ChevronDown className="w-3.5 h-3.5 text-[#02665e]" />;
+  };
 
   function openEdit(row: any) {
     setExpanded(row.id);
@@ -1755,29 +2387,49 @@ function TourismSitesTab() {
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
           <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              {visible.length} site{visible.length !== 1 ? "s" : ""}
+              {sortedRows.length} site{sortedRows.length !== 1 ? "s" : ""}
             </span>
           </div>
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-100">
               <tr>
-                <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider text-left">Name</th>
-                <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider text-left">Slug</th>
-                <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider text-left">Country</th>
-                <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider text-left">Properties</th>
-                <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider text-left">Coordinates</th>
+                <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider text-left">
+                  <button type="button" onClick={() => handleSort("name")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">
+                    Name {renderSortIcon("name")}
+                  </button>
+                </th>
+                <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider text-left">
+                  <button type="button" onClick={() => handleSort("slug")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">
+                    Slug {renderSortIcon("slug")}
+                  </button>
+                </th>
+                <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider text-left">
+                  <button type="button" onClick={() => handleSort("country")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">
+                    Country {renderSortIcon("country")}
+                  </button>
+                </th>
+                <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider text-left">
+                  <button type="button" onClick={() => handleSort("properties")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">
+                    Properties {renderSortIcon("properties")}
+                  </button>
+                </th>
+                <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider text-left">
+                  <button type="button" onClick={() => handleSort("coordinates")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-slate-700">
+                    Coordinates {renderSortIcon("coordinates")}
+                  </button>
+                </th>
                 <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {visible.length === 0 && (
+              {sortedRows.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-4 py-12 text-center text-sm text-slate-400">
                     No tourism sites found
                   </td>
                 </tr>
               )}
-              {visible.map((row) => (
+              {pagedRows.map((row) => (
                 <React.Fragment key={row.id}>
                   <tr className="group hover:bg-slate-50/60 transition-colors">
                     <td className="px-4 py-3">
@@ -1848,6 +2500,30 @@ function TourismSitesTab() {
               ))}
             </tbody>
           </table>
+          <div className="px-4 py-3 border-t border-slate-100 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <span className="text-xs text-slate-500">
+              Showing {sortedRows.length === 0 ? 0 : start + 1}-{Math.min(end, sortedRows.length)} of {sortedRows.length}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={safePage <= 1}
+                className="px-2.5 py-1.5 text-xs font-semibold text-slate-700 border border-slate-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Previous
+              </button>
+              <span className="text-xs font-semibold text-slate-600">Page {safePage} of {totalPages}</span>
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={safePage >= totalPages}
+                className="px-2.5 py-1.5 text-xs font-semibold text-slate-700 border border-slate-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

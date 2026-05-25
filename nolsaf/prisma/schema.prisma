@@ -1529,8 +1529,17 @@ model ReferralWithdrawal {
 model SystemSetting {
   id Int @id @default(1)
 
-  /// Commission percentage (e.g., 10.00 for 10%)
+  /// Property/accommodation commission percentage charged to property owners (e.g., 10.00 for 10%)
   commissionPercent Decimal? @default(10.00) @db.Decimal(5, 2)
+
+  /// Currency for property/accommodation commission (ISO 4217, e.g. "TZS")
+  commissionCurrency String? @default("TZS") @db.VarChar(3)
+
+  /// Transport driver commission percentage deducted from driver trip payouts (e.g., 10.00 for 10%)
+  driverCommissionPercent Decimal? @default(10.00) @db.Decimal(5, 2)
+
+  /// Currency for driver transport commission (ISO 4217, e.g. "TZS")
+  driverCommissionCurrency String? @default("TZS") @db.VarChar(3)
 
   /// Tax percentage (e.g., 0.00 for 0%)
   taxPercent Decimal? @default(0.00) @db.Decimal(5, 2)
@@ -1638,6 +1647,9 @@ model SystemSetting {
 
   /// Agent commission percentage (default: 15% of trip budget goes to NoLSAF)
   agentCommissionPercent Decimal? @default(15.0) @db.Decimal(5, 2)
+
+  /// Currency for tour agent commission (ISO 4217, e.g. "USD")
+  agentCommissionCurrency String? @default("USD") @db.VarChar(3)
 
   /// Goal calculation multiplier (e.g., 1.1 for 10% above average)
   goalMultiplier Decimal? @default(1.1) @db.Decimal(5, 2)
@@ -1817,7 +1829,7 @@ model TourBooking {
 
   status        String @default("PENDING_PAYMENT") @db.VarChar(40) // PENDING_PAYMENT, PAID, CONFIRMED, COMPLETED, CANCELED, REFUNDED
   paymentStatus String @default("UNPAID") @db.VarChar(40)          // UNPAID, PENDING, PAID, FAILED, REFUNDED
-  payoutStatus  String @default("NOT_READY") @db.VarChar(40)       // NOT_READY, AVAILABLE, REQUESTED, APPROVED, PAID, HELD
+  payoutStatus  String @default("NOT_READY") @db.VarChar(40)       // NOT_READY, AVAILABLE, CLAIMED, VERIFIED, APPROVED, DISBURSED, REJECTED, HELD
 
   currency             String  @default("TZS") @db.VarChar(3)
   unitPrice            Decimal @default(0.00) @db.Decimal(12, 2)

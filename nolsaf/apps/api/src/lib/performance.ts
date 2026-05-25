@@ -480,10 +480,17 @@ export const cacheKeys = {
     // Sanitize params before JSON.stringify to prevent injection
     const sanitized: Record<string, any> = {};
     for (const [key, value] of Object.entries(params || {})) {
-      // Only include safe primitive values
+      // Include safe primitive values and arrays of primitives so filter-based
+      // cache keys (e.g. types, amenities) do not collide with unfiltered queries.
       if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' || value === null) {
         const safeKey = String(key).replace(/[^\w]/g, '_').substring(0, 50);
         sanitized[safeKey] = value;
+      } else if (Array.isArray(value)) {
+        const safeKey = String(key).replace(/[^\w]/g, '_').substring(0, 50);
+        const safeArray = value
+          .filter((item) => item === null || typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean')
+          .map((item) => (typeof item === 'string' ? item.trim() : item));
+        sanitized[safeKey] = safeArray;
       }
     }
     // Create a stable, sorted JSON string

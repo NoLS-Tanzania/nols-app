@@ -1490,7 +1490,7 @@ export default function PlanRequestForm({ selectedRole }: Props) {
                 href="/account/event-plans"
                 className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-3 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 active:scale-[0.98] no-underline group"
               >
-                <span>View My Plan Requests</span>
+                <span>View My Tour Packages</span>
                 <ArrowRight className="h-5 w-5 transition-transform duration-300 group-hover:translate-x-1" />
               </Link>
             </div>
@@ -1498,7 +1498,7 @@ export default function PlanRequestForm({ selectedRole }: Props) {
             {/* Footer note */}
             <p className="text-sm text-slate-500 pt-2 success-fade-in-delayed">
               {willRedirectToAccount
-                ? "Redirecting you to your plan requests…"
+                ? "Redirecting you to your tour packages…"
                 : "You can track your request status in your account."}
             </p>
           </div>

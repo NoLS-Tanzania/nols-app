@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useSocket } from "@/hooks/useSocket";
+import { fetchAccountSession } from "@/lib/accountSession";
 import {
   BarChart3,
   Bell,
@@ -61,10 +62,9 @@ export default function AgentPortalHeader() {
 
     const loadAvatar = async () => {
       try {
-        const r = await fetch("/api/account/me", { credentials: "include", signal: controller.signal });
+        const r = await fetchAccountSession({ signal: controller.signal });
         if (!r.ok) return;
-        const j = await r.json();
-        const me = (j as any)?.data ?? j;
+        const me = r.data;
         const url = typeof (me as any)?.avatarUrl === "string" ? String((me as any).avatarUrl).trim() : "";
         if (mounted) setAvatarUrl(url || null);
       } catch {

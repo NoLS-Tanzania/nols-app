@@ -72,6 +72,27 @@ function sendSuccess(res: Response, data?: any, message?: string) {
   });
 }
 
+function cleanOrigin(value: unknown): string | null {
+  const raw = String(value || "").split(",")[0]?.trim() || "";
+  if (!raw) return null;
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return null;
+  }
+}
+
+function publicWebOrigin() {
+  return (
+    cleanOrigin(process.env.FRONTEND_URL) ||
+    cleanOrigin(process.env.WEB_ORIGIN) ||
+    cleanOrigin(process.env.APP_ORIGIN) ||
+    cleanOrigin(process.env.APP_URL) ||
+    cleanOrigin(process.env.CORS_ORIGIN) ||
+    "https://www.nolsaf.com"
+  );
+}
+
 // Helper: Get authenticated user ID
 function getUserId(req: AuthedRequest): number {
   return req.user!.id;
@@ -180,6 +201,83 @@ const listSessionsSchema = z.object({
   page: z.string().regex(/^\d+$/).optional().transform(Number),
   pageSize: z.string().regex(/^\d+$/).optional().transform(Number),
 }).strict();
+
+/** GET /account/session */
+const getSession: RequestHandler = async (req, res) => {
+  try {
+    const userId = getUserId(req as AuthedRequest);
+    const meta = (prisma as any).user?._meta ?? {};
+    const metaHasEntries = Object.keys(meta).length > 0;
+    const hasField = (field: string) => !metaHasEntries || Object.prototype.hasOwnProperty.call(meta, field);
+    const select: any = {
+      id: true,
+      role: true,
+      email: true,
+      name: true,
+    };
+
+    if (hasField("fullName")) select.fullName = true;
+    if (hasField("avatarUrl")) select.avatarUrl = true;
+    if (hasField("suspendedAt")) select.suspendedAt = true;
+    if (hasField("isDisabled")) select.isDisabled = true;
+
+    let user: any = null;
+    try {
+      user = await prisma.user.findUnique({ where: { id: userId }, select } as any);
+    } catch (error: any) {
+      if (error?.code !== "P2022" && !String(error?.message || "").includes("Unknown column")) {
+        throw error;
+      }
+
+      user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          role: true,
+          email: true,
+          name: true,
+        },
+      });
+    }
+
+    if (!user) return sendError(res, 404, "User not found");
+
+    const fullName = typeof user.fullName === "string" ? user.fullName : null;
+    const name = typeof user.name === "string" ? user.name : null;
+    const email = typeof user.email === "string" ? user.email : null;
+    const avatarUrl = typeof user.avatarUrl === "string" ? user.avatarUrl : null;
+
+    sendSuccess(res, {
+      id: user.id,
+      role: user.role,
+      email,
+      name,
+      fullName,
+      displayName: fullName || name || email || null,
+      avatarUrl,
+      profileImage: avatarUrl,
+      isDisabled: Boolean(user.isDisabled),
+      isSuspended: Boolean(user.suspendedAt),
+    });
+  } catch (error: any) {
+    const isProd = process.env.NODE_ENV === "production";
+    console.error("account.session failed", { error });
+    sendError(
+      res,
+      500,
+      "Failed to fetch session data",
+      isProd
+        ? undefined
+        : {
+            message: error?.message,
+            name: error?.name,
+            code: error?.code,
+          },
+    );
+  }
+};
+
+router.get("/session", getSession as unknown as RequestHandler);
 
 /** GET /account/me */
 const getMe: RequestHandler = async (req, res) => {
@@ -534,7 +632,7 @@ const getReferral: RequestHandler = async (req, res) => {
     });
     if (!user) return sendError(res, 404, "User not found");
     const code = user.referralCode || String(user.id);
-    sendSuccess(res, { code, link: `${process.env.CORS_ORIGIN || "https://www.nolsaf.com"}/r/${encodeURIComponent(code)}` });
+    sendSuccess(res, { code, link: `${publicWebOrigin()}/account/register?ref=${encodeURIComponent(code)}` });
   } catch {
     sendError(res, 500, "Failed to fetch referral info");
   }
@@ -1326,8 +1424,7 @@ const postAccountPasskeysCreate: RequestHandler = async (req, res) => {
 
     accountPasskeyChallenges.set(String(userId), options.challenge as string);
     return res.json({ publicKey: options });
-  } catch (e: any) {
-    console.error("account.security.passkeys.create failed", e);
+  } catch {
     return res.status(500).json({ error: "failed" });
   }
 };
@@ -1416,8 +1513,7 @@ const postAccountPasskeysVerify: RequestHandler = async (req, res) => {
     list.unshift(item);
     accountPasskeyStore.set(String(userId), list);
     return res.json({ ok: true, item });
-  } catch (e: any) {
-    console.error("account.security.passkeys.verify failed", e);
+  } catch {
     return res.status(500).json({ error: "failed" });
   }
 };
@@ -1443,8 +1539,7 @@ const deleteAccountPasskey: RequestHandler = async (req, res) => {
     const list = (accountPasskeyStore.get(String(userId)) || []).filter((k: any) => k.id !== id);
     accountPasskeyStore.set(String(userId), list);
     return res.json({ ok: true });
-  } catch (e: any) {
-    console.error("account.security.passkeys.delete failed", e);
+  } catch {
     return res.status(500).json({ error: "failed" });
   }
 };
@@ -1479,8 +1574,7 @@ const postAccountPasskeysAuthenticate: RequestHandler = async (req, res) => {
 
     accountPasskeyChallenges.set(String(userId), (options as any).challenge as string);
     return res.json({ publicKey: options });
-  } catch (e: any) {
-    console.error("account.security.passkeys.authenticate failed", e);
+  } catch {
     return res.status(500).json({ error: "failed" });
   }
 };
@@ -1531,15 +1625,14 @@ const postAccountPasskeysAuthenticateVerify: RequestHandler = async (req, res) =
         expectedChallenge: storedChallenge,
         expectedOrigin: origin,
         expectedRPID: rpID,
-        credential: {
-          id: stored.credentialId || stored.credentialID || stored.id || credId,
-          publicKey: fromBase64Url(publicKey),
+        authenticator: {
+          credentialID: stored.credentialId || stored.credentialID || stored.id || credId,
+          credentialPublicKey: fromBase64Url(publicKey),
           counter: signCount,
         },
         requireUserVerification: false,
       } as any);
-    } catch (e) {
-      console.error("account.security.passkeys.authenticate.verify error:", (e as any)?.message ?? e);
+    } catch {
       return res.status(400).json({ error: "verification failed" });
     }
 
@@ -1565,8 +1658,7 @@ const postAccountPasskeysAuthenticateVerify: RequestHandler = async (req, res) =
     }
 
     return res.json({ ok: true, verified: true });
-  } catch (e: any) {
-    console.error("account.security.passkeys.authenticate.verify failed", e);
+  } catch {
     return res.status(500).json({ error: "failed" });
   }
 };

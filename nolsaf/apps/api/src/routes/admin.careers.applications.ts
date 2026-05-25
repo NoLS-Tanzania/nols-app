@@ -9,9 +9,71 @@ import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { sendMail } from "../lib/mailer.js";
 import { generateApplicationStatusEmail, getApplicationEmailSubject } from "../lib/careersEmailTemplates.js";
+import { buildOperatorProfileSeed, mergeOperatorProfileSeed } from "../lib/operatorProfileSeed.js";
+import {
+  buildContractWorkflowSeed,
+  readContractWorkflow,
+  toYmd,
+  withContractWorkflow,
+  type AgentContractWorkflow,
+} from "../lib/agentContractWorkflow.js";
 
 const router = Router();
 router.use(requireAuth as RequestHandler, requireAdmin as RequestHandler);
+
+function buildWorkflowForApplication(agentId: number, application: Record<string, any>): AgentContractWorkflow {
+  const hiredDate =
+    toYmd(application?.reviewedAt || application?.submittedAt || application?.updatedAt || new Date()) ||
+    toYmd(new Date());
+  return buildContractWorkflowSeed({ agentId, hiredDate });
+}
+
+async function persistAgentWorkflow(agentId: number, operatorProfile: unknown, workflow: AgentContractWorkflow) {
+  const nextProfile = withContractWorkflow(operatorProfile, workflow);
+  await prisma.agent.update({
+    where: { id: agentId },
+    data: { operatorProfile: nextProfile as any },
+    select: { id: true },
+  });
+  return nextProfile;
+}
+
+function parseAuditJson(value: unknown): Record<string, any> | null {
+  if (!value) return null;
+  if (typeof value === "object" && !Array.isArray(value)) return value as Record<string, any>;
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed as Record<string, any>;
+      }
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+function extractApplicationIdFromAuditRow(row: any): number | null {
+  const direct = Number((row as any)?.entityId);
+  if (Number.isFinite(direct) && direct > 0) return direct;
+
+  const before = parseAuditJson((row as any)?.beforeJson);
+  const after = parseAuditJson((row as any)?.afterJson);
+
+  const candidates = [
+    Number(before?.id),
+    Number(after?.id),
+    Number(before?.applicationId),
+    Number(after?.applicationId),
+  ];
+
+  for (const candidate of candidates) {
+    if (Number.isFinite(candidate) && candidate > 0) return candidate;
+  }
+
+  return null;
+}
 
 /**
  * GET /admin/careers/applications
@@ -216,6 +278,275 @@ router.get("/:id/resume", async (req, res) => {
       error: "Failed to fetch resume URL",
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
+  }
+});
+
+/**
+ * GET /admin/careers/applications/:id/audit-timeline
+ * Return recent legal-traceability events for a specific application.
+ */
+router.get("/:id/audit-timeline", async (req, res) => {
+  try {
+    const parsedId = parseInt(req.params.id, 10);
+    if (isNaN(parsedId)) return res.status(400).json({ error: "Invalid application ID" });
+
+    const application = await prisma.jobApplication.findUnique({
+      where: { id: parsedId },
+      select: { id: true },
+    });
+    if (!application) return res.status(404).json({ error: "Application not found" });
+
+    const focused = await prisma.auditLog.findMany({
+      where: {
+        entity: "JOB_APPLICATION",
+        entityId: parsedId,
+      } as any,
+      orderBy: { id: "desc" },
+      take: 50,
+      select: {
+        id: true,
+        action: true,
+        createdAt: true,
+        actorId: true,
+        actorRole: true,
+        beforeJson: true,
+        afterJson: true,
+        actor: {
+          select: {
+            id: true,
+            name: true,
+            fullName: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    let rows = focused;
+    if (rows.length === 0) {
+      const fallback = await prisma.auditLog.findMany({
+        where: {
+          entity: "JOB_APPLICATION",
+        } as any,
+        orderBy: { id: "desc" },
+        take: 300,
+        select: {
+          id: true,
+          action: true,
+          createdAt: true,
+          actorId: true,
+          actorRole: true,
+          beforeJson: true,
+          afterJson: true,
+          actor: {
+            select: {
+              id: true,
+              name: true,
+              fullName: true,
+              email: true,
+            },
+          },
+        },
+      });
+      rows = fallback.filter((row: any) => extractApplicationIdFromAuditRow(row) === parsedId).slice(0, 50);
+    }
+
+    const items = rows.map((row: any) => {
+      const before = parseAuditJson(row.beforeJson);
+      const after = parseAuditJson(row.afterJson);
+      const actorName = row.actor?.fullName || row.actor?.name || row.actor?.email || (row.actorId ? `User #${row.actorId}` : "System");
+      return {
+        id: Number(row.id),
+        action: String(row.action || ""),
+        createdAt: row.createdAt,
+        actorId: row.actorId ?? null,
+        actorRole: row.actorRole ?? null,
+        actorName,
+        before,
+        after,
+      };
+    });
+
+    return res.json({
+      ok: true,
+      applicationId: parsedId,
+      items,
+    });
+  } catch (error: any) {
+    console.error("Error fetching application audit timeline:", error);
+    return res.status(500).json({ error: "Failed to fetch application audit timeline" });
+  }
+});
+
+/**
+ * GET /admin/careers/applications/:id/contract/workflow
+ * Return contract workflow state for hired agent applications.
+ */
+router.get("/:id/contract/workflow", async (req, res) => {
+  try {
+    const parsedId = parseInt(req.params.id, 10);
+    if (isNaN(parsedId)) return res.status(400).json({ error: "Invalid application ID" });
+
+    const application = await prisma.jobApplication.findUnique({
+      where: { id: parsedId },
+      select: {
+        id: true,
+        status: true,
+        reviewedAt: true,
+        submittedAt: true,
+        updatedAt: true,
+        agent: {
+          select: {
+            id: true,
+            operatorProfile: true,
+          },
+        },
+      },
+    });
+
+    if (!application) return res.status(404).json({ error: "Application not found" });
+    if (!application.agent) return res.status(404).json({ error: "Agent profile not linked yet" });
+
+    const workflow = readContractWorkflow(application.agent.operatorProfile);
+    return res.json({
+      ok: true,
+      applicationId: application.id,
+      status: application.status,
+      workflow,
+    });
+  } catch (error: any) {
+    console.error("Error fetching contract workflow:", error);
+    return res.status(500).json({ error: "Failed to fetch contract workflow" });
+  }
+});
+
+/**
+ * POST /admin/careers/applications/:id/contract/prepare
+ * Ensure a contract workflow exists once an application is HIRED.
+ */
+router.post("/:id/contract/prepare", async (req: any, res) => {
+  try {
+    const parsedId = parseInt(req.params.id, 10);
+    if (isNaN(parsedId)) return res.status(400).json({ error: "Invalid application ID" });
+
+    const application = await prisma.jobApplication.findUnique({
+      where: { id: parsedId },
+      select: {
+        id: true,
+        status: true,
+        reviewedAt: true,
+        submittedAt: true,
+        updatedAt: true,
+        agent: {
+          select: {
+            id: true,
+            operatorProfile: true,
+          },
+        },
+      },
+    });
+
+    if (!application) return res.status(404).json({ error: "Application not found" });
+    if (String(application.status || "").toUpperCase() !== "HIRED") {
+      return res.status(409).json({
+        error: "CONTRACT_REQUIRES_HIRED_STATUS",
+        message: "Contract workflow can only be prepared after the application is approved.",
+      });
+    }
+    if (!application.agent) return res.status(404).json({ error: "Agent profile not linked yet" });
+
+    const existing = readContractWorkflow(application.agent.operatorProfile);
+    if (existing) {
+      return res.json({ ok: true, workflow: existing, message: "Contract workflow already prepared." });
+    }
+
+    const seeded = buildWorkflowForApplication(application.agent.id, application as any);
+    await persistAgentWorkflow(application.agent.id, application.agent.operatorProfile, seeded);
+
+    await audit(req, "ADMIN_AGENT_CONTRACT_PREPARED", "JOB_APPLICATION", null, {
+      applicationId: application.id,
+      workflow: seeded,
+    });
+
+    return res.json({ ok: true, workflow: seeded });
+  } catch (error: any) {
+    console.error("Error preparing contract workflow:", error);
+    return res.status(500).json({ error: "Failed to prepare contract workflow" });
+  }
+});
+
+/**
+ * POST /admin/careers/applications/:id/contract/sign
+ * Admin signature step prior to agent countersignature.
+ */
+router.post("/:id/contract/sign", async (req: any, res) => {
+  try {
+    const parsedId = parseInt(req.params.id, 10);
+    if (isNaN(parsedId)) return res.status(400).json({ error: "Invalid application ID" });
+
+    const application = await prisma.jobApplication.findUnique({
+      where: { id: parsedId },
+      select: {
+        id: true,
+        status: true,
+        reviewedAt: true,
+        submittedAt: true,
+        updatedAt: true,
+        agent: {
+          select: {
+            id: true,
+            operatorProfile: true,
+          },
+        },
+      },
+    });
+
+    if (!application) return res.status(404).json({ error: "Application not found" });
+    if (String(application.status || "").toUpperCase() !== "HIRED") {
+      return res.status(409).json({
+        error: "CONTRACT_REQUIRES_HIRED_STATUS",
+        message: "Contract can only be signed once the application is approved.",
+      });
+    }
+    if (!application.agent) return res.status(404).json({ error: "Agent profile not linked yet" });
+
+    const existing =
+      readContractWorkflow(application.agent.operatorProfile) ||
+      buildWorkflowForApplication(application.agent.id, application as any);
+
+    if (existing.status === "EXECUTED") {
+      return res.json({ ok: true, workflow: existing, message: "Contract already executed." });
+    }
+
+    const adminUser = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: { id: true, fullName: true, name: true },
+    });
+
+    const nowIso = new Date().toISOString();
+    const nextWorkflow: AgentContractWorkflow = {
+      ...existing,
+      status: "PENDING_AGENT_SIGNATURE",
+      nolsafSignedAt: nowIso,
+      sentAt: nowIso,
+      nolsafSignedByUserId: Number(req.user!.id),
+      nolsafSignatoryName: String(
+        process.env.CONTRACT_NOLSAF_SIGNATORY_NAME || adminUser?.fullName || adminUser?.name || "NoLSAF Admin"
+      ).trim(),
+      nolsafSignatoryTitle: String(process.env.CONTRACT_NOLSAF_SIGNATORY_TITLE || "NoLSAF Representative").trim(),
+    };
+
+    await persistAgentWorkflow(application.agent.id, application.agent.operatorProfile, nextWorkflow);
+
+    await audit(req, "ADMIN_AGENT_CONTRACT_SIGNED", "JOB_APPLICATION", null, {
+      applicationId: application.id,
+      workflow: nextWorkflow,
+    });
+
+    return res.json({ ok: true, workflow: nextWorkflow });
+  } catch (error: any) {
+    console.error("Error signing contract workflow:", error);
+    return res.status(500).json({ error: "Failed to sign contract workflow" });
   }
 });
 
@@ -510,6 +841,7 @@ router.patch("/:id", async (req, res) => {
               // Ensure agent profile exists
               let agentProfile = await tx.agent.findUnique({
                 where: { userId: user.id },
+                select: { id: true, operatorProfile: true },
               });
 
               const normalizeLanguageStrings = (value: unknown): string[] => {
@@ -565,6 +897,14 @@ router.patch("/:id", async (req, res) => {
               };
 
               if (!agentProfile) {
+                const operatorProfileSeed = buildOperatorProfileSeed(existingApplication.agentApplicationData, {
+                  fullName: existingApplication.fullName,
+                  email,
+                  phone,
+                  region: existingApplication.region,
+                  district: existingApplication.district,
+                });
+
                 agentProfile = await tx.agent.create({
                   data: {
                     user: { connect: { id: user.id } },
@@ -583,6 +923,7 @@ router.patch("/:id", async (req, res) => {
                     certifications: Array.isArray(agentData.certifications) && agentData.certifications.length > 0 ? agentData.certifications : null,
                     languages: applicationLanguages.length > 0 ? applicationLanguages : (agentDataLanguages.length > 0 ? agentDataLanguages : null),
                     specializations: Array.isArray(agentData.specializations) && agentData.specializations.length > 0 ? agentData.specializations : null,
+                    operatorProfile: Object.keys(operatorProfileSeed).length > 0 ? (operatorProfileSeed as any) : undefined,
                   } as any,
                 });
               } else {
@@ -619,6 +960,17 @@ router.patch("/:id", async (req, res) => {
                     ? applicationLanguages
                     : (agentDataLanguages.length > 0 ? agentDataLanguages : []);
                   if (incomingLanguages.length > 0) agentUpdate.languages = incomingLanguages;
+                }
+
+                const operatorProfileSeed = buildOperatorProfileSeed(existingApplication.agentApplicationData, {
+                  fullName: existingApplication.fullName,
+                  email,
+                  phone,
+                  region: existingApplication.region,
+                  district: existingApplication.district,
+                });
+                if (Object.keys(operatorProfileSeed).length > 0) {
+                  agentUpdate.operatorProfile = mergeOperatorProfileSeed((agentProfile as any).operatorProfile, operatorProfileSeed) as any;
                 }
 
                 if (Object.keys(agentUpdate).length > 0) {
@@ -680,7 +1032,8 @@ router.patch("/:id", async (req, res) => {
           select: {
             id: true,
             userId: true,
-            status: true
+            status: true,
+            operatorProfile: true,
           }
         }
       }
@@ -688,6 +1041,23 @@ router.patch("/:id", async (req, res) => {
 
     if (!finalApplication) {
       return res.status(404).json({ error: "Application not found after update" });
+    }
+
+    if (String(finalApplication.status || "").toUpperCase() === "HIRED" && finalApplication.agent?.id) {
+      const workflow = readContractWorkflow((finalApplication.agent as any).operatorProfile);
+      if (!workflow) {
+        try {
+          const seeded = buildWorkflowForApplication(finalApplication.agent.id, finalApplication as any);
+          const nextProfile = await persistAgentWorkflow(
+            finalApplication.agent.id,
+            (finalApplication.agent as any).operatorProfile,
+            seeded
+          );
+          (finalApplication.agent as any).operatorProfile = nextProfile as any;
+        } catch (workflowError: any) {
+          console.warn("[CAREERS_CONTRACT] Failed to auto-seed contract workflow:", workflowError?.message);
+        }
+      }
     }
 
     // Audit log

@@ -1,6 +1,6 @@
 "use client";
 
-import { Wallet, CreditCard, Eye, Smartphone, Search, X, Clock, CheckCircle, User, Building, Download, CheckSquare, Square, AlertCircle } from "lucide-react";
+import { Wallet, CreditCard, Eye, Smartphone, Search, X, Clock, CheckCircle, User, Building, Download, CheckSquare, Square, AlertCircle, ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import apiClient from "@/lib/apiClient";
 import Image from "next/image";
@@ -48,6 +48,8 @@ interface SummaryData {
   paid: number;
 }
 
+type PaymentSortKey = "date" | "owner" | "property" | "invoice" | "method" | "account" | "amount" | "status";
+
 export default function Page() {
   const [payments, setPayments] = useState<InvoicePayment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,6 +59,8 @@ export default function Page() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [q, setQ] = useState("");
+  const [sortBy, setSortBy] = useState<PaymentSortKey>("date");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const pageSize = 30;
 
   // Modal state
@@ -680,6 +684,60 @@ export default function Page() {
     return 'bg-gray-50 text-gray-700 border border-gray-200';
   };
 
+  const sortedPayments = useMemo(() => {
+    const next = [...payments];
+    const readValue = (payment: InvoicePayment): string | number => {
+      switch (sortBy) {
+        case "date":
+          return new Date(payment.date || "").getTime() || 0;
+        case "owner":
+          return String(payment.owner?.name || payment.owner?.email || "").toLowerCase();
+        case "property":
+          return String(payment.property?.title || "").toLowerCase();
+        case "invoice":
+          return String(payment.invoiceNumber || "").toLowerCase();
+        case "method":
+          return String(formatPaymentMethod(payment.paymentMethod) || "").toLowerCase();
+        case "account":
+          return String(maskAccountNumber(payment.accountNumber) || "").toLowerCase();
+        case "amount":
+          return Number(payment.amount || 0);
+        case "status":
+          return String(payment.status || "").toLowerCase();
+        default:
+          return "";
+      }
+    };
+
+    next.sort((a, b) => {
+      const av = readValue(a);
+      const bv = readValue(b);
+      if (typeof av === "number" && typeof bv === "number") {
+        return sortDir === "asc" ? av - bv : bv - av;
+      }
+      const cmp = String(av).localeCompare(String(bv));
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+
+    return next;
+  }, [payments, sortBy, sortDir]);
+
+  const handleSort = (field: PaymentSortKey) => {
+    if (sortBy === field) {
+      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortBy(field);
+    setSortDir(field === "date" || field === "amount" ? "desc" : "asc");
+  };
+
+  const renderSortIcon = (field: PaymentSortKey) => {
+    if (sortBy !== field) return <ChevronsUpDown className="h-3.5 w-3.5 text-gray-400" />;
+    return sortDir === "asc"
+      ? <ChevronUp className="h-3.5 w-3.5 text-teal-600" />
+      : <ChevronDown className="h-3.5 w-3.5 text-teal-600" />;
+  };
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
       {/* Header + Summary */}
@@ -1001,19 +1059,51 @@ export default function Page() {
                         )}
                       </button>
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Owner</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Property</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoice</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Method</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <button type="button" onClick={() => handleSort("date")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 appearance-none hover:text-gray-700">
+                        Date {renderSortIcon("date")}
+                      </button>
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <button type="button" onClick={() => handleSort("owner")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 appearance-none hover:text-gray-700">
+                        Owner {renderSortIcon("owner")}
+                      </button>
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <button type="button" onClick={() => handleSort("property")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 appearance-none hover:text-gray-700">
+                        Property {renderSortIcon("property")}
+                      </button>
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <button type="button" onClick={() => handleSort("invoice")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 appearance-none hover:text-gray-700">
+                        Invoice {renderSortIcon("invoice")}
+                      </button>
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <button type="button" onClick={() => handleSort("method")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 appearance-none hover:text-gray-700">
+                        Method {renderSortIcon("method")}
+                      </button>
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <button type="button" onClick={() => handleSort("account")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 appearance-none hover:text-gray-700">
+                        Account {renderSortIcon("account")}
+                      </button>
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <button type="button" onClick={() => handleSort("amount")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 appearance-none hover:text-gray-700 ml-auto">
+                        Amount {renderSortIcon("amount")}
+                      </button>
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <button type="button" onClick={() => handleSort("status")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 appearance-none hover:text-gray-700">
+                        Status {renderSortIcon("status")}
+                      </button>
+                    </th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {payments.map((payment) => (
+                  {sortedPayments.map((payment) => (
                     <tr key={payment.id} className="hover:bg-gray-50 transition-colors duration-150">
                       <td className="px-4 py-4 whitespace-nowrap">
                         <button
@@ -1098,7 +1188,7 @@ export default function Page() {
 
             {/* Mobile Cards */}
             <div className="md:hidden divide-y divide-gray-200">
-              {payments.map((payment) => (
+              {sortedPayments.map((payment) => (
                 <div key={payment.id} className="p-4 hover:bg-gray-50 transition-colors">
                   <div className="flex items-start justify-between mb-3">
                     <div>

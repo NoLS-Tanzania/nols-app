@@ -62,14 +62,15 @@ export default function PublicProfile() {
       try {
         const r = await api.get('/api/account/referral');
         if (!mounted) return;
-        if (r?.data?.link) { setReferralLink(String(r.data.link)); return; }
-        if (r?.data?.code) { setReferralLink(`${window.location.origin}/r/${encodeURIComponent(String(r.data.code))}`); return; }
+        const referral = r?.data?.data ?? r?.data ?? {};
+        if (referral?.code) { setReferralLink(`${window.location.origin}/account/register?ref=${encodeURIComponent(String(referral.code))}`); return; }
+        if (referral?.link) { setReferralLink(String(referral.link)); return; }
       } catch (e) {
         // ignore
       }
       try {
         const id = (me as any).id || (me as any)._id || (me as any).email || String(Math.random()).slice(2,10);
-        if (mounted) setReferralLink(`${window.location.origin}/r/${encodeURIComponent(String(id))}`);
+        if (mounted) setReferralLink(`${window.location.origin}/account/register?ref=${encodeURIComponent(String(id))}`);
       } catch (e) {
         if (mounted) setReferralLink(null);
       }

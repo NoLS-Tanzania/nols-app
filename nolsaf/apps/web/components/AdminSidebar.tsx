@@ -146,6 +146,7 @@ const agentsDetails: Item[] = [
   { href: "/admin/agents/dashboard", label: "Dashboard", Icon: LayoutDashboard },
   { href: "/admin/agents/tour-operators", label: "Tour Operator", Icon: Building2 },
   { href: "/admin/agents/tour-bookings", label: "Tour Booking", Icon: Calendar },
+  { href: "/admin/agents/tour-experience", label: "Tour Experience", Icon: BarChart3 },
   { href: "/admin/agents/tour-revenue", label: "Tour Revenue", Icon: TrendingUp },
   { href: "/admin/agents", label: "All Agents", Icon: Users },
   { href: "/admin/agents/ai", label: "Twiga", Icon: MessageSquare },

@@ -34,6 +34,17 @@ function num(value: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+function isPaidTourBooking(booking: { paymentStatus?: unknown; paidAt?: unknown }) {
+  return String(booking.paymentStatus || "").toUpperCase() === "PAID" || Boolean(booking.paidAt);
+}
+
+function isDraftTourBooking(booking: { status?: unknown; paymentStatus?: unknown; paidAt?: unknown }) {
+  if (isPaidTourBooking(booking)) return false;
+  const status = String(booking.status || "").toUpperCase();
+  const paymentStatus = String(booking.paymentStatus || "").toUpperCase();
+  return status === "PENDING_PAYMENT" || paymentStatus === "UNPAID" || paymentStatus === "PENDING";
+}
+
 function normalizeDocStatus(value: unknown): string {
   if (!value || typeof value !== "object") return "";
   return String((value as any).status || "").toUpperCase();
@@ -64,12 +75,39 @@ function profileReadiness(profile: OperatorProfile) {
   };
 }
 
+function clampPercent(value: unknown, fallback = 0): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return Math.max(0, Math.min(100, Number(fallback) || 0));
+  return Math.max(0, Math.min(100, parsed));
+}
+
+function resolveAgentCommissionPercent(profile: OperatorProfile, fallbackPercent: number): number {
+  const directCommission = Number((profile as any)?.commissionPercent);
+  if (Number.isFinite(directCommission)) return clampPercent(directCommission, fallbackPercent);
+
+  const servicesCommission = Number((profile as any)?.services?.commissionPercent);
+  if (Number.isFinite(servicesCommission)) return clampPercent(servicesCommission, fallbackPercent);
+
+  return clampPercent(fallbackPercent, 15);
+}
+
+function normalizeActivityHistoryEntry(entry: any) {
+  return {
+    activityId: String(entry?.activityId || "").trim(),
+    checked: Boolean(entry?.checked),
+    at: String(entry?.at || "").trim(),
+    byAgentId: Number.isFinite(Number(entry?.byAgentId)) ? Number(entry.byAgentId) : null,
+    byUserId: Number.isFinite(Number(entry?.byUserId)) ? Number(entry.byUserId) : null,
+  };
+}
+
 function normalizePackage(
   agent: any,
   pkg: any,
   index: number,
   commissionPercent: number,
-  bookingStatsMap: Map<string, { bookingsCount: number; totalGenerated: number }>,
+  bookingStatsByPackageId: Map<string, { bookingsCount: number; totalGenerated: number }>,
+  bookingStatsByTitleDestination: Map<string, { bookingsCount: number; totalGenerated: number }>,
 ) {
   const profile = asProfile(agent.operatorProfile);
   const price = num(pkg?.pricePerPerson || pkg?.price);
@@ -77,15 +115,20 @@ function normalizePackage(
   const maxPax = Math.max(minPax, num(pkg?.maxPax) || minPax);
   const profileReviewStatus = String(profile?.reviewStatus || profile?.review?.status || "").toUpperCase();
   const status = String(pkg?.status || pkg?.visibility || profileReviewStatus || "DRAFT").toUpperCase();
-  const title = String(pkg?.name || "Untitled tour package");
+  const packageId = String(pkg?.id || index);
+  const title = String(pkg?.name || pkg?.title || "Untitled tour package");
   const destination = String(pkg?.destination || "");
-  const bookingKey = `${agent.id}::${title.trim().toLowerCase()}::${destination.trim().toLowerCase()}`;
-  const stats = bookingStatsMap.get(bookingKey) || { bookingsCount: 0, totalGenerated: 0 };
+  const byIdKey = `${agent.id}::${packageId}`;
+  const legacyKey = `${agent.id}::${title.trim().toLowerCase()}::${destination.trim().toLowerCase()}`;
+  const stats =
+    bookingStatsByPackageId.get(byIdKey) ||
+    bookingStatsByTitleDestination.get(legacyKey) ||
+    { bookingsCount: 0, totalGenerated: 0 };
   const approvedLike = ["APPROVED", "LIVE", "PUBLISHED", "ACTIVE"].includes(status);
 
   return {
-    id: `${agent.id}:${String(pkg?.id || index)}`,
-    packageId: String(pkg?.id || index),
+    id: `${agent.id}:${packageId}`,
+    packageId,
     agentId: agent.id,
     operatorName: String(profile.companyName || agent.user?.fullName || agent.user?.name || "Unnamed operator"),
     title,
@@ -131,7 +174,13 @@ async function loadOperators() {
 
 router.get("/overview", async (_req, res) => {
   try {
-    const [agents, recentBookings, paidTotals, systemSetting, paidPackageGroups] = await Promise.all([
+    const paidBookingWhere = {
+      OR: [
+        { paymentStatus: "PAID" },
+        { paidAt: { not: null } },
+      ],
+    };
+    const [agents, recentBookings, paidTotals, disbursedPayoutTotals, commissionTotals, systemSetting, paidPackageGroupsByPackageId, paidPackageGroupsByTitleDestination] = await Promise.all([
       loadOperators(),
       prisma.tourBooking.findMany({
         orderBy: { createdAt: "desc" },
@@ -148,7 +197,7 @@ router.get("/overview", async (_req, res) => {
         },
       }),
       prisma.tourBooking.aggregate({
-        where: { paymentStatus: "PAID" },
+        where: paidBookingWhere,
         _count: { _all: true },
         _sum: {
           grossAmount: true,
@@ -156,34 +205,75 @@ router.get("/overview", async (_req, res) => {
           operatorPayoutAmount: true,
         },
       }),
+      prisma.tourBooking.aggregate({
+        where: {
+          OR: [
+            { payoutStatus: "DISBURSED" },
+            { payoutStatus: "PAID" },
+          ],
+        },
+        _count: { _all: true },
+        _sum: {
+          operatorPayoutAmount: true,
+        },
+      }),
+      prisma.tourBooking.aggregate({
+        where: paidBookingWhere,
+        _sum: {
+          commissionAmount: true,
+        },
+      }),
       prisma.systemSetting.findFirst({
         select: {
-          commissionPercent: true,
+          agentCommissionPercent: true,
+          agentCommissionCurrency: true,
         },
       }),
       prisma.tourBooking.groupBy({
+        by: ["operatorAgentId", "packageId"],
+        where: {
+          ...paidBookingWhere,
+          packageId: { not: null },
+        },
+        _count: { _all: true },
+        _sum: { grossAmount: true },
+      }),
+      prisma.tourBooking.groupBy({
         by: ["operatorAgentId", "title", "destination"],
-        where: { paymentStatus: "PAID" },
+        where: paidBookingWhere,
         _count: { _all: true },
         _sum: { grossAmount: true },
       }),
     ]);
 
-    const commissionPercent = num(systemSetting?.commissionPercent ?? 10);
-    const bookingStatsMap = new Map<string, { bookingsCount: number; totalGenerated: number }>();
-    for (const row of paidPackageGroups) {
-      const key = `${Number(row.operatorAgentId || 0)}::${String(row.title || "").trim().toLowerCase()}::${String(row.destination || "").trim().toLowerCase()}`;
-      bookingStatsMap.set(key, {
+    const defaultAgentCommissionPercent = clampPercent((systemSetting as any)?.agentCommissionPercent ?? 15, 15);
+    const bookingStatsByPackageId = new Map<string, { bookingsCount: number; totalGenerated: number }>();
+    for (const row of paidPackageGroupsByPackageId) {
+      const packageId = String((row as any).packageId || "").trim();
+      if (!packageId) continue;
+      const key = `${Number(row.operatorAgentId || 0)}::${packageId}`;
+      bookingStatsByPackageId.set(key, {
         bookingsCount: Number((row as any)?._count?._all || 0),
         totalGenerated: Number((row as any)?._sum?.grossAmount || 0),
       });
     }
 
-    const packages = agents.flatMap((agent) =>
-      asArray(asProfile(agent.operatorProfile).packageItems).map((pkg, index) =>
-        normalizePackage(agent, pkg, index, commissionPercent, bookingStatsMap),
-      ),
-    );
+    const bookingStatsByTitleDestination = new Map<string, { bookingsCount: number; totalGenerated: number }>();
+    for (const row of paidPackageGroupsByTitleDestination) {
+      const key = `${Number(row.operatorAgentId || 0)}::${String(row.title || "").trim().toLowerCase()}::${String(row.destination || "").trim().toLowerCase()}`;
+      bookingStatsByTitleDestination.set(key, {
+        bookingsCount: Number((row as any)?._count?._all || 0),
+        totalGenerated: Number((row as any)?._sum?.grossAmount || 0),
+      });
+    }
+
+    const packages = agents.flatMap((agent) => {
+      const profile = asProfile(agent.operatorProfile);
+      const agentCommissionPercent = resolveAgentCommissionPercent(profile, defaultAgentCommissionPercent);
+      return asArray(profile.packageItems).map((pkg, index) =>
+        normalizePackage(agent, pkg, index, agentCommissionPercent, bookingStatsByPackageId, bookingStatsByTitleDestination),
+      );
+    });
 
     const operators = agents.map((agent) => {
       const profile = asProfile(agent.operatorProfile);
@@ -203,8 +293,10 @@ router.get("/overview", async (_req, res) => {
 
     const publicReadyOperators = operators.filter((operator) => operator.readiness.publicReady).length;
     const grossPackageFloor = packages.reduce((sum, pkg) => sum + Number(pkg.estimatedGross || 0), 0);
-    const bookings = recentBookings.map((booking) => {
+    const allBookings = recentBookings.map((booking) => {
       const operatorProfile = asProfile(booking.operator?.operatorProfile);
+      const isPaid = isPaidTourBooking(booking);
+      const amountPaid = isPaid ? Number(booking.grossAmount || 0) : 0;
       return {
         id: booking.id,
         bookingCode: booking.bookingCode,
@@ -221,15 +313,27 @@ router.get("/overview", async (_req, res) => {
         status: booking.status,
         paymentStatus: booking.paymentStatus,
         payoutStatus: booking.payoutStatus,
+        isPaid,
+        metadata: booking.metadata,
+        pickupValidated: Boolean((booking.metadata as any)?.pickupValidation?.validated),
+        pickupValidatedAt: (booking.metadata as any)?.pickupValidation?.validatedAt || null,
+        pickupValidatedByAgentId: (booking.metadata as any)?.pickupValidation?.validatedByAgentId || null,
         currency: booking.currency,
         grossAmount: Number(booking.grossAmount || 0),
+        amountPaid,
         commissionAmount: Number(booking.commissionAmount || 0),
         operatorPayoutAmount: Number(booking.operatorPayoutAmount || 0),
         paidAt: booking.paidAt,
         createdAt: booking.createdAt,
       };
     });
+    const bookings = allBookings.filter((booking) => booking.isPaid);
+    const draftBookings = allBookings.filter((booking) => isDraftTourBooking(booking));
     const paidBookingCount = Number(paidTotals._count?._all || 0);
+    const summaryCurrency =
+      String((systemSetting as any)?.agentCommissionCurrency || "").trim().toUpperCase() ||
+      String(recentBookings[0]?.currency || "").trim().toUpperCase() ||
+      "USD";
     const livePackageCount = packages.filter((pkg) => ["LIVE", "PUBLISHED", "ACTIVE", "APPROVED"].includes(String(pkg.status).toUpperCase())).length;
 
     return res.json({
@@ -241,19 +345,131 @@ router.get("/overview", async (_req, res) => {
         packages: packages.length,
         livePackages: livePackageCount,
         paidBookings: paidBookingCount,
+        disbursedPayoutBookings: Number(disbursedPayoutTotals._count?._all || 0),
         grossBookingRevenue: Number(paidTotals._sum.grossAmount || 0),
-        nolsafCommission: Number(paidTotals._sum.commissionAmount || 0),
-        operatorPayout: Number(paidTotals._sum.operatorPayoutAmount || 0),
+        nolsafCommission: Number(commissionTotals._sum.commissionAmount || 0),
+        operatorPayout: Number(disbursedPayoutTotals._sum.operatorPayoutAmount || 0),
         grossPackageFloor,
-        currency: "TZS",
+        currency: summaryCurrency,
       },
       operators,
       packages,
       bookings,
+      draftBookings,
     });
   } catch (err: any) {
     console.error("[GET /admin/tour-commerce/overview] Error:", err);
     return res.status(500).json({ ok: false, error: "Failed to load tour commerce overview" });
+  }
+});
+
+router.get("/bookings/:id/activity-progress-history", async (req, res) => {
+  try {
+    const bookingId = Number(req.params.id);
+    if (!Number.isFinite(bookingId) || bookingId <= 0) {
+      return res.status(400).json({ ok: false, error: "Invalid booking id" });
+    }
+
+    const requestedLimit = Number(req.query.limit || 100);
+    const limit = Math.min(300, Math.max(1, Number.isFinite(requestedLimit) ? requestedLimit : 100));
+
+    const booking = await prisma.tourBooking.findUnique({
+      where: { id: bookingId },
+      select: {
+        id: true,
+        bookingCode: true,
+        title: true,
+        status: true,
+        paymentStatus: true,
+        payoutStatus: true,
+        metadata: true,
+        operator: {
+          select: {
+            user: { select: { name: true, fullName: true } },
+            operatorProfile: true,
+          },
+        },
+      },
+    });
+
+    if (!booking) {
+      return res.status(404).json({ ok: false, error: "Booking not found" });
+    }
+
+    const md = booking.metadata && typeof booking.metadata === "object" && !Array.isArray(booking.metadata)
+      ? (booking.metadata as Record<string, any>)
+      : {};
+    const progress = md.activityProgress && typeof md.activityProgress === "object" && !Array.isArray(md.activityProgress)
+      ? (md.activityProgress as Record<string, any>)
+      : {};
+    const rawHistory = Array.isArray(progress.history) ? progress.history : [];
+
+    const normalized = rawHistory
+      .map((entry) => normalizeActivityHistoryEntry(entry))
+      .filter((entry) => entry.activityId && entry.at)
+      .sort((a, b) => String(b.at).localeCompare(String(a.at)))
+      .slice(0, limit);
+
+    const uniqueAgentIds = Array.from(new Set(normalized.map((entry) => entry.byAgentId).filter((v): v is number => Number.isFinite(v))));
+    const uniqueUserIds = Array.from(new Set(normalized.map((entry) => entry.byUserId).filter((v): v is number => Number.isFinite(v))));
+
+    const [agents, users] = await Promise.all([
+      uniqueAgentIds.length
+        ? prisma.agent.findMany({
+            where: { id: { in: uniqueAgentIds } },
+            select: { id: true, user: { select: { fullName: true, name: true } } },
+          })
+        : Promise.resolve([]),
+      uniqueUserIds.length
+        ? prisma.user.findMany({
+            where: { id: { in: uniqueUserIds } },
+            select: { id: true, fullName: true, name: true },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const agentNameById = new Map<number, string>();
+    for (const agent of agents) {
+      const agentName = String(agent.user?.fullName || agent.user?.name || "").trim();
+      if (agentName) agentNameById.set(agent.id, agentName);
+    }
+
+    const userNameById = new Map<number, string>();
+    for (const user of users) {
+      const userName = String(user.fullName || user.name || "").trim();
+      if (userName) userNameById.set(user.id, userName);
+    }
+
+    const history = normalized.map((entry) => ({
+      ...entry,
+      actorName:
+        (entry.byUserId != null ? userNameById.get(entry.byUserId) : undefined) ||
+        (entry.byAgentId != null ? agentNameById.get(entry.byAgentId) : undefined) ||
+        null,
+      action: entry.checked ? "CHECKED" : "UNCHECKED",
+    }));
+
+    const operatorProfile = asProfile(booking.operator?.operatorProfile);
+    const operatorName =
+      String(operatorProfile.companyName || booking.operator?.user?.fullName || booking.operator?.user?.name || "").trim() ||
+      "Unnamed operator";
+
+    return res.json({
+      ok: true,
+      booking: {
+        id: booking.id,
+        bookingCode: booking.bookingCode,
+        title: booking.title,
+        operatorName,
+        status: booking.status,
+        paymentStatus: booking.paymentStatus,
+        payoutStatus: booking.payoutStatus,
+      },
+      history,
+    });
+  } catch (err: any) {
+    console.error("[GET /admin/tour-commerce/bookings/:id/activity-progress-history] Error:", err);
+    return res.status(500).json({ ok: false, error: "Failed to load activity progress history" });
   }
 });
 

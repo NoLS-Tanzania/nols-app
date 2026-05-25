@@ -116,6 +116,8 @@ export default function AdminBookingsPage() {
   const [openIds, setOpenIds] = useState<Record<number, boolean>>({});
   const [sortCol, setSortCol] = useState<string>('');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
 
   function sortToggle(col: string) {
     if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -240,9 +242,14 @@ export default function AdminBookingsPage() {
 
   // reload when filters change
   useEffect(() => {
+    setCurrentPage(1);
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, date, q]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [sortCol, sortDir]);
 
   // when status changes, pick the corresponding column preset and update URL
   useEffect(() => {
@@ -270,6 +277,12 @@ export default function AdminBookingsPage() {
     else if (sortCol === 'nights') { av = +new Date(a.checkOut) - +new Date(a.checkIn); bv = +new Date(b.checkOut) - +new Date(b.checkIn); }
     return av < bv ? (sortDir === 'asc' ? -1 : 1) : av > bv ? (sortDir === 'asc' ? 1 : -1) : 0;
   });
+
+  const totalPages = Math.max(1, Math.ceil(sortedList.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const startIndex = (safePage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const pagedList = sortedList.slice(startIndex, endIndex);
 
   return (
     <>
@@ -510,7 +523,7 @@ export default function AdminBookingsPage() {
           <>
             {/* ── Mobile cards ── */}
             <div className="sm:hidden divide-y divide-gray-100">
-              {sortedList.map((b) => {
+              {pagedList.map((b) => {
                 const stripe: Record<string, string> = {
                   NEW: 'border-l-blue-400',
                   CONFIRMED: 'border-l-emerald-400',
@@ -594,7 +607,7 @@ export default function AdminBookingsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {sortedList.map((b) => {
+                  {pagedList.map((b) => {
                     const stripeColor: Record<string, string> = {
                       NEW: 'bg-blue-400',
                       CONFIRMED: 'bg-emerald-400',
@@ -736,6 +749,31 @@ export default function AdminBookingsPage() {
                   })}
                 </tbody>
               </table>
+            </div>
+
+            <div className="flex flex-col gap-2 border-t border-gray-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-xs text-gray-500">
+                Showing {sortedList.length === 0 ? 0 : startIndex + 1}-{Math.min(endIndex, sortedList.length)} of {sortedList.length}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={safePage <= 1}
+                  className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Previous
+                </button>
+                <span className="text-xs font-semibold text-gray-600">Page {safePage} of {totalPages}</span>
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={safePage >= totalPages}
+                  className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Next
+                </button>
+              </div>
             </div>
           </>
         )}

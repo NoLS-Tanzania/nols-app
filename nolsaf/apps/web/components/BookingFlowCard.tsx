@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowRight, BadgeCheck, Building2, CheckCircle2, Home, KeyRound, MapPinned, PlayCircle, ShieldCheck, User } from 'lucide-react';
+import { ArrowRight, BadgeCheck, Building2, CheckCircle2, CreditCard, Home, KeyRound, MapPinned, PlayCircle, Search, ShieldCheck, User } from 'lucide-react';
 import VoiceRecorder from './VoiceRecorder';
 
 const STEP_META = [
@@ -75,16 +75,16 @@ export default function BookingFlowCard() {
     }
     
     // Trigger exit animation, then enter
-    setTimeout(() => {
-      setActiveStep(newStep);
-      // Remove animation class after animation completes to allow re-triggering
       setTimeout(() => {
-        setIsTransitioning(false);
+        setActiveStep(newStep);
+        // Remove animation class after animation completes to allow re-triggering
+        setTimeout(() => {
+          setIsTransitioning(false);
         if (highlightRef.current) {
           highlightRef.current.classList.remove('step-highlight-animate');
         }
-      }, 600);
-    }, 200);
+      }, 420);
+    }, 140);
   }, [activeStep, isTransitioning]);
 
   const clearIdleTimer = useCallback(() => {
@@ -206,15 +206,14 @@ export default function BookingFlowCard() {
   // progress step derived from booking state (kept for future use)
 
   const steps = [
-    { label: 'Book', color: 'text-amber-500' },
-    { label: 'Pay', color: 'text-emerald-600' },
-    { label: 'Receive code', color: 'text-emerald-600' },
-    { label: 'Driver confirm', color: 'text-teal-500' },
-    { label: 'Arrive', color: 'text-blue-600' },
+    { label: 'Book', icon: Search },
+    { label: 'Pay', icon: CreditCard },
+    { label: 'Receive code', icon: KeyRound },
+    { label: 'Driver confirm', icon: ShieldCheck },
+    { label: 'Arrive', icon: MapPinned },
   ];
 
-  const stepHighlightWidth = 100 / steps.length;
-  const highlightOffset = ((activeStep ?? 1) - 1) * stepHighlightWidth;
+  const stepProgress = ((activeStep ?? 1) - 1) / Math.max(1, steps.length - 1);
 
   const activeMeta = STEP_META[(activeStep ?? 1) - 1] ?? STEP_META[0];
 
@@ -238,15 +237,11 @@ export default function BookingFlowCard() {
         <div className="public-container">
           <article
             ref={containerRef}
-            className="relative overflow-hidden rounded-3xl p-[1px] ring-1 ring-slate-200/70 shadow-[0_22px_70px_rgba(2,6,23,0.10)] bg-gradient-to-br from-white/85 via-slate-200/45 to-emerald-200/35"
+            className="relative overflow-hidden rounded-3xl p-[1px] ring-1 ring-slate-200/70 shadow-[0_20px_56px_rgba(2,6,23,0.09)] bg-[#02665e]/20"
           >
-            <div className="relative overflow-hidden rounded-[22px] border border-white/70 bg-white/70 backdrop-blur-xl">
+            <div className="relative overflow-hidden rounded-[22px] border border-white/70 bg-white/85 backdrop-blur-xl">
               <div
-                className="pointer-events-none absolute inset-0 opacity-55 bg-[radial-gradient(circle_at_18%_14%,rgba(2,180,245,0.14),transparent_52%),radial-gradient(circle_at_90%_86%,rgba(2,102,94,0.12),transparent_56%)]"
-                aria-hidden
-              />
-              <div
-                className="pointer-events-none absolute inset-x-0 top-0 h-24 opacity-55 bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.78)_48%,rgba(255,255,255,0.30)_52%,transparent_100%)]"
+                className="pointer-events-none absolute inset-0 bg-[#02665e]/[0.035]"
                 aria-hidden
               />
 
@@ -254,74 +249,65 @@ export default function BookingFlowCard() {
                 {/* Stepper */}
                 <nav aria-label="Booking steps" className="mt-0">
                   <div
-                    className="relative flex items-center gap-2 sm:gap-3 text-xs rounded-full px-3 py-2 overflow-x-auto scrollbar-hide ring-1 ring-slate-200/70 border border-white/70 bg-gradient-to-r from-amber-50/70 via-emerald-50/60 to-sky-50/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]"
+                    className="relative overflow-hidden rounded-2xl border border-white/80 bg-white/90 px-3 py-2.5 ring-1 ring-slate-200/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.88),0_8px_18px_rgba(15,23,42,0.045)] backdrop-blur-xl sm:px-4 sm:py-3"
                   >
+                    <div
+                      className="pointer-events-none absolute inset-0 bg-[#02665e]/[0.035]"
+                      aria-hidden
+                    />
                     <span
                       ref={highlightRef}
                       aria-hidden
-                      className="absolute inset-y-1 rounded-full bg-white/85 ring-1 ring-white/70 shadow-[0_10px_28px_rgba(2,6,23,0.10)]"
-                      style={{
-                        width: `${stepHighlightWidth}%`,
-                        transform: `translateX(${highlightOffset}%)`,
-                      }}
+                      className="pointer-events-none absolute left-[10%] right-[10%] top-7 h-[2px] rounded-full bg-[#02665e]/15"
+                    />
+                    <span
+                      aria-hidden
+                      className="pointer-events-none absolute left-[10%] top-7 h-[2px] rounded-full bg-[#02665e] transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
+                      style={{ width: `calc(80% * ${stepProgress})` }}
                     />
                     <ol
                       role="list"
-                      className="flex items-center gap-2 sm:gap-3 w-full list-none m-0 p-0"
+                      className="relative z-10 grid w-full grid-cols-5 gap-1 list-none m-0 p-0"
                     >
                   {steps.map((s, i) => {
                     const stepNum = i + 1;
-                    const iconClass = s.color;
+                    const StepIcon = s.icon;
+                    const isActive = activeStep === stepNum;
+                    const isComplete = activeStep > stepNum;
 
                     return (
-                      <li key={s.label} className="relative z-10 flex-1 min-w-0 list-none">
+                      <li key={s.label} className="min-w-0 list-none">
                         <button
                           type="button"
                           onClick={() => handleStepChange(stepNum)}
-                          aria-pressed={activeStep === stepNum}
+                          aria-pressed={isActive}
                           aria-label={s.label}
                           disabled={isTransitioning}
                           className={[
-                            "w-full flex items-center justify-center gap-1 sm:gap-2 bg-transparent border-0 rounded-full px-1 sm:px-2 py-1.5",
+                            "group flex w-full min-w-0 flex-col items-center gap-1.5 border-0 bg-transparent px-0.5 py-0",
                             "focus:outline-none focus-visible:ring-2 focus-visible:ring-[#02b4f5]/25 transform transition-all duration-300 ease-out",
-                            activeStep === stepNum ? "scale-[1.02]" : "hover:scale-[1.02]",
                             isTransitioning ? "opacity-60 cursor-wait" : "",
                           ].join(" ")}
                         >
-                          <span className={["text-[11px] tabular-nums", activeStep === stepNum ? "text-slate-900" : "text-slate-500"].join(" ")}>{stepNum}.</span>
-                          <svg className={`w-5 h-5 sm:w-6 sm:h-6 ${iconClass} transition-colors`} viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
-                            {i === 0 && (
-                              <>
-                                <rect x="3" y="4" width="18" height="6" rx="1" />
-                                <path d="M7 10v8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                              </>
-                            )}
-                            {i === 1 && (
-                              <>
-                                <rect x="2" y="7" width="20" height="10" rx="2" />
-                                <path d="M6 11h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                              </>
-                            )}
-                            {i === 2 && (
-                              <>
-                                <rect x="3" y="4" width="18" height="14" rx="2" />
-                                <path d="M7 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                              </>
-                            )}
-                            {i === 3 && (
-                              <>
-                                <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="1.5" />
-                                <path d="M12 8v4l2 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                              </>
-                            )}
-                            {i === 4 && (
-                              <>
-                                <path d="M12 2c3.866 0 7 3.134 7 7 0 5-7 13-7 13s-7-8-7-13c0-3.866 3.134-7 7-7z" stroke="currentColor" strokeWidth="1.2" />
-                                <circle cx="12" cy="9" r="2" fill="currentColor" />
-                              </>
-                            )}
-                          </svg>
-                          <span className={["text-sm whitespace-nowrap hidden sm:inline", activeStep === stepNum ? "text-slate-900" : "text-slate-700"].join(" ")}>{s.label}</span>
+                          <span
+                            className={[
+                              "relative flex items-center justify-center rounded-full border-2 bg-white transition-all duration-300",
+                              isActive
+                                ? "booking-step-active h-10 w-10 border-[#02665e] text-[#02665e] shadow-[0_8px_20px_rgba(2,102,94,0.18)] ring-[3px] ring-white sm:h-11 sm:w-11"
+                                : isComplete
+                                  ? "h-4 w-4 border-[#02665e] bg-[#02665e] ring-[3px] ring-white"
+                                  : "h-4 w-4 border-slate-400 ring-[3px] ring-white group-hover:border-[#02665e]/70",
+                            ].join(" ")}
+                          >
+                            {isActive ? (
+                              <StepIcon className="h-5 w-5 sm:h-5 sm:w-5" aria-hidden />
+                            ) : isComplete ? (
+                              <span className="h-1.5 w-1.5 rounded-full bg-white" aria-hidden />
+                            ) : null}
+                          </span>
+                          <span className={["max-w-full truncate text-[10px] font-semibold leading-tight sm:text-[11px]", isActive ? "text-[#02665e]" : isComplete ? "text-[#02665e]" : "text-slate-600"].join(" ")}>
+                            {s.label}
+                          </span>
                         </button>
                       </li>
                     );
@@ -392,7 +378,9 @@ export default function BookingFlowCard() {
 
                   {/* Step content — fixed min-height prevents page layout shift when switching steps */}
                   <div
-                    style={{ minHeight: 220, transition: 'opacity 0.18s ease', opacity: isTransitioning ? 0 : 1 }}
+                    key={`step-panel-${activeStep}`}
+                    className="step-panel-enter"
+                    style={{ minHeight: 220 }}
                   >
                   {activeStep === 1 ? (
                     <>

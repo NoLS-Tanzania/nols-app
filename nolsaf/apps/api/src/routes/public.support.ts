@@ -20,9 +20,10 @@ router.get("/", async (_req, res) => {
 router.get("/system-settings", async (_req, res) => {
   try {
     const s = await prisma.systemSetting.findUnique({ where: { id: 1 } }) ?? {} as any;
-    // Only return commissionPercent for public use (price calculations)
+    // Return all commission rates needed for public price calculations
     res.json({ 
-      commissionPercent: s.commissionPercent ?? 0 
+      commissionPercent: s.commissionPercent ?? 0,
+      agentCommissionPercent: s.agentCommissionPercent ?? 15,
     });
   } catch (err) {
     console.error('public system-settings error', err);

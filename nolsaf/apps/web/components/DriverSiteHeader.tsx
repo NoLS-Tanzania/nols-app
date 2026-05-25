@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { clearAuthToken } from "@/lib/apiClient";
+import { fetchAccountSession } from "@/lib/accountSession";
 import dynamic from "next/dynamic";
 import {
   Bell,
@@ -109,14 +110,12 @@ export default function DriverSiteHeader({ unreadMessages = 0 }: { unreadMessage
 
     (async () => {
       try {
-        const url = "/api/account/me";
-        const r = await fetch(url, { credentials: "include" });
+        const r = await fetchAccountSession();
         if (!r.ok) return;
-        const json = await r.json();
-        const data = json?.data ?? json;
-        if (data.avatarUrl) setAvatarUrl(data.avatarUrl);
-        if (data.fullName ?? data.name) setUserName(data.fullName ?? data.name);
-        if (data.email) setUserEmail(data.email);
+        const data = r.data;
+        if (data?.avatarUrl) setAvatarUrl(data.avatarUrl);
+        if (data?.displayName ?? data?.fullName ?? data?.name) setUserName(data.displayName ?? data.fullName ?? data.name ?? null);
+        if (data?.email) setUserEmail(data.email);
       } catch {
         // ignore
       }

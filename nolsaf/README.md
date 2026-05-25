@@ -93,6 +93,23 @@ NEXTAUTH_SECRET=your_secret
 MAPBOX_TOKEN=pk.eyJ1...
 ```
 
+For multi-instance API deployments that use Socket.IO, enable Redis pub/sub and sticky sessions:
+
+```env
+SOCKET_IO_REDIS_ADAPTER=true
+SOCKET_IO_REDIS_URL=redis://user:password@redis-host:6379
+```
+
+`SOCKET_IO_REDIS_URL` is optional when `REDIS_URL` points to the same Redis service.
+
+For scaled deployments, run scheduled/background jobs from one dedicated worker process only:
+
+```env
+RUN_BACKGROUND_WORKERS=false
+```
+
+Keep that value on normal API instances. Set `RUN_BACKGROUND_WORKERS=true` only on the worker service that should run scheduled jobs such as stale booking expiry, transport auto-dispatch, and owner licence reminders.
+
 ### Run in Development
 
 ```bash

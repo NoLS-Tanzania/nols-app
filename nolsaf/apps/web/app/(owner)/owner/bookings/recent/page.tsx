@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
 import apiClient from "@/lib/apiClient";
+import { fetchAccountSession } from "@/lib/accountSession";
 import io from 'socket.io-client';
 import Link from "next/link";
 import { Calendar, Eye, Check } from "lucide-react";
@@ -78,9 +79,8 @@ export default function RecentBookings() {
     // Best-effort; if it fails we still have polling.
     (async () => {
       try {
-        const meRes = await fetch("/api/account/me", { credentials: "include" });
-        const meJson: any = meRes.ok ? await meRes.json() : null;
-        const me = meJson?.data ?? meJson;
+        const meRes = await fetchAccountSession();
+        const me = meRes.data;
         const ownerId = Number(me?.id || 0);
         if (ownerId) {
           socket.emit("join-owner-room", { ownerId });

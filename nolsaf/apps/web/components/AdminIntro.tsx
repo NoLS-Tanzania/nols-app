@@ -1,11 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import apiClient from "@/lib/apiClient";
+import { fetchAccountSession } from "@/lib/accountSession";
 import NextImage from "next/image";
-
-// Use same-origin calls + secure httpOnly cookie session.
-const api = apiClient;
 
 type Me = { id: number; name?: string | null; email?: string | null; role?: string | null };
 
@@ -24,7 +21,7 @@ export default function AdminIntro({ imageSrc = "/admin/welcome.jpg", videoSrc =
 
   useEffect(() => {
     setHidden(sessionStorage.getItem("adminIntroHidden") === "1");
-    api.get<Me>("/api/account/me").then(r => setMe(r.data)).catch(() => {});
+    fetchAccountSession().then(r => setMe(r.data as Me | null)).catch(() => {});
   }, []);
 
   // Probe whether the media actually exists (so empty slots don’t render)
