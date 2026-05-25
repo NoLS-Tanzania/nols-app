@@ -641,8 +641,8 @@ export default function CareersApplicationForm({ job, onCloseAction, onSuccessAc
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-4 overflow-y-auto overflow-x-hidden">
-      <div className="bg-white rounded-3xl max-w-5xl w-full max-h-[92vh] overflow-y-auto overflow-x-hidden shadow-[0_24px_80px_rgba(2,102,94,0.28)] border border-slate-200">
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/70 p-3 pt-5 sm:items-center sm:p-4 overflow-y-auto overflow-x-hidden">
+      <div className="bg-white rounded-3xl max-w-5xl w-full max-h-[92dvh] overflow-y-auto overflow-x-hidden shadow-[0_24px_80px_rgba(2,102,94,0.28)] border border-slate-200">
         <div className="sticky top-0 bg-white/95 backdrop-blur border-b border-slate-200 p-4 sm:p-6 flex items-center justify-between gap-4 z-20">
           <div className="flex-1 min-w-0">
             <p className="text-xs uppercase tracking-[0.18em] text-[#02665e] font-semibold">Partnership Application</p>
@@ -653,18 +653,24 @@ export default function CareersApplicationForm({ job, onCloseAction, onSuccessAc
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-8 overflow-x-hidden bg-slate-50/60">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 pb-[calc(8rem+env(safe-area-inset-bottom))] sm:pb-6 space-y-8 overflow-x-hidden bg-slate-50/60">
           {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">{error}</div>}
 
           {isTravelAgentPosition && (
             <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Application Flow</p>
-              <div className="grid grid-cols-5 gap-1 text-xs">
+              <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-2 text-xs sm:mx-0 sm:grid sm:grid-cols-5 sm:overflow-visible sm:p-0">
                 {travelFlowSteps.map((step, idx) => (
                   <button type="button"
                     key={step}
                     onClick={() => setCurrentStep(idx)}
-                    className="flex flex-col items-center gap-1.5 group"
+                    className={`group flex min-w-[8rem] flex-col items-center gap-1.5 rounded-2xl border px-2.5 py-3 transition-colors sm:min-w-0 ${
+                      idx === currentStep
+                        ? "border-[#02665e]/35 bg-[#02665e]/10 shadow-sm"
+                        : idx < currentStep
+                        ? "border-[#02665e]/20 bg-emerald-50/70"
+                        : "border-slate-200 bg-slate-50"
+                    }`}
                   >
                     <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition-colors ${
                       idx === currentStep
@@ -673,7 +679,7 @@ export default function CareersApplicationForm({ job, onCloseAction, onSuccessAc
                         ? "bg-[#02665e]/20 text-[#02665e]"
                         : "bg-slate-200 text-slate-400"
                     }`}>{idx + 1}</span>
-                    <span className={`text-center leading-tight font-medium ${
+                    <span className={`max-w-full text-center text-[11px] font-semibold leading-tight sm:text-xs ${
                       idx === currentStep ? "text-[#02554e]" : "text-slate-400"
                     }`}>{step}</span>
                     <span className={`h-0.5 w-full rounded-full transition-colors ${
@@ -895,11 +901,11 @@ export default function CareersApplicationForm({ job, onCloseAction, onSuccessAc
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Specializations <span className="text-red-500">*</span>
                 </label>
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row">
                   <select
                     value={specializationInput}
                     onChange={(e) => setSpecializationInput(e.target.value)}
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border bg-white"
+                    className="min-w-0 flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border bg-white"
                   >
                     <option value="">Select specialization</option>
                     {AGENT_SPECIALIZATIONS.map((spec) => (
@@ -910,7 +916,7 @@ export default function CareersApplicationForm({ job, onCloseAction, onSuccessAc
                   </select>
                   <button type="button"
                     onClick={handleAddSpecialization}
-                    className="px-4 py-2 bg-[#02665e] text-white rounded-lg text-sm font-medium hover:bg-[#014d47] transition-colors"
+                    className="w-full px-4 py-2 bg-[#02665e] text-white rounded-lg text-sm font-medium hover:bg-[#014d47] transition-colors sm:w-auto"
                   >
                     Add
                   </button>
@@ -939,7 +945,7 @@ export default function CareersApplicationForm({ job, onCloseAction, onSuccessAc
               <Languages className="h-4 w-4 text-[#02665e]" />
               Languages (Speak / Read / Write) <span className="text-red-500">*</span>
             </label>
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
               <input
                 type="text"
                 list="language-options"
@@ -952,7 +958,7 @@ export default function CareersApplicationForm({ job, onCloseAction, onSuccessAc
                   }
                 }}
                 placeholder="Select or type a language (e.g., English)"
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border"
+                className="min-w-0 flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border"
               />
               <datalist id="language-options">
                 {[
@@ -977,7 +983,7 @@ export default function CareersApplicationForm({ job, onCloseAction, onSuccessAc
               </datalist>
               <button type="button"
                 onClick={handleAddLanguage}
-                className="px-4 py-2 bg-[#02665e] text-white rounded-lg text-sm font-medium hover:bg-[#014d47] transition-colors"
+                className="w-full px-4 py-2 bg-[#02665e] text-white rounded-lg text-sm font-medium hover:bg-[#014d47] transition-colors sm:w-auto"
               >
                 Add
               </button>
@@ -1081,11 +1087,11 @@ export default function CareersApplicationForm({ job, onCloseAction, onSuccessAc
                 Tourism Types <span className="text-red-500">*</span>
               </label>
               <p className="text-xs text-gray-500 mb-2">Select the tourism categories your company serves.</p>
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row">
                 <select
                   value={tourismTypeInput}
                   onChange={(e) => setTourismTypeInput(e.target.value)}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border bg-white"
+                  className="min-w-0 flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border bg-white"
                 >
                   <option value="">Select tourism type</option>
                   {TOURISM_TYPES.map((tourismType) => (
@@ -1096,7 +1102,7 @@ export default function CareersApplicationForm({ job, onCloseAction, onSuccessAc
                 </select>
                 <button type="button"
                   onClick={handleAddTourismType}
-                  className="px-4 py-2 bg-[#02665e] text-white rounded-lg text-sm font-medium hover:bg-[#014d47] transition-colors"
+                  className="w-full px-4 py-2 bg-[#02665e] text-white rounded-lg text-sm font-medium hover:bg-[#014d47] transition-colors sm:w-auto"
                 >
                   Add
                 </button>
@@ -1215,11 +1221,11 @@ export default function CareersApplicationForm({ job, onCloseAction, onSuccessAc
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Specializations <span className="text-red-500">*</span>
               </label>
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row">
                 <select
                   value={specializationInput}
                   onChange={(e) => setSpecializationInput(e.target.value)}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border bg-white"
+                  className="min-w-0 flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border bg-white"
                 >
                   <option value="">Select specialization</option>
                   {AGENT_SPECIALIZATIONS.map((spec) => (
@@ -1230,7 +1236,7 @@ export default function CareersApplicationForm({ job, onCloseAction, onSuccessAc
                 </select>
                 <button type="button"
                   onClick={handleAddSpecialization}
-                  className="px-4 py-2 bg-[#02665e] text-white rounded-lg text-sm font-medium hover:bg-[#014d47] transition-colors"
+                  className="w-full px-4 py-2 bg-[#02665e] text-white rounded-lg text-sm font-medium hover:bg-[#014d47] transition-colors sm:w-auto"
                 >
                   Add
                 </button>
@@ -1347,12 +1353,12 @@ export default function CareersApplicationForm({ job, onCloseAction, onSuccessAc
                     Permitted Parks &amp; Tour Sites <span className="text-red-500">*</span>
                   </h3>
                   <p className="text-sm text-gray-500">Select all parks and tour sites your company is permitted to operate in.</p>
-                  <div className="flex flex-col sm:flex-row gap-2 items-stretch">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
                     <select
                       value={parkInput}
                       onChange={(e) => setParkInput(e.target.value)}
                       disabled={tourismSitesLoading}
-                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent bg-white text-gray-700 text-sm box-border"
+                      className="min-w-0 flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent bg-white text-gray-700 text-sm box-border"
                     >
                       <option value="">{tourismSitesLoading ? "Loading..." : "Select a permitted park or tour site"}</option>
                       {tourismSites
@@ -1366,7 +1372,7 @@ export default function CareersApplicationForm({ job, onCloseAction, onSuccessAc
                     <button type="button"
                       onClick={handleAddPark}
                       disabled={!parkInput}
-                      className="px-5 py-2 bg-[#02665e] text-white rounded-lg text-sm font-medium hover:bg-[#014d47] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="flex h-11 w-full items-center justify-center px-5 bg-[#02665e] text-white rounded-lg text-sm font-medium hover:bg-[#014d47] transition-colors disabled:opacity-40 disabled:cursor-not-allowed sm:w-auto"
                     >
                       Add
                     </button>
@@ -1391,11 +1397,11 @@ export default function CareersApplicationForm({ job, onCloseAction, onSuccessAc
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold text-gray-900">Tools &amp; Assets</h3>
                 <p className="text-sm text-gray-500">Tell us what you use to support your tours and activities.</p>
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row">
                   <select
                     value={toolsAssetInput}
                     onChange={(e) => setToolsAssetInput(e.target.value)}
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border bg-white"
+                    className="min-w-0 flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border bg-white"
                   >
                     <option value="">Select tool or asset</option>
                     {TOOLS_ASSETS_OPTIONS.map((tool) => (
@@ -1406,7 +1412,7 @@ export default function CareersApplicationForm({ job, onCloseAction, onSuccessAc
                   </select>
                   <button type="button"
                     onClick={handleAddToolsAsset}
-                    className="px-4 py-2 bg-[#02665e] text-white rounded-lg text-sm font-medium hover:bg-[#014d47] transition-colors"
+                    className="w-full px-4 py-2 bg-[#02665e] text-white rounded-lg text-sm font-medium hover:bg-[#014d47] transition-colors sm:w-auto"
                   >
                     Add
                   </button>
@@ -1739,10 +1745,12 @@ export default function CareersApplicationForm({ job, onCloseAction, onSuccessAc
             </div>
           )}
 
-          <div className="flex flex-col sm:flex-row gap-4 pt-4 w-full box-border">
+          <div className="-mx-4 grid w-auto grid-cols-2 gap-3 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-16px_36px_rgba(15,23,42,0.08)] backdrop-blur sm:sticky sm:bottom-0 sm:-mx-6 sm:flex sm:flex-row sm:gap-4 sm:px-6">
             <button type="button"
               onClick={onCloseAction}
-              className="flex-1 px-4 sm:px-6 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-colors min-w-0"
+              className={`w-full px-4 sm:px-6 py-2.5 sm:py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-colors min-w-0 sm:flex-1 ${
+                isTravelAgentPosition && currentStep > 0 ? "col-span-2 sm:col-span-1" : ""
+              }`}
             >
               Cancel
             </button>
@@ -1751,7 +1759,7 @@ export default function CareersApplicationForm({ job, onCloseAction, onSuccessAc
                 {currentStep > 0 && (
                   <button type="button"
                     onClick={() => setCurrentStep((prev) => Math.max(prev - 1, 0))}
-                    className="flex-1 px-4 sm:px-6 py-3 border border-slate-300 text-slate-700 rounded-lg font-semibold hover:bg-slate-100 transition-colors min-w-0"
+                    className="w-full px-4 sm:px-6 py-2.5 sm:py-3 border border-slate-300 text-slate-700 rounded-lg font-semibold hover:bg-slate-100 transition-colors min-w-0 sm:flex-1"
                   >
                     Back
                   </button>
@@ -1759,14 +1767,14 @@ export default function CareersApplicationForm({ job, onCloseAction, onSuccessAc
                 {currentStep < travelFlowSteps.length - 1 ? (
                   <button type="button"
                     onClick={handleNextStep}
-                    className="flex-1 px-4 sm:px-6 py-3 bg-[#02665e] text-white rounded-lg font-semibold hover:bg-[#024d47] transition-colors min-w-0"
+                    className="w-full px-4 sm:px-6 py-2.5 sm:py-3 bg-[#02665e] text-white rounded-lg font-semibold hover:bg-[#024d47] transition-colors min-w-0 sm:flex-1"
                   >
                     Next Step
                   </button>
                 ) : (
                   <button type="submit"
                     disabled={submitting || aboutInvalid}
-                    className="flex-1 px-4 sm:px-6 py-3 bg-[#02665e] text-white rounded-lg font-semibold hover:bg-[#024d47] transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-0"
+                    className="w-full px-4 sm:px-6 py-2.5 sm:py-3 bg-[#02665e] text-white rounded-lg font-semibold hover:bg-[#024d47] transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-0 sm:flex-1"
                   >
                     {submitting ? "Submitting..." : "Submit Application"}
                   </button>
@@ -1775,7 +1783,7 @@ export default function CareersApplicationForm({ job, onCloseAction, onSuccessAc
             ) : (
               <button type="submit"
                 disabled={submitting || aboutInvalid}
-                className="flex-1 px-4 sm:px-6 py-3 bg-[#02665e] text-white rounded-lg font-semibold hover:bg-[#024d47] transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-0"
+                className="w-full px-4 sm:px-6 py-2.5 sm:py-3 bg-[#02665e] text-white rounded-lg font-semibold hover:bg-[#024d47] transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-0 sm:flex-1"
               >
                 {submitting ? "Submitting..." : "Submit Application"}
               </button>
