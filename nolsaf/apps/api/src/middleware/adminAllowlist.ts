@@ -95,7 +95,24 @@ export async function adminAllowlist(req: Request, res: Response, next: NextFunc
 
     if (!ok) return res.status(403).json({ error: "IP not allowed" });
     next();
-  } catch {
+  } catch (err: any) {
+    if (process.env.NODE_ENV !== "test") {
+      const cause = err?.cause;
+      console.error("[adminAllowlist] unavailable", {
+        name: err?.name,
+        code: err?.code,
+        clientVersion: err?.clientVersion,
+        message: String(err?.message || err || "unknown").slice(0, 500),
+        cause: cause
+          ? {
+              code: cause?.code,
+              state: cause?.state,
+              message: String(cause?.message || cause || "unknown").slice(0, 500),
+              cause: String(cause?.cause || "").slice(0, 300),
+            }
+          : undefined,
+      });
+    }
     // In production, fail-closed to preserve admin perimeter security.
     if (process.env.NODE_ENV === "production") {
       return res.status(503).json({ error: "Admin allowlist unavailable" });
