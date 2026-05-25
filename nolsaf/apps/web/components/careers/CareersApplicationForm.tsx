@@ -1094,11 +1094,14 @@ export default function CareersApplicationForm({ job, onCloseAction, onSuccessAc
                   className="min-w-0 flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border bg-white"
                 >
                   <option value="">Select tourism type</option>
-                  {TOURISM_TYPES.map((tourismType) => (
-                    <option key={tourismType} value={tourismType}>
-                      {tourismType}
-                    </option>
-                  ))}
+                  {TOURISM_TYPES.map((tourismType) => {
+                    const alreadySelected = formData.tourismTypes.includes(tourismType);
+                    return (
+                      <option key={tourismType} value={tourismType} disabled={alreadySelected}>
+                        {alreadySelected ? `${tourismType} (selected)` : tourismType}
+                      </option>
+                    );
+                  })}
                 </select>
                 <button type="button"
                   onClick={handleAddTourismType}
