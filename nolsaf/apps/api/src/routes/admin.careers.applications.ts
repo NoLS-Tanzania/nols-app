@@ -1158,6 +1158,7 @@ router.patch("/:id", async (req, res) => {
           adminNotes: finalApplication.adminNotes || undefined,
           companyName: process.env.COMPANY_NAME || "NoLSAF Inc Limited",
           supportEmail: process.env.SUPPORT_EMAIL || process.env.CAREERS_EMAIL || "careers@nolsaf.com",
+          isPartnership: isAgentHire,
           ...(newStatus === "HIRED" && isAgentHire
             ? {
                 portalUrl: `${origin}/account/agent`,
@@ -1169,7 +1170,7 @@ router.patch("/:id", async (req, res) => {
             : null),
         };
 
-        const subject = getApplicationEmailSubject(emailData.status, emailData.jobTitle);
+        const subject = getApplicationEmailSubject(emailData.status, emailData.jobTitle, emailData.isPartnership);
         const html = generateApplicationStatusEmail(emailData);
 
         if (newStatus === "HIRED" && isAgentHire && !hiredSetupLink) {
@@ -1490,10 +1491,11 @@ router.patch("/bulk", async (req, res) => {
             status: status as "REVIEWING" | "SHORTLISTED" | "REJECTED" | "HIRED",
             adminNotes: adminNotes || undefined,
             companyName: process.env.COMPANY_NAME || "NoLSAF Inc Limited",
-            supportEmail: process.env.SUPPORT_EMAIL || process.env.CAREERS_EMAIL || "careers@nolsaf.com"
+            supportEmail: process.env.SUPPORT_EMAIL || process.env.CAREERS_EMAIL || "careers@nolsaf.com",
+            isPartnership: Boolean((app.job as any)?.isTravelAgentPosition),
           };
 
-          const subject = getApplicationEmailSubject(emailData.status, emailData.jobTitle);
+          const subject = getApplicationEmailSubject(emailData.status, emailData.jobTitle, emailData.isPartnership);
           const html = generateApplicationStatusEmail(emailData);
 
           await sendMail(app.email, subject, html);
