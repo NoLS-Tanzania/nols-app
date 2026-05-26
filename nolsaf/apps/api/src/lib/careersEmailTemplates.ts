@@ -107,12 +107,8 @@ function generatePartnershipStatusEmail(data: ApplicationEmailData): string {
     : "";
 
   const actionCta = setupLink
-    ? ctaButton(setupLink, "Set partner password", BRAND_TEAL)
-    : loginUrl
-      ? ctaButton(loginUrl, "Sign in to partner workspace", BRAND_TEAL)
-      : portalUrl
-        ? ctaButton(portalUrl, "Open partner workspace", BRAND_TEAL)
-        : ctaButton(`mailto:${supportEmail}`, "Contact NoLSAF partnerships", BRAND_TEAL);
+    ? ctaButton(setupLink, "Create your first password", BRAND_TEAL)
+    : ctaButton(`mailto:${supportEmail}`, "Request password setup link", BRAND_TEAL);
 
   let badgeLabel = "Partnership application";
   let body = "";
@@ -166,7 +162,7 @@ function generatePartnershipStatusEmail(data: ApplicationEmailData): string {
     body = `
       <p style="margin:0 0 18px;font-size:16px;font-weight:800;color:${BRAND_TEAL};">Welcome to the NoLSAF partner network, ${applicantName}.</p>
       <p style="margin:0 0 16px;">Your partnership application for <strong>${jobTitle}</strong> has been approved. This activates your NoLSAF partner workspace so your company can manage verified tourism services through clear booking records, traveller support, and delivery timelines.</p>
-      <p style="margin:0 0 16px;">Start by setting your password, then sign in to complete your partner profile and onboarding checklist.</p>
+      <p style="margin:0 0 16px;">Start by creating your first password, then sign in to complete your partner profile and onboarding checklist.</p>
       ${usernameNote}
       ${actionCta}
       ${setupExpiry}

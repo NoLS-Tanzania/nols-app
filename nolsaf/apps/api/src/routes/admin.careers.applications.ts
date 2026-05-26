@@ -75,6 +75,23 @@ function extractApplicationIdFromAuditRow(row: any): number | null {
   return null;
 }
 
+function hasPartnershipProfile(application: any): boolean {
+  const agentData = application?.agentApplicationData;
+  if (!agentData || typeof agentData !== "object" || Array.isArray(agentData)) return false;
+
+  const profile = (agentData as any).partnershipProfile;
+  return Boolean(profile && typeof profile === "object" && !Array.isArray(profile));
+}
+
+function isPartnershipApplication(application: any): boolean {
+  return Boolean(
+    application?.job?.isTravelAgentPosition ||
+    application?.agentId ||
+    application?.agent?.id ||
+    hasPartnershipProfile(application)
+  );
+}
+
 /**
  * GET /admin/careers/applications
  * Get all job applications with optional filtering
@@ -785,7 +802,7 @@ router.patch("/:id", async (req, res) => {
           // Business rule: only applicants who applied as an agent should be provisioned as Agents
           // and receive the Agent Portal onboarding email.
           // Source of truth signal: the Job flag (set by admin when announcing the job).
-          const shouldProvisionAgent = Boolean((existingApplication.job as any)?.isTravelAgentPosition);
+          const shouldProvisionAgent = isPartnershipApplication(existingApplication);
           if (shouldProvisionAgent) {
             const email = String(existingApplication.email || "").trim().toLowerCase();
             const phone = String(existingApplication.phone || "").trim();
@@ -1080,7 +1097,7 @@ router.patch("/:id", async (req, res) => {
 
         const origin = process.env.WEB_ORIGIN || process.env.APP_ORIGIN || "http://localhost:3000";
 
-        const isAgentHire = Boolean((finalApplication.job as any)?.isTravelAgentPosition);
+        const isAgentHire = isPartnershipApplication(finalApplication);
 
         // For agent hires, guarantee HIRED emails include a one-time setup link (even if the agent profile already existed)
         let hiredSetupLink: string | undefined = onboarding?.setupLink;
@@ -1148,6 +1165,10 @@ router.patch("/:id", async (req, res) => {
           } catch (tokenErr: any) {
             console.error("[CAREERS_HIRED] Failed to generate setup token:", tokenErr?.message);
           }
+        }
+
+        if (newStatus === "HIRED" && isAgentHire && !hiredSetupLink) {
+          throw new Error("Partner approval email requires a first-password setup link, but no setup token could be generated.");
         }
 
         const emailData = {
@@ -1429,7 +1450,7 @@ router.patch("/bulk", async (req, res) => {
     // Safety: Agent hires require provisioning + a one-time Agent Portal setup link.
     // Bulk HIRED does not provision agents, so block it for agent applications.
     if (status === "HIRED") {
-      const agentJobApps = existingApplications.filter((app) => Boolean((app as any)?.job?.isTravelAgentPosition));
+      const agentJobApps = existingApplications.filter((app) => isPartnershipApplication(app));
       if (agentJobApps.length > 0) {
         return res.status(409).json({
           error: "Some selected applications belong to Travel Agent recruitment jobs and cannot be bulk-marked HIRED. Hire them individually to trigger agent provisioning and onboarding email.",
@@ -1492,7 +1513,7 @@ router.patch("/bulk", async (req, res) => {
             adminNotes: adminNotes || undefined,
             companyName: process.env.COMPANY_NAME || "NoLSAF Inc Limited",
             supportEmail: process.env.SUPPORT_EMAIL || process.env.CAREERS_EMAIL || "careers@nolsaf.com",
-            isPartnership: Boolean((app.job as any)?.isTravelAgentPosition),
+            isPartnership: isPartnershipApplication(app),
           };
 
           const subject = getApplicationEmailSubject(emailData.status, emailData.jobTitle, emailData.isPartnership);
