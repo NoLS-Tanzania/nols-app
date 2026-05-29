@@ -8,6 +8,7 @@ import azampayCardRouter     from "./payments.azampay.card.js";
 import bookingsRoutes from "./bookings";
 import chatbotRouter from "./chatbot";
 import conversationsRoutes from "./conversations";
+import { router as fxRouter } from "./fx";
 import geocodingRouter from "./geocoding";
 import groupBookingsRouter from "./groupBookings.js";
 import propertyReviewsRouter from "./property.reviews";
@@ -42,6 +43,11 @@ export function registerPaymentRoutes(app: Express): void {
 
 export function registerGeocodingRoute(app: Express): void {
   app.use("/api/geocoding", geocodingRouter as RequestHandler);
+}
+
+export function registerFxRoutes(app: Express): void {
+  // Display-currency layer (presentation only; TZS is the money of record).
+  app.use("/api/fx", fxRouter as RequestHandler);
 }
 
 export function registerChatbotRoute(app: Express): void {

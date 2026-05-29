@@ -44,6 +44,8 @@ model User {
   avatarUrl       String?   @db.VarChar(500)
   /// User timezone (e.g., Africa/Dar_es_Salaam)
   timezone        String?   @db.VarChar(80)
+  /// Preferred display currency (ISO 4217, e.g. "TZS"). Presentation only — never the money of record.
+  preferredCurrency String? @default("TZS") @db.VarChar(3)
   /// Date of birth (date-only)
   dateOfBirth     DateTime? @db.Date
   /// Location fields used by driver onboarding/profile UI
@@ -1549,6 +1551,12 @@ model SystemSetting {
 
   /// Default currency for the platform (ISO 4217, e.g., "TZS")
   currency String? @default("TZS") @db.VarChar(3)
+
+  /// Display FX rates as JSON (presentation only — TZS remains the money of record).
+  /// Shape: { base: "TZS", tzsPerUnit: { USD: 2600, EUR: 2800, KES: 20 },
+  ///          updatedAt: ISO8601, source: "manual"|"auto", locked: { USD: true } }
+  /// tzsPerUnit[X] = how many TZS equal 1 unit of currency X. Display = amountTZS / tzsPerUnit[X].
+  fxRates Json?
 
   /// Invoice number prefix (e.g., "INV")
   invoicePrefix String? @default("INV")

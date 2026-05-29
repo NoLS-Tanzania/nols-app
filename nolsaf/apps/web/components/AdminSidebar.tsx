@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React from "react";
-import { Home, LayoutDashboard, Users, Truck, LineChart, Building2, Calendar, FileText, Wallet, Settings, ChevronDown, ChevronRight, ShieldCheck, Receipt, ListFilter, Award, Megaphone, UserPlus, Trophy, Bell, BarChart3, Activity, Eye, Briefcase, MessageSquare, Ban, Bot, Gift, KeyRound, Play, Calculator, AlertTriangle, TrendingUp } from "lucide-react";
+import { Home, LayoutDashboard, Users, Truck, LineChart, Building2, Calendar, FileText, Wallet, Settings, ChevronDown, ChevronRight, ShieldCheck, Receipt, ListFilter, Award, Megaphone, UserPlus, Trophy, Bell, BarChart3, Activity, Eye, Briefcase, MessageSquare, Ban, Bot, Gift, KeyRound, Play, Calculator, AlertTriangle, TrendingUp, Coins } from "lucide-react";
 import { useEffect, useState } from "react";
 
 type Item = {
@@ -178,6 +178,7 @@ const managementDetails: Item[] = [
   { href: "/admin/management/podcasts", label: "Podcasts", Icon: Play },
   { href: "/admin/management/trust-partners", label: "Trust Partners", Icon: Award },
   { href: "/admin/management/nolscope", label: "NoLScope Rates", Icon: Calculator },
+  { href: "/admin/management/currency", label: "Currency Rates", Icon: Coins },
   { href: "/admin/management/settings", label: "Settings", Icon: Settings },
   { href: "/admin/management/updates", label: "Updates", Icon: Megaphone },
   { href: "/admin/management/users", label: "Users", Icon: Users },

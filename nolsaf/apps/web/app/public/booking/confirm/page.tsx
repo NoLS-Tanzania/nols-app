@@ -31,6 +31,8 @@ import {
   type TransportVehicleType,
   getVehicleTypeLabel,
 } from "../../../../lib/transportFareCalculator";
+import { useCurrency } from "@/contexts/CurrencyContext";
+import { convertFromTzs, formatMoney } from "@/lib/money";
 
 // Tanzania locations are imported from lib/tanzania-locations.ts
 
@@ -66,6 +68,8 @@ type BookingData = {
 export default function BookingConfirmPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  // Currency display — presentation only. The actual charge is always in TZS.
+  const { currency: displayCurrency, rates: fxRates } = useCurrency();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -890,10 +894,26 @@ export default function BookingConfirmPage() {
   const roomsQty = Math.max(1, Number(bookingData?.rooms ?? 1));
   const subtotal = pricePerNight * nights * roomsQty;
   const totalAmount = subtotal;
-  const currency = property?.currency || "TZS";
-  
+  const currency = property?.currency || "TZS"; // always TZS — settlement currency
+
   // Calculate total including transport
   const finalTotal = totalAmount + (includeTransport && transportFare ? transportFare : 0);
+
+  // ── Display-currency conversion (presentation only — never changes what is charged) ──
+  // If viewer has selected a non-TZS display currency, convert TZS amounts for display.
+  // The actual charge remains in TZS; only the label changes.
+  const isDisplayingForeign = displayCurrency !== "TZS";
+  function fmtDisplay(amountTzs: number): { primary: string; note: string | null } {
+    if (!isDisplayingForeign) {
+      return { primary: `${amountTzs.toLocaleString()} TZS`, note: null };
+    }
+    const converted = convertFromTzs(amountTzs, displayCurrency, fxRates.tzsPerUnit);
+    if (converted == null) return { primary: `${amountTzs.toLocaleString()} TZS`, note: null };
+    return {
+      primary: formatMoney(converted, displayCurrency),
+      note: `~ ${amountTzs.toLocaleString()} TZS`,
+    };
+  }
   
   // Auto-calculate fare when transport is enabled and location is available
   useEffect(() => {
@@ -2730,9 +2750,10 @@ export default function BookingConfirmPage() {
               </h2>
 
               <div className="space-y-4 lg:space-y-5">
-                <div className="flex justify-between items-center p-3 bg-slate-50 rounded-xl border border-slate-200/60">
+                {/* Accommodation line */}
+                <div className="flex justify-between items-start p-3 bg-slate-50 rounded-xl border border-slate-200/60">
                   <span className="text-sm font-medium text-slate-700">
-                    {pricePerNight.toLocaleString()} {currency} × {nights} night{nights !== 1 ? "s" : ""} × {roomsQty} room{roomsQty !== 1 ? "s" : ""}
+                    {pricePerNight.toLocaleString()} TZS × {nights} night{nights !== 1 ? "s" : ""} × {roomsQty} room{roomsQty !== 1 ? "s" : ""}
                     {(selectedRoomCode || selectedRoomIndex !== null) && (
                       <span className="block text-xs text-slate-500 mt-0.5">
                         {(() => {
@@ -2746,41 +2767,47 @@ export default function BookingConfirmPage() {
                               roomTypes = spec.rooms;
                             }
                           }
-                          
                           let room: any = null;
                           if (selectedRoomCode) {
                             room = roomTypes.find((rt) => (rt.code || rt.roomCode) === selectedRoomCode);
                           } else if (selectedRoomIndex !== null && selectedRoomIndex >= 0 && selectedRoomIndex < roomTypes.length) {
                             room = roomTypes[selectedRoomIndex];
                           }
-                          
                           return room ? `(${room.roomType || room.name || room.label || "Selected Room"})` : "";
                         })()}
                       </span>
                     )}
                   </span>
-                  <span className="font-bold text-slate-900 text-base">
-                    {subtotal.toLocaleString()} {currency}
+                  <span className="font-bold text-slate-900 text-base text-right">
+                    {(() => { const d = fmtDisplay(subtotal); return (<><span>{d.primary}</span>{d.note && <span className="block text-xs font-normal text-slate-500 mt-0.5">{d.note}</span>}</>); })()}
                   </span>
                 </div>
 
                 {includeTransport && transportFare && (
-                  <div className="flex justify-between items-center text-slate-600 text-sm pt-2 p-3 bg-blue-50/50 rounded-xl border border-blue-200/60">
+                  <div className="flex justify-between items-start text-slate-600 text-sm pt-2 p-3 bg-blue-50/50 rounded-xl border border-blue-200/60">
                     <span className="flex items-center gap-2 font-medium">
                       <Car className="w-4 h-4 text-[#02665e]" />
                       Transportation ({getVehicleTypeLabel(transportVehicleType)})
                     </span>
-                    <span className="font-bold text-[#02665e]">
-                      {transportFare.toLocaleString()} {currency}
+                    <span className="font-bold text-[#02665e] text-right">
+                      {(() => { const d = fmtDisplay(transportFare); return (<><span>{d.primary}</span>{d.note && <span className="block text-xs font-normal text-[#02665e]/70 mt-0.5">{d.note}</span>}</>); })()}
                     </span>
                   </div>
                 )}
 
                 <div className="pt-4 border-t-2 border-slate-200">
-                  <div className="flex justify-between items-center p-4 bg-gradient-to-r from-[#02665e]/10 to-blue-50/50 rounded-xl border border-[#02665e]/20">
+                  <div className="flex justify-between items-start p-4 bg-gradient-to-r from-[#02665e]/10 to-blue-50/50 rounded-xl border border-[#02665e]/20">
                     <span className="text-lg font-bold text-slate-900">Total</span>
-                    <span className="text-2xl lg:text-3xl font-extrabold text-[#02665e]">
-                      {finalTotal.toLocaleString()} {currency}
+                    <span className="text-right">
+                      {(() => {
+                        const d = fmtDisplay(finalTotal);
+                        return (
+                          <>
+                            <span className="text-2xl lg:text-3xl font-extrabold text-[#02665e]">{d.primary}</span>
+                            {d.note && <span className="block text-xs font-normal text-slate-500 mt-0.5">{d.note}</span>}
+                          </>
+                        );
+                      })()}
                     </span>
                   </div>
                 </div>

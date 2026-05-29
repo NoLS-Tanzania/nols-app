@@ -2,9 +2,10 @@
 
 import { useEffect, useState, useRef } from "react";
 import { Globe } from 'lucide-react';
+import { useCurrency } from "@/contexts/CurrencyContext";
+import { SUPPORTED_CURRENCIES } from "@/lib/money";
 
 const KEY_LOCALE = 'nolsaf_locale';
-const KEY_CURRENCY = 'nolsaf_currency';
 
 const LANGUAGES = [
   { code: 'en', label: 'English' },
@@ -13,21 +14,22 @@ const LANGUAGES = [
   { code: 'ar', label: 'العربية' },
 ];
 
-const CURRENCIES = [
-  { code: 'TZS', label: 'TSh' },
-  { code: 'USD', label: '$' },
-  { code: 'EUR', label: '€' },
-  { code: 'KES', label: 'KSh' },
-];
+// Derived from SUPPORTED_CURRENCIES so the picker always stays in sync.
+const CURRENCIES = Object.values(SUPPORTED_CURRENCIES).map(m => ({
+  code: m.code,
+  label: m.symbol,
+  flag: m.flag,
+}));
 
 export default function GlobalPicker({ variant = "dark" }:{ variant?: "light" | "dark" }) {
   const [open, setOpen] = useState(false);
   const [locale, setLocale] = useState<string>('en');
-  const [currency, setCurrency] = useState<string>('TZS');
+
+  // Currency is now managed by CurrencyContext so all price displays stay in sync.
+  const { currency, setCurrency } = useCurrency();
 
   useEffect(() => {
     try { const stored = localStorage.getItem(KEY_LOCALE); if (stored) setLocale(stored); } catch (e) {}
-    try { const storedC = localStorage.getItem(KEY_CURRENCY); if (storedC) setCurrency(storedC); } catch (e) {}
   }, []);
   const ref = useRef<HTMLDivElement | null>(null);
 
@@ -35,10 +37,6 @@ export default function GlobalPicker({ variant = "dark" }:{ variant?: "light" | 
     try { localStorage.setItem(KEY_LOCALE, locale); } catch (e) {}
     try { document.documentElement.lang = locale === 'sw' ? 'sw' : locale; document.documentElement.dir = locale === 'ar' ? 'rtl' : 'ltr'; } catch (e) {}
   }, [locale]);
-
-  useEffect(() => {
-    try { localStorage.setItem(KEY_CURRENCY, currency); } catch (e) {}
-  }, [currency]);
 
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
@@ -50,7 +48,7 @@ export default function GlobalPicker({ variant = "dark" }:{ variant?: "light" | 
   }, []);
 
   const currentLanguage = LANGUAGES.find(l => l.code === locale);
-  const currentCurrency = CURRENCIES.find(c => c.code === currency);
+  const currentCurrency = CURRENCIES.find(c => c.code === currency) ?? CURRENCIES[0];
 
   return (
     <div ref={ref} className="relative">
@@ -62,7 +60,7 @@ export default function GlobalPicker({ variant = "dark" }:{ variant?: "light" | 
         ].join(" ")}
         aria-haspopup="true"
         aria-expanded={open}
-        title={`${currentLanguage?.label || locale.toUpperCase()} • ${currentCurrency?.label || currency}`}
+        title={`${currentLanguage?.label || locale.toUpperCase()} · ${currentCurrency?.flag ?? ""} ${currentCurrency?.code ?? currency}`}
       >
         <Globe className="h-5 w-5 transition-transform duration-300 group-hover:rotate-12" aria-hidden />
       </button>
@@ -106,17 +104,20 @@ export default function GlobalPicker({ variant = "dark" }:{ variant?: "light" | 
               <div className="px-2 py-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Currency</div>
               <div className="grid grid-cols-2 gap-1">
                 {CURRENCIES.map(c => (
-                  <button 
-                    key={c.code} 
-                    onClick={() => { setCurrency(c.code); setOpen(false); }} 
+                  <button
+                    key={c.code}
+                    onClick={() => { setCurrency(c.code); setOpen(false); }}
                     className={`w-full text-left px-2.5 py-1.5 text-xs rounded-md transition-all duration-150 ${
-                      currency === c.code 
-                        ? 'bg-[#02665e] text-white font-medium' 
+                      currency === c.code
+                        ? 'bg-[#02665e] text-white font-medium'
                         : 'text-gray-600 hover:bg-gray-50'
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium truncate">{c.label}</span>
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="flex items-center gap-1 min-w-0">
+                        <span>{c.flag}</span>
+                        <span className="font-medium truncate">{c.label}</span>
+                      </span>
                       <span className={`text-[10px] ml-1.5 flex-shrink-0 ${currency === c.code ? 'text-white/70' : 'text-gray-400'}`}>
                         {c.code}
                       </span>

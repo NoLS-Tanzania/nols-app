@@ -102,6 +102,7 @@ import {
 } from "../../../../lib/priceUtils";
 
 import { BATHROOM_ICONS, OTHER_AMENITIES_ICONS } from "../../../../lib/amenityIcons";
+import { PriceDisplay } from "@/components/PriceDisplay";
 
 function PropertyGalleryImage({
   src,
@@ -1562,6 +1563,7 @@ export default function PublicPropertyDetailPage() {
   const params = useParams();
   const router = useRouter();
   const slug = String((params as any)?.slug ?? "");
+  // Currency display context — presentation only, never affects charges.
   const [property, setProperty] = useState<PublicPropertyDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1813,7 +1815,6 @@ export default function PublicPropertyDetailPage() {
   }, [property, systemCommission]);
   
 
-  const price = useMemo(() => (finalBasePrice ? fmtMoney(finalBasePrice, property?.currency) : "-"), [finalBasePrice, property?.currency]);
   const about = useMemo(() => {
     const fallback = "No description provided yet.";
     const raw = String(property?.description || "").trim();
@@ -2657,7 +2658,12 @@ export default function PublicPropertyDetailPage() {
             </div>
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="text-sm text-slate-600">Starting from</div>
-              <div className="mt-1 text-2xl font-bold text-slate-900">{price}</div>
+              <div className="mt-1 text-2xl font-bold text-slate-900">
+                <PriceDisplay
+                  amountTzs={finalBasePrice}
+                  noteClassName="text-xs font-normal text-slate-500 mt-0.5"
+                />
+              </div>
               <div className="text-xs text-slate-500">per night</div>
               <button
                 type="button"
@@ -2892,7 +2898,11 @@ export default function PublicPropertyDetailPage() {
                         {/* CTA strip: row on mobile, col on desktop */}
                         <div className="flex-shrink-0 w-full md:w-52 flex flex-row items-center gap-3 md:flex-col md:items-stretch md:justify-between md:border-l border-t md:border-t-0 border-slate-100 px-4 py-3 md:p-5">
                           <div className="flex-1 min-w-0">
-                            <div className="text-base md:text-xl font-black text-slate-900 tabular-nums leading-tight">{fmtMoney(r.pricePerNight, property.currency)}</div>
+                            <PriceDisplay
+                              amountTzs={r.pricePerNight}
+                              className="text-base md:text-xl font-black text-slate-900 tabular-nums leading-tight"
+                              noteClassName="text-xs font-normal text-slate-500 mt-0.5"
+                            />
                             <div className="text-xs text-slate-500">per night</div>
                             {r.discountLabel ? (<div className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[11px] font-semibold text-emerald-700"><Tags className="w-2.5 h-2.5" aria-hidden />{r.discountLabel}</div>) : (<div className="mt-1 inline-flex items-center gap-1 rounded-full bg-slate-50 border border-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-400">No discount</div>)}
                           </div>

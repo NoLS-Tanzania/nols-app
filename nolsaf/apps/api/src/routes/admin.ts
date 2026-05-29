@@ -43,6 +43,7 @@ import adminPropertiesRouter from "./admin.properties.js";
 import adminReferralEarningsRouter from "./admin.referral-earnings";
 import adminReportsRouter from "./admin.reports";
 import adminRevenueRouter from "./admin.revenue";
+import adminFxRouter from "./admin.fx";
 import adminSettingsRouter from "./admin.settings";
 import adminStatsRouter from "./admin.stats";
 import adminSummaryRouter from "./admin.summary";
@@ -72,6 +73,8 @@ export function registerAdminPrimaryRoutes(app: Express): void {
   app.use("/api/admin/payments", adminPaymentsRouter as RequestHandler);
   app.use("/admin/settings", adminSettingsRouter);
   app.use("/api/admin/settings", adminSettingsRouter as RequestHandler);
+  app.use("/admin/fx", adminFxRouter);
+  app.use("/api/admin/fx", adminFxRouter as RequestHandler);
   app.use("/admin/drivers/summary", adminDriversSummaryRouter);
   app.use("/api/admin/drivers/summary", adminDriversSummaryRouter as RequestHandler);
   app.use("/admin/drivers/levels", adminDriversLevelsRouter);

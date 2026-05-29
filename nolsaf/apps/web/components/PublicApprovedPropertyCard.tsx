@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 
 import VerifiedIcon from "./VerifiedIcon";
 import { getPropertyCommission, calculatePriceWithCommission } from "../lib/priceUtils";
+import { PriceDisplay } from "./PriceDisplay";
 
 export type PublicApprovedPropertyCardData = {
   id?: number;
@@ -18,16 +19,6 @@ export type PublicApprovedPropertyCardData = {
   currency: string | null;
   services?: any;
 };
-
-function fmtMoney(amount: number | null | undefined, currency?: string | null) {
-  if (amount == null || !Number.isFinite(Number(amount))) return "—";
-  const cur = currency || "TZS";
-  try {
-    return new Intl.NumberFormat(undefined, { style: "currency", currency: cur, maximumFractionDigits: 0 }).format(Number(amount));
-  } catch {
-    return `${cur} ${Number(amount).toLocaleString()}`;
-  }
-}
 
 function PropertyCardImage({
   src,
@@ -68,11 +59,10 @@ export default function PublicApprovedPropertyCard({
 }) {
   const href = `/public/properties/${p.slug}`;
 
-  // Calculate final price with commission
+  // Calculate final price with commission (TZS — money of record).
   const finalPrice = p.basePrice
     ? calculatePriceWithCommission(p.basePrice, getPropertyCommission(p, systemCommission))
     : null;
-  const price = fmtMoney(finalPrice, p.currency);
 
   const PhotoPlaceholder = () => (
     <div className="absolute inset-0">
@@ -126,7 +116,11 @@ export default function PublicApprovedPropertyCard({
               </div>
             </div>
             <div className="sm:text-right flex-shrink-0">
-              <div className="text-sm font-bold text-slate-900">{price}</div>
+              <PriceDisplay
+                amountTzs={finalPrice}
+                className="text-sm font-bold text-slate-900"
+                showNote={false}
+              />
               <div className="text-[11px] text-slate-500">per night</div>
             </div>
           </div>

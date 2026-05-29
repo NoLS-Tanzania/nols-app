@@ -23,6 +23,7 @@ import {
   registerAccountAuthRoutes,
   registerChatbotRoute,
   registerConversationBookingRoutes,
+  registerFxRoutes,
   registerGeocodingRoute,
   registerGroupAndReviewRoutes,
   registerPaymentRoutes,
@@ -67,6 +68,7 @@ export function registerApiRoutes(app: Express): void {
   registerAgentRoutes(app);
   registerTransportRoutes(app);
   registerGeocodingRoute(app);
+  registerFxRoutes(app);
   registerPublicAvailabilityRoute(app);
   registerChatbotRoute(app);
   registerAdminChatbotReportsRoutes(app);
