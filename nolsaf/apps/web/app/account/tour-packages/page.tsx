@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import apiClient from "@/lib/apiClient";
-import { ClipboardList, CalendarDays, Loader2, ArrowUpDown, ChevronDown, ChevronUp, Eye, Search } from "lucide-react";
+import { ClipboardList, CalendarDays, Loader2, ArrowUpDown, ChevronDown, ChevronUp, Eye } from "lucide-react";
 import TableRow from "@/components/TableRow";
 
 type TourBookingItem = {
@@ -25,6 +25,8 @@ type TourBookingItem = {
   currency: string;
   grossAmount: number;
   createdAt: string;
+  draftExpiresAt?: string | null;
+  draftExpiryStatus?: "ACTIVE" | "EXPIRED" | string | null;
   pickupValidation?: {
     validated?: boolean;
     validatedAt?: string | null;
@@ -191,6 +193,7 @@ export default function AccountTourPackagesPage() {
 
   const statusBadgeClass = (status: string) => {
     const s = String(status || "").trim().toUpperCase();
+    if (s === "EXPIRED") return "bg-rose-100 text-rose-800 border border-rose-200";
     if (s === "DRAFT") return "bg-blue-100 text-blue-800 border border-blue-200";
     if (s === "PAID_PACKAGES" || s === "PAID") return "bg-emerald-100 text-emerald-800 border border-emerald-200";
     if (s === "ACTIVE_TIMELINE") return "bg-indigo-100 text-indigo-800 border border-indigo-200";
@@ -208,30 +211,29 @@ export default function AccountTourPackagesPage() {
   };
 
   return (
-    <div className="w-full max-w-full overflow-x-hidden py-6">
-      <main className="w-full min-w-0 max-w-full space-y-6">
-          <section className="card overflow-hidden border border-slate-200 bg-white">
+    <div className="w-full min-w-0 max-w-full space-y-6 overflow-x-hidden py-6">
+          <section className="card overflow-hidden border-0 bg-gradient-to-br from-emerald-900 via-emerald-800 to-green-900 text-white shadow-lg">
             <div className="card-section">
               <div className="flex flex-col items-center text-center gap-3">
-                <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-700">
+                <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-white backdrop-blur-sm">
                   <ClipboardList className="h-6 w-6" />
                 </div>
                 <div className="max-w-2xl">
-                  <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">My Tour Packages</h1>
-                  <p className="mt-2 text-sm text-slate-600 sm:text-base">
+                  <h1 className="text-2xl font-bold text-white sm:text-3xl">My Tour Packages</h1>
+                  <p className="mt-2 text-sm text-emerald-100/90 sm:text-base">
                     View all your booking arrangements with a clear action trail for details, documents, chat, vouchers, and receipts.
                   </p>
                 </div>
               </div>
 
               <div className="mt-5 flex flex-wrap items-center justify-center gap-2 sm:gap-3">
-                <div className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700">
+                <div className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white backdrop-blur-sm">
                   {summary.total} Total
                 </div>
-                <div className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700">
+                <div className="inline-flex items-center rounded-full border border-emerald-300/40 bg-emerald-400/20 px-4 py-2 text-sm font-semibold text-emerald-50 backdrop-blur-sm">
                   {summary.activeTimeline + summary.paidPackages} Active
                 </div>
-                <div className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700">
+                <div className="inline-flex items-center rounded-full border border-amber-300/40 bg-amber-400/20 px-4 py-2 text-sm font-semibold text-amber-50 backdrop-blur-sm">
                   {summary.draft} Pending
                 </div>
               </div>
@@ -275,21 +277,6 @@ export default function AccountTourPackagesPage() {
               <span className="text-xs font-medium text-slate-500 uppercase">
                 ({(activeFilter === "ALL" ? "ALL" : activeFilter === "ACTIVE_TIMELINE" ? "TIMELINE" : activeFilter.replace(/_/g, " ")).toUpperCase()})
               </span>
-            </div>
-
-            <div className="mt-4 w-full min-w-0 px-3 sm:px-0">
-              <label htmlFor="tour-packages-search" className="sr-only">Search packages</label>
-              <div className="relative mx-auto w-full max-w-xs sm:max-w-sm min-w-0">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input
-                  id="tour-packages-search"
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search package"
-                  className="block w-full min-w-0 rounded-xl border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm text-slate-800 outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
-                />
-              </div>
             </div>
 
             {loading ? (
@@ -346,6 +333,7 @@ export default function AccountTourPackagesPage() {
                           Amount <SortIcon column="grossAmount" />
                         </button>
                       </th>
+                      <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Created</th>
                       <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
                         <button type="button" onClick={() => onSort("status")} className="inline-flex items-center gap-1 border-0 bg-transparent p-0 m-0 font-inherit text-inherit cursor-pointer hover:text-slate-900">
                           Status <SortIcon column="status" />
@@ -383,13 +371,19 @@ export default function AccountTourPackagesPage() {
                         <td className="px-4 py-3 align-top text-right text-sm text-slate-700">
                           {item.currency} {Number(item.grossAmount || 0).toLocaleString()}
                         </td>
+                        <td className="px-4 py-3 align-top text-sm text-slate-700 whitespace-nowrap">
+                          {item.createdAt ? new Date(item.createdAt).toLocaleString() : "-"}
+                        </td>
                         <td className="px-4 py-3 align-top">
                           {(() => {
                             const bucket = String(item.dashboardBucket || "").toUpperCase();
                             const completionStatus = String(item.timelineCompletionStatus || "").toUpperCase();
-                            const rawStatus = bucket === "ACTIVE_TIMELINE" || completionStatus === "COMPLETED_TIMELINE"
-                              ? (completionStatus || "ACTIVE_TIMELINE")
-                              : String(item.dashboardBucket || item.timelineStatus || "DRAFT");
+                            const isExpiredDraft = bucket === "DRAFT" && String(item.draftExpiryStatus || "").toUpperCase() === "EXPIRED";
+                            const rawStatus = isExpiredDraft
+                              ? "EXPIRED"
+                              : bucket === "ACTIVE_TIMELINE" || completionStatus === "COMPLETED_TIMELINE"
+                                ? (completionStatus || "ACTIVE_TIMELINE")
+                                : String(item.dashboardBucket || item.timelineStatus || "DRAFT");
                             const rowStatus = rawStatus.replace(/_/g, " ");
                             return (
                               <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${statusBadgeClass(rawStatus)}`}>
@@ -491,7 +485,6 @@ export default function AccountTourPackagesPage() {
             )}
             </div>
           </section>
-      </main>
     </div>
   );
 }

@@ -472,6 +472,7 @@ router.get("/", (async (req: AuthedRequest, res) => {
       const timelineCompletion = timelineCompletionForUser(item.packageSnapshot, item.metadata, userId);
       const md = safeObject(item.metadata);
       const pickupTimeline = buildPickupTimeline({ status: item.status, updatedAt: item.updatedAt, metadata: item.metadata });
+      const draftAccess = dashboardBucket === "DRAFT" ? draftPaymentAccessWindow(item.metadata, item.createdAt) : null;
       return {
         id: item.id,
         bookingCode: item.bookingCode,
@@ -508,6 +509,8 @@ router.get("/", (async (req: AuthedRequest, res) => {
         completedAt: item.completedAt,
         createdAt: item.createdAt,
         updatedAt: item.updatedAt,
+        draftExpiresAt: draftAccess?.expiresAt ?? null,
+        draftExpiryStatus: draftAccess?.status ?? null,
         operatorSnapshot: item.operatorSnapshot,
       };
     });

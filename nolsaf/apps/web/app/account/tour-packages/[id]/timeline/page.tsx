@@ -8,7 +8,7 @@ import LayoutFrame from "@/components/LayoutFrame";
 import TableRow from "@/components/TableRow";
 import { slugifyProfile } from "@/lib/profileSlug";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { ArrowLeft, CalendarDays, CheckCircle2, Clock3, Loader2, MapPin, Megaphone, Share2, Star, TrendingUp } from "lucide-react";
+import { ArrowLeft, CalendarDays, CheckCircle2, Clock3, Copy, Eye, Loader2, MapPin, Megaphone, Share2, Star, TrendingUp } from "lucide-react";
 
 const api = apiClient;
 
@@ -357,6 +357,27 @@ export default function TourPackageTimelinePage() {
     }
   };
 
+  const shareMarketingViaWhatsApp = (url: string) => {
+    const shareUrl = absoluteUrl(url);
+    const text = item?.title
+      ? `I completed ${item.title} and recommend this tour operator on NoLSAF. Review their approved profile and book the same tour here: ${shareUrl}`
+      : `I recommend this tour operator on NoLSAF. Review their approved profile and book the same tour here: ${shareUrl}`;
+    if (typeof window !== "undefined") {
+      window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
+      setMarketingShareMessage("WhatsApp opened. Pick a contact to send the booking link.");
+    }
+  };
+
+  const copyMarketingLink = async (url: string) => {
+    const shareUrl = absoluteUrl(url);
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(shareUrl);
+      setMarketingShareMessage("Public booking link copied. Paste it anywhere to share.");
+      return;
+    }
+    setMarketingShareMessage(shareUrl);
+  };
+
   const openRating = (day: TimelineDay, slot: TimelineSlot, key: string) => {
     if (eventRatings[key] || ratingSaving) return;
     setRatingTarget({ day, slot, key });
@@ -640,6 +661,77 @@ export default function TourPackageTimelinePage() {
           </div>
         </section>
 
+        {timelineCompleted ? (
+          <section className="overflow-hidden rounded-2xl border-2 border-emerald-300 bg-white shadow-lg ring-1 ring-emerald-100">
+            <div className="grid gap-4 bg-[linear-gradient(135deg,#02665e_0%,#028a7e_100%)] px-4 py-4 text-white sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+              <div className="min-w-0">
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/12 px-3 py-1 text-xs font-semibold uppercase tracking-wide">
+                  <Megaphone className="h-4 w-4" />
+                  Recommend This Tour
+                </div>
+                <h2 className="mt-3 text-lg font-bold">Loved this tour? Recommend it to others</h2>
+                <p className="mt-1 max-w-2xl text-sm leading-relaxed text-teal-50">
+                  Your tour is finished. Send your friends the operator&apos;s public booking page so they can read the
+                  approved profile, see reviews, and book the exact same tour you just completed.
+                </p>
+              </div>
+            </div>
+            <div className="px-4 py-4">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Step 1. Choose how to send the link</div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => shareMarketingViaWhatsApp(marketingPath)}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-bold text-emerald-700 transition hover:bg-emerald-100"
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden>
+                    <path d="M.057 24l1.687-6.163a11.867 11.867 0 0 1-1.587-5.945C.16 5.335 5.495 0 12.05 0a11.817 11.817 0 0 1 8.413 3.488 11.824 11.824 0 0 1 3.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 0 1-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 0 0 1.512 5.26l-.999 3.648 3.476-.911zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
+                  </svg>
+                  Send on WhatsApp
+                </button>
+                <button
+                  type="button"
+                  onClick={() => shareMarketingLink(marketingPath)}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+                >
+                  <Share2 className="h-4 w-4" />
+                  More apps
+                </button>
+                <button
+                  type="button"
+                  onClick={() => copyMarketingLink(marketingPath)}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+                >
+                  <Copy className="h-4 w-4" />
+                  Copy link
+                </button>
+              </div>
+
+              <div className="mt-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Step 2. Or preview the page first</div>
+              <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+                <div className="min-w-0 flex-1 truncate rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-xs text-slate-500">
+                  {marketingPath}
+                </div>
+                <Link
+                  href={marketingPath}
+                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-teal-200 bg-teal-50 px-4 py-2 text-sm font-bold text-teal-800 no-underline transition hover:bg-teal-100"
+                >
+                  <Eye className="h-4 w-4" />
+                  Preview the booking page
+                </Link>
+              </div>
+              <p className="mt-3 text-xs text-slate-500">
+                Anyone who opens this link can view the operator&apos;s verified profile and book. They do not need your account.
+              </p>
+            </div>
+            {marketingShareMessage ? (
+              <div className="border-t border-slate-100 bg-emerald-50/60 px-4 py-2 text-xs font-medium text-emerald-700">
+                {marketingShareMessage}
+              </div>
+            ) : null}
+          </section>
+        ) : null}
+
         <section className="overflow-hidden rounded-2xl border border-teal-700 bg-[#02665e] bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.28)_1px,transparent_0)] [background-size:18px_18px] shadow-sm">
           <div className="flex items-center justify-between gap-3 border-b border-white/15 bg-[#02665e]/90 px-4 py-4">
             <div className="flex min-w-0 items-center gap-3">
@@ -765,50 +857,6 @@ export default function TourPackageTimelinePage() {
                   </div>
                 )}
               </div>
-
-              {timelineCompleted ? (
-                <div className="overflow-hidden rounded-2xl border border-white/25 bg-white shadow-sm">
-                  <div className="grid gap-4 bg-[linear-gradient(135deg,#02665e_0%,#028a7e_100%)] bg-[length:100%_100%] px-4 py-4 text-white sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-                    <div className="min-w-0">
-                      <div className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/12 px-3 py-1 text-xs font-semibold uppercase tracking-wide">
-                        <Megaphone className="h-4 w-4" />
-                        Recommend This Tour
-                      </div>
-                      <h2 className="mt-3 text-lg font-bold">Share your completed experience</h2>
-                      <p className="mt-1 max-w-2xl text-sm leading-relaxed text-teal-50">
-                        Send the public booking page to friends or teammates so they can review the operator and book from the approved tour profile.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => shareMarketingLink(marketingPath)}
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/35 bg-white px-4 py-2.5 text-sm font-bold text-[#02665e] shadow-sm transition hover:bg-teal-50 sm:w-auto"
-                    >
-                      <Share2 className="h-4 w-4" />
-                      Share Public Page
-                    </button>
-                  </div>
-                  <div className="grid gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-                    <div className="min-w-0">
-                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">Public booking link</div>
-                      <div className="mt-1 truncate rounded-lg bg-slate-50 px-3 py-2 font-mono text-xs text-slate-600">
-                        {marketingPath}
-                      </div>
-                    </div>
-                    <Link
-                      href={marketingPath}
-                      className="inline-flex w-full items-center justify-center rounded-xl border border-teal-200 bg-teal-50 px-4 py-2 text-sm font-bold text-teal-800 no-underline transition hover:bg-teal-100 sm:w-auto"
-                    >
-                      Preview
-                    </Link>
-                  </div>
-                  {marketingShareMessage ? (
-                    <div className="border-t border-slate-100 px-4 py-2 text-xs font-medium text-slate-600">
-                      {marketingShareMessage}
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
 
               {detailedItinerary.map((day) => (
                 <div key={`day-${day.day}-${day.title}`} className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3 sm:p-4">

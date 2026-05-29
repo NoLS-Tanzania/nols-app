@@ -108,6 +108,12 @@ const PRODUCTION_REQUIRED_SECRETS: SecretConfig[] = [
     description: "Cloudinary API secret for upload signing",
     validate: (v) => v.length >= 16,
   },
+  {
+    key: "AZAMPAY_CARD_RETURN_URL",
+    required: true,
+    description: "Base URL for AzamPay card payment callbacks — must be HTTPS in production",
+    validate: (v) => v.startsWith("https://"),
+  },
 ];
 
 const OPTIONAL_SECRETS: SecretConfig[] = [
@@ -123,6 +129,16 @@ const OPTIONAL_SECRETS: SecretConfig[] = [
     required: false,
     description: "AzamPay API base URL (default: https://api.azampay.co.tz)",
     validate: (v) => v.startsWith("https://"),
+  },
+  {
+    key: "AZAMPAY_WEBHOOK_ALLOWED_IPS",
+    required: false,
+    description: "Comma-separated AzamPay server IPs for webhook source validation (optional but recommended in production)",
+  },
+  {
+    key: "AZAMPAY_WEBHOOK_ENFORCE_TIMESTAMP",
+    required: false,
+    description: "Set to 'true' to reject AzamPay webhook calls with timestamps older than 5 minutes",
   },
   // Email providers
   {
@@ -286,6 +302,7 @@ export function validateSecrets(): void {
     // In production, double-check critical secrets
     const criticalSecrets = [
       "AZAMPAY_WEBHOOK_SECRET",
+      "AZAMPAY_CARD_RETURN_URL",
       "JWT_SECRET",
       "DATABASE_URL",
       "ENCRYPTION_KEY",

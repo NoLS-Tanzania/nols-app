@@ -3,6 +3,8 @@ import requireRole, { maybeAuth } from "../middleware/auth";
 import { router as account } from "./account";
 import authRoutes from "./auth";
 import azampayPaymentsRouter from "./payments.azampay.js";
+import azampayBankRouter     from "./payments.azampay.bank.js";
+import azampayCardRouter     from "./payments.azampay.card.js";
 import bookingsRoutes from "./bookings";
 import chatbotRouter from "./chatbot";
 import conversationsRoutes from "./conversations";
@@ -33,7 +35,9 @@ export function registerConversationBookingRoutes(app: Express): void {
 
 export function registerPaymentRoutes(app: Express): void {
   app.use("/webhooks", paymentWebhooksRouter);
-  app.use("/api/payments/azampay", azampayPaymentsRouter);
+  app.use("/api/payments/azampay", azampayPaymentsRouter);       // MNO: Airtel, M-Pesa, Mixx, HaloPesa
+  app.use("/api/payments/azampay/bank", azampayBankRouter);      // Bank: CRDB, NMB, NBC, etc.
+  app.use("/api/payments/azampay/card", azampayCardRouter);      // Card: Visa / Mastercard
 }
 
 export function registerGeocodingRoute(app: Express): void {

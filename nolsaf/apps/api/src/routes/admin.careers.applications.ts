@@ -811,207 +811,185 @@ router.patch("/:id", async (req, res) => {
             if (email) userOr.push({ email });
             if (phone) userOr.push({ phone });
 
-            await prisma.$transaction(async (tx) => {
-              // Find or create user account
-              let user = await tx.user.findFirst({
-                where: userOr.length > 0 ? { OR: userOr } : undefined,
-              });
-
-              if (!user) {
-                user = await tx.user.create({
-                  data: {
-                    email: email || undefined,
-                    phone: phone || undefined,
-                    name: existingApplication.fullName,
-                    fullName: existingApplication.fullName,
-                    role: "AGENT",
-                    nationality: appNationality || undefined,
-                    region: appRegion || undefined,
-                    district: appDistrict || undefined,
-                  } as any,
+            const txResult = await prisma.$transaction(
+              async (tx) => {
+                // Find or create user account
+                let user = await tx.user.findFirst({
+                  where: userOr.length > 0 ? { OR: userOr } : undefined,
                 });
-              } else {
-                const userUpdate: any = {};
-                if ((user as any).role !== "AGENT") userUpdate.role = "AGENT";
-                if (!(user as any).fullName && existingApplication.fullName) userUpdate.fullName = existingApplication.fullName;
-                if (!(user as any).name && existingApplication.fullName) userUpdate.name = existingApplication.fullName;
-                if (!(user as any).nationality && appNationality) userUpdate.nationality = appNationality;
-                if (!(user as any).region && appRegion) userUpdate.region = appRegion;
-                if (!(user as any).district && appDistrict) userUpdate.district = appDistrict;
 
-                if (Object.keys(userUpdate).length > 0) {
-                  user = await tx.user.update({
-                    where: { id: user.id },
-                    data: userUpdate as any,
+                if (!user) {
+                  user = await tx.user.create({
+                    data: {
+                      email: email || undefined,
+                      phone: phone || undefined,
+                      name: existingApplication.fullName,
+                      fullName: existingApplication.fullName,
+                      role: "AGENT",
+                      nationality: appNationality || undefined,
+                      region: appRegion || undefined,
+                      district: appDistrict || undefined,
+                    } as any,
+                  });
+                } else {
+                  const userUpdate: any = {};
+                  if ((user as any).role !== "AGENT") userUpdate.role = "AGENT";
+                  if (!(user as any).fullName && existingApplication.fullName) userUpdate.fullName = existingApplication.fullName;
+                  if (!(user as any).name && existingApplication.fullName) userUpdate.name = existingApplication.fullName;
+                  if (!(user as any).nationality && appNationality) userUpdate.nationality = appNationality;
+                  if (!(user as any).region && appRegion) userUpdate.region = appRegion;
+                  if (!(user as any).district && appDistrict) userUpdate.district = appDistrict;
+
+                  if (Object.keys(userUpdate).length > 0) {
+                    user = await tx.user.update({
+                      where: { id: user.id },
+                      data: userUpdate as any,
+                    });
+                  }
+                }
+
+                (req as any)._hiredUserId = user.id;
+                (req as any)._hiredUsername = email || phone || "";
+
+                // Ensure agent profile exists (minimal info only)
+                let agentProfile = await tx.agent.findUnique({
+                  where: { userId: user.id },
+                  select: { id: true, operatorProfile: true, areasOfOperation: true, specializations: true, languages: true, yearsOfExperience: true },
+                });
+
+                if (!agentProfile) {
+                  // Create agent with minimal required fields (core linkage only)
+                  agentProfile = await tx.agent.create({
+                    data: {
+                      user: { connect: { id: user.id } },
+                      status: agentData.status || "ACTIVE",
+                      bio: agentData.bio || null,
+                      maxActiveRequests: agentData.maxActiveRequests != null ? Number(agentData.maxActiveRequests) : 10,
+                      isAvailable: agentData.isAvailable !== undefined ? Boolean(agentData.isAvailable) : true,
+                      currentActiveRequests: 0,
+                    } as any,
                   });
                 }
-              }
 
-              // Create a one-time password setup token/link.
-              // IMPORTANT: token is NOT generated inside the transaction — if the
-              // transaction rolls back the DB write is lost but the link was already
-              // emailed. Instead we record the user.id and generate the token AFTER
-              // the transaction commits (Path 2 below handles this for all cases).
-              (req as any)._hiredUserId = user.id;
-              (req as any)._hiredUsername = email || phone || "";
+                // Link application to agent
+                await tx.jobApplication.updateMany({
+                  where: { agentId: agentProfile.id, id: { not: parsedId } },
+                  data: { agentId: null },
+                });
+                await tx.jobApplication.update({
+                  where: { id: parsedId },
+                  data: { agentId: agentProfile.id },
+                });
 
-              // Ensure agent profile exists
-              let agentProfile = await tx.agent.findUnique({
-                where: { userId: user.id },
-                select: { id: true, operatorProfile: true },
-              });
+                console.log(`Provisioned Agent profile (ID: ${agentProfile.id}) for HIRED application ${parsedId} (User ID: ${user.id})`);
+                return { agentId: agentProfile.id, userId: user.id };
+              },
+              { timeout: 15000 } // Increased from default 5s to 15s for agent provisioning
+            );
 
-              const normalizeLanguageStrings = (value: unknown): string[] => {
-                if (!Array.isArray(value)) return [];
-                const out: string[] = [];
-                for (const item of value) {
-                  if (typeof item === "string") {
-                    const trimmed = item.trim();
-                    if (trimmed) out.push(trimmed);
-                    continue;
-                  }
-                  if (item && typeof item === "object") {
-                    const maybeLanguage = (item as any).language;
-                    if (typeof maybeLanguage === "string") {
-                      const trimmed = maybeLanguage.trim();
+            // Apply optional profile fields OUTSIDE transaction after commit
+            // This reduces transaction time and allows independent retry on failure
+            if (txResult?.agentId) {
+              try {
+                const normalizeLanguageStrings = (value: unknown): string[] => {
+                  if (!Array.isArray(value)) return [];
+                  const out: string[] = [];
+                  for (const item of value) {
+                    if (typeof item === "string") {
+                      const trimmed = item.trim();
                       if (trimmed) out.push(trimmed);
+                    } else if (item && typeof item === "object") {
+                      const maybeLanguage = (item as any).language;
+                      if (typeof maybeLanguage === "string") {
+                        const trimmed = maybeLanguage.trim();
+                        if (trimmed) out.push(trimmed);
+                      }
                     }
                   }
-                }
-                return Array.from(new Set(out));
-              };
+                  return Array.from(new Set(out));
+                };
 
-              const applicationYearsOfExperience = (existingApplication as any).yearsOfExperience != null
-                ? Number((existingApplication as any).yearsOfExperience)
-                : null;
+                const applicationYearsOfExperience = (existingApplication as any).yearsOfExperience != null
+                  ? Number((existingApplication as any).yearsOfExperience)
+                  : null;
 
-              const applicationLanguages = normalizeLanguageStrings((existingApplication as any).languages);
-              const agentDataLanguages = normalizeLanguageStrings((agentData as any).languages);
-
-              const jobAreaOfOperationRaw = typeof (existingApplication.job as any)?.locationDetail === "string"
-                ? String((existingApplication.job as any).locationDetail).trim()
-                : "";
-
-              const inferredAreasFromJob = Array.from(
-                new Set(
-                  jobAreaOfOperationRaw
-                    .split(",")
-                    .map((v) => v.trim())
-                    .filter(Boolean)
-                )
-              );
-
-              const normalizeAreas = (value: unknown): string[] => {
-                if (!Array.isArray(value)) return [];
-                return Array.from(
+                const applicationLanguages = normalizeLanguageStrings((existingApplication as any).languages);
+                const agentDataLanguages = normalizeLanguageStrings((agentData as any).languages);
+                const jobAreaOfOperationRaw = typeof (existingApplication.job as any)?.locationDetail === "string"
+                  ? String((existingApplication.job as any).locationDetail).trim()
+                  : "";
+                const inferredAreasFromJob = Array.from(
                   new Set(
-                    value
-                      .filter((v) => typeof v === "string")
-                      .map((v) => v.trim())
-                      .filter(Boolean)
+                    jobAreaOfOperationRaw.split(",").map((v) => v.trim()).filter(Boolean)
                   )
                 );
-              };
 
-              if (!agentProfile) {
-                const operatorProfileSeed = buildOperatorProfileSeed(existingApplication.agentApplicationData, {
-                  fullName: existingApplication.fullName,
-                  email,
-                  phone,
-                  region: existingApplication.region,
-                  district: existingApplication.district,
+                const agentProfile = await prisma.agent.findUnique({
+                  where: { id: txResult.agentId },
+                  select: { areasOfOperation: true, specializations: true, languages: true, yearsOfExperience: true, operatorProfile: true },
                 });
 
-                agentProfile = await tx.agent.create({
-                  data: {
-                    user: { connect: { id: user.id } },
-                    status: agentData.status || "ACTIVE",
-                    yearsOfExperience: applicationYearsOfExperience != null
+                if (agentProfile) {
+                  const normalizeAreas = (value: unknown): string[] => {
+                    if (!Array.isArray(value)) return [];
+                    return Array.from(
+                      new Set(value.filter((v) => typeof v === "string").map((v) => v.trim()).filter(Boolean))
+                    );
+                  };
+
+                  const agentUpdate: any = {};
+                  const incomingAreas = Array.isArray(agentData.areasOfOperation) ? agentData.areasOfOperation : [];
+                  const incomingSpecs = Array.isArray(agentData.specializations) ? agentData.specializations : [];
+                  const existingAreas = Array.isArray((agentProfile as any).areasOfOperation) ? (agentProfile as any).areasOfOperation : null;
+                  const existingSpecs = Array.isArray((agentProfile as any).specializations) ? (agentProfile as any).specializations : null;
+                  const existingLanguages = Array.isArray((agentProfile as any).languages) ? (agentProfile as any).languages : null;
+                  const existingYears = (agentProfile as any).yearsOfExperience != null ? Number((agentProfile as any).yearsOfExperience) : null;
+
+                  if (inferredAreasFromJob.length > 0) {
+                    const currentAreas = normalizeAreas(existingAreas);
+                    const advertAreas = inferredAreasFromJob;
+                    const same = currentAreas.length === advertAreas.length && currentAreas.every((v, idx) => v === advertAreas[idx]);
+                    if (!same) agentUpdate.areasOfOperation = advertAreas;
+                  } else if ((!existingAreas || existingAreas.length === 0) && incomingAreas.length > 0) {
+                    agentUpdate.areasOfOperation = incomingAreas;
+                  }
+                  if ((!existingSpecs || existingSpecs.length === 0) && incomingSpecs.length > 0) agentUpdate.specializations = incomingSpecs;
+
+                  if (existingYears == null) {
+                    const incomingYears = applicationYearsOfExperience != null
                       ? applicationYearsOfExperience
-                      : (agentData.yearsOfExperience != null ? Number(agentData.yearsOfExperience) : null),
-                    bio: agentData.bio || null,
-                    maxActiveRequests: agentData.maxActiveRequests != null ? Number(agentData.maxActiveRequests) : 10,
-                    isAvailable: agentData.isAvailable !== undefined ? Boolean(agentData.isAvailable) : true,
-                    currentActiveRequests: 0,
-                    areasOfOperation:
-                      inferredAreasFromJob.length > 0
-                        ? inferredAreasFromJob
-                        : (Array.isArray(agentData.areasOfOperation) && agentData.areasOfOperation.length > 0 ? agentData.areasOfOperation : null),
-                    certifications: Array.isArray(agentData.certifications) && agentData.certifications.length > 0 ? agentData.certifications : null,
-                    languages: applicationLanguages.length > 0 ? applicationLanguages : (agentDataLanguages.length > 0 ? agentDataLanguages : null),
-                    specializations: Array.isArray(agentData.specializations) && agentData.specializations.length > 0 ? agentData.specializations : null,
-                    operatorProfile: Object.keys(operatorProfileSeed).length > 0 ? (operatorProfileSeed as any) : undefined,
-                  } as any,
-                });
-              } else {
-                // Best-effort: fill missing agent profile fields from application data
-                const agentUpdate: any = {};
-                const incomingAreas = Array.isArray(agentData.areasOfOperation) ? agentData.areasOfOperation : [];
-                const incomingSpecs = Array.isArray(agentData.specializations) ? agentData.specializations : [];
-                const existingAreas = Array.isArray((agentProfile as any).areasOfOperation) ? (agentProfile as any).areasOfOperation : null;
-                const existingSpecs = Array.isArray((agentProfile as any).specializations) ? (agentProfile as any).specializations : null;
+                      : (agentData.yearsOfExperience != null ? Number(agentData.yearsOfExperience) : null);
+                    if (incomingYears != null) agentUpdate.yearsOfExperience = incomingYears;
+                  }
 
-                const existingLanguages = Array.isArray((agentProfile as any).languages) ? (agentProfile as any).languages : null;
-                const existingYears = (agentProfile as any).yearsOfExperience != null ? Number((agentProfile as any).yearsOfExperience) : null;
+                  if ((!existingLanguages || existingLanguages.length === 0)) {
+                    const incomingLanguages = applicationLanguages.length > 0 ? applicationLanguages : (agentDataLanguages.length > 0 ? agentDataLanguages : []);
+                    if (incomingLanguages.length > 0) agentUpdate.languages = incomingLanguages;
+                  }
 
-                // Areas of Operation must match the job advert when set.
-                if (inferredAreasFromJob.length > 0) {
-                  const currentAreas = normalizeAreas(existingAreas);
-                  const advertAreas = inferredAreasFromJob;
-                  const same = currentAreas.length === advertAreas.length && currentAreas.every((v, idx) => v === advertAreas[idx]);
-                  if (!same) agentUpdate.areasOfOperation = advertAreas;
-                } else if ((!existingAreas || existingAreas.length === 0) && incomingAreas.length > 0) {
-                  agentUpdate.areasOfOperation = incomingAreas;
-                }
-                if ((!existingSpecs || existingSpecs.length === 0) && incomingSpecs.length > 0) agentUpdate.specializations = incomingSpecs;
-
-                if (existingYears == null) {
-                  const incomingYears = applicationYearsOfExperience != null
-                    ? applicationYearsOfExperience
-                    : (agentData.yearsOfExperience != null ? Number(agentData.yearsOfExperience) : null);
-                  if (incomingYears != null) agentUpdate.yearsOfExperience = incomingYears;
-                }
-
-                if ((!existingLanguages || existingLanguages.length === 0)) {
-                  const incomingLanguages = applicationLanguages.length > 0
-                    ? applicationLanguages
-                    : (agentDataLanguages.length > 0 ? agentDataLanguages : []);
-                  if (incomingLanguages.length > 0) agentUpdate.languages = incomingLanguages;
-                }
-
-                const operatorProfileSeed = buildOperatorProfileSeed(existingApplication.agentApplicationData, {
-                  fullName: existingApplication.fullName,
-                  email,
-                  phone,
-                  region: existingApplication.region,
-                  district: existingApplication.district,
-                });
-                if (Object.keys(operatorProfileSeed).length > 0) {
-                  agentUpdate.operatorProfile = mergeOperatorProfileSeed((agentProfile as any).operatorProfile, operatorProfileSeed) as any;
-                }
-
-                if (Object.keys(agentUpdate).length > 0) {
-                  agentProfile = await tx.agent.update({
-                    where: { id: (agentProfile as any).id },
-                    data: agentUpdate as any,
+                  const operatorProfileSeed = buildOperatorProfileSeed(existingApplication.agentApplicationData, {
+                    fullName: existingApplication.fullName,
+                    email,
+                    phone,
+                    region: existingApplication.region,
+                    district: existingApplication.district,
                   });
+                  if (Object.keys(operatorProfileSeed).length > 0) {
+                    agentUpdate.operatorProfile = mergeOperatorProfileSeed((agentProfile as any).operatorProfile, operatorProfileSeed) as any;
+                  }
+
+                  if (Object.keys(agentUpdate).length > 0) {
+                    await prisma.agent.update({
+                      where: { id: txResult.agentId },
+                      data: agentUpdate as any,
+                    });
+                  }
                 }
+              } catch (profileErr: any) {
+                console.warn("[CAREERS_HIRED] Non-critical: Failed to populate optional profile fields:", profileErr?.message);
+                // Don't fail the request - agent profile was already created and linked
               }
-
-              // Link application to agent
-              // First clear any prior link from another application to this agent
-              // (the agentId column has no @unique constraint but we keep the data clean)
-              await tx.jobApplication.updateMany({
-                where: { agentId: agentProfile.id, id: { not: parsedId } },
-                data: { agentId: null },
-              });
-              await tx.jobApplication.update({
-                where: { id: parsedId },
-                data: { agentId: agentProfile.id },
-              });
-
-              console.log(`Provisioned Agent profile (ID: ${agentProfile.id}) for HIRED application ${parsedId} (User ID: ${user.id})`);
-            });
+            }
           }
         }
       } catch (agentError: any) {

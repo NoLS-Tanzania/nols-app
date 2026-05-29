@@ -1,62 +1,90 @@
 "use client";
 import { useState, useEffect } from "react";
-import { X, Smartphone, Wallet, Check } from "lucide-react";
+import { X, Smartphone, Building2, CreditCard, ShieldCheck } from "lucide-react";
 import apiClient from "@/lib/apiClient";
 
 const api = apiClient;
 
+// ── Shared types ────────────────────────────────────────────────────────────────
+
+export type SelectedPaymentMethod =
+  | { method: "MNO";  provider: "Airtel" | "Mixx" | "M-Pesa" | "HaloPesa"; phoneNumber: string; providerName: string; }
+  | { method: "BANK"; bankCode: string; bankName: string; accountNumber?: string; }
+  | { method: "CARD"; };
+
 interface PaymentMethodModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSelect: (method: {
-    provider: string;
-    phoneNumber: string;
-    providerName: string;
-  }) => void;
+  onSelect: (method: SelectedPaymentMethod) => void;
   invoiceId?: number;
   amount: number;
   currency?: string;
   defaultPhone?: string;
 }
 
-type PaymentProvider = {
-  id: string;
-  name: string;
-  icon: any;
-  description: string;
-  supported: boolean;
-};
+// ── Providers ───────────────────────────────────────────────────────────────────
 
-const PAYMENT_PROVIDERS: PaymentProvider[] = [
-  {
-    id: "Airtel",
-    name: "Airtel Money",
-    icon: Smartphone,
-    description: "Pay using your Airtel Money account",
-    supported: true,
-  },
-  {
-    id: "Mixx",
-    name: "Mixx by Yas",
-    icon: Wallet,
-    description: "Pay using your Mixx by Yas account",
-    supported: true,
-  },
-  {
-    id: "M-Pesa",
-    name: "M-Pesa",
-    icon: Smartphone,
-    description: "Pay using your M-Pesa account",
-    supported: true,
-  },
-  {
-    id: "HaloPesa",
-    name: "HaloPesa",
-    icon: Wallet,
-    description: "Pay using your HaloPesa account",
-    supported: true,
-  },
+type MnoProvider = { id: "Airtel" | "Mixx" | "M-Pesa" | "HaloPesa"; name: string; };
+
+const MNO_PROVIDERS: MnoProvider[] = [
+  { id: "Airtel",   name: "Airtel Money" },
+  { id: "M-Pesa",   name: "M-Pesa"       },
+  { id: "Mixx",     name: "Mixx by Yas"  },
+  { id: "HaloPesa", name: "HaloPesa"     },
 ];
+
+type BankProvider = { code: string; name: string; };
+
+const BANK_PROVIDERS: BankProvider[] = [
+  { code: "CRDB",    name: "CRDB Bank" },
+  { code: "NMB",     name: "NMB Bank" },
+  { code: "NBC",     name: "NBC Bank" },
+  { code: "STANBIC", name: "Stanbic Bank" },
+  { code: "EQUITY",  name: "Equity Bank" },
+  { code: "IM",      name: "I&M Bank" },
+  { code: "ABSA",    name: "ABSA Bank" },
+  { code: "TCB",     name: "TCB Bank" },
+  { code: "BOA",     name: "Bank of Africa" },
+  { code: "DTB",     name: "Diamond Trust Bank" },
+  { code: "UBA",     name: "UBA Bank" },
+  { code: "AZANIA",  name: "Bank of Azania" },
+  { code: "KCB",     name: "KCB Bank" },
+  { code: "NCBA",    name: "NCBA Bank" },
+  { code: "YETU",    name: "Yetu Microfinance" },
+];
+
+// ── Phone helpers ───────────────────────────────────────────────────────────────
+
+function normalizePhone(phone: string): string {
+  let cleaned = phone.replace(/[^\d+]/g, "");
+  if (!cleaned.startsWith("+")) {
+    if (cleaned.startsWith("255"))    cleaned = "+" + cleaned;
+    else if (cleaned.startsWith("0")) cleaned = "+255" + cleaned.substring(1);
+    else                              cleaned = "+255" + cleaned;
+  }
+  return cleaned;
+}
+
+function validatePhone(phone: string): boolean {
+  return /^\+255\d{9}$/.test(normalizePhone(phone));
+}
+
+// ── Selection indicator ─────────────────────────────────────────────────────────
+
+function RadioDot({ selected }: { selected: boolean }) {
+  return (
+    <span
+      className={`
+        flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-200
+        ${selected ? "border-emerald-500 bg-emerald-500" : "border-slate-300 bg-white"}
+      `}
+    >
+      {selected && <span className="w-2 h-2 rounded-full bg-white" />}
+    </span>
+  );
+}
+
+// ── Component ───────────────────────────────────────────────────────────────────
 
 export default function PaymentMethodModal({
   isOpen,
@@ -67,241 +95,324 @@ export default function PaymentMethodModal({
   currency = "TZS",
   defaultPhone,
 }: PaymentMethodModalProps) {
-  const [selectedProvider, setSelectedProvider] = useState<string>("");
-  const [phoneNumber, setPhoneNumber] = useState<string>(defaultPhone || "");
-  const [savedPhones, setSavedPhones] = useState<string[]>([]);
-  const [loading, _setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [activeSection, setActiveSection]         = useState<"MNO" | "BANK" | "CARD" | null>(null);
+  const [selectedMnoProvider, setSelectedMnoProvider] = useState<string>("");
+  const [phoneNumber, setPhoneNumber]             = useState<string>(defaultPhone || "");
+  const [savedPhones, setSavedPhones]             = useState<string[]>([]);
+  const [selectedBankCode, setSelectedBankCode]   = useState<string>("");
+  const [bankAccountNumber, setBankAccountNumber] = useState<string>("");
+  const [error, setError]                         = useState<string | null>(null);
 
   async function loadSavedPhones() {
     try {
       const response = await api.get("/api/account/payment-methods");
-
-      // Extract unique phone numbers from payment history
       const phones = new Set<string>();
       if (response.data?.methods) {
-        response.data.methods.forEach((method: any) => {
-          if (method.ref && /^\+?255\d{9}$/.test(method.ref.replace(/\D/g, ""))) {
-            phones.add(method.ref);
-          }
+        response.data.methods.forEach((m: any) => {
+          if (m.ref && /^\+?255\d{9}$/.test(m.ref.replace(/\D/g, ""))) phones.add(m.ref);
         });
       }
-
-      // Also check user's profile phone
-      if (response.data?.payout?.mobileMoneyNumber) {
-        phones.add(response.data.payout.mobileMoneyNumber);
-      }
-
+      if (response.data?.payout?.mobileMoneyNumber) phones.add(response.data.payout.mobileMoneyNumber);
       setSavedPhones(Array.from(phones));
-    } catch (err) {
-      // Silently fail - saved phones are optional
-      console.debug("Could not load saved phone numbers", err);
-    }
+    } catch { /* saved phones are optional */ }
   }
 
   useEffect(() => {
-    if (isOpen && defaultPhone) {
-      setPhoneNumber(defaultPhone);
-    }
+    if (isOpen && defaultPhone) setPhoneNumber(defaultPhone);
   }, [isOpen, defaultPhone]);
 
-  // Load saved phone numbers from user's payment history
   useEffect(() => {
-    if (isOpen) {
-      loadSavedPhones();
-    }
+    if (isOpen) loadSavedPhones();
   }, [isOpen]);
 
-  const normalizePhone = (phone: string): string => {
-    // Remove all non-digit characters except +
-    let cleaned = phone.replace(/[^\d+]/g, "");
-    
-    // Ensure it starts with country code
-    if (!cleaned.startsWith("+")) {
-      if (cleaned.startsWith("255")) {
-        cleaned = "+" + cleaned;
-      } else if (cleaned.startsWith("0")) {
-        cleaned = "+255" + cleaned.substring(1);
-      } else {
-        cleaned = "+255" + cleaned;
-      }
+  useEffect(() => {
+    if (!isOpen) {
+      setActiveSection(null);
+      setError(null);
+      setSelectedMnoProvider("");
+      setSelectedBankCode("");
+      setBankAccountNumber("");
     }
-    
-    return cleaned;
-  };
-
-  const validatePhone = (phone: string): boolean => {
-    const normalized = normalizePhone(phone);
-    // Tanzania phone format: +255XXXXXXXXX (12 digits after +)
-    return /^\+255\d{9}$/.test(normalized);
-  };
+  }, [isOpen]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    if (!selectedProvider) {
-      setError("Please select a payment provider");
-      return;
-    }
+    if (!activeSection) { setError("Please select a payment method"); return; }
 
-    if (!phoneNumber.trim()) {
-      setError("Please enter your phone number");
-      return;
+    if (activeSection === "MNO") {
+      if (!selectedMnoProvider) { setError("Please select a mobile money provider"); return; }
+      if (!phoneNumber.trim())   { setError("Please enter your phone number"); return; }
+      const normalized = normalizePhone(phoneNumber.trim());
+      if (!validatePhone(normalized)) {
+        setError("Please enter a valid Tanzania phone number (e.g. +255712345678 or 0712345678)");
+        return;
+      }
+      const prov = MNO_PROVIDERS.find((p) => p.id === selectedMnoProvider);
+      onSelect({ method: "MNO", provider: selectedMnoProvider as any, phoneNumber: normalized, providerName: prov?.name ?? selectedMnoProvider });
+    } else if (activeSection === "BANK") {
+      if (!selectedBankCode) { setError("Please select a bank"); return; }
+      const bank = BANK_PROVIDERS.find((b) => b.code === selectedBankCode);
+      onSelect({ method: "BANK", bankCode: selectedBankCode, bankName: bank?.name ?? selectedBankCode, accountNumber: bankAccountNumber.trim() || undefined });
+    } else if (activeSection === "CARD") {
+      onSelect({ method: "CARD" });
     }
-
-    const normalized = normalizePhone(phoneNumber.trim());
-    if (!validatePhone(normalized)) {
-      setError("Please enter a valid Tanzania phone number (e.g., +255712345678 or 0712345678)");
-      return;
-    }
-
-    const provider = PAYMENT_PROVIDERS.find((p) => p.id === selectedProvider);
-    if (!provider) {
-      setError("Invalid payment provider selected");
-      return;
-    }
-
-    // Call onSelect callback with selected method
-    onSelect({
-      provider: selectedProvider,
-      phoneNumber: normalized,
-      providerName: provider.name,
-    });
   };
+
+  const submitLabel = () => {
+    if (activeSection === "MNO")  return "Continue with Mobile Money";
+    if (activeSection === "BANK") return "Continue with Bank Transfer";
+    if (activeSection === "CARD") return "Continue with Card";
+    return "Continue";
+  };
+
+  const isSubmitDisabled =
+    !activeSection ||
+    (activeSection === "MNO"  && (!selectedMnoProvider || !phoneNumber.trim())) ||
+    (activeSection === "BANK" && !selectedBankCode);
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-      <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-slate-200">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/60 backdrop-blur-sm">
+      <div className="bg-white w-full sm:max-w-md sm:rounded-2xl shadow-2xl max-h-[96vh] overflow-y-auto">
+
+        {/* ── Header ─────────────────────────────────────────────────────────── */}
+        <div className="sticky top-0 bg-white z-10 flex items-start justify-between px-6 pt-6 pb-4 border-b border-slate-100">
           <div>
-            <h2 className="text-xl font-semibold text-slate-900">Select Payment Method</h2>
-            <p className="text-sm text-slate-600 mt-1">
-              Choose how you want to pay {amount.toLocaleString("en-US")} {currency}
+            <h2 className="text-lg font-semibold text-slate-900 tracking-tight">Payment Method</h2>
+            <p className="text-sm text-slate-500 mt-0.5">
+              {amount.toLocaleString("en-US")} <span className="font-medium">{currency}</span>
             </p>
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+            className="p-1.5 rounded-full hover:bg-slate-100 transition-colors text-slate-400 hover:text-slate-600"
             aria-label="Close"
           >
-            <X className="w-5 h-5 text-slate-600" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Content */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          {/* Payment Providers */}
-          <div>
-            <label className="block text-sm font-medium text-slate-900 mb-3">
-              Select Payment Provider
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              {PAYMENT_PROVIDERS.map((provider) => {
-                const Icon = provider.icon;
-                const isSelected = selectedProvider === provider.id;
+        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-3">
+
+          {/* ── Card: Mobile Money ────────────────────────────────────────────── */}
+          <MethodCard
+            id="MNO"
+            active={activeSection === "MNO"}
+            icon={<Smartphone className="w-5 h-5" />}
+            iconColor={activeSection === "MNO" ? "text-red-600" : "text-red-500"}
+            iconBg={activeSection === "MNO" ? "bg-red-100" : "bg-red-50"}
+            label="Mobile Money"
+            description="Airtel · M-Pesa · Mixx · HaloPesa"
+            onClick={() => { setActiveSection(activeSection === "MNO" ? null : "MNO"); setError(null); }}
+          >
+            {/* Provider chips */}
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              {MNO_PROVIDERS.map((prov) => {
+                const sel = selectedMnoProvider === prov.id;
                 return (
                   <button
-                    key={provider.id}
+                    key={prov.id}
                     type="button"
-                    onClick={() => setSelectedProvider(provider.id)}
-                    className={`p-4 border-2 rounded-lg transition-all ${
-                      isSelected
-                        ? "border-emerald-600 bg-emerald-50"
-                        : "border-slate-200 hover:border-slate-300 bg-white"
-                    } ${!provider.supported ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
-                    disabled={!provider.supported}
+                    onClick={() => setSelectedMnoProvider(prov.id)}
+                    className={`
+                      px-3 py-2.5 rounded-xl border text-sm font-medium transition-all duration-150 text-left
+                      ${sel
+                        ? "border-violet-400 bg-violet-50 text-violet-800 shadow-sm"
+                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"}
+                    `}
                   >
-                    <div className="flex items-center justify-between mb-2">
-                      <Icon className={`w-5 h-5 ${isSelected ? "text-emerald-600" : "text-slate-600"}`} />
-                      {isSelected && <Check className="w-5 h-5 text-emerald-600" />}
-                    </div>
-                    <div className="text-left">
-                      <div className={`font-medium text-sm ${isSelected ? "text-emerald-900" : "text-slate-900"}`}>
-                        {provider.name}
-                      </div>
-                      <div className="text-xs text-slate-500 mt-1">{provider.description}</div>
-                    </div>
+                    {prov.name}
                   </button>
                 );
               })}
             </div>
-          </div>
 
-          {/* Phone Number Input */}
-          <div>
-            <label className="block text-sm font-medium text-slate-900 mb-2">
-              Phone Number
-            </label>
-            <input
-              type="tel"
-              value={phoneNumber}
-              onChange={(e) => setPhoneNumber(e.target.value)}
-              placeholder="+255712345678 or 0712345678"
-              className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-colors"
-              required
-            />
-            <p className="text-xs text-slate-500 mt-1">
-              Enter the phone number linked to your {selectedProvider ? PAYMENT_PROVIDERS.find(p => p.id === selectedProvider)?.name : "mobile money"} account
-            </p>
-
-            {/* Saved Phone Numbers */}
-            {savedPhones.length > 0 && (
-              <div className="mt-3">
-                <p className="text-xs text-slate-600 mb-2">Previously used:</p>
-                <div className="flex flex-wrap gap-2">
-                  {savedPhones.slice(0, 3).map((phone, idx) => (
+            {/* Phone input */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5">
+                Phone Number
+              </label>
+              <input
+                type="tel"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+                placeholder="0712 345 678"
+                className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-violet-400 focus:border-transparent outline-none transition-all bg-slate-50 focus:bg-white"
+              />
+              <p className="text-xs text-slate-400 mt-1.5">
+                {selectedMnoProvider
+                  ? `Number linked to your ${MNO_PROVIDERS.find(p => p.id === selectedMnoProvider)?.name} account`
+                  : "Tanzania number (+255 or 07xx)"}
+              </p>
+              {savedPhones.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {savedPhones.slice(0, 3).map((ph, i) => (
                     <button
-                      key={idx}
+                      key={i}
                       type="button"
-                      onClick={() => setPhoneNumber(phone)}
-                      className="px-3 py-1.5 text-xs bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+                      onClick={() => setPhoneNumber(ph)}
+                      className="px-2.5 py-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors"
                     >
-                      {phone}
+                      {ph}
                     </button>
                   ))}
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          </MethodCard>
 
-          {/* Error Message */}
+          {/* ── Card: Bank Transfer ───────────────────────────────────────────── */}
+          <MethodCard
+            id="BANK"
+            active={activeSection === "BANK"}
+            icon={<Building2 className="w-5 h-5" />}
+            iconColor={activeSection === "BANK" ? "text-green-700" : "text-green-600"}
+            iconBg={activeSection === "BANK" ? "bg-green-100" : "bg-green-50"}
+            label="Bank Transfer"
+            description="CRDB · NMB · NBC · 12 more"
+            onClick={() => { setActiveSection(activeSection === "BANK" ? null : "BANK"); setError(null); }}
+          >
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5">
+                Select Bank
+              </label>
+              <select
+                value={selectedBankCode}
+                onChange={(e) => setSelectedBankCode(e.target.value)}
+                className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-400 focus:border-transparent outline-none transition-all bg-slate-50 focus:bg-white appearance-none"
+              >
+                <option value="">Choose your bank</option>
+                {BANK_PROVIDERS.map((b) => (
+                  <option key={b.code} value={b.code}>{b.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5">
+                Account Number <span className="normal-case font-normal text-slate-400">(optional)</span>
+              </label>
+              <input
+                type="text"
+                value={bankAccountNumber}
+                onChange={(e) => setBankAccountNumber(e.target.value)}
+                placeholder="Account number"
+                maxLength={25}
+                className="w-full max-w-[280px] px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-green-400 focus:border-transparent outline-none transition-all bg-slate-50 focus:bg-white font-mono tracking-wide block"
+              />
+            </div>
+
+            <div className="flex items-start gap-2.5 p-3 bg-blue-50 rounded-xl">
+              <span className="text-blue-400 mt-0.5">ℹ</span>
+              <p className="text-xs text-blue-700 leading-relaxed">
+                You&apos;ll receive a prompt on your bank app or USSD to complete the payment.
+              </p>
+            </div>
+          </MethodCard>
+
+          {/* ── Card: Debit / Credit Card ─────────────────────────────────────── */}
+          <MethodCard
+            id="CARD"
+            active={activeSection === "CARD"}
+            icon={<CreditCard className="w-5 h-5" />}
+            iconColor={activeSection === "CARD" ? "text-blue-700" : "text-blue-500"}
+            iconBg={activeSection === "CARD" ? "bg-blue-100" : "bg-blue-50"}
+            label="Debit / Credit Card"
+            description="Visa · Mastercard · Secure checkout"
+            onClick={() => { setActiveSection(activeSection === "CARD" ? null : "CARD"); setError(null); }}
+          >
+            <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
+              <ShieldCheck className="w-9 h-9 text-emerald-500 shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-slate-800">Secure hosted checkout</p>
+                <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                  You&apos;ll be redirected to AzamPay&apos;s secure page. We never see your card details.
+                </p>
+              </div>
+            </div>
+          </MethodCard>
+
+          {/* ── Error ────────────────────────────────────────────────────────── */}
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+            <div className="px-4 py-3 bg-red-50 border border-red-100 rounded-xl text-sm text-red-600">
               {error}
             </div>
           )}
 
-          {/* Info Note */}
-          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <p className="text-sm text-blue-800">
-              <strong>Note:</strong> You can use different phone numbers for different bookings. 
-              Each booking is processed independently with the payment method you select here.
-            </p>
-          </div>
-
-          {/* Actions */}
-          <div className="flex gap-3 pt-4 border-t border-slate-200">
+          {/* ── Actions ──────────────────────────────────────────────────────── */}
+          <div className="flex gap-3 pt-2">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-3 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors font-medium"
+              className="flex-1 px-4 py-3.5 border border-slate-200 rounded-xl text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={loading || !selectedProvider || !phoneNumber.trim()}
-              className="flex-1 px-4 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+              disabled={isSubmitDisabled}
+              className="flex-1 px-4 py-3.5 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm shadow-emerald-200"
             >
-              {loading ? "Processing..." : "Continue to Payment"}
+              {submitLabel()}
             </button>
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+// ── MethodCard sub-component ────────────────────────────────────────────────────
+
+interface MethodCardProps {
+  id: string;
+  active: boolean;
+  icon: React.ReactNode;
+  iconColor: string;
+  iconBg: string;
+  label: string;
+  description: string;
+  onClick: () => void;
+  children?: React.ReactNode;
+}
+
+function MethodCard({ active, icon, iconColor, iconBg, label, description, onClick, children }: MethodCardProps) {
+  return (
+    <div
+      className={`
+        rounded-2xl border transition-all duration-200
+        ${active
+          ? "border-slate-200 shadow-md shadow-slate-100"
+          : "border-slate-200 hover:border-slate-300 hover:shadow-sm"}
+      `}
+    >
+      {/* Row */}
+      <button
+        type="button"
+        onClick={onClick}
+        className="w-full flex items-center gap-4 px-5 py-4 text-left"
+      >
+        <span className={`p-2.5 rounded-xl transition-colors ${iconBg}`}>
+          <span className={iconColor}>{icon}</span>
+        </span>
+
+        <span className="flex-1 min-w-0">
+          <span className="block font-semibold text-slate-900 text-sm leading-tight">{label}</span>
+          <span className="block text-xs text-slate-400 mt-0.5">{description}</span>
+        </span>
+
+        <RadioDot selected={active} />
+      </button>
+
+      {/* Expanded details */}
+      {active && children && (
+        <div className="px-5 pb-5 pt-4 border-t border-slate-100">
+          {children}
+        </div>
+      )}
     </div>
   );
 }

@@ -487,9 +487,11 @@ model Invoice {
   approvedBy Int?
   paidBy     Int?
 
-  paymentMethod String? @db.VarChar(40) // BANK, MPESA, TIGOPESA...
-  paymentRef    String? @unique @db.VarChar(80) // Gateway ref / merchant ref (set at APPROVED)
-  notes         String? @db.Text
+  paymentMethod     String? @db.VarChar(40)  // BANK, MPESA, TIGOPESA, CARD...
+  paymentRef        String? @unique @db.VarChar(80)  // Gateway merchant ref (set at PROCESSING)
+  checkoutSessionId String? @unique @db.VarChar(120) // AzamPay transactionId
+  payerPhone        String? @db.VarChar(40)           // Phone used for MNO payment
+  notes             String? @db.Text
 
   receiptQrPayload String? @db.Text
   receiptQrPng     Bytes? // PNG bytes (LONGBLOB)
@@ -512,6 +514,7 @@ model Invoice {
   @@index([issuedAt])
   @@index([paidAt])
   @@index([status, issuedAt])
+  @@index([checkoutSessionId])
   @@map("invoice")
 }
 
@@ -1903,6 +1906,18 @@ model PaymentEvent {
   /// Payment status: SUCCESS, FAILED, PENDING
   status String @default("PENDING")
 
+  /// Payment channel: MNO (mobile money), BANK, or CARD
+  paymentChannel String? @db.VarChar(10) @map("payment_channel")
+
+  /// E.164 phone number for MNO payments (e.g. +255712345678)
+  phone String? @db.VarChar(20)
+
+  /// Original status string from AzamPay before normalization
+  rawStatus String? @db.VarChar(80) @map("raw_status")
+
+  /// Card redirect URL returned by AzamPay CardCheckout
+  checkoutUrl String? @db.VarChar(2048) @map("checkout_url")
+
   /// Raw payload from payment provider (JSON)
   payload Json?
 
@@ -1922,6 +1937,8 @@ model PaymentEvent {
   @@index([tourBookingId])
   @@index([status])
   @@index([createdAt])
+  @@index([paymentChannel])
+  @@index([paymentChannel, status, createdAt])
   @@map("payment_events")
 }
 

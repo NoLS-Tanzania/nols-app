@@ -352,7 +352,7 @@ export function careersEmail(
 </html>`;
 }
 
-// ─── Reusable UI blocks ───────────────────────────────────────────────────────
+// ─── Reusable UI blocks ──────
 
 /**
  * Clean partner application email shell for operator and travel partner flows.
@@ -381,23 +381,9 @@ export function partnershipEmail(
         style="max-width:620px;background:#ffffff;border-radius:14px;overflow:hidden;box-shadow:0 16px 42px rgba(1,77,71,0.14);">
         <tr>
           <td style="background:#014d47;padding:30px 36px 28px;text-align:left;">
-            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
-              <tr>
-                <td style="vertical-align:middle;">
-                  <div style="display:inline-block;background:rgba(255,255,255,0.10);border:1px solid rgba(255,255,255,0.22);border-radius:12px;padding:10px 14px;">
-                    <span style="color:#ffffff;font-size:18px;font-weight:800;letter-spacing:2px;text-transform:uppercase;">NoLSAF</span>
-                  </div>
-                </td>
-                <td align="right" style="vertical-align:middle;">
-                  <span style="display:inline-block;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.24);border-radius:999px;padding:8px 14px;color:#dffcf5;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;">Partner Network</span>
-                </td>
-              </tr>
-            </table>
-            <p style="margin:22px 0 8px;color:#baf7e9;font-size:12px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;">${badgeLabel}</p>
+            <img src="https://nolsaf.com/assets/NoLS2025-04.png" alt="NoLSAF" style="width:40px;height:40px;margin-bottom:20px;display:block;border-radius:8px;background:#ffffff;padding:4px;" />
+            <p style="margin:0 0 8px;color:#baf7e9;font-size:12px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;">${badgeLabel}</p>
             <h1 style="margin:0;color:#ffffff;font-size:25px;line-height:1.28;font-weight:800;font-family:'Poppins','Segoe UI',Arial,sans-serif;">${contextLabel}</h1>
-            <p style="margin:12px 0 0;color:rgba(255,255,255,0.74);font-size:13px;line-height:1.65;max-width:480px;">
-              Verified partners, clear booking records, traveller support, and service delivery tracked in one NoLSAF workspace.
-            </p>
           </td>
         </tr>
         <tr>

@@ -8,13 +8,19 @@ import { sanitizeText } from "../lib/sanitize.js";
 import { limitPublicTourBookingCreate } from "../middleware/rateLimit.js";
 import { getAzamPayToken, invalidateAzamPayToken } from "../lib/azampay.auth.js";
 import rateLimit from "express-rate-limit";
+import {
+  AZAMPAY_API_URL,
+  FETCH_TIMEOUT_MS,
+  TZ_PHONE_RE,
+  normalizePhone as normalizePhoneHelper,
+  azampayPost,
+  azampayCardPost,
+} from "../lib/azampay.helpers.js";
 
 const router = Router();
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const AZAMPAY_API_URL = (process.env.AZAMPAY_API_URL || "https://api.azampay.co.tz").replace(/\/$/, "");
-const FETCH_TIMEOUT_MS = 10_000;
-const TZ_PHONE_RE = /^(\+255|0)(6|7|2)\d{8}$/;
+// AZAMPAY_API_URL, FETCH_TIMEOUT_MS, TZ_PHONE_RE imported from azampay.helpers
 const PAYMENT_ACCESS_TOKEN_HOURS = 12;
 
 // ── Rate limiters ─────────────────────────────────────────────────────────────
@@ -61,35 +67,8 @@ function isDraftPaymentAccessActive(createdAt: Date): boolean {
   return createdAtMs > 0 && createdAtMs + PAYMENT_ACCESS_TOKEN_HOURS * 60 * 60 * 1000 > Date.now();
 }
 
-function normalizePhone(raw: string): string | null {
-  let n = raw.replace(/[\s\-()]/g, "");
-  const hasLeadingPlus = n.startsWith("+");
-  n = (hasLeadingPlus ? "+" : "") + n.replace(/\+/g, "");
-  if (n.startsWith("+255")) { /* already E.164 */ }
-  else if (n.startsWith("255") && n.length === 12) n = `+${n}`;
-  else if (n.startsWith("0") && n.length === 10) n = `+255${n.slice(1)}`;
-  else return null;
-  if (!TZ_PHONE_RE.test(n)) return null;
-  return n;
-}
-
-// ── AzamPay helper ──────
-async function azampayPost(path: string, body: object, token: string): Promise<Response> {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
-  try {
-    return await fetch(`${AZAMPAY_API_URL}${path}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-      body: JSON.stringify(body),
-      signal: ctrl.signal,
-    });
-  } catch (err: any) {
-    throw new Error(`AzamPay request failed: ${err?.name ?? "NetworkError"}`);
-  } finally {
-    clearTimeout(timer);
-  }
-}
+// normalizePhone and azampayPost imported from azampay.helpers as normalizePhoneHelper / azampayPost
+const normalizePhone = normalizePhoneHelper;
 
 type OperatorProfile = {
   companyName?: string;
@@ -325,7 +304,7 @@ router.post(
   }),
 );
 
-// ── GET /:id/payment-status ───────────────────────────────────────────────────
+// ── GET /:id/payment-status ───
 
 router.get(
   "/:id/payment-status",
@@ -402,7 +381,7 @@ router.get(
 
 const initiatePaymentSchema = z.object({
   phoneNumber: z.string().min(9).max(15),
-  provider: z.enum(["Airtel", "Mixx", "M-Pesa", "Halopesa"]).default("Airtel"),
+  provider: z.enum(["Airtel", "Mixx", "MPESA", "Halopesa"]).default("Airtel"),
   accessToken: z.string().min(20).max(1024),
 });
 
@@ -474,6 +453,7 @@ router.post(
       amount: Math.round(amount).toString(),
       currency,
       externalId: paymentRef,
+      language: "SW",
       provider,
       additionalProperties: {
         tourBookingId: booking.id.toString(),
@@ -496,14 +476,27 @@ router.post(
     }
 
     if (!apiRes.ok) {
-      try { await apiRes.text(); } catch { /* discard */ }
+      console.error(`[TourPay/MNO] Checkout HTTP ${apiRes.status} — body: ${apiRes.body.slice(0, 500)}`);
       return res.status(502).json({ ok: false, error: "payment_failed", message: "Payment could not be initiated. Please try again." });
     }
 
-    let azampayData: any;
-    try { azampayData = await apiRes.json(); }
-    catch {
-      return res.status(502).json({ ok: false, error: "payment_failed", message: "Unexpected response from payment provider." });
+    // MNO PostCheckout is a USSD push to the phone — the real payment surface is the
+    // handset, not a browser checkout page. Discard any checkoutUrl the sandbox returns
+    // so the frontend stays on the "check your phone" prompt and polls /status.
+    let azampayData: any = { transactionId: null };
+    {
+      const trimmed = apiRes.body.trim();
+      if (!trimmed || trimmed.startsWith("https://") || trimmed.startsWith("http://")) {
+        // Empty 200 (push ack) OR sandbox debug URL — both mean "push sent"
+      } else {
+        try {
+          const parsed = JSON.parse(trimmed);
+          azampayData = { transactionId: parsed.transactionId ?? null };
+        } catch {
+          console.error(`[TourPay/MNO] Non-JSON response HTTP ${apiRes.status} — body: ${trimmed.slice(0, 500)}`);
+          return res.status(502).json({ ok: false, error: "payment_failed", message: "Unexpected response from payment provider." });
+        }
+      }
     }
 
     // Update booking — store paymentRef and mark as PENDING
@@ -522,11 +515,13 @@ router.post(
       await prisma.paymentEvent.create({
         data: {
           provider: "AZAMPAY",
-          eventId: azampayData.transactionId ?? paymentRef,
+          eventId: azampayData.transactionId ?? `${paymentRef}-${Date.now()}`,
           tourBookingId: booking.id,
           amount,
           currency,
           status: "PENDING",
+          paymentChannel: "MNO",
+          phone: normalizedPhone,
           payload: {
             transactionId: azampayData.transactionId ?? null,
             paymentRef,
@@ -545,6 +540,225 @@ router.post(
       paymentRef,
       status: "PENDING",
     });
+  }),
+);
+
+// ── POST /:id/initiate-bank-payment ──────────────────────────────────────────
+
+const initiateBankPaymentSchema = z.object({
+  bankCode:      z.enum(["CRDB","NMB","NBC","STANBIC","EQUITY","IM","ABSA","TCB","BOA","DTB","UBA","AZANIA","KCB","NCBA","YETU"] as const),
+  accountNumber: z.string().min(1).max(30).regex(/^[\w\-]+$/).optional(),
+  accessToken:   z.string().min(20).max(1024),
+});
+
+router.post(
+  "/:id/initiate-bank-payment",
+  tourPaymentLimiter,
+  asyncHandler(async (req: any, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0)
+      return res.status(400).json({ ok: false, error: "invalid_id" });
+
+    const parsed = initiateBankPaymentSchema.safeParse(req.body ?? {});
+    if (!parsed.success)
+      return res.status(400).json({ ok: false, error: "validation_error", details: parsed.error.flatten() });
+
+    const { bankCode, accountNumber, accessToken } = parsed.data;
+
+    if (!verifyTourBookingAccessToken(accessToken, id))
+      return res.status(403).json({ ok: false, error: "invalid_access_token" });
+
+    const booking = await prisma.tourBooking.findUnique({
+      where:  { id },
+      select: { id: true, bookingCode: true, status: true, paymentStatus: true,
+                currency: true, grossAmount: true, paymentRef: true, createdAt: true, paidAt: true },
+    });
+
+    if (!booking) return res.status(404).json({ ok: false, error: "not_found" });
+    if (booking.paymentStatus === "PAID" || booking.paidAt)
+      return res.status(400).json({ ok: false, error: "already_paid", message: "This booking is already paid." });
+    if (!isDraftPaymentAccessActive(booking.createdAt))
+      return res.status(410).json({ ok: false, error: "payment_access_expired", message: "This draft payment link has expired." });
+
+    const amount   = Math.round(Number(booking.grossAmount));
+    const currency = booking.currency || "TZS";
+    if (!Number.isFinite(amount) || amount <= 0)
+      return res.status(400).json({ ok: false, error: "invalid_amount" });
+
+    const paymentRef  = booking.paymentRef ?? `TOUR-BANK-${booking.id}-${Date.now()}`;
+    const azampayBody = {
+      amount:                Math.round(amount).toString(),
+      currencyCode:          currency,
+      merchantAccountNumber: accountNumber ?? "",
+      merchantMobileNumber:  "",
+      merchantName:          process.env.AZAMPAY_APP_NAME || "NoLSAF",
+      otp:                   "",
+      provider:              bankCode,
+      referenceId:           paymentRef,
+      additionalProperties:  { tourBookingId: booking.id.toString(), bookingCode: booking.bookingCode },
+    };
+
+    let token: string;
+    try { token = await getAzamPayToken(); }
+    catch { return res.status(503).json({ ok: false, error: "payment_unavailable" }); }
+
+    let apiRes = await azampayPost("/api/v1/Partner/BankCheckout", azampayBody, token);
+    if (apiRes.status === 401) {
+      await invalidateAzamPayToken();
+      try { token = await getAzamPayToken(); } catch { /* handled below */ }
+      apiRes = await azampayPost("/api/v1/Partner/BankCheckout", azampayBody, token!);
+    }
+    if (!apiRes.ok) {
+      console.error(`[TourPay/Bank] Checkout HTTP ${apiRes.status} — body: ${apiRes.body.slice(0, 500)}`);
+      return res.status(502).json({ ok: false, error: "payment_failed", message: "Bank payment could not be initiated." });
+    }
+
+    let azampayData: any;
+    try { azampayData = JSON.parse(apiRes.body); }
+    catch {
+      console.error(`[TourPay/Bank] Non-JSON response HTTP ${apiRes.status} — body: ${apiRes.body.slice(0, 500) || "(empty)"}`);
+      return res.status(502).json({ ok: false, error: "payment_failed", message: "Unexpected response from payment provider." });
+    }
+
+    await prisma.tourBooking.update({
+      where: { id: booking.id },
+      data:  { paymentRef: booking.paymentRef ?? paymentRef, paymentStatus: "PENDING", checkoutSessionId: azampayData.transactionId ?? null },
+    });
+
+    try {
+      await prisma.paymentEvent.create({
+        data: {
+          provider:       "AZAMPAY",
+          eventId:        azampayData.transactionId ?? `${paymentRef}-${Date.now()}`,
+          tourBookingId:  booking.id,
+          amount,
+          currency,
+          status:         "PENDING",
+          paymentChannel: "BANK",
+          rawStatus:      null,
+          payload:        { transactionId: azampayData.transactionId ?? null, paymentRef, bankCode },
+        },
+      });
+    } catch (dbErr: any) {
+      console.warn("[TourPay/Bank] Failed to create PaymentEvent:", dbErr?.message ?? dbErr);
+    }
+
+    return res.json({ ok: true, transactionId: azampayData.transactionId ?? paymentRef, paymentRef, status: "PENDING" });
+  }),
+);
+
+// ── POST /:id/initiate-card-payment ──────────────────────────────────────────
+
+const initiateCardPaymentSchema = z.object({
+  accessToken: z.string().min(20).max(1024),
+});
+
+router.post(
+  "/:id/initiate-card-payment",
+  tourPaymentLimiter,
+  asyncHandler(async (req: any, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0)
+      return res.status(400).json({ ok: false, error: "invalid_id" });
+
+    const parsed = initiateCardPaymentSchema.safeParse(req.body ?? {});
+    if (!parsed.success)
+      return res.status(400).json({ ok: false, error: "validation_error", details: parsed.error.flatten() });
+
+    const { accessToken } = parsed.data;
+
+    if (!verifyTourBookingAccessToken(accessToken, id))
+      return res.status(403).json({ ok: false, error: "invalid_access_token" });
+
+    if (!process.env.AZAMPAY_CARD_RETURN_URL) {
+      console.error("[TourPay/Card] AZAMPAY_CARD_RETURN_URL not configured");
+      return res.status(503).json({ ok: false, error: "payment_unavailable", message: "Card payments are not configured." });
+    }
+
+    const booking = await prisma.tourBooking.findUnique({
+      where:  { id },
+      select: { id: true, bookingCode: true, status: true, paymentStatus: true,
+                currency: true, grossAmount: true, paymentRef: true, createdAt: true, paidAt: true },
+    });
+
+    if (!booking) return res.status(404).json({ ok: false, error: "not_found" });
+    if (booking.paymentStatus === "PAID" || booking.paidAt)
+      return res.status(400).json({ ok: false, error: "already_paid", message: "This booking is already paid." });
+    if (!isDraftPaymentAccessActive(booking.createdAt))
+      return res.status(410).json({ ok: false, error: "payment_access_expired", message: "This draft payment link has expired." });
+
+    const amount   = Math.round(Number(booking.grossAmount));
+    const currency = booking.currency || "TZS";
+    if (!Number.isFinite(amount) || amount <= 0)
+      return res.status(400).json({ ok: false, error: "invalid_amount" });
+
+    const paymentRef = booking.paymentRef ?? `TOUR-CARD-${booking.id}-${Date.now()}`;
+    const returnUrl  = `${process.env.AZAMPAY_CARD_RETURN_URL}?tourBookingId=${booking.id}&accessToken=${encodeURIComponent(accessToken)}`;
+
+    const azampayBody = {
+      amount:                Math.round(amount).toString(),
+      currencyCode:          currency,
+      merchantAccountNumber: "",
+      merchantMobileNumber:  "",
+      merchantName:          process.env.AZAMPAY_APP_NAME || "NoLSAF",
+      otp:                   "",
+      provider:              "CARD",
+      referenceId:           paymentRef,
+      returnURL:             returnUrl,
+      additionalProperties:  { tourBookingId: booking.id.toString(), bookingCode: booking.bookingCode },
+    };
+
+    let token: string;
+    try { token = await getAzamPayToken(); }
+    catch { return res.status(503).json({ ok: false, error: "payment_unavailable" }); }
+
+    let apiRes = await azampayCardPost("/api/v1/Partner/CardCheckout", azampayBody, token);
+    if (apiRes.status === 401) {
+      await invalidateAzamPayToken();
+      try { token = await getAzamPayToken(); } catch { /* handled below */ }
+      apiRes = await azampayCardPost("/api/v1/Partner/CardCheckout", azampayBody, token!);
+    }
+    if (!apiRes.ok) {
+      console.error(`[TourPay/Card] Checkout HTTP ${apiRes.status} — body: ${apiRes.body.slice(0, 500)}`);
+      return res.status(502).json({ ok: false, error: "payment_failed", message: "Card payment could not be initiated." });
+    }
+
+    let azampayData: any;
+    try { azampayData = JSON.parse(apiRes.body); }
+    catch {
+      console.error(`[TourPay/Card] Non-JSON response HTTP ${apiRes.status} — body: ${apiRes.body.slice(0, 500) || "(empty)"}`);
+      return res.status(502).json({ ok: false, error: "payment_failed", message: "Unexpected response from payment provider." });
+    }
+
+    const checkoutUrl: string | null = azampayData.checkoutUrl ?? azampayData.CheckoutUrl ?? null;
+    if (!checkoutUrl)
+      return res.status(502).json({ ok: false, error: "payment_failed", message: "No checkout URL returned — please try again." });
+
+    await prisma.tourBooking.update({
+      where: { id: booking.id },
+      data:  { paymentRef: booking.paymentRef ?? paymentRef, paymentStatus: "PENDING", checkoutSessionId: azampayData.transactionId ?? null },
+    });
+
+    try {
+      await prisma.paymentEvent.create({
+        data: {
+          provider:       "AZAMPAY",
+          eventId:        azampayData.transactionId ?? `${paymentRef}-${Date.now()}`,
+          tourBookingId:  booking.id,
+          amount,
+          currency,
+          status:         "PENDING",
+          paymentChannel: "CARD",
+          checkoutUrl:    checkoutUrl.slice(0, 2048),
+          rawStatus:      null,
+          payload:        { transactionId: azampayData.transactionId ?? null, paymentRef, returnUrl },
+        },
+      });
+    } catch (dbErr: any) {
+      console.warn("[TourPay/Card] Failed to create PaymentEvent:", dbErr?.message ?? dbErr);
+    }
+
+    return res.json({ ok: true, transactionId: azampayData.transactionId ?? paymentRef, paymentRef, checkoutUrl, status: "PENDING" });
   }),
 );
 
