@@ -330,11 +330,30 @@ router.get("/status/:paymentRef", requireAuth, async (req, res) => {
       select: {
         id: true,
         status: true,
-        booking: { select: { property: { select: { currency: true } } } },
+        bookingId: true,
+        booking: { select: { id: true, userId: true, property: { select: { currency: true } } } },
       },
     });
 
     if (!invoice) return res.status(404).json({ error: "not_found", message: "Payment reference not found" });
+
+    // ── Authorization (same gate as /initiate) ───────────────────────────────
+    // The payment reference is predictable (INV-<id>-<timestamp>), so it must NOT
+    // be sufficient on its own to read an invoice's status. The caller must either
+    // own the invoice's booking, or present a valid signed public-invoice access
+    // token. Otherwise any logged-in user could enumerate other users' invoices.
+    const authedUserId           = Number((req as any).user?.id);
+    const bookingId              = Number(invoice.bookingId || invoice.booking?.id || 0);
+    const bookingUserId          = invoice.booking?.userId ? Number(invoice.booking.userId) : null;
+    const accessToken            = typeof req.query.accessToken === "string" ? req.query.accessToken : undefined;
+    const hasPublicInvoiceAccess = verifyPublicInvoiceAccessToken(accessToken, invoice.id, bookingId);
+
+    if (bookingUserId) {
+      if (bookingUserId !== authedUserId)
+        return res.status(403).json({ error: "forbidden", message: "This invoice belongs to another account." });
+    } else if (!hasPublicInvoiceAccess) {
+      return res.status(403).json({ error: "forbidden", message: "Please continue from your secure payment link." });
+    }
 
     const event = await prisma.paymentEvent.findFirst({
       where: { invoiceId: invoice.id, provider: "AZAMPAY" },
