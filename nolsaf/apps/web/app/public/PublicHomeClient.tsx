@@ -29,6 +29,7 @@ import PodcastSection from '../../components/PodcastSection';
 import TrustedBySection from '../../components/TrustedBySection';
 import ScrollReveal from '../../components/ScrollReveal';
 import LayoutFrame from '../../components/LayoutFrame';
+import TravelRolesConnected from '../../components/home/TravelRolesConnected';
 import DatePicker from '../../components/ui/DatePicker';
 
 type TrustPartnerBrand = { name: string; logoUrl?: string; href?: string };
@@ -213,33 +214,8 @@ export default function Page() {
   const heroPointerRafRef = useRef<number | null>(null);
   const heroPointerPendingRef = useRef<{ x: number; y: number } | null>(null);
   const heroPressTimerRef = useRef<number | null>(null);
-  const audienceBucketTimerRef = useRef<number | null>(null);
   const [_heroPointerActive, setHeroPointerActive] = useState(false);
   const [_heroPressed, setHeroPressed] = useState(false);
-  const [audienceBucketOpen, setAudienceBucketOpen] = useState(false);
-  const [expandedAudienceRole, setExpandedAudienceRole] = useState<string | null>(null);
-
-  const scheduleAudienceBucketClose = useCallback(() => {
-    if (audienceBucketTimerRef.current != null) {
-      window.clearTimeout(audienceBucketTimerRef.current);
-    }
-    audienceBucketTimerRef.current = window.setTimeout(() => {
-      setAudienceBucketOpen(false);
-      setExpandedAudienceRole(null);
-      audienceBucketTimerRef.current = null;
-    }, 120000);
-  }, []);
-
-  const openAudienceBucket = useCallback(() => {
-    setAudienceBucketOpen(true);
-    scheduleAudienceBucketClose();
-  }, [scheduleAudienceBucketClose]);
-
-  const keepAudienceBucketOpen = useCallback(() => {
-    if (!audienceBucketOpen) return;
-    scheduleAudienceBucketClose();
-  }, [audienceBucketOpen, scheduleAudienceBucketClose]);
-
   const queueHeroPointer = useCallback((clientX: number, clientY: number) => {
     heroPointerPendingRef.current = { x: clientX, y: clientY };
     if (heroPointerRafRef.current != null) return;
@@ -268,7 +244,6 @@ export default function Page() {
     return () => {
       if (heroPointerRafRef.current != null) window.cancelAnimationFrame(heroPointerRafRef.current);
       if (heroPressTimerRef.current != null) window.clearTimeout(heroPressTimerRef.current);
-      if (audienceBucketTimerRef.current != null) window.clearTimeout(audienceBucketTimerRef.current);
     };
   }, []);
 
@@ -1440,297 +1415,13 @@ export default function Page() {
             </div>
 
             <p className="mt-4 text-sm sm:text-base leading-relaxed max-w-[62ch] text-slate-500">
-              Travellers, drivers, property owners, and tour operators {" "}
-              <span className="text-slate-700 font-medium">connected by verified listings, clear policies, and dependable support.</span>
+              NoLSAF connects travellers, drivers, property owners, and tour operators {" "}
+              <span className="text-slate-700 font-medium">so every booking can move clearly from search to service delivery.</span>
             </p>
           </motion.div>
 
           <div className="mb-6 sm:mb-8">
-            <AnimatePresence mode="wait" initial={false}>
-              {!audienceBucketOpen ? (
-                <motion.button
-                  key="audience-bucket"
-                  type="button"
-                  onClick={openAudienceBucket}
-                  onFocus={openAudienceBucket}
-                  initial={{ opacity: 0, y: 18, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -18, scale: 0.98 }}
-                  transition={{ duration: 0.44, ease: [0.16, 1, 0.3, 1] }}
-                  whileHover={{ y: -3 }}
-                  className="group relative mx-auto block w-full max-w-4xl overflow-hidden rounded-[28px] border border-slate-900/10 bg-[#101316] p-4 text-left shadow-[0_24px_70px_rgba(15,23,42,0.18)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/45 sm:p-6"
-                  aria-label="Open audience lanes"
-                >
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_16%,rgba(110,231,183,0.18),transparent_32%),linear-gradient(145deg,#101316_0%,#15191d_55%,#0f2925_100%)]" />
-                  <div
-                    aria-hidden
-                    className="absolute inset-0 opacity-[0.08]"
-                    style={{
-                      backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.9) 1px, transparent 1px)",
-                      backgroundSize: "24px 24px",
-                    }}
-                  />
-                  <div className="relative grid items-center gap-6 md:grid-cols-[1.15fr_0.85fr]">
-                    <div className="relative h-[280px] sm:h-[300px] md:h-[320px] lg:h-[340px]">
-                      {[
-                        { label: "Travellers", Icon: Users, top: "0px", inset: "9%" },
-                        { label: "Drivers", Icon: Car, top: "calc(40px + 2%)", inset: "6%" },
-                        { label: "Owners", Icon: Home, top: "calc(80px + 4%)", inset: "3%" },
-                        { label: "Operators", Icon: Gavel, top: "calc(120px + 6%)", inset: "0%" },
-                      ].map(({ label, Icon, top, inset }, idx) => (
-                        <motion.div
-                          key={label}
-                          initial={{ opacity: 0, y: 12, scale: 0.98 }}
-                          animate={{ opacity: 1, y: 0, scale: 1 }}
-                          transition={{ 
-                            duration: 0.5, 
-                            delay: idx * 0.08,
-                            ease: [0.23, 1, 0.320, 1]
-                          }}
-                          className="absolute left-0 right-0 flex h-[70px] items-start justify-between overflow-hidden rounded-[22px] border border-white/70 px-3.5 pt-2 shadow-[0_16px_34px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.72)] transition-all duration-300 ease-out group-hover:translate-y-[-4px] group-hover:shadow-[0_24px_48px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.76)] sm:h-[78px] sm:px-5 sm:pt-2.5"
-                          whileHover={{ scale: 1.01 }}
-                          style={{
-                            top,
-                            left: inset,
-                            right: inset,
-                            zIndex: idx + 1,
-                            background: "linear-gradient(135deg, #fbfdfd 0%, #ffffff 56%, #edf8f4 100%)",
-                          }}
-                        >
-                          <div
-                            aria-hidden
-                            className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-white/60 via-white/90 to-white/60"
-                          />
-                          <div className="relative flex items-center gap-3">
-                            <motion.span
-                              className="flex h-7 w-7 items-center justify-center rounded-full border border-[#02665e]/15 bg-[#f7fbf9] text-[#02665e] shadow-[0_8px_16px_rgba(2,102,94,0.10)] sm:h-8 sm:w-8"
-                              whileHover={{ scale: 1.15, boxShadow: "0 12px 24px rgba(2, 102, 94, 0.18)" }}
-                              transition={{ duration: 0.2 }}
-                            >
-                              <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                            </motion.span>
-                            <span className="text-[10px] font-black uppercase tracking-[0.10em] text-slate-800 min-[390px]:text-[11px] sm:text-xs sm:tracking-[0.14em]">{label}</span>
-                          </div>
-                          <motion.span 
-                            className="relative mt-2 h-2 w-2 rounded-full bg-[#02665e] shadow-[0_0_12px_rgba(2,102,94,0.42)]"
-                            animate={{ scale: [1, 1.2, 1] }}
-                            transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
-                            style={{ originX: "50%", originY: "50%" }}
-                          />
-                        </motion.div>
-                      ))}
-
-                      {/* Decorative Cross Lines for Enhanced UI */}
-                      <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-[26px]">
-                        {/* Top horizontal line */}
-                        <div className="absolute left-[6%] right-[6%] top-[6%] h-px bg-gradient-to-r from-transparent via-white/50 to-transparent" />
-                        {/* Bottom horizontal line */}
-                        <div className="absolute left-[6%] right-[6%] bottom-[6%] h-px bg-gradient-to-r from-transparent via-white/50 to-transparent" />
-                        {/* Left vertical line */}
-                        <div className="absolute left-[6%] top-[8%] bottom-[8%] w-px bg-gradient-to-b from-transparent via-white/45 to-transparent" />
-                        {/* Right vertical line */}
-                        <div className="absolute right-[6%] top-[8%] bottom-[8%] w-px bg-gradient-to-b from-transparent via-white/45 to-transparent" />
-                        {/* Center vertical divider */}
-                        <div className="absolute left-1/2 top-[12%] bottom-[12%] w-px bg-gradient-to-b from-transparent via-white/35 to-transparent" />
-                      </div>
-
-                      <motion.div 
-                        className="absolute inset-x-0 bottom-0 z-10 overflow-hidden rounded-[26px] border border-white/10 bg-[#1b1f22] shadow-[0_-16px_42px_rgba(0,0,0,0.30),inset_0_1px_0_rgba(255,255,255,0.08)]"
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.6, delay: 0.32, ease: [0.23, 1, 0.320, 1] }}
-                      >
-                        <div className="mx-auto -mt-3 h-7 w-24 rounded-b-full border-x border-b border-white/10 bg-[#101316]" />
-                        <div className="flex min-h-[70px] items-end justify-between gap-3 px-4 pb-4 sm:min-h-[74px] sm:px-5">
-                          <div>
-                            <motion.p 
-                              className="text-[10px] font-black uppercase tracking-[0.16em] text-white/60 sm:text-[11px] sm:tracking-[0.18em]"
-                              initial={{ opacity: 0 }}
-                              animate={{ opacity: 1 }}
-                              transition={{ duration: 0.5, delay: 0.40 }}
-                            >
-                              NoLSAF access
-                            </motion.p>
-                            <motion.p 
-                              className="mt-1.5 text-xl font-black tracking-tight text-white sm:mt-2 sm:text-2xl"
-                              initial={{ opacity: 0, y: 4 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              transition={{ duration: 0.5, delay: 0.48, ease: [0.23, 1, 0.320, 1] }}
-                            >
-                              Four roles, one flow
-                            </motion.p>
-                          </div>
-                          <motion.div
-                            whileHover={{ x: 2 }}
-                            transition={{ duration: 0.2 }}
-                          >
-                            <ChevronRight className="h-5 w-5 text-white/70 transition-all duration-300 group-hover:text-white/100 sm:h-6 sm:w-6" />
-                          </motion.div>
-                        </div>
-                      </motion.div>
-                    </div>
-
-                    <motion.div 
-                      className="flex flex-col items-center text-center md:items-start md:text-left"
-                      initial={{ opacity: 0, x: 24 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.6, delay: 0.2, ease: [0.23, 1, 0.320, 1] }}
-                    >
-                      <motion.h3 
-                        className="text-2xl font-black leading-tight tracking-tight text-white sm:text-3xl md:text-[28px]"
-                        initial={{ opacity: 0, y: 12 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.5, delay: 0.36, ease: [0.23, 1, 0.320, 1] }}
-                      >
-                        Travel roles, connected.
-                      </motion.h3>
-                      <motion.p 
-                        className="mt-4 max-w-md text-xs leading-relaxed text-white/60 sm:text-sm md:text-[13px]"
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.5, delay: 0.44, ease: [0.23, 1, 0.320, 1] }}
-                      >
-                        Stays, tours, rides, payments, and support in one clear NoLSAF Platform.
-                      </motion.p>
-                    </motion.div>
-                  </div>
-                </motion.button>
-              ) : (
-                <motion.div
-                  key="audience-grid"
-                  initial={{ opacity: 0, y: 24, scale: 0.97 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 18, scale: 0.97 }}
-                  transition={{ duration: 0.46, ease: [0.16, 1, 0.3, 1] }}
-                  onMouseMove={keepAudienceBucketOpen}
-                  onPointerDown={keepAudienceBucketOpen}
-                  onFocus={keepAudienceBucketOpen}
-                  className="grid grid-cols-1 items-start gap-3 min-[520px]:grid-cols-2 lg:grid-cols-4"
-                >
-            {[
-              {
-                role: "Travellers",
-                href: "/public/properties",
-                aria: "Travellers - Browse stays",
-                Icon: Users,
-                title: <>Trusted stays,<br />clear trips.</>,
-                body: "Find verified places, compare options, and keep the full travel trail in one account.",
-                detail: "Discover complete stays with transport and tours integrated. Verified listings, confirmations, and support in one flow.",
-                accent: "#6ee7b7",
-                glow: "rgba(16,185,129,0.30)",
-                background: "linear-gradient(145deg, #05251d 0%, #064536 46%, #02665e 100%)",
-              },
-              {
-                role: "Drivers",
-                href: "/account/register?role=driver",
-                aria: "Drivers - Register as a driver",
-                Icon: Car,
-                title: <>Airport runs,<br />scheduled work.</>,
-                body: "Automatic dispatch matching, airport pickups, scheduled trips, and competitive pay all in one platform.",
-                detail: "Drivers access verified airport runs, scheduled bookings, automatic trip matching, transparent earnings, and flexible work plans designed for serious income.",
-                accent: "#8ee8d8",
-                glow: "rgba(2,102,94,0.30)",
-                background: "linear-gradient(145deg, #071d1d 0%, #0d3a36 48%, #0f766e 100%)",
-              },
-              {
-                role: "Property Owners",
-                href: "/account/register?role=owner",
-                aria: "Property owners - List your property",
-                Icon: Home,
-                title: <>Grow bookings<br />with control.</>,
-                body: "Join stay auctions, manage availability, print reports, and handle cleaner booking requests.",
-                detail: "Owners publish stays, participate in group-stay auctions, manage availability, print reports, and keep guest communication organized.",
-                accent: "#b8f4df",
-                glow: "rgba(15,118,110,0.28)",
-                background: "linear-gradient(145deg, #10201b 0%, #153d32 48%, #047857 100%)",
-              },
-              {
-                role: "Tour Operators",
-                href: "/account/agent",
-                aria: "Tour operators - Manage tour packages",
-                Icon: Gavel,
-                title: <>Package tours,<br />prove delivery.</>,
-                body: "List packages, manage bookings, control timelines, and support travellers from meetup to completion.",
-                detail: "Operators list tour packages, manage bookings, control timelines, validate meetups, and track delivery through completion.",
-                accent: "#f4d38a",
-                glow: "rgba(180,83,9,0.24)",
-                background: "linear-gradient(145deg, #20170a 0%, #3a2810 48%, #7c4a03 100%)",
-              },
-            ].map(({ role, href, aria, Icon, title, body, detail, accent, glow, background }, idx) => {
-              const isExpanded = expandedAudienceRole === role;
-              return (
-              <motion.div
-                key={role}
-                onClick={() => {
-                  if (!isExpanded) {
-                    setExpandedAudienceRole(role);
-                    return;
-                  }
-                  router.push(href);
-                }}
-                onMouseEnter={() => setExpandedAudienceRole(role)}
-                onMouseLeave={() => setExpandedAudienceRole(null)}
-                onFocus={() => setExpandedAudienceRole(role)}
-                onKeyDown={(e) => {
-                  if (e.key !== 'Enter') return;
-                  if (!isExpanded) {
-                    setExpandedAudienceRole(role);
-                    return;
-                  }
-                  router.push(href);
-                }}
-                role="link"
-                tabIndex={0}
-                aria-label={aria}
-                className="group relative min-w-0 cursor-pointer overflow-hidden rounded-[24px] border border-white/12 transition-all duration-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/45"
-                style={{ boxShadow: `0 14px 34px ${glow}` }}
-                transition={{ duration: 0.42, delay: idx * 0.06, ease: [0.22, 1, 0.36, 1] }}
-                whileHover={{ y: -4, scale: 1.006 }}
-              >
-                <div className="absolute inset-0" style={{ background }} />
-                <div className="absolute inset-0 opacity-[0.045]" style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.75) 1px, transparent 1px)', backgroundSize: '22px 22px' }} />
-                <div aria-hidden className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full blur-2xl opacity-28 transition-opacity duration-500 group-hover:opacity-42" style={{ background: glow }} />
-                <div aria-hidden className="pointer-events-none absolute inset-x-5 top-0 h-px" style={{ background: `linear-gradient(90deg, transparent, ${accent}70, transparent)` }} />
-
-                <div className="relative flex h-[232px] flex-col p-4 sm:p-5">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="inline-flex max-w-full items-center gap-2 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em]" style={{ background: `${accent}1f`, color: accent, border: `1px solid ${accent}4d` }}>
-                      <span className="h-1.5 w-1.5 rounded-full" style={{ background: accent, boxShadow: `0 0 8px ${accent}` }} />
-                      <span className="truncate">{role}</span>
-                    </div>
-                    <div aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: `${accent}1f`, border: `1px solid ${accent}45`, color: accent, backdropFilter: 'blur(8px)' }}>
-                      <Icon className="h-[18px] w-[18px]" />
-                    </div>
-                  </div>
-
-                  <h3 className="mt-5 text-lg font-black leading-[1.08] tracking-tight text-white sm:text-[1.15rem]">
-                    {title}
-                  </h3>
-                  <p className={["mt-3 text-[13px] leading-relaxed transition-all duration-300", isExpanded ? "translate-y-[-4px] text-white/36 blur-[1px]" : "translate-y-0 text-white/80 blur-0"].join(" ")}>
-                    {body}
-                  </p>
-
-                  <AnimatePresence initial={false}>
-                    {isExpanded ? (
-                      <motion.div
-                        initial={{ opacity: 0, y: 18, scale: 0.96 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 14, scale: 0.98 }}
-                        transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-                        className="absolute inset-x-4 bottom-4 rounded-2xl border border-white/22 bg-black/38 p-3 text-left text-[12px] font-medium leading-relaxed text-white shadow-[0_18px_34px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-md sm:inset-x-5 sm:bottom-5"
-                        style={{ borderColor: `${accent}66` }}
-                      >
-                        {detail}
-                      </motion.div>
-                    ) : null}
-                  </AnimatePresence>
-                </div>
-              </motion.div>
-            );
-            })}
-                </motion.div>
-              )}
-            </AnimatePresence>
+            <TravelRolesConnected />
           </div>
 
           {/* ── Explore heading — left-aligned editorial ── */}
