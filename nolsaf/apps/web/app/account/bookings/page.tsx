@@ -37,8 +37,15 @@ type Booking = {
     receiptNumber?: string;
     status?: string;
   };
+  dashboardBucket?: "DRAFT" | "PAID" | string;
+  draftExpiresAt?: string | null;
+  draftExpiryStatus?: "ACTIVE" | "EXPIRED" | null;
+  invoiceId?: number | null;
+  invoiceAccessToken?: string | null;
   createdAt: string;
 };
+
+const isDraftBooking = (b: Booking) => String(b.dashboardBucket || "").toUpperCase() === "DRAFT";
 
 function canRequestCancellation(b: Booking): boolean {
   if (!b.bookingCode) return false;
@@ -79,7 +86,7 @@ function BookingCardSkeleton() {
 export default function MyBookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<"all" | "active" | "expired">("all");
+  const [filter, setFilter] = useState<"all" | "active" | "expired" | "draft">("all");
   const [entered, setEntered] = useState(false);
 
   useEffect(() => {
@@ -96,11 +103,14 @@ export default function MyBookingsPage() {
     try {
       setLoading(true);
       const response = await api.get("/api/customer/bookings");
-      // Strict principle:
-      // Only treat PAID + VALID as "bookings" in this list.
+      // Keep paid+valid stays AND unpaid drafts (NEW bookings with an unpaid invoice).
+      // Drafts surface in the "Draft" tab with a 12h payment window; everything else
+      // is a confirmed stay shown under All/Valid/Expired.
       const items: Booking[] = response.data.items || [];
-      const onlyPaidValid = items.filter((b) => Boolean(b?.isValid) && Boolean(b?.isPaid));
-      setBookings(onlyPaidValid);
+      const visible = items.filter(
+        (b) => isDraftBooking(b) || (Boolean(b?.isValid) && Boolean(b?.isPaid))
+      );
+      setBookings(visible);
     } catch (err: any) {
       // Keep UI clean: show a small toast instead of a big banner.
       const msg = err?.response?.data?.error || "Failed to load bookings";
@@ -130,14 +140,32 @@ export default function MyBookingsPage() {
   };
   const isActive = (b: Booking) => !isExpired(b);
 
+  // Drafts (unpaid) vs confirmed paid stays.
+  const drafts = bookings.filter(isDraftBooking);
+  const paidStays = bookings.filter((b) => !isDraftBooking(b));
+
   const filteredBookings = bookings.filter((booking) => {
+    if (filter === "draft") return isDraftBooking(booking);
+    if (isDraftBooking(booking)) return filter === "all"; // drafts only show under All/Draft
     if (filter === "active") return isActive(booking);
     if (filter === "expired") return isExpired(booking);
-    return true;
+    return true; // "all"
   });
 
-  const activeCount = bookings.filter(isActive).length;
-  const expiredCount = bookings.filter(isExpired).length;
+  const activeCount = paidStays.filter(isActive).length;
+  const expiredCount = paidStays.filter(isExpired).length;
+  const draftCount = drafts.length;
+
+  // Time-left helper for draft payment windows.
+  const draftTimeLeft = (b: Booking): string | null => {
+    if (!b.draftExpiresAt) return null;
+    const ms = new Date(b.draftExpiresAt).getTime() - Date.now();
+    if (ms <= 0) return null;
+    const hours = Math.floor(ms / 3600000);
+    const minutes = Math.floor((ms % 3600000) / 60000);
+    if (hours > 0) return `${hours}h ${minutes}m`;
+    return `${minutes}m`;
+  };
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
@@ -304,6 +332,7 @@ export default function MyBookingsPage() {
             { key: "all" as const, label: "All", count: bookings.length },
             { key: "active" as const, label: "Valid", count: activeCount },
             { key: "expired" as const, label: "Expired", count: expiredCount },
+            { key: "draft" as const, label: "Draft", count: draftCount },
           ]).map((t) => {
             const active = filter === t.key;
             return (
@@ -337,7 +366,7 @@ export default function MyBookingsPage() {
           </div>
           <div className="text-lg font-black text-slate-900">No bookings found</div>
           <div className="mt-1.5 text-sm text-slate-500 max-w-xs mx-auto">
-            {filter === "active" ? "You have no active bookings right now." : filter === "expired" ? "No expired bookings yet." : "When you book a stay, it will appear here."}
+            {filter === "active" ? "You have no active bookings right now." : filter === "expired" ? "No expired bookings yet." : filter === "draft" ? "No unpaid drafts. Bookings awaiting payment appear here." : "When you book a stay, it will appear here."}
           </div>
           {filter === "all" && (
             <div className="mt-6 flex justify-center">
@@ -351,9 +380,98 @@ export default function MyBookingsPage() {
       ) : (
         <div className="space-y-4">
           {filteredBookings.map((booking) => {
-            const active = isActive(booking);
             const nightCount = nights(booking.checkIn, booking.checkOut);
             const location = [booking.property.regionName, booking.property.city, booking.property.district].filter(Boolean).join(" · ");
+
+            // ── Draft (unpaid) card ──
+            if (isDraftBooking(booking)) {
+              const expired = String(booking.draftExpiryStatus || "").toUpperCase() === "EXPIRED";
+              const timeLeft = draftTimeLeft(booking);
+              const canPay = !expired && Boolean(booking.invoiceId && booking.invoiceAccessToken);
+              const payHref = canPay
+                ? `/public/booking/payment?invoiceId=${encodeURIComponent(String(booking.invoiceId))}&accessToken=${encodeURIComponent(String(booking.invoiceAccessToken))}`
+                : null;
+              return (
+                <div
+                  key={booking.id}
+                  className={["relative overflow-hidden rounded-3xl bg-white border shadow-[0_2px_16px_rgba(0,0,0,0.05)] transition-all duration-300", expired ? "border-slate-100 opacity-90" : "border-amber-100 hover:shadow-[0_8px_32px_rgba(245,158,11,0.12)] hover:-translate-y-0.5"].join(" ")}
+                >
+                  <div className="absolute left-0 inset-y-0 w-[3px] rounded-l-3xl" style={{ background: expired ? "linear-gradient(180deg,#cbd5e1,#94a3b8)" : "linear-gradient(180deg,#f59e0b 0%,#d97706 100%)" }} />
+                  <div className="pl-6 pr-5 pt-5 pb-5 sm:pl-7 sm:pr-6 sm:pt-6 sm:pb-6">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start gap-3.5 min-w-0">
+                        <div className="mt-0.5 flex-shrink-0 w-11 h-11 rounded-2xl shadow-md flex items-center justify-center" style={{ background: expired ? "linear-gradient(135deg,#94a3b8,#64748b)" : "linear-gradient(135deg,#f59e0b 0%,#d97706 100%)" }}>
+                          <FileText className="h-5 w-5 text-white" />
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="text-[16px] sm:text-[17px] font-extrabold text-slate-900 tracking-tight leading-tight line-clamp-1">{booking.property.title}</h3>
+                          {location && (
+                            <div className="mt-[3px] flex items-center gap-1.5 text-[12px] text-slate-500 font-medium">
+                              <MapPin className="h-3 w-3 flex-shrink-0 text-amber-500" />
+                              <span className="line-clamp-1">{location}</span>
+                            </div>
+                          )}
+                          {booking.invoice?.invoiceNumber && (
+                            <div className="mt-[3px] flex items-center gap-1.5 text-[11px] text-slate-400 font-mono">
+                              <Hash className="h-2.5 w-2.5 flex-shrink-0" />
+                              {booking.invoice.invoiceNumber}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className={["flex-shrink-0 inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold shadow-sm", expired ? "bg-rose-50 border-rose-100 text-rose-600" : "bg-amber-50 border-amber-100 text-amber-700"].join(" ")}>
+                        {expired ? <XCircle className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5" />}
+                        {expired ? "Expired" : "Draft"}
+                      </div>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <span className="inline-flex items-center gap-1.5 rounded-xl bg-teal-50 border border-teal-100 px-3 py-1.5 text-[11px] font-semibold text-teal-800">
+                        <Calendar className="h-3 w-3 text-teal-500 flex-shrink-0" />
+                        {formatDate(booking.checkIn)} → {formatDate(booking.checkOut)}
+                      </span>
+                      {nightCount > 0 && (
+                        <span className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-50 border border-indigo-100 px-3 py-1.5 text-[11px] font-semibold text-indigo-800">
+                          <Clock className="h-3 w-3 text-indigo-400 flex-shrink-0" />
+                          {nightCount} {nightCount === 1 ? "night" : "nights"}
+                        </span>
+                      )}
+                      <span className="inline-flex items-center gap-1.5 rounded-xl bg-amber-50 border border-amber-100 px-3 py-1.5 text-[11px] font-semibold text-amber-800">
+                        <CreditCard className="h-3 w-3 text-amber-500 flex-shrink-0" />
+                        {formatAmount(booking.totalAmount)} TZS
+                      </span>
+                      {!expired && timeLeft && (
+                        <span className="inline-flex items-center gap-1.5 rounded-xl bg-rose-50 border border-rose-100 px-3 py-1.5 text-[11px] font-semibold text-rose-700">
+                          <Clock className="h-3 w-3 text-rose-400 flex-shrink-0" />
+                          Pay within {timeLeft}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="mt-4 flex items-center justify-between gap-2 flex-wrap">
+                      <p className="text-[12px] text-slate-500 font-medium">
+                        {expired
+                          ? "This payment window has closed. Please make a new booking."
+                          : "Complete payment to confirm this booking and receive your check-in code."}
+                      </p>
+                      {payHref && (
+                        <Link
+                          href={payHref}
+                          className="no-underline inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-[12px] font-bold text-white shadow-sm transition-all hover:shadow-md hover:opacity-90"
+                          style={{ background: "linear-gradient(135deg,#f59e0b,#d97706)" }}
+                        >
+                          <CreditCard className="h-3.5 w-3.5" />
+                          Complete Payment
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
+            // ── Paid stay card ──
+            const active = isActive(booking);
             return (
               <div
                 key={booking.id}

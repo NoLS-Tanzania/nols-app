@@ -4,9 +4,14 @@ import { prisma } from "@nolsaf/prisma";
 import { AuthedRequest, requireAuth } from "../middleware/auth.js";
 import { generateBookingTicketPdf } from "../lib/pdfDocuments.js";
 import { generateBookingPDF } from "../lib/pdfGenerator.js";
+import { signPublicInvoiceAccessToken } from "../lib/publicInvoiceAccess.js";
 
 export const router = Router();
 router.use(requireAuth as RequestHandler);
+
+/** Hours an unpaid booking draft stays payable before it flips to EXPIRED.
+ *  Mirrors PAYMENT_ACCESS_TOKEN_HOURS used for tour-package drafts. */
+const BOOKING_DRAFT_WINDOW_HOURS = 12;
 
 function buildPhoneVariants(phoneRaw: string | null | undefined): string[] {
   const raw = String(phoneRaw ?? "").trim();
@@ -111,24 +116,49 @@ function buildCustomerBookingWhere(user: { id: number }, legacyBookingIds: numbe
 router.get("/", (async (req: AuthedRequest, res) => {
   try {
     const userId = req.user!.id;
-    const { status, page = "1", pageSize = "20" } = req.query as any;
-    
+    const { status, page = "1", pageSize = "20", paidOnly } = req.query as any;
+    // paidOnly=1 → exclude unpaid drafts (used by dashboards that count confirmed stays only).
+    const excludeDrafts = String(paidOnly ?? "") === "1" || String(paidOnly ?? "").toLowerCase() === "true";
+
     const userContact = await getUserContact(userId);
 
     const tail9 = getTail9Digits(userContact.phone);
     const legacyBookingIds = tail9 ? await findLegacyBookingIdsByPhoneTail(tail9) : [];
 
+    // Two kinds of rows are shown:
+    //  - Paid/active stays: CONFIRMED/CHECKED_IN/CHECKED_OUT with a check-in code.
+    //  - Drafts: NEW bookings that reached checkout (have an invoice) but are not yet paid.
+    //    These get a 12h payment window and surface in the "Draft" tab.
     const where: any = {
       AND: [
         buildCustomerBookingWhere({ id: userId }, legacyBookingIds),
-        { status: { in: ["CONFIRMED", "CHECKED_IN", "CHECKED_OUT"] } },
-        { code: { isNot: null } },
+        {
+          OR: [
+            {
+              status: { in: ["CONFIRMED", "CHECKED_IN", "CHECKED_OUT"] },
+              code: { isNot: null },
+            },
+            {
+              status: "NEW",
+              invoices: { some: {} },
+            },
+          ],
+        },
       ],
     };
 
     if (status) {
-      where.AND = where.AND.filter((clause: any) => !clause.status);
+      // Explicit status filter (e.g. admin/legacy callers): keep the strict
+      // paid-stay semantics and skip the draft branch.
+      where.AND = where.AND.filter((clause: any) => !clause.OR);
       where.AND.push({ status: String(status) }, { code: { isNot: null } });
+    } else if (excludeDrafts) {
+      // Confirmed stays only — drop the draft branch from the OR.
+      where.AND = where.AND.filter((clause: any) => !clause.OR);
+      where.AND.push(
+        { status: { in: ["CONFIRMED", "CHECKED_IN", "CHECKED_OUT"] } },
+        { code: { isNot: null } }
+      );
     }
 
     const pageNum = Math.max(1, Number(page) || 1);
@@ -189,7 +219,34 @@ router.get("/", (async (req: AuthedRequest, res) => {
       const isPaid =
         invoice?.status === "PAID" ||
         (invoice?.status === "CUSTOMER_PAID" && Boolean(invoice?.receiptNumber));
-      
+
+      // A NEW booking with an unpaid invoice is a "draft" — payable for a fixed
+      // window (mirrors tour-package drafts), after which it shows as EXPIRED.
+      const isDraft = booking.status === "NEW" && !isPaid;
+      const dashboardBucket = isDraft ? "DRAFT" : "PAID";
+
+      let draftExpiresAt: string | null = null;
+      let draftExpiryStatus: "ACTIVE" | "EXPIRED" | null = null;
+      let invoiceId: number | null = null;
+      let invoiceAccessToken: string | null = null;
+
+      if (isDraft) {
+        const createdAtMs = new Date(booking.createdAt).getTime();
+        const expiresAtMs = createdAtMs + BOOKING_DRAFT_WINDOW_HOURS * 60 * 60 * 1000;
+        draftExpiresAt = new Date(expiresAtMs).toISOString();
+        draftExpiryStatus = now.getTime() < expiresAtMs ? "ACTIVE" : "EXPIRED";
+
+        // Only mint a payment-resume token while the draft is still payable.
+        if (draftExpiryStatus === "ACTIVE" && invoice?.id) {
+          invoiceId = invoice.id;
+          try {
+            invoiceAccessToken = signPublicInvoiceAccessToken(invoice.id, booking.id);
+          } catch {
+            invoiceAccessToken = null;
+          }
+        }
+      }
+
       return {
         id: booking.id,
         property: booking.property,
@@ -205,6 +262,11 @@ router.get("/", (async (req: AuthedRequest, res) => {
         bookingCode: booking.code?.code || null,
         codeStatus: booking.code?.status || null,
         invoice: invoice,
+        dashboardBucket,
+        draftExpiresAt,
+        draftExpiryStatus,
+        invoiceId,
+        invoiceAccessToken,
         createdAt: booking.createdAt,
         updatedAt: booking.updatedAt,
       };

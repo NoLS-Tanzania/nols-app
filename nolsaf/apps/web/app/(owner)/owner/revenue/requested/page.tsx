@@ -4,6 +4,7 @@ import { Loader2, FileText, Clock, ArrowRight, RotateCw, Search, X, ArrowUpRight
 import apiClient from "@/lib/apiClient";
 import Link from "next/link";
 import TableRow from "@/components/TableRow";
+import TablePagination from "@/components/TablePagination";
 
 type RevenueFilters = { status?: string; [key: string]: any };
 
@@ -35,6 +36,8 @@ export default function Requested() {
   const [search, setSearch] = useState("");
   // Support both legacy SUBMITTED and canonical REQUESTED statuses.
   const [filters] = useState<RevenueFilters>({ status: "REQUESTED,SUBMITTED" });
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
 
   const toNumber = (v: any) => {
     const n = Number(v);
@@ -101,6 +104,14 @@ export default function Requested() {
       return property.includes(q) || invoiceNo.includes(q) || bookingId.includes(q);
     });
   }, [items, search]);
+
+  // Reset to first page whenever the search or the underlying data changes.
+  useEffect(() => { setPage(1); }, [search, items]);
+
+  const paged = useMemo(
+    () => filtered.slice((page - 1) * pageSize, page * pageSize),
+    [filtered, page]
+  );
 
   const stats = useMemo(() => {
     const totalCount = items.length;
@@ -301,6 +312,7 @@ export default function Requested() {
             </div>
           </div>
         ) : (
+          <>
           <div className="w-full overflow-x-auto">
             <table className="min-w-[760px] w-full text-sm border-collapse">
               <thead>
@@ -314,7 +326,7 @@ export default function Requested() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
-                {filtered.map((invoice) => {
+                {paged.map((invoice) => {
                   const propertyTitle = invoice.booking?.property?.title || "Property";
                   const payout = (() => {
                     const net = Number(invoice.netPayable);
@@ -372,6 +384,8 @@ export default function Requested() {
               </tbody>
             </table>
           </div>
+          <TablePagination page={page} pageSize={pageSize} total={filtered.length} onPageChange={setPage} />
+          </>
         )}
       </div>
     </div>

@@ -4,6 +4,7 @@ import { XCircle, Loader2, FileText, RotateCw, ArrowUpRight, Hash, TrendingDown 
 import apiClient from "@/lib/apiClient";
 import Link from "next/link";
 import TableRow from "@/components/TableRow";
+import TablePagination from "@/components/TablePagination";
 
 type RevenueFilters = { status?: string; [key: string]: any };
 
@@ -33,6 +34,8 @@ export default function Rejected() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filters] = useState<RevenueFilters>({ status: "REJECTED" });
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
 
   const toNumber = (v: any) => {
     const n = Number(v);
@@ -90,6 +93,14 @@ export default function Rejected() {
   };
 
   const filtered = useMemo(() => items, [items]);
+
+  // Reset to first page whenever the underlying data changes.
+  useEffect(() => { setPage(1); }, [items]);
+
+  const paged = useMemo(
+    () => filtered.slice((page - 1) * pageSize, page * pageSize),
+    [filtered, page]
+  );
 
   const stats = useMemo(() => {
     const totalCount = items.length;
@@ -267,6 +278,7 @@ export default function Rejected() {
             </div>
           </div>
         ) : (
+          <>
           <div className="w-full overflow-x-auto">
             <table className="min-w-[820px] w-full text-sm border-collapse">
               <thead>
@@ -281,7 +293,7 @@ export default function Rejected() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
-                {filtered.map((invoice) => {
+                {paged.map((invoice) => {
                   const propertyTitle = invoice.booking?.property?.title || "Property";
                   const payout = (() => {
                     const net = Number(invoice.netPayable);
@@ -333,6 +345,8 @@ export default function Rejected() {
               </tbody>
             </table>
           </div>
+          <TablePagination page={page} pageSize={pageSize} total={filtered.length} onPageChange={setPage} />
+          </>
         )}
       </div>
     </div>

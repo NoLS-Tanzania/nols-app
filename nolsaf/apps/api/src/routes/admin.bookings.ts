@@ -13,14 +13,38 @@ import { generateBookingTicketPdf } from "../lib/pdfDocuments.js";
 export const router = Router();
 router.use(requireAuth as unknown as RequestHandler, requireRole("ADMIN") as unknown as RequestHandler);
 
+/** Hours an unpaid booking draft stays payable before it flips to EXPIRED.
+ *  Mirrors BOOKING_DRAFT_WINDOW_HOURS in customer.bookings.ts / PAYMENT_ACCESS_TOKEN_HOURS. */
+const BOOKING_DRAFT_WINDOW_HOURS = 12;
+
 /* ----------------------------- Utilities ------------------------------ */
 
 async function idempotentConfirmAndCode(tx: typeof prisma, bookingId: number) {
   const booking = await tx.booking.findUnique({
     where: { id: bookingId },
-    include: { code: true, property: true },
+    include: { code: true, property: true, invoices: { select: { status: true, receiptNumber: true } } },
   });
   if (!booking) return { error: "Booking not found", status: 404 as const };
+
+  // Payment gate: never manually confirm / issue a code for an unpaid booking.
+  // The check-in code is issued automatically by the payment webhook once an
+  // invoice is PAID. A NEW booking with no paid invoice is an unpaid "draft" and
+  // confirming it here would bypass payment. The only legitimate manual case is a
+  // paid booking whose status wasn't flipped (webhook miss) — allowed below.
+  const hasPaidInvoice = (booking.invoices ?? []).some((inv: any) => {
+    const s = String(inv?.status ?? "").toUpperCase();
+    return s === "PAID" || (s === "CUSTOMER_PAID" && Boolean(inv?.receiptNumber));
+  });
+  const alreadyReal = ["CONFIRMED", "CHECKED_IN", "PENDING_CHECKIN", "CHECKED_OUT"].includes(
+    String(booking.status || "").toUpperCase()
+  );
+  if (!alreadyReal && !hasPaidInvoice) {
+    return {
+      error:
+        "Cannot confirm an unpaid booking. The check-in code is generated automatically once payment is completed.",
+      status: 409 as const,
+    };
+  }
 
   // Ensure CONFIRMED
   if (booking.status !== "CONFIRMED") {
@@ -61,17 +85,31 @@ router.get("/", async (req, res) => {
   const where: any = {};
   const hasStatusFilter = typeof status === "string" && status.trim().length > 0;
   if (hasStatusFilter) {
-    // When filtering by CHECKED_IN, include PENDING_CHECKIN as well (matches frontend count display)
-    if (status === 'CHECKED_IN') {
+    // Draft = a created-but-unpaid invoice: the checkout reached the invoice stage
+    // (status still NEW, no check-in code) but no payment has cleared. These mirror
+    // the tour-revenue "Draft" bucket and are otherwise hidden from admin lists.
+    if (status === 'DRAFT') {
+      where.status = 'NEW';
+      where.invoices = { some: {}, none: { status: { in: ['PAID', 'CUSTOMER_PAID'] } } };
+    } else if (status === 'CHECKED_IN') {
+      // When filtering by CHECKED_IN, include PENDING_CHECKIN as well (matches frontend count display)
       where.status = { in: ['CHECKED_IN', 'PENDING_CHECKIN'] };
     } else {
       where.status = status;
     }
   } else {
-    // Default admin lists should show real bookings only.
-    // Unpaid public checkout holds remain NEW without a check-in code and are hidden unless explicitly filtered.
-    where.status = { in: ["CONFIRMED", "CHECKED_IN", "PENDING_CHECKIN", "CHECKED_OUT"] };
-    where.code = { isNot: null };
+    // "All" = every meaningful booking across all statuses (the union of all tabs):
+    // real bookings (CONFIRMED / CHECKED_IN / PENDING_CHECKIN / CHECKED_OUT / CANCELED)
+    // PLUS unpaid drafts (NEW with a created-but-unpaid invoice).
+    // Abandoned NEW holds with no invoice at all stay hidden.
+    where.AND = [
+      {
+        OR: [
+          { status: { in: ["CONFIRMED", "CHECKED_IN", "PENDING_CHECKIN", "CHECKED_OUT", "CANCELED"] } },
+          { status: "NEW", invoices: { some: {}, none: { status: { in: ["PAID", "CUSTOMER_PAID"] } } } },
+        ],
+      },
+    ];
   }
   if (propertyId) where.propertyId = Number(propertyId);
   if (ownerId) where.property = { is: { ownerId: Number(ownerId) } };
@@ -87,7 +125,7 @@ router.get("/", async (req, res) => {
     }
     const next = new Date(d);
     next.setDate(d.getDate() + 1);
-    where.AND = [{ checkIn: { lt: next } }, { checkOut: { gt: d } }];
+    where.AND = [...(where.AND || []), { checkIn: { lt: next } }, { checkOut: { gt: d } }];
   } else if (start || end) {
     const s = start ? new Date(String(start) + "T00:00:00.000Z") : new Date(0);
     const e = end ? new Date(String(end) + "T00:00:00.000Z") : new Date();
@@ -97,7 +135,7 @@ router.get("/", async (req, res) => {
     // inclusive end-day: checkIn < (end + 1 day)
     const endExclusive = new Date(e);
     endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
-    where.AND = [{ checkIn: { lt: endExclusive } }, { checkOut: { gt: s } }];
+    where.AND = [...(where.AND || []), { checkIn: { lt: endExclusive } }, { checkOut: { gt: s } }];
   }
 
   // MySQL doesn't support `mode: "insensitive"`; default collations are typically case-insensitive.
@@ -200,6 +238,19 @@ router.get("/", async (req, res) => {
               .sort((a: any, b: any) => new Date(b).getTime() - new Date(a).getTime())[0] ?? null
           : null;
       const invoiceStatus = String(latestInvoice?.status ?? '').toUpperCase();
+
+      // Draft payment window: a NEW booking with a created-but-unpaid invoice is
+      // payable for BOOKING_DRAFT_WINDOW_HOURS from creation, then it EXPIRES.
+      const isPaidInvoice = invoiceStatus === 'PAID' || invoiceStatus === 'CUSTOMER_PAID';
+      const isDraft = String(b.status ?? '').toUpperCase() === 'NEW' && !!latestInvoice && !isPaidInvoice;
+      let draftExpiresAt: string | null = null;
+      let draftExpiryStatus: 'ACTIVE' | 'EXPIRED' | null = null;
+      if (isDraft && b.createdAt) {
+        const expiresMs = new Date(b.createdAt).getTime() + BOOKING_DRAFT_WINDOW_HOURS * 60 * 60 * 1000;
+        draftExpiresAt = new Date(expiresMs).toISOString();
+        draftExpiryStatus = Date.now() < expiresMs ? 'ACTIVE' : 'EXPIRED';
+      }
+
       const paymentSummary = {
         amount:
           Number.isFinite(paidTotal) && paidTotal > 0
@@ -244,11 +295,15 @@ router.get("/", async (req, res) => {
               status: latestInvoice.status,
               total: latestInvoice.total,
               paidAt: latestInvoice.paidAt,
+              createdAt: latestInvoice.createdAt,
             }
           : null,
         payment: paymentSummary,
         review: latestReview,
         user: b.user,
+        createdAt: b.createdAt,
+        draftExpiresAt,
+        draftExpiryStatus,
       };
     }),
   };
@@ -271,7 +326,7 @@ router.get("/counts", async (req, res) => {
     if (!start && !end && !month) {
       const statuses = ["CONFIRMED", "CHECKED_IN", "PENDING_CHECKIN", "CHECKED_OUT", "CANCELED"];
       const counts: Record<string, number> = {};
-      
+
       for (const status of statuses) {
         try {
           counts[status] = await prisma.booking.count({ where: { status } });
@@ -279,7 +334,19 @@ router.get("/counts", async (req, res) => {
           counts[status] = 0;
         }
       }
-      
+
+      // Draft = NEW bookings with a created-but-unpaid invoice (mirrors tour-revenue Draft).
+      try {
+        counts["DRAFT"] = await prisma.booking.count({
+          where: {
+            status: "NEW",
+            invoices: { some: {}, none: { status: { in: ["PAID", "CUSTOMER_PAID"] } } },
+          },
+        });
+      } catch (e) {
+        counts["DRAFT"] = 0;
+      }
+
       return res.json(counts);
     }
 

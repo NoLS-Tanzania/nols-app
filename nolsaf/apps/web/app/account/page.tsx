@@ -122,7 +122,7 @@ export default function AccountIndex() {
     try {
       // Fetch bookings count
       try {
-        const bookingsRes = await api.get("/api/customer/bookings?page=1&pageSize=1");
+        const bookingsRes = await api.get("/api/customer/bookings?page=1&pageSize=1&paidOnly=1");
         setStats((prev) => ({ ...prev, bookings: bookingsRes.data?.total || 0 }));
       } catch {}
 

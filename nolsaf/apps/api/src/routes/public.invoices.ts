@@ -5,6 +5,7 @@ import { z } from "zod";
 import rateLimit from "express-rate-limit";
 import jwt from "jsonwebtoken";
 import { makeQR } from "../lib/qr.js";
+import { signPublicInvoiceAccessToken, verifyPublicInvoiceAccessToken } from "../lib/publicInvoiceAccess.js";
 
 async function getEffectiveCommissionPercent(params: {
   propertyServices: unknown;
@@ -83,51 +84,6 @@ const publicInvoiceReadLimiter = rateLimit({
   legacyHeaders: false,
   message: { ok: false, error: "Too many requests" },
 });
-
-type PublicInvoiceAccessPayload = {
-  typ: "PUBLIC_INVOICE_ACCESS";
-  invoiceId: number;
-  bookingId: number;
-};
-
-function getPublicInvoiceAccessSecret(): string {
-  const secret =
-    process.env.PUBLIC_LINK_TOKEN_SECRET ||
-    process.env.JWT_SECRET ||
-    (process.env.NODE_ENV !== "production" ? process.env.DEV_JWT_SECRET || "dev_jwt_secret" : "");
-
-  if (!secret) {
-    throw new Error("public_invoice_access_secret_missing");
-  }
-
-  return secret;
-}
-
-function signPublicInvoiceAccessToken(invoiceId: number, bookingId: number): string {
-  const payload: PublicInvoiceAccessPayload = {
-    typ: "PUBLIC_INVOICE_ACCESS",
-    invoiceId,
-    bookingId,
-  };
-
-  return jwt.sign(payload, getPublicInvoiceAccessSecret(), {
-    expiresIn: "24h",
-    issuer: "nolsaf-public",
-    subject: String(invoiceId),
-  });
-}
-
-function verifyPublicInvoiceAccessToken(token: string, invoiceId: number): boolean {
-  try {
-    const decoded = jwt.verify(token, getPublicInvoiceAccessSecret(), {
-      issuer: "nolsaf-public",
-    }) as PublicInvoiceAccessPayload;
-
-    return decoded?.typ === "PUBLIC_INVOICE_ACCESS" && Number(decoded.invoiceId) === invoiceId;
-  } catch {
-    return false;
-  }
-}
 
 function isPaidLikeInvoice(invoice: { status?: string | null; receiptNumber?: string | null } | null | undefined) {
   if (!invoice) return false;

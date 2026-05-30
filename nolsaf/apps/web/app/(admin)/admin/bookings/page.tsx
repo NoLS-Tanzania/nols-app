@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { BarChart2, Calendar, CheckCircle2, ChevronDown, ChevronUp, ChevronsUpDown, Clock, CreditCard, Eye, Landmark, LogIn, LogOut, Search, Smartphone, Sparkles, X, XCircle } from "lucide-react";
+import { BarChart2, Calendar, CheckCircle2, ChevronDown, ChevronUp, ChevronsUpDown, Clock, CreditCard, Eye, Landmark, LogIn, LogOut, Search, Smartphone, X, XCircle } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import TableRow from "@/components/TableRow";
 import DatePicker from "@/components/ui/DatePicker";
 import axios from "axios";
 import type { Socket } from "socket.io-client";
@@ -21,10 +22,24 @@ type Row = {
   roomCode?: string | null;
   totalAmount: number;
   property: { id: number; title: string; ownerId: number; regionName?: string | null; city?: string | null };
-  code?: { id: number; code: string; status: string } | null;
+  code?: { id: number; code: string; status: string; generatedAt?: string | null; usedAt?: string | null; usedByOwner?: boolean | null } | null;
   user?: { id: number; name?: string | null; email?: string | null; phone?: string | null } | null;
   payment?: { amount?: number | null; paidAt?: string | null; method?: string | null } | null;
+  invoice?: { id: number; status?: string | null; total?: number | null; paidAt?: string | null; createdAt?: string | null } | null;
+  createdAt?: string | null;
+  draftExpiresAt?: string | null;
+  draftExpiryStatus?: "ACTIVE" | "EXPIRED" | null;
 };
+
+/** Format remaining ms as a compact countdown, e.g. "11h 04m" or "07m 12s". */
+function formatCountdown(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (h > 0) return `${h}h ${String(m).padStart(2, "0")}m`;
+  return `${m}m ${String(s).padStart(2, "0")}s`;
+}
 
 // Column presets for each filter button. Keys correspond to the status value used
 // in the status buttons ('' means All). These are the column keys used by
@@ -43,15 +58,14 @@ const COLUMN_PRESETS: Record<string, string[]> = {
       "nights",
       "actions",
     ],
-    NEW: [
+    DRAFT: [
       "bookingCode",
       "guestName",
       "contact",
-      "paymentDate",
-      "owner",
       "propertyRoom",
       "amountPaid",
-      "status",
+      "draftStatus",
+      "invoiceCreated",
       "actions",
     ],
     CONFIRMED: [
@@ -72,6 +86,7 @@ const COLUMN_PRESETS: Record<string, string[]> = {
       "owner",
       "propertyRoom",
       "roomNumber",
+      "codeUsed",
       "checkIn",
       "checkOut",
       "nights",
@@ -117,7 +132,16 @@ export default function AdminBookingsPage() {
   const [sortCol, setSortCol] = useState<string>('');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [currentPage, setCurrentPage] = useState(1);
+  const [nowTick, setNowTick] = useState(() => Date.now());
   const pageSize = 10;
+
+  // Live countdown clock — only ticks while the Draft tab is open.
+  useEffect(() => {
+    if (status !== 'DRAFT') return;
+    setNowTick(Date.now());
+    const t = window.setInterval(() => setNowTick(Date.now()), 1000);
+    return () => window.clearInterval(t);
+  }, [status]);
 
   function sortToggle(col: string) {
     if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -301,8 +325,8 @@ export default function AdminBookingsPage() {
           {/* KPI chips */}
           <div className="flex items-center gap-2 flex-wrap">
             {[
-              { label: 'Total',     val: (counts['NEW'] ?? 0) + (counts['CONFIRMED'] ?? 0) + (counts['CHECKED_IN'] ?? 0) + (counts['PENDING_CHECKIN'] ?? 0) + (counts['CHECKED_OUT'] ?? 0) + (counts['CANCELED'] ?? 0), cls: 'bg-gray-100 text-gray-700 ring-gray-200' },
-              { label: 'New',       val: counts['NEW'] ?? 0,   cls: 'bg-blue-50 text-blue-700 ring-blue-200' },
+              { label: 'Total',     val: (counts['DRAFT'] ?? 0) + (counts['CONFIRMED'] ?? 0) + (counts['CHECKED_IN'] ?? 0) + (counts['PENDING_CHECKIN'] ?? 0) + (counts['CHECKED_OUT'] ?? 0) + (counts['CANCELED'] ?? 0), cls: 'bg-gray-100 text-gray-700 ring-gray-200' },
+              { label: 'Draft',     val: counts['DRAFT'] ?? 0, cls: 'bg-purple-50 text-purple-700 ring-purple-200' },
               { label: 'Active',    val: (counts['CHECKED_IN'] ?? 0) + (counts['PENDING_CHECKIN'] ?? 0), cls: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
               { label: 'Checked out', val: counts['CHECKED_OUT'] ?? 0, cls: 'bg-sky-50 text-sky-700 ring-sky-200' },
               { label: 'Cancelled', val: counts['CANCELED'] ?? 0, cls: 'bg-red-50 text-red-600 ring-red-200' },
@@ -316,9 +340,8 @@ export default function AdminBookingsPage() {
         </div>
         {/* ── Distribution bar ── */}
         {(() => {
-          const _total = (counts['NEW'] ?? 0) + (counts['CONFIRMED'] ?? 0) + (counts['CHECKED_IN'] ?? 0) + (counts['PENDING_CHECKIN'] ?? 0) + (counts['CHECKED_OUT'] ?? 0) + (counts['CANCELED'] ?? 0);
+          const _total = (counts['CONFIRMED'] ?? 0) + (counts['CHECKED_IN'] ?? 0) + (counts['PENDING_CHECKIN'] ?? 0) + (counts['CHECKED_OUT'] ?? 0) + (counts['CANCELED'] ?? 0);
           const segs = [
-            { label: 'New',        val: counts['NEW'] ?? 0,                                               color: '#3b82f6' },
             { label: 'Validated',  val: counts['CONFIRMED'] ?? 0,                                         color: '#10b981' },
             { label: 'Check-in',   val: (counts['CHECKED_IN'] ?? 0) + (counts['PENDING_CHECKIN'] ?? 0),  color: '#f59e0b' },
             { label: 'Check-out',  val: counts['CHECKED_OUT'] ?? 0,                                       color: '#0ea5e9' },
@@ -384,7 +407,7 @@ export default function AdminBookingsPage() {
           <div className="flex items-center gap-2 flex-wrap">
             {([
               { label: 'All',        value: '',            color: '#02665e' },
-              { label: 'New',        value: 'NEW',         color: '#3b82f6' },
+              { label: 'Draft',      value: 'DRAFT',       color: '#a855f7' },
               { label: 'Validated',  value: 'CONFIRMED',   color: '#10b981' },
               { label: 'Check-in',   value: 'CHECKED_IN',  color: '#f59e0b' },
               { label: 'Check-out',  value: 'CHECKED_OUT', color: '#0ea5e9' },
@@ -392,7 +415,7 @@ export default function AdminBookingsPage() {
             ] as { label: string; value: string; color: string }[]).map((s) => {
               const cnt =
                 s.value === ''
-                  ? (counts['NEW'] ?? 0) + (counts['CONFIRMED'] ?? 0) + (counts['CHECKED_IN'] ?? 0) + (counts['PENDING_CHECKIN'] ?? 0) + (counts['CHECKED_OUT'] ?? 0) + (counts['CANCELED'] ?? 0)
+                  ? (counts['DRAFT'] ?? 0) + (counts['CONFIRMED'] ?? 0) + (counts['CHECKED_IN'] ?? 0) + (counts['PENDING_CHECKIN'] ?? 0) + (counts['CHECKED_OUT'] ?? 0) + (counts['CANCELED'] ?? 0)
                   : s.value === 'CHECKED_IN'
                   ? (counts['CHECKED_IN'] ?? 0) + (counts['PENDING_CHECKIN'] ?? 0)
                   : (counts[s.value] ?? 0);
@@ -502,6 +525,8 @@ export default function AdminBookingsPage() {
             <p className="text-sm text-gray-400 mt-1.5 max-w-xs leading-relaxed">
               {q
                 ? `No results matching "${q}". Try a different search term.`
+                : status === 'DRAFT'
+                ? 'No draft bookings. Created-but-unpaid invoices appear here.'
                 : status
                 ? `No bookings with the selected status.`
                 : 'There are no bookings to display yet.'}
@@ -525,15 +550,16 @@ export default function AdminBookingsPage() {
             <div className="sm:hidden divide-y divide-gray-100">
               {pagedList.map((b) => {
                 const stripe: Record<string, string> = {
-                  NEW: 'border-l-blue-400',
+                  NEW: 'border-l-purple-400',
                   CONFIRMED: 'border-l-emerald-400',
                   PENDING_CHECKIN: 'border-l-emerald-400',
                   CHECKED_IN: 'border-l-emerald-500',
                   CHECKED_OUT: 'border-l-sky-400',
                   CANCELED: 'border-l-red-400',
                 };
+                const mStripe = status === 'DRAFT' ? 'border-l-purple-400' : (stripe[b.status] ?? 'border-l-gray-300');
                 return (
-                  <div key={`m-${b.id}`} className={`border-l-4 ${stripe[b.status] ?? 'border-l-gray-300'} pl-4 pr-4 py-4`}>
+                  <div key={`m-${b.id}`} className={`border-l-4 ${mStripe} pl-4 pr-4 py-4`}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
                         <div className="font-semibold text-gray-900 text-sm leading-tight">#{b.id} · {b.property.title}</div>
@@ -544,7 +570,20 @@ export default function AdminBookingsPage() {
                       </div>
                       <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
                         <span className="text-sm font-bold text-gray-900 tabular-nums">{new Intl.NumberFormat().format(b.totalAmount)} <span className="text-xs font-normal text-gray-400">TZS</span></span>
-                        <StatusBadge s={b.status} />
+                        {status === 'DRAFT' ? (() => {
+                          const inv = String(b.invoice?.status ?? '').toUpperCase();
+                          const remainingMs = b.draftExpiresAt ? new Date(b.draftExpiresAt).getTime() - nowTick : null;
+                          const expired = String(b.draftExpiryStatus ?? '').toUpperCase() === 'EXPIRED' || (remainingMs != null && remainingMs <= 0);
+                          if (inv === 'PROCESSING') {
+                            return <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: '#eef2ff', color: '#6366f1' }}><Clock className="h-2.5 w-2.5" /> Processing</span>;
+                          }
+                          if (expired) {
+                            return <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: '#fef2f2', color: '#ef4444' }}><XCircle className="h-2.5 w-2.5" /> Expired</span>;
+                          }
+                          return <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: '#faf5ff', color: '#a855f7' }}><Clock className="h-2.5 w-2.5" /> {remainingMs != null ? formatCountdown(remainingMs) : 'Draft'}</span>;
+                        })() : (
+                          <StatusBadge s={b.status} />
+                        )}
                         <button
                           onClick={() => toggleMobile(b.id)}
                           aria-expanded={!!openIds[b.id] ? 'true' : 'false'}
@@ -580,7 +619,7 @@ export default function AdminBookingsPage() {
                     <th className="w-[3px] p-0" />
                     {visibleColumns.map((c) => {
                       const SORTABLE = new Set(['bookingCode','guestName','amountPaid','checkIn','checkOut','nights']);
-                      const label = c === 'bookingCode' ? 'Booking' : c === 'guestName' ? 'Guest' : c === 'owner' ? 'Owner' : c === 'region' ? 'Region' : c === 'propertyRoom' ? 'Property / Room' : c === 'amountPaid' ? 'Amount' : c === 'status' ? 'Status' : c === 'checkIn' ? 'Check\u2011in' : c === 'checkOut' ? 'Check\u2011out' : c === 'nights' ? 'Nights' : c === 'actions' ? '' : c === 'contact' ? 'Contact' : c === 'paymentDate' ? 'Payment' : c === 'roomNumber' ? 'Room' : c === 'cancelledAt' ? 'Cancelled' : c === 'cancelReason' ? 'Reason' : c === 'amountRefunded' ? 'Refunded' : c;
+                      const label = c === 'bookingCode' ? 'Booking' : c === 'guestName' ? 'Guest' : c === 'owner' ? 'Owner' : c === 'region' ? 'Region' : c === 'propertyRoom' ? 'Property / Room' : c === 'amountPaid' ? 'Amount' : c === 'status' ? 'Status' : c === 'checkIn' ? 'Check\u2011in' : c === 'checkOut' ? 'Check\u2011out' : c === 'nights' ? 'Nights' : c === 'actions' ? '' : c === 'contact' ? 'Contact' : c === 'paymentDate' ? 'Payment' : c === 'roomNumber' ? 'Room' : c === 'cancelledAt' ? 'Cancelled' : c === 'cancelReason' ? 'Reason' : c === 'amountRefunded' ? 'Refunded' : c === 'draftStatus' ? 'Status' : c === 'invoiceCreated' ? 'Invoice created' : c === 'codeUsed' ? 'Code used' : c;
                       const canSort = SORTABLE.has(c);
                       const isSorted = sortCol === c;
                       return (
@@ -609,7 +648,7 @@ export default function AdminBookingsPage() {
                 <tbody className="divide-y divide-gray-100">
                   {pagedList.map((b) => {
                     const stripeColor: Record<string, string> = {
-                      NEW: 'bg-blue-400',
+                      NEW: 'bg-purple-400',
                       CONFIRMED: 'bg-emerald-400',
                       PENDING_CHECKIN: 'bg-emerald-400',
                       CHECKED_IN: 'bg-emerald-500',
@@ -617,10 +656,10 @@ export default function AdminBookingsPage() {
                       CANCELED: 'bg-red-400',
                     };
                     return (
-                      <tr key={b.id} className="group hover:bg-gray-50/70 transition-colors duration-100">
+                      <TableRow key={b.id} className="group">
                         {/* Status stripe */}
                         <td className="p-0 w-[3px]">
-                          <div className={`w-[3px] h-full min-h-[52px] ${stripeColor[b.status] ?? 'bg-gray-300'} opacity-60`} />
+                          <div className={`w-[3px] h-full min-h-[52px] ${status === 'DRAFT' ? 'bg-purple-400' : (stripeColor[b.status] ?? 'bg-gray-300')} opacity-60`} />
                         </td>
                         {visibleColumns.map((c) => (
                           <td key={c} className="px-4 py-3.5 text-sm text-gray-700">
@@ -634,22 +673,22 @@ export default function AdminBookingsPage() {
                                     </div>
                                   );
                                 case 'guestName':
-                                  return <span className="font-medium text-gray-900">{b.guestName ?? '—'}</span>;
+                                  return <span className="font-medium text-gray-900 whitespace-nowrap">{b.guestName ?? '—'}</span>;
                                 case 'owner':
                                   return <span className="text-gray-500">{b.property?.ownerId ?? '—'}</span>;
                                 case 'region': {
                                   const parts = [b.property?.regionName, b.property?.city].filter(Boolean);
                                   return parts.length > 0 ? (
                                     <div>
-                                      <div className="font-medium text-gray-800 leading-tight">{parts[0]}</div>
-                                      {parts[1] && <div className="text-xs text-gray-400 mt-0.5">{parts[1]}</div>}
+                                      <div className="font-medium text-gray-800 leading-tight whitespace-nowrap">{parts[0]}</div>
+                                      {parts[1] && <div className="text-xs text-gray-400 mt-0.5 whitespace-nowrap">{parts[1]}</div>}
                                     </div>
                                   ) : <span className="text-gray-300">—</span>;
                                 }
                                 case 'propertyRoom':
                                   return (
                                     <div>
-                                      <div className="font-medium text-gray-900 leading-tight">{b.property.title}</div>
+                                      <div className="font-medium text-gray-900 leading-tight whitespace-nowrap">{b.property.title}</div>
                                       {b.roomCode && <div className="text-xs text-gray-400 mt-0.5">{b.roomCode}</div>}
                                     </div>
                                   );
@@ -661,17 +700,18 @@ export default function AdminBookingsPage() {
                                     </span>
                                   );
                                 case 'status': {
+                                  // A NEW booking shown in any admin list is an unpaid draft, so it reads "Draft".
                                   const _icons: Record<string, JSX.Element | null> = {
-                                    NEW: <Sparkles className="h-3 w-3" />,
+                                    NEW: <Clock className="h-3 w-3" />,
                                     CONFIRMED: <CheckCircle2 className="h-3 w-3" />,
                                     PENDING_CHECKIN: <Clock className="h-3 w-3" />,
                                     CHECKED_IN: <LogIn className="h-3 w-3" />,
                                     CHECKED_OUT: <LogOut className="h-3 w-3" />,
                                     CANCELED: <XCircle className="h-3 w-3" />,
                                   };
-                                  const _labels: Record<string, string> = { NEW: 'New', CONFIRMED: 'Validated', PENDING_CHECKIN: 'Pending', CHECKED_IN: 'Checked in', CHECKED_OUT: 'Checked out', CANCELED: 'Cancelled' };
+                                  const _labels: Record<string, string> = { NEW: 'Draft', CONFIRMED: 'Validated', PENDING_CHECKIN: 'Pending', CHECKED_IN: 'Checked in', CHECKED_OUT: 'Checked out', CANCELED: 'Cancelled' };
                                   const _palette: Record<string, [string, string]> = {
-                                    NEW: ['#eff6ff','#3b82f6'], CONFIRMED: ['#ecfdf5','#10b981'], PENDING_CHECKIN: ['#fffbeb','#f59e0b'],
+                                    NEW: ['#faf5ff','#a855f7'], CONFIRMED: ['#ecfdf5','#10b981'], PENDING_CHECKIN: ['#fffbeb','#f59e0b'],
                                     CHECKED_IN: ['#f0fdf4','#22c55e'], CHECKED_OUT: ['#f0f9ff','#0ea5e9'], CANCELED: ['#fef2f2','#ef4444'],
                                   };
                                   const [_bg, _col] = _palette[b.status] ?? ['#f9fafb','#6b7280'];
@@ -732,6 +772,52 @@ export default function AdminBookingsPage() {
                                 }
                                 case 'roomNumber':
                                   return <span className="text-gray-700">{b.roomCode ?? '—'}</span>;
+                                case 'codeUsed': {
+                                  // When the owner validated the check-in code (code → USED) — i.e. the
+                                  // moment the guest was granted access to the service.
+                                  const usedAt = b.code?.usedAt ?? null;
+                                  if (!usedAt) {
+                                    return <span className="text-gray-400">Not yet</span>;
+                                  }
+                                  return (
+                                    <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold whitespace-nowrap" style={{ background: '#ecfdf5', color: '#10b981' }}>
+                                      <CheckCircle2 className="h-3 w-3" />
+                                      {new Date(usedAt).toLocaleString()}
+                                    </span>
+                                  );
+                                }
+                                case 'draftStatus': {
+                                  const inv = String(b.invoice?.status ?? '').toUpperCase();
+                                  const expired = String(b.draftExpiryStatus ?? '').toUpperCase() === 'EXPIRED';
+                                  const remainingMs = b.draftExpiresAt ? new Date(b.draftExpiresAt).getTime() - nowTick : null;
+                                  // Three states: payment processing, expired, or awaiting (with countdown).
+                                  if (inv === 'PROCESSING') {
+                                    return (
+                                      <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold whitespace-nowrap" style={{ background: '#eef2ff', color: '#6366f1' }}>
+                                        <Clock className="h-3 w-3" /> Payment processing
+                                      </span>
+                                    );
+                                  }
+                                  if (expired || (remainingMs != null && remainingMs <= 0)) {
+                                    return (
+                                      <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold whitespace-nowrap" style={{ background: '#fef2f2', color: '#ef4444' }}>
+                                        <XCircle className="h-3 w-3" /> Expired
+                                      </span>
+                                    );
+                                  }
+                                  return (
+                                    <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold whitespace-nowrap" style={{ background: '#faf5ff', color: '#a855f7' }}>
+                                      <Clock className="h-3 w-3" />
+                                      {remainingMs != null ? `Awaiting · ${formatCountdown(remainingMs)}` : 'Awaiting payment'}
+                                    </span>
+                                  );
+                                }
+                                case 'invoiceCreated': {
+                                  const at = b.invoice?.createdAt ?? b.createdAt ?? null;
+                                  return at ? (
+                                    <span className="tabular-nums text-gray-600">{new Date(at).toLocaleString()}</span>
+                                  ) : <span className="text-gray-300">—</span>;
+                                }
                                 case 'cancelledAt':
                                   return <span className="text-gray-400">—</span>;
                                 case 'cancelReason':
@@ -744,7 +830,7 @@ export default function AdminBookingsPage() {
                             })()}
                           </td>
                         ))}
-                      </tr>
+                      </TableRow>
                     );
                   })}
                 </tbody>

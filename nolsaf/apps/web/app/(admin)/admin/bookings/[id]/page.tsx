@@ -132,25 +132,6 @@ export default function AdminBookingDetail() {
     load();
   }, [load]);
 
-  const confirmBooking = useCallback(async () => {
-    if (!isValidBookingId(id)) {
-      showToast("error", "Invalid Booking", "Invalid booking ID provided");
-      return;
-    }
-
-    setBusy(true);
-    try {
-      authify();
-      await api.post(`/api/admin/bookings/${id}/confirm`, { generateCode: true });
-      await load();
-      showToast("success", "Booking Confirmed", "Booking confirmed and code generated successfully");
-    } catch (err: any) {
-      const errorMessage = err?.response?.data?.error || err?.message || "Failed to confirm booking";
-      showToast("error", "Failed to Confirm Booking", errorMessage);
-    } finally {
-      setBusy(false);
-    }
-  }, [id, load]);
 
   const reassign = useCallback(async () => {
     if (!isValidBookingId(id)) {
@@ -285,22 +266,13 @@ export default function AdminBookingDetail() {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              {/* Check-in codes are issued automatically once payment is confirmed.
+                  There is no manual code generation. Unpaid bookings simply wait. */}
               {b.status === "NEW" && (
-                <button
-                  disabled={busy}
-                  onClick={confirmBooking}
-                  aria-label="Confirm booking and generate check-in code"
-                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center gap-2"
-                >
-                  {busy ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Processing...
-                    </>
-                  ) : (
-                    "Confirm & Generate Code"
-                  )}
-                </button>
+                <span className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-sm font-medium">
+                  <Clock className="h-4 w-4" />
+                  Awaiting payment. The check-in code is issued automatically once paid.
+                </span>
               )}
             </div>
           </div>
