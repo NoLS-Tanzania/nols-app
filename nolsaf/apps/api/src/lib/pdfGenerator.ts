@@ -85,6 +85,16 @@ export async function generateBookingReservationHTML(details: BookingDetails): P
   // Generate QR code
   const qrCodeDataUrl = await generateBookingQRCode(details);
 
+  // HTML-escape all guest/property-controlled fields. This HTML is served directly
+  // (receipt.html) and rendered in an iframe, so unescaped values would be an XSS vector.
+  const esc = (value: unknown): string =>
+    String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+
   const parseValidDate = (value: Date | string | undefined | null): Date | null => {
     try {
       if (value == null) return null;
@@ -148,35 +158,63 @@ export async function generateBookingReservationHTML(details: BookingDetails): P
   const amount = Number(details.totalAmount || 0).toLocaleString("en-US");
   const paidAt = details.invoice?.paidAt ? formatDateTime(details.invoice.paidAt) : null;
 
+  // Authenticity barcode: a deterministic SVG barcode derived from the receipt/booking
+  // identifier. Unique per receipt, so it reads as a genuine document mark.
+  const barcodeValue = String(
+    details.invoice?.receiptNumber || details.bookingCode || details.bookingId || ""
+  );
+  const barcodeSvg = (() => {
+    const W = 150;
+    const H = 36;
+    let seed = 0;
+    for (let i = 0; i < barcodeValue.length; i++) {
+      seed = (seed * 31 + barcodeValue.charCodeAt(i)) >>> 0;
+    }
+    let s = seed || 1;
+    const rnd = () => {
+      s = (s * 1103515245 + 12345) & 0x7fffffff;
+      return s / 0x7fffffff;
+    };
+    const rects: string[] = [];
+    let x = 1;
+    // Continuous bars with small, even gaps — dense like a real barcode (no large blanks).
+    while (x < W - 2) {
+      const bw = 1 + Math.floor(rnd() * 3); // bar width 1–3px
+      const gap = 1 + Math.floor(rnd() * 2); // thin gap 1–2px
+      rects.push(`<rect x="${x}" y="0" width="${bw}" height="${H}" fill="#0f172a"/>`);
+      x += bw + gap;
+    }
+    return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Receipt authenticity barcode" preserveAspectRatio="none">${rects.join("")}</svg>`;
+  })();
+
   return `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Booking Receipt — ${details.bookingCode}</title>
+  <title>Booking Receipt ${esc(details.bookingCode)}</title>
   <style>
     @media print {
       @page { size: A5; margin: 0; }
-      body { margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      .sheet { box-shadow: none; border-radius: 0; }
+      html, body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .sheet { box-shadow: none; border-radius: 0; max-width: 100%; page-break-inside: avoid; break-inside: avoid; }
     }
     *, *::before, *::after { box-sizing: border-box; }
     body {
       font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
       font-size: 12px;
-      line-height: 1.5;
+      line-height: 1.45;
       color: #1e293b;
-      background: #f1f5f9;
+      background: #ffffff;
       margin: 0;
-      padding: 16px 0 24px;
+      padding: 0;
     }
+    /* Single, full-bleed sheet — no floating card / drop shadow, so it reads as one clean page. */
     .sheet {
       background: #ffffff;
-      border-radius: 12px;
-      max-width: 558px;
-      margin: 0 auto;
+      max-width: 100%;
+      margin: 0;
       overflow: hidden;
-      box-shadow: 0 4px 24px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.06);
       position: relative;
     }
     /* diagonal watermark */
@@ -198,11 +236,18 @@ export async function generateBookingReservationHTML(details: BookingDetails): P
     }
     .sheet > * { position: relative; z-index: 1; }
 
+    /* Dashed section divider — receipt-style boundary between parts */
+    .dash-sep {
+      border: 0;
+      border-top: 1.5px dashed #cbd5e1;
+      margin: 11px 0;
+      height: 0;
+    }
+
     /* ── Brand header ── */
     .brand-header {
       background: #ffffff;
-      border-top: 3px solid #02665e;
-      border-bottom: 1px solid #e2e8f0;
+      border-bottom: 1.5px dashed #cbd5e1;
       padding: 14px 20px;
       display: flex;
       align-items: center;
@@ -215,8 +260,8 @@ export async function generateBookingReservationHTML(details: BookingDetails): P
       gap: 10px;
     }
     .brand-logo {
-      width: 38px;
-      height: 38px;
+      width: 46px;
+      height: 46px;
       border-radius: 8px;
       display: block;
       flex-shrink: 0;
@@ -231,6 +276,7 @@ export async function generateBookingReservationHTML(details: BookingDetails): P
     }
     .brand-tagline {
       font-size: 9.5px;
+      font-style: italic;
       color: #94a3b8;
       letter-spacing: 0.2px;
       margin-top: 2px;
@@ -241,52 +287,39 @@ export async function generateBookingReservationHTML(details: BookingDetails): P
       align-items: flex-end;
       gap: 5px;
     }
-    .verified-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      border: 1.5px solid #02665e;
-      color: #02665e;
-      border-radius: 9999px;
-      padding: 4px 11px;
-      font-size: 10.5px;
-      font-weight: 800;
-      letter-spacing: 0.6px;
-      text-transform: uppercase;
-      background: rgba(2,102,94,0.05);
+    .barcode {
+      width: 150px;
+      height: 36px;
+      line-height: 0;
     }
-    .verified-check {
-      font-size: 11px;
-      font-weight: 900;
+    .barcode svg {
+      display: block;
+      width: 100%;
+      height: 100%;
     }
     .receipt-label {
       font-size: 9px;
       font-weight: 700;
       color: #94a3b8;
-      letter-spacing: 1.5px;
+      letter-spacing: 0.4px;
       text-transform: uppercase;
+      white-space: nowrap;
+      margin-top: 5px;
     }
 
     /* ── Body padding ── */
-    .body-pad { padding: 16px 20px; }
+    .body-pad { padding: 12px 20px 14px; }
 
     /* ── Booking code ── */
     .code-block {
       border: 1.5px solid #e2e8f0;
       border-radius: 10px;
-      padding: 14px 16px 12px;
-      margin-bottom: 16px;
+      padding: 10px 16px 9px;
+      margin-bottom: 11px;
       text-align: center;
       background: linear-gradient(180deg, #f8fffe 0%, #ffffff 100%);
       position: relative;
       overflow: hidden;
-    }
-    .code-block::before {
-      content: "";
-      position: absolute;
-      top: 0; left: 0; right: 0;
-      height: 3px;
-      background: linear-gradient(90deg, #02665e, #4ade80, #02665e);
     }
     .code-label {
       font-size: 10px;
@@ -294,15 +327,15 @@ export async function generateBookingReservationHTML(details: BookingDetails): P
       color: #64748b;
       letter-spacing: 1px;
       text-transform: uppercase;
-      margin-bottom: 6px;
+      margin-bottom: 4px;
     }
     .code-value {
-      font-size: 32px;
+      font-size: 27px;
       font-weight: 900;
       color: #02665e;
       letter-spacing: 5px;
       line-height: 1;
-      margin-bottom: 6px;
+      margin-bottom: 4px;
     }
     .code-hint {
       font-size: 10px;
@@ -320,7 +353,7 @@ export async function generateBookingReservationHTML(details: BookingDetails): P
       font-weight: 800;
       letter-spacing: 1px;
       text-transform: uppercase;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
 
     /* ── Two-column guest / property summary ── */
@@ -328,12 +361,12 @@ export async function generateBookingReservationHTML(details: BookingDetails): P
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 10px;
-      margin-bottom: 14px;
+      margin-bottom: 10px;
     }
     .summary-card {
       border: 1px solid #e2e8f0;
       border-radius: 8px;
-      padding: 10px 12px;
+      padding: 9px 12px;
       background: #fafafa;
     }
     .summary-card-label {
@@ -364,8 +397,8 @@ export async function generateBookingReservationHTML(details: BookingDetails): P
       display: flex;
       align-items: center;
       gap: 8px;
-      margin-bottom: 6px;
-      margin-top: 14px;
+      margin-bottom: 5px;
+      margin-top: 10px;
     }
     .section-bar {
       width: 3px;
@@ -392,7 +425,7 @@ export async function generateBookingReservationHTML(details: BookingDetails): P
     table.detail-table tr:nth-child(odd) td { background: #f8fafc; }
     table.detail-table tr:nth-child(even) td { background: #ffffff; }
     table.detail-table td {
-      padding: 7px 12px;
+      padding: 5.5px 12px;
       border-bottom: 1px solid #e9edf2;
       vertical-align: top;
     }
@@ -422,8 +455,8 @@ export async function generateBookingReservationHTML(details: BookingDetails): P
       align-items: center;
       border: 1px solid #e2e8f0;
       border-radius: 8px;
-      padding: 10px 12px;
-      margin-bottom: 14px;
+      padding: 8px 12px;
+      margin-bottom: 10px;
       background: #fafafa;
       text-align: center;
     }
@@ -459,18 +492,18 @@ export async function generateBookingReservationHTML(details: BookingDetails): P
       border: 1px solid #e2e8f0;
       border-left: 3px solid #02665e;
       border-radius: 0 8px 8px 0;
-      padding: 10px 12px;
+      padding: 9px 12px;
       background: #f8fffe;
-      margin-top: 14px;
+      margin-top: 10px;
       font-size: 10.5px;
       color: #475569;
-      line-height: 1.5;
+      line-height: 1.45;
     }
 
     /* ── Footer ── */
     .doc-footer {
-      border-top: 1px solid #e2e8f0;
-      padding: 12px 20px;
+      border-top: 1.5px dashed #cbd5e1;
+      padding: 10px 20px;
       display: flex;
       align-items: flex-start;
       justify-content: space-between;
@@ -527,12 +560,12 @@ export async function generateBookingReservationHTML(details: BookingDetails): P
       <img class="brand-logo" src="${logoSrc}" alt="NoLSAF" />
       <div>
         <div class="brand-name">NoLSAF</div>
-        <div class="brand-tagline">Your Stay, Our Promise</div>
+        <div class="brand-tagline">Quality Stay for Every Wallet</div>
       </div>
     </div>
     <div class="brand-right">
-      <div class="verified-badge"><span class="verified-check">&#10003;</span> Verified</div>
-      <div class="receipt-label">Receipt&nbsp;#${details.bookingId}</div>
+      <div class="barcode">${barcodeSvg}</div>
+      <div class="receipt-label">Receipt No:&nbsp;${esc(details.invoice?.receiptNumber || details.bookingId)}</div>
     </div>
   </div>
 
@@ -542,23 +575,25 @@ export async function generateBookingReservationHTML(details: BookingDetails): P
     <div class="code-block">
       <div class="paid-pill">&#10003;&nbsp;Paid &amp; Confirmed</div>
       <div class="code-label">Booking Code</div>
-      <div class="code-value">${details.bookingCode}</div>
+      <div class="code-value">${esc(details.bookingCode)}</div>
       <div class="code-hint">Present this code at check&#8209;in or scan the QR below</div>
     </div>
+
+    <hr class="dash-sep" />
 
     <!-- Guest + Property summary cards -->
     <div class="summary-grid">
       <div class="summary-card">
         <div class="summary-card-label">Guest</div>
-        <div class="summary-card-value">${details.guestName}</div>
-        ${details.guestPhone ? `<div class="summary-card-sub">${details.guestPhone}</div>` : ""}
-        ${details.nationality ? `<div class="summary-card-sub">${details.nationality}</div>` : ""}
+        <div class="summary-card-value">${esc(details.guestName)}</div>
+        ${details.guestPhone ? `<div class="summary-card-sub">${esc(details.guestPhone)}</div>` : ""}
+        ${details.nationality ? `<div class="summary-card-sub">${esc(details.nationality)}</div>` : ""}
       </div>
       <div class="summary-card">
         <div class="summary-card-label">Property</div>
-        <div class="summary-card-value">${details.property.title}</div>
-        <div class="summary-card-sub">${details.property.type}${details.property.regionName ? " &bull; " + [details.property.regionName, details.property.city].filter(Boolean).join(", ") : ""}</div>
-        ${details.roomType ? `<div class="summary-card-sub">${details.roomType}${details.rooms ? " &times; " + details.rooms : ""}</div>` : ""}
+        <div class="summary-card-value">${esc(details.property.title)}</div>
+        <div class="summary-card-sub">${esc(details.property.type)}${details.property.regionName ? " &bull; " + esc([details.property.regionName, details.property.city].filter(Boolean).join(", ")) : ""}</div>
+        ${details.roomType ? `<div class="summary-card-sub">${esc(details.roomType)}${details.rooms ? " &times; " + esc(details.rooms) : ""}</div>` : ""}
       </div>
     </div>
 
@@ -575,6 +610,8 @@ export async function generateBookingReservationHTML(details: BookingDetails): P
       </div>
     </div>
 
+    <hr class="dash-sep" />
+
     <!-- Payment details -->
     <div class="section-header">
       <div class="section-bar"></div>
@@ -585,7 +622,7 @@ export async function generateBookingReservationHTML(details: BookingDetails): P
         <td>Total Amount</td>
         <td>${amount} TZS</td>
       </tr>
-      ${details.invoice?.receiptNumber ? `<tr><td>Receipt No.</td><td>${details.invoice.receiptNumber}</td></tr>` : ""}
+      ${details.invoice?.receiptNumber ? `<tr><td>Receipt No.</td><td>${esc(details.invoice.receiptNumber)}</td></tr>` : ""}
       ${paidAt ? `<tr><td>Paid On</td><td>${paidAt}</td></tr>` : ""}
       <tr><td>Status</td><td style="color:#166534;font-weight:700;">&#10003; Payment Received</td></tr>
     </table>
@@ -596,7 +633,7 @@ export async function generateBookingReservationHTML(details: BookingDetails): P
       <div class="section-label">Inclusive Services</div>
     </div>
     <table class="detail-table">
-      <tr><td colspan="2">${typeof details.services === "string" ? details.services : JSON.stringify(details.services)}</td></tr>
+      <tr><td colspan="2">${esc(typeof details.services === "string" ? details.services : JSON.stringify(details.services))}</td></tr>
     </table>
     ` : ""}
 

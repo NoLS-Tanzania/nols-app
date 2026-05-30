@@ -346,7 +346,10 @@ router.get("/:id", (async (req: AuthedRequest, res) => {
       where: {
         id: bookingId,
         ...buildCustomerBookingWhere({ id: userId }, legacyBookingIds),
-        status: { in: ["CONFIRMED", "CHECKED_IN", "CHECKED_OUT"] },
+        // A check-in code only exists after payment, so `code` already gates this to
+        // paid bookings. Don't restrict to a narrow status set — a paid booking whose
+        // status wasn't flipped to CONFIRMED (e.g. a missed webhook) must still resolve.
+        status: { notIn: ["CANCELED"] },
         code: { isNot: null },
       },
       include: {
@@ -420,7 +423,10 @@ router.get("/:id/pdf", (async (req: AuthedRequest, res) => {
       where: {
         id: bookingId,
         ...buildCustomerBookingWhere({ id: userId }, legacyBookingIds),
-        status: { in: ["CONFIRMED", "CHECKED_IN", "CHECKED_OUT"] },
+        // A check-in code only exists after payment, so `code` already gates this to
+        // paid bookings. Don't restrict to a narrow status set — a paid booking whose
+        // status wasn't flipped to CONFIRMED (e.g. a missed webhook) must still resolve.
+        status: { notIn: ["CANCELED"] },
         code: { isNot: null },
       },
       include: {
@@ -501,21 +507,28 @@ router.get("/:id/receipt.html", (async (req: AuthedRequest, res) => {
       where: {
         id: bookingId,
         ...buildCustomerBookingWhere({ id: userId }, legacyBookingIds),
-        status: { in: ["CONFIRMED", "CHECKED_IN", "CHECKED_OUT"] },
+        // A check-in code only exists after payment, so `code` already gates this to
+        // paid bookings. Don't restrict to a narrow status set — a paid booking whose
+        // status wasn't flipped to CONFIRMED (e.g. a missed webhook) must still resolve.
+        status: { notIn: ["CANCELED"] },
         code: { isNot: null },
       },
       include: {
         property: true,
         code: true,
         user: { select: { name: true, phone: true } },
-        invoice: { select: { invoiceNumber: true, receiptNumber: true, paidAt: true } },
+        invoices: {
+          select: { invoiceNumber: true, receiptNumber: true, paidAt: true },
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
       },
     });
 
     if (!booking) return res.status(404).json({ error: "Booking not found" });
     if (!booking.code?.codeVisible) return res.status(400).json({ error: "Booking code not available" });
 
-    const inv: any = (booking as any).invoice;
+    const inv: any = (booking as any).invoices?.[0] ?? null;
     const nights = Math.max(1, Math.ceil(
       (new Date(booking.checkOut).getTime() - new Date(booking.checkIn).getTime()) / 86400000
     ));

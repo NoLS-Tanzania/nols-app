@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import apiClient from "@/lib/apiClient";
 import {
   Calendar, Download, CheckCircle, XCircle, Eye,
@@ -7,7 +7,6 @@ import {
   Hash, BedDouble, DoorOpen, Printer, X, FileText,
 } from "lucide-react";
 import Link from "next/link";
-import { sanitizeTrustedHtml } from "@/utils/html";
 
 const api = apiClient;
 
@@ -102,14 +101,13 @@ export default function MyBookingsPage() {
   const loadBookings = async () => {
     try {
       setLoading(true);
-      const response = await api.get("/api/customer/bookings");
-      // Keep paid+valid stays AND unpaid drafts (NEW bookings with an unpaid invoice).
-      // Drafts surface in the "Draft" tab with a 12h payment window; everything else
-      // is a confirmed stay shown under All/Valid/Expired.
+      const response = await api.get("/api/customer/bookings?pageSize=50");
+      // The API already returns exactly what belongs here: unpaid drafts (NEW with an
+      // unpaid invoice) + confirmed stays (CONFIRMED/CHECKED_IN/CHECKED_OUT with a code).
+      // Keep them all so the count matches the dashboard, and so expired (checked-out)
+      // stays still appear under the Expired tab. Cancelled bookings are excluded by the API.
       const items: Booking[] = response.data.items || [];
-      const visible = items.filter(
-        (b) => isDraftBooking(b) || (Boolean(b?.isValid) && Boolean(b?.isPaid))
-      );
+      const visible = items.filter((b) => isDraftBooking(b) || Boolean(b?.isPaid) || Boolean(b?.bookingCode));
       setBookings(visible);
     } catch (err: any) {
       // Keep UI clean: show a small toast instead of a big banner.
@@ -185,39 +183,35 @@ export default function MyBookingsPage() {
   };
 
   // ── Receipt modal ──────────────────────────────────────────────────────────
+  // Fetch the server-generated receipt HTML (proxied + cookie-authed) and render it
+  // via the iframe's `srcdoc`. srcdoc iframes inherit the parent origin, so the styled
+  // markup renders fully AND we can read contentDocument for print/PDF. The template
+  // HTML-escapes all guest/property fields at the source, so no client sanitizing is
+  // needed and the styling is preserved.
   const [receiptBookingId, setReceiptBookingId] = useState<number | null>(null);
   const [receiptHtml, setReceiptHtml] = useState<string>("");
   const [receiptLoading, setReceiptLoading] = useState(false);
-  const [receiptFilename, setReceiptFilename] = useState<string>("");
-  const [receiptPdfUrl, setReceiptPdfUrl] = useState<string | null>(null);
-  const [receiptPdfBusy, setReceiptPdfBusy] = useState(false);
-  const [receiptIframeH, setReceiptIframeH] = useState<number>(600);
-  const receiptContainerRef = useRef<HTMLDivElement | null>(null);
-
-  const sanitizedReceiptHtml = useMemo(
-    () => (receiptHtml ? sanitizeTrustedHtml(receiptHtml) : ""),
-    [receiptHtml]
-  );
+  const [receiptError, setReceiptError] = useState(false);
+  const receiptIframeRef = useRef<HTMLIFrameElement | null>(null);
 
   const openReceipt = useCallback(async (bookingId: number) => {
     setReceiptBookingId(bookingId);
     setReceiptHtml("");
-    setReceiptPdfUrl(null);
-    setReceiptIframeH(600);
+    setReceiptError(false);
     setReceiptLoading(true);
-    setReceiptFilename(`Booking-Receipt-${bookingId}.pdf`);
     try {
       const r = await fetch(`/api/customer/bookings/${bookingId}/receipt.html`, {
         credentials: "include",
         cache: "no-store",
+        headers: { Accept: "text/html" },
       });
       const html = await r.text();
-      if (!r.ok) throw new Error(`Failed to load receipt (${r.status})`);
-      const fn = r.headers.get("x-nolsaf-filename") || `Booking-Receipt-${bookingId}.pdf`;
-      setReceiptFilename(fn);
+      if (!r.ok || !/class=["']sheet["']/.test(html)) {
+        throw new Error(`Receipt not available (${r.status})`);
+      }
       setReceiptHtml(html);
     } catch {
-      setReceiptHtml("");
+      setReceiptError(true);
     } finally {
       setReceiptLoading(false);
     }
@@ -226,54 +220,14 @@ export default function MyBookingsPage() {
   const closeReceipt = useCallback(() => {
     setReceiptBookingId(null);
     setReceiptHtml("");
-    setReceiptPdfUrl(null);
+    setReceiptLoading(false);
+    setReceiptError(false);
   }, []);
 
   const printReceipt = useCallback(() => {
-    const root = receiptContainerRef.current;
-    if (!root) return;
-    const el = (root.querySelector(".sheet") as HTMLElement | null) || root;
-    const w = window.open("", "", "width=760,height=980");
-    if (!w) return;
-    w.document.write(
-      `<!DOCTYPE html><html><head><title>Booking Receipt</title><style>*{box-sizing:border-box}body{margin:0;padding:0;background:#fff}</style></head><body>${el.outerHTML}</body></html>`
-    );
-    w.document.close();
-    w.focus();
-    setTimeout(() => { w.print(); }, 400);
+    receiptIframeRef.current?.contentWindow?.focus();
+    receiptIframeRef.current?.contentWindow?.print();
   }, []);
-
-  useEffect(() => {
-    let revoked: string | null = null;
-    async function gen() {
-      if (!sanitizedReceiptHtml || receiptBookingId === null) return;
-      const root = receiptContainerRef.current;
-      if (!root) return;
-      const el = (root.querySelector(".sheet") as HTMLElement | null) || root;
-      setReceiptPdfBusy(true);
-      try {
-        const mod: any = await import("html2pdf.js");
-        const h2p = mod.default || mod;
-        if (!h2p) throw new Error("html2pdf failed");
-        const pdf = await h2p().from(el).set({
-          filename: receiptFilename,
-          margin: 0,
-          jsPDF: { unit: "mm", format: "a5", orientation: "portrait" },
-          html2canvas: { scale: 2, useCORS: true, logging: false, windowWidth: 558 },
-          pagebreak: { mode: [] },
-        }).toPdf().get("pdf");
-        const url = pdf.output("bloburl");
-        revoked = url;
-        setReceiptPdfUrl(url);
-      } catch {
-        setReceiptPdfUrl(null);
-      } finally {
-        setReceiptPdfBusy(false);
-      }
-    }
-    gen();
-    return () => { if (revoked) { try { URL.revokeObjectURL(revoked); } catch {} } };
-  }, [sanitizedReceiptHtml, receiptBookingId, receiptFilename]);
 
   if (loading) {
     return (
@@ -330,8 +284,8 @@ export default function MyBookingsPage() {
         <div className="inline-flex items-center gap-1.5 rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
           {([
             { key: "all" as const, label: "All", count: bookings.length },
-            { key: "active" as const, label: "Valid", count: activeCount },
-            { key: "expired" as const, label: "Expired", count: expiredCount },
+            { key: "active" as const, label: "Active", count: activeCount },
+            { key: "expired" as const, label: "Past", count: expiredCount },
             { key: "draft" as const, label: "Draft", count: draftCount },
           ]).map((t) => {
             const active = filter === t.key;
@@ -366,7 +320,7 @@ export default function MyBookingsPage() {
           </div>
           <div className="text-lg font-black text-slate-900">No bookings found</div>
           <div className="mt-1.5 text-sm text-slate-500 max-w-xs mx-auto">
-            {filter === "active" ? "You have no active bookings right now." : filter === "expired" ? "No expired bookings yet." : filter === "draft" ? "No unpaid drafts. Bookings awaiting payment appear here." : "When you book a stay, it will appear here."}
+            {filter === "active" ? "You have no active bookings right now." : filter === "expired" ? "No past bookings yet." : filter === "draft" ? "No unpaid drafts. Bookings awaiting payment appear here." : "When you book a stay, it will appear here."}
           </div>
           {filter === "all" && (
             <div className="mt-6 flex justify-center">
@@ -508,7 +462,7 @@ export default function MyBookingsPage() {
                     <div className={["flex-shrink-0 inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold shadow-sm", active ? "bg-teal-50 border-teal-100 text-teal-700" : "bg-slate-50 border-slate-200 text-slate-500"].join(" ")}>
                       <span className={["h-1.5 w-1.5 rounded-full", active ? "bg-teal-500" : "bg-slate-400"].join(" ")} />
                       {active ? <CheckCircle className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5" />}
-                      {active ? "Active" : "Expired"}
+                      {active ? "Active" : "Past"}
                     </div>
                   </div>
 
@@ -588,104 +542,79 @@ export default function MyBookingsPage() {
       {/* ── Receipt modal ── */}
       {receiptBookingId !== null && (
         <div
-          className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6"
+          className="fixed inset-0 z-[70] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6"
           onClick={closeReceipt}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Booking receipt"
         >
           <div
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden"
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] flex flex-col overflow-hidden ring-1 ring-black/5"
             onClick={(e) => e.stopPropagation()}
           >
+            {/* Header */}
             <div
-              className="flex items-center justify-between px-5 py-3.5 bg-white border-b border-gray-200 shrink-0"
+              className="flex items-center justify-between px-5 py-3.5 bg-white border-b border-slate-100 shrink-0"
               style={{ borderTop: "3px solid #02665e" }}
             >
-              <div className="flex items-center gap-3">
-                <div
-                  className="flex items-center justify-center w-9 h-9 rounded-xl shrink-0"
-                  style={{ background: "rgba(2,102,94,0.08)" }}
-                >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="flex items-center justify-center w-9 h-9 rounded-xl shrink-0" style={{ background: "rgba(2,102,94,0.08)" }}>
                   <FileText className="h-4 w-4" style={{ color: "#02665e" }} />
                 </div>
-                <div>
-                  <p className="text-sm font-semibold text-gray-900 leading-tight">Booking Receipt</p>
-                  <p className="text-xs text-gray-400 leading-tight">NoLSAF</p>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-slate-900 leading-tight">Booking Receipt</p>
+                  <p className="text-[11px] text-slate-400 leading-tight">NoLSAF · Proof of reservation</p>
                 </div>
               </div>
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
                   onClick={printReceipt}
-                  disabled={receiptLoading || !receiptHtml}
+                  disabled={receiptLoading || receiptError}
                   title="Print receipt"
                   className="h-9 w-9 flex items-center justify-center rounded-lg text-white shadow-sm transition hover:opacity-85 disabled:opacity-40 disabled:cursor-not-allowed"
                   style={{ background: "#02665e" }}
                 >
                   <Printer className="h-4 w-4" />
                 </button>
-                <a
-                  href={receiptPdfUrl || "#"}
-                  download={receiptFilename}
-                  onClick={(e) => { if (!receiptPdfUrl) e.preventDefault(); }}
-                  title={receiptPdfBusy ? "Generating PDF…" : "Download PDF"}
-                  className={`no-underline h-9 w-9 flex items-center justify-center rounded-lg border transition ${
-                    receiptPdfUrl
-                      ? "border-gray-300 text-gray-600 hover:bg-gray-50"
-                      : "border-gray-200 text-gray-300 cursor-not-allowed"
-                  }`}
-                >
-                  {receiptPdfBusy
-                    ? <span className="h-4 w-4 border-2 border-gray-300 rounded-full animate-spin" style={{ borderTopColor: "#02665e" }} />
-                    : <Download className="h-4 w-4" />}
-                </a>
-                <div className="w-px h-5 bg-gray-200 mx-0.5" />
+                <div className="w-px h-5 bg-slate-200 mx-0.5" />
                 <button
                   type="button"
                   onClick={closeReceipt}
                   title="Close"
-                  className="h-9 w-9 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition shrink-0"
+                  className="h-9 w-9 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition shrink-0"
                   aria-label="Close receipt"
                 >
                   <X className="h-4 w-4" />
                 </button>
               </div>
             </div>
-            <div className="flex-1 min-h-0 overflow-y-auto bg-gray-100 p-4 sm:p-6">
-              {receiptLoading ? (
-                <div className="flex flex-col items-center justify-center h-48 gap-3">
-                  <div className="w-8 h-8 border-2 border-gray-200 rounded-full animate-spin" style={{ borderTopColor: "#02665e" }} />
-                  <p className="text-sm text-gray-500">Loading receipt…</p>
+
+            {/* Body — the iframe renders the fully-styled server receipt via srcdoc */}
+            <div className="relative flex-1 min-h-0 bg-white">
+              {receiptLoading && (
+                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-white">
+                  <div className="w-8 h-8 border-2 border-slate-200 rounded-full animate-spin" style={{ borderTopColor: "#02665e" }} />
+                  <p className="text-sm text-slate-500">Loading receipt…</p>
                 </div>
-              ) : receiptHtml ? (
-                <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-                  {receiptPdfUrl ? (
-                    <iframe title="Receipt PDF" src={receiptPdfUrl} className="w-full" style={{ height: "75vh" }} />
-                  ) : (
-                    <iframe
-                      title="Receipt"
-                      srcDoc={sanitizedReceiptHtml}
-                      className="w-full block border-0"
-                      style={{ height: receiptIframeH }}
-                      onLoad={(e) => {
-                        const doc = e.currentTarget.contentDocument;
-                        const h = doc?.documentElement?.scrollHeight || doc?.body?.scrollHeight || 600;
-                        setReceiptIframeH(h);
-                      }}
-                    />
-                  )}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center h-48 gap-2">
+              )}
+              {receiptError ? (
+                <div className="flex flex-col items-center justify-center h-64 gap-2 text-center px-6">
                   <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center">
                     <X className="h-5 w-5 text-red-400" />
                   </div>
-                  <p className="text-sm font-medium text-red-500">Receipt unavailable</p>
-                  <p className="text-xs text-gray-400">Please try again or contact support</p>
+                  <p className="text-sm font-semibold text-red-500">Receipt unavailable</p>
+                  <p className="text-xs text-slate-400">Please try again or contact support.</p>
                 </div>
-              )}
+              ) : receiptHtml ? (
+                <iframe
+                  ref={receiptIframeRef}
+                  title="Booking receipt"
+                  srcDoc={receiptHtml}
+                  className="w-full h-[72vh] border-0 block bg-white"
+                />
+              ) : null}
             </div>
-          </div>
-          <div className="fixed left-[-10000px] top-0 pointer-events-none">
-            <div ref={receiptContainerRef} dangerouslySetInnerHTML={{ __html: sanitizedReceiptHtml }} />
           </div>
         </div>
       )}
