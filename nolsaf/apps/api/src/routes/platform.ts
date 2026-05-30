@@ -12,6 +12,7 @@ import { router as fxRouter } from "./fx";
 import geocodingRouter from "./geocoding";
 import groupBookingsRouter from "./groupBookings.js";
 import propertyReviewsRouter from "./property.reviews";
+import reportSealRouter from "./reports.seal";
 import { router as upCld } from "./uploads.cloudinary";
 import { router as upS3 } from "./uploads.s3";
 import paymentWebhooksRouter from "./webhooks.payments";
@@ -52,6 +53,12 @@ export function registerFxRoutes(app: Express): void {
 
 export function registerChatbotRoute(app: Express): void {
   app.use("/api/chatbot", chatbotRouter as RequestHandler);
+}
+
+export function registerReportSealRoute(app: Express): void {
+  // Any authenticated user (admin, owner, operator) can seal their own printed
+  // report. The route enforces login internally.
+  app.use("/api/reports", reportSealRouter);
 }
 
 export function registerGroupAndReviewRoutes(app: Express): void {

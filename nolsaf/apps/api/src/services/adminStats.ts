@@ -38,6 +38,29 @@ export async function getRevenueSeries(from?: string, to?: string, region?: stri
     dataMap[k] += Number(inv.total ?? 0);
   }
 
+  // Fold in transport (money movement) when not filtering by region. Transport
+  // is TZS and not region-scoped in this series. Tours are USD denominated and
+  // are intentionally EXCLUDED from this TZS series to avoid mixing currencies.
+  if (!region || region === 'ALL') {
+    try {
+      const payouts = await prisma.transportPayout.findMany({
+        where: {
+          booking: { paymentStatus: 'PAID' },
+          createdAt: { gte: fromDate, lte: toDate },
+        },
+        select: { grossAmount: true, paidAt: true, createdAt: true },
+      });
+      for (const p of payouts) {
+        const when = ((p as any).paidAt ?? (p as any).createdAt) as Date;
+        const k = new Date(when).toISOString().slice(0, 10);
+        if (dataMap[k] === undefined) dataMap[k] = 0;
+        dataMap[k] += Number((p as any).grossAmount ?? 0);
+      }
+    } catch (err) {
+      console.warn('getRevenueSeries: transport series skipped:', (err as any)?.message || err);
+    }
+  }
+
   const data = labels.map(l => Math.round((dataMap[l] || 0) * 100) / 100);
   return { labels, data };
 }
@@ -156,14 +179,62 @@ export async function getOverview() {
     0
   );
 
-  // 5. NoLSAF Revenue: commission from APPROVED + PAID invoices.
-  const companyRevenue = settledInvoices.reduce(
+  // 5. NoLSAF Revenue: commission earned across ALL active revenue sources.
+  //    Property + Transport are TZS (money of record) and form companyRevenue.
+  //    Tours are USD-denominated and are reported SEPARATELY (companyRevenueTour)
+  //    so we never sum USD into the TZS figure. Each source recognized when the
+  //    customer payment is complete.
+
+  // 5a. Property commission: APPROVED + PAID invoices.
+  const companyRevenueProperty = settledInvoices.reduce(
     (sum, inv) => sum + Number(inv.commissionAmount ?? 0),
     0
   );
 
-  // grossAmount kept for compatibility: accommodation settled (netPayable + commission)
-  const grossAmount = ownerPayouts + companyRevenue;
+  // 5b. Tour commission: operator-tour commission, recognized when the customer
+  //     has paid (paymentStatus = PAID or paidAt set). Defensive against an
+  //     unmigrated DB so the overview never hard-fails.
+  let companyRevenueTour = 0;
+  let companyRevenueTourCurrency = "USD";
+  try {
+    const paidTours = await prisma.tourBooking.findMany({
+      where: { OR: [{ paymentStatus: "PAID" }, { paidAt: { not: null } }] },
+      select: { commissionAmount: true, currency: true },
+    });
+    companyRevenueTour = paidTours.reduce(
+      (sum, t) => sum + Number((t as any).commissionAmount ?? 0),
+      0
+    );
+    // Tours are USD-only in practice; use the first record's currency as the
+    // label, falling back to USD.
+    const firstCur = paidTours.find((t) => (t as any).currency)?.["currency" as any];
+    if (firstCur) companyRevenueTourCurrency = String(firstCur);
+  } catch (err) {
+    console.warn("getOverview: tour commission skipped:", (err as any)?.message || err);
+  }
+
+  // 5c. Transport commission: platform commission on driver trips, recognized
+  //     when the customer payment for the trip is complete (booking PAID).
+  let companyRevenueTransport = 0;
+  try {
+    const transportPayouts = await prisma.transportPayout.findMany({
+      where: { booking: { paymentStatus: "PAID" } },
+      select: { commissionAmount: true },
+    });
+    companyRevenueTransport = transportPayouts.reduce(
+      (sum, p) => sum + Number((p as any).commissionAmount ?? 0),
+      0
+    );
+  } catch (err) {
+    console.warn("getOverview: transport commission skipped:", (err as any)?.message || err);
+  }
+
+  // TZS company revenue = Property + Transport (both TZS). Tour (USD) is kept
+  // separate and never added here.
+  const companyRevenue = companyRevenueProperty + companyRevenueTransport;
+
+  // grossAmount kept for compatibility: accommodation settled (netPayable + property commission)
+  const grossAmount = ownerPayouts + companyRevenueProperty;
 
   return {
     ownersCount: activeApprovedOwnersCount,
@@ -172,6 +243,12 @@ export async function getOverview() {
     grossAmount,
     ownerPayouts,
     companyRevenue,
+    // Per-source breakdown so reports can show where revenue comes from.
+    // Property + Transport are TZS; Tour is in its own currency (USD).
+    companyRevenueProperty,
+    companyRevenueTransport,
+    companyRevenueTour,
+    companyRevenueTourCurrency,
     lastUpdated: new Date().toISOString(),
   };
 }

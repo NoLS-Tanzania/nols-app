@@ -65,7 +65,7 @@ type TotalsState = {
     total: number | null;
     byStatus: Record<string, number | null>;
   };
-  planWithUs: {
+  tourBookings: {
     total: number | null;
     byStatus: Record<string, number | null>;
   };
@@ -384,21 +384,17 @@ type GroupStayItem = {
   createdAt?: string | null;
 };
 
-type PlanRequestItem = {
+type TourBookingItem = {
   id: number;
   status: string;
-  role?: string | null;
-  tripType?: string | null;
-  destinations?: string | null;
-  dateFrom?: string | null;
-  dateTo?: string | null;
-  groupSize?: number | null;
-  budget?: string | null;
-  transportRequired?: boolean | null;
-  assignedAgent?: string | null;
-  assignedAgentId?: number | null;
-  customer?: { name?: string | null; phone?: string | null; email?: string | null } | null;
-  respondedAt?: string | null;
+  bookingCode?: string | null;
+  operatorName?: string | null;
+  tourTitle?: string | null;
+  destination?: string | null;
+  numberOfPeople?: number | null;
+  grossAmount?: number | null;
+  commissionAmount?: number | null;
+  currency?: string | null;
   createdAt?: string | null;
 };
 
@@ -417,15 +413,15 @@ export default function BookingReportsClient() {
   const [totals, setTotals] = useState<TotalsState>({
     single: { total: null, byStatus: {} },
     groupStays: { total: null, byStatus: {} },
-    planWithUs: { total: null, byStatus: {} },
+    tourBookings: { total: null, byStatus: {} },
   });
 
   const [ownerItems, setOwnerItems] = useState<OwnerBookingItem[]>([]);
   const [groupItems, setGroupItems] = useState<GroupStayItem[]>([]);
-  const [planItems, setPlanItems] = useState<PlanRequestItem[]>([]);
+  const [tourItems, setTourItems] = useState<TourBookingItem[]>([]);
 
   const [ownerChartCanvas, setOwnerChartCanvas] = useState<HTMLCanvasElement | null>(null);
-  const [planChartCanvas, setPlanChartCanvas] = useState<HTMLCanvasElement | null>(null);
+  const [tourChartCanvas, setTourChartCanvas] = useState<HTMLCanvasElement | null>(null);
 
   const applyQuickRange = useCallback((daysBackInclusive: number) => {
     const end = startOfTodayUtc();
@@ -467,23 +463,36 @@ export default function BookingReportsClient() {
       groupBase.searchParams.set("start", start);
       groupBase.searchParams.set("end", end);
 
-      const planBase = new URL("/api/admin/plan-with-us/requests", window.location.origin);
-      planBase.searchParams.set("start", start);
-      planBase.searchParams.set("end", end);
+      // Tour bookings: the overview endpoint returns ALL records (no server-side
+      // date filter / pagination), so we fetch once and filter client-side by
+      // createdAt within the selected range [start, end + 1 day).
+      const tourUrl = new URL("/api/admin/tour-revenue/overview", window.location.origin);
 
-      const [ownerRes, groupRes, planRes] = await Promise.all([
+      const [ownerRes, groupRes, tourRaw] = await Promise.all([
         fetchAllPages<OwnerBookingItem>(ownerBase),
         fetchAllPages<GroupStayItem>(groupBase),
-        fetchAllPages<PlanRequestItem>(planBase),
+        fetch(tourUrl.toString(), { credentials: "include" }).then(safeJson) as Promise<any>,
       ]);
+
+      const rangeStart = new Date(`${start}T00:00:00.000Z`).getTime();
+      const rangeEndExclusive = new Date(`${end}T00:00:00.000Z`).getTime() + 864e5;
+      const allTours: TourBookingItem[] = Array.isArray(tourRaw?.revenues) ? tourRaw.revenues : [];
+      const tourItemsInRange = allTours.filter((t) => {
+        // Only customer-paid tours count as bookings. DRAFT means the customer
+        // has not paid yet, so it is not an active tour booking and is excluded.
+        if (String(t?.status ?? "").toUpperCase() === "DRAFT") return false;
+        if (!t?.createdAt) return false;
+        const ts = new Date(t.createdAt).getTime();
+        return Number.isFinite(ts) && ts >= rangeStart && ts < rangeEndExclusive;
+      });
 
       setOwnerItems(ownerRes.items);
       setGroupItems(groupRes.items);
-      setPlanItems(planRes.items);
+      setTourItems(tourItemsInRange);
 
       const ownerCounts = countByStatus(ownerRes.items);
       const groupCounts = countByStatus(groupRes.items);
-      const planCounts = countByStatus(planRes.items);
+      const tourCounts = countByStatus(tourItemsInRange);
 
       const ownerByStatus: Record<string, number | null> = {};
       for (const [k, v] of Object.entries(ownerCounts)) ownerByStatus[k] = numOrNull(v);
@@ -491,24 +500,24 @@ export default function BookingReportsClient() {
       const groupByStatus: Record<string, number | null> = {};
       for (const [k, v] of Object.entries(groupCounts)) groupByStatus[k] = numOrNull(v);
 
-      const planByStatus: Record<string, number | null> = {};
-      for (const [k, v] of Object.entries(planCounts)) planByStatus[k] = numOrNull(v);
+      const tourByStatus: Record<string, number | null> = {};
+      for (const [k, v] of Object.entries(tourCounts)) tourByStatus[k] = numOrNull(v);
 
       setTotals({
         single: { total: numOrNull(ownerRes.total ?? ownerRes.items.length), byStatus: ownerByStatus },
         groupStays: { total: numOrNull(groupRes.total ?? groupRes.items.length), byStatus: groupByStatus },
-        planWithUs: { total: numOrNull(planRes.total ?? planRes.items.length), byStatus: planByStatus },
+        tourBookings: { total: numOrNull(tourItemsInRange.length), byStatus: tourByStatus },
       });
     } catch (e: any) {
       setError(e?.message ?? "Failed to load booking report totals");
       setTotals({
         single: { total: null, byStatus: {} },
         groupStays: { total: null, byStatus: {} },
-        planWithUs: { total: null, byStatus: {} },
+        tourBookings: { total: null, byStatus: {} },
       });
       setOwnerItems([]);
       setGroupItems([]);
-      setPlanItems([]);
+      setTourItems([]);
     } finally {
       setLoading(false);
     }
@@ -520,7 +529,7 @@ export default function BookingReportsClient() {
 
   const kpiSingle = totals.single.total;
   const kpiGroup = totals.groupStays.total;
-  const kpiPlan = totals.planWithUs.total;
+  const kpiTour = totals.tourBookings.total;
 
   const singleCheckedIn = (totals.single.byStatus["CHECKED_IN"] ?? 0) + (totals.single.byStatus["PENDING_CHECKIN"] ?? 0);
 
@@ -536,11 +545,14 @@ export default function BookingReportsClient() {
     []
   );
 
-  const planStatusOrder = useMemo(
+  const tourStatusOrder = useMemo(
     () => [
       { key: "NEW", label: "New" },
-      { key: "IN_PROGRESS", label: "In progress" },
-      { key: "COMPLETED", label: "Completed" },
+      { key: "CLAIMED", label: "Claimed" },
+      { key: "VERIFIED", label: "Verified" },
+      { key: "APPROVED", label: "Approved" },
+      { key: "DISBURSED", label: "Disbursed" },
+      { key: "REJECTED", label: "Rejected" },
     ],
     []
   );
@@ -598,45 +610,70 @@ export default function BookingReportsClient() {
     });
   }, [kpiGroup, totals.groupStays.byStatus]);
 
-  const planStatusChartData = useMemo(
+  const tourStatusChartData = useMemo(
     () => ({
-      labels: planStatusOrder.map((s) => s.label),
+      labels: tourStatusOrder.map((s) => s.label),
       datasets: [
         {
-          label: "Legacy planning",
-          data: planStatusOrder.map((s) => normalizeCount(totals.planWithUs.byStatus[s.key])),
-          backgroundColor: rgbaRamp("245, 158, 11", planStatusOrder.length, 0.22, 0.9),
+          label: "Tour bookings",
+          data: tourStatusOrder.map((s) => normalizeCount(totals.tourBookings.byStatus[s.key])),
+          backgroundColor: rgbaRamp("245, 158, 11", tourStatusOrder.length, 0.22, 0.9),
           borderColor: "rgba(255, 255, 255, 0.95)",
           borderWidth: 2,
         },
       ],
     }),
-    [planStatusOrder, rgbaRamp, totals.planWithUs.byStatus]
+    [tourStatusOrder, rgbaRamp, totals.tourBookings.byStatus]
   );
 
   async function printReport() {
     const reportId = new Date().toISOString();
 
     const ownerStatusImg = ownerChartCanvas ? ownerChartCanvas.toDataURL("image/png") : null;
-    const planStatusImg = planChartCanvas ? planChartCanvas.toDataURL("image/png") : null;
+    const tourStatusImg = tourChartCanvas ? tourChartCanvas.toDataURL("image/png") : null;
 
-    let qrDataUrl: string | null = null;
+    // Seal the report server side, then encode the public verification URL as a
+    // QR. Anyone can scan it to confirm the report is genuine without logging in.
+    let reportRef = `BR-${from.replace(/-/g, "")}-${to.replace(/-/g, "")}-${reportId.slice(11, 19).replace(/:/g, "")}`;
+    let verifyQrDataUrl: string | null = null;
     try {
-      const QR: any = await import("qrcode");
-      const toDataURL: any = QR?.toDataURL ?? QR?.default?.toDataURL;
-      if (typeof toDataURL !== "function") throw new Error("qrcode.toDataURL not available");
-
-      const verifyUrl = new URL("/admin/management/reports/bookings", window.location.origin);
-      verifyUrl.searchParams.set("from", from);
-      verifyUrl.searchParams.set("to", to);
-      verifyUrl.searchParams.set("reportId", reportId);
-      qrDataUrl = await toDataURL(verifyUrl.toString(), {
-        margin: 1,
-        width: 180,
-        errorCorrectionLevel: "M",
+      const sealRes = await fetch("/api/reports/seal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          kind: "BOOKINGS",
+          title: "Management Booking Reports",
+          ref: reportRef,
+          from,
+          to,
+          figures: [
+            { label: "Owner bookings (total)", value: fmtInt(kpiSingle) },
+            ...ownerStatusOrder.map((s) => ({ label: `Owner: ${s.label}`, value: fmtInt(normalizeCount(totals.single.byStatus[s.key])) })),
+            { label: "Group stays (total)", value: fmtInt(kpiGroup) },
+            ...groupStayBars.map((b) => ({ label: `Group: ${b.label}`, value: fmtInt(b.count) })),
+            { label: "Tour bookings (total)", value: fmtInt(kpiTour) },
+            ...tourStatusOrder.map((s) => ({ label: `Tour: ${s.label}`, value: fmtInt(normalizeCount(totals.tourBookings.byStatus[s.key])) })),
+          ],
+        }),
       });
+      const sealJson: any = await safeJson(sealRes);
+      if (sealJson?.token) {
+        reportRef = String(sealJson.ref || reportRef);
+        const verifyUrl = new URL("/verify", window.location.origin);
+        verifyUrl.searchParams.set("t", String(sealJson.token));
+        const QR: any = await import("qrcode");
+        const toDataURL: any = QR?.toDataURL ?? QR?.default?.toDataURL;
+        if (typeof toDataURL === "function") {
+          verifyQrDataUrl = await toDataURL(verifyUrl.toString(), {
+            margin: 1,
+            width: 320,
+            errorCorrectionLevel: "M",
+          });
+        }
+      }
     } catch {
-      qrDataUrl = null;
+      verifyQrDataUrl = null;
     }
 
     const fmt = (n: number | null) => fmtInt(n);
@@ -679,22 +716,19 @@ export default function BookingReportsClient() {
         .join("") +
       "</tr></thead>";
 
-    const planDetailHead =
+    const tourDetailHead =
       "<thead><tr>" +
       [
-        "Name",
-        "Phone",
-        "Role",
-        "Trip Type",
-        "Destinations",
-        "Travel dates",
-        "Group size",
-        "Budget",
-        "Transport",
+        "Booking code",
+        "Operator",
+        "Tour",
+        "Destination",
+        "Travelers",
+        "Gross amount",
+        "Commission",
+        "Currency",
         "Status",
         "Created",
-        "Responded",
-        "Assigned agent",
       ]
         .map((h) => `<th>${escapeHtml(h)}</th>`)
         .join("") +
@@ -758,35 +792,29 @@ export default function BookingReportsClient() {
       })
       .join("\n");
 
-    const planDetailRows = planItems
+    const tourDetailRows = tourItems
       .map((b) => {
-        const name = b.customer?.name || "—";
-        const phone = b.customer?.phone || "—";
-        const role = b.role || "—";
-        const tripType = b.tripType || "—";
-        const destinations = b.destinations || "—";
-        const travelDates = `${fmtDateOnly(b.dateFrom)} → ${fmtDateOnly(b.dateTo)}`;
-        const groupSize = b.groupSize === null || b.groupSize === undefined ? "—" : String(b.groupSize);
-        const budget = b.budget ? fmtAmount(b.budget) : "—";
-        const transport = b.transportRequired ? "Yes" : "No";
+        const bookingCode = b.bookingCode || `#${b.id}`;
+        const operator = b.operatorName || "—";
+        const tour = b.tourTitle || "—";
+        const destination = b.destination || "—";
+        const travelers = b.numberOfPeople === null || b.numberOfPeople === undefined ? "—" : String(b.numberOfPeople);
+        const gross = numOrNull(b.grossAmount) === null ? "—" : fmtAmount(b.grossAmount);
+        const commission = numOrNull(b.commissionAmount) === null ? "—" : fmtAmount(b.commissionAmount);
+        const currency = b.currency || "—";
         const status = b.status || "—";
         const created = b.createdAt ? fmtDateTime(b.createdAt) : "—";
-        const responded = b.respondedAt ? fmtDateTime(b.respondedAt) : "—";
-        const assigned = b.assignedAgent || (b.assignedAgentId ? `#${b.assignedAgentId}` : "—");
         const cells = [
-          name,
-          phone,
-          role,
-          tripType,
-          destinations,
-          travelDates,
-          groupSize,
-          budget,
-          transport,
+          bookingCode,
+          operator,
+          tour,
+          destination,
+          travelers,
+          gross,
+          commission,
+          currency,
           status,
           created,
-          responded,
-          assigned,
         ]
           .map((v) => `<td>${escapeHtml(String(v ?? "—"))}</td>`)
           .join("");
@@ -795,6 +823,27 @@ export default function BookingReportsClient() {
       .join("\n");
 
     const logoUrl = new URL("/assets/NoLS2025-04.png", window.location.origin).toString();
+
+    // CODE128 barcode of the report reference for the header band.
+    let reportIdBarcode: string | null = null;
+    try {
+      const mod: any = await import("jsbarcode");
+      const JsBarcode: any = mod?.default ?? mod;
+      const svgNode = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      JsBarcode(svgNode, reportRef, {
+        format: "CODE128",
+        displayValue: false,
+        margin: 0,
+        width: 1.1,
+        height: 30,
+        background: "#ffffff",
+        lineColor: "#0b1220",
+      });
+      const serialized = new XMLSerializer().serializeToString(svgNode);
+      reportIdBarcode = `data:image/svg+xml;base64,${window.btoa(unescape(encodeURIComponent(serialized)))}`;
+    } catch {
+      reportIdBarcode = null;
+    }
 
     const groupBarsHtml = (() => {
       const colorByKey: Record<string, string> = {
@@ -873,6 +922,8 @@ export default function BookingReportsClient() {
     .logo { width: 46px; height: 46px; object-fit: contain; }
     .co-name { font-weight: 900; letter-spacing: -0.02em; }
     .co-meta { margin-top: 2px; font-size: 11px; color: var(--muted); line-height: 1.35; }
+    .idbar { height: 26px; width: auto; max-width: 190px; margin-top: 5px; display:inline-block; }
+    .idbarRef { margin-top: 2px; font-size: 8px; font-weight: 700; letter-spacing: 0.04em; color: var(--muted); }
     .title { margin-top: 12px; display:flex; justify-content:space-between; align-items:flex-end; gap: 12px; }
     h1 { margin:0; font-size: 18px; letter-spacing: -0.02em; }
     .sub { margin-top: 4px; color: var(--muted); font-size: 11px; }
@@ -890,10 +941,13 @@ export default function BookingReportsClient() {
     thead th { font-size: 10px; text-align:left; color: var(--muted); background:#f8fafc; padding: 9px 10px; border-bottom:1px solid var(--line); }
     tbody td { font-size: 11px; padding: 8px 10px; border-bottom: 1px solid rgba(229,231,235,0.8); }
     tbody tr:last-child td { border-bottom: none; }
-    .qr { display:flex; gap: 10px; align-items:center; }
-    .qr img { width: 92px; height: 92px; border-radius: 10px; border: 1px solid var(--line); background: #fff; }
-    .qrTitle { font-weight: 900; color: var(--ink); font-size: 11px; }
-    .qrNote { margin-top: 2px; color: var(--muted); font-size: 10px; max-width: 260px; line-height: 1.25; }
+    .verify { display:flex; gap: 18px; align-items:stretch; break-inside: avoid; page-break-inside: avoid; }
+    .refBox { align-self:flex-start; display:inline-flex; flex-direction:column; align-items:center; gap: 6px; border:1px solid var(--line); border-radius: 12px; padding: 10px 12px; background:#fff; }
+    .refBox img { width: 126px; height: 126px; display:block; }
+    .refLabel { font-size: 10px; font-weight: 900; letter-spacing: 0.02em; color: var(--ink); }
+    .verifyText { flex:1; min-width:0; border-left: 1px solid var(--line); padding-left: 18px; display:flex; flex-direction:column; justify-content:center; }
+    .qrTitle { font-weight: 900; color: var(--ink); letter-spacing: 0.14em; text-transform: uppercase; font-size: 9px; }
+    .qrNote { margin-top: 5px; color: var(--muted); font-size: 10px; max-width: 420px; line-height: 1.55; }
     @media print { @page { size: A4; margin: 12mm; } .page { padding: 0; } .sheet { border-radius: 14px; padding: 12px; } }
   </style>
 </head>
@@ -914,6 +968,7 @@ export default function BookingReportsClient() {
         <div style="text-align:right">
           <div style="font-size:11px;color:var(--muted)">Report ID</div>
           <div style="font-weight:900;font-size:11px">${escapeHtml(reportId)}</div>
+          ${reportIdBarcode ? `<img class="idbar" src="${escapeAttr(reportIdBarcode)}" alt="Report reference barcode" /><div class="idbarRef">${escapeHtml(reportRef)}</div>` : ""}
         </div>
       </div>
 
@@ -921,7 +976,7 @@ export default function BookingReportsClient() {
         <div>
           <h1>Management Booking Reports</h1>
           <div class="sub">Range: ${escapeHtml(from)} → ${escapeHtml(to)} • Generated: ${escapeHtml(fmtDateTime(reportId))}</div>
-          <div class="sub">Owner bookings = standard property bookings (not Group stays, not legacy planning requests).</div>
+          <div class="sub">Owner bookings = standard property bookings (not Group stays, not Tour bookings).</div>
         </div>
       </div>
 
@@ -930,12 +985,12 @@ export default function BookingReportsClient() {
         <div class="grid">
           <div class="card"><div style="color:var(--muted); font-size:10px;">Owner bookings</div><div style="margin-top:2px; font-size:15px; font-weight:900; color: var(--brand);">${escapeHtml(fmt(kpiSingle))}</div></div>
           <div class="card"><div style="color:var(--muted); font-size:10px;">Group stays</div><div style="margin-top:2px; font-size:15px; font-weight:900; color: var(--brand);">${escapeHtml(fmt(kpiGroup))}</div></div>
-          <div class="card"><div style="color:var(--muted); font-size:10px;">Legacy planning</div><div style="margin-top:2px; font-size:15px; font-weight:900; color: var(--brand);">${escapeHtml(fmt(kpiPlan))}</div></div>
+          <div class="card"><div style="color:var(--muted); font-size:10px;">Tour bookings</div><div style="margin-top:2px; font-size:15px; font-weight:900; color: var(--brand);">${escapeHtml(fmt(kpiTour))}</div></div>
         </div>
       </div>
 
       ${
-        ownerStatusImg || planStatusImg || true
+        ownerStatusImg || tourStatusImg || true
           ? `
       <div class="section">
         <h2>Visual summary</h2>
@@ -949,8 +1004,8 @@ export default function BookingReportsClient() {
             ${groupBarsHtml}
           </div>
           <div class="card">
-            <div style="color:var(--muted); font-size:10px; margin-bottom:6px;">Legacy planning by status</div>
-            ${planStatusImg ? `<img class="chartImg" src="${escapeAttr(planStatusImg)}" alt="Legacy planning chart" />` : ""}
+            <div style="color:var(--muted); font-size:10px; margin-bottom:6px;">Tour bookings by status</div>
+            ${tourStatusImg ? `<img class="chartImg" src="${escapeAttr(tourStatusImg)}" alt="Tour bookings chart" />` : ""}
           </div>
         </div>
       </div>`
@@ -972,20 +1027,23 @@ export default function BookingReportsClient() {
       <div class="divider"></div>
 
       <div class="section">
-        <h2>Legacy planning details</h2>
-        <table>${planDetailHead}<tbody>${planDetailRows}</tbody></table>
+        <h2>Tour bookings details</h2>
+        <table>${tourDetailHead}<tbody>${tourDetailRows}</tbody></table>
       </div>
 
       ${
-        qrDataUrl
+        verifyQrDataUrl
           ? `
       <div class="section">
         <h2>Verify</h2>
-        <div class="qr">
-          <img src="${escapeAttr(qrDataUrl)}" alt="Verify report QR" />
-          <div>
-            <div class="qrTitle">Verify this report</div>
-            <div class="qrNote">Scan to open the official management booking report link (login required).</div>
+        <div class="verify">
+          <div class="refBox">
+            <img src="${escapeAttr(verifyQrDataUrl)}" alt="Scan to verify this report" />
+            <div class="refLabel">Ref: ${escapeHtml(reportRef)}</div>
+          </div>
+          <div class="verifyText">
+            <div class="qrTitle">Authenticity and compliance</div>
+            <div class="qrNote">Scan the QR to verify this report on the public NoLSAF page (no login). It shows the sealed figures, so any tampering is detectable. Confidential. For authorized operations, audit, and compliance use.</div>
           </div>
         </div>
       </div>`
@@ -998,7 +1056,7 @@ export default function BookingReportsClient() {
 
     const w = window.open("", "_blank");
     if (!w) {
-      alert("Unable to open print window — please allow popups");
+      alert("Unable to open print window. Please allow popups");
       return;
     }
     w.document.open();
@@ -1014,25 +1072,36 @@ export default function BookingReportsClient() {
     <div className="bg-slate-50 min-h-screen">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
         <div className="py-6 sm:py-8 space-y-5">
-          <div className="overflow-hidden rounded-[20px] border border-slate-200 bg-white shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)]">
-            <div className="px-6 py-5 sm:px-8 sm:py-6">
-              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_10px_40px_-16px_rgba(2,6,23,0.18)]">
+            {/* Header band */}
+            <div className="relative overflow-hidden border-b border-slate-100 bg-gradient-to-br from-[#02665e]/[0.08] via-white to-white px-6 py-6 sm:px-8 sm:py-7">
+              <div className="pointer-events-none absolute -right-20 -top-24 h-56 w-56 rounded-full bg-[#02665e]/10 blur-3xl" aria-hidden />
+              <div className="pointer-events-none absolute -left-10 bottom-0 h-32 w-32 rounded-full bg-sky-400/10 blur-3xl" aria-hidden />
+
+              <div className="relative flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
                   <Link
                     href="/admin/management/reports"
-                    className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 no-underline transition hover:border-slate-300 hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30"
+                    className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-3 py-1.5 text-xs font-bold text-slate-700 no-underline shadow-sm backdrop-blur transition hover:border-slate-300 hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30"
                   >
                     <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
                     Back to reports
                   </Link>
 
-                  <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-[#02665e]/20 bg-[#02665e]/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-[#02665e]">
-                    <FileText className="h-3.5 w-3.5" aria-hidden />
-                    Operational Export
+                  <div className="mt-5 flex items-center gap-3.5">
+                    <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[#02665e] text-white shadow-[0_8px_20px_-6px_rgba(2,102,94,0.6)] ring-1 ring-white/20">
+                      <FileText className="h-5 w-5" aria-hidden />
+                    </span>
+                    <div className="min-w-0">
+                      <div className="inline-flex items-center gap-1.5 rounded-full border border-[#02665e]/20 bg-[#02665e]/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-[#02665e]">
+                        Operational Export
+                      </div>
+                      <h2 className="mt-1.5 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Booking Reports</h2>
+                    </div>
                   </div>
-                  <h2 className="mt-3 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Booking Reports</h2>
-                  <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-                    Print-ready booking statistics across owner property bookings, group stays, and legacy planning requests.
+
+                  <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
+                    Print ready booking statistics across owner property bookings, group stays, and tour bookings.
                   </p>
                 </div>
 
@@ -1040,116 +1109,130 @@ export default function BookingReportsClient() {
                   <button
                     type="button"
                     onClick={printReport}
-                    className="inline-flex items-center justify-center h-10 px-4 rounded-xl bg-[#02665e] text-white text-sm font-semibold shadow-[0_4px_16px_-4px_rgba(2,102,94,0.45)] hover:brightness-95 transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/40"
+                    className="inline-flex h-11 items-center justify-center rounded-xl bg-[#02665e] px-5 text-sm font-semibold text-white shadow-[0_8px_22px_-6px_rgba(2,102,94,0.55)] transition hover:brightness-110 active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/40"
                   >
-                    <Printer className="h-4 w-4 mr-2" aria-hidden />
+                    <Printer className="mr-2 h-4 w-4" aria-hidden />
                     Print
                   </button>
                 </div>
               </div>
-
-              <div className="mt-5 grid gap-3 lg:grid-cols-[1fr_1fr_1fr]">
-                <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-3">
-                  <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-emerald-800">
-                    <ClipboardList className="h-4 w-4" aria-hidden />
-                    Owner bookings
-                  </div>
-                  <p className="mt-2 text-sm leading-5 text-emerald-950/80">
-                    Standard property bookings, excluding Group stays and legacy planning requests.
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 px-4 py-3">
-                  <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-indigo-800">
-                    <Users className="h-4 w-4" aria-hidden />
-                    Group stays
-                  </div>
-                  <p className="mt-2 text-sm leading-5 text-indigo-950/80">
-                    Multi-guest or special-arrangement booking requests.
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-sky-100 bg-sky-50/70 px-4 py-3">
-                  <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-sky-800">
-                    <Sliders className="h-4 w-4" aria-hidden />
-                    Legacy planning
-                  </div>
-                  <p className="mt-2 text-sm leading-5 text-sky-950/80">
-                    Custom planning requests tracked separately from direct bookings.
-                  </p>
-                </div>
-              </div>
-
-            {error ? (
-              <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 flex items-start gap-2">
-                <AlertTriangle className="h-4 w-4 mt-0.5" aria-hidden />
-                <div className="min-w-0">
-                  <div className="font-semibold">Couldn’t load stats</div>
-                  <div className="text-amber-800/90 break-words">{error}</div>
-                </div>
-              </div>
-            ) : null}
-
-            <div className="mt-5 flex items-end gap-3 overflow-x-auto flex-nowrap pb-1">
-              <div className="shrink-0 w-[190px]">
-                <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500 mb-1.5">From</div>
-                <DatePickerField label="From date" value={from} max={to} onChangeAction={(nextIso) => setFrom(nextIso)} widthClassName="w-full" />
-              </div>
-
-              <div className="shrink-0 w-[190px]">
-                <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500 mb-1.5">To</div>
-                <DatePickerField label="To date" value={to} min={from} onChangeAction={(nextIso) => setTo(nextIso)} widthClassName="w-full" />
-              </div>
-
-              <div className="shrink-0">
-                <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500 mb-1.5">Range</div>
-                <div className="flex items-center gap-2 flex-nowrap">
-                  {(
-                    [
-                      { key: "today" as const, label: "Today", hint: "Today", accent: "bg-emerald-500", days: 0 },
-                      { key: "7d" as const, label: "7D", hint: "Last 7 days", accent: "bg-sky-500", days: 6 },
-                      { key: "30d" as const, label: "1M", hint: "Last 30 days", accent: "bg-violet-500", days: 29 },
-                    ] as const
-                  ).map((p) => {
-                    const r = getQuickRange(p.days);
-                    const active = from === r.from && to === r.to;
-                    return (
-                      <RangePill
-                        key={p.key}
-                        label={p.label}
-                        hint={p.hint}
-                        accentClassName={p.accent}
-                        active={active}
-                        onClick={() => applyQuickRange(p.days)}
-                      />
-                    );
-                  })}
-
-                  <MoreRangesPopover
-                    mounted={mounted}
-                    moreRanges={[
-                      { key: "3m", label: "3M", hint: "Last 3 months", accent: "bg-indigo-500" },
-                      { key: "6m", label: "6M", hint: "Last 6 months", accent: "bg-amber-500" },
-                      { key: "ytd", label: "YTD", hint: "Year to date", accent: "bg-teal-500" },
-                      { key: "12m", label: "12M", hint: "Last 12 months (max)", accent: "bg-slate-600" },
-                    ]}
-                    onSelectRange={(k) => {
-                      const r = getMoreRange(k);
-                      setFrom(r.from);
-                      setTo(r.to);
-                    }}
-                  />
-
-                  <button
-                    type="button"
-                    onClick={() => void load()}
-                    className="h-12 w-12 inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:bg-slate-50 hover:text-[#02665e] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30"
-                    title="Refresh"
-                    aria-label="Refresh"
-                  >
-                    <RefreshCw className="h-4 w-4" aria-hidden />
-                  </button>
-                </div>
-              </div>
             </div>
+
+            {/* Body */}
+            <div className="px-6 py-5 sm:px-8 sm:py-6">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="group rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md">
+                  <div className="flex items-center gap-2.5">
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100">
+                      <ClipboardList className="h-4 w-4" aria-hidden />
+                    </span>
+                    <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-700">Owner bookings</div>
+                  </div>
+                  <p className="mt-2.5 text-[13px] leading-5 text-slate-500">
+                    Standard property bookings, excluding group stays and tour bookings.
+                  </p>
+                </div>
+                <div className="group rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md">
+                  <div className="flex items-center gap-2.5">
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-600 ring-1 ring-indigo-100">
+                      <Users className="h-4 w-4" aria-hidden />
+                    </span>
+                    <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-700">Group stays</div>
+                  </div>
+                  <p className="mt-2.5 text-[13px] leading-5 text-slate-500">
+                    Group or special arrangement booking requests.
+                  </p>
+                </div>
+                <div className="group rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-sky-200 hover:shadow-md">
+                  <div className="flex items-center gap-2.5">
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-sky-50 text-sky-600 ring-1 ring-sky-100">
+                      <Sliders className="h-4 w-4" aria-hidden />
+                    </span>
+                    <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-700">Tour bookings</div>
+                  </div>
+                  <p className="mt-2.5 text-[13px] leading-5 text-slate-500">
+                    Tour packages from operators, with platform commission tracked per booking.
+                  </p>
+                </div>
+              </div>
+
+              {error ? (
+                <div className="mt-4 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                  <AlertTriangle className="mt-0.5 h-4 w-4" aria-hidden />
+                  <div className="min-w-0">
+                    <div className="font-semibold">Couldn’t load stats</div>
+                    <div className="break-words text-amber-800/90">{error}</div>
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Controls toolbar */}
+              <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50/70 p-3 sm:p-4">
+                <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
+                  <div className="w-[180px] shrink-0">
+                    <div className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">From</div>
+                    <DatePickerField label="From date" value={from} max={to} onChangeAction={(nextIso) => setFrom(nextIso)} widthClassName="w-full" />
+                  </div>
+
+                  <div className="w-[180px] shrink-0">
+                    <div className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">To</div>
+                    <DatePickerField label="To date" value={to} min={from} onChangeAction={(nextIso) => setTo(nextIso)} widthClassName="w-full" />
+                  </div>
+
+                  <div className="hidden self-stretch border-l border-slate-200 sm:block" aria-hidden />
+
+                  <div className="shrink-0">
+                    <div className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Range</div>
+                    <div className="flex flex-nowrap items-center gap-2">
+                      {(
+                        [
+                          { key: "today" as const, label: "Today", hint: "Today", accent: "bg-emerald-500", days: 0 },
+                          { key: "7d" as const, label: "7D", hint: "Last 7 days", accent: "bg-sky-500", days: 6 },
+                          { key: "30d" as const, label: "1M", hint: "Last 30 days", accent: "bg-violet-500", days: 29 },
+                        ] as const
+                      ).map((p) => {
+                        const r = getQuickRange(p.days);
+                        const active = from === r.from && to === r.to;
+                        return (
+                          <RangePill
+                            key={p.key}
+                            label={p.label}
+                            hint={p.hint}
+                            accentClassName={p.accent}
+                            active={active}
+                            onClick={() => applyQuickRange(p.days)}
+                          />
+                        );
+                      })}
+
+                      <MoreRangesPopover
+                        mounted={mounted}
+                        moreRanges={[
+                          { key: "3m", label: "3M", hint: "Last 3 months", accent: "bg-indigo-500" },
+                          { key: "6m", label: "6M", hint: "Last 6 months", accent: "bg-amber-500" },
+                          { key: "ytd", label: "YTD", hint: "Year to date", accent: "bg-teal-500" },
+                          { key: "12m", label: "12M", hint: "Last 12 months (max)", accent: "bg-slate-600" },
+                        ]}
+                        onSelectRange={(k) => {
+                          const r = getMoreRange(k);
+                          setFrom(r.from);
+                          setTo(r.to);
+                        }}
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => void load()}
+                        className="inline-flex h-12 w-12 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:bg-slate-50 hover:text-[#02665e] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30"
+                        title="Refresh"
+                        aria-label="Refresh"
+                      >
+                        <RefreshCw className="h-4 w-4" aria-hidden />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1171,9 +1254,9 @@ export default function BookingReportsClient() {
             <div className="bg-white rounded-[18px] border border-slate-200 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.07)] px-5 py-4">
               <div className="flex items-center gap-2">
                 <span className="h-7 w-7 rounded-xl bg-amber-50 flex items-center justify-center"><ClipboardList className="h-3.5 w-3.5 text-amber-500" aria-hidden /></span>
-                <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Legacy planning</div>
+                <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Tour bookings</div>
               </div>
-              <div className="mt-2.5 text-3xl font-black text-slate-900 tracking-tight">{fmtInt(kpiPlan)}</div>
+              <div className="mt-2.5 text-3xl font-black text-slate-900 tracking-tight">{fmtInt(kpiTour)}</div>
             </div>
           </div>
 
@@ -1219,10 +1302,10 @@ export default function BookingReportsClient() {
               </div>
 
               <div className="rounded-[16px] border border-slate-100 bg-slate-50/60 p-4">
-                <div className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500 mb-3">Legacy planning by status</div>
+                <div className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500 mb-3">Tour bookings by status</div>
                 <Chart
                   type="doughnut"
-                  data={planStatusChartData as any}
+                  data={tourStatusChartData as any}
                   options={{
                     responsive: true,
                     maintainAspectRatio: false,
@@ -1237,7 +1320,7 @@ export default function BookingReportsClient() {
                     },
                   } as any}
                   height={210}
-                  onCanvas={setPlanChartCanvas}
+                  onCanvas={setTourChartCanvas}
                 />
               </div>
             </div>
@@ -1291,14 +1374,17 @@ export default function BookingReportsClient() {
             <div className="bg-white rounded-[18px] border border-slate-200 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.07)] px-5 py-4">
               <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
                 <span className="h-7 w-7 rounded-xl bg-amber-50 flex items-center justify-center"><ClipboardList className="h-3.5 w-3.5 text-amber-500" aria-hidden /></span>
-                <div className="text-sm font-black text-slate-900">Legacy planning</div>
+                <div className="text-sm font-black text-slate-900">Tour bookings</div>
               </div>
               <div className="mt-3 space-y-1.5">
                 {[
-                  { label: "Total", value: fmtInt(kpiPlan), bold: true },
-                  { label: "New", value: totals.planWithUs.byStatus["NEW"] ?? "—" },
-                  { label: "In progress", value: totals.planWithUs.byStatus["IN_PROGRESS"] ?? "—" },
-                  { label: "Completed", value: totals.planWithUs.byStatus["COMPLETED"] ?? "—" },
+                  { label: "Total", value: fmtInt(kpiTour), bold: true },
+                  { label: "New", value: totals.tourBookings.byStatus["NEW"] ?? "—" },
+                  { label: "Claimed", value: totals.tourBookings.byStatus["CLAIMED"] ?? "—" },
+                  { label: "Verified", value: totals.tourBookings.byStatus["VERIFIED"] ?? "—" },
+                  { label: "Approved", value: totals.tourBookings.byStatus["APPROVED"] ?? "—" },
+                  { label: "Disbursed", value: totals.tourBookings.byStatus["DISBURSED"] ?? "—" },
+                  { label: "Rejected", value: totals.tourBookings.byStatus["REJECTED"] ?? "—" },
                 ].map((row) => (
                   <div key={row.label} className="flex items-center justify-between py-1">
                     <span className="text-xs text-slate-500">{row.label}</span>
@@ -1434,63 +1520,54 @@ export default function BookingReportsClient() {
           </div>
 
           <div className="bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] px-6 py-5">
-            <div className="text-base font-black text-slate-900 tracking-tight pb-3 border-b border-slate-100">Legacy planning (details)</div>
+            <div className="text-base font-black text-slate-900 tracking-tight pb-3 border-b border-slate-100">Tour bookings (details)</div>
             <div className="mt-3 overflow-x-auto">
               <table className="min-w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50/70">
-                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Name</th>
-                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Phone</th>
-                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Role</th>
-                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Trip Type</th>
-                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Destinations</th>
-                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Travel dates</th>
-                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Group size</th>
-                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Budget</th>
-                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Transport</th>
+                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Booking code</th>
+                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Operator</th>
+                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Tour</th>
+                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Destination</th>
+                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Travelers</th>
+                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Gross amount</th>
+                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Commission</th>
+                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Currency</th>
                     <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Status</th>
-                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Created</th>
-                    <th className="py-2.5 pr-4 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Responded</th>
-                    <th className="py-2.5 pr-0 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Assigned agent</th>
+                    <th className="py-2.5 pr-0 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Created</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {planItems.length === 0 ? (
+                  {tourItems.length === 0 ? (
                     <tr>
-                      <td className="py-4 text-slate-400 text-sm" colSpan={13}>
+                      <td className="py-4 text-slate-400 text-sm" colSpan={10}>
                         No records in this range.
                       </td>
                     </tr>
                   ) : (
-                    planItems.map((b) => {
-                      const name = b.customer?.name || "—";
-                      const phone = b.customer?.phone || "—";
-                      const role = b.role || "—";
-                      const tripType = b.tripType || "—";
-                      const destinations = b.destinations || "—";
-                      const travelDates = `${fmtDateOnly(b.dateFrom)} → ${fmtDateOnly(b.dateTo)}`;
-                      const groupSize = b.groupSize === null || b.groupSize === undefined ? "—" : String(b.groupSize);
-                      const budget = b.budget ? fmtAmount(b.budget) : "—";
-                      const transport = b.transportRequired ? "Yes" : "No";
+                    tourItems.map((b) => {
+                      const bookingCode = b.bookingCode || `#${b.id}`;
+                      const operator = b.operatorName || "—";
+                      const tour = b.tourTitle || "—";
+                      const destination = b.destination || "—";
+                      const travelers = b.numberOfPeople === null || b.numberOfPeople === undefined ? "—" : String(b.numberOfPeople);
+                      const gross = numOrNull(b.grossAmount) === null ? "—" : fmtAmount(b.grossAmount);
+                      const commission = numOrNull(b.commissionAmount) === null ? "—" : fmtAmount(b.commissionAmount);
+                      const currency = b.currency || "—";
                       const status = b.status || "—";
                       const created = b.createdAt ? fmtDateTime(b.createdAt) : "—";
-                      const responded = b.respondedAt ? fmtDateTime(b.respondedAt) : "—";
-                      const assigned = b.assignedAgent || (b.assignedAgentId ? `#${b.assignedAgentId}` : "—");
                       return (
-                        <tr key={`pw-${b.id}`}>
-                          <td className="py-2 pr-4 text-slate-900 font-semibold whitespace-nowrap">{name}</td>
-                          <td className="py-2 pr-4 text-slate-700 whitespace-nowrap">{phone}</td>
-                          <td className="py-2 pr-4 text-slate-500 whitespace-nowrap">{role}</td>
-                          <td className="py-2 pr-4 text-slate-500 whitespace-nowrap">{tripType}</td>
-                          <td className="py-2 pr-4 text-slate-700">{destinations}</td>
-                          <td className="py-2 pr-4 text-slate-500 whitespace-nowrap">{travelDates}</td>
-                          <td className="py-2 pr-4 text-slate-500 whitespace-nowrap">{groupSize}</td>
-                          <td className="py-2 pr-4 text-slate-900 font-semibold whitespace-nowrap">{budget}</td>
-                          <td className="py-2 pr-4 text-slate-500 whitespace-nowrap">{transport}</td>
+                        <tr key={`tb-${b.id}`}>
+                          <td className="py-2 pr-4 text-slate-900 font-semibold whitespace-nowrap">{bookingCode}</td>
+                          <td className="py-2 pr-4 text-slate-700 whitespace-nowrap">{operator}</td>
+                          <td className="py-2 pr-4 text-slate-700">{tour}</td>
+                          <td className="py-2 pr-4 text-slate-500 whitespace-nowrap">{destination}</td>
+                          <td className="py-2 pr-4 text-slate-500 whitespace-nowrap">{travelers}</td>
+                          <td className="py-2 pr-4 text-slate-900 font-semibold whitespace-nowrap">{gross}</td>
+                          <td className="py-2 pr-4 text-slate-900 font-semibold whitespace-nowrap">{commission}</td>
+                          <td className="py-2 pr-4 text-slate-500 whitespace-nowrap">{currency}</td>
                           <td className="py-2 pr-4 text-slate-500 whitespace-nowrap">{status}</td>
-                          <td className="py-2 pr-4 text-slate-500 whitespace-nowrap">{created}</td>
-                          <td className="py-2 pr-4 text-slate-500 whitespace-nowrap">{responded}</td>
-                          <td className="py-2 pr-0 text-slate-700 whitespace-nowrap">{assigned}</td>
+                          <td className="py-2 pr-0 text-slate-500 whitespace-nowrap">{created}</td>
                         </tr>
                       );
                     })

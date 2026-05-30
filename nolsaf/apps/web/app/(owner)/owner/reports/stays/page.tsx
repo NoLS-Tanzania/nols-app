@@ -412,24 +412,45 @@ export default function StaysReportPage() {
     const propertyTitle = property?.title ?? "All properties";
     const address = buildPropertyAddress(property);
 
+    // Seal the report server side, then encode the public verification URL as a
+    // QR so anyone can confirm it is genuine without logging in.
     let qrDataUrl: string | null = null;
     try {
-      const QR: any = await import("qrcode");
-      const toDataURL: any = QR?.toDataURL ?? QR?.default?.toDataURL;
-      if (typeof toDataURL !== "function") throw new Error("qrcode.toDataURL not available");
-
-      const verifyUrl = new URL("/owner/reports/stays", window.location.origin);
-      verifyUrl.searchParams.set("from", data.header.from);
-      verifyUrl.searchParams.set("to", data.header.to);
-      verifyUrl.searchParams.set("groupBy", data.header.groupBy);
-      verifyUrl.searchParams.set("reportId", data.generatedAt);
-      if (property?.id) verifyUrl.searchParams.set("propertyId", String(property.id));
-
-      qrDataUrl = await toDataURL(verifyUrl.toString(), {
-        margin: 1,
-        width: 160,
-        errorCorrectionLevel: "M",
+      const refDigits = (s: string) => String(s || "").replace(/[^0-9]/g, "").slice(0, 8);
+      const sealRes = await fetch("/api/reports/seal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          kind: "OWNER",
+          title: "Property Stays Report",
+          ref: `OWN-${refDigits(data.header.from)}-${refDigits(data.header.to)}`,
+          from: String(data.header.from).slice(0, 10),
+          to: String(data.header.to).slice(0, 10),
+          figures: [
+            { label: "Property", value: propertyTitle },
+            { label: "View", value: data.header.groupBy },
+            { label: "Revenue (TZS)", value: `TZS ${fmtMoneyTZS(Number(data.stats?.revenueTzs) || 0)}` },
+            { label: "NoLSAF bookings", value: String(data.stats?.nolsafBookings ?? 0) },
+            { label: "External reservations", value: String(data.stats?.externalReservations ?? 0) },
+            { label: "Group stays received", value: String(data.stats?.groupStaysReceived ?? 0) },
+            { label: "Auction claims submitted", value: String(data.stats?.auctionClaimsSubmitted ?? 0) },
+            { label: "Auction claims accepted", value: String(data.stats?.auctionClaimsAccepted ?? 0) },
+            { label: "Nights booked", value: String(data.stats?.nightsBooked ?? 0) },
+            { label: "Nights blocked", value: String(data.stats?.nightsBlocked ?? 0) },
+            { label: "Group stay nights", value: String(data.stats?.groupStayNights ?? 0) },
+          ],
+        }),
       });
+      const sealJson: any = await sealRes.json();
+      if (sealJson?.token) {
+        const verifyUrl = `${window.location.origin}/verify?t=${encodeURIComponent(String(sealJson.token))}`;
+        const QR: any = await import("qrcode");
+        const toDataURL: any = QR?.toDataURL ?? QR?.default?.toDataURL;
+        if (typeof toDataURL === "function") {
+          qrDataUrl = await toDataURL(verifyUrl, { margin: 1, width: 180, errorCorrectionLevel: "M" });
+        }
+      }
     } catch {
       qrDataUrl = null;
     }

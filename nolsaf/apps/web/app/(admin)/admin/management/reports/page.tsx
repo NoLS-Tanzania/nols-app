@@ -90,7 +90,7 @@ export default function ManagementReportsHubPage() {
               href="/admin/management/reports/bookings"
               title="Bookings"
               eyebrow="Operations"
-              meta="Single bookings - Group stays - Legacy planning"
+              meta="Single bookings - Group stays - Tour bookings"
               description="Investigate booking flow, activity volume, and management follow-up without mixing in finance noise."
               Icon={Calendar}
             />

@@ -27,6 +27,7 @@ import {
   registerGeocodingRoute,
   registerGroupAndReviewRoutes,
   registerPaymentRoutes,
+  registerReportSealRoute,
   registerUploadRoutes,
 } from "./platform";
 import {
@@ -71,6 +72,7 @@ export function registerApiRoutes(app: Express): void {
   registerFxRoutes(app);
   registerPublicAvailabilityRoute(app);
   registerChatbotRoute(app);
+  registerReportSealRoute(app);
   registerAdminChatbotReportsRoutes(app);
   registerGroupAndReviewRoutes(app);
 }

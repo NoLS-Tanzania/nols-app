@@ -310,16 +310,54 @@ export default function AgentReportsPage() {
 
   const statusColors = ["#64748b", "#4f46e5", "#f59e0b", "#06b6d4", "#16a34a", "#ef4444"];
 
-  const printReport = () => {
+  const printReport = async () => {
     const generatedAt = new Date();
     const operatorName = String(me?.fullName || me?.name || "Operator");
     const operatorEmail = String(me?.email || "-");
     const operatorAddress = String(
       me?.address || [me?.district, me?.region].filter(Boolean).join(", ") || "Address not provided"
     );
-    const reportId = `AGT-${generatedAt.getFullYear()}${String(generatedAt.getMonth() + 1).padStart(2, "0")}${String(generatedAt.getDate()).padStart(2, "0")}-${String(Date.now()).slice(-6)}`;
-    const verifyUrl = `${window.location.origin}/account/agent/reports?reportId=${encodeURIComponent(reportId)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(verifyUrl)}`;
+    let reportId = `AGT-${generatedAt.getFullYear()}${String(generatedAt.getMonth() + 1).padStart(2, "0")}${String(generatedAt.getDate()).padStart(2, "0")}-${String(Date.now()).slice(-6)}`;
+
+    // Seal the report server side, then encode the public verification URL as a
+    // QR so anyone can confirm it is genuine without logging in.
+    const totalCommission = rows.reduce((s, it) => s + (Number(it.commissionAmount) || 0), 0);
+    const totalBudget = rows.reduce((s, it) => s + (Number(it.budget) || 0), 0);
+    const sealFigures = [
+      { label: "Operations", value: String(rows.length) },
+      { label: `Total budget (${reportCurrency})`, value: fmtMoney(totalBudget, reportCurrency) },
+      { label: `Total commission (${reportCurrency})`, value: fmtMoney(totalCommission, reportCurrency) },
+      { label: `Total earning (${reportCurrency})`, value: fmtMoney(typeData.total, reportCurrency) },
+      ...typeData.rows.map((r) => ({ label: `Earning: ${r.name}`, value: fmtMoney(r.value, reportCurrency) })),
+    ];
+    let qrUrl = "";
+    try {
+      const sealRes = await fetch("/api/reports/seal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          kind: "OPERATOR",
+          title: "Operator Earnings Report",
+          ref: reportId,
+          from,
+          to,
+          figures: sealFigures,
+        }),
+      });
+      const sealJson: any = await sealRes.json();
+      if (sealJson?.token) {
+        reportId = String(sealJson.ref || reportId);
+        const verifyUrl = `${window.location.origin}/verify?t=${encodeURIComponent(String(sealJson.token))}`;
+        const QR: any = await import("qrcode");
+        const toDataURL: any = QR?.toDataURL ?? QR?.default?.toDataURL;
+        if (typeof toDataURL === "function") {
+          qrUrl = await toDataURL(verifyUrl, { margin: 1, width: 200, errorCorrectionLevel: "M" });
+        }
+      }
+    } catch {
+      qrUrl = "";
+    }
 
     const fmtPct = (value: number) => `${Math.round(Number(value || 0))}%`;
 
@@ -574,10 +612,10 @@ export default function AgentReportsPage() {
               This report may be used for management, tax, or compliance filings.
             </div>
           </div>
-          <div class="qr-wrap">
-            <img src="${escapeHtml(qrUrl)}" alt="Report authenticity QR" />
-            <div class="qr-cap">Scan to verify<br/>this report online</div>
-          </div>
+          ${qrUrl ? `<div class="qr-wrap">
+            <img src="${escapeHtml(qrUrl)}" alt="Scan to verify this report" />
+            <div class="qr-cap">Scan to verify<br/>this report. No login required.</div>
+          </div>` : ""}
           <div class="sig">
             <div class="line"></div>
             <div class="label">Authorised Signature</div>
