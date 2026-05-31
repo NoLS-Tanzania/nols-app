@@ -6,6 +6,8 @@ import { rateLimitWithRedis as rateLimit } from "../lib/redisRateLimitStore.js";
 import jwt from "jsonwebtoken";
 import { makeQR } from "../lib/qr.js";
 import { signPublicInvoiceAccessToken, verifyPublicInvoiceAccessToken } from "../lib/publicInvoiceAccess.js";
+import { computeDraftBookingAvailability, unavailableDraftPaymentResponse } from "../lib/draftBookingAvailability.js";
+import { buildPropertySlug } from "../lib/publicPropertyDto.js";
 
 async function getEffectiveCommissionPercent(params: {
   propertyServices: unknown;
@@ -361,6 +363,11 @@ router.post("/from-booking", publicInvoiceLimiter, async (req: Request, res: Res
       });
     }
 
+    const draftAvailability = await computeDraftBookingAvailability(booking, { excludeBookingId: booking.id });
+    if (!draftAvailability.available) {
+      return res.status(409).json(unavailableDraftPaymentResponse(draftAvailability));
+    }
+
     // Check if invoice already exists
     let existingInvoice = await prisma.invoice.findFirst({
       where: { bookingId: booking.id },
@@ -618,6 +625,9 @@ router.get("/:id", publicInvoiceReadLimiter, async (req: Request, res: Response)
                 type: true,
                 currency: true,
                 basePrice: true,
+                status: true,
+                roomsSpec: true,
+                totalBedrooms: true,
               },
             },
             code: {
@@ -634,6 +644,10 @@ router.get("/:id", publicInvoiceReadLimiter, async (req: Request, res: Response)
     if (!invoice) {
       return res.status(404).json({ error: "Invoice not found" });
     }
+
+    const draftAvailability = invoice.status === "PAID" || invoice.booking.code?.code
+      ? null
+      : await computeDraftBookingAvailability(invoice.booking, { excludeBookingId: invoice.booking.id });
 
     const transportBooking = await prisma.transportBooking.findFirst({
       where: {
@@ -720,11 +734,13 @@ router.get("/:id", publicInvoiceReadLimiter, async (req: Request, res: Response)
         id: invoice.booking.property.id,
         title: invoice.booking.property.title,
         type: invoice.booking.property.type,
+        slug: buildPropertySlug(String(invoice.booking.property.title || ""), Number(invoice.booking.property.id)),
         primaryImage: Array.isArray(invoice.booking.property.photos) && invoice.booking.property.photos.length > 0
           ? invoice.booking.property.photos[0]
           : null,
         basePrice: basePrice,
       },
+      draftAvailability,
       // Provide QR as data URL regenerated from the text payload.
       receiptQrPng: receiptQrDataUrl,
       priceBreakdown: {

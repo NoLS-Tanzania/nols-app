@@ -21,6 +21,7 @@ import jwt from "jsonwebtoken";
 import { prisma } from "@nolsaf/prisma";
 import { requireAuth } from "../middleware/auth.js";
 import { getAzamPayToken, invalidateAzamPayToken } from "../lib/azampay.auth.js";
+import { computeDraftBookingAvailability, unavailableDraftPaymentResponse } from "../lib/draftBookingAvailability.js";
 import {
   SUPPORTED_BANK_CODES,
   idemGet,
@@ -118,8 +119,7 @@ router.post(
 
       // 2. Idempotency key
       const idemKey = idempotencyKey ?? `azp-bank-${invoiceId}-${bankCode}`;
-      const hit = await idemGet(idemKey);
-      if (hit) return res.json({ ok: true, cached: true, idempotencyKey: idemKey, ...hit });
+      const cachedCheckout = await idemGet(idemKey);
 
       // 3. Load invoice
       const invoice = await prisma.invoice.findUnique({
@@ -127,7 +127,7 @@ router.post(
         include: {
           booking: {
             include: {
-              property: { select: { id: true, currency: true } },
+              property: { select: { id: true, currency: true, status: true, roomsSpec: true, totalBedrooms: true } },
               user:     { select: { id: true, phone: true } },
             },
           },
@@ -171,10 +171,21 @@ router.post(
         return res.status(400).json({ error: "already_paid", message: "Invoice already paid" });
 
       // 6. Server-side amount — never trust the client
+      if (invoice.booking?.status === "NEW") {
+        const draftAvailability = await computeDraftBookingAvailability(invoice.booking, { excludeBookingId: invoice.booking.id });
+        if (!draftAvailability.available) {
+          return res.status(409).json(unavailableDraftPaymentResponse(draftAvailability));
+        }
+      }
+
       const amount   = Number(invoice.total ?? invoice.netPayable ?? 0);
       const currency = invoice.booking?.property?.currency ?? "TZS";
       if (!Number.isFinite(amount) || amount <= 0)
         return res.status(400).json({ error: "invalid_amount", message: "Invoice has no payable amount" });
+
+      if (cachedCheckout) {
+        return res.json({ ok: true, cached: true, idempotencyKey: idemKey, ...cachedCheckout });
+      }
 
       // 7. Payment ref
       const paymentRef = invoice.paymentRef ?? `BANK-${invoice.id}-${Date.now()}`;

@@ -176,9 +176,22 @@ type InvoiceData = {
     id: number;
     title: string;
     type: string;
+    slug?: string;
     primaryImage: string | null;
     basePrice: number;
   };
+  draftAvailability?: {
+    available: boolean;
+    status: "AVAILABLE" | "UNAVAILABLE" | "PROPERTY_UNAVAILABLE";
+    reason: "AVAILABLE" | "BOOKED" | "BLOCKED" | "FULL" | "PROPERTY_UNAVAILABLE";
+    message: string;
+    checkedAt: string;
+    requestedRooms: number;
+    availableRooms: number;
+    bookedRooms: number;
+    blockedRooms: number;
+    selectedRoomType: string | null;
+  } | null;
   priceBreakdown: {
     accommodationSubtotal: number;
     taxPercent: number;
@@ -604,11 +617,16 @@ export default function PaymentPage() {
 
   // ── Accordion toggle ─────────────────────────────────────────────────────────
   function toggleChannel(channel: "MNO" | "BANK" | "CARD") {
+    if (invoice?.draftAvailability && !invoice.draftAvailability.available) return;
     setPaymentChannel((prev) => (prev === channel ? null : channel));
     setError(null);
   }
 
-  const isDisabled = submitting || paymentCooldownSeconds > 0 || authRequired;
+  const draftUnavailable = Boolean(invoice?.draftAvailability && !invoice.draftAvailability.available);
+  const reselectHref = invoice?.property?.slug
+    ? `/public/properties/${encodeURIComponent(invoice.property.slug)}`
+    : "/public/properties";
+  const isDisabled = submitting || paymentCooldownSeconds > 0 || authRequired || draftUnavailable;
 
   if (loading) {
     return (
@@ -838,7 +856,35 @@ export default function PaymentPage() {
             )}
 
             {/* ── Payment method selection (shown when idle / failed / timeout) ── */}
-            {(paymentStatus === "idle" || paymentStatus === "failed" || paymentStatus === "timeout") && (
+            {(paymentStatus === "idle" || paymentStatus === "failed" || paymentStatus === "timeout") && draftUnavailable && (
+              <div className="rounded-2xl border-2 border-rose-200 bg-white p-6 shadow-lg shadow-rose-950/5">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-rose-50 ring-1 ring-rose-100">
+                      <AlertCircle className="h-6 w-6 text-rose-700" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-black text-slate-950">Selected room is no longer available</h2>
+                      <p className="mt-2 text-sm leading-6 text-slate-600">
+                        {invoice?.draftAvailability?.message || "Please select another room or choose a different property before paying."}
+                      </p>
+                      <div className="mt-3 text-xs font-semibold text-rose-700">
+                        Available now: {invoice?.draftAvailability?.availableRooms ?? 0} of {invoice?.draftAvailability?.requestedRooms ?? 1} requested
+                      </div>
+                    </div>
+                  </div>
+                  <Link
+                    href={reselectHref}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-3 text-sm font-bold text-white no-underline shadow-sm transition hover:bg-rose-700"
+                  >
+                    Select another room
+                    <ChevronLeft className="h-4 w-4 rotate-180" />
+                  </Link>
+                </div>
+              </div>
+            )}
+
+            {(paymentStatus === "idle" || paymentStatus === "failed" || paymentStatus === "timeout") && !draftUnavailable && (
               <div className="space-y-3">
                 <div className="flex items-center gap-2 px-1 min-h-[28px]">
                   {paymentChannel ? (

@@ -5,6 +5,8 @@ import { AuthedRequest, requireAuth } from "../middleware/auth.js";
 import { generateBookingTicketPdf } from "../lib/pdfDocuments.js";
 import { generateBookingPDF } from "../lib/pdfGenerator.js";
 import { signPublicInvoiceAccessToken } from "../lib/publicInvoiceAccess.js";
+import { computeDraftBookingAvailability } from "../lib/draftBookingAvailability.js";
+import { buildPropertySlug } from "../lib/publicPropertyDto.js";
 
 export const router = Router();
 router.use(requireAuth as RequestHandler);
@@ -177,6 +179,9 @@ router.get("/", (async (req: AuthedRequest, res) => {
               regionName: true,
               district: true,
               city: true,
+              status: true,
+              roomsSpec: true,
+              totalBedrooms: true,
             },
           },
           code: {
@@ -212,7 +217,7 @@ router.get("/", (async (req: AuthedRequest, res) => {
     // Calculate if bookings are valid (not expired)
     const now = new Date();
     type BookingRow = (typeof bookings)[number];
-    const bookingsWithValidity = bookings.map((booking: BookingRow) => {
+    const bookingsWithValidity = await Promise.all(bookings.map(async (booking: BookingRow) => {
       const checkOut = new Date(booking.checkOut);
       const isValid = checkOut >= now && booking.status !== "CANCELED";
       const invoice = booking.invoices?.[0] || null;
@@ -247,9 +252,25 @@ router.get("/", (async (req: AuthedRequest, res) => {
         }
       }
 
+      const draftAvailability = isDraft
+        ? await computeDraftBookingAvailability(booking, { excludeBookingId: booking.id })
+        : null;
+
+      const property = booking.property
+        ? {
+            id: booking.property.id,
+            title: booking.property.title,
+            type: booking.property.type,
+            regionName: booking.property.regionName,
+            district: booking.property.district,
+            city: booking.property.city,
+            slug: buildPropertySlug(String(booking.property.title || ""), Number(booking.property.id)),
+          }
+        : null;
+
       return {
         id: booking.id,
-        property: booking.property,
+        property,
         checkIn: booking.checkIn,
         checkOut: booking.checkOut,
         status: booking.status,
@@ -267,10 +288,11 @@ router.get("/", (async (req: AuthedRequest, res) => {
         draftExpiryStatus,
         invoiceId,
         invoiceAccessToken,
+        draftAvailability,
         createdAt: booking.createdAt,
         updatedAt: booking.updatedAt,
       };
-    });
+    }));
 
     return res.json({
       items: bookingsWithValidity,

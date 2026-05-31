@@ -18,6 +18,7 @@ import { z } from "zod";
 import jwt from "jsonwebtoken";
 import { getAzamPayToken, invalidateAzamPayToken } from "../lib/azampay.auth.js";
 import { requireAuth } from "../middleware/auth.js";
+import { computeDraftBookingAvailability, unavailableDraftPaymentResponse } from "../lib/draftBookingAvailability.js";
 import {
   AZAMPAY_API_URL,
   FETCH_TIMEOUT_MS,
@@ -145,7 +146,7 @@ router.post("/initiate", requireAuth, paymentUserLimiter, paymentTargetLimiter, 
       include: {
         booking: {
           include: {
-            property: { select: { id: true, currency: true } },
+            property: { select: { id: true, currency: true, status: true, roomsSpec: true, totalBedrooms: true } },
             user: { select: { id: true, phone: true } },
           },
         },
@@ -190,6 +191,13 @@ router.post("/initiate", requireAuth, paymentUserLimiter, paymentTargetLimiter, 
       return res.status(400).json({ error: "already_paid", message: "Invoice already paid" });
 
     // 4. Server-side amount — never trust the client
+    if (invoice.booking?.status === "NEW") {
+      const draftAvailability = await computeDraftBookingAvailability(invoice.booking, { excludeBookingId: invoice.booking.id });
+      if (!draftAvailability.available) {
+        return res.status(409).json(unavailableDraftPaymentResponse(draftAvailability));
+      }
+    }
+
     const amount = Number(invoice.total ?? invoice.netPayable ?? 0);
     const currency = invoice.booking?.property?.currency ?? "TZS";
     if (!Number.isFinite(amount) || amount <= 0)

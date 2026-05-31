@@ -22,6 +22,7 @@ import jwt from "jsonwebtoken";
 import { prisma } from "@nolsaf/prisma";
 import { requireAuth } from "../middleware/auth.js";
 import { getAzamPayToken, invalidateAzamPayToken } from "../lib/azampay.auth.js";
+import { computeDraftBookingAvailability, unavailableDraftPaymentResponse } from "../lib/draftBookingAvailability.js";
 import {
   idemGet,
   idemSet,
@@ -139,8 +140,7 @@ router.post(
 
       // 2. Idempotency
       const idemKey = idempotencyKey ?? `azp-card-${invoiceId}`;
-      const hit = await idemGet(idemKey);
-      if (hit) return res.json({ ok: true, cached: true, idempotencyKey: idemKey, ...hit });
+      const cachedCheckout = await idemGet(idemKey);
 
       // 3. Require all card env vars (fail fast before hitting AzamPay)
       //    AzamPay's CardCheckout silently returns empty 200 when merchantAccountNumber
@@ -165,7 +165,7 @@ router.post(
         include: {
           booking: {
             include: {
-              property: { select: { id: true, currency: true } },
+              property: { select: { id: true, currency: true, status: true, roomsSpec: true, totalBedrooms: true } },
               user:     { select: { id: true, phone: true } },
             },
           },
@@ -208,10 +208,21 @@ router.post(
         return res.status(400).json({ error: "already_paid", message: "Invoice already paid" });
 
       // 7. Server-side amount
+      if (invoice.booking?.status === "NEW") {
+        const draftAvailability = await computeDraftBookingAvailability(invoice.booking, { excludeBookingId: invoice.booking.id });
+        if (!draftAvailability.available) {
+          return res.status(409).json(unavailableDraftPaymentResponse(draftAvailability));
+        }
+      }
+
       const amount   = Number(invoice.total ?? invoice.netPayable ?? 0);
       const currency = invoice.booking?.property?.currency ?? "TZS";
       if (!Number.isFinite(amount) || amount <= 0)
         return res.status(400).json({ error: "invalid_amount", message: "Invoice has no payable amount" });
+
+      if (cachedCheckout) {
+        return res.json({ ok: true, cached: true, idempotencyKey: idemKey, ...cachedCheckout });
+      }
 
       // 8. Payment ref + server-side return URL
       const paymentRef = invoice.paymentRef ?? `CARD-${invoice.id}-${Date.now()}`;

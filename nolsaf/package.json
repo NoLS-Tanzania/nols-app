@@ -38,6 +38,7 @@
     "prisma:migrate:status": "npx prisma migrate status --schema=prisma/schema.prisma",
     "prisma:studio": "npx prisma studio --schema=prisma/schema.prisma",
     "smoke-test": "node scripts/smoke-test.mjs",
+    "smoke:driver-payouts": "npm --workspace=@nolsaf/api run smoke:driver-payouts",
     "smoke-test:staging": "API_URL=$npm_config_api_url node scripts/smoke-test.mjs",
     "uptime:check": "node scripts/uptime-check.mjs",
     "no4p-otp:cleanup": "node scripts/cleanup-no4p-otp.mjs"

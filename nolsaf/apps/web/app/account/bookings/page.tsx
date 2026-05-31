@@ -19,6 +19,7 @@ type Booking = {
     regionName?: string;
     district?: string;
     city?: string;
+    slug?: string;
   };
   checkIn: string;
   checkOut: string;
@@ -39,6 +40,18 @@ type Booking = {
   dashboardBucket?: "DRAFT" | "PAID" | string;
   draftExpiresAt?: string | null;
   draftExpiryStatus?: "ACTIVE" | "EXPIRED" | null;
+  draftAvailability?: {
+    available: boolean;
+    status: "AVAILABLE" | "UNAVAILABLE" | "PROPERTY_UNAVAILABLE";
+    reason: "AVAILABLE" | "BOOKED" | "BLOCKED" | "FULL" | "PROPERTY_UNAVAILABLE";
+    message: string;
+    checkedAt: string;
+    requestedRooms: number;
+    availableRooms: number;
+    bookedRooms: number;
+    blockedRooms: number;
+    selectedRoomType: string | null;
+  } | null;
   invoiceId?: number | null;
   invoiceAccessToken?: string | null;
   createdAt: string;
@@ -87,6 +100,7 @@ export default function MyBookingsPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "active" | "expired" | "draft">("all");
   const [entered, setEntered] = useState(false);
+  const [nowTick, setNowTick] = useState(Date.now());
 
   useEffect(() => {
     loadBookings();
@@ -96,6 +110,11 @@ export default function MyBookingsPage() {
   useEffect(() => {
     const t = window.requestAnimationFrame(() => setEntered(true));
     return () => window.cancelAnimationFrame(t);
+  }, []);
+
+  useEffect(() => {
+    const t = window.setInterval(() => setNowTick(Date.now()), 30_000);
+    return () => window.clearInterval(t);
   }, []);
 
   const loadBookings = async () => {
@@ -157,11 +176,12 @@ export default function MyBookingsPage() {
   // Time-left helper for draft payment windows.
   const draftTimeLeft = (b: Booking): string | null => {
     if (!b.draftExpiresAt) return null;
-    const ms = new Date(b.draftExpiresAt).getTime() - Date.now();
+    const ms = new Date(b.draftExpiresAt).getTime() - nowTick;
     if (ms <= 0) return null;
     const hours = Math.floor(ms / 3600000);
     const minutes = Math.floor((ms % 3600000) / 60000);
     if (hours > 0) return `${hours}h ${minutes}m`;
+    if (minutes <= 0) return "<1m";
     return `${minutes}m`;
   };
 
@@ -341,16 +361,20 @@ export default function MyBookingsPage() {
             if (isDraftBooking(booking)) {
               const expired = String(booking.draftExpiryStatus || "").toUpperCase() === "EXPIRED";
               const timeLeft = draftTimeLeft(booking);
-              const canPay = !expired && Boolean(booking.invoiceId && booking.invoiceAccessToken);
+              const unavailable = booking.draftAvailability && !booking.draftAvailability.available;
+              const canPay = !expired && !unavailable && Boolean(booking.invoiceId && booking.invoiceAccessToken);
               const payHref = canPay
                 ? `/public/booking/payment?invoiceId=${encodeURIComponent(String(booking.invoiceId))}&accessToken=${encodeURIComponent(String(booking.invoiceAccessToken))}`
                 : null;
+              const reselectHref = booking.property.slug
+                ? `/public/properties/${encodeURIComponent(booking.property.slug)}`
+                : "/public/properties";
               return (
                 <div
                   key={booking.id}
-                  className={["relative overflow-hidden rounded-3xl bg-white border shadow-[0_2px_16px_rgba(0,0,0,0.05)] transition-all duration-300", expired ? "border-slate-100 opacity-90" : "border-amber-100 hover:shadow-[0_8px_32px_rgba(245,158,11,0.12)] hover:-translate-y-0.5"].join(" ")}
+                  className={["relative overflow-hidden rounded-3xl bg-white border shadow-[0_2px_16px_rgba(0,0,0,0.05)] transition-all duration-300", expired || unavailable ? "border-rose-100 opacity-95" : "border-amber-100 hover:shadow-[0_8px_32px_rgba(245,158,11,0.12)] hover:-translate-y-0.5"].join(" ")}
                 >
-                  <div className="absolute left-0 inset-y-0 w-[3px] rounded-l-3xl" style={{ background: expired ? "linear-gradient(180deg,#cbd5e1,#94a3b8)" : "linear-gradient(180deg,#f59e0b 0%,#d97706 100%)" }} />
+                  <div className="absolute left-0 inset-y-0 w-[3px] rounded-l-3xl" style={{ background: expired || unavailable ? "linear-gradient(180deg,#fb7185,#e11d48)" : "linear-gradient(180deg,#f59e0b 0%,#d97706 100%)" }} />
                   <div className="pl-6 pr-5 pt-5 pb-5 sm:pl-7 sm:pr-6 sm:pt-6 sm:pb-6">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-start gap-3.5 min-w-0">
@@ -373,9 +397,9 @@ export default function MyBookingsPage() {
                           )}
                         </div>
                       </div>
-                      <div className={["flex-shrink-0 inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold shadow-sm", expired ? "bg-rose-50 border-rose-100 text-rose-600" : "bg-amber-50 border-amber-100 text-amber-700"].join(" ")}>
-                        {expired ? <XCircle className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5" />}
-                        {expired ? "Expired" : "Draft"}
+                      <div className={["flex-shrink-0 inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold shadow-sm", expired || unavailable ? "bg-rose-50 border-rose-100 text-rose-600" : "bg-amber-50 border-amber-100 text-amber-700"].join(" ")}>
+                        {expired || unavailable ? <XCircle className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5" />}
+                        {expired ? "Expired" : unavailable ? "Unavailable" : "Draft"}
                       </div>
                     </div>
 
@@ -400,12 +424,40 @@ export default function MyBookingsPage() {
                           Pay within {timeLeft}
                         </span>
                       )}
+                      {unavailable && (
+                        <span className="inline-flex items-center gap-1.5 rounded-xl bg-rose-50 border border-rose-100 px-3 py-1.5 text-[11px] font-semibold text-rose-700">
+                          <XCircle className="h-3 w-3 text-rose-400 flex-shrink-0" />
+                          {booking.draftAvailability?.reason === "BLOCKED" ? "Room blocked" : "Room booked"}
+                        </span>
+                      )}
                     </div>
+
+                    {unavailable && (
+                      <div className="mt-4 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <div className="text-[12px] font-black text-rose-700">Selected room is no longer available</div>
+                            <div className="mt-1 text-[12px] font-medium text-rose-600">
+                              {booking.draftAvailability?.message || "Please select another room or choose a different property."}
+                            </div>
+                          </div>
+                          <Link
+                            href={reselectHref}
+                            className="no-underline inline-flex items-center justify-center gap-1.5 rounded-xl bg-white px-3 py-2 text-[12px] font-bold text-rose-700 border border-rose-100 hover:bg-rose-100 transition-colors"
+                          >
+                            Select another room
+                            <ArrowRight className="h-3.5 w-3.5" />
+                          </Link>
+                        </div>
+                      </div>
+                    )}
 
                     <div className="mt-4 flex items-center justify-between gap-2 flex-wrap">
                       <p className="text-[12px] text-slate-500 font-medium">
                         {expired
                           ? "This payment window has closed. Please make a new booking."
+                          : unavailable
+                            ? "Payment is disabled because live availability changed after this draft was created."
                           : "Complete payment to confirm this booking and receive your check-in code."}
                       </p>
                       {payHref && (
