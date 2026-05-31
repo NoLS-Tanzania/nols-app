@@ -6,7 +6,7 @@ import { prisma } from "@nolsaf/prisma";
 import { AuthedRequest, requireAuth, requireRole } from "../middleware/auth.js";
 import { audit } from "../lib/audit.js";
 import { sanitizeText } from "../lib/sanitize.js";
-import rateLimit from "express-rate-limit";
+import { rateLimitWithRedis as rateLimit } from "../lib/redisRateLimitStore.js";
 
 // ============================================================
 // Constants

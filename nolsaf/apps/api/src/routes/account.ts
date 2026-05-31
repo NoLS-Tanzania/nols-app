@@ -10,9 +10,11 @@ import { validatePasswordStrength, isPasswordReused, addPasswordToHistory } from
 import { validatePasswordWithSettings } from "../lib/securitySettings.js";
 import { authenticator } from "otplib";
 import QRCode from "qrcode";
-import rateLimit from "express-rate-limit";
+import { rateLimitWithRedis as rateLimit } from "../lib/redisRateLimitStore.js";
 import { sendSms } from "../lib/sms.js";
 import { isAllowedDocumentTypeForRole, isTrustedUserDocumentUrl } from "../lib/userDocumentSecurity.js";
+import { getRedis } from "../lib/redis.js";
+import { invalidateAuthSessionCacheForUser } from "../lib/authSessionCache.js";
 import {
   generateRegistrationOptions,
   verifyRegistrationResponse,
@@ -1104,6 +1106,7 @@ const changePassword: RequestHandler = async (req, res) => {
     const forceLogout = await shouldForceLogout();
     
     if (forceLogout) {
+      await invalidateAuthSessionCacheForUser(user.id).catch(() => {});
       clearAuthCookie(res);
     }
 
@@ -1343,8 +1346,65 @@ const postSecurity2fa: RequestHandler = async (req, res) => {
 router.post("/security/2fa", sensitive as unknown as RequestHandler, postSecurity2fa as unknown as RequestHandler);
 
 // Passkeys for account/agent portal (shared UI expects driver-like endpoints)
-const accountPasskeyChallenges = new Map<string, string>(); // userId -> challenge (base64url)
+const accountPasskeyChallenges = new Map<string, { challenge: string; expiresAt: number }>(); // userId -> challenge fallback
 const accountPasskeyStore = new Map<string, Array<any>>(); // userId -> [{ id, name, createdAt, publicKey, signCount }]
+const ACCOUNT_PASSKEY_CHALLENGE_TTL_SEC = 5 * 60;
+const ACCOUNT_PASSKEY_CHALLENGE_PREFIX = "account:passkey:challenge:";
+
+async function setAccountPasskeyChallenge(userId: number, challenge: string): Promise<void> {
+  const key = String(userId);
+  const expiresAt = Date.now() + ACCOUNT_PASSKEY_CHALLENGE_TTL_SEC * 1000;
+  try {
+    const redis = getRedis();
+    if (redis) {
+      await redis.set(
+        `${ACCOUNT_PASSKEY_CHALLENGE_PREFIX}${key}`,
+        JSON.stringify({ challenge, expiresAt }),
+        "EX",
+        ACCOUNT_PASSKEY_CHALLENGE_TTL_SEC
+      );
+      return;
+    }
+  } catch {
+    // Redis is preferred for multi-instance correctness; memory keeps single-instance dev working.
+  }
+  accountPasskeyChallenges.set(key, { challenge, expiresAt });
+}
+
+async function getAccountPasskeyChallenge(userId: number): Promise<string | null> {
+  const key = String(userId);
+  try {
+    const redis = getRedis();
+    if (redis) {
+      const raw = await redis.get(`${ACCOUNT_PASSKEY_CHALLENGE_PREFIX}${key}`);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as { challenge?: string; expiresAt?: number };
+      if (!parsed.challenge || typeof parsed.expiresAt !== "number" || parsed.expiresAt <= Date.now()) return null;
+      return parsed.challenge;
+    }
+  } catch {
+    // fall back below
+  }
+
+  const stored = accountPasskeyChallenges.get(key);
+  if (!stored) return null;
+  if (stored.expiresAt <= Date.now()) {
+    accountPasskeyChallenges.delete(key);
+    return null;
+  }
+  return stored.challenge;
+}
+
+async function deleteAccountPasskeyChallenge(userId: number): Promise<void> {
+  const key = String(userId);
+  try {
+    const redis = getRedis();
+    if (redis) await redis.del(`${ACCOUNT_PASSKEY_CHALLENGE_PREFIX}${key}`);
+  } catch {
+    // best effort
+  }
+  accountPasskeyChallenges.delete(key);
+}
 
 function toBase64Url(buf: Buffer | Uint8Array) {
   return Buffer.from(buf)
@@ -1422,7 +1482,7 @@ const postAccountPasskeysCreate: RequestHandler = async (req, res) => {
       excludeCredentials,
     });
 
-    accountPasskeyChallenges.set(String(userId), options.challenge as string);
+    await setAccountPasskeyChallenge(userId, options.challenge as string);
     return res.json({ publicKey: options });
   } catch {
     return res.status(500).json({ error: "failed" });
@@ -1456,7 +1516,7 @@ const postAccountPasskeysVerify: RequestHandler = async (req, res) => {
       return res.status(400).json({ error: "invalid payload" });
     }
 
-    const storedChallenge = accountPasskeyChallenges.get(String(userId));
+    const storedChallenge = await getAccountPasskeyChallenge(userId);
     if (!storedChallenge) return res.status(400).json({ error: "no challenge found" });
 
     const origin = process.env.WEB_ORIGIN || process.env.APP_ORIGIN || "http://localhost:3000";
@@ -1478,7 +1538,7 @@ const postAccountPasskeysVerify: RequestHandler = async (req, res) => {
 
     if (!verification || !verification.verified) return res.status(400).json({ error: "verification failed" });
     try {
-      accountPasskeyChallenges.delete(String(userId));
+      await deleteAccountPasskeyChallenge(userId);
     } catch {
       // ignore
     }
@@ -1572,7 +1632,7 @@ const postAccountPasskeysAuthenticate: RequestHandler = async (req, res) => {
       allowCredentials,
     });
 
-    accountPasskeyChallenges.set(String(userId), (options as any).challenge as string);
+    await setAccountPasskeyChallenge(userId, (options as any).challenge as string);
     return res.json({ publicKey: options });
   } catch {
     return res.status(500).json({ error: "failed" });
@@ -1592,7 +1652,7 @@ const postAccountPasskeysAuthenticateVerify: RequestHandler = async (req, res) =
     const { response } = body as any;
     if (!response) return res.status(400).json({ error: "invalid payload" });
 
-    const storedChallenge = accountPasskeyChallenges.get(String(userId));
+    const storedChallenge = await getAccountPasskeyChallenge(userId);
     if (!storedChallenge) return res.status(400).json({ error: "no challenge found" });
 
     const credId = response.id || response.rawId;
@@ -1637,6 +1697,7 @@ const postAccountPasskeysAuthenticateVerify: RequestHandler = async (req, res) =
     }
 
     if (!verification || !verification.verified) return res.status(400).json({ error: "verification failed" });
+    await deleteAccountPasskeyChallenge(userId);
 
     const newCounter =
       (verification.authenticationInfo && (verification.authenticationInfo.newCounter ?? verification.authenticationInfo.counter)) ?? null;
@@ -2200,6 +2261,7 @@ const deleteAccount: RequestHandler = async (req, res) => {
         where: { userId, revokedAt: null },
         data: { revokedAt: new Date() },
       });
+      await invalidateAuthSessionCacheForUser(userId).catch(() => {});
     } catch { /* best-effort */ }
 
     // ── 4. Capture state for audit / notification ────────────────────────
@@ -2306,6 +2368,7 @@ const revokeSession: RequestHandler = async (req, res) => {
       where: { id: sessionId, userId }, 
       data: { revokedAt: new Date() } 
     });
+    await invalidateAuthSessionCacheForUser(userId).catch(() => {});
     
     await audit(req as AuthedRequest, "USER_SESSION_REVOKE", `session:${sessionId}`);
     sendSuccess(res, null, "Session revoked successfully");
@@ -2330,6 +2393,7 @@ const revokeOtherSessions: RequestHandler = async (req, res) => {
       },
       data: { revokedAt: new Date() },
     });
+    await invalidateAuthSessionCacheForUser(userId).catch(() => {});
     
     await audit(req as AuthedRequest, "USER_SESSION_REVOKE_OTHERS", `user:${userId}`);
     sendSuccess(res, null, "Other sessions revoked successfully");

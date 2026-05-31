@@ -2,7 +2,7 @@
 import type { Express } from "express";
 import helmet from "helmet";
 import cors from "cors";
-import rateLimit from "express-rate-limit";
+import { rateLimitWithRedis as rateLimit } from "./lib/redisRateLimitStore.js";
 import { dynamicRateLimiter } from "./lib/rateLimiter.js";
 import hpp from "hpp";
 

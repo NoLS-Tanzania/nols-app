@@ -24,7 +24,7 @@ import { getBookingReceivedEmail } from "../lib/bookingEmailTemplates.js";
 import { generateBookingReservationPdf } from "../lib/bookingPdfGen.js";
 import crypto from "crypto";
 import { generateBookingCodeForBooking } from "../lib/bookingCodeService.js";
-import rateLimit from "express-rate-limit";
+import { rateLimitWithRedis as rateLimit } from "../lib/redisRateLimitStore.js";
 import { safeEq } from "../lib/signature.js";
 import { normalizePhone } from "../lib/azampay.helpers.js";
 

@@ -22,7 +22,7 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import rateLimit from 'express-rate-limit';
+import { rateLimitWithRedis as rateLimit } from "../lib/redisRateLimitStore.js";
 import { prisma } from '@nolsaf/prisma';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/errorHandler.js';

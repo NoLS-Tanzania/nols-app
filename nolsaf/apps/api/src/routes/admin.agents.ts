@@ -8,7 +8,7 @@ import { audit } from "../lib/audit.js";
 import { sanitizeText } from "../lib/sanitize.js";
 import { sanitizeUserDocument } from "../lib/userDocumentSecurity.js";
 import { buildOperatorProfileSeed, mergeOperatorProfileSeed } from "../lib/operatorProfileSeed.js";
-import rateLimit from "express-rate-limit";
+import { rateLimitWithRedis as rateLimit } from "../lib/redisRateLimitStore.js";
 import { Prisma } from "@prisma/client";
 import { sendMail } from "../lib/mailer.js";
 import { getAgentSuspensionEmail, getAgentRestorationEmail } from "../lib/authEmailTemplates.js";

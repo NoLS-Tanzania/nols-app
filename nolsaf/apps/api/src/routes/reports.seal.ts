@@ -8,7 +8,7 @@
 // Sealing requires login (any role). Verifying is public (see public.reports.ts).
 
 import { Router } from "express";
-import rateLimit from "express-rate-limit";
+import { rateLimitWithRedis as rateLimit } from "../lib/redisRateLimitStore.js";
 import { prisma } from "@nolsaf/prisma";
 import { requireAuth } from "../middleware/auth.js";
 import { signReportSeal, type ReportFigure } from "../lib/reportSeal.js";

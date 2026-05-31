@@ -2,7 +2,7 @@
 import { Router, Request, Response } from "express";
 import { prisma } from "@nolsaf/prisma";
 import { z } from "zod";
-import rateLimit from "express-rate-limit";
+import { rateLimitWithRedis as rateLimit } from "../lib/redisRateLimitStore.js";
 import jwt from "jsonwebtoken";
 import { makeQR } from "../lib/qr.js";
 import { signPublicInvoiceAccessToken, verifyPublicInvoiceAccessToken } from "../lib/publicInvoiceAccess.js";

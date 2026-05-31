@@ -4,7 +4,7 @@ import type { RequestHandler } from "express";
 import { z } from "zod";
 import { AuthedRequest, requireAuth } from "../middleware/auth.js";
 import { sanitizeText } from "../lib/sanitize.js";
-import rateLimit from "express-rate-limit";
+import { rateLimitWithRedis as rateLimit } from "../lib/redisRateLimitStore.js";
 
 export const router = Router();
 

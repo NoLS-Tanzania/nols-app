@@ -7,7 +7,7 @@ import { asyncHandler } from "../middleware/errorHandler.js";
 import { sanitizeText } from "../lib/sanitize.js";
 import { limitPublicTourBookingCreate } from "../middleware/rateLimit.js";
 import { getAzamPayToken, invalidateAzamPayToken } from "../lib/azampay.auth.js";
-import rateLimit from "express-rate-limit";
+import { rateLimitWithRedis as rateLimit } from "../lib/redisRateLimitStore.js";
 import {
   AZAMPAY_API_URL,
   FETCH_TIMEOUT_MS,

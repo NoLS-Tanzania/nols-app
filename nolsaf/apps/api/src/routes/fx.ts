@@ -11,7 +11,7 @@
 import { Router, type Request, type Response } from "express";
 import type { RequestHandler } from "express";
 import { z } from "zod";
-import rateLimit from "express-rate-limit";
+import { rateLimitWithRedis as rateLimit } from "../lib/redisRateLimitStore.js";
 import { prisma } from "@nolsaf/prisma";
 import { AuthedRequest, requireAuth } from "../middleware/auth.js";
 import {

@@ -12,6 +12,7 @@
 import { Router } from "express";
 import { prisma } from "@nolsaf/prisma";
 import { asyncHandler } from "../middleware/errorHandler.js";
+import { withCache } from "../lib/performance.js";
 
 const router = Router();
 
@@ -249,37 +250,41 @@ async function buildTripConfidenceByAgent(agentIds: number[]) {
 router.get(
   "/categories",
   asyncHandler(async (_req, res) => {
-    const agents = await prisma.agent.findMany({
-      where: {
-        status: "ACTIVE",
-        operatorProfile: { not: null },
-      },
-      select: {
-        specializations: true,
-        operatorProfile: true,
-      },
-    });
+    const payload = await withCache("public:agents:categories", async () => {
+      const agents = await prisma.agent.findMany({
+        where: {
+          status: "ACTIVE",
+          operatorProfile: { not: null },
+        },
+        select: {
+          specializations: true,
+          operatorProfile: true,
+        },
+      });
 
-    const categories = new Set<string>();
+      const categories = new Set<string>();
 
-    for (const agent of agents) {
-      const profile = approvedProfile(agent.operatorProfile);
-      if (!profile) continue;
+      for (const agent of agents) {
+        const profile = approvedProfile(agent.operatorProfile);
+        if (!profile) continue;
 
-      collectStrings(agent.specializations, categories);
-      collectStrings(profile.specializations, categories);
-      collectStrings(profile.tourismTypes, categories);
-    }
+        collectStrings(agent.specializations, categories);
+        collectStrings(profile.specializations, categories);
+        collectStrings(profile.tourismTypes, categories);
+      }
 
-    if (categories.size === 0) collectStrings(FALLBACK_TOURISM_CATEGORIES, categories);
+      if (categories.size === 0) collectStrings(FALLBACK_TOURISM_CATEGORIES, categories);
 
-    return res.json({
-      items: [...categories].sort((a, b) => a.localeCompare(b)).map((name) => ({ name })),
-    });
+      return {
+        items: [...categories].sort((a, b) => a.localeCompare(b)).map((name) => ({ name })),
+      };
+    }, { ttl: 60, tags: ["public:agents"] });
+
+    return res.json(payload);
   })
 );
 
-// ─── GET /api/public/agents ──────────────────────────────────────────────────
+// ─── GET /api/public/agents ───
 // Returns a paginated list of agents who have an operator profile and are active.
 router.get(
   "/",
@@ -288,48 +293,52 @@ router.get(
     const pageSize = Math.min(50, Math.max(1, Number(req.query.pageSize) || 20));
     const skip = (page - 1) * pageSize;
 
-    const [agents, total] = await Promise.all([
-      prisma.agent.findMany({
-        where: {
-          status: "ACTIVE",
-          operatorProfile: { not: null },
-        },
-        select: {
-          id: true,
-          operatorProfile: true,
-          level: true,
-          totalCompletedTrips: true,
-        },
-        orderBy: { totalCompletedTrips: "desc" },
-        skip,
-        take: pageSize,
-      }),
-      prisma.agent.count({
-        where: {
-          status: "ACTIVE",
-          operatorProfile: { not: null },
-        },
-      }),
-    ]);
+    const payload = await withCache(`public:agents:list:p${page}:s${pageSize}`, async () => {
+      const [agents, total] = await Promise.all([
+        prisma.agent.findMany({
+          where: {
+            status: "ACTIVE",
+            operatorProfile: { not: null },
+          },
+          select: {
+            id: true,
+            operatorProfile: true,
+            level: true,
+            totalCompletedTrips: true,
+          },
+          orderBy: { totalCompletedTrips: "desc" },
+          skip,
+          take: pageSize,
+        }),
+        prisma.agent.count({
+          where: {
+            status: "ACTIVE",
+            operatorProfile: { not: null },
+          },
+        }),
+      ]);
 
-    const tripConfidenceByAgent = await buildTripConfidenceByAgent(agents.map((agent) => agent.id));
-    const visibleAgents = agents
-      .map((a) => ({
-        id: a.id,
-        level: a.level,
-        totalCompletedTrips: a.totalCompletedTrips,
-        profile: (() => {
-          const profile = approvedProfile(a.operatorProfile);
-          return profile ? { ...profile, tripConfidence: tripConfidenceByAgent.get(a.id) || summarizeTripConfidence([]) } : null;
-        })(),
-      }))
-      .filter((a) => Boolean(a.profile));
+      const tripConfidenceByAgent = await buildTripConfidenceByAgent(agents.map((agent) => agent.id));
+      const visibleAgents = agents
+        .map((a) => ({
+          id: a.id,
+          level: a.level,
+          totalCompletedTrips: a.totalCompletedTrips,
+          profile: (() => {
+            const profile = approvedProfile(a.operatorProfile);
+            return profile ? { ...profile, tripConfidence: tripConfidenceByAgent.get(a.id) || summarizeTripConfidence([]) } : null;
+          })(),
+        }))
+        .filter((a) => Boolean(a.profile));
 
-    res.json({ items: visibleAgents, total: visibleAgents.length, page, pageSize });
+      return { items: visibleAgents, total: visibleAgents.length, page, pageSize };
+    }, { ttl: 30, tags: ["public:agents"] });
+
+    res.json(payload);
   })
 );
 
-// ─── GET /api/public/agents/:id ──────────────────────────────────────────────
+// ─── GET /api/public/agents/:id ─────
 // Returns a single operator profile by agent id.
 router.get(
   "/:id",
@@ -339,28 +348,34 @@ router.get(
       return res.status(400).json({ error: "Invalid agent id" });
     }
 
-    const agent = await prisma.agent.findFirst({
-      where: { id, status: "ACTIVE" },
-      select: {
-        id: true,
-        operatorProfile: true,
-        level: true,
-        totalCompletedTrips: true,
-      },
-    });
+    const payload = await withCache(`public:agents:detail:${id}`, async () => {
+      const agent = await prisma.agent.findFirst({
+        where: { id, status: "ACTIVE" },
+        select: {
+          id: true,
+          operatorProfile: true,
+          level: true,
+          totalCompletedTrips: true,
+        },
+      });
 
-    const profile = approvedProfile(agent?.operatorProfile);
-    if (!agent || !profile) {
+      const profile = approvedProfile(agent?.operatorProfile);
+      if (!agent || !profile) return null;
+
+      const tripConfidenceByAgent = await buildTripConfidenceByAgent([agent.id]);
+      return {
+        id: agent.id,
+        level: agent.level,
+        totalCompletedTrips: agent.totalCompletedTrips,
+        profile: { ...profile, tripConfidence: tripConfidenceByAgent.get(agent.id) || summarizeTripConfidence([]) },
+      };
+    }, { ttl: 30, tags: ["public:agents"] });
+
+    if (!payload) {
       return res.status(404).json({ error: "Operator profile not found" });
     }
 
-    const tripConfidenceByAgent = await buildTripConfidenceByAgent([agent.id]);
-    res.json({
-      id: agent.id,
-      level: agent.level,
-      totalCompletedTrips: agent.totalCompletedTrips,
-      profile: { ...profile, tripConfidence: tripConfidenceByAgent.get(agent.id) || summarizeTripConfidence([]) },
-    });
+    res.json(payload);
   })
 );
 

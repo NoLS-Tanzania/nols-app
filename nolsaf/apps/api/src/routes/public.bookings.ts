@@ -4,7 +4,7 @@ import { Router, Request, Response } from "express";
 import { prisma } from "@nolsaf/prisma";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
-import rateLimit from "express-rate-limit";
+import { rateLimitWithRedis as rateLimit } from "../lib/redisRateLimitStore.js";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { checkPropertyAvailability, checkGuestCapacity } from "../lib/bookingAvailability.js";

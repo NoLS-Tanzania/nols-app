@@ -6,7 +6,7 @@
 // renders the authenticated snapshot. No credentials are required or accepted.
 
 import { Router, Request, Response } from "express";
-import rateLimit from "express-rate-limit";
+import { rateLimitWithRedis as rateLimit } from "../lib/redisRateLimitStore.js";
 import { verifyReportSeal } from "../lib/reportSeal.js";
 
 const router = Router();

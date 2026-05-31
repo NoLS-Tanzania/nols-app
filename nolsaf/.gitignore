@@ -22,6 +22,10 @@ pnpm-lock.yaml
 docker-data/
 .tmp/
 
+# Generated API load/capacity test reports
+apps/api/reports/load-*.json
+apps/api/reports/capacity-*.json
+
 # Security: Never commit secrets
 *.pem
 *.key

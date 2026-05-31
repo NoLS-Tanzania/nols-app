@@ -11,7 +11,7 @@ import { getPlanRequestResponseEmail, getPlanRequestAgentAssignmentEmail } from 
 import { notifyUser } from "../lib/notifications.js";
 import { z } from "zod";
 import { audit } from "../lib/audit.js";
-import rateLimit from "express-rate-limit";
+import { rateLimitWithRedis as rateLimit } from "../lib/redisRateLimitStore.js";
 
 export const router = Router();
 router.use(requireAuth as unknown as RequestHandler, requireRole("ADMIN") as unknown as RequestHandler);

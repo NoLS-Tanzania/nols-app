@@ -3,7 +3,7 @@ import { Router, RequestHandler } from "express";
 import { prisma } from "@nolsaf/prisma";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { Prisma } from "@prisma/client";
-import rateLimit from "express-rate-limit";
+import { rateLimitWithRedis as rateLimit } from "../lib/redisRateLimitStore.js";
 import { hashTripCode, normalizeTripCode } from "../lib/tripCode.js";
 import { sendSms } from "../lib/sms.js";
 import { sendMail } from "../lib/mailer.js";
@@ -825,7 +825,26 @@ router.get("/trips", limitAdminTripsRead, async (req, res) => {
     const [items, total] = await Promise.all([
       (prisma as any).transportBooking.findMany({
         where,
-        include: {
+        select: {
+          id: true,
+          tripCode: true,
+          paymentRef: true,
+          fromAddress: true,
+          fromWard: true,
+          fromDistrict: true,
+          fromRegion: true,
+          toAddress: true,
+          toWard: true,
+          toDistrict: true,
+          toRegion: true,
+          scheduledDate: true,
+          amount: true,
+          vehicleType: true,
+          paymentStatus: true,
+          paymentMethod: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
           driver: {
             select: { id: true, name: true, email: true, phone: true },
           },
@@ -1686,7 +1705,7 @@ router.post("/trips/:id(\\d+)/payout/pay", async (req, res) => {
  * - q=search
  * - page/pageSize
  */
-router.get("/trips/scheduled", async (req, res) => {
+router.get("/trips/scheduled", limitAdminTripsRead, async (req, res) => {
   try {
     const {
       stage,

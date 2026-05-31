@@ -11,7 +11,7 @@
  *  - Idempotency cache uses Redis → in-process LRU fallback.
  */
 
-import rateLimit from "express-rate-limit";
+import { rateLimitWithRedis as rateLimit } from "./redisRateLimitStore.js";
 import { getRedis } from "./redis.js";
 
 // ── Constants ──────────────────────────────────────────────────────────────────

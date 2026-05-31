@@ -20,6 +20,7 @@ import { isEmailLocked, recordFailedAttempt, clearFailedAttempts, getRemainingAt
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { buildDriverCaseRef } from '../lib/driverCaseRef.js';
 import { getRedis } from '../lib/redis.js';
+import { invalidateAuthSessionCacheForToken } from '../lib/authSessionCache.js';
 
 const router = Router();
 
@@ -113,6 +114,24 @@ function maskPhoneForAudit(phone: string): string {
   const value = String(phone || "");
   if (value.length <= 4) return "******";
   return `******${value.slice(-4)}`;
+}
+
+function getAuthTokenFromRequest(req: any): string | null {
+  const authHeader = String(req.headers?.authorization || "");
+  if (authHeader.startsWith("Bearer ")) return authHeader.slice(7);
+  const rawCookie = String(req.headers?.cookie || "");
+  for (const part of rawCookie.split(";")) {
+    const [name, ...rest] = part.trim().split("=");
+    if (name === "nolsaf_token" || name === "__Host-nolsaf_token" || name === "token" || name === "__Host-token") {
+      const value = rest.join("=");
+      try {
+        return decodeURIComponent(value);
+      } catch {
+        return value;
+      }
+    }
+  }
+  return null;
 }
 
 function authOtpUse(normalizedRole: string | null): "AUTH_LOGIN" | "AUTH_RESET" | "AUTH_SIGNUP" {
@@ -1026,6 +1045,7 @@ function safeNextPath(raw: any): string {
 // GET /api/auth/logout?next=/account/login
 // Useful for reliable cookie clearing via top-level navigation.
 router.get("/logout", maybeAuth, async (req, res) => {
+  const token = getAuthTokenFromRequest(req);
   try {
     const userId = (req as any).user?.id;
     if (userId) {
@@ -1043,12 +1063,14 @@ router.get("/logout", maybeAuth, async (req, res) => {
     console.warn("Failed to audit logout:", auditError);
   }
 
+  if (token) await invalidateAuthSessionCacheForToken(token).catch(() => {});
   clearAuthCookie(res);
   const next = safeNextPath((req as any)?.query?.next);
   return res.redirect(302, next);
 });
 
 router.post("/logout", maybeAuth, async (req, res) => {
+  const token = getAuthTokenFromRequest(req);
   // Audit logout if user is authenticated
   try {
     const userId = (req as any).user?.id;
@@ -1067,6 +1089,7 @@ router.post("/logout", maybeAuth, async (req, res) => {
     console.warn("Failed to audit logout:", auditError);
   }
   
+  if (token) await invalidateAuthSessionCacheForToken(token).catch(() => {});
   clearAuthCookie(res);
   return res.json({ ok: true });
 });

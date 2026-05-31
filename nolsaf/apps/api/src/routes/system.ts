@@ -1,5 +1,5 @@
 import express, { type Express, type Request, type Response } from "express";
-import rateLimit from "express-rate-limit";
+import { rateLimitWithRedis as rateLimit } from "../lib/redisRateLimitStore.js";
 import { errorHandler } from "../middleware/errorHandler.js";
 import { limitCodeSearch } from "../middleware/rateLimit.js";
 import { healthRouter } from "./health";

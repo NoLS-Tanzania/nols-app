@@ -1,4 +1,4 @@
-import rateLimit from "express-rate-limit";
+import { rateLimitWithRedis as rateLimit } from "../lib/redisRateLimitStore.js";
 
 export const limitAgentPortalRead = rateLimit({
   windowMs: 60_000, // 1 minute
