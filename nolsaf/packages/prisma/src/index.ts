@@ -6,6 +6,20 @@ const { PrismaClient } = prismaPkg as unknown as { PrismaClient: new (config?: a
 
 let prismaInstance: any
 
+/**
+ * Read a positive integer from the environment, falling back to a default.
+ * Pool sizing must be tunable per-deployment without a code change: the right
+ * connectionLimit depends on the database's max_connections divided by the
+ * number of app instances/processes sharing it. Hardcoding it guarantees either
+ * wasted capacity or connection-exhaustion outages on a different topology.
+ */
+function intFromEnv(name: string, fallback: number): number {
+  const raw = process.env[name]
+  if (raw == null || String(raw).trim() === '') return fallback
+  const n = Number(raw)
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback
+}
+
 function createMariaDbAdapterFromDatabaseUrl(databaseUrl: string) {
   const url = new URL(databaseUrl)
   const database = url.pathname.replace(/^\/+/, '')
@@ -42,10 +56,19 @@ function createMariaDbAdapterFromDatabaseUrl(databaseUrl: string) {
     database: database || undefined,
     allowPublicKeyRetrieval,
     ssl,
-    connectTimeout: 10000,   // 10s — Railway remote host needs more than 1s default
-    socketTimeout:  60000,   // 60s — keep long-running queries alive
-    connectionLimit: 10,
-    idleTimeout:    60000,   // release idle connections after 60s
+    // All tunable via env so the pool can be sized to the deployment's DB
+    // max_connections without a code change. See DB_CONNECTION_LIMIT below.
+    connectTimeout: intFromEnv('DB_CONNECT_TIMEOUT_MS', 10000),   // wait for a new TCP connection
+    socketTimeout:  intFromEnv('DB_SOCKET_TIMEOUT_MS', 60000),    // keep long-running queries alive
+    // Wait this long for a FREE pooled connection, then fail fast with an error.
+    // Without this, an exhausted pool makes every request hang up to socketTimeout
+    // (60s), which looks like a database crash. A fast error is recoverable; a hang is not.
+    acquireTimeout: intFromEnv('DB_ACQUIRE_TIMEOUT_MS', 10000),
+    // Max open connections PER PROCESS. Total load on the DB is roughly
+    // connectionLimit × (instances × processes-per-instance). Keep that product
+    // safely under the server's max_connections (minus a reserve for admin/migrations).
+    connectionLimit: intFromEnv('DB_CONNECTION_LIMIT', 10),
+    idleTimeout:    intFromEnv('DB_IDLE_TIMEOUT_MS', 60000),      // release idle connections
   } as any)
 }
 
