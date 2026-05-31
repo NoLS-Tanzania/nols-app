@@ -8,10 +8,8 @@ node_modules/
 .pnp.*
 .env
 .env.*
-!.env.example
 apps/**/.env
 apps/**/.env.*
-!apps/**/.env.example
 apps/**/.next
 apps/**/out
 dist/
