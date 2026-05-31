@@ -313,7 +313,7 @@ export default function NSaTRegisterCard({ programme }: { programme: Programme }
                     ))}
                   </ul>
 
-                  <Link href="/public/plan-with-us"
+                  <Link href="/public/n-sat"
                     className={`no-underline hover:no-underline w-full flex items-center justify-center rounded-xl py-2.5 text-xs font-bold text-white transition hover:-translate-y-[1px] active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 ${c.focusRing}`}
                     style={{ background: isMiddle ? c.btnBg : 'rgba(255,255,255,0.08)', border: isMiddle ? 'none' : '1px solid rgba(255,255,255,0.12)' }}>
                     Reserve this package

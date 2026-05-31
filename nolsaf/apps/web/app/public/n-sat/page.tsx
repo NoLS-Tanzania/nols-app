@@ -263,9 +263,9 @@ export default function NSaTPage() {
                 N‑SaT stays
                 <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: 'rgba(52,211,153,0.15)', color: 'rgba(52,211,153,0.6)' }}>Coming soon</span>
               </span>
-              <Link href="/public/plan-with-us"
+              <Link href="/public/n-sat"
                 className="no-underline hover:no-underline inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/8 px-6 py-2.5 text-sm font-semibold text-white/85 backdrop-blur transition hover:-translate-y-[1px] hover:bg-white/14 active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/25">
-                Talk to us first
+                View N-SaT options
               </Link>
             </div>
           </div>
@@ -421,7 +421,7 @@ export default function NSaTPage() {
 
             {/* register interest CTA */}
             <div className="relative mt-6 flex justify-center">
-              <Link href="/public/plan-with-us"
+              <Link href="/public/n-sat"
                 className="no-underline hover:no-underline inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/6 px-6 py-2.5 text-xs font-semibold uppercase tracking-wider text-white/70 backdrop-blur transition hover:-translate-y-[1px] hover:bg-white/12 hover:text-white active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20">
                 Register your region interest
               </Link>

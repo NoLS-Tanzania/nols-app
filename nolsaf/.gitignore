@@ -8,10 +8,8 @@ node_modules/
 .pnp.*
 .env
 .env.*
-!.env.example
 apps/**/.env
 apps/**/.env.*
-!apps/**/.env.example
 apps/**/.next
 apps/**/out
 dist/
@@ -21,6 +19,10 @@ pnpm-lock.yaml
 *.log
 docker-data/
 .tmp/
+
+# Generated API load/capacity test reports
+apps/api/reports/load-*.json
+apps/api/reports/capacity-*.json
 
 # Security: Never commit secrets
 *.pem

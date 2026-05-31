@@ -150,7 +150,7 @@ export default function No4PAIPage() {
 
               <div className="mt-7 flex flex-wrap justify-center gap-3">
                 <Link
-                  href="/public/plan-with-us#request"
+                  href="/public/nolscope"
                   className="group relative inline-flex rounded-full p-[1px] no-underline shadow-2xl shadow-emerald-500/10 transition-transform duration-300 hover:-translate-y-0.5 hover:shadow-emerald-500/20 active:translate-y-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black/40"
                 >
                   <span className="pointer-events-none absolute inset-0 rounded-full bg-gradient-to-r from-emerald-400/70 via-sky-400/55 to-fuchsia-400/60 opacity-90" />
@@ -158,7 +158,7 @@ export default function No4PAIPage() {
                     <span className="absolute -inset-y-6 left-0 w-24 -translate-x-[140%] rotate-12 bg-gradient-to-r from-transparent via-white/35 to-transparent opacity-0 blur-sm transition-all duration-700 ease-out group-hover:translate-x-[220%] group-hover:opacity-100" />
                   </span>
                   <span className="relative inline-flex items-center justify-center rounded-full bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-emerald-950 transition duration-300 group-hover:bg-emerald-400">
-                    Plan with us
+                    Estimate a trip
                   </span>
                 </Link>
 
@@ -394,7 +394,7 @@ export default function No4PAIPage() {
                   </div>
 
                   <Link
-                    href="/public/plan-with-us#request"
+                    href="/public/nolscope"
                     className="no-underline hover:no-underline inline-flex items-center justify-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-semibold text-slate-900 shadow-sm ring-1 ring-white/20 transition hover:-translate-y-[1px] hover:bg-white/95 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/60 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 active:translate-y-0"
                   >
                     Get started

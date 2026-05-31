@@ -27,6 +27,10 @@ const nextConfig: NextConfig = {
   },
   webpack: (config, { dev }) => {
     if (dev) {
+      // Disable persistent filesystem pack cache in dev on Windows.
+      // This avoids intermittent ENOENT stat/rename errors for *.pack.gz files.
+      config.cache = false;
+
       // Polling avoids missed FS events on some Windows environments.
       config.watchOptions = {
         ...(config.watchOptions || {}),
@@ -147,7 +151,7 @@ const nextConfig: NextConfig = {
           // IMPORTANT: This runs AFTER Next.js pages, so Next.js admin pages always win.
           // The exclusion list is kept for safety but the afterFiles ordering is the main guard.
           source:
-            '/admin/:path((?!cancellations/\\d+|bookings/\\d+|owners/\\d+|properties/\\d+|revenue/\\d+|users/\\d+|management/.*|drivers/audit/.*|profile$|profile/).*)',
+            '/admin/:path((?!cancellations/\\d+|bookings/\\d+|owners/\\d+|properties/\\d+|revenue/\\d+|users/\\d+|agents/\\d+|agents/tour-revenue/\\d+|management/.*|drivers/audit/.*|profile$|profile/).*)',
           // NOTE: removed trailing $ anchors so RSC sub-paths like /owners/3.segments/... are also excluded
           destination: `${apiOrigin}/admin/:path*`,
         },

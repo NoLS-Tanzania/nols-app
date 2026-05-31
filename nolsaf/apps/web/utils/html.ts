@@ -15,13 +15,6 @@ export function escapeAttr(value: unknown): string {
 }
 
 const DEFAULT_ALLOWED_TAGS = [
-  "html",
-  "head",
-  "body",
-  "meta",
-  "title",
-  "style",
-  "link",
   "div",
   "span",
   "p",
@@ -59,11 +52,9 @@ const DEFAULT_ALLOWED_TAGS = [
 ];
 
 const DEFAULT_ALLOWED_ATTRIBUTES: sanitize.IOptions["allowedAttributes"] = {
-  "*": ["class", "id", "style", "title", "aria-label", "aria-hidden", "role"],
+  "*": ["class", "id", "title", "aria-label", "aria-hidden", "role"],
   a: ["href", "name", "target", "rel"],
   img: ["src", "srcset", "alt", "width", "height"],
-  meta: ["charset", "name", "content"],
-  link: ["rel", "href"],
 };
 
 export function sanitizeTrustedHtml(dirtyHtml: string): string {
@@ -72,9 +63,12 @@ export function sanitizeTrustedHtml(dirtyHtml: string): string {
   return sanitize(dirtyHtml || "", {
     allowedTags: DEFAULT_ALLOWED_TAGS,
     allowedAttributes: DEFAULT_ALLOWED_ATTRIBUTES,
-    allowedSchemes: ["http", "https", "data", "mailto", "tel"],
+    allowedSchemes: ["http", "https", "mailto", "tel"],
     allowProtocolRelative: false,
-    // Ensure anything not explicitly allowed is escaped instead of dropped
-    disallowedTagsMode: "escape",
+    nonTextTags: ["script", "style", "textarea", "option", "xmp", "noscript"],
+    transformTags: {
+      a: sanitize.simpleTransform("a", { rel: "noopener noreferrer" }, true),
+    },
+    disallowedTagsMode: "discard",
   });
 }

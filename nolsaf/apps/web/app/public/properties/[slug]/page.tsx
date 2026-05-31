@@ -13,9 +13,10 @@ import { motion } from "framer-motion";
 
 import type { Socket } from "socket.io-client";
 
-import type { ReactNode, ComponentType } from "react";
+import type { ComponentType } from "react";
 
 import { useParams, useRouter } from "next/navigation";
+import { fetchAccountSession } from "@/lib/accountSession";
 
 import {
   MapPin,
@@ -80,8 +81,6 @@ import {
   Twitter,
   Home,
   Calendar,
-  Plus,
-  Minus,
   LogIn,
   LogOut,
   Wifi,
@@ -103,6 +102,7 @@ import {
 } from "../../../../lib/priceUtils";
 
 import { BATHROOM_ICONS, OTHER_AMENITIES_ICONS } from "../../../../lib/amenityIcons";
+import { PriceDisplay } from "@/components/PriceDisplay";
 
 function PropertyGalleryImage({
   src,
@@ -1563,6 +1563,7 @@ export default function PublicPropertyDetailPage() {
   const params = useParams();
   const router = useRouter();
   const slug = String((params as any)?.slug ?? "");
+  // Currency display context — presentation only, never affects charges.
   const [property, setProperty] = useState<PublicPropertyDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1592,13 +1593,13 @@ export default function PublicPropertyDetailPage() {
   const [isOwner, setIsOwner] = useState<boolean>(false);
   const [isFavorite, setIsFavorite] = useState(false);
   const [favoriteLoading, setFavoriteLoading] = useState(false);
-  const [showSaveLoginPrompt, setShowSaveLoginPrompt] = useState(false);
-  const [favoriteNotice, setFavoriteNotice] = useState<string | null>(null);
+  const [, setShowSaveLoginPrompt] = useState(false);
+  const [, setFavoriteNotice] = useState<string | null>(null);
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [copyLinkSuccess, setCopyLinkSuccess] = useState(false);
   const [selectedDates, setSelectedDates] = useState<{ checkIn: string; checkOut: string }>({ checkIn: "", checkOut: "" });
   const [roomQuickView, setRoomQuickView] = useState<null | { roomType: string; floor: number }>(null);
-  const [availabilityData, setAvailabilityData] = useState<any | null>(null);
+  const [, setAvailabilityData] = useState<any | null>(null);
   const [, setAvailabilitySocket] = useState<Socket | null>(null);
   const [, setAvailabilityConnected] = useState(false);
   const [availabilityRefreshTick, setAvailabilityRefreshTick] = useState(0);
@@ -1614,6 +1615,7 @@ export default function PublicPropertyDetailPage() {
   useEffect(() => {
     const propertyId = property?.id;
     if (!propertyId) return;
+    if (!selectedDates.checkIn || !selectedDates.checkOut) return;
     let cancelled = false;
     let socket: Socket | null = null;
     (async () => {
@@ -1666,7 +1668,7 @@ export default function PublicPropertyDetailPage() {
         socket.disconnect();
       }
     };
-  }, [property?.id]);
+  }, [property?.id, selectedDates.checkIn, selectedDates.checkOut]);
   useEffect(() => {
     return () => {
       if (socketRefreshTimerRef.current) {
@@ -1702,23 +1704,11 @@ export default function PublicPropertyDetailPage() {
     let mounted = true;
     const load = async () => {
       try {
-        const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-        if (!token) {
-          if (mounted) setIsOwner(false);
-          return;
-        }
-        
-
-        const res = await fetch(`/api/account/me`, {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
-          credentials: "include",
-        });
+        const res = await fetchAccountSession();
         
 
         if (res.ok) {
-          const user = await res.json();
+          const user = res.data;
           if (mounted) {
             // Check if user is the owner of this property
             if (property?.ownerId && user?.id && Number(user.id) === Number(property.ownerId)) {
@@ -1825,7 +1815,6 @@ export default function PublicPropertyDetailPage() {
   }, [property, systemCommission]);
   
 
-  const price = useMemo(() => (finalBasePrice ? fmtMoney(finalBasePrice, property?.currency) : "-"), [finalBasePrice, property?.currency]);
   const about = useMemo(() => {
     const fallback = "No description provided yet.";
     const raw = String(property?.description || "").trim();
@@ -2669,7 +2658,12 @@ export default function PublicPropertyDetailPage() {
             </div>
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="text-sm text-slate-600">Starting from</div>
-              <div className="mt-1 text-2xl font-bold text-slate-900">{price}</div>
+              <div className="mt-1 text-2xl font-bold text-slate-900">
+                <PriceDisplay
+                  amountTzs={finalBasePrice}
+                  noteClassName="text-xs font-normal text-slate-500 mt-0.5"
+                />
+              </div>
               <div className="text-xs text-slate-500">per night</div>
               <button
                 type="button"
@@ -2904,7 +2898,11 @@ export default function PublicPropertyDetailPage() {
                         {/* CTA strip: row on mobile, col on desktop */}
                         <div className="flex-shrink-0 w-full md:w-52 flex flex-row items-center gap-3 md:flex-col md:items-stretch md:justify-between md:border-l border-t md:border-t-0 border-slate-100 px-4 py-3 md:p-5">
                           <div className="flex-1 min-w-0">
-                            <div className="text-base md:text-xl font-black text-slate-900 tabular-nums leading-tight">{fmtMoney(r.pricePerNight, property.currency)}</div>
+                            <PriceDisplay
+                              amountTzs={r.pricePerNight}
+                              className="text-base md:text-xl font-black text-slate-900 tabular-nums leading-tight"
+                              noteClassName="text-xs font-normal text-slate-500 mt-0.5"
+                            />
                             <div className="text-xs text-slate-500">per night</div>
                             {r.discountLabel ? (<div className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[11px] font-semibold text-emerald-700"><Tags className="w-2.5 h-2.5" aria-hidden />{r.discountLabel}</div>) : (<div className="mt-1 inline-flex items-center gap-1 rounded-full bg-slate-50 border border-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-400">No discount</div>)}
                           </div>
@@ -3755,19 +3753,6 @@ export default function PublicPropertyDetailPage() {
         </div>
       ), document.body) : null}
     </main>
-  );
-
-}
-
-function Fact({ icon, label, value }: { icon: ReactNode; label: string; value: any }) {
-  return (
-    <div className="rounded-xl bg-white border border-slate-200 p-3 shadow-sm">
-      <div className="flex items-center gap-2 text-slate-800">
-        <span className="text-slate-700">{icon}</span>
-        <span className="text-xs font-semibold text-slate-800">{label}</span>
-      </div>
-      <div className="mt-2 text-sm font-bold text-slate-950">{String(value)}</div>
-    </div>
   );
 
 }

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter, useParams } from "next/navigation";
 import apiClient from "@/lib/apiClient";
 import Link from "next/link";
@@ -7,7 +7,8 @@ import TableRow from "@/components/TableRow";
 import { 
   Mail, Phone, Calendar, Lock, CheckCircle, XCircle,
   ShoppingCart, DollarSign, ArrowLeft, Ban, UserCheck, 
-  CreditCard, Eye, History, Activity, Clock, X, Coins, Home, Tag, MoreHorizontal
+  CreditCard, Eye, History, Activity, Clock, X, Coins, Home, Tag, MoreHorizontal,
+  ChevronUp, ChevronDown, ChevronsUpDown
 } from "lucide-react";
 
 // IMPORTANT: Use same-origin requests so Next.js can proxy via `rewrites()`.
@@ -79,6 +80,8 @@ type UserDetailResponse = {
   };
 };
 
+type BookingSortKey = "property" | "checkInOut" | "amount" | "status" | "code";
+
 export default function AdminUserDetailPage() {
   const routeParams = useParams<{ id?: string | string[] }>();
   const idParam = Array.isArray(routeParams?.id) ? routeParams?.id?.[0] : routeParams?.id;
@@ -97,6 +100,69 @@ export default function AdminUserDetailPage() {
   const [showUnsuspendForm, setShowUnsuspendForm] = useState(false);
   const [unsuspendNotification, setUnsuspendNotification] = useState("");
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [bookingPage, setBookingPage] = useState(1);
+  const bookingPageSize = 6;
+  const [bookingSortBy, setBookingSortBy] = useState<BookingSortKey>("checkInOut");
+  const [bookingSortDir, setBookingSortDir] = useState<"asc" | "desc">("desc");
+
+  const bookings = data?.bookings ?? [];
+
+  const sortedBookings = useMemo(() => {
+    const next = [...bookings];
+    const readValue = (booking: Booking): string | number => {
+      switch (bookingSortBy) {
+        case "property":
+          return String(booking.property?.title || "").toLowerCase();
+        case "checkInOut":
+          return booking.checkIn ? new Date(booking.checkIn).getTime() : 0;
+        case "amount":
+          return Number(booking.totalAmount || 0);
+        case "status":
+          return String(booking.status || "").toLowerCase();
+        case "code":
+          return String(booking.code?.codeVisible || booking.code?.status || "").toLowerCase();
+        default:
+          return "";
+      }
+    };
+
+    next.sort((a, b) => {
+      const av = readValue(a);
+      const bv = readValue(b);
+      if (typeof av === "number" && typeof bv === "number") {
+        return bookingSortDir === "asc" ? av - bv : bv - av;
+      }
+      const cmp = String(av).localeCompare(String(bv));
+      return bookingSortDir === "asc" ? cmp : -cmp;
+    });
+
+    return next;
+  }, [bookings, bookingSortBy, bookingSortDir]);
+
+  const bookingTotalPages = Math.max(1, Math.ceil(sortedBookings.length / bookingPageSize));
+  const safeBookingPage = Math.min(bookingPage, bookingTotalPages);
+  const bookingStartIndex = (safeBookingPage - 1) * bookingPageSize;
+  const pagedBookings = sortedBookings.slice(bookingStartIndex, bookingStartIndex + bookingPageSize);
+
+  function handleBookingSort(field: BookingSortKey) {
+    if (bookingSortBy === field) {
+      setBookingSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setBookingSortBy(field);
+    setBookingSortDir(field === "checkInOut" || field === "amount" ? "desc" : "asc");
+  }
+
+  function renderBookingSortIcon(field: BookingSortKey) {
+    if (bookingSortBy !== field) return <ChevronsUpDown className="h-3.5 w-3.5 text-gray-400" />;
+    return bookingSortDir === "asc"
+      ? <ChevronUp className="h-3.5 w-3.5 text-emerald-600" />
+      : <ChevronDown className="h-3.5 w-3.5 text-emerald-600" />;
+  }
+
+  useEffect(() => {
+    setBookingPage(1);
+  }, [tab, bookingSortBy, bookingSortDir, data?.bookings?.length]);
 
   const load = useCallback(async () => {
     if (!isValidUserId) return;
@@ -256,7 +322,6 @@ export default function AdminUserDetailPage() {
   }
 
   const user = data.user ?? null;
-  const bookings = data.bookings ?? [];
   const stats =
     data.stats ??
     ({
@@ -760,7 +825,7 @@ export default function AdminUserDetailPage() {
                   <>
                     {/* Mobile: card list */}
                     <div className="md:hidden space-y-3">
-                      {bookings.map((booking) => (
+                      {pagedBookings.map((booking) => (
                         <div key={booking.id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
@@ -865,34 +930,39 @@ export default function AdminUserDetailPage() {
                           <thead className="sticky top-0 z-10 bg-gray-50/90 backdrop-blur">
                             <tr>
                               <th className="px-6 py-3 text-left text-[11px] font-semibold text-gray-600 tracking-wide border-b border-gray-200">
-                                <span className="inline-flex items-center gap-2">
+                                <button type="button" onClick={() => handleBookingSort("property")} className="inline-flex items-center gap-2 bg-transparent border-0 p-0 m-0 appearance-none hover:text-gray-800">
                                   <Home className="h-3.5 w-3.5" />
                                   Property
-                                </span>
+                                  {renderBookingSortIcon("property")}
+                                </button>
                               </th>
                               <th className="px-6 py-3 text-left text-[11px] font-semibold text-gray-600 tracking-wide border-b border-gray-200 whitespace-nowrap">
-                                <span className="inline-flex items-center gap-2">
+                                <button type="button" onClick={() => handleBookingSort("checkInOut")} className="inline-flex items-center gap-2 bg-transparent border-0 p-0 m-0 appearance-none hover:text-gray-800">
                                   <Calendar className="h-3.5 w-3.5" />
                                   Check In/Out
-                                </span>
+                                  {renderBookingSortIcon("checkInOut")}
+                                </button>
                               </th>
                               <th className="px-6 py-3 text-right text-[11px] font-semibold text-gray-600 tracking-wide border-b border-gray-200 whitespace-nowrap">
-                                <span className="inline-flex items-center justify-end gap-2">
+                                <button type="button" onClick={() => handleBookingSort("amount")} className="inline-flex items-center justify-end gap-2 bg-transparent border-0 p-0 m-0 appearance-none hover:text-gray-800 ml-auto">
                                   <Coins className="h-3.5 w-3.5" />
                                   Amount
-                                </span>
+                                  {renderBookingSortIcon("amount")}
+                                </button>
                               </th>
                               <th className="px-6 py-3 text-left text-[11px] font-semibold text-gray-600 tracking-wide border-b border-gray-200 whitespace-nowrap">
-                                <span className="inline-flex items-center gap-2">
+                                <button type="button" onClick={() => handleBookingSort("status")} className="inline-flex items-center gap-2 bg-transparent border-0 p-0 m-0 appearance-none hover:text-gray-800">
                                   <Tag className="h-3.5 w-3.5" />
                                   Status
-                                </span>
+                                  {renderBookingSortIcon("status")}
+                                </button>
                               </th>
                               <th className="px-6 py-3 text-left text-[11px] font-semibold text-gray-600 tracking-wide border-b border-gray-200 whitespace-nowrap">
-                                <span className="inline-flex items-center gap-2">
+                                <button type="button" onClick={() => handleBookingSort("code")} className="inline-flex items-center gap-2 bg-transparent border-0 p-0 m-0 appearance-none hover:text-gray-800">
                                   <Home className="h-3.5 w-3.5" />
                                   Code
-                                </span>
+                                  {renderBookingSortIcon("code")}
+                                </button>
                               </th>
                               <th className="px-6 py-3 text-right text-[11px] font-semibold text-gray-600 tracking-wide border-b border-gray-200 whitespace-nowrap">
                                 <span className="inline-flex items-center justify-end gap-2">
@@ -903,7 +973,7 @@ export default function AdminUserDetailPage() {
                             </tr>
                           </thead>
                           <tbody className="bg-white divide-y divide-gray-100">
-                            {bookings.map((booking) => (
+                            {pagedBookings.map((booking) => (
                               <TableRow key={booking.id} className="hover:bg-gray-50">
                                 <td className="px-6 py-5">
                                   {booking.property ? (
@@ -992,6 +1062,31 @@ export default function AdminUserDetailPage() {
                             ))}
                           </tbody>
                         </table>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 flex items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3">
+                      <div className="text-xs text-gray-500">
+                        Showing {sortedBookings.length === 0 ? 0 : bookingStartIndex + 1}-{Math.min(bookingStartIndex + bookingPageSize, sortedBookings.length)} of {sortedBookings.length}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setBookingPage((p) => Math.max(1, p - 1))}
+                          disabled={safeBookingPage <= 1}
+                          className="px-3 py-1 text-sm border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+                        >
+                          Previous
+                        </button>
+                        <span className="text-xs font-semibold text-gray-600">Page {safeBookingPage} of {bookingTotalPages}</span>
+                        <button
+                          type="button"
+                          onClick={() => setBookingPage((p) => Math.min(bookingTotalPages, p + 1))}
+                          disabled={safeBookingPage >= bookingTotalPages}
+                          className="px-3 py-1 text-sm border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+                        >
+                          Next
+                        </button>
                       </div>
                     </div>
                   </>

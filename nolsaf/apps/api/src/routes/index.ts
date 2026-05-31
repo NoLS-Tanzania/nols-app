@@ -23,9 +23,11 @@ import {
   registerAccountAuthRoutes,
   registerChatbotRoute,
   registerConversationBookingRoutes,
+  registerFxRoutes,
   registerGeocodingRoute,
   registerGroupAndReviewRoutes,
   registerPaymentRoutes,
+  registerReportSealRoute,
   registerUploadRoutes,
 } from "./platform";
 import {
@@ -67,8 +69,10 @@ export function registerApiRoutes(app: Express): void {
   registerAgentRoutes(app);
   registerTransportRoutes(app);
   registerGeocodingRoute(app);
+  registerFxRoutes(app);
   registerPublicAvailabilityRoute(app);
   registerChatbotRoute(app);
+  registerReportSealRoute(app);
   registerAdminChatbotReportsRoutes(app);
   registerGroupAndReviewRoutes(app);
 }

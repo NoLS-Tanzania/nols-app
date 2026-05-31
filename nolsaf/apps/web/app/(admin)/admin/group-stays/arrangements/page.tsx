@@ -10,28 +10,7 @@ import Link from "next/link";
 // Use same-origin for HTTP calls so Next.js rewrites proxy to the API
 const api = apiClient;
 
-function authify() {
-  if (typeof window === "undefined") return;
-
-  // Most of the app uses a Bearer token (often stored in localStorage).
-  // The API endpoints are protected by requireAuth, so we must attach it.
-  const lsToken =
-    window.localStorage.getItem("token") ||
-    window.localStorage.getItem("nolsaf_token") ||
-    window.localStorage.getItem("__Host-nolsaf_token");
-
-  if (lsToken) {
-    api.defaults.headers.common["Authorization"] = `Bearer ${lsToken}`;
-    return;
-  }
-
-  // Fallback: non-httpOnly cookie (if present)
-  const m = String(document.cookie || "").match(/(?:^|;\s*)(?:nolsaf_token|__Host-nolsaf_token)=([^;]+)/);
-  const cookieToken = m?.[1] ? decodeURIComponent(m[1]) : "";
-  if (cookieToken) {
-    api.defaults.headers.common["Authorization"] = `Bearer ${cookieToken}`;
-  }
-}
+function authify() {}
 
 // Input sanitization helper
 function sanitizeInput(input: string): string {

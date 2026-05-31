@@ -51,7 +51,47 @@ function normaliseTo255(raw: string): string {
   return `+255${digitsOnly}`;
 }
 
-// ─── Africa's Talking ─────────────────────────────────────────────────────────
+// ─── Africa's Talking ────────
+async function postAfricasTalkingSms(payload: {
+  username: string;
+  apiKey: string;
+  to: string;
+  message: string;
+  from?: string;
+}): Promise<ATSendResponse> {
+  const body = new URLSearchParams({
+    username: payload.username,
+    to: payload.to,
+    message: payload.message,
+    ...(payload.from ? { from: payload.from } : {}),
+  });
+
+  const response = await fetch("https://api.africastalking.com/version1/messaging", {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      apikey: payload.apiKey,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body,
+  });
+
+  const text = await response.text();
+  let parsed: any = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    parsed = null;
+  }
+
+  if (!response.ok) {
+    const reason = String(parsed?.SMSMessageData?.Message || parsed?.message || response.statusText || "Unknown error");
+    throw new Error(`Africa's Talking HTTP ${response.status}: ${reason}`);
+  }
+
+  return (parsed || { SMSMessageData: { Message: "", Recipients: [] } }) as ATSendResponse;
+}
+
 async function sendViaAfricasTalking(to: string, message: string): Promise<SmsResult> {
   const username = process.env.AFRICASTALKING_USERNAME;
   const apiKey   = process.env.AFRICASTALKING_API_KEY;
@@ -61,20 +101,13 @@ async function sendViaAfricasTalking(to: string, message: string): Promise<SmsRe
     return { success: false, error: 'Africa\'s Talking credentials missing (AFRICASTALKING_USERNAME / AFRICASTALKING_API_KEY)' };
   }
 
-  // The package is CommonJS
-  const AfricasTalking = require('africastalking') as
-    (cfg: { username: string; apiKey: string }) => {
-      SMS: { send(opts: { to: string[]; message: string; from?: string }): Promise<ATSendResponse> };
-    };
-
-  const at  = AfricasTalking({ username, apiKey });
-  const sms = at.SMS;
-
-  const baseOpts: { to: string[]; message: string } = { to: [to], message };
-  const firstTryOpts: { to: string[]; message: string; from?: string } = { ...baseOpts };
-  if (senderId) firstTryOpts.from = senderId;
-
-  const result = await sms.send(firstTryOpts);
+  const result = await postAfricasTalkingSms({
+    username,
+    apiKey,
+    to,
+    message,
+    ...(senderId ? { from: senderId } : {}),
+  });
   const first  = result?.SMSMessageData?.Recipients?.[0];
 
   // AT returns statusCode 101 for a queued/accepted message
@@ -86,7 +119,7 @@ async function sendViaAfricasTalking(to: string, message: string): Promise<SmsRe
   // If we set `from` and AT rejects, retry once without `from` to allow default shortcode routing.
   if (senderId) {
     try {
-      const retryResult = await sms.send(baseOpts);
+      const retryResult = await postAfricasTalkingSms({ username, apiKey, to, message });
       const retryFirst = retryResult?.SMSMessageData?.Recipients?.[0];
       if (retryFirst && (retryFirst.statusCode === 101 || retryFirst.status === 'Success')) {
         console.warn("[SMS] Africa's Talking rejected Sender ID; retried without from and queued successfully.");
@@ -110,7 +143,7 @@ async function sendViaAfricasTalking(to: string, message: string): Promise<SmsRe
   );
 }
 
-// ─── Twilio (optional fallback) ───────────────────────────────────────────────
+// ─── Twilio (optional fallback) ──────
 async function sendViaTwilio(to: string, message: string): Promise<SmsResult> {
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken  = process.env.TWILIO_AUTH_TOKEN;
@@ -137,8 +170,8 @@ async function sendViaTwilio(to: string, message: string): Promise<SmsResult> {
   return { success: true, messageId: data.sid, provider: 'twilio' };
 }
 
-// ─── Public API ───────────────────────────────────────────────────────────────
-/**
+// ─── Public API ────
+/*
  * Send an SMS.  Priority chain:
  *   1. Africa's Talking  (set AFRICASTALKING_API_KEY)
  *   2. Twilio            (set TWILIO_ACCOUNT_SID)

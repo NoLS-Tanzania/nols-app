@@ -99,6 +99,17 @@ function canUseNextImageForSrc(src: string): boolean {
   }
 }
 
+function shouldBypassNextImageOptimizer(src: string): boolean {
+  if (!src) return false;
+  if (!src.startsWith("http://") && !src.startsWith("https://")) return false;
+  try {
+    const host = new URL(src).hostname;
+    return host === "res.cloudinary.com" || host.endsWith(".cloudinary.com");
+  } catch {
+    return src.includes("cloudinary");
+  }
+}
+
 function FillImage({
   src,
   alt,
@@ -123,7 +134,7 @@ function FillImage({
         className={className}
         sizes={sizes}
         priority={priority}
-        unoptimized={unoptimized}
+        unoptimized={Boolean(unoptimized) || shouldBypassNextImageOptimizer(src)}
       />
     );
   }

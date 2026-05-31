@@ -1,4 +1,5 @@
 import styles from './page.module.css';
+import { PriceDisplay } from '../../components/PriceDisplay';
 
 interface Props { params: { id: string } }
 
@@ -29,7 +30,9 @@ export default async function Page({ params }: Props){
         </div>
         <aside className={styles.sidebar}>
           <div className={styles.bookingCard}>
-            <div className={styles.price}>{p.currency} {p.pricePerNight} / night</div>
+            <div className={styles.price}>
+              <PriceDisplay amountTzs={p.pricePerNight} suffix="/ night" />
+            </div>
             <a href={`/property/${params.id}/book`} className={styles.bookingButton}>Start booking</a>
           </div>
         </aside>

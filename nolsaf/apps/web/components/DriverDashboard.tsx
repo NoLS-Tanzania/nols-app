@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import apiClient from "@/lib/apiClient";
+import { fetchAccountSession } from "@/lib/accountSession";
 import { io, Socket } from "socket.io-client";
 
 // Add custom animations
@@ -205,36 +206,16 @@ export default function DriverDashboard({ className }: { className?: string }) {
 
   // Setup Socket.IO for real-time reminder updates
   useEffect(() => {
-    // Auth cookies are forwarded automatically via withCredentials: true.
-    // Only check readable cookies as a transitional fallback.
-    const token = typeof window !== 'undefined' ? (
-      (() => {
-        const m = String(document.cookie || "").match(/(?:^|;\s*)(?:nolsaf_token|__Host-nolsaf_token|token)=([^;]+)/);
-        return m?.[1] ? decodeURIComponent(m[1]) : null;
-      })()
-    ) : null;
-    
     const socket = io(process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000", {
       transports: ["websocket"],
       withCredentials: true, // Send cookies automatically
-      ...(token ? {
-        transportOptions: {
-          polling: {
-            extraHeaders: {
-              Authorization: `Bearer ${token}`
-            }
-          }
-        }
-      } : {}),
     });
 
     socket.on("connect", async () => {
       console.log("Socket connected for reminders");
       try {
-        const r = await fetch("/api/account/me", { credentials: "include" });
-        if (!r.ok) return;
-        const me = unwrapAccountPayload(await r.json());
-        if (me?.id) socket.emit("join-driver-room", { driverId: me.id });
+        const session = await fetchAccountSession();
+        if (session.data?.id) socket.emit("join-driver-room", { driverId: session.data.id });
       } catch {
         // ignore
       }
@@ -297,9 +278,8 @@ export default function DriverDashboard({ className }: { className?: string }) {
   // Fetch user profile
   useEffect(() => {
     try {
-      api
-        .get("/api/account/me")
-        .then((r) => setMe(unwrapAccountPayload(r.data)))
+      fetchAccountSession()
+        .then((r) => setMe(r.data))
         .catch(() => setMe(null));
     } catch (err) {
       setMe(null);

@@ -8,6 +8,7 @@ import { Popover, Transition } from "@headlessui/react";
 
 import Chart from "@/components/Chart";
 import DatePickerField from "@/components/DatePickerField";
+import { fetchAccountSession } from "@/lib/accountSession";
 import { escapeAttr, escapeHtml } from "@/utils/html";
 
 type Series = { labels: string[]; data: number[] };
@@ -34,6 +35,20 @@ type InvoiceRow = {
 type DriverRevenueRow = {
   id?: number | null;
   commissionAmount?: number | null;
+};
+
+type TourRow = {
+  id: number;
+  bookingCode?: string | null;
+  operatorName?: string | null;
+  tourTitle?: string | null;
+  destination?: string | null;
+  numberOfPeople?: number | null;
+  grossAmount?: number | null;
+  commissionAmount?: number | null;
+  currency?: string | null;
+  status?: string | null;
+  createdAt?: string | null;
 };
 
 type MeResponse = {
@@ -164,6 +179,15 @@ function fmtMoneyTZS(n: number) {
   }
 }
 
+// Tours are USD-denominated; show 2 decimals to match foreign-currency money.
+function fmtMoneyUSD(n: number) {
+  try {
+    return new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+  } catch {
+    return n.toFixed(2);
+  }
+}
+
 function calcCommissionPct(total: unknown, netPayable: unknown): number | null {
   const t = Number(total);
   const net = Number(netPayable);
@@ -217,6 +241,9 @@ export default function AdminReportsPage() {
 
   const [ownerCommissionTotal, setOwnerCommissionTotal] = useState<number | null>(null);
   const [driverCommissionTotal, setDriverCommissionTotal] = useState<number | null>(null);
+  const [tourCommissionTotal, setTourCommissionTotal] = useState<number | null>(null);
+  const [tourCommissionCurrency, setTourCommissionCurrency] = useState<string>("USD");
+  const [tourRows, setTourRows] = useState<TourRow[]>([]);
   const [subscriptionRevenueTotal, setSubscriptionRevenueTotal] = useState<number | null>(null);
   const [totalsLoading, setTotalsLoading] = useState(false);
 
@@ -228,10 +255,9 @@ export default function AdminReportsPage() {
   useEffect(() => {
     (async () => {
       try {
-        const r = await fetch("/api/account/me", { credentials: "include" });
+        const r = await fetchAccountSession();
         if (!r.ok) return;
-        const data = (await safeJson(r)) as MeResponse;
-        setMe(data || null);
+        setMe((r.data || null) as MeResponse | null);
       } catch {
         // ignore
       }
@@ -331,13 +357,54 @@ export default function AdminReportsPage() {
           return totalComm;
         };
 
-        const [ownerComm, driverComm] = await Promise.all([
+        // Tour commission: the overview endpoint returns ALL tour revenue
+        // records (no server-side date filter / pagination), so we fetch once
+        // and filter client-side by createdAt within [from, to]. We recognise
+        // commission for customer-paid tours only (the API derives DRAFT when
+        // the customer has not paid yet), consistent with the backend overview.
+        const fetchTourCommission = async (): Promise<{ total: number; rows: TourRow[]; currency: string }> => {
+          const rr = await fetch(`/api/admin/tour-revenue/overview`, { credentials: "include", signal });
+          const data = (await safeJson(rr)) as any;
+          const rows: any[] = Array.isArray(data?.revenues) ? data.revenues : [];
+          const rangeStart = new Date(`${from}T00:00:00.000Z`).getTime();
+          const rangeEndExclusive = new Date(`${to}T00:00:00.000Z`).getTime() + 864e5;
+          let totalComm = 0;
+          let currency = String(data?.agentCommissionCurrency || "").trim() || "USD";
+          const inRange: TourRow[] = [];
+          for (const row of rows) {
+            if (String(row?.status || "").toUpperCase() === "DRAFT") continue;
+            const ts = row?.createdAt ? new Date(row.createdAt).getTime() : NaN;
+            if (!Number.isFinite(ts) || ts < rangeStart || ts >= rangeEndExclusive) continue;
+            totalComm += Number(row?.commissionAmount) || 0;
+            if (row?.currency) currency = String(row.currency);
+            inRange.push({
+              id: Number(row?.id),
+              bookingCode: row?.bookingCode ?? null,
+              operatorName: row?.operatorName ?? null,
+              tourTitle: row?.tourTitle ?? null,
+              destination: row?.destination ?? null,
+              numberOfPeople: row?.numberOfPeople ?? null,
+              grossAmount: row?.grossAmount ?? null,
+              commissionAmount: row?.commissionAmount ?? null,
+              currency: row?.currency ?? null,
+              status: row?.status ?? null,
+              createdAt: row?.createdAt ?? null,
+            });
+          }
+          return { total: totalComm, rows: inRange, currency };
+        };
+
+        const [ownerComm, driverComm, tourResult] = await Promise.all([
           fetchOwnerCommission().catch(() => null),
           fetchDriverCommission().catch(() => null),
+          fetchTourCommission().catch(() => null),
         ]);
 
         setOwnerCommissionTotal(ownerComm);
         setDriverCommissionTotal(driverComm);
+        setTourCommissionTotal(tourResult ? tourResult.total : null);
+        setTourRows(tourResult ? tourResult.rows : []);
+        if (tourResult?.currency) setTourCommissionCurrency(tourResult.currency);
         setSubscriptionRevenueTotal(null);
       } catch (err: any) {
         if (String(err?.name) === "AbortError") return;
@@ -349,6 +416,8 @@ export default function AdminReportsPage() {
         setInvoiceItems([]);
         setOwnerCommissionTotal(null);
         setDriverCommissionTotal(null);
+        setTourCommissionTotal(null);
+        setTourRows([]);
         setSubscriptionRevenueTotal(null);
       } finally {
         setLoading(false);
@@ -370,11 +439,14 @@ export default function AdminReportsPage() {
 
   const invoicesTotal = useMemo(() => sum(Object.values(invoiceStatusCounts || {})), [invoiceStatusCounts]);
 
+  // TZS subtotal: owner plus driver commission (plus subscriptions when enforced).
+  // Tour commission is USD and is reported separately, never summed in here.
   const totalNolsafRevenue = useMemo(() => {
     const owner = ownerCommissionTotal ?? 0;
     const driver = driverCommissionTotal ?? 0;
     const subs = subscriptionRevenueTotal ?? 0;
-    if (ownerCommissionTotal === null && driverCommissionTotal === null && subscriptionRevenueTotal === null) return null;
+    if (ownerCommissionTotal === null && driverCommissionTotal === null && subscriptionRevenueTotal === null)
+      return null;
     return owner + driver + subs;
   }, [driverCommissionTotal, ownerCommissionTotal, subscriptionRevenueTotal]);
 
@@ -500,33 +572,89 @@ export default function AdminReportsPage() {
     return { items: withColors, total };
   }, [revenueByType]);
 
+  // Classify the gross TZS payment by source. The property invoice portion is
+  // exactly the "gross booking value by property type" total (same paid-invoice
+  // filter), so transport is the remainder of the TZS revenue series. Tour is
+  // USD and is reported on its own, never folded into the TZS figure.
+  const grossPaymentBreakdown = useMemo(() => {
+    const propertyTzs = Math.round(Number(revenueByTypeBreakdown.total) || 0);
+    const tzsTotal = Math.round(Number(totalRevenue) || 0);
+    const transportTzs = Math.max(0, tzsTotal - propertyTzs);
+    const tourUsd = (tourRows || []).reduce((acc, t) => acc + (Number(t.grossAmount) || 0), 0);
+    return { propertyTzs, transportTzs, tzsTotal, tourUsd };
+  }, [revenueByTypeBreakdown.total, totalRevenue, tourRows]);
+
   async function printReport(mode: "full" | "revenueOnly" = "full") {
     const now = new Date();
     const reportId = now.toISOString();
     const pad2 = (n: number) => String(n).padStart(2, "0");
     const reportFilename = `NOLSAF-RPT-${now.getFullYear()}${pad2(now.getMonth() + 1)}${pad2(now.getDate())}-${pad2(now.getHours())}${pad2(now.getMinutes())}${pad2(now.getSeconds())}_${from}_${to}`;
 
+    // Seal the report server side, then encode the public verification URL as a
+    // QR. Anyone can scan it to confirm the report is genuine without logging in.
+    let reportRef = `RPT-${from.replace(/-/g, "")}-${to.replace(/-/g, "")}-${reportId.slice(11, 19).replace(/:/g, "")}`;
     let qrDataUrl: string | null = null;
     try {
-      const QR: any = await import("qrcode");
-      const toDataURL: any = QR?.toDataURL ?? QR?.default?.toDataURL;
-      if (typeof toDataURL !== "function") throw new Error("qrcode.toDataURL not available");
-
-      const verifyUrl = new URL("/admin/management/reports/revenue", window.location.origin);
-      verifyUrl.searchParams.set("from", from);
-      verifyUrl.searchParams.set("to", to);
-      verifyUrl.searchParams.set("reportId", reportId);
-
-      qrDataUrl = await toDataURL(verifyUrl.toString(), {
-        margin: 1,
-        width: 180,
-        errorCorrectionLevel: "M",
+      const sealRes = await fetch("/api/reports/seal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          kind: "REVENUE",
+          title: "NoLSAF Revenue Report",
+          ref: reportRef,
+          from,
+          to,
+          figures: [
+            { label: "Gross payment (TZS)", value: `TZS ${fmtMoneyTZS(Math.round(totalRevenue))}` },
+            { label: "Property invoices (TZS)", value: `TZS ${fmtMoneyTZS(grossPaymentBreakdown.propertyTzs)}` },
+            { label: "Transport (TZS)", value: `TZS ${fmtMoneyTZS(grossPaymentBreakdown.transportTzs)}` },
+            { label: "Owner commission (TZS)", value: ownerCommissionTotal === null ? "n/a" : `TZS ${fmtMoneyTZS(Math.round(ownerCommissionTotal))}` },
+            { label: "Driver commission (TZS)", value: driverCommissionTotal === null ? "n/a" : `TZS ${fmtMoneyTZS(Math.round(driverCommissionTotal))}` },
+            { label: `Tour commission (${tourCommissionCurrency})`, value: tourCommissionTotal === null ? "n/a" : `${tourCommissionCurrency} ${fmtMoneyUSD(tourCommissionTotal)}` },
+            { label: "Total NoLSAF (TZS)", value: totalNolsafRevenue === null ? "n/a" : `TZS ${fmtMoneyTZS(Math.round(totalNolsafRevenue))}` },
+            { label: "Active properties", value: String(totalActive) },
+            { label: "Invoices (all statuses)", value: String(invoicesTotal) },
+          ],
+        }),
       });
+      const sealJson: any = await safeJson(sealRes);
+      if (sealJson?.token) {
+        reportRef = String(sealJson.ref || reportRef);
+        const verifyUrl = new URL("/verify", window.location.origin);
+        verifyUrl.searchParams.set("t", String(sealJson.token));
+        const QR: any = await import("qrcode");
+        const toDataURL: any = QR?.toDataURL ?? QR?.default?.toDataURL;
+        if (typeof toDataURL === "function") {
+          qrDataUrl = await toDataURL(verifyUrl.toString(), { margin: 1, width: 320, errorCorrectionLevel: "M" });
+        }
+      }
     } catch {
       qrDataUrl = null;
     }
 
     const logoUrl = new URL("/assets/NoLS2025-04.png", window.location.origin).toString();
+
+    // CODE128 barcode of the report reference for the header band.
+    let reportIdBarcode: string | null = null;
+    try {
+      const mod: any = await import("jsbarcode");
+      const JsBarcode: any = mod?.default ?? mod;
+      const svgNode = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      JsBarcode(svgNode, reportRef, {
+        format: "CODE128",
+        displayValue: false,
+        margin: 0,
+        width: 1.1,
+        height: 30,
+        background: "#ffffff",
+        lineColor: "#0b1220",
+      });
+      const serialized = new XMLSerializer().serializeToString(svgNode);
+      reportIdBarcode = `data:image/svg+xml;base64,${window.btoa(unescape(encodeURIComponent(serialized)))}`;
+    } catch {
+      reportIdBarcode = null;
+    }
 
     const revImg = revCanvas ? revCanvas.toDataURL("image/png") : null;
     const statusImg = statusCanvas ? statusCanvas.toDataURL("image/png") : null;
@@ -557,6 +685,7 @@ export default function AdminReportsPage() {
 
     const ownerCommText = ownerCommissionTotal === null ? "—" : `TZS ${fmtMoneyTZS(Math.round(ownerCommissionTotal))}`;
     const driverCommText = driverCommissionTotal === null ? "—" : `TZS ${fmtMoneyTZS(Math.round(driverCommissionTotal))}`;
+    const tourCommText = tourCommissionTotal === null ? "—" : `${tourCommissionCurrency} ${fmtMoneyUSD(tourCommissionTotal)}`;
     const subsText = subscriptionRevenueTotal === null ? "Planned" : `TZS ${fmtMoneyTZS(Math.round(subscriptionRevenueTotal))}`;
     const totalText = totalNolsafRevenue === null ? "—" : `TZS ${fmtMoneyTZS(Math.round(totalNolsafRevenue))}`;
 
@@ -568,11 +697,11 @@ export default function AdminReportsPage() {
         <tbody>
           <tr><td>Owner commission (bookings)</td><td style="text-align:right; font-weight:900; color: var(--brand)">${escapeHtml(ownerCommText)}</td></tr>
           <tr><td>Driver commission (trips)</td><td style="text-align:right; font-weight:900; color: var(--brand)">${escapeHtml(driverCommText)}</td></tr>
-          <tr><td>Subscriptions (annual)</td><td style="text-align:right; font-weight:700; color: var(--muted)">${escapeHtml(subsText)}</td></tr>
-          <tr><td style="font-weight:900;">Total</td><td style="text-align:right; font-weight:900;">${escapeHtml(totalText)}</td></tr>
+          <tr><td style="font-weight:900;">Total (TZS)</td><td style="text-align:right; font-weight:900;">${escapeHtml(totalText)}</td></tr>
+          <tr><td>Tour commission (tour bookings)</td><td style="text-align:right; font-weight:900; color: #b45309">${escapeHtml(tourCommText)}</td></tr>
         </tbody>
       </table>
-      <div style="margin-top:6px; font-size:10px; color: var(--muted)">Subscriptions are planned; totals update once subscription billing is enforced.</div>
+      <div style="margin-top:6px; font-size:10px; color: var(--muted)">TZS Total covers owner and driver commission (money of record). Tour commission settles in ${escapeHtml(tourCommissionCurrency)} and is shown separately; the two currencies are never summed. Subscriptions (annual): ${escapeHtml(subsText)} (planned).</div>
     </div>`;
 
     const detailRows = (invoiceItems || [])
@@ -591,6 +720,36 @@ export default function AdminReportsPage() {
         return `\n<tr>\n  <td>${escapeHtml(String(invNo))}</td>\n  <td>${escapeHtml(String(status))}</td>\n  <td>${escapeHtml(String(issued))}</td>\n  <td>${escapeHtml(String(propTitle))}</td>\n  <td style=\"text-align:right;\">${escapeHtml(String(total))}</td>\n  <td style=\"text-align:right;\">${escapeHtml(String(net))}</td>\n  <td style=\"text-align:right; color: var(--brand); font-weight:400;\">${escapeHtml(String(commAmt))}</td>\n  <td style=\"text-align:right; font-weight:400;\">${escapeHtml(String(commPct))}</td>\n</tr>`;
       })
       .join("\n");
+
+    // Tour activities (details): the description of tour activities undertaken.
+    const tourDetailRows = (tourRows || [])
+      .slice(0, 60)
+      .map((t) => {
+        const code = t?.bookingCode || `#${t?.id}`;
+        const operator = t?.operatorName || "—";
+        const activity = [t?.tourTitle || "—", t?.destination ? `· ${t.destination}` : ""].join(" ").trim();
+        const travelers = t?.numberOfPeople === null || t?.numberOfPeople === undefined ? "—" : String(t.numberOfPeople);
+        const cur = t?.currency || tourCommissionCurrency;
+        const gross = t?.grossAmount === null || t?.grossAmount === undefined ? "—" : `${cur} ${fmtMoneyUSD(Number(t.grossAmount) || 0)}`;
+        const comm = t?.commissionAmount === null || t?.commissionAmount === undefined ? "—" : `${cur} ${fmtMoneyUSD(Number(t.commissionAmount) || 0)}`;
+        const status = t?.status || "—";
+        const created = t?.createdAt ? fmtDateTime(t.createdAt) : "—";
+        return `\n<tr>\n  <td>${escapeHtml(String(code))}</td>\n  <td>${escapeHtml(String(operator))}</td>\n  <td>${escapeHtml(String(activity))}</td>\n  <td style=\"text-align:right;\">${escapeHtml(String(travelers))}</td>\n  <td style=\"text-align:right;\">${escapeHtml(String(gross))}</td>\n  <td style=\"text-align:right; color: #b45309; font-weight:400;\">${escapeHtml(String(comm))}</td>\n  <td>${escapeHtml(String(status))}</td>\n  <td>${escapeHtml(String(created))}</td>\n</tr>`;
+      })
+      .join("\n");
+
+    const tourDetailSection = `
+    <div class="section">
+      <h2>Tour activities (details)</h2>
+      <table>
+        <thead><tr>
+          <th>Booking</th><th>Operator</th><th>Activity</th>
+          <th style="text-align:right;">Travelers</th><th style="text-align:right;">Gross</th>
+          <th style="text-align:right;">Commission</th><th>Status</th><th>Created</th>
+        </tr></thead>
+        <tbody>${tourRows && tourRows.length ? tourDetailRows : `<tr><td colspan="8" style="color:var(--muted);">No tour activities in this range.</td></tr>`}</tbody>
+      </table>
+    </div>`;
 
     const html = `<!doctype html>
 <html>
@@ -653,15 +812,26 @@ export default function AdminReportsPage() {
     .details td:nth-child(4) { max-width: 240px; }
     .details td:nth-child(1), .details td:nth-child(4) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-    .footer { margin-top: 14px; display:flex; justify-content:space-between; gap: 12px; align-items:flex-end; }
-    .sealWrap { display:flex; gap: 12px; align-items:flex-end; }
-    .seal { width: 170px; height: 90px; border: 1px dashed rgba(17,24,39,0.45); border-radius: 12px; display:flex; align-items:center; justify-content:center; color: var(--muted); font-size: 11px; }
-    .sig { width: 220px; border-top: 1px solid #111827; padding-top: 6px; font-size: 11px; color: var(--muted); text-align:center; }
+    .idbar { height: 26px; width: auto; max-width: 190px; margin-top: 5px; display:inline-block; }
+    .idbarRef { margin-top: 2px; font-size: 8px; font-weight: 700; letter-spacing: 0.04em; color: var(--muted); }
 
-    .qr { display:flex; gap: 10px; align-items:center; }
-    .qr img { width: 92px; height: 92px; border-radius: 10px; border: 1px solid var(--line); background: #fff; }
-    .qrTitle { font-weight: 900; color: var(--ink); font-size: 11px; }
-    .qrNote { margin-top: 2px; color: var(--muted); font-size: 10px; max-width: 260px; line-height: 1.25; }
+    .footer { margin-top: 18px; padding-top: 12px; border-top: 2px solid var(--line); break-inside: avoid; page-break-inside: avoid; }
+    .auditLine { font-size: 11px; color: var(--muted); margin-bottom: 12px; }
+    .auditLine strong { color: var(--ink); }
+
+    .footRow { display:flex; gap: 22px; align-items:stretch; }
+
+    .refBox { flex-shrink: 0; display:flex; flex-direction:column; align-items:center; gap: 6px; border:1px solid var(--line); border-radius: 12px; padding: 10px 12px; background:#fff; align-self:flex-start; }
+    .refBox img { width: 126px; height: 126px; display:block; }
+    .refLabel { font-size: 9px; font-weight: 900; letter-spacing: 0.02em; color: var(--ink); }
+
+    .compliance { flex: 1; min-width: 0; font-size: 9.5px; color: var(--muted); line-height: 1.55; }
+    .compliance .cTitle { font-weight: 900; color: var(--ink); letter-spacing: 0.14em; text-transform: uppercase; font-size: 8.5px; margin-bottom: 4px; }
+
+    .sealWrap { width: 210px; flex-shrink: 0; border-left: 1px solid var(--line); padding-left: 22px; display:flex; flex-direction:column; }
+    .sigGap { flex: 1; min-height: 48px; }
+    .sig { border-top: 1px solid #111827; padding-top: 6px; font-size: 11px; font-weight: 700; color: var(--ink); text-align:center; }
+    .sigMeta { margin-top: 4px; font-size: 9px; color: var(--muted); text-align:center; line-height: 1.4; }
 
     @media print {
       @page { size: A4; margin: 12mm; }
@@ -687,6 +857,7 @@ export default function AdminReportsPage() {
       <div style="text-align:right">
         <div style="font-size:11px;color:var(--muted)">Report ID</div>
         <div style="font-weight:900;font-size:11px">${escapeHtml(reportId)}</div>
+        ${reportIdBarcode ? `<img class="idbar" src="${escapeAttr(reportIdBarcode)}" alt="Report reference barcode" /><div class="idbarRef">${escapeHtml(reportRef)}</div>` : ""}
       </div>
     </div>
 
@@ -719,7 +890,7 @@ export default function AdminReportsPage() {
     </div>
 
     <div class="kpis">
-      <div class="kpi"><div class="t">Revenue (TZS)</div><div class="n">${escapeHtml(fmtMoneyTZS(totalRevenue))}</div></div>
+      <div class="kpi"><div class="t">Gross payment (TZS)</div><div class="n">${escapeHtml(fmtMoneyTZS(totalRevenue))}</div><div style="margin-top:4px; font-size:9px; color: var(--muted); line-height:1.5;">Property invoices: TZS ${escapeHtml(fmtMoneyTZS(grossPaymentBreakdown.propertyTzs))} · Transport: TZS ${escapeHtml(fmtMoneyTZS(grossPaymentBreakdown.transportTzs))} · Tour (separate): ${escapeHtml(tourCommissionCurrency)} ${escapeHtml(fmtMoneyUSD(grossPaymentBreakdown.tourUsd))}. Turnover, not NoLSAF revenue.</div></div>
       <div class="kpi"><div class="t">Active properties (latest)</div><div class="n">${escapeHtml(String(totalActive))}</div></div>
       <div class="kpi"><div class="t">Invoices (all statuses)</div><div class="n">${escapeHtml(String(invoicesTotal))}</div></div>
     </div>
@@ -738,10 +909,10 @@ export default function AdminReportsPage() {
           ${statusImg ? `<img src="${escapeAttr(statusImg)}" alt="Invoice status chart" />` : `<div style="color:var(--muted);font-size:11px;">(chart not available)</div>`}
         </div>
         <div class="chart">
-          <div class="chartTitle">Revenue by property type</div>
+          <div class="chartTitle">Gross booking value by property type</div>
           <div class="typeLine">${typeSegs || ""}</div>
           <div class="typeLegend">
-            ${typeLegend || `<div style="color:var(--muted);font-size:11px;">No revenue-by-type data in this range.</div>`}
+            ${typeLegend || `<div style="color:var(--muted);font-size:11px;">No booking value data in this range.</div>`}
           </div>
         </div>
       </div>
@@ -781,26 +952,26 @@ export default function AdminReportsPage() {
         </tbody>
       </table>
       <div style="margin-top:6px; font-size:10px; color: var(--muted)">Showing up to 60 rows (condensed for printing).</div>
-    </div>`
+    </div>
+    ${tourDetailSection}`
     }
 
     <div class="footer">
-      <div style="font-size:11px;color:var(--muted)">
-        <div><strong style="color:var(--ink)">Audit</strong> • NoLSAF Inc</div>
-        <div>Prepared for internal finance operations and compliance.</div>
+      <div class="auditLine"><strong>Audit</strong> • NoLSAF Inc. Prepared for internal finance operations and compliance.</div>
+      <div class="footRow">
         ${qrDataUrl ? `
-        <div class="qr" style="margin-top:10px;">
-          <img src="${escapeAttr(qrDataUrl)}" alt="Verify report QR" />
-          <div>
-            <div class="qrTitle">Verify this report</div>
-            <div class="qrNote">Scan to open the official admin report link (login required).</div>
-          </div>
+        <div class="refBox">
+          <img src="${escapeAttr(qrDataUrl)}" alt="Scan to verify this report" />
+          <div class="refLabel">Ref: ${escapeHtml(reportRef)}</div>
         </div>` : ""}
-      </div>
-      <div class="sealWrap">
-        <div class="seal">Company Seal</div>
-        <div>
-          <div class="sig">Signature</div>
+        <div class="compliance">
+          <div class="cTitle">Authenticity and compliance</div>
+          Scan the QR to verify this report on the public NoLSAF page (no login). It shows the sealed figures, so any tampering is detectable. Confidential. For authorized finance, audit, and compliance use.
+        </div>
+        <div class="sealWrap">
+          <div class="sigGap"></div>
+          <div class="sig">Authorized signature</div>
+          <div class="sigMeta">Name and date</div>
         </div>
       </div>
     </div>
@@ -811,7 +982,7 @@ export default function AdminReportsPage() {
 
     const w = window.open("", "_blank");
     if (!w) {
-      alert("Unable to open print window — please allow popups");
+      alert("Unable to open print window. Please allow popups");
       return;
     }
     w.document.open();
@@ -952,8 +1123,23 @@ export default function AdminReportsPage() {
 
         <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3 px-6 sm:px-8">
           <div className="rounded-[20px] border border-white/[0.08] bg-white/[0.05] px-5 py-4">
-            <div className="text-[10px] font-bold uppercase tracking-[0.24em] text-slate-500">Revenue (TZS)</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.24em] text-slate-500">Gross payment (TZS)</div>
             <div className="mt-2 text-2xl font-black text-white">{fmtMoneyTZS(totalRevenue)}</div>
+            <div className="mt-2 space-y-0.5 text-[11px] text-slate-400">
+              <div className="flex items-center justify-between gap-2">
+                <span>Property invoices</span>
+                <span className="font-semibold text-slate-300">TZS {fmtMoneyTZS(grossPaymentBreakdown.propertyTzs)}</span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span>Transport</span>
+                <span className="font-semibold text-slate-300">TZS {fmtMoneyTZS(grossPaymentBreakdown.transportTzs)}</span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span>Tour (separate)</span>
+                <span className="font-semibold text-amber-300/90">{tourCommissionCurrency} {fmtMoneyUSD(grossPaymentBreakdown.tourUsd)}</span>
+              </div>
+            </div>
+            <div className="mt-1.5 text-[10px] text-slate-500">Customer payment received (turnover), not NoLSAF revenue.</div>
           </div>
           <div className="rounded-[20px] border border-white/[0.08] bg-white/[0.05] px-5 py-4">
             <div className="text-[10px] font-bold uppercase tracking-[0.24em] text-slate-500">Active properties (latest)</div>
@@ -969,7 +1155,7 @@ export default function AdminReportsPage() {
           <div className="flex items-center justify-between gap-3">
             <div>
               <div className="text-sm font-bold text-emerald-200">NoLSAF revenue sources</div>
-              <div className="text-xs text-slate-400">Owner commission, driver commission, and subscriptions (planned).</div>
+              <div className="text-xs text-slate-400">Owner commission, driver commission, and tour commission. Subscriptions planned.</div>
             </div>
             {totalsLoading ? <div className="text-xs text-slate-500">Calculating…</div> : null}
           </div>
@@ -987,16 +1173,24 @@ export default function AdminReportsPage() {
                 {driverCommissionTotal === null ? "—" : `TZS ${fmtMoneyTZS(Math.round(driverCommissionTotal))}`}
               </div>
             </div>
-            <div className="rounded-[16px] border border-white/[0.06] bg-white/[0.04] p-4">
-              <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Subscriptions</div>
-              <div className="mt-2 text-base font-black text-slate-400">Planned</div>
+            <div className="rounded-[16px] border border-[#02665e]/20 bg-[#02665e]/10 p-4">
+              <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Tour commission ({tourCommissionCurrency})</div>
+              <div className="mt-2 text-base font-black text-amber-300">
+                {tourCommissionTotal === null ? "—" : `${tourCommissionCurrency} ${fmtMoneyUSD(tourCommissionTotal)}`}
+              </div>
             </div>
             <div className="rounded-[16px] border border-white/[0.08] bg-white/[0.06] p-4">
               <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Total NoLSAF revenue</div>
               <div className="mt-2 text-base font-black text-white">
                 {totalNolsafRevenue === null ? "—" : `TZS ${fmtMoneyTZS(Math.round(totalNolsafRevenue))}`}
               </div>
+              <div className="mt-1 text-[11px] font-bold text-amber-300/90">
+                {tourCommissionTotal ? `+ ${tourCommissionCurrency} ${fmtMoneyUSD(tourCommissionTotal)} tour` : null}
+              </div>
             </div>
+          </div>
+          <div className="mt-3 text-[11px] text-slate-500">
+            Owner and driver commission settle in <span className="font-semibold text-slate-400">TZS</span> (money of record); tour commission settles in <span className="font-semibold text-amber-300/90">{tourCommissionCurrency}</span>. The two are reported side by side and never summed. Subscriptions (annual) are <span className="font-semibold text-slate-400">Planned</span>; totals update once subscription billing is enforced.
           </div>
         </div>
 
@@ -1056,14 +1250,14 @@ export default function AdminReportsPage() {
             </div>
 
             <div className="rounded-[16px] border border-white/[0.07] bg-white/[0.04] p-4">
-              <div className="text-sm font-bold text-slate-200">Revenue by property type</div>
-              <div className="mt-1 text-xs text-slate-500">Breakdown with color classification.</div>
+              <div className="text-sm font-bold text-slate-200">Gross booking value by property type</div>
+              <div className="mt-1 text-xs text-slate-500">Total paid invoice value (turnover), not NoLSAF commission.</div>
 
               {revenueByTypeBreakdown.items.length ? (
                 <>
                   <div
                     className="mt-3 h-3 rounded-full overflow-hidden border border-white/10 bg-white/[0.06] flex"
-                    aria-label="Revenue by property type breakdown"
+                    aria-label="Gross booking value by property type breakdown"
                   >
                     {revenueByTypeBreakdown.items.map((it) => (
                       <div
@@ -1086,7 +1280,7 @@ export default function AdminReportsPage() {
                   </div>
                 </>
               ) : (
-                <div className="mt-3 text-sm text-slate-500">No revenue-by-type data for this range.</div>
+                <div className="mt-3 text-sm text-slate-500">No booking value data for this range.</div>
               )}
             </div>
           </div>
@@ -1178,6 +1372,63 @@ export default function AdminReportsPage() {
                     <tr>
                       <td colSpan={8} className="py-4 text-sm text-slate-500">
                         No invoice rows for this range.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        <div className="mx-6 mt-4 mb-6 sm:mx-8 rounded-[20px] border border-white/[0.08] bg-white/[0.03] p-5">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-sm font-bold text-white">Tour activities (details)</div>
+              <div className="text-xs text-slate-500">Customer-paid tours in range · prints up to 60</div>
+            </div>
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 border-b border-white/[0.08]">
+                    <th className="text-left py-2.5 pr-2">Booking</th>
+                    <th className="text-left py-2.5 px-2">Operator</th>
+                    <th className="text-left py-2.5 px-2">Activity (tour · destination)</th>
+                    <th className="text-right py-2.5 px-2">Travelers</th>
+                    <th className="text-right py-2.5 px-2">Gross</th>
+                    <th className="text-right font-bold py-2.5 px-2 text-amber-400">Commission</th>
+                    <th className="text-left py-2.5 px-2">Status</th>
+                    <th className="text-left py-2.5 pl-2">Created</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tourRows.length ? (
+                    tourRows.slice(0, 60).map((t) => {
+                      const cur = t.currency || tourCommissionCurrency;
+                      return (
+                        <tr key={`tour-${t.id}`} className="border-b border-white/[0.06] last:border-b-0">
+                          <td className="py-2.5 pr-2 font-bold text-white whitespace-nowrap">{t.bookingCode || `#${t.id}`}</td>
+                          <td className="py-2.5 px-2 text-slate-300 whitespace-nowrap">{t.operatorName || "—"}</td>
+                          <td className="py-2.5 px-2 text-slate-300 max-w-[360px] truncate">
+                            {t.tourTitle || "—"}
+                            {t.destination ? <span className="text-slate-500"> · {t.destination}</span> : null}
+                          </td>
+                          <td className="py-2.5 px-2 text-right text-slate-300 whitespace-nowrap">
+                            {t.numberOfPeople ?? "—"}
+                          </td>
+                          <td className="py-2.5 px-2 text-right text-slate-200 whitespace-nowrap">
+                            {t.grossAmount === null || t.grossAmount === undefined ? "—" : `${cur} ${fmtMoneyUSD(Number(t.grossAmount) || 0)}`}
+                          </td>
+                          <td className="py-2.5 px-2 text-right font-semibold text-amber-300 whitespace-nowrap">
+                            {t.commissionAmount === null || t.commissionAmount === undefined ? "—" : `${cur} ${fmtMoneyUSD(Number(t.commissionAmount) || 0)}`}
+                          </td>
+                          <td className="py-2.5 px-2 text-slate-300 whitespace-nowrap">{t.status || "—"}</td>
+                          <td className="py-2.5 pl-2 text-slate-400 whitespace-nowrap">{t.createdAt ? fmtDateTime(t.createdAt) : "—"}</td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={8} className="py-4 text-sm text-slate-500">
+                        No tour activities for this range.
                       </td>
                     </tr>
                   )}

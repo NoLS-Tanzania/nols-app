@@ -9,7 +9,7 @@ import { ArrowLeft, FileText, DollarSign, Building2, Calendar, CheckCircle2, Clo
 const api = apiClient;
 
 type Inv = {
-  id:number; invoiceNumber:string|null; receiptNumber:string|null; status:string;
+  id:number; invoiceNumber:string|null; receiptNumber:string|null; status:string; bookingCode?: string | null;
   issuedAt:string; total:number; commissionPercent:number; commissionAmount:number; taxPercent:number; netPayable:number;
   booking: { id:number; property: { id:number; title:string } };
   ownerValidation?: {
@@ -23,7 +23,7 @@ type Inv = {
       usedAt: string | null;
     } | null;
   } | null;
-  relatedInvoices?: Array<{ id: number; invoiceNumber: string | null; status: string }>;
+  relatedInvoices?: Array<{ id: number; invoiceNumber: string | null; status: string; receiptNumber?: string | null; paymentRef?: string | null; paidAt?: string | null }>;
   effectiveCommissionPercent?: number;
   financialPreview?: {
     grossTotal: number;
@@ -61,20 +61,6 @@ function paidStatusLabel(inv?: Pick<Inv, "invoiceNumber"> | null) {
 
 function completionLabel(inv?: Pick<Inv, "invoiceNumber"> | null) {
   return isOwnerClaimInvoice(inv) ? "Disbursement" : "Payment";
-}
-
-function invoiceRecordLabel(inv?: Pick<Inv, "invoiceNumber"> | null) {
-  if (isOwnerClaimInvoice(inv)) return "Owner Disbursement Record";
-  const n = String(inv?.invoiceNumber ?? "").toUpperCase();
-  if (n.startsWith("INV-")) return "Customer Payment Record";
-  return "Invoice Record";
-}
-
-function prettyInvoiceStatus(statusRaw?: string | null, inv?: Pick<Inv, "invoiceNumber"> | null) {
-  const status = String(statusRaw ?? "").toUpperCase();
-  if (status === "PAID") return paidStatusLabel(inv);
-  if (!status) return "Unknown";
-  return status.charAt(0) + status.slice(1).toLowerCase();
 }
 
 export default function Page(){
@@ -266,12 +252,17 @@ export default function Page(){
   }) ?? (inv.relatedInvoices || [])[0] ?? null;
   const ownerValidated = !!inv.ownerValidation?.validated;
   const ownerValidatedAt = inv.ownerValidation?.validatedAt ?? null;
-  const relatedInvoiceLabel = related
-    ? (isOwnerClaim ? "Linked Customer Payment" : "Linked Owner Disbursement")
-    : null;
-  const workflowHint = isOwnerClaim
-    ? "Customer pays first, then this owner disbursement record is processed."
-    : "This customer payment can later produce a linked owner disbursement record.";
+  const tourCode = String(
+    inv.bookingCode ||
+    (inv as any)?.booking?.code?.codeVisible ||
+    (inv as any)?.booking?.code?.code ||
+    (inv as any)?.booking?.code?.codeHash ||
+    ""
+  ).trim();
+  const normalizedStatus = String(inv.status || "").toUpperCase();
+  const isSuccessfulCompletion = normalizedStatus === "PAID" || normalizedStatus === "DISBURSED" || !!inv.paidAt;
+  const linkedReceiptDisplay = String(related?.receiptNumber || related?.paymentRef || "").trim();
+  const receiptDisplay = String(inv.receiptNumber || inv.paymentRef || linkedReceiptDisplay || "").trim();
 
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 xl:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6 min-w-0">
@@ -301,6 +292,18 @@ export default function Page(){
               <div className="mt-2 text-xs sm:text-sm text-gray-600">
                 Type: <span className="font-medium text-gray-800" title={invoiceTypeHint}>{invoiceTypeLabel}</span>
               </div>
+              {tourCode && (
+                <div className="mt-2 inline-flex min-w-0 flex-col rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                  <span className={`text-base sm:text-lg font-black tracking-wide break-words ${isSuccessfulCompletion ? "text-[#02665e]" : "text-gray-900"}`}>
+                    {tourCode}
+                  </span>
+                  {receiptDisplay ? (
+                    <span className="mt-0.5 text-sm font-semibold text-[#02665e] break-words">
+                      Receipt: {receiptDisplay}
+                    </span>
+                  ) : null}
+                </div>
+              )}
               {related && (
                 <div className="mt-2 text-xs sm:text-sm text-gray-600">
                   {isOwnerClaim ? "Customer payment invoice" : "Owner claim invoice"}:{" "}
@@ -346,12 +349,24 @@ export default function Page(){
                       {new Date(inv.issuedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                     </div>
                   </div>
-                  {inv.receiptNumber ? (
+                  {tourCode ? (
+                    <div className="min-w-0">
+                      <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Tour Code</div>
+                      <div className={`text-lg font-black tracking-wide break-words ${isSuccessfulCompletion ? "text-[#02665e]" : "text-gray-900"}`}>
+                        {tourCode}
+                      </div>
+                      {receiptDisplay ? (
+                        <div className="mt-1 text-sm font-semibold text-[#02665e] break-words">
+                          Receipt: {receiptDisplay}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : receiptDisplay ? (
                     <div className="min-w-0">
                       <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Receipt Number</div>
                       <div className="flex items-center gap-2 min-w-0">
                         <Receipt className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                        <span className="font-semibold text-sm text-gray-900 truncate">{inv.receiptNumber}</span>
+                        <span className="font-semibold text-sm text-gray-900 truncate">{receiptDisplay}</span>
                       </div>
                     </div>
                   ) : (

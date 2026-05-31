@@ -42,6 +42,7 @@ export default function PropertyCard({
   const onEnter = () => setBlinkActive(true);
   const onLeave = () => setBlinkActive(false);
   const canNavigate = Boolean(href && href !== "#");
+  const bypassOptimizer = Boolean(imageSrc && imageSrc.includes("cloudinary"));
 
   return (
     <div
@@ -95,6 +96,7 @@ export default function PropertyCard({
             fill
             sizes="(min-width: 1024px) 20vw, (min-width: 640px) 50vw, 100vw"
             className="absolute inset-0 object-cover will-change-transform transition-[transform,filter] duration-700 ease-out group-hover:scale-[1.04] group-hover:saturate-[1.06] group-hover:contrast-[1.03]"
+            unoptimized={bypassOptimizer}
           />
         ) : null}
         {imageSrc ? (

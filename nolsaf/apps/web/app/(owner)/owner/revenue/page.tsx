@@ -5,6 +5,7 @@ import apiClient from "@/lib/apiClient";
 import { DollarSign, Loader2, TrendingUp, FileText, CheckCircle, Check, Clock, XCircle, Search, X, RotateCcw, Calendar, Filter, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import DatePicker from "@/components/ui/DatePicker";
+import TablePagination from "@/components/TablePagination";
 
 // Use same-origin calls + secure httpOnly cookie session.
 const api = apiClient;
@@ -57,6 +58,8 @@ export default function OwnerRevenuePage() {
   const [hasMore, setHasMore] = useState(false);
   const [nextBeforeId, setNextBeforeId] = useState<number | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
   const didInitialLoad = useRef(false);
 
   // ── Draggable filter modal ──
@@ -230,6 +233,11 @@ export default function OwnerRevenuePage() {
 
     return arr;
   })();
+
+  const paged = filteredSorted.slice((page - 1) * pageSize, page * pageSize);
+
+  // Reset to the first page whenever filters, search, or sort change.
+  useEffect(() => { setPage(1); }, [statusFilter, dateFrom, dateTo, search, sortKey]);
 
   const activePanelFiltersCount =
     (statusFilter ? 1 : 0) +
@@ -705,6 +713,7 @@ export default function OwnerRevenuePage() {
             </div>
           </div>
         ) : (
+          <>
           <div className="w-full overflow-x-auto">
             <table className="min-w-[760px] w-full text-sm">
               <thead className="bg-slate-50 border-b border-slate-100">
@@ -718,7 +727,7 @@ export default function OwnerRevenuePage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
-                {filteredSorted.map((invoice) => {
+                {paged.map((invoice) => {
                   const propertyTitle = invoice.booking?.property?.title || "Property";
                   const payout = (() => {
                     const net = Number(invoice.netPayable);
@@ -760,35 +769,29 @@ export default function OwnerRevenuePage() {
                 })}
               </tbody>
             </table>
-
-            <div className="flex items-center justify-between gap-3 px-5 py-4 border-t border-slate-100 bg-white">
-              <div className="text-xs text-slate-400 font-medium">
-                {refreshing ? (
-                  <span className="inline-flex items-center gap-2">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> Updating…
-                  </span>
-                ) : (
-                  <span>Showing {invoices.length} of {stats.totalInvoices} invoices</span>
-                )}
-              </div>
-
-              {hasMore ? (
+          </div>
+          <TablePagination page={page} pageSize={pageSize} total={filteredSorted.length} onPageChange={setPage}>
+              {refreshing ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> Updating…
+                </span>
+              ) : hasMore ? (
                 <button
                   type="button"
                   onClick={loadMore}
                   disabled={loadingMore}
-                  className="inline-flex items-center gap-2 h-9 px-4 rounded-lg border border-slate-200 bg-white text-slate-800 text-xs font-bold hover:bg-slate-50 active:scale-[0.99] transition disabled:opacity-60 shadow-sm"
+                  className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-slate-200 bg-white text-slate-700 text-[11px] font-bold hover:bg-slate-50 active:scale-[0.99] transition disabled:opacity-60 shadow-sm"
                 >
                   {loadingMore ? (
-                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
                   ) : (
-                    <TrendingUp className="h-4 w-4" aria-hidden />
+                    <TrendingUp className="h-3.5 w-3.5" aria-hidden />
                   )}
                   Load more
                 </button>
               ) : null}
-            </div>
-          </div>
+            </TablePagination>
+          </>
         )}
       </div>
     </div>

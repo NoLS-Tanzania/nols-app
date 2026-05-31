@@ -3,7 +3,7 @@ import { Router, RequestHandler } from "express";
 import { prisma } from "@nolsaf/prisma";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { Prisma } from "@prisma/client";
-import rateLimit from "express-rate-limit";
+import { rateLimitWithRedis as rateLimit } from "../lib/redisRateLimitStore.js";
 import { hashTripCode, normalizeTripCode } from "../lib/tripCode.js";
 import { sendSms } from "../lib/sms.js";
 import { sendMail } from "../lib/mailer.js";
@@ -825,7 +825,26 @@ router.get("/trips", limitAdminTripsRead, async (req, res) => {
     const [items, total] = await Promise.all([
       (prisma as any).transportBooking.findMany({
         where,
-        include: {
+        select: {
+          id: true,
+          tripCode: true,
+          paymentRef: true,
+          fromAddress: true,
+          fromWard: true,
+          fromDistrict: true,
+          fromRegion: true,
+          toAddress: true,
+          toWard: true,
+          toDistrict: true,
+          toRegion: true,
+          scheduledDate: true,
+          amount: true,
+          vehicleType: true,
+          paymentStatus: true,
+          paymentMethod: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
           driver: {
             select: { id: true, name: true, email: true, phone: true },
           },
@@ -1382,6 +1401,20 @@ function roundMoney(amount: number) {
   return Math.round((Number(amount) || 0) * 100) / 100;
 }
 
+/** Read driverCommissionPercent from SystemSetting; falls back to the hardcoded default. */
+async function getDriverCommissionPercent(): Promise<number> {
+  try {
+    const setting = await prisma.systemSetting.findUnique({
+      where: { id: 1 },
+      select: { driverCommissionPercent: true } as any,
+    });
+    const pct = Number((setting as any)?.driverCommissionPercent ?? DEFAULT_TRANSPORT_DRIVER_COMMISSION_PERCENT);
+    return Number.isFinite(pct) ? Math.max(0, Math.min(100, pct)) : DEFAULT_TRANSPORT_DRIVER_COMMISSION_PERCENT;
+  } catch {
+    return DEFAULT_TRANSPORT_DRIVER_COMMISSION_PERCENT;
+  }
+}
+
 /**
  * POST /admin/drivers/trips/:id/payout/approve
  * Body: { acknowledgeCommission?: boolean }
@@ -1413,7 +1446,7 @@ router.post("/trips/:id(\\d+)/payout/approve", async (req, res) => {
     if (!Number.isFinite(grossAmount) || grossAmount <= 0) return res.status(409).json({ error: "Trip amount is not set" });
     const currency = booking.currency ?? 'TZS';
 
-    const commissionPercent = DEFAULT_TRANSPORT_DRIVER_COMMISSION_PERCENT;
+    const commissionPercent = await getDriverCommissionPercent();
     const commissionAmount = roundMoney((grossAmount * commissionPercent) / 100);
     const netPaid = roundMoney(grossAmount - commissionAmount);
 
@@ -1546,7 +1579,7 @@ router.post("/trips/:id(\\d+)/payout/pay", async (req, res) => {
     if (!Number.isFinite(grossAmount) || grossAmount <= 0) return res.status(409).json({ error: "Trip amount is not set" });
     const currency = booking.currency ?? 'TZS';
 
-    const commissionPercent = DEFAULT_TRANSPORT_DRIVER_COMMISSION_PERCENT;
+    const commissionPercent = await getDriverCommissionPercent();
     const commissionAmount = roundMoney((grossAmount * commissionPercent) / 100);
     const netPaid = roundMoney(grossAmount - commissionAmount);
 
@@ -1672,7 +1705,7 @@ router.post("/trips/:id(\\d+)/payout/pay", async (req, res) => {
  * - q=search
  * - page/pageSize
  */
-router.get("/trips/scheduled", async (req, res) => {
+router.get("/trips/scheduled", limitAdminTripsRead, async (req, res) => {
   try {
     const {
       stage,

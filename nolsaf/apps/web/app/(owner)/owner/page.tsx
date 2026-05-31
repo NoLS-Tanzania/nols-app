@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Building2, MessageCircle, CalendarCheck, Eye, TrendingUp, Wallet, ChevronRight } from "lucide-react";
 import apiClient from "@/lib/apiClient";
+import { fetchAccountSession } from "@/lib/accountSession";
 import { io } from "socket.io-client";
 import {
   Area,
@@ -109,10 +110,8 @@ export default function OwnerPage() {
 
     (async () => {
       try {
-        const meRes = await fetch("/api/account/me", { credentials: "include" });
-        const meJson: any = meRes.ok ? await meRes.json() : null;
-        const me = meJson?.data ?? meJson;
-        const ownerId = Number(me?.id || 0);
+        const me = await fetchAccountSession();
+        const ownerId = Number(me.data?.id || 0);
         if (ownerId) socket.emit("join-owner-room", { ownerId });
       } catch {}
     })();

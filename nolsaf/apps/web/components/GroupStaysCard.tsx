@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useEffect } from 'react';
 import DatePicker from '@/components/ui/DatePicker';
@@ -9,10 +9,10 @@ import { Calendar, ChevronDown, ChevronLeft, ChevronRight, Check, Truck, Bus, Co
 import Spinner from './Spinner';
 import ComingSoonGate from './ComingSoonGate';
 
-/** ── Service gate config ──────────────────────────────────────────────────
+/** -- Service gate config --------------------------------------------------
  *  Set GATE_ENABLED to false when NoLSAF team is ready to open Group Stays.
  *  Nothing else needs to change — the modal simply won't appear.
- * ─────────────────────────────────────────────────────────────────────── */
+ * ----------------------------------------------------------------------- */
 const GATE_ENABLED = true;
 const GATE_LAUNCH_DATE = new Date('2026-06-25T00:00:00');
 
@@ -718,7 +718,7 @@ export default function GroupStaysCard({ onCloseAction }: { onCloseAction?: () =
     <section className="mt-4" aria-labelledby="group-stays-heading">
       <div className="public-container">
 
-        {/* ── Coming-Soon Gate ── */}
+        {/* -- Coming-Soon Gate -- */}
         <ComingSoonGate
           enabled={GATE_ENABLED}
           open={showComingSoon}
@@ -1305,7 +1305,7 @@ export default function GroupStaysCard({ onCloseAction }: { onCloseAction?: () =
                               onClick={() => setPrivateRoomCount((c) => Math.max(1, c - 1))}
                               className="h-8 w-8 rounded-lg bg-white border border-slate-200 text-slate-600 text-base font-bold hover:border-[#02665e]/40 hover:text-[#02665e] transition-colors flex items-center justify-center focus:outline-none shadow-sm"
                               aria-label="Decrease private room count"
-                            >−</button>
+                            >-</button>
                             <span className="w-10 text-center text-base font-extrabold text-[#02665e]">{privateRoomCount || 1}</span>
                             <button
                               type="button"
@@ -1668,7 +1668,7 @@ export default function GroupStaysCard({ onCloseAction }: { onCloseAction?: () =
                         onChange={(e) => handleRosterFile(e.target.files ? e.target.files[0] : undefined)}
                         className="sr-only"
                       />
-                      <p className="mt-2 text-[10px] text-slate-400">In Excel: File → Save As → CSV (Comma delimited)</p>
+                      <p className="mt-2 text-[10px] text-slate-400">In Excel: File ? Save As ? CSV (Comma delimited)</p>
                       {rosterError ? <p className="mt-2 text-xs text-rose-600">{rosterError}</p> : null}
                     </div>
                   </div>

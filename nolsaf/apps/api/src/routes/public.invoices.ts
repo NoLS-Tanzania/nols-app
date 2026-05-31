@@ -2,9 +2,12 @@
 import { Router, Request, Response } from "express";
 import { prisma } from "@nolsaf/prisma";
 import { z } from "zod";
-import rateLimit from "express-rate-limit";
+import { rateLimitWithRedis as rateLimit } from "../lib/redisRateLimitStore.js";
 import jwt from "jsonwebtoken";
 import { makeQR } from "../lib/qr.js";
+import { signPublicInvoiceAccessToken, verifyPublicInvoiceAccessToken } from "../lib/publicInvoiceAccess.js";
+import { computeDraftBookingAvailability, unavailableDraftPaymentResponse } from "../lib/draftBookingAvailability.js";
+import { buildPropertySlug } from "../lib/publicPropertyDto.js";
 
 async function getEffectiveCommissionPercent(params: {
   propertyServices: unknown;
@@ -83,51 +86,6 @@ const publicInvoiceReadLimiter = rateLimit({
   legacyHeaders: false,
   message: { ok: false, error: "Too many requests" },
 });
-
-type PublicInvoiceAccessPayload = {
-  typ: "PUBLIC_INVOICE_ACCESS";
-  invoiceId: number;
-  bookingId: number;
-};
-
-function getPublicInvoiceAccessSecret(): string {
-  const secret =
-    process.env.PUBLIC_LINK_TOKEN_SECRET ||
-    process.env.JWT_SECRET ||
-    (process.env.NODE_ENV !== "production" ? process.env.DEV_JWT_SECRET || "dev_jwt_secret" : "");
-
-  if (!secret) {
-    throw new Error("public_invoice_access_secret_missing");
-  }
-
-  return secret;
-}
-
-function signPublicInvoiceAccessToken(invoiceId: number, bookingId: number): string {
-  const payload: PublicInvoiceAccessPayload = {
-    typ: "PUBLIC_INVOICE_ACCESS",
-    invoiceId,
-    bookingId,
-  };
-
-  return jwt.sign(payload, getPublicInvoiceAccessSecret(), {
-    expiresIn: "24h",
-    issuer: "nolsaf-public",
-    subject: String(invoiceId),
-  });
-}
-
-function verifyPublicInvoiceAccessToken(token: string, invoiceId: number): boolean {
-  try {
-    const decoded = jwt.verify(token, getPublicInvoiceAccessSecret(), {
-      issuer: "nolsaf-public",
-    }) as PublicInvoiceAccessPayload;
-
-    return decoded?.typ === "PUBLIC_INVOICE_ACCESS" && Number(decoded.invoiceId) === invoiceId;
-  } catch {
-    return false;
-  }
-}
 
 function isPaidLikeInvoice(invoice: { status?: string | null; receiptNumber?: string | null } | null | undefined) {
   if (!invoice) return false;
@@ -405,6 +363,11 @@ router.post("/from-booking", publicInvoiceLimiter, async (req: Request, res: Res
       });
     }
 
+    const draftAvailability = await computeDraftBookingAvailability(booking, { excludeBookingId: booking.id });
+    if (!draftAvailability.available) {
+      return res.status(409).json(unavailableDraftPaymentResponse(draftAvailability));
+    }
+
     // Check if invoice already exists
     let existingInvoice = await prisma.invoice.findFirst({
       where: { bookingId: booking.id },
@@ -662,6 +625,9 @@ router.get("/:id", publicInvoiceReadLimiter, async (req: Request, res: Response)
                 type: true,
                 currency: true,
                 basePrice: true,
+                status: true,
+                roomsSpec: true,
+                totalBedrooms: true,
               },
             },
             code: {
@@ -678,6 +644,10 @@ router.get("/:id", publicInvoiceReadLimiter, async (req: Request, res: Response)
     if (!invoice) {
       return res.status(404).json({ error: "Invoice not found" });
     }
+
+    const draftAvailability = invoice.status === "PAID" || invoice.booking.code?.code
+      ? null
+      : await computeDraftBookingAvailability(invoice.booking, { excludeBookingId: invoice.booking.id });
 
     const transportBooking = await prisma.transportBooking.findFirst({
       where: {
@@ -764,11 +734,13 @@ router.get("/:id", publicInvoiceReadLimiter, async (req: Request, res: Response)
         id: invoice.booking.property.id,
         title: invoice.booking.property.title,
         type: invoice.booking.property.type,
+        slug: buildPropertySlug(String(invoice.booking.property.title || ""), Number(invoice.booking.property.id)),
         primaryImage: Array.isArray(invoice.booking.property.photos) && invoice.booking.property.photos.length > 0
           ? invoice.booking.property.photos[0]
           : null,
         basePrice: basePrice,
       },
+      draftAvailability,
       // Provide QR as data URL regenerated from the text payload.
       receiptQrPng: receiptQrDataUrl,
       priceBreakdown: {

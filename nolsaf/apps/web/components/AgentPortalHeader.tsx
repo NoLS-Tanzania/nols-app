@@ -4,13 +4,19 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useSocket } from "@/hooks/useSocket";
+import { fetchAccountSession } from "@/lib/accountSession";
 import {
+  BarChart3,
   Bell,
+  BadgeCheck,
+  CalendarDays,
   ChevronRight,
   ClipboardList,
+  FileText,
   LayoutDashboard,
   LogOut,
   Shield,
+  TrendingUp,
   UserRound,
 } from "lucide-react";
 
@@ -56,10 +62,9 @@ export default function AgentPortalHeader() {
 
     const loadAvatar = async () => {
       try {
-        const r = await fetch("/api/account/me", { credentials: "include", signal: controller.signal });
+        const r = await fetchAccountSession({ signal: controller.signal });
         if (!r.ok) return;
-        const j = await r.json();
-        const me = (j as any)?.data ?? j;
+        const me = r.data;
         const url = typeof (me as any)?.avatarUrl === "string" ? String((me as any).avatarUrl).trim() : "";
         if (mounted) setAvatarUrl(url || null);
       } catch {
@@ -208,7 +213,7 @@ export default function AgentPortalHeader() {
                 <div
                   role="menu"
                   aria-label="Agent menu"
-                  className="absolute right-0 mt-3 w-72 rounded-2xl border border-white/10 bg-slate-950/80 text-white backdrop-blur-xl shadow-card overflow-hidden z-50"
+                  className="absolute right-0 z-[1000] mt-3 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-white/10 bg-slate-950 text-white shadow-2xl"
                 >
                   <div className="py-2">
                     <div className="px-4 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-white/50">
@@ -240,7 +245,35 @@ export default function AgentPortalHeader() {
                     <div className="my-2 mx-4 h-px bg-white/10" />
 
                     <div className="px-4 pt-1 pb-1 text-[11px] font-semibold uppercase tracking-wide text-white/50">
-                      Account
+                      Activity
+                    </div>
+
+                    <Link
+                      role="menuitem"
+                      href="/account/agent/bookings"
+                      onClick={() => setProfileMenuOpen(false)}
+                      className={menuItemClass}
+                    >
+                      <CalendarDays className="h-4 w-4 text-white/60 group-hover:text-brand transition-colors" aria-hidden />
+                      <span className="flex-1">My Bookings</span>
+                      <ChevronRight className="h-3.5 w-3.5 text-white/40 group-hover:text-brand transition-colors" aria-hidden />
+                    </Link>
+
+                    <Link
+                      role="menuitem"
+                      href="/account/agent/revenues"
+                      onClick={() => setProfileMenuOpen(false)}
+                      className={menuItemClass}
+                    >
+                      <TrendingUp className="h-4 w-4 text-white/60 group-hover:text-brand transition-colors" aria-hidden />
+                      <span className="flex-1">My Revenues</span>
+                      <ChevronRight className="h-3.5 w-3.5 text-white/40 group-hover:text-brand transition-colors" aria-hidden />
+                    </Link>
+
+                    <div className="my-2 mx-4 h-px bg-white/10" />
+
+                    <div className="px-4 pt-1 pb-1 text-[11px] font-semibold uppercase tracking-wide text-white/50">
+                      Profile
                     </div>
 
                     <Link
@@ -249,10 +282,38 @@ export default function AgentPortalHeader() {
                       onClick={() => setProfileMenuOpen(false)}
                       className={menuItemClass}
                     >
-                      <UserRound className="h-4 w-4 text-white/60 group-hover:text-brand transition-colors" aria-hidden />
-                      <span className="flex-1">My profile</span>
+                      <BadgeCheck className="h-4 w-4 text-white/60 group-hover:text-brand transition-colors" aria-hidden />
+                      <span className="flex-1">My Profile</span>
                       <ChevronRight className="h-3.5 w-3.5 text-white/40 group-hover:text-brand transition-colors" aria-hidden />
                     </Link>
+
+                    <Link
+                      role="menuitem"
+                      href="/account/agent/profile/preview"
+                      onClick={() => setProfileMenuOpen(false)}
+                      className={menuItemClass}
+                    >
+                      <UserRound className="h-4 w-4 text-white/60 group-hover:text-brand transition-colors" aria-hidden />
+                      <span className="flex-1">Preview</span>
+                      <ChevronRight className="h-3.5 w-3.5 text-white/40 group-hover:text-brand transition-colors" aria-hidden />
+                    </Link>
+
+                    <Link
+                      role="menuitem"
+                      href="/account/agent/card"
+                      onClick={() => setProfileMenuOpen(false)}
+                      className={menuItemClass}
+                    >
+                      <BadgeCheck className="h-4 w-4 text-white/60 group-hover:text-brand transition-colors" aria-hidden />
+                      <span className="flex-1">My Card</span>
+                      <ChevronRight className="h-3.5 w-3.5 text-white/40 group-hover:text-brand transition-colors" aria-hidden />
+                    </Link>
+
+                    <div className="my-2 mx-4 h-px bg-white/10" />
+
+                    <div className="px-4 pt-1 pb-1 text-[11px] font-semibold uppercase tracking-wide text-white/50">
+                      Settings
+                    </div>
 
                     <Link
                       role="menuitem"
@@ -265,6 +326,27 @@ export default function AgentPortalHeader() {
                       <ChevronRight className="h-3.5 w-3.5 text-white/40 group-hover:text-brand transition-colors" aria-hidden />
                     </Link>
 
+                    <Link
+                      role="menuitem"
+                      href="/account/agent/reports"
+                      onClick={() => setProfileMenuOpen(false)}
+                      className={menuItemClass}
+                    >
+                      <BarChart3 className="h-4 w-4 text-white/60 group-hover:text-brand transition-colors" aria-hidden />
+                      <span className="flex-1">My Reports</span>
+                      <ChevronRight className="h-3.5 w-3.5 text-white/40 group-hover:text-brand transition-colors" aria-hidden />
+                    </Link>
+
+                    <Link
+                      role="menuitem"
+                      href="/account/agent/documents"
+                      onClick={() => setProfileMenuOpen(false)}
+                      className={menuItemClass}
+                    >
+                      <FileText className="h-4 w-4 text-white/60 group-hover:text-brand transition-colors" aria-hidden />
+                      <span className="flex-1">My Documents</span>
+                      <ChevronRight className="h-3.5 w-3.5 text-white/40 group-hover:text-brand transition-colors" aria-hidden />
+                    </Link>
                     <div className="my-2 mx-4 h-px bg-white/10" />
 
                     <button

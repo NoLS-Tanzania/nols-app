@@ -85,6 +85,7 @@ export async function signUserJwt(
     return jwt.sign(
       { 
         sub: String(user.id),
+        role: user.role ? String(user.role).toUpperCase() : undefined,
         iat: Math.floor(Date.now() / 1000), // Issued at time
       },
       JWT_SECRET,
@@ -119,10 +120,15 @@ export async function setAuthCookie(
     const roleMaxMinutes = await getRoleSessionMaxMinutes(role);
     const maxAge = roleMaxMinutes * 60 * 1000;
     
+    // sameSite: "none" + secure is required when the Socket.IO client connects
+    // cross-origin (e.g. Next.js on app.nolsaf.com → API on api.nolsaf.com).
+    // In dev (non-secure) we fall back to "lax" so localhost still works.
+    const sameSite = isProd ? ("none" as const) : ("lax" as const);
+
     const cookieOptions = {
       httpOnly: true,
-      secure: isProd,
-      sameSite: "lax" as const,
+      secure: isProd,         // "none" requires secure=true per spec
+      sameSite,
       path: "/",
       maxAge,
       ...(cookieDomain ? { domain: cookieDomain } : {}),

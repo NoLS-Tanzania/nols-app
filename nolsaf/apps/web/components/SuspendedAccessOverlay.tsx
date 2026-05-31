@@ -99,7 +99,7 @@ export default function SuspendedAccessOverlay() {
 
   const checkSuspensionStatus = useCallback(async (signal?: AbortSignal) => {
     try {
-      const res = await fetch("/api/account/me", { credentials: "include", signal });
+      const res = await fetch("/api/account/session", { credentials: "include", signal });
 
       let wasSuspended = false;
       try {

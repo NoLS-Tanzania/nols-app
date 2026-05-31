@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { Check, X, Flag, CheckCircle } from 'lucide-react';
-import axios from "axios";import apiClient from "@/lib/apiClient";
+import apiClient from "@/lib/apiClient";
 
 // Use same-origin for HTTP calls so Next.js rewrites proxy to the API in dev.
 // withCredentials ensures httpOnly auth cookies are forwarded automatically.
@@ -155,10 +155,9 @@ export default function DriverLiveMap({ liveOnly }: { liveOnly?: boolean } = {})
     (async () => {
       try {
         const { io } = await import("socket.io-client");
-        const token = localStorage.getItem("token");
         // Prefer explicit API host for sockets in dev to avoid Next rewrite issues with WS
         const base = (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000").replace(/\/$/, "");
-        socket = io(base, { transportOptions: { polling: { extraHeaders: { Authorization: token ? `Bearer ${token}` : undefined } } }, transports: ["websocket"] });
+        socket = io(base, { transports: ["websocket"], withCredentials: true });
 
         socket.on("connect", () => {
           // eslint-disable-next-line no-console

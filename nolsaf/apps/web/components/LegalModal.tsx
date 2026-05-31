@@ -12,7 +12,7 @@ const TITLES: Record<LegalType, string> = {
   terms: 'Terms of Service',
   privacy: 'Privacy Policy',
   cookies: 'Cookies Policy',
-  contract: 'My Contract',
+  contract: 'Partnership Contract',
 };
 
 const CONTENT: Record<Exclude<LegalType, 'contract'>, { lastUpdated?: string; sections: TermsSection[] }> = {
@@ -100,7 +100,7 @@ export default function LegalModal() {
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <style>{"@media print { .nolsaf-confidential { display:none !important; } }"}</style>
       <div className="fixed inset-0 bg-black/40" onClick={handleClose} />
-      <div className="relative bg-white w-full max-w-3xl rounded-2xl shadow-lg overflow-hidden">
+      <div className="relative bg-white w-[96vw] max-w-6xl h-[92vh] rounded-2xl shadow-lg overflow-hidden flex flex-col">
         <div className="p-4 border-b flex items-start justify-between">
           <div>
             <h2 className="text-lg font-semibold">{TITLES[type]}</h2>
@@ -110,7 +110,7 @@ export default function LegalModal() {
           </div>
         </div>
 
-        <div className="relative p-6 bg-slate-50">
+        <div className="relative px-4 py-4 sm:px-6 sm:py-5 bg-slate-50 flex-1 min-h-0">
           <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
             <div className="absolute inset-0 grid grid-cols-2 sm:grid-cols-3 place-items-center gap-16">
               {Array.from({ length: 9 }).map((_, idx) => (
@@ -127,14 +127,14 @@ export default function LegalModal() {
           <div
             className={
               isConfidential
-                ? "relative max-h-[60vh] overflow-auto nolsaf-confidential select-none"
-                : "relative max-h-[60vh] overflow-auto"
+                ? "relative h-full overflow-auto nolsaf-confidential select-none"
+                : "relative h-full overflow-auto"
             }
             ref={contentRef}
             onCopy={isConfidential ? (e) => e.preventDefault() : undefined}
             onCut={isConfidential ? (e) => e.preventDefault() : undefined}
           >
-            <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6">
+            <div className={isConfidential ? "" : "bg-white border border-slate-200 rounded-xl p-4 sm:p-6"}>
               {blockedForPrint && isConfidential ? (
                 <div className="text-sm text-slate-700">Confidential document. Printing is disabled.</div>
               ) : isPolicyType && doc ? (

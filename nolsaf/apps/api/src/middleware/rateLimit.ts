@@ -1,4 +1,4 @@
-import rateLimit from "express-rate-limit";
+import { rateLimitWithRedis as rateLimit } from "../lib/redisRateLimitStore.js";
 
 export const limitAgentPortalRead = rateLimit({
   windowMs: 60_000, // 1 minute
@@ -30,6 +30,38 @@ export const limitAgentNotifyAdmin = rateLimit({
   },
 });
 
+export const limitAgentProfileWrite = rateLimit({
+  windowMs: 15 * 60_000,
+  // Autosave + manual edits can legitimately produce frequent writes for active operator sessions.
+  // Keep abuse protection, but allow normal editing without hitting 429.
+  limit: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many profile updates. Please wait before saving again." },
+  keyGenerator: (req) => {
+    const userId = (req as any)?.user?.id;
+    if (typeof userId === "number" && Number.isFinite(userId) && userId > 0) {
+      return `agent-profile-write:${userId}`;
+    }
+    return req.ip || req.socket.remoteAddress || "unknown";
+  },
+});
+
+export const limitAgentRevenueClaim = rateLimit({
+  windowMs: 15 * 60_000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many payout claim requests. Please wait before trying again." },
+  keyGenerator: (req) => {
+    const userId = (req as any)?.user?.id;
+    if (typeof userId === "number" && Number.isFinite(userId) && userId > 0) {
+      return `agent-revenue-claim:${userId}`;
+    }
+    return req.ip || req.socket.remoteAddress || "unknown";
+  },
+});
+
 export const limitCloudinarySign = rateLimit({
   windowMs: 60_000, // 1 minute
   // Allows bursts for multi-file uploads but blocks abuse
@@ -44,6 +76,45 @@ export const limitCloudinarySign = rateLimit({
     }
     return req.ip || req.socket.remoteAddress || "unknown";
   },
+});
+
+export const limitUploadPresign = rateLimit({
+  windowMs: 60_000,
+  limit: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many upload authorization requests. Please wait and try again." },
+  keyGenerator: (req) => {
+    const userId = (req as any)?.user?.id;
+    if (typeof userId === "number" && Number.isFinite(userId) && userId > 0) {
+      return `upload-presign:${userId}`;
+    }
+    return req.ip || req.socket.remoteAddress || "unknown";
+  },
+});
+
+export const limitPublicTourBookingCreate = rateLimit({
+  windowMs: 15 * 60_000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many tour booking requests. Please wait before creating another booking." },
+  keyGenerator: (req) => {
+    const phone = req.body?.guestPhone;
+    const email = req.body?.guestEmail;
+    if (phone) return `tour-booking:${String(phone).trim()}`;
+    if (email) return `tour-booking:${String(email).trim().toLowerCase()}`;
+    return req.ip || req.socket.remoteAddress || "unknown";
+  },
+});
+
+export const limitPublicCareerApply = rateLimit({
+  windowMs: 15 * 60_000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many application submissions. Please wait before trying again." },
+  keyGenerator: (req) => req.ip || req.socket.remoteAddress || "unknown",
 });
 
 export const limitCodeSearch = rateLimit({

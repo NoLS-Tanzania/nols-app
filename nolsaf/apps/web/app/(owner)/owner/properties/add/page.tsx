@@ -17,28 +17,7 @@ import { ResumeDraftScreen } from "./_components/ResumeDraftScreen";
 import "@/styles/add-property.css";
 
 const api = apiClient;
-function authify() {
-  if (typeof window === "undefined") return;
-
-  // Most of the app uses a Bearer token (often stored in localStorage).
-  // The Cloudinary signature endpoint is protected by requireAuth, so we must attach it.
-  const lsToken =
-    window.localStorage.getItem("token") ||
-    window.localStorage.getItem("nolsaf_token") ||
-    window.localStorage.getItem("__Host-nolsaf_token");
-
-  if (lsToken) {
-    api.defaults.headers.common["Authorization"] = `Bearer ${lsToken}`;
-    return;
-  }
-
-  // Fallback: non-httpOnly cookie (if present)
-  const m = String(document.cookie || "").match(/(?:^|;\s*)(?:nolsaf_token|__Host-nolsaf_token)=([^;]+)/);
-  const cookieToken = m?.[1] ? decodeURIComponent(m[1]) : "";
-  if (cookieToken) {
-    api.defaults.headers.common["Authorization"] = `Bearer ${cookieToken}`;
-  }
-}
+function authify() {}
 
 type BedKey = "twin" | "full" | "queen" | "king";
 const PROPERTY_TYPES = ["Villa","Apartment","Hotel","Lodge","Condo","Guest House","Bungalow","Cabin","Homestay","Townhouse","House","Other"] as const;

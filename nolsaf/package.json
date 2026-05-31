@@ -38,6 +38,7 @@
     "prisma:migrate:status": "npx prisma migrate status --schema=prisma/schema.prisma",
     "prisma:studio": "npx prisma studio --schema=prisma/schema.prisma",
     "smoke-test": "node scripts/smoke-test.mjs",
+    "smoke:driver-payouts": "npm --workspace=@nolsaf/api run smoke:driver-payouts",
     "smoke-test:staging": "API_URL=$npm_config_api_url node scripts/smoke-test.mjs",
     "uptime:check": "node scripts/uptime-check.mjs",
     "no4p-otp:cleanup": "node scripts/cleanup-no4p-otp.mjs"
@@ -50,16 +51,21 @@
   },
   "pnpm": {
     "overrides": {
+      "axios": "^1.16.0",
       "africastalking>axios": "1.16.0",
       "africastalking>lodash": "4.18.1",
+      "africastalking": {
+        "axios": "1.16.0",
+        "lodash": "4.18.1"
+      },
       "diff": "4.0.4",
       "fast-xml-parser": ">=5.7.0",
       "@aws-sdk/xml-builder": "3.972.17",
       "glob": "10.5.0",
-      "hono": "4.12.14",
+      "hono": "4.12.18",
       "@hono/node-server": "1.19.14",
       "dompurify": "3.4.0",
-      "sanitize-html": "2.17.3",
+      "sanitize-html": "^2.17.4",
       "mailparser": "3.9.3",
       "js-yaml": "4.1.1",
       "minimatch": ">=10.2.1",
@@ -67,12 +73,16 @@
       "jws": "3.2.3",
       "lodash": "4.18.1",
       "nodemailer": "8.0.5",
-      "qs": "6.14.2",
-      "postcss": "^8.5.10",
+      "qs": "^6.15.2",
+      "postcss": "^8.5.12",
+      "next": {
+        "postcss": "^8.5.12"
+      },
       "svix": ">=1.92.0"
     }
   },
   "overrides": {
+    "axios": "^1.16.0",
     "africastalking": {
       "axios": "1.16.0",
       "lodash": "4.18.1"
@@ -81,10 +91,10 @@
     "fast-xml-parser": ">=5.7.0",
     "@aws-sdk/xml-builder": "3.972.17",
     "glob": "10.5.0",
-    "hono": "4.12.14",
+    "hono": "4.12.18",
     "@hono/node-server": "1.19.14",
     "dompurify": "3.4.0",
-    "sanitize-html": "2.17.3",
+    "sanitize-html": "^2.17.4",
     "magicast": "0.5.2",
     "mailparser": "3.9.3",
     "js-yaml": "4.1.1",
@@ -93,8 +103,11 @@
     "jws": "3.2.3",
     "lodash": "4.18.1",
     "nodemailer": "8.0.5",
-    "qs": "6.14.2",
-    "postcss": "^8.5.10",
+    "qs": "^6.15.2",
+    "postcss": "^8.5.12",
+    "next": {
+      "postcss": "^8.5.12"
+    },
     "svix": ">=1.92.0"
   }
 }

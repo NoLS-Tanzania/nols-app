@@ -1,4 +1,4 @@
-import rateLimit from "express-rate-limit";
+import { rateLimitWithRedis as rateLimit } from "./redisRateLimitStore.js";
 import { getApiRateLimitPerMinute } from "./securitySettings.js";
 
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
@@ -65,6 +65,7 @@ function isPublicReadRequest(req: any): boolean {
   return (
     path.startsWith("/api/public/properties") ||
     path.startsWith("/api/public/updates") ||
+    path.startsWith("/api/public/agents") ||
     path.startsWith("/api/public/tourism-sites") ||
     path.startsWith("/api/public/podcasts") ||
     path.startsWith("/api/public/support") ||
@@ -78,6 +79,17 @@ export function dynamicRateLimiter(req: any, res: any, next: any) {
   }
 
   // Refresh in background — never blocks, never creates a limiter inline
+  if (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS") {
+    const path = String(req.path || req.originalUrl || "");
+    if (
+      path.startsWith("/api/admin/drivers/trips") ||
+      path.startsWith("/admin/drivers/trips") ||
+      path.startsWith("/api/driver/trips")
+    ) {
+      return next();
+    }
+  }
+
   refreshActiveLimiter().catch(() => {});
 
   return activeLimiter(req, res, next);

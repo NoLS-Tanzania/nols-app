@@ -5,6 +5,7 @@ import { prisma } from '@nolsaf/prisma';
 import { getRoleSessionMaxMinutes } from '../lib/securitySettings.js';
 import { clearAuthCookie } from '../lib/sessionManager.js';
 import { touchActiveUser } from '../lib/activePresence.js';
+import { cacheAuthSession, getCachedAuthSession } from '../lib/authSessionCache.js';
 
 export type Role = 'ADMIN' | 'OWNER' | 'USER' | 'DRIVER' | 'AGENT';
 
@@ -16,6 +17,12 @@ interface JwtTokenPayload {
   role?: string;
 }
 
+function authError(code: "SESSION_EXPIRED" | "SESSION_REVOKED" | "ACCOUNT_SUSPENDED", message: string) {
+  const e: any = new Error(message);
+  e.code = code;
+  return e;
+}
+
 export interface AuthedUser {
   id: number;
   role: Role;
@@ -25,6 +32,22 @@ export interface AuthedUser {
 
 export interface AuthedRequest extends Request {
   user?: AuthedUser;
+}
+
+/**
+ * Mark a response as personalized so it is never stored by a shared cache
+ * (CDN, reverse proxy, load balancer) and replayed to a different user.
+ *
+ * This is the fix for cross-account data bleed: without `no-store`, a cache
+ * in front of the API can serve one user's `/account/session` (their identity)
+ * to another user. We call this at the single point where a request is
+ * authenticated, so every authenticated response across the API is covered.
+ */
+function markPrivateNoStore(res: Response): void {
+  res.set("Cache-Control", "private, no-store, max-age=0");
+  // Even if a downstream cache ignores no-store, vary on the credential carriers
+  // so a cached entry is never keyed across different sessions.
+  res.set("Vary", "Cookie, Authorization");
 }
 
 function isLocalDevBypassAllowed(req: Request): boolean {
@@ -95,36 +118,48 @@ async function verifyToken(token: string): Promise<AuthedUser | null> {
     const decoded = jwt.verify(token, secret) as JwtTokenPayload;
     if (!decoded || decoded.sub == null) return null;
 
-    // Try to get user from database to verify role
     const userId = Number(decoded.sub);
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, role: true, email: true, suspendedAt: true },
+    const cached = await getCachedAuthSession(token);
+    if (cached && cached.id === userId) {
+      return cached;
+    }
+
+    // The common path is an active session. Fetch the session and user in one query
+    // instead of querying user + session separately on every authenticated request.
+    const activeSession = await (prisma.session as any).findFirst({
+      where: { userId, revokedAt: null },
+      select: {
+        id: true,
+        user: {
+          select: { id: true, role: true, email: true, suspendedAt: true },
+        },
+      },
     });
+
+    let user = activeSession?.user ?? null;
+
+    if (!activeSession) {
+      const [dbUser, anySession] = await Promise.all([
+        prisma.user.findUnique({
+          where: { id: userId },
+          select: { id: true, role: true, email: true, suspendedAt: true },
+        }),
+        (prisma.session as any).findFirst({
+          where: { userId },
+          select: { id: true },
+        }),
+      ]);
+      user = dbUser;
+      if (anySession) {
+        throw authError("SESSION_REVOKED", "Session revoked");
+      }
+    }
 
     if (!user) return null;
 
-    // Check if account is suspended - suspended users cannot access their account
+    // Check if account is suspended - suspended users cannot access their account.
     if (user.suspendedAt) {
-      return null; // Return null to deny access
-    }
-
-    // Check whether ALL sessions for this user have been revoked.
-    // Use cheap existence checks instead of COUNT(*) on every authenticated request.
-    const activeSession = await (prisma.session as any).findFirst({
-      where: { userId, revokedAt: null },
-      select: { id: true },
-    });
-    if (!activeSession) {
-      const anySession = await (prisma.session as any).findFirst({
-        where: { userId },
-        select: { id: true },
-      });
-      if (anySession) {
-        const e: any = new Error("Session revoked");
-        e.code = "SESSION_REVOKED";
-        throw e;
-      }
+      throw authError("ACCOUNT_SUSPENDED", "Account suspended");
     }
 
     // Map database role to Role type (handle case where role might be different format)
@@ -140,17 +175,17 @@ async function verifyToken(token: string): Promise<AuthedUser | null> {
       const maxMinutes = await getRoleSessionMaxMinutes(rawRole);
       const ageSec = Math.floor(Date.now() / 1000) - issuedAtSec;
       if (ageSec > maxMinutes * 60) {
-        const e: any = new Error('Session expired');
-        e.code = 'SESSION_EXPIRED';
-        throw e;
+        throw authError("SESSION_EXPIRED", "Session expired");
       }
     }
     
-    return {
+    const authedUser = {
       id: user.id,
       role,
       email: user.email || undefined,
     };
+    await cacheAuthSession(token, authedUser, decoded.exp);
+    return authedUser;
   } catch (err) {
     throw err;
   }
@@ -158,13 +193,14 @@ async function verifyToken(token: string): Promise<AuthedUser | null> {
 
 // Optional auth: if a valid token is present, attach req.user; otherwise continue.
 // No DEV bypass, no 401.
-export const maybeAuth: RequestHandler = async (req, _res, next) => {
+export const maybeAuth: RequestHandler = async (req, res, next) => {
   const token = getTokenFromRequest(req);
   if (token) {
     try {
       const user = await verifyToken(token);
       if (user) {
         (req as AuthedRequest).user = user;
+        markPrivateNoStore(res);
         try {
           touchActiveUser(user.id, user.role);
         } catch {}
@@ -186,6 +222,7 @@ export const requireAuth: RequestHandler = async (req, res, next) => {
       const user = await verifyToken(token);
       if (user) {
         (req as AuthedRequest).user = user;
+        markPrivateNoStore(res);
         try {
           touchActiveUser(user.id, user.role);
         } catch {}
@@ -200,26 +237,10 @@ export const requireAuth: RequestHandler = async (req, res, next) => {
         clearAuthCookie(res);
         return res.status(401).json({ error: 'Session revoked', code: 'SESSION_REVOKED' });
       }
-      // fallthrough to suspended/unauthorized logic
-    }
-    // Check if token is valid but user is suspended
-    try {
-      const secret = process.env.JWT_SECRET || (process.env.NODE_ENV !== "production" ? (process.env.DEV_JWT_SECRET || "dev_jwt_secret") : "");
-      if (secret) {
-        const decoded = jwt.verify(token, secret) as JwtTokenPayload;
-        if (decoded?.sub != null) {
-          const userId = Number(decoded.sub);
-          const dbUser = await prisma.user.findUnique({
-            where: { id: userId },
-            select: { suspendedAt: true },
-          });
-          if (dbUser?.suspendedAt) {
-            return res.status(403).json({ error: "Account suspended", code: "ACCOUNT_SUSPENDED" });
-          }
-        }
+      if (err?.code === 'ACCOUNT_SUSPENDED') {
+        return res.status(403).json({ error: "Account suspended", code: "ACCOUNT_SUSPENDED" });
       }
-    } catch (e) {
-      // Token invalid or other error - continue to unauthorized
+      // fallthrough to unauthorized logic
     }
   }
 
@@ -228,6 +249,7 @@ export const requireAuth: RequestHandler = async (req, res, next) => {
   if (isLocalDevBypassAllowed(req)) {
     console.warn(`[DEV_BYPASS] No token on ${req.method} ${req.path} — injecting dev admin stub. Remove ENABLE_DEV_BYPASS=true from .env.local to disable.`);
     (req as AuthedRequest).user = { id: 1, role: "ADMIN" };
+    markPrivateNoStore(res);
     try {
       touchActiveUser(1, "ADMIN");
     } catch {}
@@ -263,24 +285,8 @@ export function requireRole(required?: Role) {
             clearAuthCookie(res);
             return res.status(401).json({ error: 'Session revoked', code: 'SESSION_REVOKED' });
           }
-          // Check if token is valid but user is suspended
-          try {
-            const secret = process.env.JWT_SECRET || (process.env.NODE_ENV !== "production" ? (process.env.DEV_JWT_SECRET || "dev_jwt_secret") : "");
-            if (secret) {
-              const decoded = jwt.verify(token, secret) as JwtTokenPayload;
-              if (decoded?.sub != null) {
-                const userId = Number(decoded.sub);
-                const dbUser = await prisma.user.findUnique({
-                  where: { id: userId },
-                  select: { suspendedAt: true },
-                });
-                if (dbUser?.suspendedAt) {
-                  return res.status(403).json({ error: "Account suspended", code: "ACCOUNT_SUSPENDED" });
-                }
-              }
-            }
-          } catch (e) {
-            // Token invalid or other error - continue to unauthorized
+          if (err?.code === 'ACCOUNT_SUSPENDED') {
+            return res.status(403).json({ error: "Account suspended", code: "ACCOUNT_SUSPENDED" });
           }
         }
       }
@@ -292,6 +298,7 @@ export function requireRole(required?: Role) {
         console.warn(`[DEV_BYPASS] No user on ${req.method} ${req.path} — injecting dev admin stub. Remove ENABLE_DEV_BYPASS=true from .env.local to disable.`);
         (req as AuthedRequest).user = { id: 1, role: "ADMIN" };
       }
+      markPrivateNoStore(res);
       try {
         touchActiveUser((req as AuthedRequest).user!.id, (req as AuthedRequest).user!.role);
       } catch {}
@@ -304,6 +311,9 @@ export function requireRole(required?: Role) {
     if (required && (req as AuthedRequest).user!.role !== required) {
       return res.status(403).json({ error: "Forbidden" });
     }
+
+    // User is authenticated and authorized — never let a shared cache store this.
+    markPrivateNoStore(res);
     return next();
   };
 

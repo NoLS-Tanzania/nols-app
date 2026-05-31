@@ -921,25 +921,23 @@ export default function DriverVettingPage() {
           </div>
 
           {/* Pagination footer */}
-          {totalPages > 1 && (
-            <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/60 flex items-center justify-between">
-              <span className="text-xs text-slate-400">
-                Showing <span className="font-semibold text-slate-600">{(page - 1) * pageSize + 1}&ndash;{Math.min(page * pageSize, totalItems)}</span> of <span className="font-semibold text-slate-600">{totalItems}</span> drivers
-              </span>
-              <div className="flex items-center gap-1">
-                <button disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))} className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 disabled:opacity-30 transition-all">
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                {Array.from({ length: Math.min(totalPages, 7) }, (_, idx) => {
-                  const p = totalPages <= 7 ? idx + 1 : page <= 4 ? idx + 1 : page >= totalPages - 3 ? totalPages - 6 + idx : page - 3 + idx;
-                  return <button key={p} onClick={() => setPage(p)} className={`w-8 h-8 rounded-lg flex items-center justify-center border text-xs font-semibold transition-all ${p === page ? "bg-[#02665e] text-white border-[#02665e] shadow-sm" : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50"}`}>{p}</button>;
-                })}
-                <button disabled={page >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))} className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 disabled:opacity-30 transition-all">
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
+          <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/60 flex items-center justify-between">
+            <span className="text-xs text-slate-400">
+              Showing <span className="font-semibold text-slate-600">{(page - 1) * pageSize + 1}&ndash;{Math.min(page * pageSize, totalItems)}</span> of <span className="font-semibold text-slate-600">{totalItems}</span> drivers
+            </span>
+            <div className="flex items-center gap-1">
+              <button disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))} className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 disabled:opacity-30 transition-all">
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              {Array.from({ length: Math.min(totalPages, 7) }, (_, idx) => {
+                const p = totalPages <= 7 ? idx + 1 : page <= 4 ? idx + 1 : page >= totalPages - 3 ? totalPages - 6 + idx : page - 3 + idx;
+                return <button key={p} onClick={() => setPage(p)} className={`w-8 h-8 rounded-lg flex items-center justify-center border text-xs font-semibold transition-all ${p === page ? "bg-[#02665e] text-white border-[#02665e] shadow-sm" : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50"}`}>{p}</button>;
+              })}
+              <button disabled={page >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))} className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 disabled:opacity-30 transition-all">
+                <ChevronRight className="w-4 h-4" />
+              </button>
             </div>
-          )}
+          </div>
         </div>
         {/* --- DETAIL PANEL --- */}
         {selected && (

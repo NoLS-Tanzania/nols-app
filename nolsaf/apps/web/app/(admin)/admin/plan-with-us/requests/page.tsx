@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { Search, X, Calendar, MapPin, Clock, User, BarChart3, TrendingUp, Loader2, FileText, AlertTriangle, Edit, Send, Eye, MessageSquare, ChevronDown, Star, Building2, Utensils, Car, Target, Ticket, Plane, Users, Gift } from "lucide-react";
@@ -10,25 +10,7 @@ import type { ChartData } from "chart.js";
 
 // Use same-origin for HTTP calls so Next.js rewrites proxy to the API
 const api = apiClient;
-function authify() {
-  if (typeof window === "undefined") return;
-
-  const lsToken =
-    window.localStorage.getItem("token") ||
-    window.localStorage.getItem("nolsaf_token") ||
-    window.localStorage.getItem("__Host-nolsaf_token");
-
-  if (lsToken) {
-    api.defaults.headers.common["Authorization"] = `Bearer ${lsToken}`;
-    return;
-  }
-
-  const m = String(document.cookie || "").match(/(?:^|;\s*)(?:nolsaf_token|__Host-nolsaf_token)=([^;]+)/);
-  const cookieToken = m?.[1] ? decodeURIComponent(m[1]) : "";
-  if (cookieToken) {
-    api.defaults.headers.common["Authorization"] = `Bearer ${cookieToken}`;
-  }
-}
+function authify() {}
 
 type ConversationMessage = {
   type: string;
@@ -230,14 +212,14 @@ export default function AdminPlanWithUsRequestsPage() {
   const [showAgentDropdown, setShowAgentDropdown] = useState(false);
   const agentDropdownRef = useRef<HTMLDivElement>(null);
 
-  // ── Structured feedback builder state ──────────────────────────────────────
+  // -- Structured feedback builder state --------------------------------------
   type ItineraryOption = {
     id: string; name: string; days: number; pricePerPerson: string;
     inclusions: string[]; customInclusion: string; dayOutline: string;
     autoFilled?: boolean;
     priceMode: "trip" | "night";
     inclusionDetails: Record<string, string>;
-    feeAmounts: Record<string, string>; // per selected fee-item → TZS amount per person
+    feeAmounts: Record<string, string>; // per selected fee-item ? TZS amount per person
     linkedProperties: Array<{ id: number; title: string; type: string | null; regionName?: string | null }>;
   };
   const [itineraryOptions, setItineraryOptions] = useState<ItineraryOption[]>([]);
@@ -253,7 +235,7 @@ export default function AdminPlanWithUsRequestsPage() {
     results: Array<{ id: number; title: string; type: string | null; regionName?: string | null }>;
     loading: boolean;
   } | null>(null);
-  // ───────────────────────────────────────────────────────────────────────────
+  // ---------------------------------------------------------------------------
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -675,51 +657,51 @@ export default function AdminPlanWithUsRequestsPage() {
     };
   }, [statsData]);
 
-  // ── Structured feedback helpers ─────────────────────────────────────────────
+  // -- Structured feedback helpers ---------------------------------------------
   const INCLUSION_CATEGORIES = [
-    { id: "accommodation", label: "Accommodation", emoji: "🏨", icon: Building2,
+    { id: "accommodation", label: "Accommodation", emoji: "??", icon: Building2,
       chipActive: "bg-purple-100 text-purple-700 border-purple-300",
       chipIdle: "bg-gray-50 text-gray-600 border-gray-200 hover:border-purple-300",
       headerColor: "text-purple-700", countBg: "bg-purple-100 text-purple-700",
       options: ["Luxury Lodge","Tented Safari Camp","Boutique Hotel","Budget Guesthouse","Beach Resort","Mountain Hut","Self-Catering Villa"],
       placeholder: "Lodge name, star rating, room type, amenities (pool, wifi, A/C), location highlights..." },
-    { id: "meals", label: "Meals", emoji: "🍽️", icon: Utensils,
+    { id: "meals", label: "Meals", emoji: "???", icon: Utensils,
       chipActive: "bg-orange-100 text-orange-700 border-orange-300",
       chipIdle: "bg-gray-50 text-gray-600 border-gray-200 hover:border-orange-300",
       headerColor: "text-orange-700", countBg: "bg-orange-100 text-orange-700",
       options: ["Full Board","Half Board","Bed & Breakfast","All-Inclusive","Lunch Only","Dinner Only","Self-Catering"],
       placeholder: "Meal schedule, restaurant style, dietary options (vegetarian, halal, vegan) accommodated on request..." },
-    { id: "transport", label: "Transport", emoji: "🚐", icon: Car,
+    { id: "transport", label: "Transport", emoji: "??", icon: Car,
       chipActive: "bg-blue-100 text-blue-700 border-blue-300",
       chipIdle: "bg-gray-50 text-gray-600 border-gray-200 hover:border-blue-300",
       headerColor: "text-blue-700", countBg: "bg-blue-100 text-blue-700",
       options: ["4WD Safari Vehicle","Luxury Minibus","Private Car","Shared Shuttle","Domestic Flight","Charter Flight","Boat / Ferry"],
       placeholder: "Vehicle type, seating capacity, pop-up roof, driver-guide details, airline/operator name..." },
-    { id: "activities", label: "Activities & Experiences", emoji: "🎯", icon: Target,
+    { id: "activities", label: "Activities & Experiences", emoji: "??", icon: Target,
       chipActive: "bg-emerald-100 text-emerald-700 border-emerald-300",
       chipIdle: "bg-gray-50 text-gray-600 border-gray-200 hover:border-emerald-300",
       headerColor: "text-emerald-700", countBg: "bg-emerald-100 text-emerald-700",
       options: ["Game Drives (AM/PM)","Night Game Drive","Walking Safari","Boat Safari","Cultural Village Visit","Cooking Class","Photography Session","Hot Air Balloon","Snorkeling / Diving","Bird Watching","Guided Hike"],
       placeholder: "Schedule, frequency (e.g. 2x daily), duration, ranger/guide included, what makes each activity special..." },
-    { id: "fees", label: "Fees & Entry", emoji: "🎫", icon: Ticket,
+    { id: "fees", label: "Fees & Entry", emoji: "??", icon: Ticket,
       chipActive: "bg-amber-100 text-amber-700 border-amber-300",
       chipIdle: "bg-gray-50 text-gray-600 border-gray-200 hover:border-amber-300",
       headerColor: "text-amber-700", countBg: "bg-amber-100 text-amber-700",
       options: ["National Park Entry","Conservation Levy","Crater Access Fee","Beach Access Fee","Museum / Heritage Site","Equipment / Gear Rental","Climbing Permit"],
       placeholder: "Fee amounts in USD or TZS, which parks/sites covered, gear rental items included..." },
-    { id: "transfers", label: "Airport & Transfers", emoji: "✈️", icon: Plane,
+    { id: "transfers", label: "Airport & Transfers", emoji: "??", icon: Plane,
       chipActive: "bg-sky-100 text-sky-700 border-sky-300",
       chipIdle: "bg-gray-50 text-gray-600 border-sky-300 hover:border-sky-300",
       headerColor: "text-sky-700", countBg: "bg-sky-100 text-sky-700",
       options: ["Airport Pickup","Airport Drop-off","Hotel-to-Hotel Transfer","Port / Ferry Transfer","Train Station Transfer"],
       placeholder: "Airport name (e.g. KIA / JRO), meet & greet details, transfer vehicle, timing, driving distance..." },
-    { id: "guides", label: "Guides & Crew", emoji: "👤", icon: Users,
+    { id: "guides", label: "Guides & Crew", emoji: "??", icon: Users,
       chipActive: "bg-indigo-100 text-indigo-700 border-indigo-300",
       chipIdle: "bg-gray-50 text-gray-600 border-gray-200 hover:border-indigo-300",
       headerColor: "text-indigo-700", countBg: "bg-indigo-100 text-indigo-700",
       options: ["Professional Driver-Guide","Specialist Wildlife Guide","Cultural Interpreter","Mountain Guide (KCMC)","Porters","Security Escort"],
       placeholder: "Guide certification body, languages spoken, years of experience, crew-to-guest ratio..." },
-    { id: "extras", label: "Extras & Add-ons", emoji: "⭐", icon: Gift,
+    { id: "extras", label: "Extras & Add-ons", emoji: "?", icon: Gift,
       chipActive: "bg-pink-100 text-pink-700 border-pink-300",
       chipIdle: "bg-gray-50 text-gray-600 border-gray-200 hover:border-pink-300",
       headerColor: "text-pink-700", countBg: "bg-pink-100 text-pink-700",
@@ -885,7 +867,7 @@ export default function AdminPlanWithUsRequestsPage() {
       setSubmitting(false);
     }
   };
-  // ───────────────────────────────────────────────────────────────────────────
+  // ---------------------------------------------------------------------------
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -1073,7 +1055,7 @@ export default function AdminPlanWithUsRequestsPage() {
       <div className="bg-white rounded-2xl border border-gray-100 shadow-md overflow-hidden">
         <div className="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-teal-500" />
 
-        {/* ── Loading skeletons ── */}
+        {/* -- Loading skeletons -- */}
         {loading ? (
           <div className="p-4 space-y-3">
             {[...Array(5)].map((_, i) => (
@@ -1098,14 +1080,14 @@ export default function AdminPlanWithUsRequestsPage() {
           </div>
         ) : (
           <>
-            {/* ── Column header row (desktop only) ── */}
+            {/* -- Column header row (desktop only) -- */}
             <div className="hidden lg:grid grid-cols-[56px_1fr_1fr_1fr_1fr_140px_120px] gap-x-4 px-5 py-2.5 bg-gray-50 border-b border-gray-100">
               {["#", "Customer", "Trip Type", "Destination", "Dates", "Status", ""].map((h) => (
                 <span key={h} className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{h}</span>
               ))}
             </div>
 
-            {/* ── Rows ── */}
+            {/* -- Rows -- */}
             <div className="divide-y divide-gray-50">
               {list.map((request) => {
                 const initials = (request.customer.name || "?").split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
@@ -1149,8 +1131,8 @@ export default function AdminPlanWithUsRequestsPage() {
                   const fmtShort = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
                   const sameYear = from.getFullYear() === to.getFullYear();
                   return sameYear
-                    ? `${fmtShort(from)} – ${fmtShort(to)}, ${to.getFullYear()}`
-                    : `${fmtShort(from)} ${from.getFullYear()} – ${fmtShort(to)} ${to.getFullYear()}`;
+                    ? `${fmtShort(from)} - ${fmtShort(to)}, ${to.getFullYear()}`
+                    : `${fmtShort(from)} ${from.getFullYear()} - ${fmtShort(to)} ${to.getFullYear()}`;
                 })();
 
                 const isOverdue = request.hoursSinceCreation > 48 && request.status === "NEW";
@@ -1171,7 +1153,7 @@ export default function AdminPlanWithUsRequestsPage() {
                       <div className="absolute left-0 top-0 bottom-0 w-1 rounded-r bg-amber-400" />
                     )}
 
-                    {/* ── Desktop layout ── */}
+                    {/* -- Desktop layout -- */}
                     <div className="hidden lg:grid grid-cols-[56px_1fr_1fr_1fr_1fr_140px_120px] gap-x-4 items-center">
 
                       {/* ID */}
@@ -1242,7 +1224,7 @@ export default function AdminPlanWithUsRequestsPage() {
                         )}
                         {agingLabel && (
                           <p className={`text-[10px] font-medium mt-1 ${agingColor}`}>
-                            {isOverdue ? "Overdue · " : ""}{agingLabel}
+                            {isOverdue ? "Overdue-- " : ""}{agingLabel}
                           </p>
                         )}
                       </div>
@@ -1289,7 +1271,7 @@ export default function AdminPlanWithUsRequestsPage() {
                       </div>
                     </div>
 
-                    {/* ── Mobile / Tablet layout ── */}
+                    {/* -- Mobile / Tablet layout -- */}
                     <div className="lg:hidden space-y-3">
                       {/* Top row */}
                       <div className="flex items-center gap-3">
@@ -1302,7 +1284,7 @@ export default function AdminPlanWithUsRequestsPage() {
                             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${avatarColor} border-current/20`}>{request.role}</span>
                             {request.isUrgent && <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />}
                           </div>
-                          <p className="text-[11px] text-gray-400 truncate">{request.customer.email}{request.customer.phone ? ` · ${request.customer.phone}` : ""}</p>
+                          <p className="text-[11px] text-gray-400 truncate">{request.customer.email}{request.customer.phone ? ` - ${request.customer.phone}` : ""}</p>
                         </div>
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold rounded-full border shrink-0 ${statusMeta.pill}`}>
                           <span className={`h-1.5 w-1.5 rounded-full ${statusMeta.dot}`} />{statusMeta.label}
@@ -1339,7 +1321,7 @@ export default function AdminPlanWithUsRequestsPage() {
                       {/* Action row */}
                       <div className="flex items-center justify-between">
                         {agingLabel && (
-                          <span className={`text-[11px] font-medium ${agingColor}`}>{isOverdue ? "Overdue · " : ""}{agingLabel}</span>
+                          <span className={`text-[11px] font-medium ${agingColor}`}>{isOverdue ? "Overdue - " : ""}{agingLabel}</span>
                         )}
                         <div className="ml-auto flex gap-2">
                           {request.status === "NEW" && (
@@ -1736,7 +1718,7 @@ export default function AdminPlanWithUsRequestsPage() {
           <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-[5vh] overflow-y-auto">
             <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full my-8 h-[90vh] flex flex-col overflow-hidden">
 
-              {/* ── Modal Header ── */}
+              {/* -- Modal Header -- */}
               <div
                 className="sticky top-0 z-10 flex-shrink-0 rounded-t-2xl"
                 style={{ background: "linear-gradient(135deg,#1e3a8a 0%,#1d4ed8 50%,#0f766e 100%)" }}
@@ -1755,7 +1737,7 @@ export default function AdminPlanWithUsRequestsPage() {
                         <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${selectedRequest.status === "COMPLETED" ? "bg-emerald-500/70 text-white" : selectedRequest.status === "IN_PROGRESS" ? "bg-blue-400/70 text-white" : "bg-amber-400/70 text-white"}`}>{selectedRequest.status === "NEW" ? "New" : selectedRequest.status === "IN_PROGRESS" ? "In Progress" : "Completed"}</span>
                       </div>
                       <p className="text-blue-200 text-xs mt-1">
-                        {selectedRequest.tripType} · {selectedRequest.role} · Group of {selectedRequest.groupSize ?? "?"}
+                        {selectedRequest.tripType} - {selectedRequest.role} - Group of {selectedRequest.groupSize ?? "?"}
                       </p>
                     </div>
                   </div>
@@ -1769,10 +1751,10 @@ export default function AdminPlanWithUsRequestsPage() {
                 </div>
               </div>
 
-              {/* ── Scrollable Content ── */}
+              {/* -- Scrollable Content -- */}
               <div className="flex-1 min-h-0 overflow-y-scroll overflow-x-hidden px-5 py-5 space-y-4 bg-gray-50">
 
-                {/* Request Details - full context panel — hidden on COMPLETED (A4 report replaces all) */}
+                {/* Request Details - full context panel - hidden on COMPLETED (A4 report replaces all) */}
                 {selectedRequest.status !== "COMPLETED" && <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                   <div className="h-1 bg-gradient-to-r from-blue-400 to-indigo-500" />
                   <div className="p-5">
@@ -1799,7 +1781,7 @@ export default function AdminPlanWithUsRequestsPage() {
                         </div>
                       ))}
                     </div>
-                    {/* Travel Dates — premium card */}
+                    {/* Travel Dates - premium card */}
                     {(() => {
                       const fmtDate = (d: string) => {
                         const dt = new Date(d);
@@ -1876,7 +1858,7 @@ export default function AdminPlanWithUsRequestsPage() {
                           );
                         }
                         const totalNights = parts.reduce((sum: number, part: string) => {
-                          const m = part.match(/[-—]\s*(\d+)\s*nights?/i);
+                          const m = part.match(/[--]\s*(\d+)\s*nights?/i);
                           return sum + (m ? Number(m[1]) : 0);
                         }, 0);
                         return (
@@ -1903,9 +1885,9 @@ export default function AdminPlanWithUsRequestsPage() {
                                 )}
                                 <div className="flex flex-col gap-2.5">
                                   {parts.map((part: string, idx: number) => {
-                                    const nightsMatch = part.match(/[-—]\s*(\d+)\s*nights?/i);
+                                    const nightsMatch = part.match(/[--]\s*(\d+)\s*nights?/i);
                                     const nights = nightsMatch ? Number(nightsMatch[1]) : null;
-                                    const name = part.replace(/[-—]\s*\d+\s*nights?/i, "").trim().replace(/[,;]+$/, "");
+                                    const name = part.replace(/[--]\s*\d+\s*nights?/i, "").trim().replace(/[,;]+$/, "");
                                     const isLast = idx === parts.length - 1;
                                     return (
                                       <div key={idx} className="relative flex items-center gap-3 z-10">
@@ -1946,7 +1928,7 @@ export default function AdminPlanWithUsRequestsPage() {
                   </div>
                 </div>}
 
-                {/* Conversation History — hidden on COMPLETED (A4 report is shown instead) */}
+                {/* Conversation History - hidden on COMPLETED (A4 report is shown instead) */}
                 {selectedRequest.status !== "COMPLETED" && <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                   <div className="h-1 bg-gradient-to-r from-slate-400 to-gray-400" />
                   <div className="p-5">
@@ -1979,7 +1961,7 @@ export default function AdminPlanWithUsRequestsPage() {
                   </div>
                 </div>}
 
-                {/* ── Feedback builder (only when not COMPLETED) ── */}
+                {/* -- Feedback builder (only when not COMPLETED) -- */}
                 {selectedRequest.status !== "COMPLETED" && (
                   <>
                     {/* Section selector chips */}
@@ -1999,7 +1981,7 @@ export default function AdminPlanWithUsRequestsPage() {
                                 : "bg-white text-gray-600 border-gray-300 hover:border-blue-400 hover:text-blue-600"
                             }`}
                           >
-                            {activeSections.has(sec.id) ? "✓ " : "+ "}{sec.label}
+                            {activeSections.has(sec.id) ? "? " : "+ "}{sec.label}
                           </button>
                         ))}
                       </div>
@@ -2073,9 +2055,9 @@ export default function AdminPlanWithUsRequestsPage() {
                                       />
                                     </div>
                                     <div>
-                                      {/* Price mode toggle — admin must explicitly choose to avoid mistakes */}
+                                      {/* Price mode toggle - admin must explicitly choose to avoid mistakes */}
                                       <label className="text-[10px] font-bold uppercase tracking-wider text-gray-500 block mb-1">
-                                        {opt.priceMode === "night" ? "Price / Person / Night (TZS)" : "Price / Person — Full Stay (TZS)"}
+                                        {opt.priceMode === "night" ? "Price / Person / Night (TZS)" : "Price / Person - Full Stay (TZS)"}
                                       </label>
                                       <input
                                         type="text"
@@ -2108,7 +2090,7 @@ export default function AdminPlanWithUsRequestsPage() {
                                           : "bg-gray-50 text-gray-500 hover:bg-gray-100"
                                       }`}
                                     >
-                                      Per night × {opt.days} nights
+                                      Per night x {opt.days} nights
                                     </button>
                                   </div>
                                   {/* Live price computation */}
@@ -2120,7 +2102,7 @@ export default function AdminPlanWithUsRequestsPage() {
                                     const feesTotal = Object.values(opt.feeAmounts || {}).reduce((sum, v) => sum + (Number(String(v).replace(/[^0-9.]/g, "")) || 0), 0);
                                     const perPersonTotal = basePerPerson + feesTotal;
                                     const groupTotal = perPersonTotal * groupSize;
-                                    const fmt = (n: number) => n > 0 ? `TZS ${n.toLocaleString()}` : "—";
+                                    const fmt = (n: number) => n > 0 ? `TZS ${n.toLocaleString()}` : "-";
                                     if (!priceCleaned && !feesTotal) return null;
                                     return (
                                       <div className={`border rounded-xl p-3 ${
@@ -2131,7 +2113,7 @@ export default function AdminPlanWithUsRequestsPage() {
                                         <p className={`text-[10px] font-bold uppercase tracking-wider mb-2 ${
                                           opt.priceMode === "night" ? "text-amber-600" : "text-blue-500"
                                         }`}>
-                                          Price Summary — {opt.priceMode === "night" ? `${priceCleaned.toLocaleString()} × ${nights} nights` : "Full Stay Rate"}{feesTotal > 0 ? " + Fees" : ""}
+                                          Price Summary - {opt.priceMode === "night" ? `${priceCleaned.toLocaleString()} x ${nights} nights` : "Full Stay Rate"}{feesTotal > 0 ? " + Fees" : ""}
                                         </p>
                                         <div className="grid grid-cols-2 gap-2 mb-2">
                                           <div className="bg-white rounded-lg border border-gray-100 p-2 text-center">
@@ -2140,8 +2122,8 @@ export default function AdminPlanWithUsRequestsPage() {
                                             <p className="text-[9px] text-gray-400 mt-0.5">{opt.priceMode === "night" ? `${nights} nights` : "full stay"}</p>
                                           </div>
                                           <div className="bg-white rounded-lg border border-amber-100 p-2 text-center">
-                                            <p className="text-[9px] text-gray-400 uppercase tracking-wider mb-0.5">🎫 Fees / person</p>
-                                            <p className="text-xs font-bold text-amber-600">{feesTotal > 0 ? fmt(feesTotal) : "—"}</p>
+                                            <p className="text-[9px] text-gray-400 uppercase tracking-wider mb-0.5">?? Fees / person</p>
+                                            <p className="text-xs font-bold text-amber-600">{feesTotal > 0 ? fmt(feesTotal) : "-"}</p>
                                             <p className="text-[9px] text-gray-400 mt-0.5">park &amp; entry</p>
                                           </div>
                                         </div>
@@ -2162,7 +2144,7 @@ export default function AdminPlanWithUsRequestsPage() {
                                     );
                                   })()}
                                 </div>
-                                {/* Inclusions — Categorized */}
+                                {/* Inclusions - Categorized */}
                                 <div className="px-4 pb-4">
                                   <div className="flex items-center gap-2 mb-3">
                                     <label className="text-[10px] font-bold uppercase tracking-wider text-gray-500">What&apos;s Included</label>
@@ -2192,7 +2174,7 @@ export default function AdminPlanWithUsRequestsPage() {
                                                 onClick={() => toggleInclusion(opt.id, item)}
                                                 className={`px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all ${opt.inclusions.includes(item) ? cat.chipActive : cat.chipIdle}`}
                                               >
-                                                {opt.inclusions.includes(item) ? "✓ " : ""}{item}
+                                                {opt.inclusions.includes(item) ? "? " : ""}{item}
                                               </button>
                                             ))}
                                           </div>
@@ -2261,7 +2243,7 @@ export default function AdminPlanWithUsRequestsPage() {
                                                           >
                                                             {p.title}
                                                           </button>
-                                                          {p.regionName && <span className="text-purple-400 text-[10px]">· {p.regionName}</span>}
+                                                          {p.regionName && <span className="text-purple-400 text-[10px]">- {p.regionName}</span>}
                                                           <button
                                                             type="button"
                                                             onClick={() => unlinkProperty(opt.id, p.id)}
@@ -2292,7 +2274,7 @@ export default function AdminPlanWithUsRequestsPage() {
                                                     {propSearch?.optId === opt.id && (propSearch.results.length > 0 || (propSearch.query && !propSearch.loading)) && (
                                                       <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-white border border-purple-200 rounded-xl shadow-2xl overflow-hidden">
                                                         {propSearch.results.length === 0 ? (
-                                                          <div className="px-3 py-2.5 text-[11px] text-gray-400 italic">No approved properties found — describe it manually in the field below.</div>
+                                                          <div className="px-3 py-2.5 text-[11px] text-gray-400 italic">No approved properties found - describe it manually in the field below.</div>
                                                         ) : (
                                                           <div className="max-h-44 overflow-y-auto divide-y divide-gray-100">
                                                             {propSearch.results.map((p) => {
@@ -2310,7 +2292,7 @@ export default function AdminPlanWithUsRequestsPage() {
                                                                   <Building2 className="w-3.5 h-3.5 text-purple-400 shrink-0 mt-0.5" />
                                                                   <div className="min-w-0 flex-1">
                                                                     <p className="text-xs font-semibold text-gray-800 truncate">{p.title}</p>
-                                                                    <p className="text-[10px] text-gray-400">{[p.type, p.regionName].filter(Boolean).join(" · ")}{alreadyLinked ? " — already linked" : ""}</p>
+                                                                    <p className="text-[10px] text-gray-400">{[p.type, p.regionName].filter(Boolean).join(" - ")}{alreadyLinked ? " - already linked" : ""}</p>
                                                                   </div>
                                                                   {!alreadyLinked && <span className="shrink-0 text-[10px] text-purple-500 font-medium self-center">Link</span>}
                                                                 </button>
@@ -2402,7 +2384,7 @@ export default function AdminPlanWithUsRequestsPage() {
                                     : "bg-gray-50 text-gray-600 border-gray-200 hover:border-amber-300"
                                 }`}
                               >
-                                {selectedPermits.includes(item) ? "✓ " : ""}{item}
+                                {selectedPermits.includes(item) ? "? " : ""}{item}
                               </button>
                             ))}
                           </div>
@@ -2420,7 +2402,7 @@ export default function AdminPlanWithUsRequestsPage() {
                                       onClick={() => togglePermit(p)}
                                       className="text-amber-500 hover:text-amber-700 ml-0.5 leading-none"
                                     >
-                                      ×
+                                      x
                                     </button>
                                   </span>
                                 ))}
@@ -2444,7 +2426,7 @@ export default function AdminPlanWithUsRequestsPage() {
                           </h3>
 
                           {/* Preset chips */}
-                          <p className="text-[11px] text-gray-400 mb-2">Quick presets — tap to apply</p>
+                          <p className="text-[11px] text-gray-400 mb-2">Quick presets - tap to apply</p>
                           <div className="flex flex-wrap gap-2 mb-5">
                             {TIMELINE_PRESETS.map(preset => (
                               <button
@@ -2615,7 +2597,7 @@ export default function AdminPlanWithUsRequestsPage() {
                                       <div className="flex items-center justify-between text-xs">
                                         <span className="text-gray-500">
                                           {opt.priceMode === "night"
-                                            ? `Base rate (${fmt(priceCleaned)} × ${nights} nights)`
+                                            ? `Base rate (${fmt(priceCleaned)} x ${nights} nights)`
                                             : "Base rate (full stay)"}
                                         </span>
                                         <span className="font-semibold text-gray-800">{fmt(basePerPerson)} <span className="font-normal text-gray-400">/person</span></span>
@@ -2652,8 +2634,8 @@ export default function AdminPlanWithUsRequestsPage() {
                               {pricedOptions.length > 1 && groupSize > 0 && (
                                 <div className="rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-4 py-3 flex items-center justify-between shadow-sm mt-1">
                                   <div>
-                                    <p className="text-[10px] font-bold text-indigo-200 uppercase tracking-wider">Grand Total — All Options Combined</p>
-                                    <p className="text-[11px] text-indigo-100 mt-0.5">{pricedOptions.length} options × {groupSize} {groupSize === 1 ? "person" : "people"}</p>
+                                    <p className="text-[10px] font-bold text-indigo-200 uppercase tracking-wider">Grand Total - All Options Combined</p>
+                                    <p className="text-[11px] text-indigo-100 mt-0.5">{pricedOptions.length} options x {groupSize} {groupSize === 1 ? "person" : "people"}</p>
                                   </div>
                                   <span className="text-lg font-black text-white">
                                     {fmt(pricedOptions.reduce((sum, opt) => {
@@ -2765,7 +2747,7 @@ export default function AdminPlanWithUsRequestsPage() {
                 )}
               </div>
 
-              {/* ── Footer actions ── */}
+              {/* -- Footer actions -- */}
               {selectedRequest.status !== "COMPLETED" && (
                 <div className="flex-shrink-0 flex flex-col sm:flex-row justify-end gap-3 px-5 py-4 border-t border-gray-200 bg-white rounded-b-2xl">
                   <button

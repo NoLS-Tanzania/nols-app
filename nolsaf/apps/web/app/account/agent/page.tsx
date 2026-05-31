@@ -3,10 +3,36 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import apiClient from "@/lib/apiClient";
+import { fetchAccountSession } from "@/lib/accountSession";
 import { ArrowRight, BadgeCheck, CheckCircle, ClipboardList, Clock, Eye, Star, ToggleRight, ShieldAlert } from "lucide-react";
-import LogoSpinner from "@/components/LogoSpinner";
 
 const api = apiClient;
+
+const CURRENT_AGENT_ROUTES = {
+  me: "/api/agent/me",
+  assignments: "/api/agent/tour-bookings",
+} as const;
+
+function normalizeWorkflowStatus(input: unknown): string {
+  return String(input || "").trim().replace(/[\s-]+/g, "_").toUpperCase();
+}
+
+function isCompletedStatus(input: unknown): boolean {
+  const s = normalizeWorkflowStatus(input);
+  return s === "COMPLETED" || s === "CHECKED_OUT" || s === "DONE" || s === "FINISHED";
+}
+
+function isInProgressStatus(input: unknown): boolean {
+  const s = normalizeWorkflowStatus(input);
+  return (
+    s === "IN_PROGRESS" ||
+    s === "CHECKED_IN" ||
+    s === "PENDING_CHECKIN" ||
+    s === "CONFIRMED" ||
+    s === "ACTIVE" ||
+    s === "ONGOING"
+  );
+}
 
 type AssignmentStats = {
   total: number;
@@ -466,13 +492,16 @@ function TaskTrendsChart({
   const geom = useMemo(() => {
     const values = [...total, ...completed, ...inProgress].map((n) => (Number.isFinite(Number(n)) ? Number(n) : 0));
     const maxY = Math.max(1, ...values);
+    const tickCount = 4;
+    const yStep = Math.max(1, Math.ceil(maxY / tickCount));
+    const topY = yStep * tickCount;
 
     const w = 560;
     const h = 196;
-    const padL = 36;
+    const padL = 40;
     const padR = 18;
     const padT = 14;
-    const padB = 26;
+    const padB = 30;
 
     const innerW = w - padL - padR;
     const innerH = h - padT - padB;
@@ -480,17 +509,20 @@ function TaskTrendsChart({
     const stepX = n <= 1 ? 0 : innerW / (n - 1);
 
     const yFor = (v: number) => {
-      const t = (Number(v) || 0) / maxY;
+      const t = (Number(v) || 0) / topY;
       return padT + (1 - t) * innerH;
     };
 
-    const pathFor = (series: number[]) => {
-      const pts = Array.from({ length: n }, (_, i) => {
+    const pointsFor = (series: number[]) =>
+      Array.from({ length: n }, (_, i) => {
         const x = padL + stepX * i;
         const v = Number(series[i] ?? 0) || 0;
         const y = yFor(v);
-        return { x, y };
+        return { x, y, v };
       });
+
+    const pathFor = (series: number[]) => {
+      const pts = pointsFor(series);
       if (!pts.length) return "";
       return `M ${pts.map((p) => `${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" L ")}`;
     };
@@ -503,57 +535,96 @@ function TaskTrendsChart({
       return `${line} L ${lastX.toFixed(1)} ${baseY.toFixed(1)} L ${padL.toFixed(1)} ${baseY.toFixed(1)} Z`;
     };
 
-    const grid = Array.from({ length: 4 }, (_, i) => {
-      const t = (i + 1) / 4;
+    const grid = Array.from({ length: tickCount + 1 }, (_, i) => {
+      const t = i / tickCount;
       const y = padT + t * innerH;
-      return { y, label: Math.round((1 - t) * maxY) };
+      return { y, label: topY - i * yStep };
     });
+
+    const xTicks = [
+      { x: padL, label: "14d ago" },
+      { x: padL + (n <= 1 ? 0 : stepX * Math.floor((n - 1) / 2)), label: "7d" },
+      { x: padL + stepX * (n - 1), label: "Today" },
+    ];
+
+    const totalPts = pointsFor(total);
+    const completedPts = pointsFor(completed);
+    const inProgressPts = pointsFor(inProgress);
 
     return {
       viewBox: `0 0 ${w} ${h}`,
+      w,
+      h,
       grid,
+      xTicks,
       totalLine: pathFor(total),
       completedLine: pathFor(completed),
       inProgressLine: pathFor(inProgress),
       totalArea: areaFor(total),
+      completedArea: areaFor(completed),
+      totalLast: totalPts[totalPts.length - 1] || null,
+      completedLast: completedPts[completedPts.length - 1] || null,
+      inProgressLast: inProgressPts[inProgressPts.length - 1] || null,
     };
   }, [completed, inProgress, total]);
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-slate-950/60 text-white overflow-hidden">
+    <div className="rounded-2xl border border-white/10 bg-slate-950/70 text-white overflow-hidden">
       <div className="relative">
-        <div className="absolute inset-0 bg-gradient-to-br from-brand/20 via-transparent to-slate-900/30" aria-hidden />
+        <div className="absolute inset-0 bg-gradient-to-br from-[#02665e]/35 via-slate-900/40 to-[#1d4ed8]/30" aria-hidden />
         <div className="absolute -top-10 -right-12 h-44 w-44 rounded-full bg-brand/15 blur-3xl" aria-hidden />
         <div className="absolute -bottom-16 -left-12 h-56 w-56 rounded-full bg-info/10 blur-3xl" aria-hidden />
 
         <div className="relative p-2.5 sm:p-3">
-          <div className="text-xs font-semibold text-white/70">Last 14 days</div>
+          <div className="text-xs font-semibold text-white/85">Last 14 days</div>
 
-          <svg viewBox={geom.viewBox} className="mt-2.5 h-44 w-full" role="img" aria-label="Task trends line chart">
+          <svg viewBox={geom.viewBox} className="mt-2.5 h-44 w-full" role="img" aria-label="Booking trends line chart">
+            <defs>
+              <linearGradient id="trendTotalFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#14b8a6" stopOpacity="0.34" />
+                <stop offset="100%" stopColor="#14b8a6" stopOpacity="0.02" />
+              </linearGradient>
+              <linearGradient id="trendCompletedFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#22c55e" stopOpacity="0.22" />
+                <stop offset="100%" stopColor="#22c55e" stopOpacity="0.02" />
+              </linearGradient>
+            </defs>
+
             {geom.grid.map((g, idx) => (
               <g key={idx}>
-                <line x1={16} y1={g.y} x2={544} y2={g.y} stroke="currentColor" opacity={0.10} />
-                <text x={8} y={g.y + 4} className="fill-white/45 text-[10px] font-semibold" textAnchor="start">
+                <line x1={16} y1={g.y} x2={544} y2={g.y} stroke="currentColor" opacity={0.17} />
+                <text x={7} y={g.y + 4} className="fill-white/65 text-[10px] font-semibold" textAnchor="start">
                   {g.label}
                 </text>
               </g>
             ))}
 
+            {geom.xTicks.map((xTick, idx) => (
+              <text key={idx} x={xTick.x} y={geom.h - 6} className="fill-white/60 text-[9px] font-semibold" textAnchor={idx === 0 ? "start" : idx === 2 ? "end" : "middle"}>
+                {xTick.label}
+              </text>
+            ))}
+
             <g className="text-brand">
-              <path d={geom.totalArea} fill="currentColor" opacity={0.10} />
+              <path d={geom.totalArea} fill="url(#trendTotalFill)" />
               <path d={geom.totalLine} fill="none" stroke="currentColor" strokeWidth={6} opacity={0.10} strokeLinecap="round" />
               <path d={geom.totalLine} fill="none" stroke="currentColor" strokeWidth={2.6} opacity={0.95} strokeLinecap="round" />
             </g>
 
             <g className="text-success">
+              <path d={geom.completedArea} fill="url(#trendCompletedFill)" />
               <path d={geom.completedLine} fill="none" stroke="currentColor" strokeWidth={5.5} opacity={0.10} strokeLinecap="round" />
               <path d={geom.completedLine} fill="none" stroke="currentColor" strokeWidth={2.4} opacity={0.92} strokeLinecap="round" />
             </g>
 
             <g className="text-info">
               <path d={geom.inProgressLine} fill="none" stroke="currentColor" strokeWidth={5.5} opacity={0.10} strokeLinecap="round" />
-              <path d={geom.inProgressLine} fill="none" stroke="currentColor" strokeWidth={2.4} opacity={0.92} strokeLinecap="round" />
+              <path d={geom.inProgressLine} fill="none" stroke="currentColor" strokeWidth={2.4} opacity={0.92} strokeLinecap="round" strokeDasharray="4 3" />
             </g>
+
+            {geom.totalLast ? <circle cx={geom.totalLast.x} cy={geom.totalLast.y} r={3.1} className="fill-brand" /> : null}
+            {geom.completedLast ? <circle cx={geom.completedLast.x} cy={geom.completedLast.y} r={3.1} className="fill-success" /> : null}
+            {geom.inProgressLast ? <circle cx={geom.inProgressLast.x} cy={geom.inProgressLast.y} r={3.1} className="fill-info" /> : null}
           </svg>
 
           <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px]">
@@ -563,7 +634,7 @@ function TaskTrendsChart({
             </div>
             <div className="inline-flex items-center gap-2">
               <span className="h-2 w-2 rounded-full bg-success" aria-hidden />
-              <span className="text-white/80 font-semibold">Completed</span>
+              <span className="text-white/80 font-semibold">Completed bookings</span>
             </div>
             <div className="inline-flex items-center gap-2">
               <span className="h-2 w-2 rounded-full bg-info" aria-hidden />
@@ -581,6 +652,7 @@ export default function AgentPortalHomePage() {
   const [stats, setStats] = useState<AssignmentStats>({ total: 0, completed: 0, inProgress: 0 });
   const [recent, setRecent] = useState<AssignmentPreview[]>([]);
   const [authRequired, setAuthRequired] = useState(false);
+  const [dataIssue, setDataIssue] = useState<string | null>(null);
   const [isSuspended, setIsSuspended] = useState(false);
   const [account, setAccount] = useState<AccountMe | null>(null);
   const [agentMe, setAgentMe] = useState<AgentMe | null>(null);
@@ -600,32 +672,41 @@ export default function AgentPortalHomePage() {
       try {
         setLoading(true);
         setAuthRequired(false);
+        setDataIssue(null);
 
         // Ensure user is authenticated + load agent context for level/ratings.
-        const [meRes, agentRes, res] = await Promise.all([
-          api.get("/api/account/me"),
-          api.get("/api/agent/me").catch((e: any) => {
+        const [sessionRes, agentRes, res] = await Promise.all([
+          fetchAccountSession(),
+          api.get(CURRENT_AGENT_ROUTES.me).catch((e: any) => {
             if (e?.response?.status === 403 && e?.response?.data?.error === "AGENT_SUSPENDED") {
               if (alive) setIsSuspended(true);
             }
             return { data: null };
           }),
-          // Best-effort stats + a small preview list (safe fallback if API not ready yet).
-          api.get("/api/agent/assignments?page=1&pageSize=60").catch(() => ({
-            data: { total: 0, completed: 0, inProgress: 0, items: [] },
-          })),
+          api.get(CURRENT_AGENT_ROUTES.assignments, {
+            params: { page: 1, pageSize: 60 },
+          }).catch((e: any) => ({ data: null, __routeError: e })),
         ]);
 
         if (!alive) return;
 
-        setAccount(meRes.data || null);
+        if (!sessionRes.ok) {
+          throw new Error(`Session check failed: ${sessionRes.status}`);
+        }
+
+        setAccount((sessionRes.data as AccountMe | null) ?? null);
         setAgentMe((agentRes as any)?.data || null);
 
-        const total = Number(res.data?.total ?? 0);
-        const completed = Number(res.data?.completed ?? 0);
-        const inProgress = Number(res.data?.inProgress ?? 0);
+        const routeError = (res as any)?.__routeError;
+        if (routeError) {
+          setDataIssue("Assignment metrics are unavailable from the current API route.");
+        }
 
-        const list: any[] = res.data?.items ?? [];
+        const total = Number((res as any)?.data?.total ?? 0);
+        const completed = Number((res as any)?.data?.completed ?? 0);
+        const inProgress = Number((res as any)?.data?.inProgress ?? 0);
+
+        const list: any[] = (res as any)?.data?.items ?? [];
 
         setStats({
           total: Number.isFinite(total) ? total : 0,
@@ -644,7 +725,7 @@ export default function AgentPortalHomePage() {
           : [];
 
         setTrendItems(mapped);
-        setRecent(mapped.slice(0, 3));
+        setRecent(mapped.slice(0, 2));
       } catch {
         // Allow UI preview even when not logged in.
         // (In production you will typically be redirected by the account flows anyway.)
@@ -692,8 +773,6 @@ export default function AgentPortalHomePage() {
 
     const buckets = Array.from({ length: days }, () => ({ total: 0, completed: 0, inProgress: 0 }));
 
-    const normalizeStatus = (s: string) => s.toLowerCase();
-
     for (const item of trendItems) {
       if (!item?.createdAt) continue;
       const d = new Date(item.createdAt);
@@ -705,9 +784,8 @@ export default function AgentPortalHomePage() {
       if (idx < 0 || idx >= buckets.length) continue;
 
       buckets[idx].total += 1;
-      const s = normalizeStatus(String(item.status || ""));
-      if (s.includes("complete") || s === "done") buckets[idx].completed += 1;
-      else if (s.includes("progress") || s.includes("active")) buckets[idx].inProgress += 1;
+      if (isCompletedStatus(item.status)) buckets[idx].completed += 1;
+      else if (isInProgressStatus(item.status)) buckets[idx].inProgress += 1;
     }
 
     return {
@@ -723,19 +801,19 @@ export default function AgentPortalHomePage() {
     const last14Completed = sum(trends.completed);
     const last14InProgress = sum(trends.inProgress);
 
-    const avgPerDay = last14Total / 14;
     const completionRate14 = last14Completed / Math.max(1, last14Total);
     const completionRateAll = stats.completed / Math.max(1, stats.total);
+    const pendingCount = trendItems.filter((item) => normalizeWorkflowStatus(item.status) === "PENDING").length;
 
     return {
       last14Total,
       last14Completed,
       last14InProgress,
-      avgPerDay,
       completionRate14,
       completionRateAll,
+      pendingCount,
     };
-  }, [stats.completed, stats.total, trends.completed, trends.inProgress, trends.total]);
+  }, [stats.completed, stats.total, trendItems, trends.completed, trends.inProgress, trends.total]);
 
   return (
     <div className="w-full py-2 sm:py-4">
@@ -815,6 +893,13 @@ export default function AgentPortalHomePage() {
             </div>
           )}
 
+          {dataIssue && !loading && !authRequired && (
+            <div className="mt-5 rounded-2xl border border-amber-400/30 bg-amber-500/10 backdrop-blur p-4">
+              <div className="text-sm font-bold text-amber-100">Data route warning</div>
+              <div className="text-sm text-amber-200/80 mt-1">{dataIssue}</div>
+            </div>
+          )}
+
           {isSuspended && !loading && (
             <div className="mt-5 rounded-2xl border border-amber-400/30 bg-amber-500/10 backdrop-blur p-5">
               <div className="flex items-start gap-4">
@@ -840,15 +925,55 @@ export default function AgentPortalHomePage() {
       </div>
 
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-20">
-          <LogoSpinner size="lg" className="mb-4" ariaLabel="Loading agent portal" />
-          <p className="text-sm text-slate-600">Loading your portal...</p>
+        <div className="space-y-5 animate-pulse">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 sm:gap-5">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 h-[116px]" />
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 h-[116px]" />
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 h-[116px] col-span-2 sm:col-span-1" />
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white/80 shadow-card overflow-hidden">
+            <div className="p-4 border-b border-slate-200 bg-slate-50">
+              <div className="h-4 w-40 rounded bg-slate-200" />
+              <div className="h-3 w-72 rounded bg-slate-200 mt-2" />
+            </div>
+            <div className="p-4 grid grid-cols-1 lg:grid-cols-12 gap-4">
+              <div className="lg:col-span-8 rounded-2xl border border-slate-200 bg-slate-100 h-[240px]" />
+              <div className="lg:col-span-4 rounded-2xl border border-slate-200 bg-white p-4">
+                <div className="h-4 w-32 rounded bg-slate-200" />
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                  <div className="h-20 rounded-2xl bg-slate-100" />
+                  <div className="h-20 rounded-2xl bg-slate-100" />
+                  <div className="h-20 rounded-2xl bg-slate-100" />
+                  <div className="h-20 rounded-2xl bg-slate-100" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            <div className="lg:col-span-7 rounded-2xl border border-slate-200 bg-white/70 shadow-card overflow-hidden">
+              <div className="p-6 border-b border-slate-200 bg-slate-50">
+                <div className="h-4 w-28 rounded bg-slate-200" />
+                <div className="h-3 w-56 rounded bg-slate-200 mt-2" />
+              </div>
+              <div className="p-6 space-y-3">
+                <div className="h-28 rounded-2xl border border-slate-200 bg-slate-100" />
+                <div className="h-28 rounded-2xl border border-slate-200 bg-slate-100" />
+              </div>
+            </div>
+            <div className="lg:col-span-5 rounded-2xl border border-slate-200 bg-white/70 shadow-card p-6">
+              <div className="h-4 w-24 rounded bg-slate-200" />
+              <div className="h-3 w-64 rounded bg-slate-200 mt-2" />
+              <div className="h-40 rounded-2xl bg-slate-100 mt-4" />
+            </div>
+          </div>
         </div>
       ) : (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 sm:gap-5 mb-8">
             <StatCard
-              label="Total assignments"
+              label="Total bookings"
               value={stats.total}
               icon={<ClipboardList className="w-5 h-5" aria-hidden />}
               trend={trends.total}
@@ -856,7 +981,7 @@ export default function AgentPortalHomePage() {
               variant="area"
             />
             <StatCard
-              label="Completed"
+              label="Completed bookings"
               value={stats.completed}
               icon={<CheckCircle className="w-5 h-5" aria-hidden />}
               trend={trends.completed}
@@ -865,7 +990,7 @@ export default function AgentPortalHomePage() {
             />
             <StatCard
               className="col-span-2 sm:col-span-1"
-              label="In progress"
+              label="Tasks in progress"
               value={stats.inProgress}
               icon={<Clock className="w-5 h-5" aria-hidden />}
               trend={trends.inProgress}
@@ -878,20 +1003,20 @@ export default function AgentPortalHomePage() {
             <div className="p-3 sm:p-4 border-b border-slate-200 bg-gradient-to-br from-slate-50 to-white">
               <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                 <div>
-                  <div className="text-sm font-bold text-slate-900">Task trends</div>
+                  <div className="text-sm font-bold text-slate-900">Booking trends</div>
                   <div className="text-sm text-slate-600 mt-1">
-                    Relationship between assignments, completed work, and in-progress load.
+                    Overview of received, completed, and in-progress bookings over the last 14 days.
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5">
-                    <div className="text-xs font-semibold text-slate-600">Completion (14d)</div>
+                    <div className="text-xs font-semibold text-slate-600">Success rate (14d)</div>
                     <div className="text-xs font-extrabold text-slate-900 tabular-nums">
                       {Math.round(trendSummary.completionRate14 * 100)}%
                     </div>
                   </div>
                   <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5">
-                    <div className="text-xs font-semibold text-slate-600">New (14d)</div>
+                    <div className="text-xs font-semibold text-slate-600">Received (14d)</div>
                     <div className="text-xs font-extrabold text-slate-900 tabular-nums">
                       {trendSummary.last14Total}
                     </div>
@@ -909,37 +1034,41 @@ export default function AgentPortalHomePage() {
                 <div className="lg:col-span-4">
                   <div className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
                     <div className="flex items-center justify-between gap-3">
-                      <div className="text-sm font-bold text-slate-900">Highlights</div>
-                      <div className="text-xs font-semibold text-slate-500">14d</div>
+                      <div className="text-sm font-bold text-slate-900">Booking snapshot</div>
+                      <div className="text-xs font-semibold text-slate-500">All time</div>
                     </div>
 
                     <div className="mt-3 grid grid-cols-2 gap-3">
-                      <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-3">
-                        <div className="text-xs font-semibold text-slate-600">Avg / day (14d)</div>
-                        <div className="mt-1 text-2xl font-extrabold tabular-nums tracking-tight text-info leading-none">
-                          {trendSummary.avgPerDay.toFixed(1)}
+                      <div className="rounded-2xl border border-amber-100 bg-amber-50/60 p-3">
+                        <div className="text-xs font-semibold text-amber-700">Awaiting action</div>
+                        <div className="mt-1 text-2xl font-extrabold tabular-nums tracking-tight text-amber-600 leading-none">
+                          {trendSummary.pendingCount}
                         </div>
+                        <div className="mt-1 text-[10px] text-amber-500">Needs your follow-up</div>
                       </div>
 
                       <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-3">
-                        <div className="text-xs font-semibold text-slate-600">Completion (all)</div>
+                        <div className="text-xs font-semibold text-brand">In progress</div>
+                        <div className="mt-1 text-2xl font-extrabold tabular-nums tracking-tight text-brand leading-none">
+                          {stats.inProgress}
+                        </div>
+                        <div className="mt-1 text-[10px] text-slate-500">Bookings currently being handled</div>
+                      </div>
+
+                      <div className="rounded-2xl border border-green-100 bg-green-50/60 p-3">
+                        <div className="text-xs font-semibold text-success">Completed bookings</div>
                         <div className="mt-1 text-2xl font-extrabold tabular-nums tracking-tight text-success leading-none">
+                          {stats.completed}
+                        </div>
+                        <div className="mt-1 text-[10px] text-slate-500">Finished successfully</div>
+                      </div>
+
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-3">
+                        <div className="text-xs font-semibold text-slate-600">Completion rate</div>
+                        <div className="mt-1 text-2xl font-extrabold tabular-nums tracking-tight text-slate-900 leading-none">
                           {Math.round(trendSummary.completionRateAll * 100)}%
                         </div>
-                      </div>
-
-                      <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-3">
-                        <div className="text-xs font-semibold text-slate-600">In progress (14d)</div>
-                        <div className="mt-1 text-2xl font-extrabold tabular-nums tracking-tight text-brand leading-none">
-                          {trendSummary.last14InProgress}
-                        </div>
-                      </div>
-
-                      <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-3">
-                        <div className="text-xs font-semibold text-slate-600">Completed (14d)</div>
-                        <div className="mt-1 text-2xl font-extrabold tabular-nums tracking-tight text-slate-900 leading-none">
-                          {trendSummary.last14Completed}
-                        </div>
+                        <div className="mt-1 text-[10px] text-slate-500">Completed out of total bookings</div>
                       </div>
                     </div>
                   </div>
@@ -953,12 +1082,12 @@ export default function AgentPortalHomePage() {
               <div className="p-5 sm:p-6 border-b border-slate-200 bg-gradient-to-br from-slate-50 to-white">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <div className="text-sm font-bold text-slate-900">Recent assignments</div>
-                    <div className="text-sm text-slate-600 mt-1">Your latest work items and current status.</div>
+                    <div className="text-sm font-bold text-slate-900">My Bookings</div>
+                    <div className="text-sm text-slate-600 mt-1">Latest 2 bookings assigned to you, with status and details.</div>
                   </div>
                   <Link
-                    href="/account/agent/assignments"
-                    aria-label="View all assignments"
+                    href="/account/agent/tour-bookings"
+                    aria-label="View all bookings"
                     className="group inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2.5 py-2 text-sm font-semibold text-brand hover:text-brand-700 shadow-card transition-colors"
                   >
                     <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-50" aria-hidden>
@@ -977,18 +1106,18 @@ export default function AgentPortalHomePage() {
                 {authRequired ? (
                   <div className="rounded-2xl border border-slate-200 bg-white p-5">
                     <div className="text-sm font-bold text-slate-900">Preview mode</div>
-                    <div className="text-sm text-slate-600 mt-1">Sign in to load your real assignment queue.</div>
+                    <div className="text-sm text-slate-600 mt-1">Sign in to load your real booking queue.</div>
                   </div>
                 ) : recent.length === 0 ? (
                   <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-gradient-to-br from-slate-50 to-white p-8 text-center">
-                    <div className="text-sm font-bold text-slate-900">No assignments yet</div>
-                    <div className="text-sm text-slate-600 mt-1">When you’re assigned work, it will show here.</div>
+                    <div className="text-sm font-bold text-slate-900">No bookings yet</div>
+                    <div className="text-sm text-slate-600 mt-1">When bookings are assigned to you, they will show here.</div>
                   </div>
                 ) : (
                   <div className="space-y-3">
                     {recent.map((a) => {
                       const id = a.id;
-                      const title = a.title || `Assignment #${String(id)}`;
+                      const title = a.title || `Booking #${String(id)}`;
                       const status = a.status || "Pending";
                       const date = a.createdAt
                         ? new Date(a.createdAt).toLocaleDateString("en-GB", {
@@ -1001,21 +1130,25 @@ export default function AgentPortalHomePage() {
                       return (
                         <Link
                           key={String(id)}
-                          href={`/account/agent/assignments/${encodeURIComponent(String(id))}`}
+                          href={`/account/agent/tour-bookings/${encodeURIComponent(String(id))}`}
                           className="block no-underline"
                         >
-                          <div className="group rounded-2xl border border-slate-200 bg-white p-4 shadow-card hover:shadow-md transition-shadow">
+                          <div className="group relative overflow-hidden rounded-2xl border border-[#02665e]/15 bg-gradient-to-br from-white via-[#f7fcfb] to-[#edf8f6] p-4 shadow-[0_8px_24px_rgba(2,102,94,0.08)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(2,102,94,0.14)]">
+                            <div className="pointer-events-none absolute inset-0 opacity-30" style={{ backgroundImage: "radial-gradient(circle, rgba(2,102,94,0.08) 1px, transparent 1px)", backgroundSize: "18px 18px" }} aria-hidden />
+                            <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-[#02665e]/8" aria-hidden />
                             <div className="flex items-start justify-between gap-4">
-                              <div className="min-w-0">
-                                <div className="text-sm font-bold text-slate-900 truncate">{title}</div>
-                                <div className="text-xs text-slate-600 mt-1">Created {date}</div>
+                              <div className="relative z-10 min-w-0">
+                                <div className="text-[1.02rem] font-extrabold tracking-tight text-slate-900 truncate">{title}</div>
+                                <div className="mt-2 inline-flex items-center rounded-full border border-[#02665e]/15 bg-white/80 px-2.5 py-1 text-xs font-semibold text-slate-600">Created {date}</div>
                               </div>
-                              <StatusPill status={status} />
+                              <div className="relative z-10">
+                                <StatusPill status={status} />
+                              </div>
                             </div>
                             {a.description ? (
-                              <div className="text-sm text-slate-600 mt-2 line-clamp-2">{a.description}</div>
+                              <div className="relative z-10 text-sm text-slate-600 mt-2 line-clamp-2">{a.description}</div>
                             ) : null}
-                            <div className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-brand">
+                            <div className="relative z-10 mt-3 inline-flex items-center gap-2 rounded-full border border-[#02665e]/20 bg-white/85 px-3 py-1.5 text-sm font-semibold text-brand">
                               Open
                               <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden />
                             </div>

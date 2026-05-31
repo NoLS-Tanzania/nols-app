@@ -1,3 +1,5 @@
+import { CurrencySelector } from './CurrencySelector'
+
 export default function Header(){
   return (
     <header className="site-header">
@@ -8,6 +10,9 @@ export default function Header(){
           <a href="#" className="nav-link">How it works</a>
           <a href="#" className="nav-link">Help</a>
         </nav>
+        <div style={{ marginLeft: "auto", paddingLeft: "16px" }}>
+          <CurrencySelector />
+        </div>
       </div>
     </header>
   )

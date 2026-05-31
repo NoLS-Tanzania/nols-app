@@ -23,7 +23,7 @@
  * enabled      boolean   – master switch. false = gate disabled (service is live).
  * open         boolean   – controls visibility while enabled.
  * onClose      () => void
- * serviceName  string    – e.g. "Group Stays", "N-SaT", "Plan With Us"
+ * serviceName  string    – e.g. "Group Stays", "N-SaT", "Partner Tours"
  * launchDate   Date      – countdown target
  * tagline?     string    – one-line description shown under the service name in the header
  */

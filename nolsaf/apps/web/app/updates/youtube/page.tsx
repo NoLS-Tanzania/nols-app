@@ -6,7 +6,7 @@ import { ChevronLeft, Play } from 'lucide-react';
 
 export default function Page() {
   const items = [
-    { id: 'y1', date: '2025-11-01', title: 'How to Plan Group Trips', text: 'Short walkthrough video showing the new Plan With Us flow.', thumbnail: 'https://img.youtube.com/vi/NO22xxk4E6s/hqdefault.jpg', videoId: 'NO22xxk4E6s' },
+    { id: 'y1', date: '2025-11-01', title: 'How to Estimate Group Trips', text: 'Short walkthrough video showing the direct trip cost-estimation flow.', thumbnail: 'https://img.youtube.com/vi/NO22xxk4E6s/hqdefault.jpg', videoId: 'NO22xxk4E6s' },
     { id: 'y2', date: '2025-10-15', title: 'Driver Safety Tips', text: 'A short clip about driver verification and safety best practices.', thumbnail: '/assets/nolsaf%20picture%2022.jpg', videoId: 'REPLACE_WITH_VIDEO_ID_2' }
   ];
 

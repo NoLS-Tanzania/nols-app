@@ -1,169 +1,1308 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Children, Fragment, useEffect, useMemo, useRef, useState } from "react";
+import axios from "axios";
 import Link from "next/link";
-import axios from "axios";import apiClient from "@/lib/apiClient";
-import Image from "next/image";
-import { ArrowLeft, Briefcase, Clock, Globe, GraduationCap, Mail, MapPin, Phone, UserRound, ArrowRight, Pencil, Plus, Eye, X, Info } from "lucide-react";
-import LogoSpinner from "@/components/LogoSpinner";
+import {
+  ArrowLeft,
+  BriefcaseBusiness,
+  Building2,
+  Camera,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  Globe,
+  ImagePlus,
+  Loader2,
+  MapPin,
+  PackagePlus,
+  Plus,
+  Save,
+  ShieldCheck,
+  Trash2,
+  Users,
+  Wrench,
+  X,
+  XCircle,
+} from "lucide-react";
+import {
+  COMMON_SERVICES,
+  getServiceOptionsForTypes,
+  TOOLS_ASSETS_OPTIONS,
+  TOURISM_TYPE_SERVICES,
+  TOURISM_TYPES,
+  VEHICLE_SERVICE_MODES,
+} from "@/components/careers/partnershipProfile";
+import { AGENT_SPECIALIZATIONS } from "@nolsaf/shared";
+import apiClient from "@/lib/apiClient";
+import { REGIONS } from "@/lib/tzRegions";
 
 const api = apiClient;
 
-type AccountMe = {
-  id: number;
-  role?: string;
-  email?: string | null;
-  phone?: string | null;
-  name?: string | null;
-  fullName?: string | null;
-  avatarUrl?: string | null;
-  nationality?: string | null;
-  region?: string | null;
-  district?: string | null;
-  timezone?: string | null;
-  documents?: Array<{
-    id: number;
-    type?: string | null;
-    url?: string | null;
-    status?: string | null;
-    metadata?: any;
-    createdAt?: string | null;
-  }>;
+type VehicleAsset = {
+  id: string;
+  type: string;
+  quantity: string;
+  seatsPerVehicle: string;
+  registrationNumber: string;
+  ownedBy: string;
+  serviceMode: string;
+  notes: string;
+};
+
+type ItineraryDay = {
+  id: string;
+  day: number;
+  title: string;
+  description: string;
+  events: ItineraryEvent[];
+};
+
+type ItineraryEvent = {
+  id: string;
+  startTime: string;
+  endTime: string;
+  activity: string;
+  difficulty: "Easy" | "Normal" | "Difficult" | "Funny" | "Delicious";
+};
+
+type ValidationIssue = {
+  path?: Array<string | number>;
+  message?: string;
+};
+
+type PackageItem = {
+  id: string;
+  name: string;
+  description: string;
+  destination: string;
+  category: string;
+  duration: string;
+  minPax: string;
+  maxPax: string;
+  pricePerPerson: string;
+  currency: string;
+  discountFactor: string;
+  discountType: string;
+  discountValue: string;
+  discountCondition: string;
+  discountUnit: string;
+  mode: string;
+  accommodation: string;
+  mealPlan: string;
+  difficulty: string;
+  meetingPoint: string;
+  included: string[];
+  excluded: string[];
+  itinerary: ItineraryDay[];
+  notes: string;
+};
+
+type SeasonalPrice = {
+  id: string;
+  seasonName: string;
+  startMonth: string;
+  endMonth: string;
+  pricePerPerson: string;
+  currency: string;
+  notes: string;
+};
+
+type OperatorProfile = {
+  contactPersonName?: string;
+  contactPersonEmail?: string;
+  contactPersonPhone?: string;
+  contactPersonNationality?: string;
+  companyName: string;
+  companyEmail?: string;
+  companyPhone?: string;
+  companyLogoUrl: string;
+  businessAddress: string;
+  companyWebsite?: string;
+  businessRegistrationNumber?: string;
+  tinNumber?: string;
+  businessLicenseNumber?: string;
+  tourismPermitNumber?: string;
+  vehiclePermitNumber?: string;
+  yearsInOperation?: number;
+  teamSize?: number;
+  languages?: string;
+  physicalLocation: string;
+  operatingRegions: string[];
+  registeredParks?: string[];
+  contactPhone: string;
+  contactEmail: string;
+  whatsapp: string;
+  description: string;
+  tourismTypes: string[];
+  tools: string[];
+  vehicles: VehicleAsset[];
+  services: string[];
+  serviceClassification?: Record<string, string[]>;
+  hasVehicles?: boolean;
+  specializations: string[];
+  addOns: string[];
+  seasonalPricing: string;
+  packages: string;
+  packageItems: PackageItem[];
+  seasonalPrices: SeasonalPrice[];
+  capacityNotes: string;
+  maxTripsPerDay: string;
+  minimumBookingNotice: string;
+  guidesAvailable: string;
+  peakSeasonAvailability: string;
+  blockedPeriods: string;
+  gallery: string[];
+  classifiedPhotos: Record<string, string[]>;
+  reviewStatus?: string;
+  reviewReason?: string | null;
+  submittedAt?: string;
+  reviewedAt?: string;
+  approvedAt?: string;
+  [key: string]: any;
 };
 
 type AgentMe = {
   ok: boolean;
   agent?: {
     id: number;
-    status?: string;
+    status?: string | null;
     level?: string | null;
-    educationLevel?: string | null;
-    areasOfOperation?: any;
-    languages?: any;
-    yearsOfExperience?: number | null;
-    specializations?: any;
-    bio?: string | null;
-    isAvailable?: boolean | null;
-    maxActiveRequests?: number | null;
-    currentActiveRequests?: number | null;
-    employmentCommencedAt?: string | null;
-    employmentType?: string | null;
-    employmentTitle?: string | null;
-    user?: { id: number; name?: string | null; fullName?: string | null; email?: string | null; phone?: string | null; nationality?: string | null; region?: string | null; district?: string | null };
+    operatorProfile?: Partial<OperatorProfile> | null;
+    user?: { name?: string | null; fullName?: string | null; email?: string | null; phone?: string | null };
   };
 };
 
-function formatDate(value: string | null | undefined) {
-  if (!value) return "—";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+type CloudinarySig = {
+  timestamp: number;
+  signature: string;
+  folder: string;
+  cloudName: string;
+  apiKey: string;
+};
+
+const emptyProfile: OperatorProfile = {
+  contactPersonName: "",
+  contactPersonEmail: "",
+  contactPersonPhone: "",
+  contactPersonNationality: "",
+  companyName: "",
+  companyEmail: "",
+  companyPhone: "",
+  companyLogoUrl: "",
+  businessAddress: "",
+  companyWebsite: "",
+  businessRegistrationNumber: "",
+  tinNumber: "",
+  businessLicenseNumber: "",
+  tourismPermitNumber: "",
+  vehiclePermitNumber: "",
+  yearsInOperation: undefined,
+  teamSize: undefined,
+  languages: "",
+  physicalLocation: "",
+  operatingRegions: [],
+  registeredParks: [],
+  contactPhone: "",
+  contactEmail: "",
+  whatsapp: "",
+  description: "",
+  tourismTypes: [],
+  tools: [],
+  vehicles: [],
+  services: [],
+  serviceClassification: {},
+  hasVehicles: false,
+  specializations: [],
+  addOns: [],
+  seasonalPricing: "",
+  packages: "",
+  packageItems: [],
+  seasonalPrices: [],
+  capacityNotes: "",
+  maxTripsPerDay: "",
+  minimumBookingNotice: "",
+  guidesAvailable: "",
+  peakSeasonAvailability: "",
+  blockedPeriods: "",
+  gallery: [],
+  classifiedPhotos: {},
+};
+
+const tourismTypes = TOURISM_TYPES;
+
+const toolOptions = TOOLS_ASSETS_OPTIONS;
+
+const addOnOptions = [
+  "Balloon safari",
+  "Photography guide",
+  "Private chef",
+  "Luxury picnic",
+  "Child seat",
+  "Extra luggage support",
+  "SIM card support",
+  "Travel insurance support",
+];
+
+const COMMON_INCLUDED_SUGGESTIONS = [
+  "Professional guide",
+  "Park fees",
+  "Accommodation",
+  "Meals",
+  "Transport",
+  "Airport transfer",
+  "Drinking water",
+  "Government taxes",
+  "Emergency support",
+];
+
+const COMMON_EXCLUDED_SUGGESTIONS = [
+  "Flights",
+  "Visa fees",
+  "Travel insurance",
+  "Tips and gratuities",
+  "Personal expenses",
+  "Alcoholic drinks",
+  "Laundry services",
+  "Optional activities",
+];
+
+function normalizedToken(value: string): string {
+  return value.toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim();
 }
 
-function asStringList(value: any): string[] {
-  if (!value) return [];
-  if (Array.isArray(value)) return value.map(String).filter(Boolean);
-  return [];
+function packageIncludedSuggestions(pkg: PackageItem, tourismTypes: string[]): string[] {
+  const selectedTypeServices = getServiceOptionsForTypes(tourismTypes);
+  const byCategory = Object.entries(TOURISM_TYPE_SERVICES)
+    .filter(([type]) => {
+      const normalizedType = normalizedToken(type);
+      const normalizedCategory = normalizedToken(pkg.category || "");
+      if (!normalizedCategory) return false;
+      return normalizedCategory.includes(normalizedType) || normalizedType.includes(normalizedCategory);
+    })
+    .flatMap(([, services]) => services);
+
+  return Array.from(new Set([
+    ...COMMON_INCLUDED_SUGGESTIONS,
+    ...COMMON_SERVICES,
+    ...selectedTypeServices,
+    ...byCategory,
+  ])).sort((a, b) => a.localeCompare(b));
 }
 
-function InfoItem({
-  icon,
+function packageExcludedSuggestions(includedSuggestions: string[]): string[] {
+  return Array.from(new Set([
+    ...COMMON_EXCLUDED_SUGGESTIONS,
+    ...includedSuggestions,
+  ])).sort((a, b) => a.localeCompare(b));
+}
+
+const AUTO_SAVE_DELAY_MS = 5000;
+const AUTO_SAVE_RETRY_AFTER_429_MS = 15000;
+
+const vehicleTypes = [
+  "Safari 4x4 Land Cruiser",
+  "Safari van",
+  "Private SUV",
+  "Minibus",
+  "Coaster bus",
+  "Boat transfer",
+];
+
+const months = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+const peakSeasonOptions = [
+  "Available",
+  "Limited availability",
+  "Available on request",
+  "Not available",
+];
+
+const maxPhotoBytes = 2 * 1024 * 1024;
+const acceptedPhotoTypes = ["image/jpeg", "image/png", "image/webp"];
+const photoHelpText = "JPG, PNG, or WEBP. Max 2MB per photo.";
+
+const photoCategories = [
+  { key: "logo", title: "Logo", text: "Company mark shown on customer profile." },
+  { key: "vehicles", title: "Vehicles", text: "Fleet photos customers can inspect." },
+  { key: "team", title: "Team", text: "Guides, drivers, and support staff." },
+  { key: "office", title: "Office", text: "Physical office or meeting location." },
+  { key: "attractions", title: "Attractions", text: "Real destinations and trip moments." },
+  { key: "proof", title: "Proof", text: "Permits, awards, quality proof, or certificates." },
+] as const;
+
+function id() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function strings(value: unknown) {
+  return Array.isArray(value) ? value.filter((x): x is string => typeof x === "string") : [];
+}
+
+function addUniqueItem(items: string[], value: string) {
+  const clean = value.trim();
+  if (!clean) return items;
+  return items.includes(clean) ? items : [...items, clean];
+}
+
+function makeItineraryEvent(seed?: Partial<ItineraryEvent>): ItineraryEvent {
+  return {
+    id: seed?.id || id(),
+    startTime: seed?.startTime ?? "",
+    endTime: seed?.endTime ?? "",
+    activity: seed?.activity ?? "",
+    difficulty: seed?.difficulty ?? "Normal",
+  };
+}
+
+function parseLegacyTimelineToEvents(input: unknown): ItineraryEvent[] {
+  const parseLineText = (line: string) => {
+    const trimmed = String(line || "").trim();
+    if (!trimmed) return null;
+
+    const rangeMatch = trimmed.match(/^(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})\s*[-–]\s*(.+)$/);
+    if (rangeMatch) {
+      return makeItineraryEvent({
+        startTime: rangeMatch[1],
+        endTime: rangeMatch[2],
+        activity: rangeMatch[3].trim(),
+        difficulty: "Normal",
+      });
+    }
+
+    const startMatch = trimmed.match(/^(\d{1,2}:\d{2})\s*[-–]\s*(.+)$/);
+    if (startMatch) {
+      return makeItineraryEvent({
+        startTime: startMatch[1],
+        activity: startMatch[2].trim(),
+        difficulty: "Normal",
+      });
+    }
+
+    return makeItineraryEvent({ activity: trimmed, difficulty: "Normal" });
+  };
+
+  if (Array.isArray(input)) {
+    return input
+      .map((entry) => {
+        if (entry && typeof entry === "object") {
+          const rawTime = String((entry as any)?.time || "").trim();
+          const timeParts = rawTime.split(/\s*[-–]\s*/).map((x) => x.trim()).filter(Boolean);
+          const startTime = timeParts[0] || "";
+          const endTime = timeParts[1] || "";
+          const label = String((entry as any)?.label || "").trim();
+          const description = String((entry as any)?.description || "").trim();
+          const activity = label || description;
+          if (!startTime && !endTime && !activity) return null;
+
+          return makeItineraryEvent({
+            id: String((entry as any)?.id || "") || id(),
+            startTime,
+            endTime,
+            activity,
+            difficulty: "Normal",
+          });
+        }
+
+        return parseLineText(String(entry || ""));
+      })
+      .filter((evt): evt is ItineraryEvent => Boolean(evt && (evt.activity || evt.startTime || evt.endTime)));
+  }
+
+  return String(input || "")
+    .split(/\n+/)
+    .map((line) => parseLineText(line))
+    .filter((evt): evt is ItineraryEvent => Boolean(evt && (evt.activity || evt.startTime || evt.endTime)));
+}
+
+function normalizeItineraryDay(rawDay: any, index: number): ItineraryDay {
+  const rawEvents = Array.isArray(rawDay?.events) ? rawDay.events : [];
+  const mappedEvents = rawEvents
+    .map((evt: any) =>
+      makeItineraryEvent({
+        id: String(evt?.id || "") || id(),
+        startTime: String(evt?.startTime || "").trim(),
+        endTime: String(evt?.endTime || "").trim(),
+        activity: String(evt?.activity || "").trim(),
+        difficulty: String(evt?.difficulty || "Normal").trim() === "Easy"
+          ? "Easy"
+          : String(evt?.difficulty || "Normal").trim() === "Difficult"
+            ? "Difficult"
+            : "Normal",
+      })
+    )
+    .filter((evt: ItineraryEvent) => evt.activity || evt.startTime || evt.endTime);
+
+  const events = mappedEvents.length > 0 ? mappedEvents : parseLegacyTimelineToEvents(rawDay?.timeline);
+
+  return {
+    id: String(rawDay?.id || "") || id(),
+    day: Number(rawDay?.day) > 0 ? Number(rawDay.day) : index + 1,
+    title: String(rawDay?.title || ""),
+    description: String(rawDay?.description || ""),
+    events,
+  };
+}
+
+function profileFrom(raw: Partial<OperatorProfile> | null | undefined, agent?: AgentMe["agent"]): OperatorProfile {
+  return {
+    ...emptyProfile,
+    ...(raw ?? {}),
+    contactPersonName: (raw as any)?.contactPersonName ?? agent?.user?.fullName ?? agent?.user?.name ?? "",
+    contactPersonEmail: (raw as any)?.contactPersonEmail ?? agent?.user?.email ?? "",
+    contactPersonPhone: (raw as any)?.contactPersonPhone ?? agent?.user?.phone ?? "",
+    contactPersonNationality: (raw as any)?.contactPersonNationality ?? "",
+    companyEmail: raw?.companyEmail ?? agent?.user?.email ?? "",
+    companyPhone: raw?.companyPhone ?? agent?.user?.phone ?? "",
+    languages: (raw as any)?.languages ?? "",
+    contactEmail: raw?.contactEmail ?? agent?.user?.email ?? "",
+    contactPhone: raw?.contactPhone ?? agent?.user?.phone ?? "",
+    operatingRegions: strings(raw?.operatingRegions),
+    registeredParks: strings((raw as any)?.registeredParks),
+    tourismTypes: strings(raw?.tourismTypes),
+    tools: strings(raw?.tools),
+    services: strings(raw?.services),
+    specializations: strings((raw as any)?.specializations),
+    addOns: strings(raw?.addOns),
+    gallery: strings(raw?.gallery),
+    vehicles: Array.isArray(raw?.vehicles) ? raw.vehicles : [],
+    packageItems: Array.isArray(raw?.packageItems)
+      ? raw.packageItems.map((pkg) => ({
+          ...pkg,
+          name: (pkg as any)?.name ?? "",
+          description: (pkg as any)?.description ?? "",
+          destination: (pkg as any)?.destination ?? "",
+          category: (pkg as any)?.category ?? "",
+          duration: (pkg as any)?.duration ?? "",
+          minPax: (pkg as any)?.minPax ?? "",
+          maxPax: (pkg as any)?.maxPax ?? "",
+          pricePerPerson: (pkg as any)?.pricePerPerson ?? "",
+          currency: (pkg as any)?.currency ?? "USD",
+          discountFactor: (pkg as any)?.discountFactor ?? "",
+          discountType: (pkg as any)?.discountType ?? "",
+          discountValue: (pkg as any)?.discountValue ?? "",
+          discountCondition: (pkg as any)?.discountCondition ?? "",
+          discountUnit: (pkg as any)?.discountUnit ?? "",
+          mode: (pkg as any)?.mode ?? "Private",
+          accommodation: (pkg as any)?.accommodation ?? "",
+          mealPlan: (pkg as any)?.mealPlan ?? "",
+          difficulty: (pkg as any)?.difficulty ?? "",
+          meetingPoint: (pkg as any)?.meetingPoint ?? "",
+          included: strings((pkg as any)?.included),
+          excluded: strings((pkg as any)?.excluded),
+          itinerary: Array.isArray((pkg as any)?.itinerary)
+            ? (pkg as any).itinerary.map((day: any, idx: number) => normalizeItineraryDay(day, idx))
+            : [],
+        }))
+      : [],
+    seasonalPrices: Array.isArray(raw?.seasonalPrices) ? raw.seasonalPrices : [],
+    classifiedPhotos: raw?.classifiedPhotos && typeof raw.classifiedPhotos === "object" ? raw.classifiedPhotos : {},
+    yearsInOperation: Number.isFinite(Number((raw as any)?.yearsInOperation)) ? Number((raw as any).yearsInOperation) : undefined,
+    teamSize: Number.isFinite(Number((raw as any)?.teamSize)) ? Number((raw as any).teamSize) : undefined,
+    serviceClassification: (raw as any)?.serviceClassification && typeof (raw as any).serviceClassification === "object" ? (raw as any).serviceClassification : {},
+    hasVehicles: typeof (raw as any)?.hasVehicles === "boolean" ? (raw as any).hasVehicles : undefined,
+  };
+}
+
+function serializeProfileForApi(source: OperatorProfile): OperatorProfile {
+  const packageItems = (source.packageItems || []).map((pkg) => ({
+    ...pkg,
+    itinerary: (pkg.itinerary || []).map((day) => {
+      const timeline = (day.events || [])
+        .map((evt) => {
+          const start = String(evt.startTime || "").trim();
+          const end = String(evt.endTime || "").trim();
+          const label = String(evt.activity || "").trim();
+          const time = start && end ? `${start}-${end}` : start || end;
+          return {
+            id: String(evt.id || "") || id(),
+            time,
+            label,
+            description: "",
+          };
+        })
+        .filter((entry) => entry.time && (entry.label || entry.description));
+
+      return {
+        ...day,
+        title: String(day.title || "").trim(),
+        description: String(day.description || "").trim(),
+        timeline,
+      };
+    }),
+  }));
+
+  return {
+    ...source,
+    packageItems,
+  };
+}
+
+function Field({
   label,
-  value,
-  accent = "brand",
-  tone = "light",
+  children,
+  required,
 }: {
-  icon: React.ReactNode;
   label: string;
-  value: React.ReactNode;
-  accent?: "brand" | "amber";
-  tone?: "light" | "dark";
+  children: React.ReactNode;
+  required?: boolean;
 }) {
-  const isDark = tone === "dark";
-
-  const iconWrapClass = isDark
-    ? accent === "amber"
-      ? "h-10 w-10 rounded-2xl bg-amber-500/10 border border-amber-300/20 flex items-center justify-center text-amber-200"
-      : "h-10 w-10 rounded-2xl bg-brand/10 border border-brand/20 flex items-center justify-center text-brand-200"
-    : accent === "amber"
-      ? "h-10 w-10 rounded-2xl bg-amber-50 border border-amber-200/70 flex items-center justify-center text-amber-600"
-      : "h-10 w-10 rounded-2xl bg-brand/5 border border-brand/15 flex items-center justify-center text-brand";
+  const hasRequiredSuffix = /\*\s*$/.test(label);
+  const cleanLabel = hasRequiredSuffix ? label.replace(/\s*\*\s*$/, "") : label;
+  const showRequired = required ?? hasRequiredSuffix;
 
   return (
-    <div className="flex items-start gap-3">
-      <div className={iconWrapClass}>
-        {icon}
-      </div>
-      <div className="min-w-0">
-        <div className={isDark ? "text-xs font-semibold text-white/60" : "text-xs font-semibold text-slate-600"}>{label}</div>
-        <div className={isDark ? "text-sm font-bold text-white mt-0.5 break-words" : "text-sm font-bold text-slate-900 mt-0.5 break-words"}>{value}</div>
-      </div>
-    </div>
+    <label className="block min-w-0">
+      <span className="block text-xs text-slate-600">
+        {cleanLabel}
+        {showRequired ? <span className="ml-1 text-red-500">*</span> : null}
+      </span>
+      {children}
+    </label>
   );
 }
 
-function PillList({ items, tone = "light" }: { items: string[]; tone?: "light" | "dark" }) {
-  const isDark = tone === "dark";
-  if (!items.length) return <div className={isDark ? "text-sm text-white/60" : "text-sm text-slate-600"}>—</div>;
+function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
-    <div className="flex flex-wrap gap-2">
-      {items.map((t, idx) => (
-        <span
-          key={`${t}-${idx}`}
-          className={
-            isDark
-              ? "inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-white/80"
-              : "inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-800"
-          }
-        >
-          {t}
-        </span>
+    <input
+      {...props}
+      className={`mt-1.5 box-border block w-full max-w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none placeholder:text-slate-400 focus:ring-2 focus:ring-emerald-200 ${props.className ?? ""}`}
+    />
+  );
+}
+
+function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return (
+    <textarea
+      {...props}
+      className={`mt-1.5 box-border block min-h-[104px] w-full max-w-full resize-y rounded-md border border-slate-200 bg-white px-3 py-2 text-sm leading-6 text-slate-950 outline-none placeholder:text-slate-400 focus:ring-2 focus:ring-emerald-200 ${props.className ?? ""}`}
+    />
+  );
+}
+
+function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <span className="relative block">
+      <select
+        {...props}
+        className={`mt-1.5 box-border block w-full max-w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none focus:ring-2 focus:ring-emerald-200 disabled:bg-slate-50 disabled:text-slate-400 ${props.className ?? ""}`}
+      />
+    </span>
+  );
+}
+
+function Section({
+  icon,
+  title,
+  text,
+  children,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  text: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="relative mx-auto box-border w-full max-w-[860px] overflow-hidden rounded-lg border border-slate-300 bg-white p-4 shadow-[0_1px_4px_rgba(15,23,42,0.08)] ring-1 ring-inset ring-white sm:p-5">
+        <div className="mb-4 flex items-start gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
+          {icon}
+        </div>
+        <div className="min-w-0">
+          <h2 className="text-lg font-black leading-tight text-slate-950 sm:text-xl">{title}</h2>
+          <p className="mt-1 text-sm leading-6 text-slate-600">{text}</p>
+        </div>
+      </div>
+      {children}
+      <div className="pointer-events-none absolute inset-x-4 bottom-0 h-px bg-gradient-to-r from-transparent via-emerald-100 to-transparent" aria-hidden />
+    </section>
+  );
+}
+
+function FieldGrid({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={`grid w-full max-w-[828px] grid-cols-1 gap-3 overflow-hidden md:grid-cols-2 ${className}`}>
+      {Children.map(children, (child) => (
+        <div className="min-w-0">
+          {child}
+        </div>
       ))}
     </div>
   );
 }
 
-export default function AgentProfilePage() {
-  const [loading, setLoading] = useState(true);
-  const [authRequired, setAuthRequired] = useState(false);
-  const [account, setAccount] = useState<AccountMe | null>(null);
-  const [agent, setAgent] = useState<AgentMe["agent"] | null>(null);
-  const [photoUploading, setPhotoUploading] = useState(false);
-  const [photoError, setPhotoError] = useState<string | null>(null);
-  const [photoSuccess, setPhotoSuccess] = useState<string | null>(null);
-  const photoInputRef = useRef<HTMLInputElement>(null);
-
-  const [docUploading, setDocUploading] = useState<string | null>(null);
-  const [docError, setDocError] = useState<string | null>(null);
-  const [docSuccess, setDocSuccess] = useState<string | null>(null);
-  const [docDragOver, setDocDragOver] = useState(false);
-  const [docPreview, setDocPreview] = useState<{ type?: string; label: string; url: string; contentType?: string | null } | null>(null);
-  const [docBlockedForPrint, setDocBlockedForPrint] = useState(false);
-  const [docHelpOpen, setDocHelpOpen] = useState(false);
-  const docHelpRef = useRef<HTMLDivElement>(null);
-  const docInputRef = useRef<HTMLInputElement>(null);
-  const [selectedDocType, setSelectedDocType] = useState<string>("");
-
-  const requiredDocTypes = useMemo(
-    () =>
-      [
-        { type: "ACADEMIC_CERTIFICATES", label: "Academic certificates" },
-        { type: "NDA", label: "Signed NDA" },
-        { type: "NATIONAL_ID_OR_PASSPORT", label: "National ID / Travel Passport" },
-      ] as const,
-    [],
+function Chip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={label}
+      aria-label={label}
+      className={`flex min-h-10 min-w-0 items-center justify-between gap-2 rounded-lg border px-3.5 py-2 text-left text-sm font-normal leading-5 transition ${
+        active
+          ? "border-emerald-300 bg-emerald-50 text-emerald-800 shadow-[0_1px_0_rgba(15,23,42,0.04)]"
+          : "border-slate-200 bg-white text-slate-700 shadow-[0_1px_0_rgba(15,23,42,0.03)] hover:border-slate-300 hover:bg-slate-50"
+      }`}
+    >
+      <span className="truncate">{label}</span>
+      {active ? <Check className="h-4 w-4 shrink-0 text-emerald-700" /> : null}
+    </button>
   );
+}
 
-  type CloudinarySig = {
-    timestamp: number;
-    signature: string;
-    folder: string;
-    cloudName: string;
-    apiKey: string;
-  };
+function SelectedPill({ label, onRemove }: { label: string; onRemove: () => void }) {
+  return (
+    <span className="grid min-h-10 grid-cols-[1fr_32px] items-start rounded-lg border border-slate-200 bg-white text-sm font-semibold text-slate-800 shadow-[0_1px_0_rgba(15,23,42,0.03)]">
+      <span className="break-words px-3.5 py-2 leading-5">{label}</span>
+      <button type="button" onClick={onRemove} className="m-1 mt-1.5 flex h-7 w-7 items-center justify-center rounded-md border-0 bg-transparent p-0 text-slate-500 shadow-none ring-0 outline-none hover:bg-slate-100" aria-label={`Remove ${label}`}>
+        <X className="h-4 w-4" />
+      </button>
+    </span>
+  );
+}
 
-  async function uploadToCloudinary(file: File, folder: string) {
-    const sig = await api.get(`/api/uploads/cloudinary/sign?folder=${encodeURIComponent(folder)}`);
+function parseFriendlyValidationErrors(payload: any): string[] {
+  const messages: string[] = [];
+
+  const issues = Array.isArray(payload?.issues) ? (payload.issues as ValidationIssue[]) : [];
+  for (const issue of issues) {
+    const path = Array.isArray(issue?.path) ? issue.path : [];
+    const message = String(issue?.message || "").trim();
+    if (!message) continue;
+
+    const pkgIndex = path.findIndex((p) => p === "packageItems");
+    const dayIndex = path.findIndex((p) => p === "itinerary");
+
+    let prefix = "";
+    if (pkgIndex >= 0 && typeof path[pkgIndex + 1] === "number") {
+      prefix += `Package ${Number(path[pkgIndex + 1]) + 1}`;
+    }
+    if (dayIndex >= 0 && typeof path[dayIndex + 1] === "number") {
+      const dayNumber = Number(path[dayIndex + 1]) + 1;
+      prefix += prefix ? `, Day ${dayNumber}` : `Day ${dayNumber}`;
+    }
+
+    messages.push(prefix ? `${prefix}: ${message}` : message);
+  }
+
+  const details = payload?.details || {};
+  const formErrors = Array.isArray(details?.formErrors) ? details.formErrors : [];
+  const fieldErrors = details?.fieldErrors && typeof details.fieldErrors === "object" ? details.fieldErrors : {};
+
+  for (const msg of formErrors) {
+    const m = String(msg || "").trim();
+    if (m) messages.push(m);
+  }
+
+  for (const key of Object.keys(fieldErrors)) {
+    const arr = Array.isArray(fieldErrors[key]) ? fieldErrors[key] : [];
+    for (const msg of arr) {
+      const m = String(msg || "").trim();
+      if (m) messages.push(m);
+    }
+  }
+
+  return Array.from(new Set(messages));
+}
+
+export default function AgentOperatorProfileEditor() {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [uploading, setUploading] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [showSubmitSuccess, setShowSubmitSuccess] = useState(false);
+  const [agent, setAgent] = useState<AgentMe["agent"] | null>(null);
+  const [profile, setProfile] = useState<OperatorProfile>(emptyProfile);
+  const [region, setRegion] = useState("");
+  const [district, setDistrict] = useState("");
+  const [customTool, setCustomTool] = useState("");
+  const [customAddOn, setCustomAddOn] = useState("");
+  const [tourismTypeInput, setTourismTypeInput] = useState("");
+  const [serviceCategoryInput, setServiceCategoryInput] = useState("");
+  const [partnershipServiceInput, setPartnershipServiceInput] = useState("");
+  const [specializationInput, setSpecializationInput] = useState("");
+  const [parkInput, setParkInput] = useState("");
+  const [vehicleInput, setVehicleInput] = useState({ type: "", quantity: "", seatsPerVehicle: "", registrationNumber: "", ownedBy: "", serviceMode: "", notes: "" });
+  const [tourismSites, setTourismSites] = useState<{ id: number; name: string }[]>([]);
+  const [tourismSitesLoading, setTourismSitesLoading] = useState(false);
+  const [includedDrafts, setIncludedDrafts] = useState<Record<string, string>>({});
+  const [excludedDrafts, setExcludedDrafts] = useState<Record<string, string>>({});
+  const [itineraryDrafts, setItineraryDrafts] = useState<Record<string, { title: string; description: string; events: ItineraryEvent[] }>>({});
+  const [autosaveRetryTick, setAutosaveRetryTick] = useState(0);
+  const [expandedPackageIds, setExpandedPackageIds] = useState<Record<string, boolean>>({});
+  const [expandedEventIds, setExpandedEventIds] = useState<Record<string, boolean>>({});
+  const [photoSlideIndex, setPhotoSlideIndex] = useState<Record<string, number>>({});
+  const touchStartXRef = useRef<Record<string, number | null>>({});
+  const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const hasLoadedProfileRef = useRef(false);
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autosaveInFlightRef = useRef(false);
+  const autosaveBlockedUntilRef = useRef(0);
+  const lastSavedSnapshotRef = useRef("");
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        setLoading(true);
+        const res = await api.get("/api/agent/me", { params: { _t: Date.now() } });
+        if (!alive) return;
+        const nextAgent = (res.data as AgentMe)?.agent ?? null;
+        const nextProfile = profileFrom(nextAgent?.operatorProfile, nextAgent ?? undefined);
+        setAgent(nextAgent);
+        setProfile(nextProfile);
+        lastSavedSnapshotRef.current = JSON.stringify(nextProfile);
+        hasLoadedProfileRef.current = true;
+      } catch (e: any) {
+        if (alive) setError(e?.response?.data?.message || "Unable to load operator profile.");
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const selectedRegion = REGIONS.find((r) => r.name === region);
+
+  useEffect(() => {
+    setTourismSitesLoading(true);
+    api.get("/api/public/tourism-sites")
+      .then((res) => setTourismSites(Array.isArray(res.data?.items) ? res.data.items : []))
+      .catch(() => setTourismSites([]))
+      .finally(() => setTourismSitesLoading(false));
+  }, []);
+
+  const serviceOptionsForCategory = useMemo(() => {
+    if (!serviceCategoryInput) return [] as string[];
+    if (serviceCategoryInput === "COMMON") return COMMON_SERVICES;
+    return TOURISM_TYPE_SERVICES[serviceCategoryInput as keyof typeof TOURISM_TYPE_SERVICES] ?? [];
+  }, [serviceCategoryInput]);
+
+  const profileSnapshot = useMemo(() => JSON.stringify(profile), [profile]);
+
+  const readiness = useMemo(() => {
+    const checks = [
+      profile.companyName,
+      profile.contactEmail,
+      profile.contactPhone,
+      profile.businessAddress,
+      profile.physicalLocation,
+      profile.operatingRegions.length,
+      profile.tourismTypes.length,
+      profile.services.length,
+      profile.vehicles.length || profile.tools.length,
+      profile.packageItems.length || profile.seasonalPrices.length,
+      Object.values(profile.classifiedPhotos).some((items) => Array.isArray(items) && items.length > 0),
+      profile.description,
+      profile.guidesAvailable || profile.minimumBookingNotice || profile.maxTripsPerDay,
+    ];
+    const done = checks.filter(Boolean).length;
+    return { done, total: checks.length, pct: Math.round((done / checks.length) * 100) };
+  }, [profile]);
+
+  useEffect(() => {
+    if (!hasLoadedProfileRef.current) return;
+    if (loading || saving || submitting || autosaveInFlightRef.current) return;
+    if (profileSnapshot === lastSavedSnapshotRef.current) return;
+    if (Date.now() < autosaveBlockedUntilRef.current) return;
+
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    autosaveTimerRef.current = setTimeout(async () => {
+      try {
+        autosaveInFlightRef.current = true;
+        setValidationErrors([]);
+        await api.patch("/api/agent/operator-profile", serializeProfileForApi(profile));
+        // Silent autosave: keep current form state intact and only advance saved snapshot.
+        lastSavedSnapshotRef.current = profileSnapshot;
+        console.log("✓ Autosave successful");
+      } catch (e: any) {
+        const status = Number(e?.response?.status || 0);
+        if (status === 429) {
+          const retryAfterSeconds = Number(e?.response?.headers?.["retry-after"]);
+          const retryMs = Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
+            ? retryAfterSeconds * 1000
+            : AUTO_SAVE_RETRY_AFTER_429_MS;
+          autosaveBlockedUntilRef.current = Date.now() + retryMs;
+          setTimeout(() => setAutosaveRetryTick((t) => t + 1), retryMs + 100);
+          console.warn("⏳ Autosave paused by rate limit. Will retry automatically.");
+          return;
+        }
+        // Silent autosave: no user-facing feedback on errors, but log for debugging
+        const friendly = parseFriendlyValidationErrors(e?.response?.data);
+        console.warn("❌ Autosave failed - validation errors:", friendly);
+        console.debug("Full error:", e?.response?.data);
+      } finally {
+        autosaveInFlightRef.current = false;
+      }
+    }, AUTO_SAVE_DELAY_MS);
+
+    return () => {
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = null;
+      }
+    };
+  }, [autosaveRetryTick, loading, profile, profileSnapshot, saving, submitting]);
+
+  function update<K extends keyof OperatorProfile>(key: K, value: OperatorProfile[K]) {
+    setProfile((p) => ({ ...p, [key]: value }));
+  }
+
+  function toggle(key: "tourismTypes" | "tools" | "services" | "addOns", value: string) {
+    setProfile((p) => {
+      const list = p[key];
+      return { ...p, [key]: list.includes(value) ? list.filter((x) => x !== value) : [...list, value] };
+    });
+  }
+
+  function toggleTourismType(value: string) {
+    const isRemoving = profile.tourismTypes.includes(value);
+    if (isRemoving) {
+      const remainingTypes = profile.tourismTypes.filter((t) => t !== value);
+      const allowedServices = getServiceOptionsForTypes(remainingTypes);
+      const nextClassification: Record<string, string[]> = {};
+      Object.entries(profile.serviceClassification ?? {}).forEach(([k, v]) => {
+        if (k === value) return;
+        const filtered = v.filter((s) => allowedServices.includes(s));
+        if (filtered.length > 0) nextClassification[k] = filtered;
+      });
+      setProfile((p) => ({
+        ...p,
+        tourismTypes: remainingTypes,
+        services: p.services.filter((s) => allowedServices.includes(s)),
+        serviceClassification: nextClassification,
+      }));
+      if (serviceCategoryInput === value) {
+        setServiceCategoryInput("");
+        setPartnershipServiceInput("");
+      }
+    } else {
+      setProfile((p) => ({ ...p, tourismTypes: [...p.tourismTypes, value] }));
+    }
+  }
+
+  function addClassifiedService() {
+    const value = partnershipServiceInput.trim();
+    if (!value || !serviceCategoryInput) return;
+    if (!serviceOptionsForCategory.includes(value)) return;
+    if (profile.services.includes(value)) {
+      setPartnershipServiceInput("");
+      return;
+    }
+    const categoryLabel = serviceCategoryInput === "COMMON" ? "Common Services" : serviceCategoryInput;
+    setProfile((p) => ({
+      ...p,
+      services: [...p.services, value],
+      serviceClassification: {
+        ...(p.serviceClassification ?? {}),
+        [categoryLabel]: Array.from(new Set([...((p.serviceClassification ?? {})[categoryLabel] ?? []), value])),
+      },
+    }));
+    setPartnershipServiceInput("");
+    setError(null);
+  }
+
+  function removeClassifiedService(value: string) {
+    const nextClassification: Record<string, string[]> = {};
+    Object.entries(profile.serviceClassification ?? {}).forEach(([cat, services]) => {
+      const filtered = services.filter((s) => s !== value);
+      if (filtered.length > 0) nextClassification[cat] = filtered;
+    });
+    setProfile((p) => ({
+      ...p,
+      services: p.services.filter((s) => s !== value),
+      serviceClassification: nextClassification,
+    }));
+  }
+
+  function toggleSpecialization(value: string) {
+    setProfile((p) => ({
+      ...p,
+      specializations: p.specializations.includes(value)
+        ? p.specializations.filter((s) => s !== value)
+        : [...p.specializations, value],
+    }));
+  }
+
+  function addCustom(key: "tools" | "services" | "addOns", value: string, clear: (v: string) => void) {
+    const clean = value.trim();
+    if (!clean) return;
+    setProfile((p) => ({ ...p, [key]: p[key].includes(clean) ? p[key] : [...p[key], clean] }));
+    clear("");
+  }
+
+  function addArea() {
+    if (!region || !district) return;
+    const label = `${region} / ${district}`;
+    update("operatingRegions", profile.operatingRegions.includes(label) ? profile.operatingRegions : [...profile.operatingRegions, label]);
+    setDistrict("");
+  }
+
+  function addVehicle() {
+    if (!vehicleInput.type || !vehicleInput.quantity || !vehicleInput.seatsPerVehicle) return;
+    update("vehicles", [
+      ...profile.vehicles,
+      {
+        id: id(),
+        type: vehicleInput.type,
+        quantity: vehicleInput.quantity,
+        seatsPerVehicle: vehicleInput.seatsPerVehicle,
+        registrationNumber: vehicleInput.registrationNumber,
+        ownedBy: vehicleInput.ownedBy,
+        serviceMode: vehicleInput.serviceMode,
+        notes: vehicleInput.notes,
+      },
+    ]);
+    setVehicleInput({ type: "", quantity: "", seatsPerVehicle: "", registrationNumber: "", ownedBy: "", serviceMode: "", notes: "" });
+  }
+
+  function addPackage() {
+    const newPackageId = id();
+    update("packageItems", [
+      ...profile.packageItems,
+      {
+        id: newPackageId,
+        name: "",
+        description: "",
+        destination: "",
+        category: "",
+        duration: "",
+        minPax: "",
+        maxPax: "",
+        pricePerPerson: "",
+        currency: "USD",
+        discountFactor: "",
+        discountType: "",
+        discountValue: "",
+        discountCondition: "",
+        discountUnit: "",
+        mode: "Private",
+        accommodation: "",
+        mealPlan: "",
+        difficulty: "",
+        meetingPoint: "",
+        included: [],
+        excluded: [],
+        itinerary: [],
+        notes: "",
+      },
+    ]);
+    setExpandedPackageIds((prev) => ({ ...prev, [newPackageId]: true }));
+  }
+
+  function patchPackage(packageId: string, patch: Partial<PackageItem>) {
+    update("packageItems", profile.packageItems.map((p) => (p.id === packageId ? { ...p, ...patch } : p)));
+  }
+
+  function removePackage(packageId: string) {
+    update("packageItems", profile.packageItems.filter((p) => p.id !== packageId));
+    setExpandedPackageIds((prev) => {
+      const next = { ...prev };
+      delete next[packageId];
+      return next;
+    });
+  }
+
+  function packageLooksComplete(pkg: PackageItem) {
+    const coreFilled = [
+      pkg.name,
+      pkg.destination,
+      pkg.description,
+      pkg.category,
+      pkg.duration,
+      pkg.mode,
+      pkg.minPax,
+      pkg.maxPax,
+      pkg.pricePerPerson,
+      pkg.currency,
+    ].every((v) => String(v || "").trim().length > 0);
+
+    const hasIncluded = (pkg.included || []).length > 0;
+    const hasItinerary = (pkg.itinerary || []).length > 0;
+    return coreFilled && hasIncluded && hasItinerary;
+  }
+
+  function addPackageListItem(packageId: string, key: "included" | "excluded") {
+    const draftMap = key === "included" ? includedDrafts : excludedDrafts;
+    const value = draftMap[packageId] ?? "";
+    const clean = value.trim();
+    if (!clean) return;
+
+    update(
+      "packageItems",
+      profile.packageItems.map((pkg) =>
+        pkg.id === packageId ? { ...pkg, [key]: addUniqueItem(pkg[key], clean) } : pkg,
+      ),
+    );
+
+    if (key === "included") {
+      setIncludedDrafts((drafts) => ({ ...drafts, [packageId]: "" }));
+    } else {
+      setExcludedDrafts((drafts) => ({ ...drafts, [packageId]: "" }));
+    }
+  }
+
+  function removePackageListItem(packageId: string, key: "included" | "excluded", item: string) {
+    update(
+      "packageItems",
+      profile.packageItems.map((pkg) =>
+        pkg.id === packageId ? { ...pkg, [key]: pkg[key].filter((x) => x !== item) } : pkg,
+      ),
+    );
+  }
+
+  function buildItineraryDayFromDraft(draft: { title: string; description: string; events: ItineraryEvent[] }, dayNumber: number): ItineraryDay | null {
+    const cleanTitle = String(draft.title || "").trim();
+    const cleanDesc = String(draft.description || "").trim();
+    const completeEvents: ItineraryEvent[] = (draft.events || []).reduce<ItineraryEvent[]>((acc, evt) => {
+      const startTime = String(evt.startTime || "").trim();
+      const endTime = String(evt.endTime || "").trim();
+      const activity = String(evt.activity || "").trim();
+      if (!(startTime && endTime && activity)) return acc;
+
+      const difficulty: ItineraryEvent["difficulty"] =
+        evt.difficulty === "Easy" ||
+        evt.difficulty === "Normal" ||
+        evt.difficulty === "Difficult" ||
+        evt.difficulty === "Funny" ||
+        evt.difficulty === "Delicious"
+          ? evt.difficulty
+          : "Normal";
+
+      acc.push({
+        id: String(evt.id || "") || id(),
+        startTime,
+        endTime,
+        activity,
+        difficulty,
+      });
+      return acc;
+    }, []);
+
+    const hasDescriptionWithTimes = /\d{1,2}:\d{2}|am|pm|morning|afternoon|evening/i.test(cleanDesc);
+    const canPersist = !!cleanTitle && (completeEvents.length > 0 || hasDescriptionWithTimes);
+    if (!canPersist) return null;
+
+    return {
+      id: id(),
+      day: dayNumber,
+      title: cleanTitle,
+      description: cleanDesc,
+      events: completeEvents,
+    };
+  }
+
+  function mergeValidItineraryDrafts(baseProfile: OperatorProfile) {
+    const consumedPackageIds = new Set<string>();
+    const nextPackageItems = baseProfile.packageItems.map((pkg) => {
+      const draft = itineraryDrafts[pkg.id];
+      if (!draft) return pkg;
+
+      const nextDayNumber = (pkg.itinerary.length > 0 ? Math.max(...pkg.itinerary.map((d) => d.day)) : 0) + 1;
+      const draftDay = buildItineraryDayFromDraft(draft, nextDayNumber);
+      if (!draftDay) return pkg;
+
+      consumedPackageIds.add(pkg.id);
+      return { ...pkg, itinerary: [...pkg.itinerary, draftDay] };
+    });
+
+    const nextDrafts = { ...itineraryDrafts };
+    for (const pkgId of consumedPackageIds) {
+      nextDrafts[pkgId] = { title: "", description: "", events: [] };
+    }
+
+    return {
+      nextProfile: { ...baseProfile, packageItems: nextPackageItems },
+      nextDrafts,
+    };
+  }
+
+  function addItineraryDay(packageId: string) {
+    const draft: { title: string; description: string; events: ItineraryEvent[] } =
+      itineraryDrafts[packageId] ?? { title: "", description: "", events: [] };
+    const cleanTitle = draft.title.trim();
+    const cleanDesc = draft.description.trim();
+    const cleanEvents: ItineraryEvent[] = (draft.events || []).reduce<ItineraryEvent[]>((acc, evt) => {
+      const startTime = String(evt.startTime || "").trim();
+      const endTime = String(evt.endTime || "").trim();
+      const activity = String(evt.activity || "").trim();
+      if (!startTime && !endTime && !activity) return acc;
+
+      const difficulty: ItineraryEvent["difficulty"] =
+        evt.difficulty === "Easy" || evt.difficulty === "Difficult" ? evt.difficulty : "Normal";
+
+      acc.push({
+        id: String(evt.id || "") || id(),
+        startTime,
+        endTime,
+        activity,
+        difficulty,
+      });
+      return acc;
+    }, []);
+
+    if (!cleanTitle && !cleanDesc && cleanEvents.length === 0) return;
+    const pkg = profile.packageItems.find((p) => p.id === packageId);
+    if (!pkg) return;
+    const nextDay = (pkg.itinerary.length > 0 ? Math.max(...pkg.itinerary.map((d) => d.day)) : 0) + 1;
+    const newDay: ItineraryDay = {
+      id: id(),
+      day: nextDay,
+      title: cleanTitle,
+      description: cleanDesc,
+      events: cleanEvents,
+    };
+    update("packageItems", profile.packageItems.map((p) =>
+      p.id === packageId ? { ...p, itinerary: [...p.itinerary, newDay] } : p,
+    ));
+    setItineraryDrafts((d) => ({ ...d, [packageId]: { title: "", description: "", events: [] } }));
+  }
+
+  function addItineraryEvent(packageId: string, dayId: string) {
+    update(
+      "packageItems",
+      profile.packageItems.map((pkg) =>
+        pkg.id === packageId
+          ? {
+              ...pkg,
+              itinerary: pkg.itinerary.map((day) =>
+                day.id === dayId ? { ...day, events: [...(day.events || []), makeItineraryEvent()] } : day,
+              ),
+            }
+          : pkg,
+      ),
+    );
+  }
+
+  function patchItineraryEvent(packageId: string, dayId: string, eventId: string, patch: Partial<ItineraryEvent>) {
+    update(
+      "packageItems",
+      profile.packageItems.map((pkg) =>
+        pkg.id === packageId
+          ? {
+              ...pkg,
+              itinerary: pkg.itinerary.map((day) =>
+                day.id === dayId
+                  ? {
+                      ...day,
+                      events: (day.events || []).map((evt) => (evt.id === eventId ? { ...evt, ...patch } : evt)),
+                    }
+                  : day,
+              ),
+            }
+          : pkg,
+      ),
+    );
+  }
+
+  function removeItineraryEvent(packageId: string, dayId: string, eventId: string) {
+    update(
+      "packageItems",
+      profile.packageItems.map((pkg) =>
+        pkg.id === packageId
+          ? {
+              ...pkg,
+              itinerary: pkg.itinerary.map((day) =>
+                day.id === dayId
+                  ? { ...day, events: (day.events || []).filter((evt) => evt.id !== eventId) }
+                  : day,
+              ),
+            }
+          : pkg,
+      ),
+    );
+  }
+
+  function addDraftItineraryEvent(packageId: string) {
+    setItineraryDrafts((drafts) => {
+      const existing = drafts[packageId] ?? { title: "", description: "", events: [] };
+      return {
+        ...drafts,
+        [packageId]: { ...existing, events: [...(existing.events || []), makeItineraryEvent()] },
+      };
+    });
+  }
+
+  function patchDraftItineraryEvent(packageId: string, eventId: string, patch: Partial<ItineraryEvent>) {
+    setItineraryDrafts((drafts) => {
+      const existing = drafts[packageId] ?? { title: "", description: "", events: [] };
+      return {
+        ...drafts,
+        [packageId]: {
+          ...existing,
+          events: (existing.events || []).map((evt) => (evt.id === eventId ? { ...evt, ...patch } : evt)),
+        },
+      };
+    });
+  }
+
+  function removeDraftItineraryEvent(packageId: string, eventId: string) {
+    setItineraryDrafts((drafts) => {
+      const existing = drafts[packageId] ?? { title: "", description: "", events: [] };
+      return {
+        ...drafts,
+        [packageId]: {
+          ...existing,
+          events: (existing.events || []).filter((evt) => evt.id !== eventId),
+        },
+      };
+    });
+  }
+
+  function patchItineraryDay(packageId: string, dayId: string, patch: Partial<ItineraryDay>) {
+    update("packageItems", profile.packageItems.map((p) =>
+      p.id === packageId
+        ? { ...p, itinerary: p.itinerary.map((d) => (d.id === dayId ? { ...d, ...patch } : d)) }
+        : p,
+    ));
+  }
+
+  function removeItineraryDay(packageId: string, dayId: string) {
+    update("packageItems", profile.packageItems.map((p) =>
+      p.id === packageId
+        ? { ...p, itinerary: p.itinerary.filter((d) => d.id !== dayId).map((d, i) => ({ ...d, day: i + 1 })) }
+        : p,
+    ));
+  }
+
+  function addSeason() {
+    update("seasonalPrices", [
+      ...profile.seasonalPrices,
+      { id: id(), seasonName: "", startMonth: "", endMonth: "", pricePerPerson: "", currency: "USD", notes: "" },
+    ]);
+  }
+
+  function patchSeason(seasonId: string, patch: Partial<SeasonalPrice>) {
+    update("seasonalPrices", profile.seasonalPrices.map((p) => (p.id === seasonId ? { ...p, ...patch } : p)));
+  }
+
+  async function uploadToCloudinary(file: File, category: string) {
+    const sig = await api.get(`/api/uploads/cloudinary/sign?folder=${encodeURIComponent(`agent-operator/${category}`)}`);
     const sigData = sig.data as CloudinarySig;
     const fd = new FormData();
     fd.append("file", file);
@@ -176,831 +1315,1907 @@ export default function AgentProfilePage() {
     return (resp.data as { secure_url: string }).secure_url;
   }
 
-  const displayName = useMemo(() => account?.fullName || account?.name || agent?.user?.name || "—", [account, agent]);
-
-  useEffect(() => {
-    let alive = true;
-
-    (async () => {
-      try {
-        setLoading(true);
-        setAuthRequired(false);
-
-        const [meRes, agentRes] = await Promise.all([
-          api.get("/api/account/me"),
-          api.get("/api/agent/me").catch(() => ({ data: null })),
-        ]);
-
-        if (!alive) return;
-
-        const meData = (meRes as any)?.data?.data ?? (meRes as any)?.data;
-        setAccount(meData || null);
-        setAgent((agentRes as any)?.data?.agent ?? null);
-      } catch (e: any) {
-        if (!alive) return;
-        if (e?.response?.status === 401) {
-          setAuthRequired(true);
-          setAccount(null);
-          setAgent(null);
-        }
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
-
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  const areas = asStringList(agent?.areasOfOperation);
-  const langs = asStringList(agent?.languages);
-  const specs = asStringList(agent?.specializations);
-
-  const avatarUrl = account?.avatarUrl || null;
-  const needsPhoto = !avatarUrl;
-
-  const requiredDocsOk = useMemo(() => {
-    return requiredDocTypes.every((t) => {
-      const doc = getLatestDocByType(account?.documents, t.type);
-      const hasUrl = Boolean(doc?.url);
-      const status = (doc?.status ? String(doc.status) : "").toUpperCase();
-      if (!hasUrl) return false;
-      if (status === "REJECTED") return false;
-      return true;
-    });
-  }, [account?.documents, requiredDocTypes]);
-
-  const profileCompletion = useMemo(() => {
-    const checks: Array<boolean> = [
-      Boolean(avatarUrl),
-      Boolean(displayName && displayName !== "—"),
-      Boolean(account?.email || agent?.user?.email),
-      Boolean(account?.phone || agent?.user?.phone),
-      Boolean(account?.nationality || agent?.user?.nationality),
-      Boolean(account?.region || agent?.user?.region),
-      Boolean(account?.district || agent?.user?.district),
-      areas.length > 0,
-      langs.length > 0,
-      requiredDocsOk,
-    ];
-
-    const total = checks.length;
-    const done = checks.filter(Boolean).length;
-    const pct = total === 0 ? 0 : Math.round((done / total) * 100);
-    return { pct, done, total };
-  }, [
-    account?.district,
-    account?.email,
-    account?.nationality,
-    account?.phone,
-    account?.region,
-    agent?.user?.district,
-    agent?.user?.email,
-    agent?.user?.nationality,
-    agent?.user?.phone,
-    agent?.user?.region,
-    areas.length,
-    avatarUrl,
-    displayName,
-    langs.length,
-    requiredDocsOk,
-  ]);
-
-  const completionTone = useMemo(() => {
-    const pct = profileCompletion.pct;
-    if (pct >= 80) return "good" as const;
-    if (pct >= 50) return "warn" as const;
-    return "bad" as const;
-  }, [profileCompletion.pct]);
-
-  const onUploadPhoto = async (file: File | null) => {
-    if (!file) return;
-    setPhotoError(null);
-    setPhotoSuccess(null);
-
-    if (!file.type.startsWith("image/")) {
-      setPhotoError("Please choose an image file (JPG, PNG, WebP).");
-      return;
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      setPhotoError("Image is too large. Maximum size is 10MB.");
-      return;
-    }
-
+  async function uploadPhotos(category: string, files: FileList | null) {
+    if (!files?.length) return;
     try {
-      setPhotoUploading(true);
-      const url = await uploadToCloudinary(file, "avatars");
-      await api.put("/api/account/profile", { avatarUrl: url });
-      setAccount((prev) => (prev ? { ...prev, avatarUrl: url } : prev));
-      try {
-        window.dispatchEvent(new CustomEvent("account:avatarUrl", { detail: { avatarUrl: url } }));
-      } catch {
-        // ignore
+      setUploading(category);
+      setError(null);
+      const selectedFiles = Array.from(files);
+      if (category === "logo" && selectedFiles.length > 1) {
+        setError("Logo allows only one photo. Please upload a single image.");
+        return;
       }
-      setPhotoSuccess("Photo updated.");
-    } catch (e: any) {
-      const serverMsg = e?.response?.data?.error || e?.response?.data?.message;
-      setPhotoError(String(serverMsg || e?.message || "Failed to upload photo"));
-    } finally {
-      setPhotoUploading(false);
-      if (photoInputRef.current) photoInputRef.current.value = "";
-    }
-  };
-
-  function getLatestDocByType(docs: AccountMe["documents"], type: string) {
-    const normalizedType = String(type).toUpperCase();
-    const items = Array.isArray(docs) ? docs : [];
-    for (const d of items) {
-      if (String(d?.type ?? "").toUpperCase() === normalizedType) return d;
-    }
-    return null;
-  }
-
-  const allowedDocTypes = new Set([
-    "application/pdf",
-    "image/jpeg",
-    "image/png",
-    "image/webp",
-  ]);
-
-  const uploadDocumentForType = async (type: string, file: File | null) => {
-    if (!file || !type) return;
-
-    setDocError(null);
-    setDocSuccess(null);
-
-    if (!allowedDocTypes.has(file.type)) {
-      setDocError("Please choose a PDF or image file (PDF, JPG, PNG, WebP).");
-      return;
-    }
-    if (file.size > 15 * 1024 * 1024) {
-      setDocError("File is too large. Maximum size is 15MB.");
-      return;
-    }
-
-    try {
-      setDocUploading(type);
-      const url = await uploadToCloudinary(file, "agent-documents");
-      const resp = await api.put("/api/account/documents", {
-        type,
-        url,
-        metadata: {
-          fileName: file.name,
-          contentType: file.type,
-          size: file.size,
-          uploadedAt: new Date().toISOString(),
-        },
-      });
-
-      const saved = (resp as any)?.data?.data?.doc ?? (resp as any)?.data?.doc ?? null;
-
-      setAccount((prev) => {
-        if (!prev) return prev;
-        const docs = Array.isArray(prev.documents) ? prev.documents : [];
+      const invalidType = selectedFiles.find((file) => !acceptedPhotoTypes.includes(file.type));
+      if (invalidType) {
+        setError("Only JPG, PNG, or WEBP photos are allowed.");
+        return;
+      }
+      const tooLarge = selectedFiles.find((file) => file.size > maxPhotoBytes);
+      if (tooLarge) {
+        setError("Each photo must be 2MB or smaller.");
+        return;
+      }
+      const urls: string[] = [];
+      for (const file of selectedFiles) urls.push(await uploadToCloudinary(file, category));
+      setProfile((p) => {
+        const existing = p.classifiedPhotos[category] ?? [];
+        const nextCategoryUrls = category === "logo" ? (urls[0] ? [urls[0]] : existing) : [...existing, ...urls];
+        const galleryWithoutOldLogo =
+          category === "logo"
+            ? p.gallery.filter((x) => !existing.includes(x))
+            : p.gallery;
+        const classifiedPhotos = { ...p.classifiedPhotos, [category]: nextCategoryUrls };
         return {
-          ...prev,
-          documents: saved ? [saved, ...docs] : docs,
+          ...p,
+          companyLogoUrl: category === "logo" && urls[0] ? urls[0] : p.companyLogoUrl,
+          gallery: [...galleryWithoutOldLogo, ...urls],
+          classifiedPhotos,
         };
       });
-
-      setDocSuccess("Document uploaded.");
     } catch (e: any) {
-      const serverMsg = e?.response?.data?.error || e?.response?.data?.message;
-      setDocError(serverMsg || "Failed to upload document. Please try again.");
+      setError(e?.response?.data?.message || "Photo upload failed.");
     } finally {
-      setDocUploading(null);
-      setDocDragOver(false);
-      if (docInputRef.current) docInputRef.current.value = "";
+      setUploading(null);
+      const input = fileRefs.current[category];
+      if (input) input.value = "";
     }
-  };
+  }
 
-  const triggerDocUpload = () => {
-    setDocError(null);
-    setDocSuccess(null);
-    docInputRef.current?.click();
-  };
-
-  const onUploadDocumentFromPicker = async (file: File | null) => {
-    await uploadDocumentForType(selectedDocType, file);
-  };
-
-  const actionableDocTypes = useMemo(() => {
-    return requiredDocTypes.filter((t) => {
-      const doc = getLatestDocByType(account?.documents, t.type);
-      const hasUrl = Boolean(doc?.url);
-      const status = (doc?.status ? String(doc.status) : "").toUpperCase();
-
-      if (!hasUrl) return true;
-      if (status === "REJECTED") return true;
-      return false;
-    });
-  }, [account?.documents, requiredDocTypes]);
-
-  const showUploader = actionableDocTypes.length > 0;
-
-  useEffect(() => {
-    if (!selectedDocType) return;
-    const stillSelectable = actionableDocTypes.some((t) => t.type === selectedDocType);
-    if (!stillSelectable) setSelectedDocType("");
-  }, [actionableDocTypes, selectedDocType]);
-
-  useEffect(() => {
-    if (!docPreview) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setDocPreview(null);
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [docPreview]);
-
-  useEffect(() => {
-    if (!docHelpOpen) return;
-
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setDocHelpOpen(false);
-    };
-
-    const onPointerDown = (e: PointerEvent) => {
-      const root = docHelpRef.current;
-      if (!root) return;
-      if (root.contains(e.target as Node)) return;
-      setDocHelpOpen(false);
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("pointerdown", onPointerDown);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("pointerdown", onPointerDown);
-    };
-  }, [docHelpOpen]);
-
-  useEffect(() => {
-    const isConfidential = String(docPreview?.type ?? "").toUpperCase() === "NDA";
-    if (!docPreview || !isConfidential) return;
-
-    const onKeyDown = (e: KeyboardEvent) => {
-      const key = String(e.key || "").toLowerCase();
-      const combo = e.ctrlKey || e.metaKey;
-      if (!combo) return;
-
-      if (key === "p" || key === "c" || key === "x" || key === "s") {
-        e.preventDefault();
-        e.stopPropagation();
+  async function save() {
+    try {
+      setSaving(true);
+      setError(null);
+      setValidationErrors([]);
+      setSuccess(null);
+      autosaveBlockedUntilRef.current = 0;
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = null;
       }
-    };
+      const { nextProfile: profileToSave, nextDrafts } = mergeValidItineraryDrafts(profile);
+      const res = await api.patch("/api/agent/operator-profile", serializeProfileForApi(profileToSave));
+      const nextAgent = (res.data as AgentMe)?.agent ?? null;
+      const nextProfile = profileFrom(nextAgent?.operatorProfile, nextAgent ?? agent ?? undefined);
+      setProfile(nextProfile);
+      setItineraryDrafts(nextDrafts);
+      if (nextAgent) setAgent(nextAgent);
+      lastSavedSnapshotRef.current = JSON.stringify(nextProfile);
+      hasLoadedProfileRef.current = true;
+      setSuccess("Operator profile saved.");
+    } catch (e: any) {
+      const status = Number(e?.response?.status || 0);
+      const friendly = parseFriendlyValidationErrors(e?.response?.data);
+      setValidationErrors(friendly);
+      setError(status === 429
+        ? "Too many save requests right now. Please wait a few seconds and try Save draft again."
+        : e?.response?.data?.message || e?.response?.data?.error || "Unable to save operator profile.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
-    const onBeforePrint = () => {
-      setDocBlockedForPrint(true);
-    };
+  async function submitForReview() {
+    try {
+      setSubmitting(true);
+      setError(null);
+      setValidationErrors([]);
+      setSuccess(null);
+      const res = await api.post("/api/agent/operator-profile/submit");
+      const nextAgent = (res.data as AgentMe)?.agent ?? null;
+      if (nextAgent?.operatorProfile) {
+        const nextProfile = profileFrom(nextAgent.operatorProfile, nextAgent ?? agent ?? undefined);
+        setProfile(nextProfile);
+        lastSavedSnapshotRef.current = JSON.stringify(nextProfile);
+      }
+      if (nextAgent) setAgent(nextAgent);
+      setSuccess("Operator profile submitted to admin for review.");
+      setShowSubmitSuccess(true);
+      setTimeout(() => setShowSubmitSuccess(false), 10000);
+    } catch (e: any) {
+      const missing = e?.response?.data?.missing;
+      const missingText = Array.isArray(missing) && missing.length > 0 ? ` Missing: ${missing.join(", ")}.` : "";
+      setError((e?.response?.data?.message || e?.response?.data?.error || "Unable to submit operator profile.") + missingText);
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
-    const onAfterPrint = () => {
-      setDocBlockedForPrint(false);
-    };
+  function goToPhoto(categoryKey: string, total: number, direction: -1 | 1) {
+    if (total <= 1) return;
+    setPhotoSlideIndex((prev) => {
+      const current = Math.min(Math.max(prev[categoryKey] ?? 0, 0), total - 1);
+      return { ...prev, [categoryKey]: (current + direction + total) % total };
+    });
+  }
 
-    window.addEventListener("keydown", onKeyDown, true);
-    window.addEventListener("beforeprint", onBeforePrint);
-    window.addEventListener("afterprint", onAfterPrint);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown, true);
-      window.removeEventListener("beforeprint", onBeforePrint);
-      window.removeEventListener("afterprint", onAfterPrint);
-    };
-  }, [docPreview]);
+  function onPhotoTouchStart(categoryKey: string, clientX: number) {
+    touchStartXRef.current[categoryKey] = clientX;
+  }
 
-  return (
-    <div className="w-full py-2 sm:py-4">
-      {docPreview && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label={`${docPreview.label} preview`}>
-          <style>{"@media print { .nolsaf-confidential { display:none !important; } }"}</style>
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setDocPreview(null)} aria-hidden />
-          <div className="relative w-full max-w-4xl rounded-2xl border border-slate-200 bg-white shadow-card overflow-hidden">
-            <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50/60 px-5 py-4">
-              <div className="min-w-0">
-                <div className="text-sm font-bold text-slate-900 truncate">{docPreview.label}</div>
-                <div className="text-xs text-slate-600 mt-0.5">Preview</div>
+  function onPhotoTouchEnd(categoryKey: string, total: number, clientX: number) {
+    const startX = touchStartXRef.current[categoryKey];
+    touchStartXRef.current[categoryKey] = null;
+    if (startX == null || total <= 1) return;
+
+    const delta = clientX - startX;
+    const threshold = 30;
+    if (Math.abs(delta) < threshold) return;
+
+    if (delta < 0) {
+      goToPhoto(categoryKey, total, 1);
+    } else {
+      goToPhoto(categoryKey, total, -1);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <div className="mx-auto w-full max-w-6xl animate-pulse py-6 sm:px-6 lg:px-8">
+          <div className="h-9 w-9 rounded-lg bg-slate-200" />
+
+          <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_45px_rgba(2,32,29,0.08)] sm:p-6">
+              <div className="h-5 w-40 rounded bg-slate-200" />
+              <div className="mt-3 h-10 w-64 rounded bg-slate-200" />
+              <div className="mt-3 h-4 w-full max-w-2xl rounded bg-slate-200" />
+              <div className="mt-2 h-4 w-full max-w-xl rounded bg-slate-200" />
+              <div className="mt-6 grid grid-cols-3 gap-2">
+                <div className="h-16 rounded-xl bg-slate-200" />
+                <div className="h-16 rounded-xl bg-slate-200" />
+                <div className="h-16 rounded-xl bg-slate-200" />
               </div>
-              <button
-                type="button"
-                onClick={() => setDocPreview(null)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
-              >
-                <span className="sr-only">Close</span>
-                <X className="h-4 w-4" aria-hidden />
-              </button>
             </div>
 
-            <div className="p-3 sm:p-4">
-              {(() => {
-                const contentType = String(docPreview.contentType ?? "").toLowerCase();
-                const url = docPreview.url;
-                const isPdf = contentType === "application/pdf" || url.toLowerCase().includes(".pdf");
-                const isConfidential = String(docPreview.type ?? "").toUpperCase() === "NDA";
-
-                if (docBlockedForPrint && isConfidential) {
-                  return (
-                    <div className="w-full h-[70vh] rounded-xl border border-slate-200 bg-white flex items-center justify-center">
-                      <div className="text-sm text-slate-700">Confidential document. Printing is disabled.</div>
-                    </div>
-                  );
-                }
-
-                if (isPdf) {
-                  return (
-                    <div className={
-                      isConfidential
-                        ? "relative w-full h-[70vh] rounded-xl border border-slate-200 bg-white overflow-hidden nolsaf-confidential select-none"
-                        : "relative w-full h-[70vh] rounded-xl border border-slate-200 bg-white overflow-hidden"
-                    }>
-                      {isConfidential ? (
-                        <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
-                          <div className="absolute inset-0 grid grid-cols-2 sm:grid-cols-3 place-items-center gap-16">
-                            {Array.from({ length: 9 }).map((_, idx) => (
-                              <div
-                                key={idx}
-                                className="select-none -rotate-12 text-slate-900/10 font-extrabold tracking-widest uppercase text-lg sm:text-xl"
-                              >
-                                CONFIDENTIAL
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ) : null}
-                      <iframe
-                        title={`${docPreview.label} document`}
-                        src={url}
-                        className="relative z-10 w-full h-full"
-                      />
-                    </div>
-                  );
-                }
-
-                return (
-                  <div className={
-                    isConfidential
-                      ? "relative w-full h-[70vh] rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden nolsaf-confidential select-none"
-                      : "relative w-full h-[70vh] rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden"
-                  }>
-                    {isConfidential ? (
-                      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
-                        <div className="absolute inset-0 grid grid-cols-2 sm:grid-cols-3 place-items-center gap-16">
-                          {Array.from({ length: 9 }).map((_, idx) => (
-                            <div
-                              key={idx}
-                              className="select-none -rotate-12 text-slate-900/10 font-extrabold tracking-widest uppercase text-lg sm:text-xl"
-                            >
-                              CONFIDENTIAL
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ) : null}
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={url} alt={docPreview.label} className="relative z-10 max-h-[70vh] w-full object-contain" />
-                  </div>
-                );
-              })()}
-            </div>
+            <aside className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_14px_35px_rgba(15,23,42,0.08)]">
+              <div className="h-4 w-24 rounded bg-slate-200" />
+              <div className="mt-3 h-10 w-20 rounded bg-slate-200" />
+              <div className="mt-4 h-2 w-full rounded bg-slate-200" />
+              <div className="mt-4 h-20 rounded-xl bg-slate-200" />
+            </aside>
           </div>
-        </div>
-      )}
 
-      <div className="mb-6 relative rounded-3xl border border-white/10 bg-slate-950 shadow-card overflow-hidden">
-        <div
-          className="absolute inset-0 bg-gradient-to-br from-brand/20 via-slate-950 to-slate-900"
-          aria-hidden
-        />
-        <div className="relative p-5 sm:p-7">
-          <div className="relative min-h-10">
-            <Link
-              href="/account/agent"
-              aria-label="Back"
-              className="absolute left-0 top-0 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/80 shadow-card transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
-            >
-              <ArrowLeft className="h-4 w-4" aria-hidden />
-            </Link>
-
-            <div
-              className="absolute right-0 top-0 flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 backdrop-blur"
-              aria-label={`Profile completion ${profileCompletion.pct}%`}
-            >
-              <div className="relative h-11 w-11">
-                <svg viewBox="0 0 36 36" className="h-11 w-11" aria-hidden>
-                  <circle
-                    cx="18"
-                    cy="18"
-                    r="16"
-                    fill="none"
-                    stroke="currentColor"
-                      className="text-white/10"
-                    strokeWidth="3.5"
-                  />
-                  <circle
-                    cx="18"
-                    cy="18"
-                    r="16"
-                    fill="none"
-                    stroke="currentColor"
-                    className={
-                      completionTone === "good"
-                        ? "text-emerald-600"
-                        : completionTone === "warn"
-                          ? "text-amber-500"
-                          : "text-rose-600"
-                    }
-                    strokeWidth="3.5"
-                    strokeLinecap="round"
-                    pathLength="100"
-                    strokeDasharray={`${profileCompletion.pct} 100`}
-                    transform="rotate(-90 18 18)"
-                  />
-                </svg>
-
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="text-xs font-bold text-white tabular-nums">{profileCompletion.pct}%</div>
+          <div className="mt-5 space-y-5">
+            {[1, 2, 3, 4].map((idx) => (
+              <div key={idx} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_14px_35px_rgba(15,23,42,0.08)]">
+                <div className="h-4 w-40 rounded bg-slate-200" />
+                <div className="mt-2 h-3 w-64 rounded bg-slate-200" />
+                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div className="h-10 rounded-lg bg-slate-200" />
+                  <div className="h-10 rounded-lg bg-slate-200" />
+                  <div className="h-10 rounded-lg bg-slate-200" />
+                  <div className="h-10 rounded-lg bg-slate-200" />
                 </div>
               </div>
+            ))}
+          </div>
 
-              <div className="hidden sm:block text-left">
-                <div className="text-[11px] font-semibold text-white/70 leading-tight">Profile status</div>
-                <div className="text-[11px] font-semibold text-white/60 leading-tight">
-                  {profileCompletion.done}/{profileCompletion.total} items
-                </div>
-              </div>
-            </div>
-
-            <div className="mx-auto w-full max-w-2xl px-12 sm:px-16">
-              <div className="pt-0.5 text-center">
-                <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight leading-tight">My Profile</h1>
-                <p className="mt-2 text-sm sm:text-base text-white/70 leading-relaxed">
-                  Personal details, specialization, and employment context.
-                </p>
+          <div className="sticky bottom-0 mt-6 border-t border-slate-200 bg-slate-50/90 py-4 backdrop-blur">
+            <div className="flex flex-col items-center justify-center gap-3">
+              <div className="h-4 w-56 rounded bg-slate-200" />
+              <div className="flex gap-2">
+                <div className="h-12 w-36 rounded-lg bg-slate-200" />
+                <div className="h-12 w-44 rounded-lg bg-slate-200" />
               </div>
             </div>
           </div>
         </div>
       </div>
+    );
+  }
 
-      {loading ? (
-        <div className="flex flex-col items-center justify-center py-20">
-          <LogoSpinner size="lg" className="mb-4" ariaLabel="Loading profile" />
-          <p className="text-sm text-slate-600">Loading profile</p>
-        </div>
-      ) : authRequired ? (
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-card">
-          <div className="text-sm font-bold text-slate-900">Sign in required</div>
-          <div className="text-sm text-slate-600 mt-1">Log in to view your agent profile.</div>
-          <div className="mt-4">
-            <Link
-              href="/account/login"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand text-white font-semibold no-underline hover:bg-brand-700 shadow-card transition-colors"
-            >
-              Sign in
-              <ArrowRight className="w-4 h-4" aria-hidden />
-            </Link>
-          </div>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-          <div className="lg:col-span-7 rounded-2xl border border-slate-200 bg-white shadow-card overflow-hidden">
-            <div className="p-5 sm:p-6 border-b border-slate-200 bg-slate-50/60">
-              <div>
-                <div className="text-sm font-bold text-slate-900">Personal details</div>
-                <div className="text-sm text-slate-600 mt-1">Contact and location details.</div>
-              </div>
-            </div>
-            <div className="p-5 sm:p-6">
-              <div className="flex items-center justify-between gap-4 pb-5 border-b border-slate-100">
-                <div className="flex items-center gap-4 min-w-0">
-                    <div className="relative h-14 w-14 rounded-full border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center">
-                    {avatarUrl ? (
-                      <Image src={avatarUrl} alt="Profile photo" fill sizes="56px" className="object-cover" />
-                    ) : (
-                      <UserRound className="h-6 w-6 text-slate-400" aria-hidden />
-                    )}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-sm font-bold text-slate-900 truncate">Profile photo</div>
-                    <div className="text-xs text-slate-600 mt-0.5">
-                      {needsPhoto ? "Required: upload your current photo." : "Keep your photo up to date."}
-                    </div>
-                    {photoError ? <div className="text-xs text-rose-600 mt-1">{photoError}</div> : null}
-                    {photoSuccess ? <div className="text-xs text-emerald-600 mt-1">{photoSuccess}</div> : null}
-                  </div>
-                </div>
+  const reviewStatus = String(profile.reviewStatus || profile.review?.status || "DRAFT").toUpperCase();
+  const reviewReason = String(profile.reviewReason || profile.review?.reason || "").trim();
+  const reviewBadge =
+    reviewStatus === "APPROVED"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+      : reviewStatus === "CHANGES_REQUESTED"
+        ? "border-amber-200 bg-amber-50 text-amber-800"
+        : reviewStatus === "REJECTED"
+          ? "border-red-200 bg-red-50 text-red-700"
+          : ["SUBMITTED", "RESUBMITTED"].includes(reviewStatus)
+            ? "border-sky-200 bg-sky-50 text-sky-700"
+            : "border-slate-200 bg-slate-50 text-slate-700";
+  const canSubmit = readiness.pct === 100 && !["SUBMITTED", "RESUBMITTED"].includes(reviewStatus);
 
-                <div className="flex items-center gap-2 shrink-0">
-                  <input
-                    ref={photoInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => onUploadPhoto(e.target.files?.[0] ?? null)}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => photoInputRef.current?.click()}
-                    disabled={photoUploading}
-                    className="group inline-flex items-center justify-center border-0 bg-transparent p-0 m-0 appearance-none text-emerald-700 disabled:opacity-60 focus:outline-none focus-visible:outline-none"
-                  >
-                    <span className="sr-only">{needsPhoto ? "Upload photo" : "Change photo"}</span>
-                    {photoUploading ? (
-                      <span className="h-4 w-4 rounded-full border-2 border-emerald-200 border-t-emerald-700 animate-spin" aria-hidden />
-                    ) : (
-                      <Pencil className="h-4 w-4 transition-colors duration-150 group-hover:text-emerald-800" aria-hidden />
-                    )}
-                  </button>
-                </div>
+  return (
+    <div className="min-h-screen bg-slate-50">
+
+      {/* ── Submit success overlay ── */}
+      {showSubmitSuccess && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4"
+          onClick={() => setShowSubmitSuccess(false)}
+        >
+          <div
+            className="relative w-full max-w-md overflow-hidden rounded-3xl shadow-2xl"
+            style={{ background: "linear-gradient(135deg, #0a2825 0%, #02665e 55%, #0d3b36 100%)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Dot grid */}
+            <div
+              className="pointer-events-none absolute inset-0"
+              style={{
+                backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.07) 1px, transparent 1px)",
+                backgroundSize: "20px 20px",
+              }}
+            />
+            {/* Top shimmer */}
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+
+            <div className="relative px-8 py-10 text-center">
+              {/* Animated check circle */}
+              <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full border-2 border-white/20 bg-white/10 backdrop-blur-sm">
+                <svg className="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
               </div>
 
-              <div className="pt-5 grid grid-cols-2 gap-4">
-              <InfoItem icon={<UserRound className="w-5 h-5" aria-hidden />} label="Full name" value={displayName} />
-              <InfoItem icon={<Mail className="w-5 h-5" aria-hidden />} label="Email" value={account?.email || agent?.user?.email || "—"} />
-              <InfoItem icon={<Phone className="w-5 h-5" aria-hidden />} label="Phone" value={account?.phone || agent?.user?.phone || "—"} />
-              <InfoItem icon={<Globe className="w-5 h-5" aria-hidden />} label="Nationality" value={account?.nationality || agent?.user?.nationality || "—"} />
-              <InfoItem icon={<MapPin className="w-5 h-5" aria-hidden />} label="Region" value={account?.region || agent?.user?.region || "—"} />
-              <InfoItem icon={<MapPin className="w-5 h-5" aria-hidden />} label="District" value={account?.district || agent?.user?.district || "—"} />
+              <h2 className="text-xl font-extrabold text-white">Submitted for Review</h2>
+              <p className="mt-2 text-sm leading-relaxed text-white/70">
+                Your operator profile has been sent to the admin team. You will be notified once it is reviewed and approved.
+              </p>
+
+              {/* Progress bar (10 second countdown) */}
+              <div className="mt-6 overflow-hidden rounded-full bg-white/10 h-1.5">
+                <div
+                  className="h-full rounded-full bg-white/70"
+                  style={{ animation: "shrink-progress 10s linear forwards" }}
+                />
               </div>
-            </div>
-          </div>
+              <p className="mt-2 text-[11px] text-white/40">This message closes automatically</p>
 
-          <div className="lg:col-span-5 rounded-2xl border border-slate-200 bg-white shadow-card overflow-hidden">
-            <div className="p-5 sm:p-6 border-b border-slate-200 bg-slate-50/60">
-              <div className="text-sm font-bold text-slate-900">Employment</div>
-              <div className="text-sm text-slate-600 mt-1">Role and employment metadata.</div>
-            </div>
-            <div className="p-5 sm:p-6 grid grid-cols-2 gap-4">
-              <InfoItem icon={<Briefcase className="w-5 h-5" aria-hidden />} label="Employment title" value={agent?.employmentTitle || "—"} />
-              <InfoItem icon={<Briefcase className="w-5 h-5" aria-hidden />} label="Employment type" value={agent?.employmentType || "—"} />
-              <InfoItem icon={<Briefcase className="w-5 h-5" aria-hidden />} label="Employment commenced" value={formatDate(agent?.employmentCommencedAt)} />
-              <InfoItem icon={<Briefcase className="w-5 h-5" aria-hidden />} label="Agent level" value={agent?.level || "—"} />
-            </div>
-          </div>
-
-          <div className="lg:col-span-6 relative rounded-2xl border border-white/10 bg-slate-950/70 shadow-card overflow-hidden backdrop-blur-xl">
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-brand/20 via-slate-950/80 to-slate-950" aria-hidden />
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-white/10 to-transparent" aria-hidden />
-
-            <div className="relative p-5 sm:p-6 border-b border-white/10 bg-white/5">
-              <div className="text-sm font-bold text-white">Specialization</div>
-              <div className="text-sm text-white/70 mt-1">Your specialization focus and experience.</div>
-            </div>
-            <div className="relative p-5 sm:p-6 space-y-5">
-              <div className="grid grid-cols-2 gap-4">
-                <InfoItem tone="dark" accent="amber" icon={<GraduationCap className="w-5 h-5" aria-hidden />} label="Education level" value={agent?.educationLevel || "—"} />
-                <InfoItem tone="dark" accent="amber" icon={<Clock className="w-5 h-5" aria-hidden />} label="Years of experience" value={typeof agent?.yearsOfExperience === "number" ? agent.yearsOfExperience : "—"} />
-              </div>
-
-              <div>
-                <div className="text-xs font-semibold text-white/60">Specializations</div>
-                <div className="mt-2">
-                  <PillList tone="dark" items={specs} />
-                </div>
-              </div>
-
-              <div>
-                <div className="text-xs font-semibold text-white/60">Bio</div>
-                <div className="mt-2 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
-                  {agent?.bio ? agent.bio : "—"}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="lg:col-span-6 relative rounded-2xl border border-white/10 bg-slate-950/70 shadow-card overflow-hidden backdrop-blur-xl">
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-brand/15 via-slate-950/85 to-slate-950" aria-hidden />
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-white/10 to-transparent" aria-hidden />
-
-            <div className="relative p-5 sm:p-6 border-b border-white/10 bg-white/5">
-              <div className="text-sm font-bold text-white">Operations</div>
-              <div className="text-sm text-white/70 mt-1">Areas of operation and languages.</div>
-            </div>
-            <div className="relative p-5 sm:p-6 space-y-5">
-              <div>
-                <div className="text-xs font-semibold text-white/60">Areas of operation</div>
-                <div className="mt-2">
-                  <PillList tone="dark" items={areas} />
-                </div>
-              </div>
-
-              <div>
-                <div className="text-xs font-semibold text-white/60">Languages</div>
-                <div className="mt-2">
-                  <PillList tone="dark" items={langs} />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="lg:col-span-12 rounded-2xl border border-slate-200 bg-white shadow-card overflow-hidden">
-            <div className="p-5 sm:p-6 border-b border-slate-200 bg-slate-50/60">
-              <div className="text-sm font-bold text-slate-900">Work capacity</div>
-              <div className="text-sm text-slate-600 mt-1">Availability and workload.</div>
-            </div>
-            <div className="p-5 sm:p-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="rounded-2xl border border-slate-200 bg-white p-5">
-                <div className="text-xs font-semibold text-slate-600">Availability</div>
-                <div className="text-sm font-bold text-slate-900 mt-1">{agent?.isAvailable === null || agent?.isAvailable === undefined ? "—" : agent.isAvailable ? "Available" : "Not available"}</div>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-white p-5">
-                <div className="text-xs font-semibold text-slate-600">Max active requests</div>
-                <div className="text-sm font-bold text-slate-900 mt-1">{typeof agent?.maxActiveRequests === "number" ? agent.maxActiveRequests : "—"}</div>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-white p-5">
-                <div className="text-xs font-semibold text-slate-600">Current active requests</div>
-                <div className="text-sm font-bold text-slate-900 mt-1">{typeof agent?.currentActiveRequests === "number" ? agent.currentActiveRequests : "—"}</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="lg:col-span-12 rounded-2xl border border-slate-200 bg-white shadow-card overflow-hidden">
-            <div className="p-5 sm:p-6 border-b border-slate-200 bg-slate-50/60">
-              <div ref={docHelpRef} className="relative inline-flex items-center gap-2">
-                <button
-                  type="button"
-                  aria-label="Required documents help"
-                  aria-expanded={docHelpOpen}
-                  aria-controls="required-docs-help"
-                  onClick={() => setDocHelpOpen((v) => !v)}
-                  className="inline-flex items-center justify-center border-0 bg-transparent p-0 m-0 appearance-none text-slate-600 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 rounded"
-                >
-                  <Info className="h-4 w-4" aria-hidden />
-                </button>
-                <div className="text-sm font-bold text-slate-900">Required documents</div>
-
-                {docHelpOpen && (
-                  <div
-                    id="required-docs-help"
-                    role="tooltip"
-                    className="absolute left-0 top-full mt-2 w-[min(340px,calc(100vw-3rem))] rounded-2xl border border-slate-200 bg-white p-3 text-xs shadow-card"
-                  >
-                    <div className="font-semibold text-slate-900">Upload your documents</div>
-                    <div className="mt-1 text-slate-600">Clear scan/photo. Supported: PDF, JPG, PNG, WebP.</div>
-                    <div className="mt-2 text-slate-600">Please upload exactly what we asked for.</div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="p-5 sm:p-6 space-y-4">
-              <input
-                ref={docInputRef}
-                type="file"
-                className="hidden"
-                accept="application/pdf,image/*"
-                onChange={(e) => onUploadDocumentFromPicker(e.target.files?.[0] ?? null)}
-              />
-
-              {(docError || docSuccess) && (
-                <div className="space-y-1">
-                  {docError && <div className="text-sm text-rose-700">{docError}</div>}
-                  {docSuccess && <div className="text-sm text-emerald-700">{docSuccess}</div>}
-                </div>
-              )}
-
-              {showUploader && (
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
-                    <div className="lg:col-span-4">
-                      <div className="text-xs font-semibold text-slate-600">Document type</div>
-                      <select
-                        value={selectedDocType}
-                        onChange={(e) => setSelectedDocType(e.target.value)}
-                        disabled={actionableDocTypes.length === 0}
-                        className="mt-2 w-full h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
-                      >
-                        <option value="">Select document</option>
-                        {actionableDocTypes.map((t) => (
-                          <option key={t.type} value={t.type}>
-                            {t.label}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="text-xs text-slate-600 mt-2 leading-relaxed">Choose what you want to upload, then drag & drop (or click).</div>
-                    </div>
-
-                    <div className="lg:col-span-8">
-                      {(() => {
-                        const selectedMeta = requiredDocTypes.find((t) => t.type === selectedDocType) ?? null;
-                        const selectedDoc = selectedDocType ? getLatestDocByType(account?.documents, selectedDocType) : null;
-                        const hasSelectedUrl = Boolean(selectedDoc?.url);
-                        const isUploading = docUploading != null;
-                        const disabled = isUploading || !selectedDocType || actionableDocTypes.length === 0;
-                        const dropzoneClass =
-                          "w-full rounded-2xl border-2 border-dashed px-4 py-4 sm:py-5 transition " +
-                          (disabled
-                            ? "border-slate-200 bg-slate-50/60 opacity-70"
-                            : docDragOver
-                              ? "border-brand bg-brand/5"
-                              : "border-slate-200 bg-slate-50/60 hover:bg-slate-50");
-
-                        return (
-                          <div>
-                            <div
-                              role="button"
-                              tabIndex={0}
-                              aria-label={selectedMeta ? (hasSelectedUrl ? `Replace ${selectedMeta.label}` : `Upload ${selectedMeta.label}`) : "Upload document"}
-                              className={dropzoneClass}
-                              onClick={() => {
-                                if (actionableDocTypes.length === 0) return;
-                                if (!selectedDocType) {
-                                  setDocError("Please select a document type first.");
-                                  return;
-                                }
-                                if (!isUploading) triggerDocUpload();
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" || e.key === " ") {
-                                  e.preventDefault();
-                                  if (actionableDocTypes.length === 0) return;
-                                  if (!selectedDocType) {
-                                    setDocError("Please select a document type first.");
-                                    return;
-                                  }
-                                  if (!isUploading) triggerDocUpload();
-                                }
-                              }}
-                              onDragOver={(e) => {
-                                if (disabled) return;
-                                e.preventDefault();
-                                setDocDragOver(true);
-                              }}
-                              onDragLeave={() => setDocDragOver(false)}
-                              onDrop={(e) => {
-                                if (disabled) return;
-                                e.preventDefault();
-                                const dropped = e.dataTransfer?.files?.[0] ?? null;
-                                void uploadDocumentForType(selectedDocType, dropped);
-                              }}
-                            >
-                              <div className="flex items-center justify-center gap-3 text-center">
-                                <div className="h-10 w-10 rounded-2xl border border-slate-200 bg-white flex items-center justify-center text-brand shrink-0">
-                                  <Plus className="w-5 h-5" aria-hidden />
-                                </div>
-                                <div className="min-w-0">
-                                  <div className="text-sm font-semibold text-slate-900">
-                                    {isUploading ? "Uploading…" : !selectedDocType ? "Select a document type to upload" : "Drag & drop to upload"}
-                                  </div>
-                                  <div className="text-xs font-semibold text-slate-600 mt-0.5">or click to browse</div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                {requiredDocTypes.map((item) => {
-                  const doc = getLatestDocByType(account?.documents, item.type);
-                  const status = (doc?.status ? String(doc.status) : "").toUpperCase();
-                  const hasUrl = Boolean(doc?.url);
-                  const statusText = hasUrl ? (status || "PENDING") : "NOT_UPLOADED";
-
-                  const badgeClass =
-                    statusText === "APPROVED"
-                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                      : statusText === "REJECTED"
-                        ? "bg-rose-50 text-rose-700 border-rose-200"
-                        : statusText === "PENDING"
-                          ? "bg-amber-50 text-amber-700 border-amber-200"
-                          : "bg-slate-50 text-slate-700 border-slate-200";
-
-                  return (
-                    <div key={item.type} className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="text-sm font-semibold text-slate-900 leading-snug">{item.label}</div>
-                        </div>
-                        {hasUrl && typeof doc?.url === "string" && (
-                          <button
-                            type="button"
-                            aria-label={`View ${item.label}`}
-                            className="inline-flex items-center justify-center border-0 bg-transparent p-0 m-0 appearance-none text-brand hover:text-brand/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 rounded-lg"
-                            onClick={() => setDocPreview({ type: item.type, label: item.label, url: doc.url as string, contentType: doc?.metadata?.contentType ?? null })}
-                          >
-                            <Eye className="w-5 h-5" aria-hidden />
-                          </button>
-                        )}
-                      </div>
-
-                      <div className="mt-2">
-                        <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${badgeClass}`}>
-                          {statusText === "NOT_UPLOADED" ? "Not uploaded" : statusText}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+              <button
+                type="button"
+                onClick={() => setShowSubmitSuccess(false)}
+                className="mt-6 inline-flex h-10 items-center justify-center rounded-xl border border-white/20 bg-white/10 px-6 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/20"
+              >
+                Got it
+              </button>
             </div>
           </div>
         </div>
       )}
+
+      <style>{`
+        @keyframes shrink-progress {
+          from { width: 100%; }
+          to { width: 0%; }
+        }
+      `}</style>
+
+      <div className="mx-auto w-full max-w-6xl py-6 sm:px-6 lg:px-8">
+        <Link href="/account/agent" aria-label="Back to agent dashboard" className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 no-underline hover:bg-white hover:text-slate-950">
+          <ArrowLeft className="h-4 w-4" />
+        </Link>
+
+        <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+          <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-[#063f3b] p-5 text-white shadow-[0_18px_45px_rgba(2,32,29,0.18)] sm:p-6">
+            <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(15,118,110,0.58),rgba(8,47,73,0.34)_48%,rgba(2,102,94,0.18))]" aria-hidden />
+            <div className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full border border-white/10" aria-hidden />
+            <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-200/50 to-transparent" aria-hidden />
+            <div className="relative flex flex-col gap-6 lg:min-h-[250px] lg:justify-between">
+              <div className="flex min-w-0 gap-4">
+                <div className="hidden h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-white/15 bg-white/10 text-cyan-50 shadow-inner sm:flex">
+                  <Building2 className="h-8 w-8" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-cyan-100">Company marketplace setup</p>
+                  <h1 className="mt-2 text-3xl font-black tracking-normal text-white sm:text-4xl">Operator Profile</h1>
+                  <p className="mt-3 max-w-2xl text-sm leading-6 text-cyan-50/85 sm:text-base sm:leading-7">Build the company identity, coverage, packages, fleet, and photos customers review before choosing a tour operator.</p>
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="rounded-xl border border-white/10 bg-white/10 px-3 py-3">
+                    <p className="text-[10px] font-black uppercase tracking-wide text-cyan-100/80">Coverage</p>
+                    <p className="mt-1 text-lg font-black text-white">{profile.operatingRegions.length}</p>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-white/10 px-3 py-3">
+                    <p className="text-[10px] font-black uppercase tracking-wide text-cyan-100/80">Packages</p>
+                    <p className="mt-1 text-lg font-black text-white">{profile.packageItems.length}</p>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-white/10 px-3 py-3">
+                    <p className="text-[10px] font-black uppercase tracking-wide text-cyan-100/80">Photos</p>
+                    <p className="mt-1 text-lg font-black text-white">{profile.gallery.length}</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-2 min-[430px]:grid-cols-2 sm:w-64 sm:grid-cols-1">
+                  <Link href="/account/agent/profile/preview" className="inline-flex h-11 min-w-0 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white px-3 text-sm font-black text-slate-900 no-underline shadow-sm hover:bg-cyan-50">
+                    <Eye className="h-4 w-4" />
+                  <span className="truncate">Full preview</span>
+                  </Link>
+                  <Link href="/account/agent/card" className="inline-flex h-11 min-w-0 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/10 px-3 text-sm font-black text-white no-underline shadow-sm hover:bg-white/15">
+                    <Eye className="h-4 w-4" />
+                  <span className="truncate">Marketplace card</span>
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <aside className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_14px_35px_rgba(15,23,42,0.08)]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-extrabold uppercase tracking-wider text-slate-500">Readiness</p>
+                <p className="mt-2 text-4xl font-black text-slate-950">{readiness.pct}%</p>
+              </div>
+              <div
+                className="flex h-20 w-20 items-center justify-center rounded-full p-2 text-sm font-black text-slate-950 shadow-inner"
+                style={{ background: `conic-gradient(#059669 ${readiness.pct * 3.6}deg, #e2e8f0 0deg)` }}
+              >
+                <div className="flex h-full w-full items-center justify-center rounded-full bg-white">
+                  {readiness.done}/{readiness.total}
+                </div>
+              </div>
+            </div>
+            <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
+              <div className="h-full rounded-full bg-emerald-600" style={{ width: `${readiness.pct}%` }} />
+            </div>
+            <p className="mt-3 text-sm leading-6 text-slate-600">Complete identity, services, pricing, tools, and photos before booking visibility.</p>
+            <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 p-4">
+              <p className="text-xs font-extrabold uppercase tracking-wider text-slate-500">Admin review</p>
+              <div className={`mt-2 inline-flex rounded-full border px-2.5 py-1 text-xs font-black ${reviewBadge}`}>
+                {reviewStatus.replace(/_/g, " ")}
+              </div>
+              {reviewReason ? <p className="mt-2 text-xs leading-5 text-slate-600">{reviewReason}</p> : null}
+            </div>
+          </aside>
+        </div>
+
+        {validationErrors.length > 0 ? (
+          <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <p className="font-black">Please fix these package details before saving:</p>
+            <ul className="mt-2 list-disc space-y-1 pl-5 font-semibold">
+              {validationErrors.map((msg, idx) => (
+                <li key={`${msg}-${idx}`}>{msg}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
+        {error ? <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{error}</div> : null}
+        {success ? <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">{success}</div> : null}
+
+        <div className="mt-5 space-y-5">
+          <Section icon={<Users className="h-5 w-5" />} title="Contact Person Information" text="Your personal details as the primary contact for this operator profile.">
+            <div className="grid w-full max-w-[828px] grid-cols-1 gap-3 overflow-hidden md:grid-cols-2">
+              <Field label="Full Name *">
+                <Input value={profile.contactPersonName ?? ""} onChange={(e) => update("contactPersonName", e.target.value)} placeholder="John Doe" />
+              </Field>
+              <Field label="Email *">
+                <Input value={profile.contactPersonEmail ?? ""} onChange={(e) => update("contactPersonEmail", e.target.value)} placeholder="john@example.com" type="email" />
+              </Field>
+              <Field label="Phone *">
+                <Input value={profile.contactPersonPhone ?? ""} onChange={(e) => update("contactPersonPhone", e.target.value)} placeholder="+255..." />
+              </Field>
+              <Field label="Nationality *">
+                <Select value={profile.contactPersonNationality ?? ""} onChange={(e) => update("contactPersonNationality", e.target.value)}>
+                  <option value="">Select nationality...</option>
+                  <option value="Tanzanian">Tanzanian</option>
+                  <option value="Kenyan">Kenyan</option>
+                  <option value="Ugandan">Ugandan</option>
+                  <option value="Other">Other</option>
+                </Select>
+              </Field>
+            </div>
+          </Section>
+
+          <Section icon={<Building2 className="h-5 w-5" />} title="Partnership Company Information" text="Business details customers see before selecting an operator.">
+            <div className="grid w-full max-w-[828px] grid-cols-1 gap-3 overflow-hidden md:grid-cols-2">
+              <Field label="Company Name *">
+                <Input value={profile.companyName} onChange={(e) => update("companyName", e.target.value)} placeholder="India Camel" />
+              </Field>
+              <Field label="Company Email (Optional)">
+                <Input value={profile.companyEmail ?? ""} onChange={(e) => update("companyEmail", e.target.value)} placeholder="company@example.com" type="email" />
+              </Field>
+              <Field label="Company Phone *">
+                <Input value={profile.companyPhone ?? ""} onChange={(e) => update("companyPhone", e.target.value)} placeholder="+255..." />
+              </Field>
+              <Field label="Company Website">
+                <Input value={profile.companyWebsite ?? ""} onChange={(e) => update("companyWebsite", e.target.value)} placeholder="https://example.com" />
+              </Field>
+              <Field label="Business Address *">
+                <Input value={profile.businessAddress} onChange={(e) => update("businessAddress", e.target.value)} placeholder="Registered business address" />
+              </Field>
+              <Field label="Years in Operation">
+                <Input
+                  type="number"
+                  min="0"
+                  value={profile.yearsInOperation ?? ""}
+                  onChange={(e) => update("yearsInOperation", e.target.value === "" ? undefined : Number(e.target.value))}
+                  placeholder="e.g. 5"
+                />
+              </Field>
+              <Field label="Team Size *">
+                <Input
+                  type="number"
+                  min="0"
+                  value={profile.teamSize ?? ""}
+                  onChange={(e) => update("teamSize", e.target.value === "" ? undefined : Number(e.target.value))}
+                  placeholder="e.g. 20"
+                />
+              </Field>
+              <Field label="Languages (Speak / Read / Write) *">
+                <Input value={profile.languages ?? ""} onChange={(e) => update("languages", e.target.value)} placeholder="English, Swahili" />
+              </Field>
+            </div>
+            <div className="mt-3">
+              <Field label="Describe your company and your team *">
+                <Textarea value={profile.description} onChange={(e) => update("description", e.target.value)} placeholder="Briefly explain your operator style, experience, and service promise." />
+              </Field>
+            </div>
+          </Section>
+
+          <Section icon={<ShieldCheck className="h-5 w-5" />} title="Compliance And Company Records" text="Review and complete legal and permit details imported from the partnership application.">
+            <FieldGrid>
+              <Field label="Business registration number">
+                <Input value={profile.businessRegistrationNumber ?? ""} onChange={(e) => update("businessRegistrationNumber", e.target.value)} placeholder="Registration number" />
+              </Field>
+              <Field label="TIN number">
+                <Input value={profile.tinNumber ?? ""} onChange={(e) => update("tinNumber", e.target.value)} placeholder="TIN" />
+              </Field>
+              <Field label="Business license number">
+                <Input value={profile.businessLicenseNumber ?? ""} onChange={(e) => update("businessLicenseNumber", e.target.value)} placeholder="Business license" />
+              </Field>
+              <Field label="Tourism permit number">
+                <Input value={profile.tourismPermitNumber ?? ""} onChange={(e) => update("tourismPermitNumber", e.target.value)} placeholder="Tourism permit" />
+              </Field>
+              <Field label="Vehicle permit number">
+                <Input value={profile.vehiclePermitNumber ?? ""} onChange={(e) => update("vehiclePermitNumber", e.target.value)} placeholder="Vehicle permit" />
+              </Field>
+              <Field label="Years in operation">
+                <Input
+                  type="number"
+                  min="0"
+                  value={profile.yearsInOperation ?? ""}
+                  onChange={(e) => update("yearsInOperation", e.target.value === "" ? undefined : Number(e.target.value))}
+                  placeholder="e.g. 5"
+                />
+              </Field>
+              <Field label="Team size *">
+                <Input
+                  type="number"
+                  min="0"
+                  value={profile.teamSize ?? ""}
+                  onChange={(e) => update("teamSize", e.target.value === "" ? undefined : Number(e.target.value))}
+                  placeholder="e.g. 20"
+                />
+              </Field>
+            </FieldGrid>
+          </Section>
+
+          <Section icon={<Globe className="h-5 w-5" />} title="Tourism Serving" text="Classify the tourism types you serve, your categorised services, and your specializations.">
+            {/* Tourism Types */}
+            <div className="mb-5">
+              <p className="mb-2 text-sm font-black text-slate-800">Tourism Types <span className="text-red-500">*</span></p>
+              <p className="mb-3 text-xs text-slate-500">Select the tourism categories your company serves.</p>
+              <div className="flex items-end gap-2">
+                <Select value={tourismTypeInput} onChange={(e) => setTourismTypeInput(e.target.value)}>
+                  <option value="">Select tourism type</option>
+                  {tourismTypes.filter((t) => !profile.tourismTypes.includes(t)).map((type) => <option key={type} value={type}>{type}</option>)}
+                </Select>
+                <button
+                  type="button"
+                  disabled={!tourismTypeInput}
+                  onClick={() => {
+                    if (!tourismTypeInput || profile.tourismTypes.includes(tourismTypeInput)) return;
+                    update("tourismTypes", [...profile.tourismTypes, tourismTypeInput]);
+                    setTourismTypeInput("");
+                  }}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-emerald-700 px-5 text-sm font-black text-white shadow-sm hover:bg-emerald-800 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add
+                </button>
+              </div>
+              {profile.tourismTypes.length > 0 && (
+                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {profile.tourismTypes.map((item) => (
+                    <div key={item} className="inline-flex items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                      <span>{item}</span>
+                      <button type="button" onClick={() => toggleTourismType(item)} className="shrink-0 hover:text-red-600">
+                        <XCircle className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Company Services */}
+            <div className="mb-5 border-t border-slate-100 pt-5">
+              <p className="mb-2 text-sm font-black text-slate-800">Your Company Services <span className="text-red-500">*</span></p>
+              <p className="mb-3 text-xs text-slate-500">Services are classified by category. Choose a tourism type (or common services), then choose the matching service.</p>
+              <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-3 sm:p-4">
+                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
+                  <Field label="Service category">
+                    <Select
+                      value={serviceCategoryInput}
+                      onChange={(e) => { setServiceCategoryInput(e.target.value); setPartnershipServiceInput(""); }}
+                    >
+                      <option value="">Select category…</option>
+                      <option value="COMMON">Common Services</option>
+                      {profile.tourismTypes.map((t) => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <Field label="Service">
+                    <Select
+                      value={partnershipServiceInput}
+                      onChange={(e) => setPartnershipServiceInput(e.target.value)}
+                      disabled={!serviceCategoryInput}
+                    >
+                      <option value="">Select service…</option>
+                      {serviceOptionsForCategory.map((s) => (
+                        <option key={s} value={s} disabled={profile.services.includes(s)}>{s}</option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <button
+                    type="button"
+                    onClick={addClassifiedService}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-emerald-700 px-4 text-sm font-black text-white shadow-sm hover:bg-emerald-800"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add
+                  </button>
+                </div>
+              </div>
+              {profile.services.length > 0 && (
+                <div className="mt-4 space-y-4">
+                  {Object.entries(profile.serviceClassification ?? {}).map(([category, catServices]) =>
+                    catServices.length > 0 ? (
+                      <div key={category}>
+                        <p className="mb-3 text-xs font-black uppercase tracking-[0.15em] text-slate-600">{category}</p>
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                          {catServices.map((svc) => (
+                            <div key={svc} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm">
+                              <span className="font-medium text-slate-900">{svc}</span>
+                              <button type="button" onClick={() => removeClassifiedService(svc)} className="shrink-0 text-slate-400 hover:text-red-600 transition-colors">
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null
+                  )}
+                  {/* show uncategorized services not in any classification */}
+                  {(() => {
+                    const classified = new Set(Object.values(profile.serviceClassification ?? {}).flat());
+                    const unclassified = profile.services.filter((s) => !classified.has(s));
+                    if (unclassified.length === 0) return null;
+                    return (
+                      <div>
+                        <p className="mb-3 text-xs font-black uppercase tracking-[0.15em] text-slate-600">Uncategorized</p>
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                          {unclassified.map((svc) => (
+                            <div key={svc} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm">
+                              <span className="font-medium text-slate-900">{svc}</span>
+                              <button type="button" onClick={() => removeClassifiedService(svc)} className="shrink-0 text-slate-400 hover:text-red-600 transition-colors">
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
+
+            {/* Specializations */}
+            <div className="border-t border-slate-100 pt-5">
+              <p className="mb-2 text-sm font-black text-slate-800">Specializations <span className="text-red-500">*</span></p>
+              <p className="mb-3 text-xs text-slate-500">Select the areas your company specializes in.</p>
+              <div className="flex items-end gap-2">
+                <Select value={specializationInput} onChange={(e) => setSpecializationInput(e.target.value)}>
+                  <option value="">Select specialization</option>
+                  {AGENT_SPECIALIZATIONS.filter((s) => !profile.specializations.includes(s)).map((spec) => <option key={spec} value={spec}>{spec}</option>)}
+                </Select>
+                <button
+                  type="button"
+                  disabled={!specializationInput}
+                  onClick={() => {
+                    if (!specializationInput || profile.specializations.includes(specializationInput)) return;
+                    update("specializations", [...profile.specializations, specializationInput]);
+                    setSpecializationInput("");
+                  }}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-emerald-700 px-5 text-sm font-black text-white shadow-sm hover:bg-emerald-800 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add
+                </button>
+              </div>
+              {profile.specializations.length > 0 && (
+                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {profile.specializations.map((spec) => (
+                    <div key={spec} className="inline-flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm">
+                      <span className="font-medium text-slate-900">{spec}</span>
+                      <button type="button" onClick={() => toggleSpecialization(spec)} className="shrink-0 text-slate-400 hover:text-red-600 transition-colors">
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </Section>
+
+          <Section icon={<MapPin className="h-5 w-5" />} title="Area Of Operation" text="Set your company base and district before selecting permitted parks and sites.">
+            <div className="rounded-xl border border-emerald-100 bg-gradient-to-br from-emerald-50/80 to-white p-3 sm:p-4">
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
+                <Field label="Region *">
+                  <Select value={region} onChange={(e) => { setRegion(e.target.value); setDistrict(""); }}>
+                    <option value="">Select region</option>
+                    {REGIONS.map((r) => <option key={r.id} value={r.name}>{r.name}</option>)}
+                  </Select>
+                </Field>
+                <Field label="District *">
+                  <Select value={district} onChange={(e) => setDistrict(e.target.value)} disabled={!selectedRegion}>
+                    <option value="">Select district</option>
+                    {selectedRegion?.districts.map((d) => <option key={d} value={d}>{d}</option>)}
+                  </Select>
+                </Field>
+                <button type="button" onClick={addArea} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-emerald-700 px-4 text-sm font-black text-white shadow-sm hover:bg-emerald-800">
+                  <Plus className="h-4 w-4" />
+                  Add
+                </button>
+              </div>
+            </div>
+
+            {profile.operatingRegions.length > 0 && (
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {profile.operatingRegions.map((area) => (
+                  <span key={area} className={`inline-flex items-center justify-between gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm text-emerald-800${area.length > 22 ? " col-span-2" : ""}`}>
+                    <span className="truncate">{area}</span>
+                    <button type="button" onClick={() => update("operatingRegions", profile.operatingRegions.filter((x) => x !== area))} className="shrink-0 hover:text-red-600">
+                      <XCircle className="h-4 w-4" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <div className="mt-5 border-t border-slate-100 pt-5">
+              <p className="mb-1 text-sm font-black text-slate-800">Permitted Parks &amp; Tour Sites <span className="text-red-500">*</span></p>
+              <p className="mb-3 text-xs text-slate-500">Select all parks and tour sites your company is permitted to operate in.</p>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <select
+                  value={parkInput}
+                  onChange={(e) => setParkInput(e.target.value)}
+                  disabled={tourismSitesLoading}
+                  className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                >
+                  <option value="">{tourismSitesLoading ? "Loading..." : "Select a permitted park or tour site"}</option>
+                  {tourismSites
+                    .filter((s) => !(profile.registeredParks ?? []).includes(s.name))
+                    .map((s) => (
+                      <option key={s.id} value={s.name}>{s.name}</option>
+                    ))}
+                </select>
+                <button
+                  type="button"
+                  disabled={!parkInput}
+                  onClick={() => {
+                    if (!parkInput || (profile.registeredParks ?? []).includes(parkInput)) return;
+                    update("registeredParks", [...(profile.registeredParks ?? []), parkInput]);
+                    setParkInput("");
+                  }}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-emerald-700 px-5 text-sm font-black text-white shadow-sm hover:bg-emerald-800 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add
+                </button>
+              </div>
+              {(profile.registeredParks ?? []).length > 0 && (
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  {(profile.registeredParks ?? []).map((park) => (
+                    <span key={park} className={`inline-flex items-center justify-between gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm text-emerald-800${park.length > 22 ? " col-span-2" : ""}`}>
+                      <span className="truncate">{park}</span>
+                      <button type="button" onClick={() => update("registeredParks", (profile.registeredParks ?? []).filter((x) => x !== park))} className="shrink-0 hover:text-red-600">
+                        <XCircle className="h-4 w-4" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </Section>
+
+          <Section icon={<Wrench className="h-5 w-5" />} title="Tools &amp; Assets" text="Tell us what you use to support your tours and activities.">
+            <p className="mb-2 text-sm font-black text-slate-800">Tools &amp; Assets <span className="text-red-500">*</span></p>
+            <p className="mb-3 text-xs text-slate-500">Add at least one tool or asset your company uses for tour delivery.</p>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <select
+                value={customTool}
+                onChange={(e) => setCustomTool(e.target.value)}
+                className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+              >
+                <option value="">Select tool or asset</option>
+                {toolOptions
+                  .filter((item) => !profile.tools.includes(item))
+                  .map((item) => (
+                    <option key={item} value={item}>{item}</option>
+                  ))}
+              </select>
+              <button
+                type="button"
+                disabled={!customTool}
+                onClick={() => { addCustom("tools", customTool, setCustomTool); }}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-emerald-700 px-5 text-sm font-black text-white shadow-sm hover:bg-emerald-800 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Plus className="h-4 w-4" />
+                Add
+              </button>
+            </div>
+            {profile.tools.length > 0 && (
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {profile.tools.map((tool) => (
+                  <span key={tool} className={`inline-flex items-center justify-between gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm text-indigo-700${tool.length > 22 ? " col-span-2" : ""}`}>
+                    <span className="truncate">{tool}</span>
+                    <button type="button" onClick={() => update("tools", profile.tools.filter((x) => x !== tool))} className="shrink-0 hover:text-red-600">
+                      <XCircle className="h-4 w-4" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <div className="mt-7 border-t border-slate-100 pt-5">
+              <h3 className="text-base font-black text-slate-950">Fleet &amp; Vehicles <span className="text-red-500">*</span></h3>
+              <div className="mt-3 flex items-center gap-4">
+                <span className="text-sm text-slate-700">Does your company have vehicles for tours? <span className="text-red-500">*</span></span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => update("hasVehicles", true)}
+                    className={`rounded-lg border px-4 py-1.5 text-sm font-medium transition-colors ${profile.hasVehicles ? "border-emerald-700 bg-emerald-700 text-white" : "border-slate-300 bg-white text-slate-700 hover:border-emerald-700"}`}
+                  >
+                    Yes
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { update("hasVehicles", false); update("vehicles", []); }}
+                    className={`rounded-lg border px-4 py-1.5 text-sm font-medium transition-colors ${!profile.hasVehicles ? "border-slate-300 bg-slate-200 text-slate-700" : "border-slate-300 bg-white text-slate-700 hover:border-slate-400"}`}
+                  >
+                    No
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {profile.hasVehicles && (
+            <>
+            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Vehicle Type <span className="text-red-500">*</span></label>
+                  <Select value={vehicleInput.type} onChange={(e) => setVehicleInput({ ...vehicleInput, type: e.target.value })}>
+                    <option value="">Select type</option>
+                    {vehicleTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+                  </Select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Ownership <span className="text-red-500">*</span></label>
+                  <Select value={vehicleInput.ownedBy} onChange={(e) => setVehicleInput({ ...vehicleInput, ownedBy: e.target.value })}>
+                    <option value="">Select ownership</option>
+                    <option value="Company owned">Company owned</option>
+                    <option value="Partner owned">Partner owned</option>
+                    <option value="Rented on demand">Rented on demand</option>
+                  </Select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Number of Vehicles <span className="text-red-500">*</span></label>
+                  <Input type="number" min="1" value={vehicleInput.quantity} onChange={(e) => setVehicleInput({ ...vehicleInput, quantity: e.target.value })} placeholder="e.g. 3" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Capacity per Vehicle (people) <span className="text-red-500">*</span></label>
+                  <Input type="number" min="1" value={vehicleInput.seatsPerVehicle} onChange={(e) => setVehicleInput({ ...vehicleInput, seatsPerVehicle: e.target.value })} placeholder="e.g. 7" />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Condition / Notes <span className="text-slate-400">(optional)</span></label>
+                  <Textarea value={vehicleInput.notes} onChange={(e) => setVehicleInput({ ...vehicleInput, notes: e.target.value })} placeholder="e.g. 2022 model, well-maintained, roof hatch" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Registration Number</label>
+                  <Input value={vehicleInput.registrationNumber} onChange={(e) => setVehicleInput({ ...vehicleInput, registrationNumber: e.target.value })} placeholder="e.g. T123 ABC" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Service Mode</label>
+                  <Select value={vehicleInput.serviceMode} onChange={(e) => setVehicleInput({ ...vehicleInput, serviceMode: e.target.value })}>
+                    <option value="">Select mode</option>
+                    {VEHICLE_SERVICE_MODES.map((mode) => <option key={mode} value={mode}>{mode}</option>)}
+                  </Select>
+                </div>
+              </div>
+              <button type="button" onClick={addVehicle} disabled={!vehicleInput.type || !vehicleInput.quantity || !vehicleInput.seatsPerVehicle} className="w-full rounded-lg bg-emerald-700 px-4 py-2 text-sm font-black text-white hover:bg-emerald-800 disabled:opacity-40 disabled:cursor-not-allowed">
+                Add Vehicle
+              </button>
+            </div>
+
+            {profile.vehicles.length > 0 && (
+              <div className="mt-3 space-y-2">
+                {profile.vehicles.map((v) => (
+                  <div key={v.id} className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 p-3">
+                    <div>
+                      <div className="text-sm font-medium text-blue-900">{v.type}</div>
+                      <div className="mt-0.5 text-xs text-blue-700">
+                        {v.quantity} vehicle{v.quantity !== "1" ? "s" : ""} • {v.seatsPerVehicle} seat{v.seatsPerVehicle !== "1" ? "s" : ""} each • {v.ownedBy}
+                        {v.registrationNumber ? ` • Reg: ${v.registrationNumber}` : ""}
+                        {v.serviceMode ? ` • Mode: ${v.serviceMode}` : ""}
+                        {v.notes ? ` • ${v.notes}` : ""}
+                      </div>
+                    </div>
+                    <button type="button" onClick={() => update("vehicles", profile.vehicles.filter((x) => x.id !== v.id))} className="ml-3 flex-shrink-0 text-red-500 hover:text-red-700">
+                      <XCircle className="h-5 w-5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            </>
+            )}
+          </Section>
+
+          <Section icon={<Users className="h-5 w-5" />} title="Operating Capacity" text="Make availability and execution capacity clear before customers book.">
+            <FieldGrid>
+              <Field label="Max trips per day">
+                <Input type="number" min="0" value={profile.maxTripsPerDay} onChange={(e) => update("maxTripsPerDay", e.target.value)} placeholder="e.g. 3" />
+              </Field>
+              <Field label="Guides available">
+                <Input type="number" min="0" value={profile.guidesAvailable} onChange={(e) => update("guidesAvailable", e.target.value)} placeholder="e.g. 5" />
+              </Field>
+              <Field label="Minimum booking notice">
+                <Input value={profile.minimumBookingNotice} onChange={(e) => update("minimumBookingNotice", e.target.value)} placeholder="e.g. 48 hours" />
+              </Field>
+              <Field label="Peak season availability">
+                <Select value={profile.peakSeasonAvailability} onChange={(e) => update("peakSeasonAvailability", e.target.value)}>
+                  <option value="">Select availability</option>
+                  {peakSeasonOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                </Select>
+              </Field>
+            </FieldGrid>
+            <FieldGrid className="mt-3">
+              <Field label="Blocked periods">
+                <Textarea value={profile.blockedPeriods} onChange={(e) => update("blockedPeriods", e.target.value)} placeholder="Periods when bookings should not be accepted." />
+              </Field>
+              <Field label="Capacity notes">
+                <Textarea value={profile.capacityNotes} onChange={(e) => update("capacityNotes", e.target.value)} placeholder="Large group capacity, field team notes, or operational conditions." />
+              </Field>
+            </FieldGrid>
+          </Section>
+
+          <Section icon={<BriefcaseBusiness className="h-5 w-5" />} title="Packages And Pricing" text="Add tour packages, seasonal pricing, and add-ons.">
+            <div className="mt-8 overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-[0_10px_28px_rgba(15,23,42,0.07)]">
+              <div className="relative overflow-hidden bg-gradient-to-br from-white via-emerald-50/45 to-cyan-50/60 px-4 py-4 sm:px-5">
+                <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#02665e]/30 to-transparent" aria-hidden />
+                <div className="relative grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#02665e]">Commercial package studio</p>
+                    <h3 className="mt-1 text-xl font-black text-slate-950 sm:text-2xl">Tour Packages</h3>
+                    <p className="mt-1 text-sm leading-6 text-slate-600">Build clear and complete offers that customers can confidently compare and book.</p>
+                  </div>
+                  <div className="grid gap-2 lg:min-w-[160px]">
+                    <button type="button" onClick={addPackage} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#02665e] px-4 text-sm font-black text-white shadow-sm hover:bg-[#01544d]">
+                      <PackagePlus className="h-4 w-4" />
+                      Add package
+                    </button>
+                  </div>
+                </div>
+                <div className="relative mt-4 grid grid-cols-1 gap-2 min-[430px]:grid-cols-3">
+                  <div className="rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
+                    <p className="text-[10px] font-black uppercase tracking-wide text-[#02665e]">Packages</p>
+                    <p className="mt-1 text-lg font-black text-slate-950">{profile.packageItems.length}</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
+                    <p className="text-[10px] font-black uppercase tracking-wide text-[#02665e]">Seasons</p>
+                    <p className="mt-1 text-lg font-black text-slate-950">{profile.seasonalPrices.length}</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
+                    <p className="text-[10px] font-black uppercase tracking-wide text-[#02665e]">Add-ons</p>
+                    <p className="mt-1 text-lg font-black text-slate-950">{profile.addOns.length}</p>
+                  </div>
+                </div>
+                <div className="mt-3 rounded-xl border border-[#02665e]/15 bg-white/90 px-3 py-3">
+                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#02665e]">Why this section is important</p>
+                  <p className="mt-1 text-xs font-semibold leading-5 text-slate-600">Customers decide based on this package information. Incomplete details reduce trust and make booking harder.</p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700">Package identity</span>
+                    <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700">Commercial terms</span>
+                    <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700">Included services</span>
+                    <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700">Day-by-day itinerary</span>
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-4 bg-slate-50/70 p-3 sm:p-4">
+                {profile.packageItems.length === 0 && (
+                  <div className="rounded-2xl border border-dashed border-emerald-300 bg-white p-5 text-center">
+                    <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
+                      <PackagePlus className="h-7 w-7" />
+                    </span>
+                    <p className="mt-3 text-base font-black text-slate-950">No commercial package yet</p>
+                    <p className="mx-auto mt-1 max-w-md text-sm leading-6 text-slate-500">Start with the package that has the strongest booking potential. Price, route, capacity, inclusions, and itinerary will appear here.</p>
+                    <button type="button" onClick={addPackage} className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 text-sm font-black text-white shadow-sm hover:bg-emerald-800">
+                  <PackagePlus className="h-4 w-4" />
+                      Create first package
+                    </button>
+                  </div>
+                )}
+              {profile.packageItems.map((pkg, index) => {
+                const includedSuggestions = packageIncludedSuggestions(pkg, profile.tourismTypes);
+                const excludedSuggestions = packageExcludedSuggestions(includedSuggestions);
+                const isExpanded = expandedPackageIds[pkg.id] ?? false;
+                const isComplete = packageLooksComplete(pkg);
+                const normalizedDiscountCondition = String(pkg.discountCondition || "").trim();
+                const normalizedDiscountUnit = String(pkg.discountUnit || "").trim();
+                const isNumericCondition = /^\d+$/.test(normalizedDiscountCondition);
+                const discountConditionText = (() => {
+                  if (!normalizedDiscountCondition) return "";
+                  if (!isNumericCondition) return normalizedDiscountCondition;
+
+                  if (normalizedDiscountUnit === "Travelers") return `${normalizedDiscountCondition}+ travelers are booked together`;
+                  if (normalizedDiscountUnit === "Days before travel") return `${normalizedDiscountCondition}+ days before travel`;
+                  if (normalizedDiscountUnit === "Completed previous bookings") return `${normalizedDiscountCondition}+ completed previous bookings`;
+                  if (normalizedDiscountUnit === "Bookings") return `${normalizedDiscountCondition}+ bookings`;
+                  if (normalizedDiscountUnit === "Nights") return `${normalizedDiscountCondition}+ nights`;
+
+                  if (pkg.discountFactor === "Large group size") return `${normalizedDiscountCondition}+ travelers are booked together`;
+                  if (pkg.discountFactor === "Early booking") return `${normalizedDiscountCondition}+ days before travel`;
+                  if (pkg.discountFactor === "Returning customer") return `${normalizedDiscountCondition}+ completed previous bookings`;
+
+                  return normalizedDiscountCondition;
+                })();
+
+                return (
+                <div key={pkg.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                  <div className="bg-gradient-to-r from-slate-950 via-[#064e46] to-[#0f766e] px-4 py-4 text-white sm:px-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-cyan-100">Package {index + 1}</p>
+                        <h4 className="mt-1 truncate text-lg font-black text-white">{pkg.name || "Untitled package"}</h4>
+                        <p className="mt-1 truncate text-xs font-semibold text-cyan-50/75">{pkg.destination || "Destination not set"}</p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${
+                          isComplete
+                            ? "border-emerald-200 bg-emerald-100/90 text-emerald-900"
+                            : "border-amber-200 bg-amber-100/90 text-amber-900"
+                        }`}>
+                          {isComplete ? "Complete" : "Incomplete"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setExpandedPackageIds((prev) => ({ ...prev, [pkg.id]: !isExpanded }))}
+                          className="inline-flex h-9 items-center justify-center rounded-xl border border-white/15 bg-white/10 px-3 text-xs font-black text-white hover:bg-white/20"
+                        >
+                          {isExpanded ? "Done" : "Edit"}
+                        </button>
+                        <button type="button" onClick={() => removePackage(pkg.id)} className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-white hover:bg-red-500/80" aria-label="Remove package">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="mt-4 grid grid-cols-3 gap-2">
+                      <div className="rounded-xl border border-white/10 bg-white/10 px-3 py-2">
+                        <p className="text-[10px] font-black uppercase tracking-wide text-cyan-100/80">Price</p>
+                        <p className="mt-1 truncate text-sm font-black text-white">{pkg.pricePerPerson ? `${pkg.currency} ${pkg.pricePerPerson}` : "Not set"}</p>
+                      </div>
+                      <div className="rounded-xl border border-white/10 bg-white/10 px-3 py-2">
+                        <p className="text-[10px] font-black uppercase tracking-wide text-cyan-100/80">Duration</p>
+                        <p className="mt-1 truncate text-sm font-black text-white">{pkg.duration || "Not set"}</p>
+                      </div>
+                      <div className="rounded-xl border border-white/10 bg-white/10 px-3 py-2">
+                        <p className="text-[10px] font-black uppercase tracking-wide text-cyan-100/80">Mode</p>
+                        <p className="mt-1 truncate text-sm font-black text-white">{pkg.mode || "Not set"}</p>
+                      </div>
+                    </div>
+                  </div>
+                  {isExpanded ? (
+                  <div className="space-y-5 p-4 sm:p-5">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4">
+                      <p className="mb-3 text-xs font-black uppercase tracking-wide text-slate-500">Package identity</p>
+                    <FieldGrid>
+                    <Field label="Package name *"><Input value={pkg.name} onChange={(e) => patchPackage(pkg.id, { name: e.target.value })} placeholder="Serengeti classic safari" /></Field>
+                    <Field label="Destination *"><Input value={pkg.destination} onChange={(e) => patchPackage(pkg.id, { destination: e.target.value })} placeholder="Serengeti, Ngorongoro" /></Field>
+                  </FieldGrid>
+                  <div className="mt-3">
+                    <Field label="Short description *">
+                      <Textarea value={pkg.description} onChange={(e) => patchPackage(pkg.id, { description: e.target.value })} placeholder="A brief marketing overview of this package that customers will see first." />
+                    </Field>
+                  </div>
+                    </div>
+
+                    <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-3 sm:p-4">
+                      <p className="mb-3 text-xs font-black uppercase tracking-wide text-emerald-700">Commercial terms</p>
+                  <FieldGrid className="mt-3">
+                    <Field label="Tour category *">
+                      <Select value={pkg.category} onChange={(e) => patchPackage(pkg.id, { category: e.target.value })}>
+                        <option value="">Select category</option>
+                        <option>Safari</option>
+                        <option>Beach &amp; Island</option>
+                        <option>Cultural &amp; Heritage</option>
+                        <option>Mountain &amp; Hiking</option>
+                        <option>Adventure</option>
+                        <option>Birdwatching</option>
+                        <option>City Tour</option>
+                        <option>Fishing</option>
+                        <option>Photography</option>
+                        <option>Other</option>
+                      </Select>
+                    </Field>
+                    <Field label="Difficulty">
+                      <Select value={pkg.difficulty} onChange={(e) => patchPackage(pkg.id, { difficulty: e.target.value })}>
+                        <option value="">Select difficulty</option>
+                        <option>Easy</option>
+                        <option>Moderate</option>
+                        <option>Challenging</option>
+                        <option>Extreme</option>
+                      </Select>
+                    </Field>
+                    <Field label="Duration *"><Input value={pkg.duration} onChange={(e) => patchPackage(pkg.id, { duration: e.target.value })} placeholder="3 days / 2 nights" /></Field>
+                    <Field label="Mode *"><Select value={pkg.mode} onChange={(e) => patchPackage(pkg.id, { mode: e.target.value })}><option>Private</option><option>Shared</option><option>Private and shared</option></Select></Field>
+                    <Field label="Min group size (pax) *"><Input type="number" min="1" value={pkg.minPax} onChange={(e) => patchPackage(pkg.id, { minPax: e.target.value })} placeholder="1" /></Field>
+                    <Field label="Max group size (pax) *"><Input type="number" min="1" value={pkg.maxPax} onChange={(e) => patchPackage(pkg.id, { maxPax: e.target.value })} placeholder="12" /></Field>
+                    <Field label="Price per person *"><Input type="number" min="0" value={pkg.pricePerPerson} onChange={(e) => patchPackage(pkg.id, { pricePerPerson: e.target.value })} placeholder="450" /></Field>
+                    <Field label="Currency *"><Select value={pkg.currency} onChange={(e) => patchPackage(pkg.id, { currency: e.target.value })}><option>USD</option><option>TZS</option><option>EUR</option></Select></Field>
+                    <Field label="Accommodation">
+                      <Select value={pkg.accommodation} onChange={(e) => patchPackage(pkg.id, { accommodation: e.target.value })}>
+                        <option value="">Select accommodation</option>
+                        <option>Camping / Tented camp</option>
+                        <option>Budget hotel</option>
+                        <option>Mid-range hotel</option>
+                        <option>Luxury lodge</option>
+                        <option>Mixed (budget &amp; mid-range)</option>
+                        <option>Mixed (mid-range &amp; luxury)</option>
+                        <option>Not included</option>
+                      </Select>
+                    </Field>
+                    <Field label="Meal plan">
+                      <Select value={pkg.mealPlan} onChange={(e) => patchPackage(pkg.id, { mealPlan: e.target.value })}>
+                        <option value="">Select meal plan</option>
+                        <option>None (self-catered)</option>
+                        <option>Breakfast only</option>
+                        <option>Half board (B&amp;D)</option>
+                        <option>Full board (B, L &amp; D)</option>
+                        <option>All-inclusive</option>
+                      </Select>
+                    </Field>
+                  </FieldGrid>
+                  <div className="mt-3">
+                    <Field label="Meeting / departure point"><Input value={pkg.meetingPoint} onChange={(e) => patchPackage(pkg.id, { meetingPoint: e.target.value })} placeholder="Arusha town centre or hotel pick-up" /></Field>
+                  </div>
+                  <div className="mt-4 rounded-xl border border-dashed border-emerald-200 bg-white/70 p-3 sm:p-4">
+                    <p className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-700">Discount rule</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-600">Use this only when the standard package price can be reduced for a clear business reason. Define the trigger, the discount method, and the exact rule a customer must satisfy.</p>
+                    <div className="mt-2 rounded-lg border border-emerald-100 bg-emerald-50/70 px-3 py-2 text-[11px] font-semibold leading-5 text-slate-600">
+                      Example: Large group, USD 50 off, when 6 or more travelers book together. Another example: Returning customer, 5% off, for customers with a completed previous booking.
+                    </div>
+                    <FieldGrid className="mt-3">
+                      <Field label="Discount trigger">
+                        <Select value={pkg.discountFactor} onChange={(e) => patchPackage(pkg.id, { discountFactor: e.target.value })}>
+                          <option value="">No discount defined</option>
+                          <option>Early booking</option>
+                          <option>Large group size</option>
+                          <option>Low season</option>
+                          <option>Promotional campaign</option>
+                          <option>Returning customer</option>
+                          <option>Custom</option>
+                        </Select>
+                      </Field>
+                      <Field label="Discount method">
+                        <Select value={pkg.discountType} onChange={(e) => patchPackage(pkg.id, { discountType: e.target.value })}>
+                          <option value="">Select type</option>
+                          <option>Percentage</option>
+                          <option>Fixed amount</option>
+                        </Select>
+                      </Field>
+                      <Field label="Discount amount">
+                        <Input value={pkg.discountValue} onChange={(e) => patchPackage(pkg.id, { discountValue: e.target.value })} placeholder={pkg.discountType === "Fixed amount" ? "e.g. 50" : "e.g. 10"} />
+                      </Field>
+                      <Field label="Qualification unit">
+                        <Select value={pkg.discountUnit} onChange={(e) => patchPackage(pkg.id, { discountUnit: e.target.value })}>
+                          <option value="">Select unit (who/what)</option>
+                          <option>Travelers</option>
+                          <option>Days before travel</option>
+                          <option>Completed previous bookings</option>
+                          <option>Bookings</option>
+                          <option>Nights</option>
+                        </Select>
+                      </Field>
+                      <Field label="Qualification rule">
+                        <Input value={pkg.discountCondition} onChange={(e) => patchPackage(pkg.id, { discountCondition: e.target.value })} placeholder="e.g. 6" />
+                      </Field>
+                    </FieldGrid>
+                    {pkg.discountFactor && pkg.discountType && pkg.discountValue ? (
+                      <div className="mt-4 overflow-hidden rounded-xl border border-emerald-200 bg-white shadow-sm">
+                        <div className="bg-emerald-50/70 px-3 py-2">
+                          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-emerald-700">Live discount preview</p>
+                        </div>
+                        <div className="px-3 py-3">
+                          <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-bold text-slate-700">
+                            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1">{pkg.discountFactor}</span>
+                            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1">{pkg.discountType === "Fixed amount" ? `${pkg.currency} ${pkg.discountValue} off` : `${pkg.discountValue}% off`}</span>
+                            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1">{discountConditionText ? `When: ${discountConditionText}` : "Condition required"}</span>
+                          </div>
+                          <p className="mt-2 text-sm font-semibold leading-6 text-slate-700">
+                            Customers qualify for <span className="font-black text-slate-950">{pkg.discountType === "Fixed amount" ? `${pkg.currency} ${pkg.discountValue} off` : `${pkg.discountValue}% off`}</span> on this package
+                            {discountConditionText ? <span>{` when ${discountConditionText}`}</span> : <span> once the qualification rule is met</span>}.
+                          </p>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                    </div>
+
+                    <div className="rounded-xl border border-slate-200 bg-white p-3 sm:p-4">
+                      <p className="mb-3 text-xs font-black uppercase tracking-wide text-slate-500">Value promise for this Package</p>
+                  <FieldGrid className="mt-3">
+                    <Field label="Included *">
+                      <div className="space-y-2">
+                        <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                          <Select
+                            value={includedDrafts[pkg.id] ?? ""}
+                            onChange={(e) => setIncludedDrafts((drafts) => ({ ...drafts, [pkg.id]: e.target.value }))}
+                          >
+                            <option value="">Choose from common services</option>
+                            {includedSuggestions.map((item) => (
+                              <option key={`inc-${pkg.id}-${item}`} value={item} disabled={pkg.included.includes(item)}>
+                                {item}
+                              </option>
+                            ))}
+                          </Select>
+                          <button
+                            type="button"
+                            onClick={() => addPackageListItem(pkg.id, "included")}
+                            className="mt-1 rounded-md border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+                          >
+                            Add
+                          </button>
+                        </div>
+                        <Input
+                          value={includedDrafts[pkg.id] ?? ""}
+                          onChange={(e) => setIncludedDrafts((drafts) => ({ ...drafts, [pkg.id]: e.target.value }))}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              addPackageListItem(pkg.id, "included");
+                            }
+                          }}
+                          placeholder="Or type custom service"
+                        />
+                      </div>
+                      {pkg.included.length > 0 ? (
+                        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                          {pkg.included.map((item) => (
+                            <SelectedPill key={item} label={item} onRemove={() => removePackageListItem(pkg.id, "included", item)} />
+                          ))}
+                        </div>
+                      ) : null}
+                    </Field>
+                    <Field label="Not included">
+                      <div className="space-y-2">
+                        <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                          <Select
+                            value={excludedDrafts[pkg.id] ?? ""}
+                            onChange={(e) => setExcludedDrafts((drafts) => ({ ...drafts, [pkg.id]: e.target.value }))}
+                          >
+                            <option value="">Choose common exclusions</option>
+                            {excludedSuggestions.map((item) => (
+                              <option key={`exc-${pkg.id}-${item}`} value={item} disabled={pkg.excluded.includes(item)}>
+                                {item}
+                              </option>
+                            ))}
+                          </Select>
+                          <button
+                            type="button"
+                            onClick={() => addPackageListItem(pkg.id, "excluded")}
+                            className="mt-1 rounded-md border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+                          >
+                            Add
+                          </button>
+                        </div>
+                        <Input
+                          value={excludedDrafts[pkg.id] ?? ""}
+                          onChange={(e) => setExcludedDrafts((drafts) => ({ ...drafts, [pkg.id]: e.target.value }))}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              addPackageListItem(pkg.id, "excluded");
+                            }
+                          }}
+                          placeholder="Or type custom exclusion"
+                        />
+                      </div>
+                      {pkg.excluded.length > 0 ? (
+                        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                          {pkg.excluded.map((item) => (
+                            <SelectedPill key={item} label={item} onRemove={() => removePackageListItem(pkg.id, "excluded", item)} />
+                          ))}
+                        </div>
+                      ) : null}
+                    </Field>
+                  </FieldGrid>
+                  <div className="mt-3">
+                    <Field label="Package notes">
+                      <Textarea value={pkg.notes} onChange={(e) => patchPackage(pkg.id, { notes: e.target.value })} placeholder="Booking conditions, route notes, or extra customer guidance." />
+                    </Field>
+                  </div>
+                    </div>
+
+                  {/* Day-by-day itinerary */}
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <p className="text-xs font-black uppercase tracking-wide text-slate-500">Day-by-day itinerary <span className="text-red-500">*</span></p>
+                    </div>
+                    {pkg.itinerary.length > 0 && (
+                      <div className="mb-3 space-y-3">
+                        {pkg.itinerary.map((day) => (
+                          <div key={day.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                            <div className="mb-2 flex items-center justify-between gap-2">
+                              <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-950 text-[10px] font-black text-white">{day.day}</span>
+                              <Input
+                                className="flex-1"
+                                value={day.title}
+                                onChange={(e) => patchItineraryDay(pkg.id, day.id, { title: e.target.value })}
+                                placeholder={`Day ${day.day} title, e.g. Arrive Arusha`}
+                              />
+                              <button type="button" onClick={() => removeItineraryDay(pkg.id, day.id)} className="shrink-0 text-slate-400 hover:text-red-600" aria-label="Remove day">
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                            <Textarea
+                              value={day.description}
+                              onChange={(e) => patchItineraryDay(pkg.id, day.id, { description: e.target.value })}
+                              placeholder="Describe the day in general."
+                            />
+                            <div className="mt-2">
+                              <Field label="Timetable events *">
+                                <div className="mb-3 rounded-md bg-blue-50 p-3 text-sm text-slate-700">
+                                  <p className="font-semibold">Format example:</p>
+                                  <p className="mt-1 text-slate-600">• From 07:00 to 08:00 → Breakfast at lodge</p>
+                                  <p className="mt-1 text-slate-600">Specify each activity with its exact time range and clear description.</p>
+                                </div>
+                                <div className="space-y-2">
+                                  <div key={`${day.id}-header`} className="hidden sm:grid sm:grid-cols-[116px_116px_minmax(0,1fr)_130px_auto] sm:items-center sm:px-1">
+                                    <span className="text-[11px] font-semibold text-slate-500">From time</span>
+                                    <span className="text-[11px] font-semibold text-slate-500">To time</span>
+                                    <span className="text-[11px] font-semibold text-slate-500">Event details</span>
+                                    <span className="text-[11px] font-semibold text-slate-500">Experience Vibe</span>
+                                    <span className="text-[11px] font-semibold text-slate-500">Remove</span>
+                                  </div>
+                                  {(day.events || []).map((evt) => {
+                                    const isExpanded = expandedEventIds[evt.id] ?? true;
+                                    const hasData = !!(evt.startTime && evt.endTime && evt.activity);
+                                    
+                                    return isExpanded ? (
+                                      <div key={evt.id} className="grid grid-cols-2 gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2 sm:grid-cols-[116px_116px_minmax(0,1fr)_130px_auto] sm:items-center">
+                                        <div className="col-span-1 space-y-1">
+                                          <p className="text-[11px] font-semibold text-slate-500 sm:hidden">From time</p>
+                                          <Input
+                                            type="time"
+                                            value={evt.startTime}
+                                            onChange={(e) => patchItineraryEvent(pkg.id, day.id, evt.id, { startTime: e.target.value })}
+                                            placeholder="From"
+                                            aria-label={`Day ${day.day} event start time`}
+                                          />
+                                        </div>
+                                        <div className="col-span-1 space-y-1">
+                                          <p className="text-[11px] font-semibold text-slate-500 sm:hidden">To time</p>
+                                          <Input
+                                            type="time"
+                                            value={evt.endTime}
+                                            onChange={(e) => patchItineraryEvent(pkg.id, day.id, evt.id, { endTime: e.target.value })}
+                                            placeholder="To"
+                                            aria-label={`Day ${day.day} event end time`}
+                                          />
+                                        </div>
+                                        <div className="col-span-2 space-y-1 sm:col-span-1">
+                                          <p className="text-[11px] font-semibold text-slate-500 sm:hidden">Event details</p>
+                                          <Input
+                                            value={evt.activity}
+                                            onChange={(e) => patchItineraryEvent(pkg.id, day.id, evt.id, { activity: e.target.value })}
+                                            placeholder="Event / activity (e.g. Breakfast at lodge)"
+                                            aria-label={`Day ${day.day} event activity`}
+                                          />
+                                        </div>
+                                        <div className="col-span-2 space-y-1 sm:col-span-1">
+                                          <p className="text-[11px] font-semibold text-slate-500 sm:hidden">Experience Vibe</p>
+                                          <Select
+                                            value={evt.difficulty}
+                                            onChange={(e) => patchItineraryEvent(pkg.id, day.id, evt.id, { difficulty: e.target.value as ItineraryEvent["difficulty"] })}
+                                            aria-label={`Day ${day.day} experience vibe`}
+                                          >
+                                            <option value="Easy">Easy</option>
+                                            <option value="Normal">Normal</option>
+                                            <option value="Difficult">Difficult</option>
+                                            <option value="Funny">Funny</option>
+                                            <option value="Delicious">Delicious</option>
+                                          </Select>
+                                        </div>
+                                        <div className="col-span-2 flex justify-end gap-1 sm:col-span-1 sm:justify-center">
+                                          {hasData && (
+                                            <button
+                                              type="button"
+                                              onClick={() => setExpandedEventIds((prev) => ({ ...prev, [evt.id]: false }))}
+                                              className="inline-flex h-9 w-10 items-center justify-center rounded-md border border-slate-200 px-2 text-slate-500 hover:bg-white hover:text-slate-700 sm:w-full text-xs"
+                                              aria-label="Collapse event"
+                                              title="Collapse"
+                                            >
+                                              ✓
+                                            </button>
+                                          )}
+                                          <button
+                                            type="button"
+                                            onClick={() => removeItineraryEvent(pkg.id, day.id, evt.id)}
+                                            className="inline-flex h-9 w-10 items-center justify-center rounded-md border border-slate-200 px-2 text-slate-500 hover:bg-white hover:text-red-600 sm:w-full"
+                                            aria-label="Remove event"
+                                          >
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                          </button>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <Fragment key={evt.id}>
+                                        {/* Mobile view */}
+                                        <div
+                                          className="sm:hidden col-span-full cursor-pointer rounded-lg border border-slate-200 bg-slate-50 p-3"
+                                        >
+                                          <button
+                                            type="button"
+                                            onClick={() => setExpandedEventIds((prev) => ({ ...prev, [evt.id]: true }))}
+                                            className="w-full text-left"
+                                            aria-label={`Edit event: ${evt.startTime}-${evt.endTime} ${evt.activity}`}
+                                          >
+                                            <div className="flex items-start justify-between gap-2">
+                                              <div className="min-w-0">
+                                                <p className="text-xs font-semibold text-slate-500">
+                                                  {evt.startTime} → {evt.endTime}
+                                                </p>
+                                                <p className="mt-1 text-sm text-slate-700 break-words">{evt.activity}</p>
+                                              </div>
+                                              <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold whitespace-nowrap shrink-0 mt-1 ${
+                                                evt.difficulty === "Easy" ? "bg-green-100 text-green-700" :
+                                                evt.difficulty === "Difficult" ? "bg-red-100 text-red-700" :
+                                                evt.difficulty === "Funny" ? "bg-yellow-100 text-yellow-700" :
+                                                evt.difficulty === "Delicious" ? "bg-orange-100 text-orange-700" :
+                                                "bg-slate-100 text-slate-700"
+                                              }`}>
+                                                {evt.difficulty || "Normal"}
+                                              </span>
+                                            </div>
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              removeItineraryEvent(pkg.id, day.id, evt.id);
+                                            }}
+                                            className="mt-2 w-full inline-flex h-8 items-center justify-center rounded-md border border-slate-200 px-2 text-slate-400 hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition"
+                                            aria-label="Remove event"
+                                          >
+                                            <Trash2 className="h-4 w-4 mr-1" />
+                                            <span className="text-xs">Remove</span>
+                                          </button>
+                                        </div>
+
+                                        {/* Desktop view */}
+                                        <div
+                                          className="hidden sm:grid col-span-full cursor-pointer sm:grid-cols-[116px_116px_minmax(0,1fr)_130px_auto] sm:items-center sm:px-1 gap-2 py-2"
+                                        >
+                                          <button
+                                            type="button"
+                                            onClick={() => setExpandedEventIds((prev) => ({ ...prev, [evt.id]: true }))}
+                                            className="text-left"
+                                            aria-label={`Edit event: ${evt.startTime}-${evt.endTime} ${evt.activity}`}
+                                          >
+                                            <p className="text-sm text-slate-900">{evt.startTime}</p>
+                                          </button>
+                                          <p className="text-sm text-slate-900">{evt.endTime}</p>
+                                          <button
+                                            type="button"
+                                            onClick={() => setExpandedEventIds((prev) => ({ ...prev, [evt.id]: true }))}
+                                            className="text-left"
+                                            aria-label={`Edit event: ${evt.startTime}-${evt.endTime} ${evt.activity}`}
+                                          >
+                                            <p className="text-sm text-slate-700">{evt.activity}</p>
+                                          </button>
+                                          <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${
+                                            evt.difficulty === "Easy" ? "bg-green-100 text-green-700" :
+                                            evt.difficulty === "Difficult" ? "bg-red-100 text-red-700" :
+                                            evt.difficulty === "Funny" ? "bg-yellow-100 text-yellow-700" :
+                                            evt.difficulty === "Delicious" ? "bg-orange-100 text-orange-700" :
+                                            "bg-slate-100 text-slate-700"
+                                          }`}>
+                                            {evt.difficulty || "Normal"}
+                                          </span>
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              removeItineraryEvent(pkg.id, day.id, evt.id);
+                                            }}
+                                            className="inline-flex h-9 w-10 items-center justify-center rounded-md border border-slate-200 px-2 text-slate-400 hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition flex-shrink-0"
+                                            aria-label="Remove event"
+                                          >
+                                            <Trash2 className="h-4 w-4" />
+                                          </button>
+                                        </div>
+                                      </Fragment>
+                                    );
+                                  })}
+                                  <button
+                                    type="button"
+                                    onClick={() => addItineraryEvent(pkg.id, day.id)}
+                                    className="inline-flex h-8 items-center gap-2 rounded-md border border-slate-300 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                  >
+                                    <Plus className="h-3.5 w-3.5" />
+                                    Add event
+                                  </button>
+                                </div>
+                              </Field>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="space-y-2 rounded-lg border border-dashed border-slate-300 p-3">
+                      <div className="rounded-lg bg-blue-50 border border-blue-200 p-2.5">
+                        <p className="text-xs font-semibold text-blue-900">✓ Required to save this day:</p>
+                        <ul className="text-xs text-blue-800 space-y-1 mt-1.5 list-disc list-inside">
+                          <li>Day title (e.g., "Game drive in Serengeti")</li>
+                          <li>At least one event with times, OR times in description</li>
+                        </ul>
+                      </div>
+                      <Input
+                        value={itineraryDrafts[pkg.id]?.title ?? ""}
+                        onChange={(e) => setItineraryDrafts((d) => ({ ...d, [pkg.id]: { ...(d[pkg.id] ?? { title: "", description: "", events: [] }), title: e.target.value } }))}
+                        placeholder={`Day ${pkg.itinerary.length + 1} title, e.g. Game drive in Serengeti`}
+                      />
+                      <Textarea
+                        value={itineraryDrafts[pkg.id]?.description ?? ""}
+                        onChange={(e) => setItineraryDrafts((d) => ({ ...d, [pkg.id]: { ...(d[pkg.id] ?? { title: "", description: "", events: [] }), description: e.target.value } }))}
+                        placeholder="Describe the day in general."
+                      />
+                      <div className="space-y-2 rounded-md border border-slate-200 bg-white p-2">
+                        <p className="text-[11px] font-semibold text-slate-500">Add events for day {pkg.itinerary.length + 1} <span className="text-red-500">*</span></p>
+                        <div key={`${pkg.id}-draft-header`} className="hidden sm:grid sm:grid-cols-[116px_116px_minmax(0,1fr)_130px_auto] sm:items-center sm:px-1">
+                          <span className="text-[11px] font-semibold text-slate-500">From time</span>
+                          <span className="text-[11px] font-semibold text-slate-500">To time</span>
+                          <span className="text-[11px] font-semibold text-slate-500">Event details</span>
+                          <span className="text-[11px] font-semibold text-slate-500">Experience Vibe</span>
+                          <span className="text-[11px] font-semibold text-slate-500">Remove</span>
+                        </div>
+                        {(itineraryDrafts[pkg.id]?.events ?? []).map((evt) => {
+                          const isExpanded = expandedEventIds[evt.id] ?? true;
+                          const hasData = !!(evt.startTime && evt.endTime && evt.activity);
+                          
+                          return isExpanded ? (
+                            <div key={evt.id} className="grid grid-cols-2 gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2 sm:grid-cols-[116px_116px_minmax(0,1fr)_130px_auto] sm:items-center">
+                              <div className="col-span-1 space-y-1">
+                                <p className="text-[11px] font-semibold text-slate-500 sm:hidden">From time</p>
+                                <Input
+                                  type="time"
+                                  value={evt.startTime}
+                                  onChange={(e) => patchDraftItineraryEvent(pkg.id, evt.id, { startTime: e.target.value })}
+                                  placeholder="From"
+                                  aria-label={`Draft day ${pkg.itinerary.length + 1} event start time`}
+                                />
+                              </div>
+                              <div className="col-span-1 space-y-1">
+                                <p className="text-[11px] font-semibold text-slate-500 sm:hidden">To time</p>
+                                <Input
+                                  type="time"
+                                  value={evt.endTime}
+                                  onChange={(e) => patchDraftItineraryEvent(pkg.id, evt.id, { endTime: e.target.value })}
+                                  placeholder="To"
+                                  aria-label={`Draft day ${pkg.itinerary.length + 1} event end time`}
+                                />
+                              </div>
+                              <div className="col-span-2 space-y-1 sm:col-span-1">
+                                <p className="text-[11px] font-semibold text-slate-500 sm:hidden">Event details</p>
+                                <Input
+                                  value={evt.activity}
+                                  onChange={(e) => patchDraftItineraryEvent(pkg.id, evt.id, { activity: e.target.value })}
+                                  placeholder="Event / activity (e.g. Breakfast at lodge)"
+                                  aria-label={`Draft day ${pkg.itinerary.length + 1} event activity`}
+                                />
+                              </div>
+                              <div className="col-span-2 space-y-1 sm:col-span-1">
+                                <p className="text-[11px] font-semibold text-slate-500 sm:hidden">Experience Vibe</p>
+                                <Select
+                                  value={evt.difficulty}
+                                  onChange={(e) => patchDraftItineraryEvent(pkg.id, evt.id, { difficulty: e.target.value as ItineraryEvent["difficulty"] })}
+                                  aria-label={`Draft day ${pkg.itinerary.length + 1} experience vibe`}
+                                >
+                                  <option value="Easy">Easy</option>
+                                  <option value="Normal">Normal</option>
+                                  <option value="Difficult">Difficult</option>
+                                  <option value="Funny">Funny</option>
+                                  <option value="Delicious">Delicious</option>
+                                </Select>
+                              </div>
+                              <div className="col-span-2 flex justify-end gap-1 sm:col-span-1 sm:justify-center">
+                                {hasData && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setExpandedEventIds((prev) => ({ ...prev, [evt.id]: false }))}
+                                    className="inline-flex h-9 w-10 items-center justify-center rounded-md border border-slate-200 px-2 text-slate-500 hover:bg-white hover:text-slate-700 sm:w-full text-xs"
+                                    aria-label="Collapse event"
+                                    title="Collapse"
+                                  >
+                                    ✓
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => removeDraftItineraryEvent(pkg.id, evt.id)}
+                                  className="inline-flex h-9 w-10 items-center justify-center rounded-md border border-slate-200 px-2 text-slate-500 hover:bg-white hover:text-red-600 sm:w-full"
+                                  aria-label="Remove draft event"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <Fragment key={evt.id}>
+                              {/* Mobile view */}
+                              <div
+                                className="sm:hidden col-span-full cursor-pointer rounded-lg border border-slate-200 bg-slate-50 p-3"
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedEventIds((prev) => ({ ...prev, [evt.id]: true }))}
+                                  className="w-full text-left"
+                                  aria-label={`Edit event: ${evt.startTime}-${evt.endTime} ${evt.activity}`}
+                                >
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="min-w-0">
+                                      <p className="text-xs font-semibold text-slate-500">
+                                        {evt.startTime} → {evt.endTime}
+                                      </p>
+                                      <p className="mt-1 text-sm text-slate-700 break-words">{evt.activity}</p>
+                                    </div>
+                                    <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold whitespace-nowrap shrink-0 mt-1 ${
+                                      evt.difficulty === "Easy" ? "bg-green-100 text-green-700" :
+                                      evt.difficulty === "Difficult" ? "bg-red-100 text-red-700" :
+                                      evt.difficulty === "Funny" ? "bg-yellow-100 text-yellow-700" :
+                                      evt.difficulty === "Delicious" ? "bg-orange-100 text-orange-700" :
+                                      "bg-slate-100 text-slate-700"
+                                    }`}>
+                                      {evt.difficulty || "Normal"}
+                                    </span>
+                                  </div>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    removeDraftItineraryEvent(pkg.id, evt.id);
+                                  }}
+                                  className="mt-2 w-full inline-flex h-8 items-center justify-center rounded-md border border-slate-200 px-2 text-slate-400 hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition"
+                                  aria-label="Remove event"
+                                >
+                                  <Trash2 className="h-4 w-4 mr-1" />
+                                  <span className="text-xs">Remove</span>
+                                </button>
+                              </div>
+
+                              {/* Desktop view */}
+                              <div
+                                className="hidden sm:grid col-span-full cursor-pointer sm:grid-cols-[116px_116px_minmax(0,1fr)_130px_auto] sm:items-center sm:px-1 gap-2 py-2"
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedEventIds((prev) => ({ ...prev, [evt.id]: true }))}
+                                  className="text-left"
+                                  aria-label={`Edit event: ${evt.startTime}-${evt.endTime} ${evt.activity}`}
+                                >
+                                  <p className="text-sm text-slate-900">{evt.startTime}</p>
+                                </button>
+                                <p className="text-sm text-slate-900">{evt.endTime}</p>
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedEventIds((prev) => ({ ...prev, [evt.id]: true }))}
+                                  className="text-left"
+                                  aria-label={`Edit event: ${evt.startTime}-${evt.endTime} ${evt.activity}`}
+                                >
+                                  <p className="text-sm text-slate-700">{evt.activity}</p>
+                                </button>
+                                <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${
+                                  evt.difficulty === "Easy" ? "bg-green-100 text-green-700" :
+                                  evt.difficulty === "Difficult" ? "bg-red-100 text-red-700" :
+                                  evt.difficulty === "Funny" ? "bg-yellow-100 text-yellow-700" :
+                                  evt.difficulty === "Delicious" ? "bg-orange-100 text-orange-700" :
+                                  "bg-slate-100 text-slate-700"
+                                }`}>
+                                  {evt.difficulty || "Normal"}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    removeDraftItineraryEvent(pkg.id, evt.id);
+                                  }}
+                                  className="inline-flex h-9 w-10 items-center justify-center rounded-md border border-slate-200 px-2 text-slate-400 hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition flex-shrink-0"
+                                  aria-label="Remove event"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </Fragment>
+                          );
+                        })}
+                        <button
+                          type="button"
+                          onClick={() => addDraftItineraryEvent(pkg.id)}
+                          className="inline-flex h-8 items-center gap-2 rounded-md border border-slate-300 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          Add event
+                        </button>
+                      </div>
+                      {(() => {
+                        const draft = itineraryDrafts[pkg.id];
+                        const hasTitle = !!(draft?.title ?? "").trim();
+                        const hasEvents = (draft?.events ?? []).length > 0;
+                        const eventsValid = hasEvents && (draft?.events ?? []).every(e => e.startTime && e.endTime && e.activity);
+                        const hasDescriptionWithTimes = hasTitle && /\d{1,2}:\d{2}|am|pm|morning|afternoon|evening/i.test(draft?.description ?? "");
+                        const canSave = hasTitle && (eventsValid || hasDescriptionWithTimes);
+                        
+                        return (
+                          <div className="space-y-2">
+                            {!hasTitle && <p className="text-xs text-amber-700 bg-amber-50 rounded px-2 py-1">⚠️ Add day title</p>}
+                            {hasTitle && !eventsValid && !hasDescriptionWithTimes && <p className="text-xs text-amber-700 bg-amber-50 rounded px-2 py-1">⚠️ Add event times or mention times in description</p>}
+                            <button
+                              type="button"
+                              onClick={() => addItineraryDay(pkg.id)}
+                              disabled={!canSave}
+                              className={`inline-flex h-9 items-center gap-2 rounded-md border px-3 text-sm font-semibold ${canSave ? "border-emerald-700 bg-emerald-700 text-white hover:bg-emerald-800" : "border-slate-300 bg-slate-100 text-slate-400 cursor-not-allowed"}`}
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                              Add day {pkg.itinerary.length + 1}
+                            </button>
+                          </div>
+                        );
+                      })()} 
+                    </div>
+                  </div>
+                  </div>
+                  ) : (
+                    <div className="flex items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/80 px-4 py-3 sm:px-5">
+                      <p className="text-xs font-semibold text-slate-600">Package form is collapsed for a cleaner view.</p>
+                      <button
+                        type="button"
+                        onClick={() => setExpandedPackageIds((prev) => ({ ...prev, [pkg.id]: true }))}
+                        className="inline-flex h-8 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-black text-slate-700 hover:bg-slate-100"
+                      >
+                        Open details
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+              })}
+              </div>
+            </div>
+
+            <div className="mt-7 flex flex-col gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
+              <h3 className="text-base font-black text-slate-950">Seasonal pricing</h3>
+              <button type="button" onClick={addSeason} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-300 px-3 text-sm font-black text-slate-800 sm:justify-start">
+                <Plus className="h-4 w-4" />
+                Add season
+              </button>
+            </div>
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              {profile.seasonalPrices.map((season) => (
+                <div key={season.id} className="rounded-xl border border-slate-200 bg-white p-4">
+                  <div className="mb-3 flex justify-end">
+                    <button type="button" onClick={() => update("seasonalPrices", profile.seasonalPrices.filter((p) => p.id !== season.id))} className="text-slate-500 hover:text-red-600" aria-label="Remove season">
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <FieldGrid className="gap-y-4">
+                    <Field label="Season name"><Input value={season.seasonName} onChange={(e) => patchSeason(season.id, { seasonName: e.target.value })} placeholder="High season" /></Field>
+                    <Field label="Price per person"><Input type="number" min="0" value={season.pricePerPerson} onChange={(e) => patchSeason(season.id, { pricePerPerson: e.target.value })} placeholder="650" /></Field>
+                    <Field label="Start month">
+                      <Select value={season.startMonth} onChange={(e) => patchSeason(season.id, { startMonth: e.target.value })}>
+                        <option value="">Select month</option>
+                        {months.map((month) => <option key={month} value={month}>{month}</option>)}
+                      </Select>
+                    </Field>
+                    <Field label="End month">
+                      <Select value={season.endMonth} onChange={(e) => patchSeason(season.id, { endMonth: e.target.value })}>
+                        <option value="">Select month</option>
+                        {months.map((month) => <option key={month} value={month}>{month}</option>)}
+                      </Select>
+                    </Field>
+                    <Field label="Currency"><Select value={season.currency} onChange={(e) => patchSeason(season.id, { currency: e.target.value })}><option>USD</option><option>TZS</option><option>EUR</option></Select></Field>
+                    <Field label="Notes"><Input value={season.notes} onChange={(e) => patchSeason(season.id, { notes: e.target.value })} placeholder="Migration window, holiday rate, or low season" /></Field>
+                  </FieldGrid>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-7 border-t border-slate-100 pt-5">
+              <h3 className="text-base font-black text-slate-950">Add-ons</h3>
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {addOnOptions.map((item) => (
+                  <Chip key={item} label={item} active={profile.addOns.includes(item)} onClick={() => toggle("addOns", item)} />
+                ))}
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]">
+                <Input value={customAddOn} onChange={(e) => setCustomAddOn(e.target.value)} placeholder="Add another add-on" />
+                <button type="button" onClick={() => addCustom("addOns", customAddOn, setCustomAddOn)} className="mt-1 rounded-md border border-slate-200 px-5 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50">Add</button>
+              </div>
+            </div>
+          </Section>
+
+          <Section icon={<Camera className="h-5 w-5" />} title="Gallery" text="Upload photos by category so every image appears in the correct customer-facing area.">
+            <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-600">
+              {photoHelpText}
+              <p className="mt-1 text-xs font-bold text-slate-600">Required uploads: Logo <span className="text-red-500">*</span>, Vehicles <span className="text-red-500">*</span>, and Attractions <span className="text-red-500">*</span>.</p>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {photoCategories.map((cat) => {
+                const urls = profile.classifiedPhotos[cat.key] ?? [];
+                const activeIndex = urls.length > 0 ? Math.min(Math.max(photoSlideIndex[cat.key] ?? 0, 0), urls.length - 1) : 0;
+                const activeUrl = urls[activeIndex] ?? "";
+                const isRequiredCategory = cat.key === "logo" || cat.key === "vehicles" || cat.key === "attractions";
+                return (
+                  <div key={cat.key} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h3 className="text-sm font-black text-slate-950">{cat.title}{isRequiredCategory ? <span className="ml-1 text-red-500">*</span> : null}</h3>
+                        <p className="mt-1 text-xs leading-5 text-slate-500">{cat.text}</p>
+                      </div>
+                      <button type="button" onClick={() => fileRefs.current[cat.key]?.click()} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:bg-white hover:text-emerald-700" aria-label={`Upload ${cat.title}`}>
+                        {uploading === cat.key ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+                      </button>
+                    </div>
+                    <input ref={(node) => { fileRefs.current[cat.key] = node; }} type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" multiple={cat.key !== "logo"} className="hidden" onChange={(e) => uploadPhotos(cat.key, e.target.files)} />
+                    {urls.length > 0 ? (
+                      <div className="mt-4">
+                        <div className="relative overflow-hidden rounded-lg bg-slate-100 ring-1 ring-slate-200">
+                          <div
+                            className="relative h-40 touch-pan-y sm:h-44"
+                            onTouchStart={(e) => onPhotoTouchStart(cat.key, e.changedTouches[0]?.clientX ?? 0)}
+                            onTouchEnd={(e) => onPhotoTouchEnd(cat.key, urls.length, e.changedTouches[0]?.clientX ?? 0)}
+                          >
+                            {cat.key === "logo" ? (
+                              <div className="flex h-full w-full items-center justify-center p-4">
+                                <div className="h-28 w-28 overflow-hidden rounded-full bg-white ring-1 ring-slate-200 sm:h-32 sm:w-32">
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img src={activeUrl} alt={`${cat.title} ${activeIndex + 1}`} className="h-full w-full object-contain p-2" />
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={activeUrl} alt={`${cat.title} ${activeIndex + 1}`} className="h-full w-full object-cover" />
+                              </>
+                            )}
+                          </div>
+                          <span className="absolute left-2 top-2 rounded-md bg-black/55 px-2 py-0.5 text-[10px] font-bold text-white">
+                            {activeIndex + 1} / {urls.length}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setProfile((p) => {
+                                const nextUrls = urls.filter((x) => x !== activeUrl);
+                                return {
+                                  ...p,
+                                  companyLogoUrl: p.companyLogoUrl === activeUrl ? "" : p.companyLogoUrl,
+                                  gallery: p.gallery.filter((x) => x !== activeUrl),
+                                  classifiedPhotos: { ...p.classifiedPhotos, [cat.key]: nextUrls },
+                                };
+                              });
+                              setPhotoSlideIndex((prev) => ({
+                                ...prev,
+                                [cat.key]: Math.max(0, Math.min(prev[cat.key] ?? activeIndex, urls.length - 2)),
+                              }));
+                            }}
+                            className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-md bg-white text-slate-700 shadow"
+                            aria-label="Remove photo"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+
+                          {urls.length > 1 ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => goToPhoto(cat.key, urls.length, -1)}
+                                className="absolute left-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white"
+                                aria-label="Previous photo"
+                              >
+                                <ChevronLeft className="h-4 w-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => goToPhoto(cat.key, urls.length, 1)}
+                                className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white"
+                                aria-label="Next photo"
+                              >
+                                <ChevronRight className="h-4 w-4" />
+                              </button>
+                            </>
+                          ) : null}
+                        </div>
+
+                        {urls.length > 1 ? (
+                          <>
+                            <div className="mt-2 text-center text-[11px] font-medium text-slate-500">
+                              {urls.length} photo{urls.length === 1 ? "" : "s"} uploaded
+                            </div>
+                            <div className="mt-1 flex justify-center gap-1.5" aria-label={`${urls.length} uploaded photos`}>
+                              {urls.map((_, idx) => (
+                                <button
+                                  key={`${cat.key}-dot-${idx}`}
+                                  type="button"
+                                  onClick={() => setPhotoSlideIndex((prev) => ({ ...prev, [cat.key]: idx }))}
+                                  className={idx === activeIndex ? "h-1.5 w-4 rounded-full bg-emerald-600" : "h-1.5 w-4 rounded-full bg-slate-300"}
+                                  aria-label={`Go to photo ${idx + 1}`}
+                                />
+                              ))}
+                            </div>
+                          </>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => fileRefs.current[cat.key]?.click()}
+                        className="mt-4 flex h-28 w-full flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-sm font-bold text-slate-500 hover:border-emerald-300 hover:bg-emerald-50/40 hover:text-emerald-800"
+                      >
+                        <ImagePlus className="mb-2 h-5 w-5" />
+                        Upload {cat.title.toLowerCase()}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </Section>
+        </div>
+
+        <div className="sticky bottom-0 mt-6 border-t border-slate-200 bg-slate-50/90 py-4 backdrop-blur">
+          <div className="flex flex-col items-center justify-center gap-3">
+            <div className="text-center text-sm font-semibold text-slate-500">
+              Save as draft. Submit for admin review.
+              <p className="mt-1 text-xs font-semibold text-slate-400">Autosave is on and runs silently in background.</p>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button type="button" onClick={save} disabled={saving || submitting} className="inline-flex h-10 items-center justify-center gap-2 self-center rounded-lg border border-slate-200 bg-white px-4 text-xs font-black text-slate-800 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 sm:h-12 sm:px-5 sm:text-sm sm:self-auto">
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Save draft
+              </button>
+              <button type="button" onClick={submitForReview} disabled={submitting || saving || !canSubmit} className="inline-flex h-10 items-center justify-center gap-2 self-center rounded-lg bg-emerald-700 px-4 text-xs font-black text-white shadow-sm hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60 sm:h-12 sm:px-5 sm:text-sm sm:self-auto">
+                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                Submit for review
+              </button>
+            </div>
+            {(() => {
+              const submittedAt = profile?.review?.submittedAt || (profile as any)?.submittedAt;
+              if (!submittedAt) return null;
+              const d = new Date(submittedAt);
+              const date = d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+              const time = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+              return (
+                <p className="text-[11px] text-slate-400">
+                  Last submitted: <span className="font-semibold text-slate-500">{date} at {time}</span>
+                </p>
+              );
+            })()}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

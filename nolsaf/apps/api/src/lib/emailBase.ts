@@ -352,7 +352,55 @@ export function careersEmail(
 </html>`;
 }
 
-// ─── Reusable UI blocks ───────────────────────────────────────────────────────
+// ─── Reusable UI blocks ──────
+
+/**
+ * Clean partner application email shell for operator and travel partner flows.
+ * Keeps the header quiet and practical so the message feels like business onboarding.
+ */
+export function partnershipEmail(
+  badgeLabel: string,
+  contextLabel: string,
+  body: string,
+  supportEmail = "careers@nolsaf.com"
+): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <style>@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&display=swap');</style>
+  <!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><![endif]-->
+</head>
+<body style="margin:0;padding:0;background-color:#eef4f3;font-family:'Poppins','Segoe UI',Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#eef4f3;">
+    <tr><td align="center" style="padding:24px 12px 20px;">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+        style="max-width:620px;background:#ffffff;border-radius:14px;overflow:hidden;box-shadow:0 16px 42px rgba(1,77,71,0.14);">
+        <tr>
+          <td style="background:#014d47;padding:30px 36px 28px;text-align:left;">
+            <img src="https://nolsaf.com/assets/NoLS2025-04.png" alt="NoLSAF" style="width:40px;height:40px;margin-bottom:20px;display:block;border-radius:8px;background:#ffffff;padding:4px;" />
+            <p style="margin:0 0 8px;color:#baf7e9;font-size:12px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;">${badgeLabel}</p>
+            <h1 style="margin:0;color:#ffffff;font-size:25px;line-height:1.28;font-weight:800;font-family:'Poppins','Segoe UI',Arial,sans-serif;">${contextLabel}</h1>
+          </td>
+        </tr>
+        <tr>
+          <td style="height:4px;background:#02665e;font-size:0;line-height:0;">&nbsp;</td>
+        </tr>
+        <tr>
+          <td style="padding:34px 36px 28px;color:${TEXT_MAIN};font-size:14px;line-height:1.75;font-family:'Poppins','Segoe UI',Arial,sans-serif;">
+            ${body}
+          </td>
+        </tr>
+        ${buildCareersFooter(supportEmail)}
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
 
 /**
  * Tinted info card with left accent border — for request details, assignment info, etc.

@@ -18,7 +18,7 @@ import { Router } from 'express';
 import { prisma } from '@nolsaf/prisma';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { z } from 'zod';
-import rateLimit from 'express-rate-limit';
+import { rateLimitWithRedis as rateLimit } from "../lib/redisRateLimitStore.js";
 import { getAnonymizedClientIp, truncateSessionId } from '../lib/privacy.js';
 
 const router = Router();

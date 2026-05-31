@@ -4,7 +4,7 @@ import type { RequestHandler, Response } from "express";
 import { z } from "zod";
 import { prisma } from "@nolsaf/prisma";
 import { asyncHandler } from "../middleware/errorHandler.js";
-import rateLimit from "express-rate-limit";
+import { rateLimitWithRedis as rateLimit } from "../lib/redisRateLimitStore.js";
 import { safeJsonResponse } from "../lib/serializePrisma.js";
 
 const DEFAULT_PAGE_SIZE = 50;

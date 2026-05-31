@@ -9,6 +9,7 @@ import UserMenu from '@/components/UserMenu';
 
 import GlobalPicker from "@/components/GlobalPicker";
 import { usePathname } from "next/navigation";
+import { fetchAccountSession } from "@/lib/accountSession";
 
 export default function PublicHeader({
   tools,
@@ -44,7 +45,7 @@ export default function PublicHeader({
     let alive = true;
     (async () => {
       try {
-        const r = await fetch("/api/account/me", { credentials: "include" });
+        const r = await fetchAccountSession();
         if (!alive) return;
         setAuthed(r.ok);
         return;
@@ -259,8 +260,8 @@ export default function PublicHeader({
   const navLinks = useMemo(() => [
     { href: '/public', label: 'Home' },
     { href: '/public/properties', label: 'Properties' },
+    { href: '/public/tour-packages', label: 'Tour Packages' },
     { href: '/public/group-stays', label: 'Group Stays' },
-    { href: '/public/plan-with-us', label: 'Plan With Us' },
     { href: '/public/nolscope', label: 'Cost Estimator' },
     { href: '/public/n-sat', label: 'N-SaT' },
   ], []);

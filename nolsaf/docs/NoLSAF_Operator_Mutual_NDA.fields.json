@@ -1,0 +1,391 @@
+{
+  "template": {
+    "name": "NoLSAF_Operator_Mutual_NDA",
+    "version": "1.0.0",
+    "templateFile": "docs/NoLSAF_Operator_Mutual_NDA.md",
+    "description": "Placeholder field dictionary for system auto-fill and validation."
+  },
+  "generationRules": {
+    "lockFieldsAtSigning": true,
+    "allowManualOverrideBeforeSend": [
+      "GOVERNING_LAW",
+      "ARBITRATION_LOCATION",
+      "COMMISSION_SCHEDULE_REFERENCE",
+      "SETTLEMENT_MIN_HOURS",
+      "SETTLEMENT_MAX_DAYS",
+      "PAYOUT_CURRENCY_RULE"
+    ],
+    "effectiveDateStrategy": "later_of_both_signatures_unless_explicitly_set",
+    "voidAndReissueOnLegalIdentityChange": true
+  },
+  "fields": [
+    {
+      "placeholder": "CONTRACT_ID",
+      "required": true,
+      "dataType": "string",
+      "source": "contracts.id",
+      "example": "NDA-2026-000145",
+      "editable": false,
+      "validation": {
+        "regex": "^[A-Z]{2,6}-\\d{4}-\\d{4,8}$",
+        "unique": true
+      }
+    },
+    {
+      "placeholder": "CONTRACT_VERSION",
+      "required": true,
+      "dataType": "string",
+      "source": "contracts.version",
+      "example": "1.0.0",
+      "editable": false,
+      "validation": {
+        "regex": "^\\d+\\.\\d+\\.\\d+$"
+      }
+    },
+    {
+      "placeholder": "HIRED_DATE",
+      "required": true,
+      "dataType": "date",
+      "source": "operator_assignment.approvedAt",
+      "fallbackSource": "operator_profile.hiredAt",
+      "editable": false,
+      "validation": {
+        "format": "YYYY-MM-DD",
+        "notFutureDate": false
+      }
+    },
+    {
+      "placeholder": "EFFECTIVE_DATE",
+      "required": true,
+      "dataType": "date",
+      "source": "contracts.effectiveDate",
+      "computedRule": "max(contracts.noLSAFSignedAt, contracts.operatorSignedAt) unless manually set before send",
+      "editable": false,
+      "validation": {
+        "format": "YYYY-MM-DD"
+      }
+    },
+    {
+      "placeholder": "NOLSAF_JURISDICTION",
+      "required": true,
+      "dataType": "string",
+      "source": "org_settings.jurisdiction",
+      "example": "United Republic of Tanzania",
+      "editable": false,
+      "validation": {
+        "minLength": 2,
+        "maxLength": 120
+      }
+    },
+    {
+      "placeholder": "NOLSAF_ADDRESS",
+      "required": true,
+      "dataType": "string",
+      "source": "org_settings.registeredAddress",
+      "editable": false,
+      "validation": {
+        "minLength": 8,
+        "maxLength": 255
+      }
+    },
+    {
+      "placeholder": "OPERATOR_COMPANY_NAME",
+      "required": true,
+      "dataType": "string",
+      "source": "operator_company.legalName",
+      "editable": false,
+      "validation": {
+        "minLength": 2,
+        "maxLength": 180
+      }
+    },
+    {
+      "placeholder": "OPERATOR_JURISDICTION",
+      "required": true,
+      "dataType": "string",
+      "source": "operator_company.jurisdiction",
+      "fallbackSource": "org_settings.defaultOperatorJurisdiction",
+      "editable": false,
+      "validation": {
+        "minLength": 2,
+        "maxLength": 120
+      }
+    },
+    {
+      "placeholder": "OPERATOR_ADDRESS",
+      "required": true,
+      "dataType": "string",
+      "source": "operator_company.registeredAddress",
+      "editable": false,
+      "validation": {
+        "minLength": 8,
+        "maxLength": 255
+      }
+    },
+    {
+      "placeholder": "NON_SOLICIT_MONTHS",
+      "required": true,
+      "dataType": "integer",
+      "source": "legal_policies.nonSolicitMonths",
+      "default": 24,
+      "editable": true,
+      "validation": {
+        "min": 0,
+        "max": 60
+      }
+    },
+    {
+      "placeholder": "GOVERNING_LAW",
+      "required": true,
+      "dataType": "string",
+      "source": "legal_policies.governingLaw",
+      "default": "Laws of the United Republic of Tanzania",
+      "editable": true,
+      "validation": {
+        "minLength": 5,
+        "maxLength": 180
+      }
+    },
+    {
+      "placeholder": "ARBITRATION_LOCATION",
+      "required": true,
+      "dataType": "string",
+      "source": "legal_policies.arbitrationLocation",
+      "default": "Dar es Salaam, Tanzania",
+      "editable": true,
+      "validation": {
+        "minLength": 2,
+        "maxLength": 180
+      }
+    },
+    {
+      "placeholder": "NOLSAF_NOTICE_ADDRESS",
+      "required": true,
+      "dataType": "string",
+      "source": "org_settings.noticeAddress",
+      "fallbackSource": "org_settings.registeredAddress",
+      "editable": true,
+      "validation": {
+        "minLength": 8,
+        "maxLength": 255
+      }
+    },
+    {
+      "placeholder": "NOLSAF_NOTICE_EMAIL",
+      "required": true,
+      "dataType": "string",
+      "source": "org_settings.noticeEmail",
+      "editable": true,
+      "validation": {
+        "format": "email"
+      }
+    },
+    {
+      "placeholder": "OPERATOR_NOTICE_ADDRESS",
+      "required": true,
+      "dataType": "string",
+      "source": "operator_company.noticeAddress",
+      "fallbackSource": "operator_company.registeredAddress",
+      "editable": true,
+      "validation": {
+        "minLength": 8,
+        "maxLength": 255
+      }
+    },
+    {
+      "placeholder": "OPERATOR_NOTICE_EMAIL",
+      "required": true,
+      "dataType": "string",
+      "source": "operator_contact.noticeEmail",
+      "fallbackSource": "users.email[primaryContact=true]",
+      "editable": true,
+      "validation": {
+        "format": "email"
+      }
+    },
+    {
+      "placeholder": "COMMISSION_SCHEDULE_REFERENCE",
+      "required": true,
+      "dataType": "string",
+      "source": "commercial_terms.commissionScheduleRef",
+      "example": "ANNEX-COMM-2026-01",
+      "editable": true,
+      "validation": {
+        "minLength": 3,
+        "maxLength": 120
+      }
+    },
+    {
+      "placeholder": "COMMISSION_CHANGE_NOTICE_DAYS",
+      "required": true,
+      "dataType": "integer",
+      "source": "commercial_terms.commissionChangeNoticeDays",
+      "default": 30,
+      "editable": true,
+      "validation": {
+        "min": 0,
+        "max": 365
+      }
+    },
+    {
+      "placeholder": "SUBSCRIPTION_GRACE_DAYS",
+      "required": true,
+      "dataType": "integer",
+      "source": "commercial_terms.subscriptionGraceDays",
+      "default": 90,
+      "editable": true,
+      "validation": {
+        "min": 0,
+        "max": 365
+      }
+    },
+    {
+      "placeholder": "SETTLEMENT_MIN_HOURS",
+      "required": true,
+      "dataType": "integer",
+      "source": "commercial_terms.settlementMinHours",
+      "default": 24,
+      "editable": true,
+      "validation": {
+        "min": 1,
+        "max": 168
+      }
+    },
+    {
+      "placeholder": "SETTLEMENT_MAX_DAYS",
+      "required": true,
+      "dataType": "integer",
+      "source": "commercial_terms.settlementMaxDays",
+      "default": 3,
+      "editable": true,
+      "validation": {
+        "min": 1,
+        "max": 60
+      }
+    },
+    {
+      "placeholder": "PAYOUT_CURRENCY_RULE",
+      "required": true,
+      "dataType": "string",
+      "source": "commercial_terms.payoutCurrencyRule",
+      "default": "TZS/USD",
+      "editable": true,
+      "validation": {
+        "enum": [
+          "TZS",
+          "USD",
+          "TZS/USD"
+        ]
+      }
+    },
+    {
+      "placeholder": "COMMERCIAL_CHANGE_NOTICE_DAYS",
+      "required": true,
+      "dataType": "integer",
+      "source": "commercial_terms.commercialChangeNoticeDays",
+      "default": 30,
+      "editable": true,
+      "validation": {
+        "min": 0,
+        "max": 365
+      }
+    },
+    {
+      "placeholder": "NOLSAF_SIGNATORY_NAME",
+      "required": true,
+      "dataType": "string",
+      "source": "org_signatories.name[isDefault=true,isActive=true]",
+      "editable": false,
+      "validation": {
+        "minLength": 2,
+        "maxLength": 120
+      }
+    },
+    {
+      "placeholder": "NOLSAF_SIGNATORY_TITLE",
+      "required": true,
+      "dataType": "string",
+      "source": "org_signatories.title[isDefault=true,isActive=true]",
+      "editable": false,
+      "validation": {
+        "minLength": 2,
+        "maxLength": 120
+      }
+    },
+    {
+      "placeholder": "NOLSAF_SIGNED_AT",
+      "required": true,
+      "dataType": "datetime",
+      "source": "contracts.noLSAFSignedAt",
+      "editable": false,
+      "validation": {
+        "format": "ISO-8601"
+      }
+    },
+    {
+      "placeholder": "OPERATOR_REP_NAME",
+      "required": true,
+      "dataType": "string",
+      "source": "users.fullName[primaryContact=true,verified=true]",
+      "editable": false,
+      "validation": {
+        "minLength": 2,
+        "maxLength": 120
+      }
+    },
+    {
+      "placeholder": "OPERATOR_REP_TITLE",
+      "required": true,
+      "dataType": "string",
+      "source": "users.jobTitle[primaryContact=true]",
+      "editable": false,
+      "validation": {
+        "minLength": 2,
+        "maxLength": 120
+      }
+    },
+    {
+      "placeholder": "OPERATOR_SIGNED_AT",
+      "required": true,
+      "dataType": "datetime",
+      "source": "contracts.operatorSignedAt",
+      "editable": false,
+      "validation": {
+        "format": "ISO-8601"
+      }
+    }
+  ],
+  "preSendValidation": {
+    "requiredFieldsMustBeResolved": true,
+    "blockOnMissingLegalIdentity": [
+      "NOLSAF_ADDRESS",
+      "OPERATOR_COMPANY_NAME",
+      "OPERATOR_ADDRESS",
+      "OPERATOR_REP_NAME",
+      "OPERATOR_REP_TITLE"
+    ],
+    "blockOnMissingCommercialTerms": [
+      "COMMISSION_SCHEDULE_REFERENCE",
+      "SUBSCRIPTION_GRACE_DAYS",
+      "SETTLEMENT_MIN_HOURS",
+      "SETTLEMENT_MAX_DAYS",
+      "PAYOUT_CURRENCY_RULE"
+    ],
+    "blockOnMissingNoticeData": [
+      "NOLSAF_NOTICE_EMAIL",
+      "OPERATOR_NOTICE_EMAIL"
+    ]
+  },
+  "postSignArtifacts": {
+    "generateImmutablePdf": true,
+    "storePdfHashSha256": true,
+    "storeRenderedFieldSnapshot": true,
+    "captureAuditMetadata": [
+      "signerUserId",
+      "signerEmail",
+      "ipAddress",
+      "userAgent",
+      "signedAt"
+    ]
+  }
+}

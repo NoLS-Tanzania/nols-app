@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { Trophy, Star, Target, Award, CheckCircle, Clock, AlertCircle, Users, DollarSign, MessageSquare, Send } from "lucide-react";
 import apiClient from "@/lib/apiClient";
+import { fetchAccountSession } from "@/lib/accountSession";
 import { io, Socket } from "socket.io-client";
 
 const api = apiClient;
@@ -171,8 +172,8 @@ export default function DriverLevel() {
     socket.on("connect", async () => {
       console.log("Socket connected for level messages");
       try {
-        const me = await fetch("/api/account/me", { credentials: "include" }).then((r) => (r.ok ? r.json() : null));
-        if (me?.id) socket.emit("join-driver-room", { driverId: me.id });
+        const me = await fetchAccountSession();
+        if (me.data?.id) socket.emit("join-driver-room", { driverId: me.data.id });
       } catch {}
     });
 

@@ -25,6 +25,28 @@ const AGENT_DOCUMENT_TYPES = new Set([
   "CONTRACT",
   "CERTIFICATE",
   "LICENSE",
+  "BRELA_CERTIFICATE",
+  "TIN_NUMBER",
+  "TIN_CERTIFICATE",
+  "BUSINESS_LICENSE",
+  "BUSINESS_LICENCE",
+  "BUSINESS_LISENCE",
+  "TOURISM_LICENSE",
+  "TOURISM_LICENCE",
+  "VEHICLE_PERMIT",
+  "NDA",
+]);
+
+const TRAVELLER_DOCUMENT_TYPES = new Set([
+  "PASSPORT_SIZE_PHOTO",
+  "TRAVEL_PASSPORT",
+  "PASSPORT",
+  "NATIONAL_ID",
+  "VISA_DOCUMENT",
+  "YELLOW_FEVER_CERTIFICATE",
+  "VACCINATION_CARD",
+  "MEDICAL_CLEARANCE",
+  "SUPPORTING_DOCUMENT",
 ]);
 
 const LOCAL_UPLOAD_PATH_PREFIXES = ["/uploads/", "/api/uploads/"];
@@ -114,6 +136,9 @@ export function isAllowedDocumentTypeForRole(role: string | null | undefined, ty
   if (normalizedRole === "DRIVER") return DRIVER_DOCUMENT_TYPES.has(normalizedType);
   if (normalizedRole === "OWNER") return OWNER_DOCUMENT_TYPES.has(normalizedType);
   if (normalizedRole === "AGENT") return AGENT_DOCUMENT_TYPES.has(normalizedType);
+  if (["TRAVELLER", "TRAVELER", "CUSTOMER", "USER"].includes(normalizedRole)) {
+    return TRAVELLER_DOCUMENT_TYPES.has(normalizedType);
+  }
   return true;
 }
 

@@ -5,19 +5,14 @@ import React, { useEffect, useState, useCallback } from "react";
 import { Home, Building2, PlusSquare, User, Car, Calendar, Users, ClipboardList, Settings as SettingsIcon, LogOut, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { clearAuthToken } from "@/lib/apiClient";
-
-interface MeResponse {
-  id: number;
-  name?: string;
-  profileImage?: string;
-}
+import { fetchAccountSession, type AccountSession } from "@/lib/accountSession";
 
 type Slot = "home" | "stays" | "list" | "rides" | "account";
 
 export default function MobilePublicNav() {
   const pathname = usePathname();
   const [authed, setAuthed] = useState(false);
-  const [user, setUser] = useState<MeResponse | null>(null);
+  const [user, setUser] = useState<AccountSession | null>(null);
   const [pressed, setPressed] = useState<Slot | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const router = useRouter();
@@ -29,12 +24,11 @@ export default function MobilePublicNav() {
     let alive = true;
     (async () => {
       try {
-        const r = await fetch("/api/account/me", { credentials: "include" });
+        const r = await fetchAccountSession();
         if (!alive) return;
         if (r.ok) {
-          const data = await r.json();
           setAuthed(true);
-          setUser(data ?? null);
+          setUser(r.data ?? null);
         } else {
           setAuthed(false);
         }
@@ -246,7 +240,7 @@ export default function MobilePublicNav() {
               { href: "/account/bookings",    label: "My Bookings",   Icon: Calendar      },
               { href: "/account/rides",       label: "My Rides",      Icon: Car           },
               { href: "/account/group-stays", label: "My Group Stay", Icon: Users         },
-              { href: "/account/event-plans", label: "My Event Plan", Icon: ClipboardList },
+              { href: "/account/tour-packages", label: "My Tour Packages", Icon: ClipboardList },
               { href: "/account/security",    label: "Settings",      Icon: SettingsIcon  },
             ] as { href: string; label: string; Icon: React.ElementType }[]).map(({ href, label, Icon }) => {
               const active = pathname === href || pathname.startsWith(href + "/");

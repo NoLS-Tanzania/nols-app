@@ -8,7 +8,6 @@ const STATIC_ROUTES: MetadataRoute.Sitemap = [
   { url: `${SITE_URL}/public/properties`,   lastModified: new Date(), changeFrequency: "hourly",  priority: 0.9 },
   { url: `${SITE_URL}/public/countries`,    lastModified: new Date(), changeFrequency: "weekly",  priority: 0.8 },
   { url: `${SITE_URL}/public/group-stays`,  lastModified: new Date(), changeFrequency: "weekly",  priority: 0.8 },
-  { url: `${SITE_URL}/public/plan-with-us`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.7 },
   { url: `${SITE_URL}/about/who`,           lastModified: new Date(), changeFrequency: "monthly", priority: 0.6 },
   { url: `${SITE_URL}/about/what`,          lastModified: new Date(), changeFrequency: "monthly", priority: 0.6 },
   { url: `${SITE_URL}/about/story`,         lastModified: new Date(), changeFrequency: "monthly", priority: 0.6 },

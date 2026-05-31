@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
-import { Trophy, Truck, Search, Star, TrendingUp, Users, Target, Award, CheckCircle, Eye, X, BarChart3, PieChart as PieChartIcon, Car, Bike, CarTaxiFront, MessageSquare, Send, Clock, Bell } from "lucide-react";
+import { Trophy, Truck, Search, Star, TrendingUp, Users, Target, Award, CheckCircle, Eye, X, BarChart3, PieChart as PieChartIcon, Car, Bike, CarTaxiFront, MessageSquare, Send, Clock, Bell, ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 import apiClient from "@/lib/apiClient";
 import { io, Socket } from "socket.io-client";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -19,25 +19,7 @@ import {
 } from "recharts";
 
 const api = apiClient;
-function authify() {
-  if (typeof window === "undefined") return;
-
-  const lsToken =
-    window.localStorage.getItem("token") ||
-    window.localStorage.getItem("nolsaf_token") ||
-    window.localStorage.getItem("__Host-nolsaf_token");
-
-  if (lsToken) {
-    api.defaults.headers.common["Authorization"] = `Bearer ${lsToken}`;
-    return;
-  }
-
-  const m = String(document.cookie || "").match(/(?:^|;\s*)(?:nolsaf_token|__Host-nolsaf_token)=([^;]+)/);
-  const cookieToken = m?.[1] ? decodeURIComponent(m[1]) : "";
-  if (cookieToken) {
-    api.defaults.headers.common["Authorization"] = `Bearer ${cookieToken}`;
-  }
-}
+function authify() {}
 
 type DriverWithLevel = {
   id: number;
@@ -91,6 +73,8 @@ type DriverLevelMessage = {
   }>;
 };
 
+type DriverTableSortKey = "driver" | "vehicle" | "level" | "progress" | "metrics" | "rating";
+
 export default function AdminDriversLevelsPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -100,6 +84,10 @@ export default function AdminDriversLevelsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [levelFilter, setLevelFilter] = useState<"" | "1" | "2" | "3">("");
+  const [tablePage, setTablePage] = useState(1);
+  const tablePageSize = 10;
+  const [sortBy, setSortBy] = useState<DriverTableSortKey>("level");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [selectedDriver, setSelectedDriver] = useState<DriverWithLevel | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [activeTab, setActiveTab] = useState<"drivers" | "messages">("drivers");
@@ -343,6 +331,66 @@ export default function AdminDriversLevelsPage() {
     }
     return drivers.filter((driver) => driver.currentLevel === Number(levelFilter));
   }, [drivers, levelFilter]);
+
+  const sortedDrivers = useMemo(() => {
+    const next = [...filteredDrivers];
+    const readValue = (driver: DriverWithLevel): string | number => {
+      switch (sortBy) {
+        case "driver":
+          return `${driver.name || ""} ${driver.email || ""}`.toLowerCase();
+        case "vehicle":
+          return `${driver.vehicleType || ""} ${driver.plateNumber || ""}`.toLowerCase();
+        case "level":
+          return driver.currentLevel;
+        case "progress":
+          return overallProgress(driver);
+        case "metrics":
+          return (driver.totalEarnings || 0) + ((driver.totalTrips || 0) * 1000) + ((driver.goalsCompleted || 0) * 5000);
+        case "rating":
+          return driver.averageRating || 0;
+        default:
+          return "";
+      }
+    };
+
+    next.sort((a, b) => {
+      const av = readValue(a);
+      const bv = readValue(b);
+      if (typeof av === "number" && typeof bv === "number") {
+        return sortDir === "asc" ? av - bv : bv - av;
+      }
+      const cmp = String(av).localeCompare(String(bv));
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+
+    return next;
+  }, [filteredDrivers, sortBy, sortDir]);
+
+  const tableTotal = sortedDrivers.length;
+  const tableTotalPages = Math.max(1, Math.ceil(tableTotal / tablePageSize));
+  const safeTablePage = Math.min(tablePage, tableTotalPages);
+  const tableStartIndex = (safeTablePage - 1) * tablePageSize;
+  const pagedDrivers = sortedDrivers.slice(tableStartIndex, tableStartIndex + tablePageSize);
+
+  function handleSort(field: DriverTableSortKey) {
+    if (sortBy === field) {
+      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortBy(field);
+    setSortDir(field === "level" || field === "progress" || field === "metrics" || field === "rating" ? "desc" : "asc");
+  }
+
+  function renderSortIcon(field: DriverTableSortKey) {
+    if (sortBy !== field) return <ChevronsUpDown className="h-3.5 w-3.5 text-slate-400" />;
+    return sortDir === "asc"
+      ? <ChevronUp className="h-3.5 w-3.5 text-emerald-600" />
+      : <ChevronDown className="h-3.5 w-3.5 text-emerald-600" />;
+  }
+
+  useEffect(() => {
+    setTablePage(1);
+  }, [search, levelFilter, sortBy, sortDir]);
 
   // Calculate message counts
   const messageCounts = useMemo(() => {
@@ -667,7 +715,10 @@ export default function AdminDriversLevelsPage() {
                   type="text"
                   placeholder="Search drivers..."
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={(e) => {
+                    setTablePage(1);
+                    setSearch(e.target.value);
+                  }}
               className="w-full pl-10 pr-4 py-2.5 border-2 border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none text-sm"
               style={{ boxSizing: 'border-box', maxWidth: '100%', width: '100%' }}
                 />
@@ -675,7 +726,10 @@ export default function AdminDriversLevelsPage() {
           {/* Level Filter Buttons - Responsive */}
           <div className="flex flex-wrap gap-2 w-full">
             <button
-              onClick={() => setLevelFilter("")}
+              onClick={() => {
+                setTablePage(1);
+                setLevelFilter("");
+              }}
               className={`px-3 md:px-4 py-2 rounded-lg border-2 transition-all text-xs md:text-sm font-medium whitespace-nowrap ${
                 levelFilter === ""
                   ? "bg-emerald-600 text-white border-emerald-600"
@@ -685,7 +739,10 @@ export default function AdminDriversLevelsPage() {
               All
             </button>
             <button
-              onClick={() => setLevelFilter("1")}
+              onClick={() => {
+                setTablePage(1);
+                setLevelFilter("1");
+              }}
               className={`px-3 md:px-4 py-2 rounded-lg border-2 transition-all text-xs md:text-sm font-medium whitespace-nowrap ${
                 levelFilter === "1"
                   ? "bg-slate-600 text-white border-slate-600"
@@ -695,7 +752,10 @@ export default function AdminDriversLevelsPage() {
               Silver
             </button>
             <button
-              onClick={() => setLevelFilter("2")}
+              onClick={() => {
+                setTablePage(1);
+                setLevelFilter("2");
+              }}
               className={`px-3 md:px-4 py-2 rounded-lg border-2 transition-all text-xs md:text-sm font-medium whitespace-nowrap ${
                 levelFilter === "2"
                   ? "bg-amber-500 text-white border-amber-500"
@@ -705,7 +765,10 @@ export default function AdminDriversLevelsPage() {
               Gold
             </button>
             <button
-              onClick={() => setLevelFilter("3")}
+              onClick={() => {
+                setTablePage(1);
+                setLevelFilter("3");
+              }}
               className={`px-3 md:px-4 py-2 rounded-lg border-2 transition-all text-xs md:text-sm font-medium whitespace-nowrap ${
                 levelFilter === "3"
                   ? "bg-purple-600 text-white border-purple-600"
@@ -731,21 +794,46 @@ export default function AdminDriversLevelsPage() {
             <p className="text-gray-500">No drivers found{levelFilter ? ` for ${levelFilter === "1" ? "Silver" : levelFilter === "2" ? "Gold" : "Diamond"} level` : ""}</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[800px]">
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[800px]">
               <thead className="bg-slate-50 border-b-2 border-slate-200">
                 <tr>
-                  <th className="px-4 md:px-6 py-4 text-left text-xs font-semibold text-slate-700 uppercase whitespace-nowrap">Driver</th>
-                  <th className="px-4 md:px-6 py-4 text-left text-xs font-semibold text-slate-700 uppercase whitespace-nowrap">Vehicle</th>
-                  <th className="px-4 md:px-6 py-4 text-left text-xs font-semibold text-slate-700 uppercase whitespace-nowrap">Level</th>
-                  <th className="px-4 md:px-6 py-4 text-left text-xs font-semibold text-slate-700 uppercase whitespace-nowrap">Progress</th>
-                  <th className="px-4 md:px-6 py-4 text-left text-xs font-semibold text-slate-700 uppercase whitespace-nowrap">Metrics</th>
-                  <th className="px-4 md:px-6 py-4 text-left text-xs font-semibold text-slate-700 uppercase whitespace-nowrap">Rating</th>
+                  <th className="px-4 md:px-6 py-4 text-left text-xs font-semibold text-slate-700 uppercase whitespace-nowrap">
+                    <button type="button" onClick={() => handleSort("driver")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 appearance-none hover:text-slate-900">
+                      Driver {renderSortIcon("driver")}
+                    </button>
+                  </th>
+                  <th className="px-4 md:px-6 py-4 text-left text-xs font-semibold text-slate-700 uppercase whitespace-nowrap">
+                    <button type="button" onClick={() => handleSort("vehicle")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 appearance-none hover:text-slate-900">
+                      Vehicle {renderSortIcon("vehicle")}
+                    </button>
+                  </th>
+                  <th className="px-4 md:px-6 py-4 text-left text-xs font-semibold text-slate-700 uppercase whitespace-nowrap">
+                    <button type="button" onClick={() => handleSort("level")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 appearance-none hover:text-slate-900">
+                      Level {renderSortIcon("level")}
+                    </button>
+                  </th>
+                  <th className="px-4 md:px-6 py-4 text-left text-xs font-semibold text-slate-700 uppercase whitespace-nowrap">
+                    <button type="button" onClick={() => handleSort("progress")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 appearance-none hover:text-slate-900">
+                      Progress {renderSortIcon("progress")}
+                    </button>
+                  </th>
+                  <th className="px-4 md:px-6 py-4 text-left text-xs font-semibold text-slate-700 uppercase whitespace-nowrap">
+                    <button type="button" onClick={() => handleSort("metrics")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 appearance-none hover:text-slate-900">
+                      Metrics {renderSortIcon("metrics")}
+                    </button>
+                  </th>
+                  <th className="px-4 md:px-6 py-4 text-left text-xs font-semibold text-slate-700 uppercase whitespace-nowrap">
+                    <button type="button" onClick={() => handleSort("rating")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 appearance-none hover:text-slate-900">
+                      Rating {renderSortIcon("rating")}
+                    </button>
+                  </th>
                   <th className="px-4 md:px-6 py-4 text-left text-xs font-semibold text-slate-700 uppercase whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {filteredDrivers.map((driver) => {
+                {pagedDrivers.map((driver) => {
                   const colors = getLevelColor(driver.currentLevel);
                   return (
                     <tr key={driver.id} className="hover:bg-slate-50 transition-colors">
@@ -837,7 +925,32 @@ export default function AdminDriversLevelsPage() {
                 })}
               </tbody>
             </table>
-          </div>
+            </div>
+            <div className="px-4 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
+              <div className="text-xs text-slate-500">
+                Showing {tableTotal === 0 ? 0 : tableStartIndex + 1}-{Math.min(tableStartIndex + tablePageSize, tableTotal)} of {tableTotal}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTablePage((p) => Math.max(1, p - 1))}
+                  disabled={safeTablePage <= 1}
+                  className="px-3 py-1 text-sm border border-slate-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-100"
+                >
+                  Previous
+                </button>
+                <span className="text-xs font-semibold text-slate-600">Page {safeTablePage} of {tableTotalPages}</span>
+                <button
+                  type="button"
+                  onClick={() => setTablePage((p) => Math.min(tableTotalPages, p + 1))}
+                  disabled={safeTablePage >= tableTotalPages}
+                  className="px-3 py-1 text-sm border border-slate-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-100"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </>
         )}
         </div>
 

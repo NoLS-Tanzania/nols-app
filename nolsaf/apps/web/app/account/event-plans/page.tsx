@@ -87,7 +87,6 @@ function PlanRequestCardSkeleton({ variant }: { variant: "active" | "completed" 
 export default function MyEventPlansPage() {
   const [planRequests, setPlanRequests] = useState<PlanRequest[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<"all" | "active" | "pending" | "completed" | "expired">("all");
   const [entered, setEntered] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorStatus, setErrorStatus] = useState<number | null>(null);
@@ -112,13 +111,13 @@ export default function MyEventPlansPage() {
       setPlanRequests(response.data.items || []);
     } catch (err: any) {
       const status = err?.response?.status ?? null;
-      const msg = err?.response?.data?.error || (status === 401 ? "Please sign in to view your plan requests." : "Failed to fetch plan requests");
+      const msg = err?.response?.data?.error || (status === 401 ? "Please sign in to view your tour packages." : "Failed to fetch tour packages");
       setError(msg);
       setErrorStatus(status);
       try {
         window.dispatchEvent(
           new CustomEvent("nols:toast", {
-            detail: { type: "error", title: "Plan Requests", message: msg, duration: 4500 },
+            detail: { type: "error", title: "Tour Packages", message: msg, duration: 4500 },
           })
         );
       } catch {}
@@ -126,19 +125,6 @@ export default function MyEventPlansPage() {
       setLoading(false);
     }
   };
-
-  const filteredRequests = planRequests.filter((request) => {
-    if (filter === "active") return request.isValid && request.status !== "NEW" && request.status !== "PENDING";
-    if (filter === "pending") return request.status === "NEW" || request.status === "PENDING";
-    if (filter === "completed") return !request.isValid && request.status === "COMPLETED";
-    if (filter === "expired") return !request.isValid && request.status !== "COMPLETED" && request.status !== "CANCELED";
-    return true;
-  });
-
-  const activeCount = planRequests.filter((r) => r.isValid && r.status !== "NEW" && r.status !== "PENDING").length;
-  const pendingCount = planRequests.filter((r) => r.status === "NEW" || r.status === "PENDING").length;
-  const completedCount = planRequests.filter((r) => !r.isValid && r.status === "COMPLETED").length;
-  const expiredCount = planRequests.filter((r) => !r.isValid && r.status !== "COMPLETED" && r.status !== "CANCELED").length;
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return "Not specified";
@@ -245,8 +231,8 @@ export default function MyEventPlansPage() {
           <div className="w-14 h-14 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center mb-4 shadow-lg">
             <ClipboardList className="h-7 w-7 text-white" />
           </div>
-          <h1 className="text-2xl font-black text-white tracking-tight">My Plan Requests</h1>
-          <p className="text-teal-300/80 text-sm mt-1 font-medium">Track progress for your “Plan with Us” requests</p>
+          <h1 className="text-2xl font-black text-white tracking-tight">My Tour Packages</h1>
+          <p className="text-teal-300/80 text-sm mt-1 font-medium">Track and manage your tour package Bookings</p>
         </div>
       </div>
 
@@ -254,7 +240,7 @@ export default function MyEventPlansPage() {
         <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 shadow-sm">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
-              <div className="text-sm font-bold text-rose-900">We couldn’t load your plan requests</div>
+              <div className="text-sm font-bold text-rose-900">We couldn't load your tour packages</div>
               <div className="mt-1 text-sm text-rose-800">{error}</div>
             </div>
             <div className="flex items-center gap-2">
@@ -278,79 +264,26 @@ export default function MyEventPlansPage() {
         </div>
       )}
 
-      {/* Filter tabs */}
-      <div className="flex justify-center">
-        <div className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-1 shadow-sm flex-wrap">
-          {[
-            { key: "all" as const, label: "All", count: planRequests.length },
-            { key: "pending" as const, label: "Pending", count: pendingCount },
-            { key: "active" as const, label: "Active", count: activeCount },
-            { key: "completed" as const, label: "Completed", count: completedCount },
-            { key: "expired" as const, label: "Expired", count: expiredCount },
-          ].map((t) => {
-            const active = filter === t.key;
-            return (
-              <button
-                key={t.key}
-                type="button"
-                aria-pressed={active}
-                onClick={() => setFilter(t.key)}
-                className={[
-                  "inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold whitespace-nowrap transition-all duration-200",
-                  active
-                    ? "border-[#02665e] bg-[#02665e] text-white"
-                    : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400",
-                  "active:scale-[0.98]",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/25 focus-visible:ring-offset-2",
-                ].join(" ")}
-              >
-                <span>{t.label}</span>
-                <span
-                  className={[
-                    "inline-flex min-w-6 items-center justify-center rounded-full px-1.5 py-0.5 text-xs font-bold",
-                    active ? "bg-white/20 text-white" : "bg-gray-100 text-gray-600",
-                  ].join(" ")}
-                >
-                  {t.count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {filteredRequests.length === 0 ? (
+      {planRequests.length === 0 ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center shadow-sm">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#02665e]/10 transition-transform duration-200 hover:scale-[1.03]">
             <ClipboardList className="h-7 w-7 text-[#02665e]" />
           </div>
-          <div className="mt-4 text-lg font-bold text-slate-900">No plan requests found</div>
-          <div className="mt-1 text-sm text-slate-600">
-            {filter === "pending"
-              ? "You don't have any pending event plans at the moment."
-              : filter === "active"
-              ? "You don't have any active event plans at the moment."
-              : filter === "completed"
-              ? "You haven't completed any event plans yet."
-              : filter === "expired"
-              ? "You don't have any expired event plans."
-              : "When you submit a Plan with Us request, it will appear here for easy access."}
+          <div className="mt-4 text-lg font-bold text-slate-900">No tour packages found</div>
+          <div className="mt-1 text-sm text-slate-600">Your tour package bookings will appear here for easy access.</div>
+          <div className="mt-6 flex justify-center">
+            <Link
+              href="/public/tour-packages"
+              className="group no-underline inline-flex items-center justify-center gap-2 rounded-xl bg-[#02665e] px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-[#014d47] hover:shadow-md active:scale-[0.99] transition"
+            >
+              Go to Tour Packages
+              <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
+            </Link>
           </div>
-          {filter === "all" && (
-            <div className="mt-6 flex justify-center">
-              <Link
-                href="/public/plan-with-us"
-                className="group no-underline inline-flex items-center justify-center gap-2 rounded-xl bg-[#02665e] px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-[#014d47] hover:shadow-md active:scale-[0.99] transition"
-              >
-                Plan with Us
-                <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
-              </Link>
-            </div>
-          )}
         </div>
       ) : (
         <div className="space-y-4">
-          {filteredRequests.map((request) => {
+          {planRequests.map((request) => {
             const timeline = getTimeline(request);
             return (
               <div

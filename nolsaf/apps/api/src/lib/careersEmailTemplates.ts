@@ -1,8 +1,15 @@
 /**
- * Email templates for job application status updates
- * Uses shared emailBase.ts design system
+ * Email templates for career and partnership application status updates.
  */
-import { BRAND_TEAL, BRAND_DARK, TEXT_MAIN, TEXT_MUTED, careersEmail, ctaButton } from "./emailBase.js";
+import {
+  BRAND_DARK,
+  BRAND_TEAL,
+  TEXT_MAIN,
+  TEXT_MUTED,
+  careersEmail,
+  ctaButton,
+  partnershipEmail,
+} from "./emailBase.js";
 
 export interface ApplicationEmailData {
   applicantName: string;
@@ -12,7 +19,7 @@ export interface ApplicationEmailData {
   adminNotes?: string | null;
   companyName?: string;
   supportEmail?: string;
-  // Onboarding details (used for HIRED)
+  isPartnership?: boolean;
   portalUrl?: string;
   loginUrl?: string;
   username?: string;
@@ -20,17 +27,57 @@ export interface ApplicationEmailData {
   setupLinkExpiresHours?: number;
 }
 
-export function getApplicationEmailSubject(status: ApplicationEmailData["status"], jobTitle: string): string {
+export function getApplicationEmailSubject(
+  status: ApplicationEmailData["status"],
+  jobTitle: string,
+  isPartnership = false
+): string {
+  if (isPartnership) {
+    switch (status) {
+      case "REVIEWING":
+        return `Partnership application received: ${jobTitle}`;
+      case "SHORTLISTED":
+        return `Partnership verification in progress: ${jobTitle}`;
+      case "REJECTED":
+        return `Update on your NoLSAF partnership application`;
+      case "HIRED":
+        return `Your NoLSAF partner workspace is approved`;
+      default:
+        return `NoLSAF partnership application update`;
+    }
+  }
+
   switch (status) {
-    case "REVIEWING":   return `Application received — ${jobTitle} at NoLSAF`;
-    case "SHORTLISTED": return `You've been shortlisted — ${jobTitle} at NoLSAF`;
-    case "REJECTED":    return `Update on your application — ${jobTitle} at NoLSAF`;
-    case "HIRED":       return `Congratulations! You've been hired — ${jobTitle} at NoLSAF`;
-    default:            return `Update on your application — ${jobTitle} at NoLSAF`;
+    case "REVIEWING":
+      return `Application received: ${jobTitle} at NoLSAF`;
+    case "SHORTLISTED":
+      return `You've been shortlisted: ${jobTitle} at NoLSAF`;
+    case "REJECTED":
+      return `Update on your application: ${jobTitle} at NoLSAF`;
+    case "HIRED":
+      return `Congratulations, you've been hired: ${jobTitle} at NoLSAF`;
+    default:
+      return `Update on your application: ${jobTitle} at NoLSAF`;
   }
 }
 
-export function generateApplicationStatusEmail(data: ApplicationEmailData): string {
+function adminNotesBlock(adminNotes: string | null | undefined): string {
+  if (!adminNotes) return "";
+  return `
+    <div style="margin:24px 0 0;padding:16px 18px;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;">
+      <p style="margin:0 0 8px;font-size:13px;font-weight:800;color:#92400e;text-transform:uppercase;letter-spacing:0.6px;">A note from our team</p>
+      <p style="margin:0;font-size:14px;color:${TEXT_MAIN};line-height:1.75;">${adminNotes.replace(/\n/g, "<br>")}</p>
+    </div>`;
+}
+
+function partnerList(items: string[]): string {
+  return `
+    <ul style="margin:0 0 20px;padding-left:20px;font-size:14px;color:${TEXT_MAIN};line-height:1.9;">
+      ${items.map((item) => `<li>${item}</li>`).join("")}
+    </ul>`;
+}
+
+function generatePartnershipStatusEmail(data: ApplicationEmailData): string {
   const {
     applicantName,
     jobTitle,
@@ -45,132 +92,213 @@ export function generateApplicationStatusEmail(data: ApplicationEmailData): stri
     setupLinkExpiresHours,
   } = data;
 
-  const positionLabel = jobDepartment ? `${jobTitle} · ${jobDepartment}` : jobTitle;
+  const contextLabel = jobDepartment ? `${jobTitle} | ${jobDepartment}` : jobTitle;
+  const setupExpiry = setupLink && setupLinkExpiresHours
+    ? `<p style="margin:10px 0 18px;font-size:13px;color:${TEXT_MUTED};text-align:center;">For security, this password setup link expires in ${setupLinkExpiresHours} hours.</p>`
+    : "";
+  const usernameNote = username
+    ? `<p style="margin:0 0 16px;font-size:14px;color:${TEXT_MAIN};">Login email: <strong>${username}</strong></p>`
+    : "";
+  const loginLine = loginUrl
+    ? `<p style="margin:0 0 10px;font-size:13px;color:${TEXT_MUTED};">Sign in page: <a href="${loginUrl}" style="color:${BRAND_TEAL};text-decoration:none;font-weight:700;">${loginUrl}</a></p>`
+    : "";
+  const portalLine = portalUrl
+    ? `<p style="margin:0 0 18px;font-size:13px;color:${TEXT_MUTED};">Partner workspace: <a href="${portalUrl}" style="color:${BRAND_TEAL};text-decoration:none;font-weight:700;">${portalUrl}</a></p>`
+    : "";
 
-  // ── Per-status config ─────────────────────────────────────────────────────
+  const actionCta = setupLink
+    ? ctaButton(setupLink, "Create your first password", BRAND_TEAL)
+    : ctaButton(`mailto:${supportEmail}`, "Request password setup link", BRAND_TEAL);
+
+  let badgeLabel = "Partnership application";
+  let body = "";
+
+  if (status === "REVIEWING") {
+    badgeLabel = "Application received";
+    body = `
+      <p style="margin:0 0 18px;font-size:16px;font-weight:800;color:${TEXT_MAIN};">Hello ${applicantName},</p>
+      <p style="margin:0 0 16px;">Thank you for submitting your NoLSAF partnership application for <strong>${jobTitle}</strong>. Your company profile has been received and is now in partner verification.</p>
+      <p style="margin:0 0 12px;font-size:14px;font-weight:800;color:${TEXT_MAIN};">What our team reviews</p>
+      ${partnerList([
+        "Company identity, contact details, and operating coverage.",
+        "Permitted parks, tour sites, service categories, languages, and team capacity.",
+        "Tourism permits, business documents, fleet or guide details where applicable.",
+        "How your services can connect to NoLSAF bookings, timelines, support, and traveller records.",
+      ])}
+      <p style="margin:0 0 16px;color:${TEXT_MUTED};font-size:14px;">No action is required right now. If we need a permit, clarification, or an updated company detail, the partnerships team will contact you directly.</p>
+      <p style="margin:24px 0 0;">Warm regards,<br><strong style="color:${BRAND_DARK};">The NoLSAF Partnerships Team</strong></p>
+    `;
+  }
+
+  if (status === "SHORTLISTED") {
+    badgeLabel = "Verification stage";
+    body = `
+      <p style="margin:0 0 18px;font-size:16px;font-weight:800;color:${BRAND_TEAL};">Good news, ${applicantName}.</p>
+      <p style="margin:0 0 16px;">Your NoLSAF partnership application for <strong>${jobTitle}</strong> has moved into the verification stage. This means your profile looks relevant for the NoLSAF partner network, but final approval is still pending document and service checks.</p>
+      <p style="margin:0 0 12px;font-size:14px;font-weight:800;color:${TEXT_MAIN};">Please keep these ready</p>
+      ${partnerList([
+        "Business registration, TIN, licences, and tourism or park permits.",
+        "Operating regions, permitted tour sites, and services your team can deliver.",
+        "Fleet, guide, language, or safety information where it applies to your services.",
+      ])}
+      <p style="margin:0 0 16px;color:${TEXT_MUTED};font-size:14px;">A NoLSAF team member may contact you to confirm details before your partner workspace is activated.</p>
+      <p style="margin:24px 0 0;">Warm regards,<br><strong style="color:${BRAND_DARK};">The NoLSAF Partnerships Team</strong></p>
+    `;
+  }
+
+  if (status === "REJECTED") {
+    badgeLabel = "Application update";
+    body = `
+      <p style="margin:0 0 18px;font-size:15px;">Hello <strong>${applicantName}</strong>,</p>
+      <p style="margin:0 0 16px;">Thank you for applying to join NoLSAF as a partner for <strong>${jobTitle}</strong>. We reviewed your company profile, service scope, and submitted details carefully.</p>
+      <p style="margin:0 0 16px;">At this time, we are not able to approve this partnership application. This may be due to missing documents, service coverage, permit readiness, or fit with the current NoLSAF operating requirements.</p>
+      <p style="margin:0 0 16px;color:${TEXT_MUTED};font-size:14px;">You may apply again when your company information, permits, or operating details are ready. If our team included a note below, use it as the first correction point before resubmitting.</p>
+      <p style="margin:24px 0 0;">Kind regards,<br><strong style="color:${BRAND_DARK};">The NoLSAF Partnerships Team</strong></p>
+    `;
+  }
+
+  if (status === "HIRED") {
+    badgeLabel = "Partner approved";
+    body = `
+      <p style="margin:0 0 18px;font-size:16px;font-weight:800;color:${BRAND_TEAL};">Welcome to the NoLSAF partner network, ${applicantName}.</p>
+      <p style="margin:0 0 16px;">Your partnership application for <strong>${jobTitle}</strong> has been approved. This activates your NoLSAF partner workspace so your company can manage verified tourism services through clear booking records, traveller support, and delivery timelines.</p>
+      <p style="margin:0 0 16px;">Start by creating your first password, then sign in to complete your partner profile and onboarding checklist.</p>
+      ${usernameNote}
+      ${actionCta}
+      ${setupExpiry}
+      ${loginLine}
+      ${portalLine}
+      <p style="margin:22px 0 12px;font-size:14px;font-weight:800;color:${TEXT_MAIN};">What your workspace is used for</p>
+      ${partnerList([
+        "Maintain company details, operating regions, permits, service categories, languages, fleet, and team information.",
+        "Publish and manage tour packages, permitted parks, tour sites, inclusions, exclusions, prices, and availability.",
+        "Receive bookings, validate meetups, control tour timelines, support travellers, and track service delivery.",
+        "Review traveller ratings, improvement signals, reports, and payout records where applicable.",
+      ])}
+      <p style="margin:0 0 12px;font-size:14px;font-weight:800;color:${TEXT_MAIN};">Documents to prepare</p>
+      ${partnerList([
+        "Business registration, TIN, business licence, and tourism or park permits.",
+        "Fleet, guide, safety, insurance, or service documents where they apply.",
+        "Signed partnership agreement or NDA if requested by the NoLSAF team.",
+      ])}
+      <p style="margin:0 0 16px;font-size:14px;color:${TEXT_MUTED};">For help, reply to this email or contact <a href="mailto:${supportEmail}" style="color:${BRAND_TEAL};text-decoration:none;font-weight:700;">${supportEmail}</a>.</p>
+      <p style="margin:24px 0 0;">Warm regards,<br><strong style="color:${BRAND_DARK};">The NoLSAF Partnerships Team</strong></p>
+    `;
+  }
+
+  return partnershipEmail(
+    badgeLabel,
+    contextLabel,
+    `${body}${adminNotesBlock(adminNotes)}`,
+    supportEmail
+  );
+}
+
+export function generateApplicationStatusEmail(data: ApplicationEmailData): string {
+  if (data.isPartnership) {
+    return generatePartnershipStatusEmail(data);
+  }
+
+  const {
+    applicantName,
+    jobTitle,
+    jobDepartment,
+    status,
+    adminNotes,
+    supportEmail = "careers@nolsaf.com",
+    portalUrl,
+    loginUrl,
+    username,
+    setupLink,
+    setupLinkExpiresHours,
+  } = data;
+
+  const positionLabel = jobDepartment ? `${jobTitle} | ${jobDepartment}` : jobTitle;
   const config: Record<ApplicationEmailData["status"], { accent: string; headlineIcon: string; headlineText: string }> = {
-    REVIEWING:   { accent: "#1d4ed8", headlineIcon: "🔍", headlineText: "Application Received"        },
-    SHORTLISTED: { accent: BRAND_TEAL, headlineIcon: "⭐", headlineText: "You've Been Shortlisted!"    },
-    REJECTED:    { accent: "#64748b", headlineIcon: "📋", headlineText: "Update on Your Application"  },
-    HIRED:       { accent: "#7c3aed", headlineIcon: "🎉", headlineText: "Welcome to the Team!"        },
+    REVIEWING: { accent: "#1d4ed8", headlineIcon: "Review", headlineText: "Application Received" },
+    SHORTLISTED: { accent: BRAND_TEAL, headlineIcon: "Star", headlineText: "You've Been Shortlisted" },
+    REJECTED: { accent: "#64748b", headlineIcon: "Update", headlineText: "Update on Your Application" },
+    HIRED: { accent: BRAND_TEAL, headlineIcon: "Welcome", headlineText: "Welcome to the Team" },
   };
   const { accent, headlineIcon, headlineText } = config[status];
 
-  // ── Status-specific body ─────────────────────────────────────────────────
   let body = "";
 
-  // ── REVIEWING ─────────────────────────────────────────────────────────────
   if (status === "REVIEWING") {
     body = `
       <p style="margin:0 0 18px;font-size:16px;font-weight:700;color:${TEXT_MAIN};">Dear ${applicantName},</p>
-
-      <p style="margin:0 0 16px;">Thank you for applying for the <strong>${jobTitle}</strong> position at NoLSAF. We are genuinely excited about the calibre of talent we receive, and we want you to know your application has been safely received and is now in the hands of our hiring team.</p>
-
+      <p style="margin:0 0 16px;">Thank you for applying for the <strong>${jobTitle}</strong> position at NoLSAF. Your application has been received and is now being reviewed by our team.</p>
       <p style="margin:0 0 10px;font-size:14px;font-weight:700;color:${TEXT_MAIN};">What happens next?</p>
-      <p style="margin:0 0 8px;font-size:14px;color:${TEXT_MAIN};">Our team carefully reviews every application against the role requirements — no automated filtering. This review typically takes <strong>3 to 5 business days</strong>, and you will receive an email update at each stage regardless of the outcome. Keep an eye on your inbox and your spam folder, just in case.</p>
-
-      <p style="margin:0 0 16px;color:${TEXT_MUTED};font-size:14px;">You do not need to take any action at this stage. If we require anything further from you, we will reach out directly.</p>
-
+      <p style="margin:0 0 16px;font-size:14px;color:${TEXT_MAIN};">Our team reviews every application against the role requirements. This usually takes <strong>3 to 5 business days</strong>, and we will send an update at each stage.</p>
+      <p style="margin:0 0 16px;color:${TEXT_MUTED};font-size:14px;">You do not need to take any action right now. If we need anything else, we will contact you directly.</p>
       <p style="margin:24px 0 0;">Warm regards,<br><strong style="color:${BRAND_DARK};">The NoLSAF Careers Team</strong></p>
     `;
   }
 
-  // ── SHORTLISTED ────────────────────────────────────────────────────────────
   if (status === "SHORTLISTED") {
     body = `
-      <p style="margin:0 0 18px;font-size:16px;font-weight:700;color:${BRAND_TEAL};">Congratulations, ${applicantName}!</p>
-
-      <p style="margin:0 0 16px;">We are delighted to let you know that your application for <strong>${jobTitle}</strong> has successfully passed our initial review. Your background and experience made a strong impression on our hiring team — reaching this stage is a genuine achievement in what is a competitive process.</p>
-
-      <p style="margin:0 0 10px;font-size:14px;font-weight:700;color:${TEXT_MAIN};">What happens next?</p>
-      <p style="margin:0 0 16px;font-size:14px;color:${TEXT_MAIN};">A member of our team will contact you within <strong>2 to 5 business days</strong> with the details of the next step. This may include a phone screening, a video or in-person interview, or a short skills assessment — we will give you enough notice and all the information you need to prepare. Please ensure your contact details are current and keep your schedule flexible where possible. All communication from our team will come from <strong>${supportEmail}</strong>.</p>
-
-      <p style="margin:0 0 16px;">We look forward to the next conversation with you. Well done for making it this far!</p>
-
+      <p style="margin:0 0 18px;font-size:16px;font-weight:700;color:${BRAND_TEAL};">Congratulations, ${applicantName}.</p>
+      <p style="margin:0 0 16px;">Your application for <strong>${jobTitle}</strong> has passed our initial review. A member of our team will contact you with the next step.</p>
+      <p style="margin:0 0 16px;font-size:14px;color:${TEXT_MAIN};">The next step may include a phone screening, interview, or short assessment. We will share the details before anything is scheduled.</p>
       <p style="margin:24px 0 0;">Warm regards,<br><strong style="color:${BRAND_DARK};">The NoLSAF Careers Team</strong></p>
     `;
   }
 
-  // ── REJECTED ───────────────────────────────────────────────────────────────
   if (status === "REJECTED") {
     body = `
       <p style="margin:0 0 18px;font-size:15px;">Dear <strong>${applicantName}</strong>,</p>
-
-      <p style="margin:0 0 16px;">Thank you sincerely for your interest in the <strong>${jobTitle}</strong> role at NoLSAF and for the time and effort you put into your application. We review every submission carefully and we want to acknowledge the energy it takes to apply.</p>
-
-      <p style="margin:0 0 16px;">After thorough consideration of all candidates, we have chosen to move forward with applicants whose experience most closely matched our requirements for this particular role at this time. This was not an easy decision — many strong applications came through, and we are grateful for yours.</p>
-
-      <p style="margin:0 0 16px;font-size:14px;color:${TEXT_MAIN};">This outcome is specific to this role and this moment — it is not a reflection of your overall ability or potential. We actively welcome you to apply again for future openings that match your profile. Visit <a href="https://nolsaf.com/careers" style="color:${BRAND_TEAL};text-decoration:none;">nolsaf.com/careers</a> to see what becomes available. We hold all applications in confidence and your information will not be shared.</p>
-
-      <p style="margin:0 0 16px;">We genuinely wish you every success in your career journey and hope our paths cross again in the future.</p>
-
+      <p style="margin:0 0 16px;">Thank you for your interest in the <strong>${jobTitle}</strong> role at NoLSAF and for the time you put into your application.</p>
+      <p style="margin:0 0 16px;">After reviewing all applications, we have decided to move forward with candidates whose experience more closely matched this role at this time.</p>
+      <p style="margin:0 0 16px;font-size:14px;color:${TEXT_MAIN};">We welcome you to apply again for future roles that match your profile.</p>
       <p style="margin:24px 0 0;">Kind regards,<br><strong style="color:${BRAND_DARK};">The NoLSAF Careers Team</strong></p>
     `;
   }
 
-  // ── HIRED ──────────────────────────────────────────────────────────────────
   if (status === "HIRED") {
-    // Build the setup / login CTA button
-    let cta = "";
-    if (setupLink) {
-      const expiryNote = setupLinkExpiresHours ? ` — link expires in ${setupLinkExpiresHours} hours` : "";
-      cta = ctaButton(setupLink, `Click here to set your password${expiryNote}`, accent);
-    } else if (loginUrl) {
-      cta = ctaButton(loginUrl, "Sign in to your account", accent);
-    } else if (portalUrl) {
-      cta = ctaButton(portalUrl, "Open Agent Portal", accent);
-    } else {
-      cta = ctaButton(`mailto:${supportEmail}`, "Contact the HR Team", accent);
-    }
-
-    // Username line — shown only when provided
+    const expiryNote = setupLink && setupLinkExpiresHours
+      ? `<p style="margin:10px 0 18px;font-size:13px;color:${TEXT_MUTED};text-align:center;">This setup link expires in ${setupLinkExpiresHours} hours.</p>`
+      : "";
+    const cta = setupLink
+      ? ctaButton(setupLink, "Set your password", accent)
+      : loginUrl
+        ? ctaButton(loginUrl, "Sign in to your account", accent)
+        : portalUrl
+          ? ctaButton(portalUrl, "Open Agent Portal", accent)
+          : ctaButton(`mailto:${supportEmail}`, "Contact the HR team", accent);
     const usernameNote = username
       ? `<p style="margin:0 0 16px;font-size:14px;color:${TEXT_MAIN};">Your username / login email: <strong>${username}</strong></p>`
       : "";
-
-    // Inline links for login and portal
     const loginLine = loginUrl
       ? `<p style="margin:0 0 10px;font-size:14px;color:${TEXT_MAIN};">Once your password is set, sign in at: <a href="${loginUrl}" style="color:${accent};text-decoration:none;font-weight:600;">${loginUrl}</a></p>`
       : "";
-
     const portalLine = portalUrl
-      ? `<p style="margin:0 0 16px;font-size:14px;color:${TEXT_MAIN};">Your agent dashboard is available at: <a href="${portalUrl}" style="color:${accent};text-decoration:none;font-weight:600;">${portalUrl}</a></p>`
+      ? `<p style="margin:0 0 16px;font-size:14px;color:${TEXT_MAIN};">Your dashboard is available at: <a href="${portalUrl}" style="color:${accent};text-decoration:none;font-weight:600;">${portalUrl}</a></p>`
       : "";
 
     body = `
-      <p style="margin:0 0 18px;font-size:16px;font-weight:700;color:#7c3aed;">Welcome to the NoLSAF family, ${applicantName}!</p>
-
-      <p style="margin:0 0 16px;">We are thrilled to offer you the position of <strong>${jobTitle}</strong> at NoLSAF. After reviewing many outstanding applications, your profile, experience, and drive stood out we are confident you will bring real value to our team and our customers across Africa.</p>
-
-      <p style="margin:0 0 16px;">Your agent account has been created. To get started, please set your password using the button below, then sign in to access your dashboard and complete your onboarding.</p>
-
+      <p style="margin:0 0 18px;font-size:16px;font-weight:700;color:${BRAND_TEAL};">Welcome to NoLSAF, ${applicantName}.</p>
+      <p style="margin:0 0 16px;">We are pleased to offer you the <strong>${jobTitle}</strong> position at NoLSAF. Your account has been created so you can complete onboarding and access your dashboard.</p>
       ${usernameNote}
-
       ${cta}
-
+      ${expiryNote}
       ${loginLine}
       ${portalLine}
-
-      <p style="margin:20px 0 10px;font-size:14px;font-weight:700;color:${TEXT_MAIN};">Documents to upload within your first week:</p>
-      <ul style="margin:0 0 20px;padding-left:20px;font-size:14px;color:${TEXT_MAIN};line-height:1.8;">
-        <li><strong>Academic certificates</strong> (PDF, JPG, or PNG &mdash; clear, legible scan)</li>
-        <li>Signed <strong>NDA</strong> &mdash; our team will share the template if not yet received</li>
-        <li>Any additional documents noted in your onboarding communication</li>
-      </ul>
-
-      <p style="margin:0 0 16px;font-size:14px;color:${TEXT_MUTED};">Our HR team is here to help. Reply to this email or reach us at <a href="mailto:${supportEmail}" style="color:${BRAND_TEAL};text-decoration:none;">${supportEmail}</a> and we will get back to you promptly.</p>
-
-      <p style="margin:24px 0 0;">Congratulations again — we cannot wait to see what you accomplish with us.<br><br>Warm regards,<br><strong style="color:${BRAND_DARK};">The NoLSAF Careers Team</strong></p>
+      <p style="margin:20px 0 10px;font-size:14px;font-weight:700;color:${TEXT_MAIN};">Documents to upload during onboarding:</p>
+      ${partnerList([
+        "Academic certificates or professional documents requested by the team.",
+        "Signed NDA or agreement if requested.",
+        "Any additional documents noted in your onboarding communication.",
+      ])}
+      <p style="margin:0 0 16px;font-size:14px;color:${TEXT_MUTED};">Our team is here to help. Reply to this email or reach us at <a href="mailto:${supportEmail}" style="color:${BRAND_TEAL};text-decoration:none;">${supportEmail}</a>.</p>
+      <p style="margin:24px 0 0;">Warm regards,<br><strong style="color:${BRAND_DARK};">The NoLSAF Careers Team</strong></p>
     `;
   }
 
-  // ── Admin notes (appended to all statuses) ────────────────────────────────
-  const notesSection = adminNotes
-    ? `<p style="margin:24px 0 8px;font-size:14px;font-weight:700;color:#92400e;">A note from our team:</p><p style="margin:0 0 16px;font-size:14px;color:${TEXT_MAIN};">${adminNotes.replace(/\n/g, "<br>")}</p>`
-    : "";
-
-  const fullBody = `${body}${notesSection}`;
-
-  return careersEmail(headlineIcon, headlineText, positionLabel, fullBody, supportEmail);
+  return careersEmail(
+    headlineIcon,
+    headlineText,
+    positionLabel,
+    `${body}${adminNotesBlock(adminNotes)}`,
+    supportEmail
+  );
 }
-

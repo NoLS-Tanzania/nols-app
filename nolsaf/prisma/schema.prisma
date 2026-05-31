@@ -44,6 +44,8 @@ model User {
   avatarUrl       String?   @db.VarChar(500)
   /// User timezone (e.g., Africa/Dar_es_Salaam)
   timezone        String?   @db.VarChar(80)
+  /// Preferred display currency (ISO 4217, e.g. "TZS"). Presentation only — never the money of record.
+  preferredCurrency String? @default("TZS") @db.VarChar(3)
   /// Date of birth (date-only)
   dateOfBirth     DateTime? @db.Date
   /// Location fields used by driver onboarding/profile UI
@@ -116,6 +118,7 @@ model User {
 
   // Bookings made by this user (if customer)
   bookings Booking[]
+  tourBookings TourBooking[] @relation("UserTourBookings")
 
   // Bookings assigned to this user as a driver (optional)
   driverBookings Booking[] @relation("BookingDriver")
@@ -486,9 +489,11 @@ model Invoice {
   approvedBy Int?
   paidBy     Int?
 
-  paymentMethod String? @db.VarChar(40) // BANK, MPESA, TIGOPESA...
-  paymentRef    String? @unique @db.VarChar(80) // Gateway ref / merchant ref (set at APPROVED)
-  notes         String? @db.Text
+  paymentMethod     String? @db.VarChar(40)  // BANK, MPESA, TIGOPESA, CARD...
+  paymentRef        String? @unique @db.VarChar(80)  // Gateway merchant ref (set at PROCESSING)
+  checkoutSessionId String? @unique @db.VarChar(120) // AzamPay transactionId
+  payerPhone        String? @db.VarChar(40)           // Phone used for MNO payment
+  notes             String? @db.Text
 
   receiptQrPayload String? @db.Text
   receiptQrPng     Bytes? // PNG bytes (LONGBLOB)
@@ -511,6 +516,7 @@ model Invoice {
   @@index([issuedAt])
   @@index([paidAt])
   @@index([status, issuedAt])
+  @@index([checkoutSessionId])
   @@map("invoice")
 }
 
@@ -1528,14 +1534,29 @@ model ReferralWithdrawal {
 model SystemSetting {
   id Int @id @default(1)
 
-  /// Commission percentage (e.g., 10.00 for 10%)
+  /// Property/accommodation commission percentage charged to property owners (e.g., 10.00 for 10%)
   commissionPercent Decimal? @default(10.00) @db.Decimal(5, 2)
+
+  /// Currency for property/accommodation commission (ISO 4217, e.g. "TZS")
+  commissionCurrency String? @default("TZS") @db.VarChar(3)
+
+  /// Transport driver commission percentage deducted from driver trip payouts (e.g., 10.00 for 10%)
+  driverCommissionPercent Decimal? @default(10.00) @db.Decimal(5, 2)
+
+  /// Currency for driver transport commission (ISO 4217, e.g. "TZS")
+  driverCommissionCurrency String? @default("TZS") @db.VarChar(3)
 
   /// Tax percentage (e.g., 0.00 for 0%)
   taxPercent Decimal? @default(0.00) @db.Decimal(5, 2)
 
   /// Default currency for the platform (ISO 4217, e.g., "TZS")
   currency String? @default("TZS") @db.VarChar(3)
+
+  /// Display FX rates as JSON (presentation only — TZS remains the money of record).
+  /// Shape: { base: "TZS", tzsPerUnit: { USD: 2600, EUR: 2800, KES: 20 },
+  ///          updatedAt: ISO8601, source: "manual"|"auto", locked: { USD: true } }
+  /// tzsPerUnit[X] = how many TZS equal 1 unit of currency X. Display = amountTZS / tzsPerUnit[X].
+  fxRates Json?
 
   /// Invoice number prefix (e.g., "INV")
   invoicePrefix String? @default("INV")
@@ -1637,6 +1658,9 @@ model SystemSetting {
 
   /// Agent commission percentage (default: 15% of trip budget goes to NoLSAF)
   agentCommissionPercent Decimal? @default(15.0) @db.Decimal(5, 2)
+
+  /// Currency for tour agent commission (ISO 4217, e.g. "USD")
+  agentCommissionCurrency String? @default("USD") @db.VarChar(3)
 
   /// Goal calculation multiplier (e.g., 1.1 for 10% above average)
   goalMultiplier Decimal? @default(1.1) @db.Decimal(5, 2)
@@ -1781,6 +1805,89 @@ model PropertyImage {
 }
 
 // =========================================================
+//  TOUR BOOKING MODEL - Paid No4P tour package bookings
+// =========================================================
+model TourBooking {
+  id Int @id @default(autoincrement())
+
+  /// Human-friendly internal booking code, e.g. TOUR-20260517-AB12
+  bookingCode String @unique @db.VarChar(40)
+
+  /// No4P tour operator receiving this booking
+  operatorAgentId Int
+
+  /// Customer account, when booked by a logged-in user
+  customerId Int?
+
+  /// Package identifier from Agent.operatorProfile.packageItems
+  packageId String? @db.VarChar(120)
+
+  /// Snapshots preserve the purchased package/operator details even if profile data changes later.
+  packageSnapshot  Json?
+  operatorSnapshot Json?
+
+  title       String @db.VarChar(200)
+  destination String? @db.VarChar(200)
+  category    String? @db.VarChar(80)
+  startDate   DateTime?
+  endDate     DateTime?
+
+  guestName    String? @db.VarChar(160)
+  guestEmail   String? @db.VarChar(160)
+  guestPhone   String? @db.VarChar(40)
+  nationality  String? @db.VarChar(80)
+  travelerCount Int    @default(1)
+
+  status        String @default("PENDING_PAYMENT") @db.VarChar(40) // PENDING_PAYMENT, PAID, CONFIRMED, COMPLETED, CANCELED, REFUNDED
+  paymentStatus String @default("UNPAID") @db.VarChar(40)          // UNPAID, PENDING, PAID, FAILED, REFUNDED
+  payoutStatus  String @default("NOT_READY") @db.VarChar(40)       // NOT_READY, AVAILABLE, CLAIMED, VERIFIED, APPROVED, DISBURSED, REJECTED, HELD
+
+  currency             String  @default("TZS") @db.VarChar(3)
+  unitPrice            Decimal @default(0.00) @db.Decimal(12, 2)
+  grossAmount          Decimal @default(0.00) @db.Decimal(12, 2)
+  commissionPercent    Decimal @default(15.00) @db.Decimal(5, 2)
+  commissionAmount     Decimal @default(0.00) @db.Decimal(12, 2)
+  operatorPayoutAmount Decimal @default(0.00) @db.Decimal(12, 2)
+
+  paymentProvider   String? @db.VarChar(40)
+  paymentRef        String? @unique @db.VarChar(100)
+  checkoutSessionId String? @unique @db.VarChar(120)
+  payerPhone        String? @db.VarChar(40)
+
+  paidAt            DateTime?
+  confirmedAt       DateTime?
+  completedAt       DateTime?
+  canceledAt        DateTime?
+  payoutRequestedAt DateTime?
+  payoutApprovedAt  DateTime?
+  payoutPaidAt      DateTime?
+
+  notes    String? @db.Text
+  metadata Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  operator      Agent          @relation("AgentTourBookings", fields: [operatorAgentId], references: [id], onDelete: Cascade)
+  customer      User?          @relation("UserTourBookings", fields: [customerId], references: [id], onDelete: SetNull)
+  paymentEvents PaymentEvent[]
+
+  @@index([operatorAgentId])
+  @@index([customerId])
+  @@index([packageId])
+  @@index([status])
+  @@index([paymentStatus])
+  @@index([payoutStatus])
+  @@index([startDate])
+  @@index([createdAt])
+  @@index([paidAt])
+  @@index([operatorAgentId, status, createdAt])
+  @@index([paymentStatus, createdAt])
+  @@map("tour_bookings")
+}
+
+// =========================================================
 //  PAYMENT EVENT MODEL - For tracking payment gateway events
 // =========================================================
 model PaymentEvent {
@@ -1795,6 +1902,9 @@ model PaymentEvent {
   /// Invoice this payment event is associated with
   invoiceId Int?
 
+  /// Tour booking this payment event is associated with
+  tourBookingId Int?
+
   /// Payment amount
   amount Decimal @db.Decimal(12, 2)
 
@@ -1803,6 +1913,18 @@ model PaymentEvent {
 
   /// Payment status: SUCCESS, FAILED, PENDING
   status String @default("PENDING")
+
+  /// Payment channel: MNO (mobile money), BANK, or CARD
+  paymentChannel String? @db.VarChar(10) @map("payment_channel")
+
+  /// E.164 phone number for MNO payments (e.g. +255712345678)
+  phone String? @db.VarChar(20)
+
+  /// Original status string from AzamPay before normalization
+  rawStatus String? @db.VarChar(80) @map("raw_status")
+
+  /// Card redirect URL returned by AzamPay CardCheckout
+  checkoutUrl String? @db.VarChar(2048) @map("checkout_url")
 
   /// Raw payload from payment provider (JSON)
   payload Json?
@@ -1814,13 +1936,17 @@ model PaymentEvent {
   updatedAt DateTime @updatedAt
 
   // Relations
-  invoice Invoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  invoice     Invoice?     @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  tourBooking TourBooking? @relation(fields: [tourBookingId], references: [id], onDelete: SetNull)
 
   @@index([provider])
   @@index([eventId])
   @@index([invoiceId])
+  @@index([tourBookingId])
   @@index([status])
   @@index([createdAt])
+  @@index([paymentChannel])
+  @@index([paymentChannel, status, createdAt])
   @@map("payment_events")
 }
 
@@ -2034,6 +2160,9 @@ model Agent {
   /// Example: {totalRequests: 50, completedRequests: 45, averageRating: 4.5, responseTime: 2.5}
   performanceMetrics Json?
 
+  /// Customer-facing operator/company marketplace profile
+  operatorProfile Json?
+
   /// Agent level/rank: BRONZE, SILVER, GOLD, PLATINUM
   level String @default("BRONZE") @db.VarChar(20)
 
@@ -2061,6 +2190,7 @@ model Agent {
   assignedPlanRequests PlanRequest[]   @relation("AssignedAgent")
   applications         JobApplication[] @relation // All job applications that resulted in this agent's hire
   reviews              AgentReview[] // Reviews received from users
+  tourBookings         TourBooking[]   @relation("AgentTourBookings")
 
   @@index([status])
   @@index([isAvailable])

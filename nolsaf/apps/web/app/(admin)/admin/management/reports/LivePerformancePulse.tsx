@@ -9,6 +9,9 @@ type OverviewResponse = {
   propertiesCount?: number;
   ownerPayouts?: number;
   companyRevenue?: number;
+  /** Tour commission, reported separately in its own currency (USD). */
+  companyRevenueTour?: number;
+  companyRevenueTourCurrency?: string;
   lastUpdated?: string;
 };
 type SummaryResponse = {
@@ -232,7 +235,8 @@ export default function LivePerformancePulse() {
         </div>
 
         <div className="grid border-t border-slate-200 bg-slate-50/70 lg:border-l lg:border-t-0">
-          <PulseKpi icon={Wallet} label="Company revenue" value={`${formatMoney(toNumber(overview?.companyRevenue))} TZS`} helper="Approved and paid commission" />
+          <PulseKpi icon={Wallet} label="Company revenue (TZS)" value={`${formatMoney(toNumber(overview?.companyRevenue))} TZS`} helper="Property + transport commission" />
+          <PulseKpi icon={TrendingUp} label={`Tour commission (${overview?.companyRevenueTourCurrency || "USD"})`} value={`${overview?.companyRevenueTourCurrency || "USD"} ${formatMoney(toNumber(overview?.companyRevenueTour))}`} helper="USD. Reported separately, never summed with TZS" />
           <PulseKpi icon={CalendarCheck} label="Bookings 24h" value={formatNumber(toNumber(summary?.bookings))} helper="Real booking movement" />
           <PulseKpi icon={Building2} label="Pending approvals" value={formatNumber(toNumber(summary?.pendingApprovals))} helper="Owner/property workload" />
           <PulseKpi icon={Activity} label="Active sessions" value={formatNumber(toNumber(summary?.activeSessions))} helper="Last active window" />

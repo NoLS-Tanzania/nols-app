@@ -1,14 +1,6 @@
-/**
- * Load Testing Script
- * 
- * Tests API endpoints under load to identify performance bottlenecks
- * 
- * Usage:
- *   npx tsx scripts/load-test.ts
- *   npx tsx scripts/load-test.ts --endpoint /api/public/properties --concurrent 50 --requests 1000
- */
-
-import { performance } from "perf_hooks";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import { performance } from "node:perf_hooks";
 
 interface TestConfig {
   baseUrl: string;
@@ -16,8 +8,12 @@ interface TestConfig {
   method: "GET" | "POST" | "PUT" | "DELETE";
   concurrent: number;
   requests: number;
+  durationSeconds: number;
+  warmupRequests: number;
+  timeoutMs: number;
   headers?: Record<string, string>;
-  body?: any;
+  body?: unknown;
+  reportPath?: string;
 }
 
 interface TestResult {
@@ -32,10 +28,112 @@ interface TestResult {
   p95: number;
   p99: number;
   requestsPerSecond: number;
+  errorRate: number;
+  durations: number[];
+  perSecond: Array<{ second: number; requests: number; avgLatency: number; p95Latency: number }>;
   errors: Array<{ status: number; message: string }>;
 }
 
-async function makeRequest(config: TestConfig, requestId: number): Promise<{ duration: number; status: number; error?: string }> {
+const SCENARIOS: Record<string, string> = {
+  browse: "/api/public/properties",
+  detail: "/api/public/properties/1",
+  "home-summary": "/api/public/home-summary",
+};
+
+function percentile(values: number[], percentileValue: number): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil((percentileValue / 100) * sorted.length) - 1));
+  return sorted[index];
+}
+
+function buildConfig(argv: string[]): TestConfig {
+  const config: TestConfig = {
+    baseUrl: process.env.API_URL || "http://localhost:3001",
+    endpoint: SCENARIOS.browse,
+    method: "GET",
+    concurrent: 10,
+    requests: 100,
+    durationSeconds: 0,
+    warmupRequests: 0,
+    timeoutMs: 30_000,
+    headers: {},
+  };
+
+  const headerEntries: Record<string, string> = {};
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const token = argv[index];
+    switch (token) {
+      case "--scenario":
+        config.endpoint = SCENARIOS[argv[index + 1]] || argv[index + 1];
+        index += 1;
+        break;
+      case "--endpoint":
+        config.endpoint = argv[index + 1];
+        index += 1;
+        break;
+      case "--concurrent":
+        config.concurrent = Number.parseInt(argv[index + 1], 10);
+        index += 1;
+        break;
+      case "--requests":
+        config.requests = Number.parseInt(argv[index + 1], 10);
+        index += 1;
+        break;
+      case "--duration":
+        config.durationSeconds = Number.parseInt(argv[index + 1], 10);
+        index += 1;
+        break;
+      case "--warmup":
+        config.warmupRequests = Number.parseInt(argv[index + 1], 10);
+        index += 1;
+        break;
+      case "--method":
+        config.method = argv[index + 1].toUpperCase() as TestConfig["method"];
+        index += 1;
+        break;
+      case "--base-url":
+        config.baseUrl = argv[index + 1];
+        index += 1;
+        break;
+      case "--timeout-ms":
+        config.timeoutMs = Number.parseInt(argv[index + 1], 10);
+        index += 1;
+        break;
+      case "--header":
+        if (argv[index + 1]) {
+          const [key, ...rest] = argv[index + 1].split(":");
+          headerEntries[key.trim()] = rest.join(":").trim();
+        }
+        index += 1;
+        break;
+      case "--body-file":
+        config.body = JSON.parse(readFileSync(argv[index + 1], "utf8"));
+        index += 1;
+        break;
+      case "--report-json":
+        config.reportPath = argv[index + 1];
+        index += 1;
+        break;
+      default:
+        break;
+    }
+  }
+
+  if (Object.keys(headerEntries).length > 0) {
+    config.headers = headerEntries;
+  }
+
+  if (Number.isNaN(config.concurrent) || config.concurrent < 1) throw new Error("--concurrent must be >= 1");
+  if (Number.isNaN(config.requests) || config.requests < 1) throw new Error("--requests must be >= 1");
+  if (Number.isNaN(config.durationSeconds) || config.durationSeconds < 0) throw new Error("--duration must be >= 0");
+  if (Number.isNaN(config.timeoutMs) || config.timeoutMs < 1000) throw new Error("--timeout-ms must be >= 1000");
+
+  return config;
+}
+
+async function makeRequest(config: TestConfig): Promise<{ duration: number; status: number; error?: string }> {
   const start = performance.now();
   try {
     const url = `${config.baseUrl}${config.endpoint}`;
@@ -43,8 +141,9 @@ async function makeRequest(config: TestConfig, requestId: number): Promise<{ dur
       method: config.method,
       headers: {
         "Content-Type": "application/json",
-        ...config.headers,
+        ...(config.headers || {}),
       },
+      signal: AbortSignal.timeout(config.timeoutMs),
     };
 
     if (config.body && (config.method === "POST" || config.method === "PUT")) {
@@ -52,103 +151,149 @@ async function makeRequest(config: TestConfig, requestId: number): Promise<{ dur
     }
 
     const response = await fetch(url, options);
+    const payload = await response.text();
     const duration = performance.now() - start;
-    const text = await response.text();
 
     return {
       duration,
       status: response.status,
-      error: !response.ok ? text.substring(0, 100) : undefined,
+      error: !response.ok ? payload.slice(0, 200) : undefined,
     };
   } catch (error: any) {
     const duration = performance.now() - start;
     return {
       duration,
       status: 0,
-      error: error.message || String(error),
+      error: error?.message || String(error),
     };
   }
 }
 
-async function runLoadTest(config: TestConfig): Promise<TestResult> {
-  console.log(`\n🚀 Starting load test:`);
-  console.log(`   Endpoint: ${config.method} ${config.endpoint}`);
-  console.log(`   Concurrent: ${config.concurrent}`);
-  console.log(`   Total Requests: ${config.requests}`);
-  console.log(`   Base URL: ${config.baseUrl}\n`);
-
+async function runLoadTestInternal(config: TestConfig): Promise<TestResult> {
   const durations: number[] = [];
   const errors: Array<{ status: number; message: string }> = [];
+  const perSecond = new Map<number, number[]>();
+
   let successfulRequests = 0;
   let failedRequests = 0;
+  let completedRequests = 0;
 
   const totalStart = performance.now();
+  const durationMs = config.durationSeconds > 0 ? config.durationSeconds * 1000 : undefined;
 
-  // Create batches of concurrent requests
-  const batches = Math.ceil(config.requests / config.concurrent);
-  
-  for (let batch = 0; batch < batches; batch++) {
-    const batchStart = (batch * config.concurrent);
-    const batchEnd = Math.min(batchStart + config.concurrent, config.requests);
-    const batchSize = batchEnd - batchStart;
+  const launchRequest = async () => {
+    const result = await makeRequest(config);
+    const duration = result.duration;
+    durations.push(duration);
+    completedRequests += 1;
 
-    const promises = Array.from({ length: batchSize }, (_, i) => {
-      const requestId = batchStart + i;
-      return makeRequest(config, requestId);
-    });
+    const secondBucket = Math.floor((performance.now() - totalStart) / 1000);
+    if (!perSecond.has(secondBucket)) {
+      perSecond.set(secondBucket, []);
+    }
+    perSecond.get(secondBucket)!.push(duration);
 
-    const results = await Promise.all(promises);
-
-    for (const result of results) {
-      durations.push(result.duration);
-      if (result.status >= 200 && result.status < 300) {
-        successfulRequests++;
-      } else {
-        failedRequests++;
-        if (result.error) {
-          errors.push({ status: result.status, message: result.error });
-        }
+    if (result.status >= 200 && result.status < 300) {
+      successfulRequests += 1;
+    } else {
+      failedRequests += 1;
+      if (result.error) {
+        errors.push({ status: result.status, message: result.error });
       }
     }
+  };
 
-    // Progress indicator
-    const progress = ((batch + 1) / batches) * 100;
-    process.stdout.write(`\r   Progress: ${progress.toFixed(1)}% (${batchEnd}/${config.requests} requests)`);
+  if (durationMs) {
+    const expectedEnd = totalStart + durationMs;
+    while (performance.now() < expectedEnd) {
+      const active = Array.from({ length: Math.min(config.concurrent, Math.max(1, Math.floor((expectedEnd - performance.now()) / 1000) + 1)) }, () => launchRequest());
+      await Promise.all(active);
+    }
+  } else {
+    const batches = Math.ceil(config.requests / config.concurrent);
+    for (let batch = 0; batch < batches; batch += 1) {
+      const batchStart = batch * config.concurrent;
+      const batchEnd = Math.min(batchStart + config.concurrent, config.requests);
+      const batchSize = batchEnd - batchStart;
+      const promises = Array.from({ length: batchSize }, () => launchRequest());
+      await Promise.all(promises);
+      const progress = ((batch + 1) / batches) * 100;
+      process.stdout.write(`\r   Progress: ${progress.toFixed(1)}% (${Math.min(batchEnd, config.requests)}/${config.requests} requests)`);
+    }
   }
 
   const totalDuration = performance.now() - totalStart;
-
-  // Calculate percentiles
   durations.sort((a, b) => a - b);
-  const p50 = durations[Math.floor(durations.length * 0.5)] || 0;
-  const p95 = durations[Math.floor(durations.length * 0.95)] || 0;
-  const p99 = durations[Math.floor(durations.length * 0.99)] || 0;
 
   const result: TestResult = {
-    totalRequests: config.requests,
+    totalRequests: completedRequests,
     successfulRequests,
     failedRequests,
     totalDuration,
-    averageDuration: durations.reduce((a, b) => a + b, 0) / durations.length,
-    minDuration: Math.min(...durations),
-    maxDuration: Math.max(...durations),
-    p50,
-    p95,
-    p99,
-    requestsPerSecond: (config.requests / totalDuration) * 1000,
-    errors: errors.slice(0, 10), // Keep first 10 errors
+    averageDuration: durations.length > 0 ? durations.reduce((sum, value) => sum + value, 0) / durations.length : 0,
+    minDuration: durations.length > 0 ? durations[0] : 0,
+    maxDuration: durations.length > 0 ? durations[durations.length - 1] : 0,
+    p50: percentile(durations, 50),
+    p95: percentile(durations, 95),
+    p99: percentile(durations, 99),
+    requestsPerSecond: totalDuration > 0 ? (completedRequests / totalDuration) * 1000 : 0,
+    errorRate: completedRequests > 0 ? (failedRequests / completedRequests) * 100 : 0,
+    durations,
+    perSecond: Array.from(perSecond.entries())
+      .sort((left, right) => left[0] - right[0])
+      .map(([second, values]) => ({
+        second,
+        requests: values.length,
+        avgLatency: values.reduce((sum, value) => sum + value, 0) / values.length,
+        p95Latency: percentile(values, 95),
+      })),
+    errors: errors.slice(0, 10),
   };
 
-  console.log("\n");
+  if (config.reportPath) {
+    const reportDir = path.dirname(config.reportPath);
+    mkdirSync(reportDir, { recursive: true });
+    writeFileSync(config.reportPath, JSON.stringify(result, null, 2), "utf8");
+    console.log(`\n📝 Load test report written to ${config.reportPath}`);
+  }
+
+  return result;
+}
+
+export async function runLoadTest(config: TestConfig): Promise<TestResult> {
+  const start = performance.now();
+
+  console.log("\n🚀 Starting API load test");
+  console.log(`   Endpoint: ${config.method} ${config.baseUrl}${config.endpoint}`);
+  console.log(`   Concurrency: ${config.concurrent}`);
+  console.log(`   Requests: ${config.requests}`);
+  console.log(`   Duration: ${config.durationSeconds}s`);
+  console.log(`   Warmup: ${config.warmupRequests} requests\n`);
+
+  if (config.warmupRequests > 0) {
+    console.log(`🔥 Warmup: ${config.warmupRequests} requests at concurrency ${Math.min(5, config.concurrent)}`);
+    await runLoadTestInternal({
+      ...config,
+      concurrent: Math.min(5, config.concurrent),
+      requests: config.warmupRequests,
+      durationSeconds: 0,
+      warmupRequests: 0,
+      reportPath: undefined,
+    });
+  }
+
+  const result = await runLoadTestInternal(config);
+  const elapsed = performance.now() - start;
+  console.log(`\n⏱️  Run completed in ${(elapsed / 1000).toFixed(2)}s`);
   return result;
 }
 
 function printResults(result: TestResult) {
-  console.log("📊 Load Test Results:");
+  console.log("\n📊 API Load Test Results:");
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log(`Total Requests:      ${result.totalRequests}`);
-  console.log(`Successful:          ${result.successfulRequests} (${((result.successfulRequests / result.totalRequests) * 100).toFixed(1)}%)`);
-  console.log(`Failed:              ${result.failedRequests} (${((result.failedRequests / result.totalRequests) * 100).toFixed(1)}%)`);
+  console.log(`Successful:          ${result.successfulRequests} (${((result.successfulRequests / result.totalRequests) * 100 || 0).toFixed(1)}%)`);
+  console.log(`Failed:              ${result.failedRequests} (${((result.failedRequests / result.totalRequests) * 100 || 0).toFixed(1)}%)`);
   console.log(`Total Duration:      ${(result.totalDuration / 1000).toFixed(2)}s`);
   console.log(`Requests/Second:     ${result.requestsPerSecond.toFixed(2)}`);
   console.log("");
@@ -162,14 +307,11 @@ function printResults(result: TestResult) {
   console.log("");
 
   if (result.errors.length > 0) {
-    console.log("Errors (first 10):");
-    result.errors.forEach((error, i) => {
-      console.log(`  ${i + 1}. Status ${error.status}: ${error.message.substring(0, 80)}`);
-    });
+    console.log("Top errors:");
+    result.errors.forEach((error, index) => console.log(`  ${index + 1}. Status ${error.status}: ${error.message.slice(0, 80)}`));
     console.log("");
   }
 
-  // Performance assessment
   if (result.p95 < 200) {
     console.log("✅ Excellent performance (p95 < 200ms)");
   } else if (result.p95 < 500) {
@@ -182,42 +324,38 @@ function printResults(result: TestResult) {
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
 }
 
+function printHelp(): void {
+  console.log(`Usage:
+  pnpm --filter @nolsaf/api load:test --scenario browse --concurrent 25 --requests 250
+  pnpm --filter @nolsaf/api load:test --endpoint /api/public/properties --duration 60 --concurrent 25
+
+Options:
+  --scenario browse|detail|home-summary
+  --endpoint <path>
+  --method <GET|POST|PUT|DELETE>
+  --base-url <url>
+  --concurrent <number>
+  --requests <number>
+  --duration <seconds>
+  --warmup <requests>
+  --timeout-ms <number>
+  --header "Key: Value" (repeatable)
+  --body-file <path-to-json>
+  --report-json <output-path>
+`);
+}
+
 async function main() {
-  const args = process.argv.slice(2);
-  
-  // Parse command line arguments
-  const config: TestConfig = {
-    baseUrl: process.env.API_URL || "http://localhost:3001",
-    endpoint: "/api/public/properties",
-    method: "GET",
-    concurrent: 10,
-    requests: 100,
-  };
-
-  // Simple argument parser
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
-    if (arg === "--endpoint" && args[i + 1]) {
-      config.endpoint = args[i + 1];
-      i++;
-    } else if (arg === "--concurrent" && args[i + 1]) {
-      config.concurrent = parseInt(args[i + 1], 10);
-      i++;
-    } else if (arg === "--requests" && args[i + 1]) {
-      config.requests = parseInt(args[i + 1], 10);
-      i++;
-    } else if (arg === "--method" && args[i + 1]) {
-      config.method = args[i + 1].toUpperCase() as any;
-      i++;
-    } else if (arg === "--base-url" && args[i + 1]) {
-      config.baseUrl = args[i + 1];
-      i++;
-    }
-  }
-
   try {
+    const config = buildConfig(process.argv.slice(2));
+    if (process.argv.includes("--help") || process.argv.includes("-h")) {
+      printHelp();
+      return;
+    }
+
     const result = await runLoadTest(config);
     printResults(result);
+    process.exit(result.errorRate > 1 || result.p95 >= 500 ? 1 : 0);
   } catch (error) {
     console.error("❌ Load test failed:", error);
     process.exit(1);

@@ -1,3 +1,5 @@
+import { PriceDisplay } from './components/PriceDisplay';
+
 const API = process.env.PUBLIC_API_URL ?? 'http://127.0.0.1:4000';
 
 export default async function Page(){
@@ -24,7 +26,9 @@ export default async function Page(){
             <div className="card-content">
               <h2 className="card-title">{p.title}</h2>
               <div className="muted location-info">{p.location?.city}, {p.location?.region}</div>
-              <div className="price">{p.currency} {p.pricePerNight} / night</div>
+              <div className="price">
+                <PriceDisplay amountTzs={p.pricePerNight} suffix="/ night" />
+              </div>
             </div>
           </a>
         ))}

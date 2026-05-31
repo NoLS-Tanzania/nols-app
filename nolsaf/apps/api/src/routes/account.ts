@@ -10,9 +10,11 @@ import { validatePasswordStrength, isPasswordReused, addPasswordToHistory } from
 import { validatePasswordWithSettings } from "../lib/securitySettings.js";
 import { authenticator } from "otplib";
 import QRCode from "qrcode";
-import rateLimit from "express-rate-limit";
+import { rateLimitWithRedis as rateLimit } from "../lib/redisRateLimitStore.js";
 import { sendSms } from "../lib/sms.js";
 import { isAllowedDocumentTypeForRole, isTrustedUserDocumentUrl } from "../lib/userDocumentSecurity.js";
+import { getRedis } from "../lib/redis.js";
+import { invalidateAuthSessionCacheForUser } from "../lib/authSessionCache.js";
 import {
   generateRegistrationOptions,
   verifyRegistrationResponse,
@@ -70,6 +72,27 @@ function sendSuccess(res: Response, data?: any, message?: string) {
     ...(message && { message }),
     ...(data && { data })
   });
+}
+
+function cleanOrigin(value: unknown): string | null {
+  const raw = String(value || "").split(",")[0]?.trim() || "";
+  if (!raw) return null;
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return null;
+  }
+}
+
+function publicWebOrigin() {
+  return (
+    cleanOrigin(process.env.FRONTEND_URL) ||
+    cleanOrigin(process.env.WEB_ORIGIN) ||
+    cleanOrigin(process.env.APP_ORIGIN) ||
+    cleanOrigin(process.env.APP_URL) ||
+    cleanOrigin(process.env.CORS_ORIGIN) ||
+    "https://www.nolsaf.com"
+  );
 }
 
 // Helper: Get authenticated user ID
@@ -180,6 +203,83 @@ const listSessionsSchema = z.object({
   page: z.string().regex(/^\d+$/).optional().transform(Number),
   pageSize: z.string().regex(/^\d+$/).optional().transform(Number),
 }).strict();
+
+/** GET /account/session */
+const getSession: RequestHandler = async (req, res) => {
+  try {
+    const userId = getUserId(req as AuthedRequest);
+    const meta = (prisma as any).user?._meta ?? {};
+    const metaHasEntries = Object.keys(meta).length > 0;
+    const hasField = (field: string) => !metaHasEntries || Object.prototype.hasOwnProperty.call(meta, field);
+    const select: any = {
+      id: true,
+      role: true,
+      email: true,
+      name: true,
+    };
+
+    if (hasField("fullName")) select.fullName = true;
+    if (hasField("avatarUrl")) select.avatarUrl = true;
+    if (hasField("suspendedAt")) select.suspendedAt = true;
+    if (hasField("isDisabled")) select.isDisabled = true;
+
+    let user: any = null;
+    try {
+      user = await prisma.user.findUnique({ where: { id: userId }, select } as any);
+    } catch (error: any) {
+      if (error?.code !== "P2022" && !String(error?.message || "").includes("Unknown column")) {
+        throw error;
+      }
+
+      user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          role: true,
+          email: true,
+          name: true,
+        },
+      });
+    }
+
+    if (!user) return sendError(res, 404, "User not found");
+
+    const fullName = typeof user.fullName === "string" ? user.fullName : null;
+    const name = typeof user.name === "string" ? user.name : null;
+    const email = typeof user.email === "string" ? user.email : null;
+    const avatarUrl = typeof user.avatarUrl === "string" ? user.avatarUrl : null;
+
+    sendSuccess(res, {
+      id: user.id,
+      role: user.role,
+      email,
+      name,
+      fullName,
+      displayName: fullName || name || email || null,
+      avatarUrl,
+      profileImage: avatarUrl,
+      isDisabled: Boolean(user.isDisabled),
+      isSuspended: Boolean(user.suspendedAt),
+    });
+  } catch (error: any) {
+    const isProd = process.env.NODE_ENV === "production";
+    console.error("account.session failed", { error });
+    sendError(
+      res,
+      500,
+      "Failed to fetch session data",
+      isProd
+        ? undefined
+        : {
+            message: error?.message,
+            name: error?.name,
+            code: error?.code,
+          },
+    );
+  }
+};
+
+router.get("/session", getSession as unknown as RequestHandler);
 
 /** GET /account/me */
 const getMe: RequestHandler = async (req, res) => {
@@ -534,7 +634,7 @@ const getReferral: RequestHandler = async (req, res) => {
     });
     if (!user) return sendError(res, 404, "User not found");
     const code = user.referralCode || String(user.id);
-    sendSuccess(res, { code, link: `${process.env.CORS_ORIGIN || "https://www.nolsaf.com"}/r/${encodeURIComponent(code)}` });
+    sendSuccess(res, { code, link: `${publicWebOrigin()}/account/register?ref=${encodeURIComponent(code)}` });
   } catch {
     sendError(res, 500, "Failed to fetch referral info");
   }
@@ -1006,6 +1106,7 @@ const changePassword: RequestHandler = async (req, res) => {
     const forceLogout = await shouldForceLogout();
     
     if (forceLogout) {
+      await invalidateAuthSessionCacheForUser(user.id).catch(() => {});
       clearAuthCookie(res);
     }
 
@@ -1245,8 +1346,65 @@ const postSecurity2fa: RequestHandler = async (req, res) => {
 router.post("/security/2fa", sensitive as unknown as RequestHandler, postSecurity2fa as unknown as RequestHandler);
 
 // Passkeys for account/agent portal (shared UI expects driver-like endpoints)
-const accountPasskeyChallenges = new Map<string, string>(); // userId -> challenge (base64url)
+const accountPasskeyChallenges = new Map<string, { challenge: string; expiresAt: number }>(); // userId -> challenge fallback
 const accountPasskeyStore = new Map<string, Array<any>>(); // userId -> [{ id, name, createdAt, publicKey, signCount }]
+const ACCOUNT_PASSKEY_CHALLENGE_TTL_SEC = 5 * 60;
+const ACCOUNT_PASSKEY_CHALLENGE_PREFIX = "account:passkey:challenge:";
+
+async function setAccountPasskeyChallenge(userId: number, challenge: string): Promise<void> {
+  const key = String(userId);
+  const expiresAt = Date.now() + ACCOUNT_PASSKEY_CHALLENGE_TTL_SEC * 1000;
+  try {
+    const redis = getRedis();
+    if (redis) {
+      await redis.set(
+        `${ACCOUNT_PASSKEY_CHALLENGE_PREFIX}${key}`,
+        JSON.stringify({ challenge, expiresAt }),
+        "EX",
+        ACCOUNT_PASSKEY_CHALLENGE_TTL_SEC
+      );
+      return;
+    }
+  } catch {
+    // Redis is preferred for multi-instance correctness; memory keeps single-instance dev working.
+  }
+  accountPasskeyChallenges.set(key, { challenge, expiresAt });
+}
+
+async function getAccountPasskeyChallenge(userId: number): Promise<string | null> {
+  const key = String(userId);
+  try {
+    const redis = getRedis();
+    if (redis) {
+      const raw = await redis.get(`${ACCOUNT_PASSKEY_CHALLENGE_PREFIX}${key}`);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as { challenge?: string; expiresAt?: number };
+      if (!parsed.challenge || typeof parsed.expiresAt !== "number" || parsed.expiresAt <= Date.now()) return null;
+      return parsed.challenge;
+    }
+  } catch {
+    // fall back below
+  }
+
+  const stored = accountPasskeyChallenges.get(key);
+  if (!stored) return null;
+  if (stored.expiresAt <= Date.now()) {
+    accountPasskeyChallenges.delete(key);
+    return null;
+  }
+  return stored.challenge;
+}
+
+async function deleteAccountPasskeyChallenge(userId: number): Promise<void> {
+  const key = String(userId);
+  try {
+    const redis = getRedis();
+    if (redis) await redis.del(`${ACCOUNT_PASSKEY_CHALLENGE_PREFIX}${key}`);
+  } catch {
+    // best effort
+  }
+  accountPasskeyChallenges.delete(key);
+}
 
 function toBase64Url(buf: Buffer | Uint8Array) {
   return Buffer.from(buf)
@@ -1324,10 +1482,9 @@ const postAccountPasskeysCreate: RequestHandler = async (req, res) => {
       excludeCredentials,
     });
 
-    accountPasskeyChallenges.set(String(userId), options.challenge as string);
+    await setAccountPasskeyChallenge(userId, options.challenge as string);
     return res.json({ publicKey: options });
-  } catch (e: any) {
-    console.error("account.security.passkeys.create failed", e);
+  } catch {
     return res.status(500).json({ error: "failed" });
   }
 };
@@ -1359,7 +1516,7 @@ const postAccountPasskeysVerify: RequestHandler = async (req, res) => {
       return res.status(400).json({ error: "invalid payload" });
     }
 
-    const storedChallenge = accountPasskeyChallenges.get(String(userId));
+    const storedChallenge = await getAccountPasskeyChallenge(userId);
     if (!storedChallenge) return res.status(400).json({ error: "no challenge found" });
 
     const origin = process.env.WEB_ORIGIN || process.env.APP_ORIGIN || "http://localhost:3000";
@@ -1381,7 +1538,7 @@ const postAccountPasskeysVerify: RequestHandler = async (req, res) => {
 
     if (!verification || !verification.verified) return res.status(400).json({ error: "verification failed" });
     try {
-      accountPasskeyChallenges.delete(String(userId));
+      await deleteAccountPasskeyChallenge(userId);
     } catch {
       // ignore
     }
@@ -1416,8 +1573,7 @@ const postAccountPasskeysVerify: RequestHandler = async (req, res) => {
     list.unshift(item);
     accountPasskeyStore.set(String(userId), list);
     return res.json({ ok: true, item });
-  } catch (e: any) {
-    console.error("account.security.passkeys.verify failed", e);
+  } catch {
     return res.status(500).json({ error: "failed" });
   }
 };
@@ -1443,8 +1599,7 @@ const deleteAccountPasskey: RequestHandler = async (req, res) => {
     const list = (accountPasskeyStore.get(String(userId)) || []).filter((k: any) => k.id !== id);
     accountPasskeyStore.set(String(userId), list);
     return res.json({ ok: true });
-  } catch (e: any) {
-    console.error("account.security.passkeys.delete failed", e);
+  } catch {
     return res.status(500).json({ error: "failed" });
   }
 };
@@ -1477,10 +1632,9 @@ const postAccountPasskeysAuthenticate: RequestHandler = async (req, res) => {
       allowCredentials,
     });
 
-    accountPasskeyChallenges.set(String(userId), (options as any).challenge as string);
+    await setAccountPasskeyChallenge(userId, (options as any).challenge as string);
     return res.json({ publicKey: options });
-  } catch (e: any) {
-    console.error("account.security.passkeys.authenticate failed", e);
+  } catch {
     return res.status(500).json({ error: "failed" });
   }
 };
@@ -1498,7 +1652,7 @@ const postAccountPasskeysAuthenticateVerify: RequestHandler = async (req, res) =
     const { response } = body as any;
     if (!response) return res.status(400).json({ error: "invalid payload" });
 
-    const storedChallenge = accountPasskeyChallenges.get(String(userId));
+    const storedChallenge = await getAccountPasskeyChallenge(userId);
     if (!storedChallenge) return res.status(400).json({ error: "no challenge found" });
 
     const credId = response.id || response.rawId;
@@ -1531,19 +1685,19 @@ const postAccountPasskeysAuthenticateVerify: RequestHandler = async (req, res) =
         expectedChallenge: storedChallenge,
         expectedOrigin: origin,
         expectedRPID: rpID,
-        credential: {
-          id: stored.credentialId || stored.credentialID || stored.id || credId,
-          publicKey: fromBase64Url(publicKey),
+        authenticator: {
+          credentialID: stored.credentialId || stored.credentialID || stored.id || credId,
+          credentialPublicKey: fromBase64Url(publicKey),
           counter: signCount,
         },
         requireUserVerification: false,
       } as any);
-    } catch (e) {
-      console.error("account.security.passkeys.authenticate.verify error:", (e as any)?.message ?? e);
+    } catch {
       return res.status(400).json({ error: "verification failed" });
     }
 
     if (!verification || !verification.verified) return res.status(400).json({ error: "verification failed" });
+    await deleteAccountPasskeyChallenge(userId);
 
     const newCounter =
       (verification.authenticationInfo && (verification.authenticationInfo.newCounter ?? verification.authenticationInfo.counter)) ?? null;
@@ -1565,8 +1719,7 @@ const postAccountPasskeysAuthenticateVerify: RequestHandler = async (req, res) =
     }
 
     return res.json({ ok: true, verified: true });
-  } catch (e: any) {
-    console.error("account.security.passkeys.authenticate.verify failed", e);
+  } catch {
     return res.status(500).json({ error: "failed" });
   }
 };
@@ -2108,6 +2261,7 @@ const deleteAccount: RequestHandler = async (req, res) => {
         where: { userId, revokedAt: null },
         data: { revokedAt: new Date() },
       });
+      await invalidateAuthSessionCacheForUser(userId).catch(() => {});
     } catch { /* best-effort */ }
 
     // ── 4. Capture state for audit / notification ────────────────────────
@@ -2214,6 +2368,7 @@ const revokeSession: RequestHandler = async (req, res) => {
       where: { id: sessionId, userId }, 
       data: { revokedAt: new Date() } 
     });
+    await invalidateAuthSessionCacheForUser(userId).catch(() => {});
     
     await audit(req as AuthedRequest, "USER_SESSION_REVOKE", `session:${sessionId}`);
     sendSuccess(res, null, "Session revoked successfully");
@@ -2238,6 +2393,7 @@ const revokeOtherSessions: RequestHandler = async (req, res) => {
       },
       data: { revokedAt: new Date() },
     });
+    await invalidateAuthSessionCacheForUser(userId).catch(() => {});
     
     await audit(req as AuthedRequest, "USER_SESSION_REVOKE_OTHERS", `user:${userId}`);
     sendSuccess(res, null, "Other sessions revoked successfully");

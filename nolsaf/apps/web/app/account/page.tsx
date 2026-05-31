@@ -37,11 +37,11 @@ export default function AccountIndex() {
   const [success, setSuccess] = useState<string | null>(null);
   const [referralLink, setReferralLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [stats, setStats] = useState<{ bookings: number; rides: number; groupStays: number; eventPlans: number; savedProperties: number }>({
+  const [stats, setStats] = useState<{ bookings: number; rides: number; groupStays: number; tourPackages: number; savedProperties: number }>({
     bookings: 0,
     rides: 0,
     groupStays: 0,
-    eventPlans: 0,
+    tourPackages: 0,
     savedProperties: 0,
   });
   const avatarFileInputRef = useRef<HTMLInputElement>(null);
@@ -65,14 +65,15 @@ export default function AccountIndex() {
       try {
         const r = await api.get('/api/account/referral');
         if (!mounted) return;
-        if (r?.data?.link) { setReferralLink(String(r.data.link)); return; }
-        if (r?.data?.code) { setReferralLink(`${window.location.origin}/r/${encodeURIComponent(String(r.data.code))}`); return; }
+        const referral = r?.data?.data ?? r?.data ?? {};
+        if (referral?.code) { setReferralLink(`${window.location.origin}/account/register?ref=${encodeURIComponent(String(referral.code))}`); return; }
+        if (referral?.link) { setReferralLink(String(referral.link)); return; }
       } catch (e) {
         // ignore
       }
       try {
         const id = (user as any).id || (user as any)._id || (user as any).email || String(Math.random()).slice(2,10);
-        if (mounted) setReferralLink(`${window.location.origin}/r/${encodeURIComponent(String(id))}`);
+        if (mounted) setReferralLink(`${window.location.origin}/account/register?ref=${encodeURIComponent(String(id))}`);
       } catch (e) {
         if (mounted) setReferralLink(null);
       }
@@ -119,7 +120,8 @@ export default function AccountIndex() {
 
   const loadStats = async () => {
     try {
-      // Fetch bookings count
+      // Fetch bookings count — count ALL bookings the customer can see: drafts
+      // (unpaid invoices), valid, and expired. (No paidOnly flag so drafts count too.)
       try {
         const bookingsRes = await api.get("/api/customer/bookings?page=1&pageSize=1");
         setStats((prev) => ({ ...prev, bookings: bookingsRes.data?.total || 0 }));
@@ -137,10 +139,10 @@ export default function AccountIndex() {
         setStats((prev) => ({ ...prev, groupStays: groupStaysRes.data?.total || 0 }));
       } catch {}
 
-      // Fetch event plans count
+      // Fetch tour packages count
       try {
-        const eventPlansRes = await api.get("/api/customer/plan-requests?page=1&pageSize=1");
-        setStats((prev) => ({ ...prev, eventPlans: eventPlansRes.data?.total || 0 }));
+        const tourPackagesRes = await api.get("/api/customer/tour-bookings?page=1&pageSize=1");
+        setStats((prev) => ({ ...prev, tourPackages: tourPackagesRes.data?.total || 0 }));
       } catch {}
 
       // Fetch saved properties count
@@ -275,7 +277,7 @@ export default function AccountIndex() {
               {[72, 88, 72].map((w, i) => (
                 <div key={i} className="h-7 rounded-full bg-white/10" style={{ width: w }} />
               ))}
-            </div>
+      </div>
           </div>
         </div>
         {/* Stats skeleton */}
@@ -404,27 +406,37 @@ export default function AccountIndex() {
       )}
 
       {/* ══════ STATS GRID ══════ */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
         {[
-          { href: "/account/bookings", icon: CalendarDays, label: "Total Bookings", count: stats.bookings, topColor: "from-blue-500 to-blue-600", iconBg: "bg-blue-50", iconColor: "text-blue-600" },
-          { href: "/account/rides", icon: Car, label: "Total Rides", count: stats.rides, topColor: "from-purple-500 to-purple-600", iconBg: "bg-purple-50", iconColor: "text-purple-600" },
-          { href: "/account/group-stays", icon: Users, label: "Group Stays", count: stats.groupStays, topColor: "from-orange-500 to-orange-600", iconBg: "bg-orange-50", iconColor: "text-orange-600" },
-          { href: "/account/event-plans", icon: ClipboardList, label: "Event Plans", count: stats.eventPlans, topColor: "from-emerald-500 to-emerald-600", iconBg: "bg-emerald-50", iconColor: "text-emerald-600" },
-          { href: "/account/saved", icon: Heart, label: "Saved Properties", count: stats.savedProperties, topColor: "from-rose-500 to-rose-600", iconBg: "bg-rose-50", iconColor: "text-rose-600" },
-        ].map(({ href, icon: Icon, label, count, topColor, iconBg, iconColor }) => (
+          { href: "/account/bookings", icon: CalendarDays, label: "Total Bookings", count: stats.bookings, color: "#7dd3fc", bg: "rgba(14,165,233,0.16)", border: "rgba(14,165,233,0.35)" },
+          { href: "/account/rides", icon: Car, label: "Total Rides", count: stats.rides, color: "#c4b5fd", bg: "rgba(147,51,234,0.16)", border: "rgba(196,181,253,0.35)" },
+          { href: "/account/group-stays", icon: Users, label: "Group Stays", count: stats.groupStays, color: "#fdba74", bg: "rgba(249,115,22,0.16)", border: "rgba(251,146,60,0.35)" },
+          { href: "/account/tour-packages", icon: ClipboardList, label: "Tour Packages", count: stats.tourPackages, color: "#6ee7b7", bg: "rgba(16,185,129,0.16)", border: "rgba(16,185,129,0.35)" },
+          { href: "/account/saved", icon: Heart, label: "Saved Properties", count: stats.savedProperties, color: "#fda4af", bg: "rgba(244,63,94,0.16)", border: "rgba(251,113,133,0.35)" },
+        ].map(({ href, icon: Icon, label, count, color, bg, border }) => (
           <Link key={href} href={href}
-            className="group no-underline relative overflow-hidden rounded-3xl border border-slate-100 bg-white p-4 shadow-[0_2px_12px_rgba(0,0,0,0.05)] transition-all duration-200 hover:shadow-[0_6px_24px_rgba(0,0,0,0.10)] hover:-translate-y-[2px] active:scale-[0.98]">
-            {/* Top accent */}
-            <div className={`absolute top-0 left-0 right-0 h-[3px] rounded-t-3xl bg-gradient-to-r ${topColor} transition-all duration-300 group-hover:h-1`} />
-            <div className="pt-1 flex items-start justify-between">
-              <div className={`h-10 w-10 rounded-2xl ${iconBg} flex items-center justify-center flex-shrink-0 transition-transform duration-200 group-hover:scale-110`}>
-                <Icon className={`h-5 w-5 ${iconColor}`} strokeWidth={2} />
+            className="group no-underline relative overflow-hidden rounded-2xl p-4 transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.01] active:scale-[0.99]"
+            style={{
+              background: "linear-gradient(135deg, #0a1a19 0%, #0d2320 58%, #0a1f2e 100%)",
+              border: `1px solid ${border}`,
+              boxShadow: "0 8px 32px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.06)",
+            }}>
+            <div className="pointer-events-none absolute inset-0 opacity-[0.08]"
+              style={{ backgroundImage: "linear-gradient(135deg, white 0 1px, transparent 1px 14px)" }} />
+            <div className="relative flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-transform duration-200 group-hover:scale-110"
+                  style={{ background: bg, border: `1px solid ${border}` }}>
+                  <Icon className="h-5 w-5" style={{ color }} strokeWidth={2} />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-white/50">{label}</div>
+                  <div className="mt-1 text-2xl font-black leading-none tabular-nums" style={{ color }}>
+                    {(count || 0).toLocaleString()}
+                  </div>
+                </div>
               </div>
-              <ArrowRight className="h-4 w-4 text-slate-200 group-hover:text-slate-400 group-hover:translate-x-0.5 transition-all duration-200" />
-            </div>
-            <div className="mt-3">
-              <div className="text-2xl font-extrabold text-slate-900 leading-none">{count || 0}</div>
-              <div className="mt-1 text-xs font-medium text-slate-500 leading-tight">{label}</div>
+              <ArrowRight className="h-4 w-4 shrink-0 text-white/25 transition-all duration-200 group-hover:translate-x-0.5 group-hover:text-white/60" />
             </div>
           </Link>
         ))}
@@ -507,10 +519,7 @@ export default function AccountIndex() {
 
       {/* ══════ REFERRAL CARD ══════ */}
       <div className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-[0_2px_16px_rgba(0,0,0,0.05)]">
-        {/* Teal left accent */}
-        <div className="flex">
-          <div className="w-1 flex-shrink-0 rounded-l-3xl" style={{ background: "linear-gradient(180deg, #5eead4 0%, #02665e 100%)" }} />
-          <div className="flex-1 p-6">
+        <div className="p-6">
             <div className="flex items-center gap-3 mb-5">
               <div className="h-10 w-10 rounded-2xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, #ccfbf1, #99f6e4)" }}>
                 <Share2 className="h-5 w-5 text-[#02665e]" />
@@ -546,18 +555,16 @@ export default function AccountIndex() {
                 Share via WhatsApp
               </button>
             </div>
-          </div>
         </div>
       </div>
 
       {/* ══════ SECURITY CARD ══════ */}
       <Link
         href="/account/security"
-        className="group no-underline relative overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-[0_2px_16px_rgba(0,0,0,0.05)] transition-all duration-200 hover:shadow-[0_6px_32px_rgba(2,102,94,0.12)] hover:-translate-y-[2px] active:scale-[0.99] block"
+        className="group no-underline relative overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-[0_2px_16px_rgba(0,0,0,0.05)] transition-all duration-200 hover:border-teal-100 hover:shadow-[0_10px_34px_rgba(2,102,94,0.12)] hover:-translate-y-[2px] active:scale-[0.99] block"
       >
-        {/* Left accent */}
-        <div className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-3xl" style={{ background: user?.twoFactorEnabled ? "linear-gradient(180deg, #86efac 0%, #16a34a 100%)" : "linear-gradient(180deg, #fde68a 0%, #f59e0b 100%)" }} />
-        <div className="flex items-center gap-4 pl-6 pr-5 py-5">
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-teal-50/55 via-white to-slate-50/70 opacity-80" />
+        <div className="relative flex items-center gap-4 px-6 py-5">
           <div className="h-12 w-12 rounded-2xl flex items-center justify-center flex-shrink-0 transition-transform duration-200 group-hover:scale-105"
             style={{ background: "linear-gradient(135deg, #ccfbf1, #99f6e4)" }}>
             <Shield className="h-6 w-6 text-[#02665e]" strokeWidth={2} />

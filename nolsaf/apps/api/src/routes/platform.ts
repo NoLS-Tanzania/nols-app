@@ -3,12 +3,16 @@ import requireRole, { maybeAuth } from "../middleware/auth";
 import { router as account } from "./account";
 import authRoutes from "./auth";
 import azampayPaymentsRouter from "./payments.azampay.js";
+import azampayBankRouter     from "./payments.azampay.bank.js";
+import azampayCardRouter     from "./payments.azampay.card.js";
 import bookingsRoutes from "./bookings";
 import chatbotRouter from "./chatbot";
 import conversationsRoutes from "./conversations";
+import { router as fxRouter } from "./fx";
 import geocodingRouter from "./geocoding";
 import groupBookingsRouter from "./groupBookings.js";
 import propertyReviewsRouter from "./property.reviews";
+import reportSealRouter from "./reports.seal";
 import { router as upCld } from "./uploads.cloudinary";
 import { router as upS3 } from "./uploads.s3";
 import paymentWebhooksRouter from "./webhooks.payments";
@@ -33,15 +37,28 @@ export function registerConversationBookingRoutes(app: Express): void {
 
 export function registerPaymentRoutes(app: Express): void {
   app.use("/webhooks", paymentWebhooksRouter);
-  app.use("/api/payments/azampay", azampayPaymentsRouter);
+  app.use("/api/payments/azampay", azampayPaymentsRouter);       // MNO: Airtel, M-Pesa, Mixx, HaloPesa
+  app.use("/api/payments/azampay/bank", azampayBankRouter);      // Bank: CRDB, NMB, NBC, etc.
+  app.use("/api/payments/azampay/card", azampayCardRouter);      // Card: Visa / Mastercard
 }
 
 export function registerGeocodingRoute(app: Express): void {
   app.use("/api/geocoding", geocodingRouter as RequestHandler);
 }
 
+export function registerFxRoutes(app: Express): void {
+  // Display-currency layer (presentation only; TZS is the money of record).
+  app.use("/api/fx", fxRouter as RequestHandler);
+}
+
 export function registerChatbotRoute(app: Express): void {
   app.use("/api/chatbot", chatbotRouter as RequestHandler);
+}
+
+export function registerReportSealRoute(app: Express): void {
+  // Any authenticated user (admin, owner, operator) can seal their own printed
+  // report. The route enforces login internally.
+  app.use("/api/reports", reportSealRouter);
 }
 
 export function registerGroupAndReviewRoutes(app: Express): void {

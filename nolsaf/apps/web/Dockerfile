@@ -2,7 +2,7 @@
 # Multi-stage build for optimized production image
 
 # Stage 1: Dependencies
-FROM node:20-bookworm-slim AS deps
+FROM node:22-bookworm-slim AS deps
 WORKDIR /app
 
 # Keep npm version consistent with the repo lockfile
@@ -15,7 +15,7 @@ COPY . .
 RUN npm ci
 
 # Stage 2: Builder
-FROM node:20-bookworm-slim AS builder
+FROM node:22-bookworm-slim AS builder
 WORKDIR /app
 
 # Keep npm version consistent with the repo lockfile
@@ -48,7 +48,7 @@ WORKDIR /app/apps/web
 RUN npm run build
 
 # Stage 3: Runner
-FROM node:20-bookworm-slim AS runner
+FROM node:22-bookworm-slim AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production

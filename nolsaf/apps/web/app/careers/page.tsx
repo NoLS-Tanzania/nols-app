@@ -10,8 +10,6 @@ import {
   DollarSign, 
   ChevronRight, 
   X, 
-  Upload, 
-  FileText,
   CheckCircle2,
   Building2,
   Users,
@@ -21,9 +19,6 @@ import {
   Filter,
   Calendar,
   RefreshCw,
-  GraduationCap,
-  Languages,
-  XCircle
 } from "lucide-react";
 import AgentFooter from "@/components/AgentFooter";
 import AgentPortalHeader from "@/components/AgentPortalHeader";
@@ -34,18 +29,8 @@ import OwnerSiteHeader from "@/components/OwnerSiteHeader";
 import DriverSiteHeader from "@/components/DriverSiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import LayoutFrame from "@/components/LayoutFrame";
+import CareersApplicationForm from "@/components/careers/CareersApplicationForm";
 import { usePathname } from "next/navigation";
-import { REGIONS as TZ_REGIONS } from "@/lib/tzRegions";
-import { PINNED_NATIONALITIES, EAST_AFRICA_COUNTRIES, SOUTHERN_AFRICA_COUNTRIES, AGENT_SPECIALIZATIONS, AGENT_SPECIALIZATION_VALUES } from "@nolsaf/shared";
-
-const EDUCATION_LABELS: Record<string, string> = {
-  HIGH_SCHOOL: "High School",
-  DIPLOMA: "Diploma",
-  BACHELORS: "Bachelors",
-  MASTERS: "Masters",
-  PHD: "PhD",
-  OTHER: "Other",
-};
 
 function getCookie(name: string): string | null {
   if (typeof document === 'undefined') return null;
@@ -55,7 +40,17 @@ function getCookie(name: string): string | null {
   return null;
 }
 
-type JobType = "FULL_TIME" | "PART_TIME" | "CONTRACT" | "INTERNSHIP" | "FREELANCE";
+type JobType =
+  | "FULL_TIME"
+  | "PART_TIME"
+  | "CONTRACT"
+  | "INTERNSHIP"
+  | "FREELANCE"
+  | "PARTNERSHIP"
+  | "AGENCY_AGREEMENT"
+  | "RESELLER"
+  | "AFFILIATE"
+  | "WHITE_LABEL";
 type JobCategory = "ENGINEERING" | "DESIGN" | "MARKETING" | "SALES" | "OPERATIONS" | "SUPPORT" | "MANAGEMENT" | "OTHER";
 type JobLocation = "REMOTE" | "ONSITE" | "HYBRID";
 
@@ -82,7 +77,6 @@ interface Job {
   experienceLevel: "ENTRY" | "MID" | "SENIOR" | "LEAD";
   featured?: boolean;
   isTravelAgentPosition?: boolean;
-  requiredEducationLevel?: string | null;
 }
 
 // Jobs will be fetched from API - sample data removed
@@ -105,6 +99,12 @@ function JobCard({ job, onClick }: { job: Job; onClick: () => void }) {
       case "CONTRACT": return "bg-purple-100 text-purple-800";
       case "INTERNSHIP": return "bg-yellow-100 text-yellow-800";
       case "FREELANCE": return "bg-orange-100 text-orange-800";
+      case "PARTNERSHIP": return "bg-emerald-100 text-emerald-800";
+      case "AGENCY_AGREEMENT": return "bg-cyan-100 text-cyan-800";
+      case "RESELLER": return "bg-indigo-100 text-indigo-800";
+      case "AFFILIATE": return "bg-teal-100 text-teal-800";
+      case "WHITE_LABEL": return "bg-slate-200 text-slate-800";
+      default: return "bg-slate-100 text-slate-700";
     }
   };
 
@@ -227,924 +227,6 @@ function JobCard({ job, onClick }: { job: Job; onClick: () => void }) {
   );
 }
 
-function ApplicationForm({ job, onClose, onSuccess }: { job: Job; onClose: () => void; onSuccess?: () => void }) {
-  // Source of truth: admin-set job flag
-  const isTravelAgentPosition = Boolean((job as any).isTravelAgentPosition);
-  const requiredEducationLevel = String((job as any).requiredEducationLevel || "").trim();
-
-  const ABOUT_MIN_WORDS = 120;
-  const ABOUT_MAX_WORDS = 250;
-
-  const countWords = (text: string) => {
-    const trimmed = text.trim();
-    if (!trimmed) return 0;
-    return trimmed.split(/\s+/).filter(Boolean).length;
-  };
-  
-  const [formData, setFormData] = useState({
-    fullName: "",
-    email: "",
-    phone: "",
-    coverLetter: "",
-    resume: null as File | null,
-    portfolio: "",
-    linkedIn: "",
-    referredBy: "",
-    // Agent location fields
-    nationality: "",
-    region: "",
-    district: "",
-    // Agent-specific fields
-    educationLevel: "",
-    yearsOfExperience: "",
-    bio: "",
-    areasOfOperation: [] as string[],
-    languages: [] as string[],
-    specializations: [] as string[],
-    certifications: [] as Array<{ name: string; issuer: string; year: string; expiryDate?: string }>,
-  });
-  
-  // Temporary input states for agent arrays
-  const [areaInput, setAreaInput] = useState("");
-  const [languageInput, setLanguageInput] = useState("");
-  const [specializationInput, setSpecializationInput] = useState("");
-  const [certInput, setCertInput] = useState({ name: "", issuer: "", year: "", expiryDate: "" });
-  
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const districtsForSelectedRegion = useMemo(() => {
-    const selected = TZ_REGIONS.find((r) => r.name === formData.region);
-    return selected?.districts ?? [];
-  }, [formData.region]);
-
-  const aboutWords = useMemo(() => countWords(formData.coverLetter), [formData.coverLetter]);
-  const aboutTooShort = aboutWords > 0 && aboutWords < ABOUT_MIN_WORDS;
-  const aboutTooLong = aboutWords > ABOUT_MAX_WORDS;
-  const aboutInvalid = aboutWords < ABOUT_MIN_WORDS || aboutWords > ABOUT_MAX_WORDS;
-  
-  // Agent-specific handlers
-  const handleAddArea = () => {
-    if (areaInput.trim() && !formData.areasOfOperation.includes(areaInput.trim())) {
-      setFormData({
-        ...formData,
-        areasOfOperation: [...formData.areasOfOperation, areaInput.trim()],
-      });
-      setAreaInput("");
-    }
-  };
-
-  const handleRemoveArea = (area: string) => {
-    setFormData({
-      ...formData,
-      areasOfOperation: formData.areasOfOperation.filter((a) => a !== area),
-    });
-  };
-
-  const handleAddLanguage = () => {
-    if (languageInput.trim() && !formData.languages.includes(languageInput.trim())) {
-      setFormData({
-        ...formData,
-        languages: [...formData.languages, languageInput.trim()],
-      });
-      setLanguageInput("");
-    }
-  };
-
-  const handleRemoveLanguage = (lang: string) => {
-    setFormData({
-      ...formData,
-      languages: formData.languages.filter((l) => l !== lang),
-    });
-  };
-
-  const handleAddSpecialization = () => {
-    const candidate = String(specializationInput || "").trim();
-    if (!candidate) return;
-    if (!AGENT_SPECIALIZATION_VALUES.has(candidate)) {
-      setError("Please select a specialization from the list");
-      return;
-    }
-    if (formData.specializations.includes(candidate)) {
-      setSpecializationInput("");
-      return;
-    }
-    setFormData({
-      ...formData,
-      specializations: [...formData.specializations, candidate],
-    });
-    setSpecializationInput("");
-  };
-
-  const handleRemoveSpecialization = (spec: string) => {
-    setFormData({
-      ...formData,
-      specializations: formData.specializations.filter((s) => s !== spec),
-    });
-  };
-
-  const handleAddCertification = () => {
-    if (certInput.name.trim() && certInput.issuer.trim() && certInput.year.trim()) {
-      setFormData({
-        ...formData,
-        certifications: [
-          ...formData.certifications,
-          {
-            name: certInput.name.trim(),
-            issuer: certInput.issuer.trim(),
-            year: certInput.year.trim(),
-            expiryDate: certInput.expiryDate.trim() || undefined,
-          },
-        ],
-      });
-      setCertInput({ name: "", issuer: "", year: "", expiryDate: "" });
-    }
-  };
-
-  const handleRemoveCertification = (index: number) => {
-    setFormData({
-      ...formData,
-      certifications: formData.certifications.filter((_, i) => i !== index),
-    });
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        setError("File size must be less than 5MB");
-        return;
-      }
-      if (!file.type.includes("pdf") && !file.type.includes("doc") && !file.type.includes("docx")) {
-        setError("Please upload a PDF or Word document");
-        return;
-      }
-      setFormData({ ...formData, resume: file });
-      setError(null);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-
-    if (!formData.fullName || !formData.email || !formData.phone || !formData.region || !formData.district || !formData.coverLetter || !formData.linkedIn) {
-      setError("Please fill in all required fields");
-      return;
-    }
-
-    if (aboutInvalid) {
-      setError(`Tell us about yourself must be between ${ABOUT_MIN_WORDS} and ${ABOUT_MAX_WORDS} words.`);
-      return;
-    }
-
-    if (!formData.nationality.trim()) {
-      setError("Please select nationality");
-      return;
-    }
-
-    const selectedEducation = String(requiredEducationLevel || formData.educationLevel || "").trim();
-    if (!selectedEducation) {
-      setError("Please select education level");
-      return;
-    }
-
-    if (!String(formData.yearsOfExperience || "").trim()) {
-      setError("Please enter years of experience");
-      return;
-    }
-
-    if (!Array.isArray(formData.languages) || formData.languages.length === 0) {
-      setError("Please add at least one language you can speak/read/write");
-      return;
-    }
-
-    if (!Array.isArray(formData.specializations) || formData.specializations.length === 0) {
-      setError("Please add at least one specialization");
-      return;
-    }
-
-    if (requiredEducationLevel) {
-      const selectedEducation = String(requiredEducationLevel || formData.educationLevel || "").trim();
-      if (!selectedEducation) {
-        setError("Education level is required for this job");
-        return;
-      }
-      if (selectedEducation !== requiredEducationLevel) {
-        setError(`Education level must match the job requirement (${requiredEducationLevel})`);
-        return;
-      }
-    }
-
-    setSubmitting(true);
-    try {
-      const base = (process.env.NEXT_PUBLIC_API_URL as string) ?? '';
-      const url = base ? base.replace(/\/$/, '') + '/api/careers/apply' : '/api/careers/apply';
-      
-      const formDataToSend = new FormData();
-      formDataToSend.append('jobId', job.id);
-      formDataToSend.append('fullName', formData.fullName);
-      formDataToSend.append('email', formData.email);
-      formDataToSend.append('phone', formData.phone);
-      formDataToSend.append('region', formData.region);
-      formDataToSend.append('district', formData.district);
-      formDataToSend.append('coverLetter', formData.coverLetter);
-      if (formData.resume) {
-        formDataToSend.append('resume', formData.resume);
-      }
-      if (formData.portfolio) formDataToSend.append('portfolio', formData.portfolio);
-      if (formData.linkedIn) formDataToSend.append('linkedIn', formData.linkedIn);
-      if (formData.referredBy) formDataToSend.append('referredBy', formData.referredBy);
-
-      // Always submit these as top-level fields for persistence on JobApplication
-      if (formData.nationality) formDataToSend.append('nationality', formData.nationality.trim());
-      if (requiredEducationLevel || formData.educationLevel) {
-        formDataToSend.append('educationLevel', String(requiredEducationLevel || formData.educationLevel || '').trim());
-      }
-      if (formData.yearsOfExperience) formDataToSend.append('yearsOfExperience', String(formData.yearsOfExperience));
-      if (formData.languages.length > 0) formDataToSend.append('languages', JSON.stringify(formData.languages));
-
-      // Always submit specializations as part of agentApplicationData
-      // (required for all applications; for travel agent roles this also includes the richer agent profile fields)
-      const agentApplicationData = isTravelAgentPosition
-        ? {
-            nationality: formData.nationality.trim() || null,
-            region: formData.region.trim() || null,
-            district: formData.district.trim() || null,
-            educationLevel: (requiredEducationLevel || formData.educationLevel) || null,
-            yearsOfExperience: formData.yearsOfExperience ? parseInt(formData.yearsOfExperience) : null,
-            bio: formData.bio || null,
-            areasOfOperation: formData.areasOfOperation.length > 0 ? formData.areasOfOperation : null,
-            languages: formData.languages.length > 0 ? formData.languages : null,
-            specializations: formData.specializations.length > 0 ? formData.specializations : null,
-            certifications: formData.certifications.length > 0 ? formData.certifications : null,
-          }
-        : {
-            specializations: formData.specializations.length > 0 ? formData.specializations : null,
-          };
-      formDataToSend.append('agentApplicationData', JSON.stringify(agentApplicationData));
-
-      const response = await fetch(url, {
-        method: 'POST',
-        body: formDataToSend,
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || errorData.message || `HTTP ${response.status}`);
-      }
-
-      setSuccess(true);
-      setTimeout(() => {
-        onSuccess?.();
-        onClose();
-      }, 2000);
-    } catch (err: any) {
-      console.error('Application submission failed', err);
-      setError(err?.message || 'Failed to submit application. Please try again or email careers@nolsaf.com directly.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  if (success) {
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-        <div className="bg-white rounded-2xl p-8 max-w-md w-full mx-4 text-center">
-          <CheckCircle2 className="mx-auto mb-4 text-green-500" size={64} />
-          <h3 className="text-2xl font-bold text-gray-900 mb-2">Application Submitted!</h3>
-          <p className="text-gray-600 mb-6">
-            Thank you for applying to {job.title}. We'll review your application and get back to you soon.
-          </p>
-          <button
-            onClick={onClose}
-            className="w-full bg-[#02665e] text-white py-3 rounded-lg font-semibold hover:bg-[#024d47] transition-colors"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 overflow-y-auto overflow-x-hidden">
-      <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto overflow-x-hidden">
-        <div className="sticky top-0 bg-white border-b border-gray-200 p-4 sm:p-6 flex items-center justify-between gap-4">
-          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 break-words flex-1">Apply for {job.title}</h2>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0"
-          >
-            <X size={24} />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-6 overflow-x-hidden">
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-              {error}
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full box-border">
-            <div className="min-w-0">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Full Name <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={formData.fullName}
-                onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border"
-                placeholder="John Doe"
-              />
-            </div>
-
-            <div className="min-w-0">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Email <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="email"
-                required
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border"
-                placeholder="john@example.com"
-              />
-            </div>
-
-            <div className="min-w-0">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Phone <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="tel"
-                required
-                inputMode="tel"
-                pattern="^\+?[0-9]+$"
-                title="Use digits only, optionally starting with +"
-                value={formData.phone}
-                onChange={(e) => {
-                  const raw = e.target.value;
-                  const hasPlus = raw.trim().startsWith("+");
-                  const digitsOnly = raw.replace(/[^0-9]/g, "");
-                  const normalized = (hasPlus ? "+" : "") + digitsOnly;
-                  setFormData({ ...formData, phone: normalized.slice(0, 20) });
-                }}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border"
-                placeholder="+255123456789"
-              />
-            </div>
-
-            <div className="min-w-0">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                LinkedIn Profile <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="url"
-                required
-                value={formData.linkedIn}
-                onChange={(e) => setFormData({ ...formData, linkedIn: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border"
-                placeholder="https://linkedin.com/in/yourprofile"
-              />
-            </div>
-
-            <div className="min-w-0">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Region <span className="text-red-500">*</span>
-              </label>
-              <select
-                required
-                value={formData.region}
-                onChange={(e) => setFormData({ ...formData, region: e.target.value, district: "" })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border"
-              >
-                <option value="">Select region...</option>
-                {TZ_REGIONS.map((r) => (
-                  <option key={r.id} value={r.name}>
-                    {r.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="min-w-0">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                District <span className="text-red-500">*</span>
-              </label>
-              <select
-                required
-                value={formData.district}
-                onChange={(e) => setFormData({ ...formData, district: e.target.value })}
-                disabled={!formData.region}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border disabled:bg-gray-50 disabled:text-gray-400"
-              >
-                <option value="">{formData.region ? "Select district..." : "Select region first"}</option>
-                {districtsForSelectedRegion.map((d) => (
-                  <option key={d} value={d}>
-                    {d}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <>
-              <div className="min-w-0">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Nationality <span className="text-red-500">*</span>
-                </label>
-                <select
-                  required
-                  value={formData.nationality}
-                  onChange={(e) => setFormData({ ...formData, nationality: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border bg-white"
-                >
-                  <option value="">Select nationality...</option>
-                  <optgroup label="Top">
-                    {PINNED_NATIONALITIES.map((c) => (
-                      <option key={c.value} value={c.value}>
-                        {c.label}
-                      </option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="East Africa">
-                    {EAST_AFRICA_COUNTRIES.filter((c) => !PINNED_NATIONALITIES.some((p) => p.value === c.value)).map((c) => (
-                      <option key={c.value} value={c.value}>
-                        {c.label}
-                      </option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="Southern Africa">
-                    {SOUTHERN_AFRICA_COUNTRIES.map((c) => (
-                      <option key={c.value} value={c.value}>
-                        {c.label}
-                      </option>
-                    ))}
-                  </optgroup>
-                </select>
-              </div>
-
-              <div className="min-w-0">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Education Level{requiredEducationLevel ? " (Required)" : ""} <span className="text-red-500">*</span>
-                </label>
-                <select
-                  required
-                  value={requiredEducationLevel || formData.educationLevel}
-                  onChange={(e) => {
-                    if (requiredEducationLevel) return;
-                    setFormData({ ...formData, educationLevel: e.target.value });
-                  }}
-                  disabled={Boolean(requiredEducationLevel)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border"
-                >
-                  {requiredEducationLevel ? (
-                    <option value={requiredEducationLevel}>
-                      {EDUCATION_LABELS[requiredEducationLevel] || requiredEducationLevel.replace(/_/g, " ")}
-                    </option>
-                  ) : (
-                    <>
-                      <option value="">Select education level...</option>
-                      <option value="HIGH_SCHOOL">High School</option>
-                      <option value="DIPLOMA">Diploma</option>
-                      <option value="BACHELORS">Bachelors</option>
-                      <option value="MASTERS">Masters</option>
-                      <option value="PHD">PhD</option>
-                      <option value="OTHER">Other</option>
-                    </>
-                  )}
-                </select>
-                {requiredEducationLevel && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    This job requires: {EDUCATION_LABELS[requiredEducationLevel] || requiredEducationLevel.replace(/_/g, " ")}
-                  </p>
-                )}
-              </div>
-
-              <div className="min-w-0">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Years of Experience <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  max="80"
-                  required
-                  value={formData.yearsOfExperience}
-                  onChange={(e) => setFormData({ ...formData, yearsOfExperience: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border"
-                  placeholder="e.g., 5"
-                />
-              </div>
-
-              <div className="min-w-0 md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Specializations <span className="text-red-500">*</span>
-                </label>
-                <div className="flex gap-2">
-                  <select
-                    value={specializationInput}
-                    onChange={(e) => setSpecializationInput(e.target.value)}
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border bg-white"
-                  >
-                    <option value="">Select specialization</option>
-                    {AGENT_SPECIALIZATIONS.map((spec) => (
-                      <option key={spec} value={spec}>
-                        {spec}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={handleAddSpecialization}
-                    className="px-4 py-2 bg-[#02665e] text-white rounded-lg text-sm font-medium hover:bg-[#014d47] transition-colors"
-                  >
-                    Add
-                  </button>
-                </div>
-                {formData.specializations.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {formData.specializations.map((spec, idx) => (
-                      <span
-                        key={idx}
-                        className="inline-flex items-center gap-2 px-3 py-1 bg-green-50 text-green-700 rounded-lg text-sm"
-                      >
-                        {spec}
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveSpecialization(spec)}
-                          className="hover:text-green-900"
-                        >
-                          <XCircle className="h-4 w-4" />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </>
-          </div>
-
-          <div className="space-y-2 w-full box-border">
-            <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-              <Languages className="h-4 w-4 text-[#02665e]" />
-              Languages (Speak / Read / Write) <span className="text-red-500">*</span>
-            </label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                list="language-options"
-                value={languageInput}
-                onChange={(e) => setLanguageInput(e.target.value)}
-                onKeyPress={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    handleAddLanguage();
-                  }
-                }}
-                placeholder="Select or type a language (e.g., English)"
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border"
-              />
-              <datalist id="language-options">
-                {[
-                  "Swahili",
-                  "English",
-                  "French",
-                  "Arabic",
-                  "Portuguese",
-                  "Kinyarwanda",
-                  "Kirundi",
-                  "Luganda",
-                  "Luo",
-                  "Amharic",
-                  "Somali",
-                  "Afrikaans",
-                  "Zulu",
-                  "Shona",
-                  "Ndebele",
-                ].map((l) => (
-                  <option key={l} value={l} />
-                ))}
-              </datalist>
-              <button
-                type="button"
-                onClick={handleAddLanguage}
-                className="px-4 py-2 bg-[#02665e] text-white rounded-lg text-sm font-medium hover:bg-[#014d47] transition-colors"
-              >
-                Add
-              </button>
-            </div>
-            {formData.languages.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {formData.languages.map((lang, idx) => (
-                  <span
-                    key={idx}
-                    className="inline-flex items-center gap-2 px-3 py-1 bg-purple-50 text-purple-700 rounded-lg text-sm"
-                  >
-                    {lang}
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveLanguage(lang)}
-                      className="hover:text-purple-900"
-                    >
-                      <XCircle className="h-4 w-4" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="w-full box-border">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Resume/CV <span className="text-red-500">*</span>
-            </label>
-            <div className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-50/50 hover:bg-gray-50 hover:border-[#02665e] transition-all duration-200 w-full box-border">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".pdf,.doc,.docx"
-                onChange={handleFileChange}
-                className="hidden"
-              />
-              {formData.resume ? (
-                <div className="flex items-center justify-center gap-3 p-4 sm:p-5">
-                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-[#02665e]/10">
-                    <FileText className="text-[#02665e]" size={20} />
-                  </div>
-                  <span className="text-gray-700 font-medium text-sm sm:text-base flex-1 text-center truncate">{formData.resume.name}</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFormData({ ...formData, resume: null });
-                      if (fileInputRef.current) fileInputRef.current.value = '';
-                    }}
-                    className="p-1.5 rounded-full hover:bg-red-50 text-red-500 hover:text-red-700 transition-colors flex-shrink-0"
-                    aria-label="Remove file"
-                  >
-                    <X size={18} />
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="flex flex-col items-center justify-center gap-3 p-6 sm:p-8 w-full text-gray-600 hover:text-[#02665e] transition-colors"
-                >
-                  <div className="flex items-center justify-center w-12 h-12 rounded-full bg-white border-2 border-gray-300 hover:border-[#02665e] transition-colors">
-                    <Upload size={20} className="text-gray-500" />
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-sm sm:text-base font-medium">Click to upload or drag and drop</p>
-                    <p className="text-xs sm:text-sm text-gray-500">PDF, DOC, DOCX (Max 5MB)</p>
-                  </div>
-                </button>
-              )}
-            </div>
-          </div>
-
-          <div className="w-full box-border">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Tell us about yourself <span className="text-red-500">*</span>
-            </label>
-            <textarea
-              required
-              value={formData.coverLetter}
-              onChange={(e) => setFormData({ ...formData, coverLetter: e.target.value })}
-              rows={6}
-              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border resize-none ${
-                aboutTooLong ? "border-red-300" : aboutTooShort ? "border-amber-300" : "border-gray-300"
-              }`}
-              placeholder="Share a short summary about you, what you have accomplished, and what you can bring to this role..."
-            />
-            <div className="mt-2 flex items-center justify-between text-xs">
-              <span className={`font-medium ${aboutTooLong ? "text-red-600" : aboutTooShort ? "text-amber-700" : "text-gray-500"}`}>
-                {ABOUT_MIN_WORDS}–{ABOUT_MAX_WORDS} words
-              </span>
-              <span className={`${aboutTooLong ? "text-red-600" : "text-gray-500"}`}>
-                {aboutWords}/{ABOUT_MAX_WORDS}
-              </span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full box-border">
-            <div className="min-w-0">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Portfolio/Website (Optional)
-              </label>
-              <input
-                type="url"
-                value={formData.portfolio}
-                onChange={(e) => setFormData({ ...formData, portfolio: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border"
-                placeholder="https://yourportfolio.com"
-              />
-            </div>
-
-            <div className="min-w-0">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Referred By (Optional)
-              </label>
-              <input
-                type="text"
-                value={formData.referredBy}
-                onChange={(e) => setFormData({ ...formData, referredBy: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border"
-                placeholder="Name of employee who referred you"
-              />
-            </div>
-          </div>
-
-          {/* Agent-Specific Fields */}
-          {isTravelAgentPosition && (
-            <div className="space-y-6 pt-6 border-t border-gray-200">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                <p className="text-sm text-blue-800 font-medium">
-                  This is a Travel Agent position. Please provide additional information below.
-                </p>
-              </div>
-
-              {/* Experience */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                  <GraduationCap className="h-5 w-5 text-[#02665e]" />
-                  Experience
-                </h3>
-                <div className="min-w-0">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Bio/About You
-                  </label>
-                  <textarea
-                    value={formData.bio}
-                    onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
-                    rows={4}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border resize-none"
-                    placeholder="Tell us about your background and experience in travel..."
-                  />
-                </div>
-              </div>
-
-              {/* Skills & Expertise */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-900">Skills & Expertise</h3>
-                
-                {/* Areas of Operation */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-[#02665e]" />
-                    Areas of Operation
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={areaInput}
-                      onChange={(e) => setAreaInput(e.target.value)}
-                      onKeyPress={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          handleAddArea();
-                        }
-                      }}
-                      placeholder="Enter area (e.g., Dar es Salaam)"
-                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAddArea}
-                      className="px-4 py-2 bg-[#02665e] text-white rounded-lg text-sm font-medium hover:bg-[#014d47] transition-colors"
-                    >
-                      Add
-                    </button>
-                  </div>
-                  {formData.areasOfOperation.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {formData.areasOfOperation.map((area, idx) => (
-                        <span
-                          key={idx}
-                          className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-700 rounded-lg text-sm"
-                        >
-                          {area}
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveArea(area)}
-                            className="hover:text-blue-900"
-                          >
-                            <XCircle className="h-4 w-4" />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Certifications */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-900">Certifications</h3>
-                <div className="space-y-3 p-4 bg-gray-50 rounded-xl border border-gray-200">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                    <div className="min-w-0">
-                      <input
-                        type="text"
-                        value={certInput.name}
-                        onChange={(e) => setCertInput({ ...certInput, name: e.target.value })}
-                        placeholder="Certification name"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border text-sm"
-                      />
-                    </div>
-                    <div className="min-w-0">
-                      <input
-                        type="text"
-                        value={certInput.issuer}
-                        onChange={(e) => setCertInput({ ...certInput, issuer: e.target.value })}
-                        placeholder="Issuer"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border text-sm"
-                      />
-                    </div>
-                    <div className="min-w-0">
-                      <input
-                        type="text"
-                        value={certInput.year}
-                        onChange={(e) => setCertInput({ ...certInput, year: e.target.value })}
-                        placeholder="Year"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border text-sm"
-                      />
-                    </div>
-                    <div className="min-w-0">
-                      <input
-                        type="text"
-                        value={certInput.expiryDate}
-                        onChange={(e) => setCertInput({ ...certInput, expiryDate: e.target.value })}
-                        placeholder="Expiry date (optional)"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#02665e] focus:border-transparent box-border text-sm"
-                      />
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleAddCertification}
-                    className="px-4 py-2 bg-[#02665e] text-white rounded-lg text-sm font-medium hover:bg-[#014d47] transition-colors"
-                  >
-                    Add Certification
-                  </button>
-                </div>
-                {formData.certifications.length > 0 && (
-                  <div className="space-y-2">
-                    {formData.certifications.map((cert, idx) => (
-                      <div
-                        key={idx}
-                        className="flex items-center justify-between p-3 bg-amber-50 border border-amber-200 rounded-lg"
-                      >
-                        <div>
-                          <div className="font-medium text-amber-900">{cert.name}</div>
-                          <div className="text-sm text-amber-700">
-                            {cert.issuer} • {cert.year}
-                            {cert.expiryDate && ` • Expires: ${cert.expiryDate}`}
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveCertification(idx)}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          <XCircle className="h-5 w-5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          <div className="flex flex-col sm:flex-row gap-4 pt-4 w-full box-border">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 sm:px-6 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-colors min-w-0"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={submitting || aboutInvalid}
-              className="flex-1 px-4 sm:px-6 py-3 bg-[#02665e] text-white rounded-lg font-semibold hover:bg-[#024d47] transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-0"
-            >
-              {submitting ? "Submitting..." : "Submit Application"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
 function JobDetailModal({ job, onClose, onApply }: { job: Job; onClose: () => void; onApply: () => void }) {
   const formatSalary = (salary?: Job["salary"]) => {
     if (!salary || (!salary.min && !salary.max)) return "Competitive";
@@ -1163,6 +245,12 @@ function JobDetailModal({ job, onClose, onApply }: { job: Job; onClose: () => vo
       case "CONTRACT": return "bg-purple-50 text-purple-700 border-purple-200";
       case "INTERNSHIP": return "bg-yellow-50 text-yellow-700 border-yellow-200";
       case "FREELANCE": return "bg-orange-50 text-orange-700 border-orange-200";
+      case "PARTNERSHIP": return "bg-emerald-50 text-emerald-700 border-emerald-200";
+      case "AGENCY_AGREEMENT": return "bg-cyan-50 text-cyan-700 border-cyan-200";
+      case "RESELLER": return "bg-indigo-50 text-indigo-700 border-indigo-200";
+      case "AFFILIATE": return "bg-teal-50 text-teal-700 border-teal-200";
+      case "WHITE_LABEL": return "bg-slate-100 text-slate-700 border-slate-200";
+      default: return "bg-slate-50 text-slate-700 border-slate-200";
     }
   };
 
@@ -1345,7 +433,8 @@ export default function CareersPage() {
             postedDate: job.postedDate,
             applicationDeadline: job.applicationDeadline || undefined,
             experienceLevel: job.experienceLevel as "ENTRY" | "MID" | "SENIOR" | "LEAD",
-            featured: Boolean(job.featured) || false
+            featured: Boolean(job.featured) || false,
+            isTravelAgentPosition: Boolean(job.isTravelAgentPosition),
           }));
           setJobs(fetchedJobs);
         }
@@ -1549,6 +638,11 @@ export default function CareersPage() {
     { value: "CONTRACT", label: "Contract" },
     { value: "INTERNSHIP", label: "Internship" },
     { value: "FREELANCE", label: "Freelance" },
+    { value: "PARTNERSHIP", label: "Partnership" },
+    { value: "AGENCY_AGREEMENT", label: "Agency Agreement" },
+    { value: "RESELLER", label: "Reseller" },
+    { value: "AFFILIATE", label: "Affiliate" },
+    { value: "WHITE_LABEL", label: "White Label" },
   ];
 
   const locations: Array<{ value: JobLocation | "ALL"; label: string }> = [
@@ -1969,13 +1063,13 @@ export default function CareersPage() {
 
       {/* Application Form Modal */}
       {selectedJob && showApplicationForm && (
-        <ApplicationForm
+        <CareersApplicationForm
           job={selectedJob}
-          onClose={() => {
+          onCloseAction={() => {
             setShowApplicationForm(false);
             setSelectedJob(null);
           }}
-          onSuccess={() => {
+          onSuccessAction={() => {
             setShowApplicationForm(false);
             setSelectedJob(null);
           }}

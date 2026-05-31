@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from "react";
 import { Bell, AlertCircle, Info, AlertTriangle, Shield, Calendar, FileWarning, CheckCircle, X, ExternalLink, Clock } from "lucide-react";
 import { useRouter } from "next/navigation";
 import apiClient from "@/lib/apiClient";
+import { fetchAccountSession } from "@/lib/accountSession";
 import { io, Socket } from "socket.io-client";
 
 const api = apiClient;
@@ -75,8 +76,8 @@ export default function DriverRemindersPage() {
     socket.on("connect", async () => {
       console.log("Socket connected for reminders");
       try {
-        const me = await fetch("/api/account/me", { credentials: "include" }).then((r) => (r.ok ? r.json() : null));
-        if (me?.id) socket.emit("join-driver-room", { driverId: me.id });
+        const me = await fetchAccountSession();
+        if (me.data?.id) socket.emit("join-driver-room", { driverId: me.data.id });
       } catch {
         // ignore
       }

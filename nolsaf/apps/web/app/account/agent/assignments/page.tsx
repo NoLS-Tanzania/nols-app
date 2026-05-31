@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import apiClient from "@/lib/apiClient";
+import { fetchAccountSession } from "@/lib/accountSession";
 import { ClipboardList, Calendar, User, ArrowRight, AlertCircle } from "lucide-react";
 import LogoSpinner from "@/components/LogoSpinner";
 
@@ -49,8 +50,13 @@ export default function AgentAssignmentsPage() {
         setError(null);
         setAuthRequired(false);
 
-        // Ensure user is authenticated.
-        await api.get("/api/account/me");
+        // Ensure user is authenticated without loading the full profile payload.
+        const session = await fetchAccountSession();
+        if (!session.ok) {
+          setAuthRequired(true);
+          setItems([]);
+          return;
+        }
 
         const res = await api.get("/api/agent/assignments").catch(() => ({ data: { items: [] } }));
         if (!alive) return;

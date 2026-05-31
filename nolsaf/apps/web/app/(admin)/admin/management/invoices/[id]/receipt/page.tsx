@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { ArrowLeft, Download } from "lucide-react";
 import { sanitizeTrustedHtml } from "@/utils/html";
 import LogoSpinner from "@/components/LogoSpinner";
+import { fetchAccountSession } from "@/lib/accountSession";
 
 export default function AdminReceiptPdfPage() {
   const routeParams = useParams<{ id?: string | string[] }>();
@@ -72,9 +73,7 @@ export default function AdminReceiptPdfPage() {
     let mounted = true;
     (async () => {
       try {
-        const r = await fetch("/api/account/me", { credentials: "include", cache: "no-store" });
-        const j = r.ok ? await r.json() : null;
-        const safe = j?.data ?? j ?? null;
+        const safe = (await fetchAccountSession({ cache: "no-store" })).data;
         const name = safe?.name || safe?.fullName || null;
         const role = safe?.role || null;
         const id = safe?.id || null;

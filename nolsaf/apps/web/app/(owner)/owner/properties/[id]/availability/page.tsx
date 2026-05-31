@@ -142,15 +142,6 @@ function addDays(d: Date, days: number) {
   return copy;
 }
 
-// Helper to get auth token.
-// httpOnly cookies are forwarded automatically via withCredentials: true.
-function getAuthToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  // Only check readable cookies here as a transitional fallback.
-  const m = String(document.cookie || "").match(/(?:^|;\s*)(?:nolsaf_token|__Host-nolsaf_token|token)=([^;]+)/);
-  return m?.[1] ? decodeURIComponent(m[1]) : null;
-}
-
 type AvailabilityBlock = {
   id: number;
   propertyId: number;
@@ -372,20 +363,10 @@ export default function PropertyAvailabilityPage() {
     if (isNaN(propertyId)) return;
 
     const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000";
-    const token = getAuthToken();
 
     const newSocket = io(socketUrl.replace(/\/$/, ""), {
       transports: ["websocket", "polling"],
       withCredentials: true,
-      ...(token ? {
-        transportOptions: {
-          polling: {
-            extraHeaders: {
-              Authorization: `Bearer ${token}`
-            }
-          }
-        }
-      } : {}),
     });
 
     newSocket.on("connect", () => {
@@ -728,8 +709,89 @@ export default function PropertyAvailabilityPage() {
 
   if ((loading && !calendarData) || propertyLoading) {
     return (
-      <div className="flex items-center justify-center py-24">
-        <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+      <div className="relative min-h-screen overflow-hidden rounded-3xl border border-white/5 bg-slate-950">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute -top-40 left-1/2 h-[560px] w-[860px] -translate-x-1/2 rounded-full bg-emerald-500/15 blur-3xl" />
+          <div className="absolute bottom-0 left-0 h-[420px] w-[520px] rounded-full bg-sky-500/10 blur-3xl" />
+        </div>
+
+        <div className="relative mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+          <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
+            <div className="h-10 w-24 rounded-xl bg-white/8 animate-pulse" />
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="h-10 w-28 rounded-xl bg-white/8 animate-pulse" />
+              <div className="h-10 w-28 rounded-xl bg-white/8 animate-pulse" />
+              <div className="h-10 w-32 rounded-xl bg-emerald-500/20 animate-pulse" />
+            </div>
+          </div>
+
+          <div className="mb-8 rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl shadow-black/20 backdrop-blur-sm">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+              <div className="h-16 w-16 rounded-2xl bg-white/10 animate-pulse" />
+              <div className="flex-1 space-y-3">
+                <div className="h-4 w-40 rounded-full bg-white/10 animate-pulse" />
+                <div className="h-8 w-72 rounded-full bg-white/12 animate-pulse" />
+                <div className="h-4 w-full max-w-2xl rounded-full bg-white/8 animate-pulse" />
+              </div>
+              <div className="flex gap-2 sm:flex-col sm:items-end">
+                <div className="h-8 w-24 rounded-full bg-white/10 animate-pulse" />
+                <div className="h-8 w-28 rounded-full bg-white/10 animate-pulse" />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div key={index} className="overflow-hidden rounded-3xl border border-white/10 bg-slate-900 shadow-xl shadow-black/25">
+                <div className="h-36 bg-white/8 animate-pulse" />
+                <div className="p-5">
+                  <div className="mb-4 flex items-start justify-between gap-3">
+                    <div className="space-y-2">
+                      <div className="h-5 w-40 rounded-full bg-white/10 animate-pulse" />
+                      <div className="h-4 w-56 rounded-full bg-white/8 animate-pulse" />
+                    </div>
+                    <div className="h-7 w-20 rounded-full bg-white/10 animate-pulse" />
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3 mb-4">
+                    {Array.from({ length: 3 }).map((_, statIndex) => (
+                      <div key={statIndex} className="rounded-2xl border border-white/8 bg-white/5 px-3 py-3">
+                        <div className="h-3 w-14 rounded-full bg-white/8 animate-pulse" />
+                        <div className="mt-3 h-6 w-12 rounded-full bg-white/10 animate-pulse" />
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="rounded-2xl border border-white/8 bg-white/4 overflow-hidden">
+                    <div className="grid grid-cols-4 px-3 py-2 border-b border-white/8 bg-white/5">
+                      {Array.from({ length: 4 }).map((_, headIndex) => (
+                        <div key={headIndex} className="h-3 rounded-full bg-white/8 animate-pulse" />
+                      ))}
+                    </div>
+                    {Array.from({ length: 2 }).map((_, rowIndex) => (
+                      <div key={rowIndex} className="grid grid-cols-4 gap-3 px-3 py-3 border-t border-white/8">
+                        <div className="h-4 rounded-full bg-white/10 animate-pulse" />
+                        <div className="h-4 rounded-full bg-white/8 animate-pulse" />
+                        <div className="h-4 rounded-full bg-white/8 animate-pulse" />
+                        <div className="h-4 rounded-full bg-white/8 animate-pulse" />
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-4 flex items-center justify-between">
+                    <div className="h-3 w-28 rounded-full bg-white/8 animate-pulse" />
+                    <div className="h-9 w-24 rounded-xl bg-emerald-500/20 animate-pulse" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-10 flex items-center justify-center gap-3 text-sm text-white/45">
+            <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
+            <span>Loading room availability…</span>
+          </div>
+        </div>
       </div>
     );
   }

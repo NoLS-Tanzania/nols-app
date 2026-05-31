@@ -312,7 +312,7 @@ export default function PropertyEditModal({ property, isOpen, onClose, onSave }:
                           <div className="flex-1 min-w-0">
                             <div className="font-medium text-sm text-slate-900">Use System Default</div>
                             <div className="text-xs text-slate-600">
-                              Commission: {systemCommission}% (from Management Settings)
+                              Property Commission: {systemCommission}% (from Management Settings → Property Commission)
                             </div>
                           </div>
                         </motion.label>

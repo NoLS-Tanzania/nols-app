@@ -20,6 +20,7 @@ import { isEmailLocked, recordFailedAttempt, clearFailedAttempts, getRemainingAt
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { buildDriverCaseRef } from '../lib/driverCaseRef.js';
 import { getRedis } from '../lib/redis.js';
+import { invalidateAuthSessionCacheForToken } from '../lib/authSessionCache.js';
 
 const router = Router();
 
@@ -113,6 +114,24 @@ function maskPhoneForAudit(phone: string): string {
   const value = String(phone || "");
   if (value.length <= 4) return "******";
   return `******${value.slice(-4)}`;
+}
+
+function getAuthTokenFromRequest(req: any): string | null {
+  const authHeader = String(req.headers?.authorization || "");
+  if (authHeader.startsWith("Bearer ")) return authHeader.slice(7);
+  const rawCookie = String(req.headers?.cookie || "");
+  for (const part of rawCookie.split(";")) {
+    const [name, ...rest] = part.trim().split("=");
+    if (name === "nolsaf_token" || name === "__Host-nolsaf_token" || name === "token" || name === "__Host-token") {
+      const value = rest.join("=");
+      try {
+        return decodeURIComponent(value);
+      } catch {
+        return value;
+      }
+    }
+  }
+  return null;
 }
 
 function authOtpUse(normalizedRole: string | null): "AUTH_LOGIN" | "AUTH_RESET" | "AUTH_SIGNUP" {
@@ -1026,6 +1045,7 @@ function safeNextPath(raw: any): string {
 // GET /api/auth/logout?next=/account/login
 // Useful for reliable cookie clearing via top-level navigation.
 router.get("/logout", maybeAuth, async (req, res) => {
+  const token = getAuthTokenFromRequest(req);
   try {
     const userId = (req as any).user?.id;
     if (userId) {
@@ -1043,12 +1063,14 @@ router.get("/logout", maybeAuth, async (req, res) => {
     console.warn("Failed to audit logout:", auditError);
   }
 
+  if (token) await invalidateAuthSessionCacheForToken(token).catch(() => {});
   clearAuthCookie(res);
   const next = safeNextPath((req as any)?.query?.next);
   return res.redirect(302, next);
 });
 
 router.post("/logout", maybeAuth, async (req, res) => {
+  const token = getAuthTokenFromRequest(req);
   // Audit logout if user is authenticated
   try {
     const userId = (req as any).user?.id;
@@ -1067,6 +1089,7 @@ router.post("/logout", maybeAuth, async (req, res) => {
     console.warn("Failed to audit logout:", auditError);
   }
   
+  if (token) await invalidateAuthSessionCacheForToken(token).catch(() => {});
   clearAuthCookie(res);
   return res.json({ ok: true });
 });
@@ -1604,14 +1627,74 @@ router.post('/profile', upload.none(), async (req, res) => {
   }
 });
 
-// ─── Passkey sign-in (unauthenticated) ───────────────────────────────────────
+// ─── Passkey sign-in (unauthenticated) ──────────────────
 
 const passkeyLoginChallenges = new Map<string, { challenge: string; expiresAt: number }>();
+const PASSKEY_LOGIN_CHALLENGE_TTL_SEC = 2 * 60;
+const REDIS_PASSKEY_LOGIN_CHALLENGE_PREFIX = 'auth:passkey:login:';
+
+async function storePasskeyLoginChallenge(sessionId: string, challenge: string): Promise<void> {
+  const expiresAt = Date.now() + PASSKEY_LOGIN_CHALLENGE_TTL_SEC * 1000;
+  const payload = JSON.stringify({ challenge, expiresAt });
+  try {
+    const r = getRedis();
+    if (r) {
+      await r.set(`${REDIS_PASSKEY_LOGIN_CHALLENGE_PREFIX}${sessionId}`, payload, 'EX', PASSKEY_LOGIN_CHALLENGE_TTL_SEC);
+      return;
+    }
+  } catch {
+    // Ignore and fall back to in-memory challenge store.
+  }
+  passkeyLoginChallenges.set(sessionId, { challenge, expiresAt });
+}
+
+async function getPasskeyLoginChallenge(sessionId: string): Promise<{ challenge: string; expiresAt: number } | null> {
+  try {
+    const r = getRedis();
+    if (r) {
+      const raw = await r.get(`${REDIS_PASSKEY_LOGIN_CHALLENGE_PREFIX}${sessionId}`);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as { challenge?: string; expiresAt?: number };
+      if (!parsed?.challenge || typeof parsed?.expiresAt !== 'number') return null;
+      return { challenge: parsed.challenge, expiresAt: parsed.expiresAt };
+    }
+  } catch {
+    // Ignore and fall back to in-memory challenge store.
+  }
+
+  const fallback = passkeyLoginChallenges.get(sessionId) || null;
+  if (!fallback) return null;
+  if (fallback.expiresAt < Date.now()) {
+    passkeyLoginChallenges.delete(sessionId);
+    return null;
+  }
+  return fallback;
+}
+
+async function deletePasskeyLoginChallenge(sessionId: string): Promise<void> {
+  try {
+    const r = getRedis();
+    if (r) {
+      await r.del(`${REDIS_PASSKEY_LOGIN_CHALLENGE_PREFIX}${sessionId}`);
+    }
+  } catch {
+    // Ignore delete errors; in-memory entry is still cleared below.
+  }
+  passkeyLoginChallenges.delete(sessionId);
+}
 
 function fromBase64UrlToBuffer(s: string): Buffer {
   s = s.replace(/-/g, '+').replace(/_/g, '/');
   while (s.length % 4) s += '=';
   return Buffer.from(s, 'base64');
+}
+
+function toBase64UrlFromBuffer(buf: Buffer): string {
+  return buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function normalizeBase64Url(input: unknown): string {
+  return String(input ?? '').trim().replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 }
 
 /** POST /api/auth/passkeys/options — returns WebAuthn authentication options (discoverable) */
@@ -1628,14 +1711,10 @@ router.post('/passkeys/options', async (req, res) => {
     });
 
     const sessionId = crypto.randomBytes(16).toString('hex');
-    passkeyLoginChallenges.set(sessionId, {
-      challenge: (options as any).challenge as string,
-      expiresAt: Date.now() + 2 * 60 * 1000, // 2-minute window
-    });
+    await storePasskeyLoginChallenge(sessionId, (options as any).challenge as string);
 
     return res.json({ sessionId, publicKey: options });
-  } catch (e) {
-    console.error('[passkeys/options] error', e);
+  } catch {
     return res.status(500).json({ error: 'failed' });
   }
 });
@@ -1646,24 +1725,44 @@ router.post('/passkeys/verify', async (req, res) => {
     const { sessionId, response } = (req.body ?? {}) as any;
     if (!sessionId || !response) return res.status(400).json({ error: 'invalid payload' });
 
-    const entry = passkeyLoginChallenges.get(String(sessionId));
+    const entry = await getPasskeyLoginChallenge(String(sessionId));
     if (!entry) return res.status(400).json({ error: 'session expired or not found' });
     if (entry.expiresAt < Date.now()) {
-      passkeyLoginChallenges.delete(String(sessionId));
+      await deletePasskeyLoginChallenge(String(sessionId));
       return res.status(400).json({ error: 'challenge expired' });
     }
 
-    const credId: string = response.id || response.rawId;
+    const credId = normalizeBase64Url(response.id || response.rawId);
     if (!credId) return res.status(400).json({ error: 'missing credential id' });
+
+    const candidateCredentialIds = new Set<string>();
+    if (credId) candidateCredentialIds.add(credId);
+
+    const rawIdNorm = normalizeBase64Url(response.rawId);
+    if (rawIdNorm) {
+      candidateCredentialIds.add(rawIdNorm);
+      try {
+        const rawBuf = fromBase64UrlToBuffer(rawIdNorm);
+        candidateCredentialIds.add(toBase64UrlFromBuffer(rawBuf));
+      } catch {
+        // ignore malformed rawId conversions
+      }
+    }
 
     // Look up passkey by credentialId
     let stored: any = null;
     try {
       if ((prisma as any).passkey) {
-        stored = await (prisma as any).passkey.findFirst({ where: { credentialId: credId } });
+        stored = await (prisma as any).passkey.findFirst({
+          where: { credentialId: { in: Array.from(candidateCredentialIds) } },
+        });
       }
     } catch { /* ignore */ }
-    if (!stored) return res.status(400).json({ error: 'credential not found' });
+    if (!stored) {
+      return res.status(400).json({
+        error: 'You dont have the Passkey try signing with another option and add passkey after login',
+      });
+    }
 
     const origin = process.env.WEB_ORIGIN || process.env.APP_ORIGIN || 'http://localhost:3000';
     const rpID = new URL(origin).hostname;
@@ -1675,22 +1774,21 @@ router.post('/passkeys/verify', async (req, res) => {
         expectedChallenge: entry.challenge,
         expectedOrigin: origin,
         expectedRPID: rpID,
-        credential: {
-          id: stored.credentialId,
-          publicKey: fromBase64UrlToBuffer(stored.publicKey),
+        authenticator: {
+          credentialID: stored.credentialId,
+          credentialPublicKey: fromBase64UrlToBuffer(stored.publicKey),
           counter: typeof stored.signCount === 'number' ? stored.signCount : 0,
         },
         requireUserVerification: false,
       } as any);
     } catch (e) {
       const details = String((e as any)?.message ?? e);
-      console.error('[passkeys/verify] verifyAuthenticationResponse threw:', details);
       return res.status(400).json({ error: 'verification failed', details: process.env.NODE_ENV !== 'production' ? details : undefined });
     }
 
     if (!verification?.verified) return res.status(400).json({ error: 'verification failed' });
 
-    passkeyLoginChallenges.delete(String(sessionId));
+    await deletePasskeyLoginChallenge(String(sessionId));
 
     // Update sign count
     const newCounter = verification.authenticationInfo?.newCounter ?? verification.authenticationInfo?.counter;
@@ -1717,8 +1815,7 @@ router.post('/passkeys/verify', async (req, res) => {
     await setAuthCookie(res, token, (user as any).role);
 
     return res.json({ ok: true, user: { id: (user as any).id, role: (user as any).role } });
-  } catch (e) {
-    console.error('[passkeys/verify] error', e);
+  } catch {
     return res.status(500).json({ error: 'failed' });
   }
 });

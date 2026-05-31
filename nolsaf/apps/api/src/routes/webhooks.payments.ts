@@ -24,8 +24,9 @@ import { getBookingReceivedEmail } from "../lib/bookingEmailTemplates.js";
 import { generateBookingReservationPdf } from "../lib/bookingPdfGen.js";
 import crypto from "crypto";
 import { generateBookingCodeForBooking } from "../lib/bookingCodeService.js";
-import rateLimit from "express-rate-limit";
+import { rateLimitWithRedis as rateLimit } from "../lib/redisRateLimitStore.js";
 import { safeEq } from "../lib/signature.js";
+import { normalizePhone } from "../lib/azampay.helpers.js";
 
 const router = Router();
 
@@ -200,7 +201,7 @@ function nextReceiptNumber(prefix = "RCPT", seq: number) {
   return `${prefix}/${y}/${String(seq).padStart(5, "0")}`;
 }
 
-async function markInvoicePaid(invId: number, method: string, paymentRef: string, phoneNumber?: string, provider?: string) {
+async function markInvoicePaid(invId: number, method: string, paymentRef: string, phoneNumber?: string, provider?: string, transactionId?: string) {
   const inv = await prisma.invoice.findUnique({
     where: { id: invId },
     include: { booking: { include: { property: true } } },
@@ -236,6 +237,8 @@ async function markInvoicePaid(invId: number, method: string, paymentRef: string
       paidAt: new Date(),
       paymentMethod: finalPaymentMethod,
       paymentRef: paymentRef || inv.paymentRef,
+      checkoutSessionId: transactionId || inv.checkoutSessionId,
+      payerPhone:        phoneNumber  || inv.payerPhone,
       receiptNumber,
       receiptQrPayload: qrPayload,
       receiptQrPng: png,
@@ -426,12 +429,52 @@ function near(a: number, b: number): boolean {
   return Math.abs(a - b) <= absTolerance;
 }
 
+// ── Webhook security helpers (exported for unit tests) ─────────
+
+/**
+ * Check whether a client IP is in the configured allowlist.
+ * Returns true when no allowlist is configured (empty → allow all).
+ * Strips IPv4-mapped IPv6 prefix (::ffff:) before comparing.
+ */
+export function isWebhookIpAllowed(clientIp: string, allowedIps: string[]): boolean {
+  if (allowedIps.length === 0) return true;
+  const normalized = clientIp.replace("::ffff:", "");
+  return allowedIps.includes(normalized);
+}
+
+/**
+ * Detect the AzamPay payment channel from a webhook payload.
+ * Returns "MNO", "BANK", "CARD", or null (unknown).
+ */
+export function detectPaymentChannel(payload: any): "MNO" | "BANK" | "CARD" | null {
+  const p = String(payload.provider || payload.paymentMethod || "").toLowerCase();
+  if (["airtel", "m-pesa", "mixx", "halopesa", "vodacom", "tigo"].some((x) => p.includes(x)))
+    return "MNO";
+  if (p === "card" || payload.cardType || payload.maskedPan)
+    return "CARD";
+  const bankCodes = ["crdb","nmb","nbc","stanbic","equity","im","absa","tcb","boa","dtb","uba","azania","kcb","ncba","yetu"];
+  if (bankCodes.some((b) => p.includes(b)))
+    return "BANK";
+  // Presence of msisdn/phone strongly implies MNO
+  if (payload.msisdn || payload.phoneNumber || String(payload.accountNumber || "").startsWith("+255"))
+    return "MNO";
+  return null;
+}
+
 /**
  * POST /webhooks/azampay
  * AzamPay webhook handler with signature verification
  */
 router.post("/azampay", webhookLimiter, async (req: any, res) => {
   try {
+    // ── Optional IP allowlist check ────
+    const allowedIps = (process.env.AZAMPAY_WEBHOOK_ALLOWED_IPS || "")
+      .split(",").map((s) => s.trim()).filter(Boolean);
+    if (!isWebhookIpAllowed(String(req.ip || ""), allowedIps)) {
+      console.warn("[Webhook] Request from non-allowlisted IP rejected");
+      return res.status(403).json({ ok: false, error: "forbidden" });
+    }
+
     // Reject non-JSON content types immediately (before touching body)
     const ct = req.header("content-type") || "";
     if (!ct.includes("application/json") && !ct.includes("text/plain")) {
@@ -466,19 +509,41 @@ router.post("/azampay", webhookLimiter, async (req: any, res) => {
 
     const payload = JSON.parse(rawBody);
 
+    // ── Optional timestamp replay protection ────────
+    if (process.env.AZAMPAY_WEBHOOK_ENFORCE_TIMESTAMP === "true") {
+      const tsRaw = payload.timestamp ?? payload.createdAt ?? null;
+      if (tsRaw) {
+        const tsMs = Number(tsRaw) < 1e12 ? Number(tsRaw) * 1000 : Number(tsRaw);
+        if (Number.isFinite(tsMs) && Math.abs(Date.now() - tsMs) > 5 * 60 * 1000) {
+          console.warn("[Webhook] Stale timestamp rejected");
+          return res.status(400).json({ ok: false, error: "stale_request" });
+        }
+      }
+    }
+
     // Normalize AzamPay payload
-    const eventId = payload.transactionId || payload.id || payload.externalId;
+    const eventId    = payload.transactionId || payload.id || payload.externalId;
     const paymentRef = payload.externalId || payload.referenceId || payload.orderId;
-    const amount = Math.round(Number(payload.amount || payload.transactionAmount || 0));
-    const status = payload.status || payload.transactionStatus || "UNKNOWN";
-    
-    // Map AzamPay status to our status
+    const amount     = Math.round(Number(payload.amount || payload.transactionAmount || 0));
+    const status     = payload.status || payload.transactionStatus || "UNKNOWN";
+
+    // Map AzamPay status to our internal status
     let normalizedStatus: "SUCCESS" | "FAILED" | "PENDING" = "PENDING";
     if (/success|completed|paid|approved/i.test(status)) {
       normalizedStatus = "SUCCESS";
     } else if (/failed|cancelled|rejected|declined/i.test(status)) {
       normalizedStatus = "FAILED";
     }
+
+    // ── Detect channel, extract phone and raw status ─────
+    const paymentChannel  = detectPaymentChannel(payload);
+    const rawStatusStr    = String(status).slice(0, 80) || null;
+    const phone           = normalizePhone(
+      payload.msisdn || payload.phoneNumber || payload.accountNumber || ""
+    );
+    const checkoutUrlFromWebhook: string | null = payload.checkoutUrl
+      ? String(payload.checkoutUrl).slice(0, 2048)
+      : null;
 
     if (!eventId) {
       return res.status(400).json({ ok: false, error: "Missing eventId/transactionId" });
@@ -497,7 +562,13 @@ router.post("/azampay", webhookLimiter, async (req: any, res) => {
       // Status changed (e.g. PENDING → SUCCESS): update in place
       const updated = await prisma.paymentEvent.update({
         where: { id: existing.id },
-        data: { status: normalizedStatus },
+        data:  {
+          status:    normalizedStatus,
+          rawStatus: rawStatusStr ?? undefined,
+          // Only backfill channel if it was not already recorded
+          ...(existing.paymentChannel ? {} : { paymentChannel: paymentChannel ?? undefined }),
+          ...(existing.phone          ? {} : { phone: phone ?? undefined }),
+        },
       });
       // Still run the paid-invoice logic below using the updated record id
       // by falling through with `recorded = updated`
@@ -513,21 +584,50 @@ router.post("/azampay", webhookLimiter, async (req: any, res) => {
       });
     }
 
+    // Also find tour booking by paymentRef (runs in parallel path when no invoice found)
+    let tourBooking = null as any;
+    if (!invoice && paymentRef) {
+      tourBooking = await prisma.tourBooking.findFirst({
+        where: { paymentRef: paymentRef.toString() },
+        select: {
+          id: true,
+          bookingCode: true,
+          grossAmount: true,
+          currency: true,
+          guestName: true,
+          guestPhone: true,
+          guestEmail: true,
+          paymentStatus: true,
+          status: true,
+          operatorAgentId: true,
+          title: true,
+          destination: true,
+          startDate: true,
+          travelerCount: true,
+        },
+      });
+    }
+
     // Record the payment event (only if not already existing)
     const recorded = existing ?? await prisma.paymentEvent.create({
       data: {
-        provider: "AZAMPAY",
-        eventId: eventId.toString(),
-        invoiceId: invoice?.id ?? null,
-        amount: amount,
-        currency: payload.currency || "TZS",
-        status: normalizedStatus,
+        provider:       "AZAMPAY",
+        eventId:        eventId.toString(),
+        invoiceId:      invoice?.id ?? null,
+        tourBookingId:  tourBooking?.id ?? null,
+        amount,
+        currency:       payload.currency || "TZS",
+        status:         normalizedStatus,
+        paymentChannel: paymentChannel ?? undefined,
+        phone:          phone ?? undefined,
+        rawStatus:      rawStatusStr ?? undefined,
+        checkoutUrl:    checkoutUrlFromWebhook ?? undefined,
         // Store only reconciliation fields — not full raw payload (PII)
         payload: {
           transactionId: eventId,
-          paymentRef: paymentRef ?? null,
-          status: payload.status ?? null,
-          provider: payload.provider ?? null,
+          paymentRef:    paymentRef ?? null,
+          status:        payload.status ?? null,
+          provider:      payload.provider ?? null,
         },
       },
     });
@@ -549,7 +649,8 @@ router.post("/azampay", webhookLimiter, async (req: any, res) => {
           "AZAMPAY",
           paymentRef || eventId.toString(),
           phoneNumber || undefined,
-          provider || undefined
+          provider || undefined,
+          eventId.toString()
         );
 
         // Generate booking code (idempotent — safe to call even if code already exists)
@@ -648,6 +749,68 @@ router.post("/azampay", webhookLimiter, async (req: any, res) => {
           `[WEBHOOK] Amount mismatch on invoice ${invoice?.id ?? "?"}: ` +
           `expected ${want} TZS, received ${amount} TZS ` +
           `(diff ${Math.abs(amount - want)} TZS). Invoice NOT marked paid.`
+        );
+      }
+    }
+
+    // ── Tour booking payment success ──────────────────────────────────────────
+    if (tourBooking && normalizedStatus === "SUCCESS" && tourBooking.paymentStatus !== "PAID") {
+      const want = Math.round(Number(tourBooking.grossAmount));
+      if (near(amount, want)) {
+        try {
+          await prisma.tourBooking.update({
+            where: { id: tourBooking.id },
+            data: {
+              paymentStatus: "PAID",
+              status: "CONFIRMED",
+              paidAt: new Date(),
+              paymentProvider: "AZAMPAY",
+            },
+          });
+
+          // Notify agent (operator)
+          const agent = await prisma.agent.findUnique({
+            where: { id: tourBooking.operatorAgentId },
+            select: { userId: true },
+          });
+          if (agent?.userId) {
+            try {
+              await prisma.notification.create({
+                data: {
+                  userId: agent.userId,
+                  title: "New paid tour booking",
+                  body:
+                    `Tour booking ${tourBooking.bookingCode} has been paid. ` +
+                    `Guest: ${tourBooking.guestName || "Unknown"}. ` +
+                    `Amount: ${tourBooking.currency} ${want.toLocaleString("en-US")}.`,
+                  type: "tour_booking",
+                  meta: { kind: "tour_booking_paid", tourBookingId: tourBooking.id, bookingCode: tourBooking.bookingCode },
+                },
+              });
+            } catch { /* non-fatal */ }
+          }
+
+          // SMS to guest
+          if (tourBooking.guestPhone) {
+            try {
+              const smsText =
+                `NoLSAF: Tour Booking Confirmed!\n` +
+                `Ref: ${tourBooking.bookingCode}\n` +
+                `Tour: ${String(tourBooking.title || "").slice(0, 40)}\n` +
+                (tourBooking.destination ? `Destination: ${String(tourBooking.destination).slice(0, 30)}\n` : "") +
+                `Travelers: ${tourBooking.travelerCount}\n` +
+                `Paid: ${tourBooking.currency} ${want.toLocaleString("en-US")}\n` +
+                `Keep this ref. support@nolsaf.com`;
+              await sendSms(tourBooking.guestPhone, smsText);
+            } catch { /* non-fatal */ }
+          }
+        } catch (tourErr) {
+          console.error(`[WEBHOOK] Failed to mark tour booking ${tourBooking.id} as paid:`, (tourErr as any)?.message ?? tourErr);
+        }
+      } else {
+        console.warn(
+          `[WEBHOOK] Amount mismatch on tour booking ${tourBooking.id}: ` +
+          `expected ${want} TZS, received ${amount} TZS.`
         );
       }
     }

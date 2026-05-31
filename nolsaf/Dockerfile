@@ -1,7 +1,7 @@
 # NoLSAF API Dockerfile (for Render)
 # Builds the monorepo workspaces needed by the API and runs the API server.
 
-FROM node:20-bookworm-slim
+FROM node:22-bookworm-slim
 
 # Keep npm version consistent with the repo lockfile
 RUN npm i -g npm@11.6.1

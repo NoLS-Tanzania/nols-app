@@ -4,7 +4,8 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import Image from "next/image";
 import { Bell, LifeBuoy, Settings as SettingsIcon, RefreshCw, Download, Sliders, Plus, FileText, Shield, Lock, Truck, User, Gift, Calendar, LogOut, ChevronDown, Trophy, Share2, Building2, CheckCircle, Home, DollarSign, LayoutDashboard, Clock } from "lucide-react";
 import dynamic from 'next/dynamic';
-import apiClient, { clearAuthToken } from "@/lib/apiClient";
+import { clearAuthToken } from "@/lib/apiClient";
+import { fetchAccountSession } from "@/lib/accountSession";
 const LegalModal = dynamic(() => import('@/components/LegalModal'), { ssr: false });
 import ClientErrorBoundary from '@/components/ClientErrorBoundary';
 
@@ -181,15 +182,19 @@ export default function SiteHeader({
 
     // fetch user profile to get avatar/name/email
     (async () => {
+      const ac = new AbortController();
+      const t = window.setTimeout(() => ac.abort(), 8_000);
       try {
-        const response = await apiClient.get("/api/account/me", { timeout: 8_000 });
-        const data = response.data?.data ?? response.data;
+        const response = await fetchAccountSession({ signal: ac.signal });
+        const data = response.data;
         if (data?.avatarUrl) setAvatarUrl(data.avatarUrl);
-        const displayName = data?.fullName || data?.name || data?.email;
+        const displayName = data?.displayName || data?.fullName || data?.name || data?.email;
         if (displayName) setUserName(displayName);
         if (data?.email) setUserEmail(data.email);
       } catch {
         // ignore — 502 / timeout: avatar/name simply stays empty, non-critical
+      } finally {
+        window.clearTimeout(t);
       }
     })();
 

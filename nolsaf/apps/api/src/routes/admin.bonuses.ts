@@ -10,7 +10,7 @@ import {
   isValidBonusReasonType,
   BONUS_REASON_TYPES 
 } from "../lib/bonus-reasons.js";
-import rateLimit from "express-rate-limit";
+import { rateLimitWithRedis as rateLimit } from "../lib/redisRateLimitStore.js";
 import type { Server as SocketIOServer } from "socket.io";
 
 export const router = Router();

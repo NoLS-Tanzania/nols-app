@@ -82,6 +82,11 @@ router.get("/", async (_req, res) => {
       where: { id: 1 },
       select: {
         commissionPercent: true,
+        commissionCurrency: true,
+        driverCommissionPercent: true,
+        driverCommissionCurrency: true,
+        agentCommissionPercent: true,
+        agentCommissionCurrency: true,
         taxPercent: true,
         ...(currencyCol ? { currency: true } : {}),
         invoicePrefix: true,
@@ -134,6 +139,12 @@ router.get("/", async (_req, res) => {
     out.supportEmail = out.supportEmail ?? null;
     out.supportPhone = out.supportPhone ?? null;
   }
+  // Ensure new commission fields always appear in the response with safe defaults.
+  out.driverCommissionPercent = out.driverCommissionPercent ?? 10;
+  out.agentCommissionPercent = out.agentCommissionPercent ?? 15;
+  out.commissionCurrency = out.commissionCurrency ?? "TZS";
+  out.driverCommissionCurrency = out.driverCommissionCurrency ?? "TZS";
+  out.agentCommissionCurrency = out.agentCommissionCurrency ?? "USD";
   res.json(mask(out));
 });
 

@@ -1,31 +1,32 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from 'react';
-import PaymentMethodModal from './PaymentMethodModal';
+import React, { useState, useRef, useEffect } from "react";
+import PaymentMethodModal, { type SelectedPaymentMethod } from "./PaymentMethodModal";
 
 interface AzamPayButtonProps {
   invoiceId: number;
   amount: number;
   currency?: string;
+  /** Pre-fill phone for MNO if bypassing the modal */
   phoneNumber?: string;
+  /** Pre-fill provider for MNO if bypassing the modal */
   provider?: string;
   onSuccess?: (data: any) => void;
   onError?: (error: string) => void;
   className?: string;
   disabled?: boolean;
   children?: React.ReactNode;
-  showPaymentMethodModal?: boolean; // If true, shows payment method selection modal
+  showPaymentMethodModal?: boolean;
 }
 
+type PaymentChannel = "MNO" | "BANK" | "CARD";
+
 /**
- * AzamPay Payment Button Component
- * 
- * Features:
- * - Prevents double-clicking with button disable
- * - Idempotency key generation
- * - Payment status polling
- * - Error handling
- * - Success/error callbacks
+ * AzamPay Payment Button — supports MNO, Bank, and Card channels.
+ *
+ * MNO / Bank: initiates payment on our API → polls for status confirmation.
+ * Card:       initiates checkout → redirects browser to AzamPay hosted page.
+ *             On return, detects ?cardReturn=success|pending in the URL.
  */
 export default function AzamPayButton({
   invoiceId,
@@ -40,133 +41,105 @@ export default function AzamPayButton({
   children,
   showPaymentMethodModal = true,
 }: AzamPayButtonProps) {
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [isProcessing, setIsProcessing]   = useState(false);
   const [paymentStatus, setPaymentStatus] = useState<"idle" | "initiating" | "pending" | "success" | "failed">("idle");
-  // Removed unused idempotencyKey state
-  // Removed unused paymentRef state
-  const [showModal, setShowModal] = useState(false);
+  const [showModal, setShowModal]         = useState(false);
   const [selectedPhone, setSelectedPhone] = useState<string | undefined>(initialPhoneNumber);
   const [selectedProvider, setSelectedProvider] = useState<string | undefined>(initialProvider);
+
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const lastClickTimeRef = useRef<number>(0);
-  const isSubmittingRef = useRef(false);
+  const lastClickTimeRef   = useRef<number>(0);
+  const isSubmittingRef    = useRef(false);
 
   // Cleanup polling on unmount
-  useEffect(() => {
-    return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-      }
-    };
+  useEffect(() => () => {
+    if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
   }, []);
 
-  // Stop polling when payment succeeds or fails
+  // Stop polling when terminal status reached
   useEffect(() => {
     if (paymentStatus === "success" || paymentStatus === "failed") {
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
         pollingIntervalRef.current = null;
       }
+      isSubmittingRef.current = false;
+      setIsProcessing(false);
     }
   }, [paymentStatus]);
 
-  /**
-   * Poll payment status
-   */
-  const pollPaymentStatus = async (ref: string) => {
+  // ── Card return detection ────
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params    = new URLSearchParams(window.location.search);
+    const cardReturn = params.get("cardReturn");
+    const ref        = params.get("ref");
+    if (!cardReturn || !ref) return;
+
+    if (cardReturn === "success") {
+      setPaymentStatus("success");
+      if (onSuccess) onSuccess({ cardReturn: "success", ref });
+    } else {
+      // "pending" — resume polling
+      setPaymentStatus("pending");
+      setIsProcessing(true);
+      startPolling(ref);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Status polling ───────────
+  const pollPaymentStatus = async (ref: string): Promise<boolean> => {
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-      const response = await fetch(`${API_URL}/api/payments/azampay/status/${ref}`, {
+      const API_URL  = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+      const response = await fetch(`${API_URL}/api/payments/azampay/status/${encodeURIComponent(ref)}`, {
         method: "GET",
         credentials: "include",
       });
-
-      if (!response.ok) {
-        throw new Error("Failed to check payment status");
-      }
-
+      if (!response.ok) throw new Error("Status check failed");
       const data = await response.json();
-      
       if (data.invoiceStatus === "PAID" || data.paymentStatus === "SUCCESS") {
         setPaymentStatus("success");
-        if (onSuccess) {
-          onSuccess(data);
-        }
-        return true; // Payment completed
-      } else if (data.paymentStatus === "FAILED") {
-        setPaymentStatus("failed");
-        if (onError) {
-          onError("Payment failed");
-        }
-        return true; // Payment failed
+        if (onSuccess) onSuccess(data);
+        return true;
       }
-
-      return false; // Still pending
-    } catch (error: any) {
-      console.error("Error polling payment status:", error);
+      if (data.paymentStatus === "FAILED") {
+        setPaymentStatus("failed");
+        if (onError) onError("Payment failed");
+        return true;
+      }
+      return false;
+    } catch {
       return false;
     }
   };
 
-  /**
-   * Start polling payment status
-   */
   const startPolling = (ref: string) => {
-    // Poll immediately
-    pollPaymentStatus(ref);
-
-    // Then poll every 3 seconds for up to 2 minutes
+    pollPaymentStatus(ref); // immediate first check
     let pollCount = 0;
-    const maxPolls = 40; // 40 * 3s = 120s = 2 minutes
-
+    const maxPolls = 40; // 40 × 3s = 2 minutes
     pollingIntervalRef.current = setInterval(async () => {
       pollCount++;
-      const completed = await pollPaymentStatus(ref);
-
-      if (completed || pollCount >= maxPolls) {
+      const done = await pollPaymentStatus(ref);
+      if (done || pollCount >= maxPolls) {
         if (pollingIntervalRef.current) {
           clearInterval(pollingIntervalRef.current);
           pollingIntervalRef.current = null;
-        }
-        if (pollCount >= maxPolls && !completed) {
-          // Timeout - stop polling but keep status as pending
-          console.warn("Payment status polling timeout");
         }
       }
     }, 3000);
   };
 
-  /**
-   * Initiate payment with selected method
-   */
-  const initiatePayment = async (phone?: string, provider?: string) => {
-    const phoneToUse = phone || selectedPhone || initialPhoneNumber;
-    const providerToUse = provider || selectedProvider || "Airtel";
-
-    // Double-click protection: ignore clicks within 500ms
+  // ── Core payment initiator ──
+  const initiatePayment = async (
+    channel: PaymentChannel,
+    params: { phone?: string; provider?: string; bankCode?: string; accountNumber?: string }
+  ) => {
+    // Double-click guard
     const now = Date.now();
-    if (now - lastClickTimeRef.current < 500) {
-      return;
-    }
+    if (now - lastClickTimeRef.current < 500) return;
     lastClickTimeRef.current = now;
-
-    // Prevent multiple simultaneous submissions
-    if (isSubmittingRef.current || isProcessing) {
-      return;
-    }
-
-    // If payment method modal is enabled and no phone/provider selected, show modal
-    if (showPaymentMethodModal && !phoneToUse) {
-      setShowModal(true);
-      return;
-    }
-
-    if (!phoneToUse) {
-      if (onError) {
-        onError("Phone number is required for payment");
-      }
-      return;
-    }
+    if (isSubmittingRef.current || isProcessing) return;
 
     isSubmittingRef.current = true;
     setIsProcessing(true);
@@ -174,71 +147,74 @@ export default function AzamPayButton({
 
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-      
-      // Generate idempotency key
-      const key = `azampay-${invoiceId}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      // Removed setIdempotencyKey(key) as idempotencyKey state is not used
+      const key     = `azampay-${channel.toLowerCase()}-${invoiceId}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-      const response = await fetch(`${API_URL}/api/payments/azampay/initiate`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+      let endpoint: string;
+      let body: Record<string, any>;
+
+      if (channel === "MNO") {
+        endpoint = `${API_URL}/api/payments/azampay/initiate`;
+        body     = { invoiceId, idempotencyKey: key, phoneNumber: params.phone, provider: params.provider };
+      } else if (channel === "BANK") {
+        endpoint = `${API_URL}/api/payments/azampay/bank/initiate`;
+        body     = { invoiceId, idempotencyKey: key, bankCode: params.bankCode, accountNumber: params.accountNumber };
+      } else {
+        endpoint = `${API_URL}/api/payments/azampay/card/initiate`;
+        body     = { invoiceId, idempotencyKey: key };
+      }
+
+      const response = await fetch(endpoint, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({
-          invoiceId,
-          idempotencyKey: key,
-          phoneNumber: phoneToUse,
-          provider: providerToUse,
-        }),
+        body:    JSON.stringify(body),
       });
 
       const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Payment initiation failed");
-      }
+      if (!response.ok) throw new Error(data.error || "Payment initiation failed");
 
       if (data.ok) {
-        setPaymentStatus("pending");
-
-        // If there's a checkout URL, redirect to it
-        if (data.checkoutUrl) {
+        if (channel === "CARD" && data.checkoutUrl) {
+          // Card: redirect to AzamPay hosted page — page is leaving, keep processing state
+          setPaymentStatus("pending");
           window.location.href = data.checkoutUrl;
-        } else {
-          // Start polling for status
-          startPolling(data.paymentRef || data.transactionId);
+          return; // Don't reset isSubmittingRef — browser is navigating away
         }
+        setPaymentStatus("pending");
+        startPolling(data.paymentRef || data.transactionId);
       } else {
         throw new Error(data.error || "Payment initiation failed");
       }
-    } catch (error: any) {
-      console.error("Payment initiation error:", error);
+    } catch (err: any) {
       setPaymentStatus("failed");
-      setIsProcessing(false);
-      isSubmittingRef.current = false;
-      
-      if (onError) {
-        onError(error.message || "Failed to initiate payment");
-      }
+      if (onError) onError(err.message || "Failed to initiate payment");
     }
   };
 
+  // ── Button click ─────────────────────────────────────────────────────────────
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
-    initiatePayment();
+    if (showPaymentMethodModal) {
+      setShowModal(true);
+    } else if (initialPhoneNumber) {
+      initiatePayment("MNO", { phone: initialPhoneNumber, provider: initialProvider || "Airtel" });
+    } else {
+      if (onError) onError("Phone number is required for mobile payment");
+    }
   };
 
-  const handlePaymentMethodSelect = (method: {
-    provider: string;
-    phoneNumber: string;
-    providerName: string;
-  }) => {
-    setSelectedPhone(method.phoneNumber);
-    setSelectedProvider(method.provider);
+  // ── Modal callback ───────────────────────────────────────────────────────────
+  const handlePaymentMethodSelect = (method: SelectedPaymentMethod) => {
     setShowModal(false);
-    // Initiate payment with selected method
-    initiatePayment(method.phoneNumber, method.provider);
+    if (method.method === "MNO") {
+      setSelectedPhone(method.phoneNumber);
+      setSelectedProvider(method.provider);
+      initiatePayment("MNO", { phone: method.phoneNumber, provider: method.provider });
+    } else if (method.method === "BANK") {
+      initiatePayment("BANK", { bankCode: method.bankCode, accountNumber: method.accountNumber });
+    } else {
+      initiatePayment("CARD", {});
+    }
   };
 
   const isDisabled = externalDisabled || isProcessing || paymentStatus === "pending" || paymentStatus === "success";
@@ -249,42 +225,29 @@ export default function AzamPayButton({
         type="button"
         onClick={handleClick}
         disabled={isDisabled}
-        className={`
-          ${className}
-          ${isDisabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}
-          transition-all duration-200
-        `}
+        className={`${className} ${isDisabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer"} transition-all duration-200`}
         aria-busy={isProcessing}
         aria-label={
-          isProcessing
-            ? "Processing payment..."
-            : paymentStatus === "pending"
-            ? "Payment in progress..."
-            : "Pay with AzamPay"
+          isProcessing         ? "Processing payment..."     :
+          paymentStatus === "pending"  ? "Payment in progress..."  :
+          "Pay with AzamPay"
         }
       >
         {isProcessing ? (
           <span className="flex items-center gap-2">
             <span className="animate-spin">⏳</span>
             {paymentStatus === "initiating" && "Initiating payment..."}
-            {paymentStatus === "pending" && "Waiting for payment confirmation..."}
+            {paymentStatus === "pending"    && "Waiting for payment confirmation..."}
           </span>
         ) : paymentStatus === "success" ? (
-          <span className="flex items-center gap-2">
-            <span>✓</span>
-            Payment Successful!
-          </span>
+          <span className="flex items-center gap-2"><span>✓</span>Payment Successful!</span>
         ) : paymentStatus === "failed" ? (
-          <span className="flex items-center gap-2">
-            <span>✗</span>
-            Payment Failed - Click to Retry
-          </span>
+          <span className="flex items-center gap-2"><span>✗</span>Payment Failed — Click to Retry</span>
         ) : (
           children || `Pay ${amount.toLocaleString()} ${currency}`
         )}
       </button>
 
-      {/* Payment Method Selection Modal */}
       {showPaymentMethodModal && (
         <PaymentMethodModal
           isOpen={showModal}
@@ -293,11 +256,9 @@ export default function AzamPayButton({
           invoiceId={invoiceId}
           amount={amount}
           currency={currency}
-          defaultPhone={initialPhoneNumber}
+          defaultPhone={selectedPhone || initialPhoneNumber}
         />
       )}
     </>
   );
 }
-
-

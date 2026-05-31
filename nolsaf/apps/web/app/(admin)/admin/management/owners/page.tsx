@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect, useMemo, useState } from 'react';
 import TableRow from "@/components/TableRow";
-import { Building2, Download, Eye, X, ExternalLink, RefreshCw, CheckCircle2 } from "lucide-react";
+import { Building2, Download, Eye, X, ExternalLink, RefreshCw, CheckCircle2, ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 import Link from "next/link";
 import apiClient from "@/lib/apiClient";
 
@@ -87,6 +87,10 @@ export default function OwnersPage() {
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [sortBy, setSortBy] = useState<"name" | "email" | "properties" | "region" | "district" | "status">("name");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const pageSize = 10;
 
   useEffect(() => {
     let mounted = true;
@@ -208,6 +212,59 @@ export default function OwnersPage() {
 
   const rows = useMemo(() => owners ?? [], [owners]);
 
+  const sortedRows = useMemo(() => {
+    const list = [...rows];
+    const valueOf = (o: Owner): string | number => {
+      switch (sortBy) {
+        case "name": return String(o.name ?? "").toLowerCase();
+        case "email": return String(o.email ?? "").toLowerCase();
+        case "properties": return Number(o.propertiesCount ?? 0);
+        case "region": return String(o.region ?? "").toLowerCase();
+        case "district": return String(o.district ?? "").toLowerCase();
+        case "status": return String(o.status ?? "").toLowerCase();
+        default: return "";
+      }
+    };
+
+    list.sort((a, b) => {
+      const av = valueOf(a);
+      const bv = valueOf(b);
+      if (typeof av === "number" && typeof bv === "number") {
+        return sortDir === "asc" ? av - bv : bv - av;
+      }
+      const cmp = String(av).localeCompare(String(bv));
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+
+    return list;
+  }, [rows, sortBy, sortDir]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedRows.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const start = (safePage - 1) * pageSize;
+  const end = start + pageSize;
+  const pagedRows = sortedRows.slice(start, end);
+
+  useEffect(() => {
+    setPage(1);
+  }, [owners, sortBy, sortDir]);
+
+  const handleSort = (field: "name" | "email" | "properties" | "region" | "district" | "status") => {
+    if (sortBy === field) {
+      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortBy(field);
+    setSortDir("asc");
+  };
+
+  const renderSortIcon = (field: "name" | "email" | "properties" | "region" | "district" | "status") => {
+    if (sortBy !== field) return <ChevronsUpDown className="h-3.5 w-3.5 text-gray-400" />;
+    return sortDir === "asc"
+      ? <ChevronUp className="h-3.5 w-3.5 text-[#02665e]" />
+      : <ChevronDown className="h-3.5 w-3.5 text-[#02665e]" />;
+  };
+
   function getStatusBadgeClass(status: string) {
     const statusLower = (status ?? '').toLowerCase();
     const baseClasses = "inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium transition-all duration-200";
@@ -259,12 +316,36 @@ export default function OwnersPage() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50/70">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Name</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Email</th>
-                <th className="px-6 py-4 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">No. of Properties</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Region</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">District</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  <button type="button" onClick={() => handleSort("name")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-gray-900">
+                    Name {renderSortIcon("name")}
+                  </button>
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  <button type="button" onClick={() => handleSort("email")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-gray-900">
+                    Email {renderSortIcon("email")}
+                  </button>
+                </th>
+                <th className="px-6 py-4 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  <button type="button" onClick={() => handleSort("properties")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-gray-900">
+                    No. of Properties {renderSortIcon("properties")}
+                  </button>
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  <button type="button" onClick={() => handleSort("region")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-gray-900">
+                    Region {renderSortIcon("region")}
+                  </button>
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  <button type="button" onClick={() => handleSort("district")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-gray-900">
+                    District {renderSortIcon("district")}
+                  </button>
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  <button type="button" onClick={() => handleSort("status")} className="inline-flex items-center gap-1 bg-transparent border-0 p-0 m-0 hover:text-gray-900">
+                    Status {renderSortIcon("status")}
+                  </button>
+                </th>
                 <th className="px-6 py-4 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
@@ -275,14 +356,14 @@ export default function OwnersPage() {
                     Loading…
                   </td>
                 </TableRow>
-              ) : rows.length === 0 ? (
+              ) : sortedRows.length === 0 ? (
                 <TableRow hover={false}>
                   <td colSpan={7} className="px-6 py-12 text-center text-sm text-gray-500">
                     No owners found
                   </td>
                 </TableRow>
               ) : (
-                rows.map((o) => (
+                pagedRows.map((o) => (
                   <TableRow key={o.id} className="align-middle">
                     <td className="px-6 py-4 text-sm text-gray-900 font-medium">
                       {o.name}
@@ -329,6 +410,30 @@ export default function OwnersPage() {
               )}
             </tbody>
           </table>
+        </div>
+        <div className="border-t border-gray-200 px-6 py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <span className="text-xs text-gray-500">
+            Showing {sortedRows.length === 0 ? 0 : start + 1}-{Math.min(end, sortedRows.length)} of {sortedRows.length}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={safePage <= 1}
+              className="px-3 py-1.5 text-xs font-semibold text-gray-700 border border-gray-300 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Previous
+            </button>
+            <span className="text-xs font-semibold text-gray-600">Page {safePage} of {totalPages}</span>
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={safePage >= totalPages}
+              className="px-3 py-1.5 text-xs font-semibold text-gray-700 border border-gray-300 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Next
+            </button>
+          </div>
         </div>
       </div>
 

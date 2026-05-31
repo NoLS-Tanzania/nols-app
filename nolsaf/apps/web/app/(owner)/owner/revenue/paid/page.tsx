@@ -4,6 +4,7 @@ import { CheckCircle2, Loader2, FileText, Receipt, RotateCw, ArrowUpRight, Hash,
 import apiClient from "@/lib/apiClient";
 import Link from "next/link";
 import TableRow from "@/components/TableRow";
+import TablePagination from "@/components/TablePagination";
 
 type RevenueFilters = { status?: string; [key: string]: any };
 
@@ -35,6 +36,8 @@ export default function Paid() {
   const [error, setError] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState("paidAt_desc");
   const [filters] = useState<RevenueFilters>({ status: "PAID" });
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
 
   const load = async (opts?: { silent?: boolean }) => {
     const silent = Boolean(opts?.silent);
@@ -112,6 +115,14 @@ export default function Paid() {
 
     return result;
   }, [items, sortKey]);
+
+  // Reset to first page whenever the sort or the underlying data changes.
+  useEffect(() => { setPage(1); }, [sortKey, items]);
+
+  const paged = useMemo(
+    () => filtered.slice((page - 1) * pageSize, page * pageSize),
+    [filtered, page]
+  );
 
   const stats = useMemo(() => {
     const totalCount = items.length;
@@ -405,6 +416,7 @@ export default function Paid() {
           </div>
 
         ) : (
+          <>
           <div className="w-full overflow-x-auto">
             <table className="min-w-[820px] w-full text-sm border-collapse">
               <thead>
@@ -420,7 +432,7 @@ export default function Paid() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
-                {filtered.map((invoice) => {
+                {paged.map((invoice) => {
                   const propertyTitle = invoice.booking?.property?.title || "Property";
                   const payout = (() => {
                     const net = Number(invoice.netPayable);
@@ -486,6 +498,8 @@ export default function Paid() {
               </tbody>
             </table>
           </div>
+          <TablePagination page={page} pageSize={pageSize} total={filtered.length} onPageChange={setPage} />
+          </>
         )}
       </div>
     </div>

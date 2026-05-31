@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import apiClient from "@/lib/apiClient";
+import { fetchAccountSession } from "@/lib/accountSession";
 import RefreshButton from "@/components/RefreshButton";
 import { Calendar, DollarSign, Star } from 'lucide-react';
 import DriverAvailabilitySwitch from "@/components/DriverAvailabilitySwitch";
@@ -36,9 +37,8 @@ export default function DriverWelcome({ className }: { className?: string }) {
   const [me, setMe] = useState<any | null | undefined>(undefined);
 
   useEffect(() => {
-    api
-      .get("/api/account/me")
-      .then((r) => setMe(unwrapAccountPayload(r.data)))
+    fetchAccountSession()
+      .then((r) => setMe(r.data))
       .catch(() => setMe(null));
   }, []);
 

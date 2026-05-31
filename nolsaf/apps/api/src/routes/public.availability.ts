@@ -4,7 +4,7 @@ import { Router, type Request, type Response } from "express";
 import type { RequestHandler } from "express";
 import { z } from "zod";
 import { prisma } from "@nolsaf/prisma";
-import rateLimit from "express-rate-limit";
+import { rateLimitWithRedis as rateLimit } from "../lib/redisRateLimitStore.js";
 import { AVAILABILITY_BLOCKING_BOOKING_STATUSES } from "../lib/bookingStatus.js";
 
 export const router = Router();

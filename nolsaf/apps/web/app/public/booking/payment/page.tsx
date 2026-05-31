@@ -14,6 +14,7 @@ import {
   Clock3,
   RefreshCw,
   ReceiptText,
+  Building2,
 } from "lucide-react";
 import LogoSpinner from "@/components/LogoSpinner";
 
@@ -25,7 +26,7 @@ const PAYMENT_POLL_FAST_DELAY_MS = 3000;
 const PAYMENT_POLL_SLOW_DELAY_MS = 10000;
 
 type PaymentMethod = {
-  id: "Airtel" | "Mixx" | "M-Pesa" | "Halopesa";
+  id: "Airtel" | "Mixx" | "MPESA" | "Halopesa";
   name: string;
   icon: string;
   description: string;
@@ -39,7 +40,7 @@ const PAYMENT_METHODS: PaymentMethod[] = [
     description: "Pay with Airtel Money",
   },
   {
-    id: "M-Pesa",
+    id: "MPESA",
     name: "M-Pesa",
     icon: "/assets/M-pesa.png",
     description: "Pay with M-Pesa",
@@ -57,6 +58,24 @@ const PAYMENT_METHODS: PaymentMethod[] = [
     description: "Pay with HaloPesa",
   },
 ];
+
+const BANK_PROVIDERS = [
+  { code: "CRDB",    name: "CRDB Bank" },
+  { code: "NMB",     name: "NMB Bank" },
+  { code: "NBC",     name: "NBC Bank" },
+  { code: "STANBIC", name: "Stanbic Bank" },
+  { code: "EQUITY",  name: "Equity Bank" },
+  { code: "IM",      name: "I&M Bank" },
+  { code: "ABSA",    name: "ABSA Bank" },
+  { code: "TCB",     name: "TCB Bank" },
+  { code: "BOA",     name: "Bank of Africa" },
+  { code: "DTB",     name: "Diamond Trust" },
+  { code: "UBA",     name: "UBA Bank" },
+  { code: "AZANIA",  name: "Bank of Azania" },
+  { code: "KCB",     name: "KCB Bank" },
+  { code: "NCBA",    name: "NCBA Bank" },
+  { code: "YETU",    name: "Yetu Microfinance" },
+] as const;
 
 function formatCountdown(totalSeconds: number) {
   const safeSeconds = Math.max(0, Math.floor(totalSeconds));
@@ -157,9 +176,22 @@ type InvoiceData = {
     id: number;
     title: string;
     type: string;
+    slug?: string;
     primaryImage: string | null;
     basePrice: number;
   };
+  draftAvailability?: {
+    available: boolean;
+    status: "AVAILABLE" | "UNAVAILABLE" | "PROPERTY_UNAVAILABLE";
+    reason: "AVAILABLE" | "BOOKED" | "BLOCKED" | "FULL" | "PROPERTY_UNAVAILABLE";
+    message: string;
+    checkedAt: string;
+    requestedRooms: number;
+    availableRooms: number;
+    bookedRooms: number;
+    blockedRooms: number;
+    selectedRoomType: string | null;
+  } | null;
   priceBreakdown: {
     accommodationSubtotal: number;
     taxPercent: number;
@@ -179,15 +211,27 @@ export default function PaymentPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [invoice, setInvoice] = useState<InvoiceData | null>(null);
+
+  // MNO state
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
   const [phoneNumber, setPhoneNumber] = useState("");
+
+  // Bank state
+  const [selectedBankCode, setSelectedBankCode] = useState("");
+  const [bankAccountNumber, setBankAccountNumber] = useState("");
+
+  // Payment channel accordion (null = all collapsed)
+  const [paymentChannel, setPaymentChannel] = useState<"MNO" | "BANK" | "CARD" | null>(null);
+
   const [paymentStatus, setPaymentStatus] = useState<"idle" | "pending" | "success" | "failed" | "timeout">("idle");
   const [authRequired, setAuthRequired] = useState(false);
   const [paymentRef, setPaymentRef] = useState<string | null>(null);
   const [remainingSeconds, setRemainingSeconds] = useState(PAYMENT_WAIT_SECONDS);
   const [paymentCooldownSeconds, setPaymentCooldownSeconds] = useState(0);
+
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
   const paymentReturnQuery = searchParams?.toString();
   const paymentReturnPath = `/public/booking/payment${paymentReturnQuery ? `?${paymentReturnQuery}` : ""}`;
   const loginHref = `/account/login?next=${encodeURIComponent(paymentReturnPath)}`;
@@ -206,7 +250,6 @@ export default function PaymentPage() {
 
         const data = await response.json();
 
-        // Validate that we have required data
         if (!data || !data.property || !data.property.id) {
           throw new Error("Invoice data is incomplete. Property information is missing.");
         }
@@ -225,10 +268,14 @@ export default function PaymentPage() {
     []
   );
 
+  // Initial load + card return detection
   useEffect(() => {
-    const invoiceId = searchParams?.get("invoiceId");
-    const accessToken = searchParams?.get("accessToken");
-    if (!invoiceId) {
+    const invoiceIdParam = searchParams?.get("invoiceId");
+    const accessToken    = searchParams?.get("accessToken");
+    const cardReturn     = searchParams?.get("cardReturn");
+    const cardRef        = searchParams?.get("ref");
+
+    if (!invoiceIdParam) {
       setError("Missing invoice ID");
       setLoading(false);
       return;
@@ -240,7 +287,24 @@ export default function PaymentPage() {
       return;
     }
 
-    fetchInvoice(Number(invoiceId), accessToken);
+    const invoiceIdNum = Number(invoiceIdParam);
+
+    // Card return detection — AzamPay redirected back from hosted page
+    if (cardReturn && cardRef) {
+      if (cardReturn === "success") {
+        setPaymentStatus("success");
+        setPaymentChannel("CARD");
+      } else if (cardReturn === "pending") {
+        setPaymentRef(cardRef);
+        setSubmitting(true);
+        setPaymentStatus("pending");
+        setPaymentChannel("CARD");
+        startPolling(cardRef, invoiceIdNum);
+      }
+    }
+
+    fetchInvoice(invoiceIdNum, accessToken);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, fetchInvoice]);
 
   // Cleanup polling on unmount
@@ -255,6 +319,7 @@ export default function PaymentPage() {
     };
   }, []);
 
+  // Countdown timer for pending state
   useEffect(() => {
     if (paymentStatus !== "pending") {
       if (countdownIntervalRef.current) {
@@ -288,6 +353,7 @@ export default function PaymentPage() {
     };
   }, [paymentStatus]);
 
+  // Cooldown timer (MNO rate-limit)
   useEffect(() => {
     if (paymentCooldownSeconds <= 0) return;
 
@@ -304,18 +370,87 @@ export default function PaymentPage() {
     return () => clearInterval(cooldownTimer);
   }, [paymentCooldownSeconds]);
 
-  async function handlePayment() {
+  // ── Polling ──────────────────────────────────────────────────────────────────
+  function startPolling(ref: string, overrideInvoiceId?: number) {
+    if (pollingIntervalRef.current) {
+      clearTimeout(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+
+    // Allow overrideInvoiceId for card-return scenarios where invoice state hasn't loaded yet
+    const invoiceId   = overrideInvoiceId ?? invoice?.id;
+    const accessToken = searchParams?.get("accessToken");
+    if (!invoiceId || !accessToken) return;
+
+    const pollInvoice = async () => {
+      const url = new URL(`/api/public/invoices/${invoiceId}`, window.location.origin);
+      url.searchParams.set("accessToken", accessToken);
+      const response = await fetch(url.toString(), { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error("Failed to check invoice status");
+      }
+      const data = await response.json();
+      setInvoice(data);
+
+      if (data.status === "PAID") {
+        if (pollingIntervalRef.current) {
+          clearTimeout(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+        setPaymentStatus("success");
+        setSubmitting(false);
+        setError(null);
+        return true;
+      }
+
+      return false;
+    };
+
+    void pollInvoice().catch((err) => {
+      console.error("Initial payment polling error:", err);
+    });
+
+    let attempts = 0;
+    const scheduleNextPoll = () => {
+      if (attempts >= PAYMENT_POLL_MAX_ATTEMPTS) {
+        pollingIntervalRef.current = null;
+        return;
+      }
+      const delay = attempts < 20 ? PAYMENT_POLL_FAST_DELAY_MS : PAYMENT_POLL_SLOW_DELAY_MS;
+      pollingIntervalRef.current = setTimeout(runPoll, delay);
+    };
+
+    const runPoll = async () => {
+      attempts++;
+
+      try {
+        const completed = await pollInvoice();
+        if (completed) {
+          return;
+        }
+      } catch (err) {
+        console.error("Payment polling error:", err, ref);
+      }
+
+      scheduleNextPoll();
+    };
+
+    scheduleNextPoll();
+  }
+
+  // ── Payment handlers ─────────────────────────────────────────────────────────
+
+  async function handleMnoPayment() {
     if (paymentCooldownSeconds > 0) {
       setError(null);
       return;
     }
 
     if (!selectedMethod || !phoneNumber.trim() || !invoice) {
-      setError("Please select a payment method and enter your phone number");
+      setError("Please select a mobile network and enter your phone number");
       return;
     }
 
-    // Validate phone number format
     const phoneRegex = /^(\+255|255|0)?[0-9]{9}$/;
     const cleanedPhone = phoneNumber.replace(/\s+/g, "");
     if (!phoneRegex.test(cleanedPhone)) {
@@ -338,7 +473,6 @@ export default function PaymentPage() {
     setRemainingSeconds(PAYMENT_WAIT_SECONDS);
 
     try {
-      // Initiate payment
       const response = await fetch(`/api/payments/azampay/initiate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -373,7 +507,10 @@ export default function PaymentPage() {
         throw new Error(message);
       }
 
-      // Start polling for payment status
+      // MNO is a USSD push to the phone — the handset is the payment surface.
+      // We deliberately ignore any checkoutUrl the API might return; redirecting
+      // here would yank the user off the "check your phone" prompt and break the
+      // push flow. The status poll + webhook are the source of truth.
       const ref = result.paymentRef || result.transactionId || invoice.paymentRef;
       setPaymentCooldownSeconds(0);
       setPaymentRef(ref);
@@ -385,86 +522,160 @@ export default function PaymentPage() {
     }
   }
 
-  function startPolling(ref: string) {
-    if (pollingIntervalRef.current) {
-      clearTimeout(pollingIntervalRef.current);
-      pollingIntervalRef.current = null;
+  async function handleBankPayment() {
+    if (!invoice || !selectedBankCode) {
+      setError("Please select a bank");
+      return;
     }
 
-    const invoiceId = invoice?.id;
-    const accessToken = searchParams?.get("accessToken");
-    if (!invoiceId || !accessToken) return;
+    setError(null);
+    setAuthRequired(false);
+    setSubmitting(true);
+    setPaymentStatus("pending");
+    setRemainingSeconds(PAYMENT_WAIT_SECONDS);
 
-    const pollInvoice = async () => {
-      const url = new URL(`/api/public/invoices/${invoiceId}`, window.location.origin);
-      url.searchParams.set("accessToken", accessToken);
-      const response = await fetch(url.toString(), { cache: "no-store" });
+    try {
+      const response = await fetch(`/api/payments/azampay/bank/initiate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          invoiceId:     invoice.id,
+          bankCode:      selectedBankCode,
+          accountNumber: bankAccountNumber.trim() || undefined,
+          accessToken:   searchParams?.get("accessToken") || undefined,
+        }),
+      });
+
+      const result = await response.json();
+
       if (!response.ok) {
-        throw new Error("Failed to check invoice status");
-      }
-      const data = await response.json();
-      setInvoice(data);
-
-      if (data.status === "PAID") {
-        if (pollingIntervalRef.current) {
-          clearTimeout(pollingIntervalRef.current);
-          pollingIntervalRef.current = null;
-        }
-        setPaymentStatus("success");
-        setSubmitting(false);
-        setError(null);
-        return true;
-      }
-
-      return false;
-    };
-
-    void pollInvoice().catch((err) => {
-      console.error("Initial payment polling error:", err);
-    });
-
-    // Poll quickly while the mobile-money prompt is fresh, then back off.
-    // This keeps the payment card responsive without creating hundreds of
-    // duplicate status requests when the provider is slow or unavailable.
-    let attempts = 0;
-    const scheduleNextPoll = () => {
-      if (attempts >= PAYMENT_POLL_MAX_ATTEMPTS) {
-        pollingIntervalRef.current = null;
-        return;
-      }
-      const delay = attempts < 20 ? PAYMENT_POLL_FAST_DELAY_MS : PAYMENT_POLL_SLOW_DELAY_MS;
-      pollingIntervalRef.current = setTimeout(runPoll, delay);
-    };
-
-    const runPoll = async () => {
-      attempts++;
-
-      try {
-        const completed = await pollInvoice();
-        if (completed) {
+        if (response.status === 401) {
+          setAuthRequired(true);
+          setError(null);
+          setSubmitting(false);
+          setPaymentStatus("failed");
           return;
         }
-      } catch (err) {
-        console.error("Payment polling error:", err, ref);
+        throw new Error(formatPaymentError(result.message ?? result.error));
       }
 
-      scheduleNextPoll();
-    };
-
-    scheduleNextPoll();
+      const ref = result.paymentRef || result.transactionId;
+      setPaymentRef(ref);
+      setPaymentCooldownSeconds(0);
+      startPolling(ref);
+    } catch (err: any) {
+      setError(formatPaymentError(err));
+      setSubmitting(false);
+      setPaymentStatus("failed");
+    }
   }
+
+  async function handleCardPayment() {
+    if (!invoice) return;
+
+    setError(null);
+    setAuthRequired(false);
+    setSubmitting(true);
+    setPaymentStatus("pending");
+
+    try {
+      const response = await fetch(`/api/payments/azampay/card/initiate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          invoiceId:   invoice.id,
+          accessToken: searchParams?.get("accessToken") || undefined,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          setAuthRequired(true);
+          setError(null);
+          setSubmitting(false);
+          setPaymentStatus("failed");
+          return;
+        }
+        throw new Error(formatPaymentError(result.message ?? result.error));
+      }
+
+      if (result.checkoutUrl) {
+        // Browser navigates to AzamPay hosted checkout; callback returns with ?cardReturn=
+        window.location.href = result.checkoutUrl;
+        return; // keep submitting=true — page is navigating away
+      }
+
+      throw new Error("No checkout URL returned from payment provider");
+    } catch (err: any) {
+      setError(formatPaymentError(err));
+      setSubmitting(false);
+      setPaymentStatus("failed");
+    }
+  }
+
+  // ── Accordion toggle ─────────────────────────────────────────────────────────
+  function toggleChannel(channel: "MNO" | "BANK" | "CARD") {
+    if (invoice?.draftAvailability && !invoice.draftAvailability.available) return;
+    setPaymentChannel((prev) => (prev === channel ? null : channel));
+    setError(null);
+  }
+
+  const draftUnavailable = Boolean(invoice?.draftAvailability && !invoice.draftAvailability.available);
+  const reselectHref = invoice?.property?.slug
+    ? `/public/properties/${encodeURIComponent(invoice.property.slug)}`
+    : "/public/properties";
+  const isDisabled = submitting || paymentCooldownSeconds > 0 || authRequired || draftUnavailable;
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">
-        <div className="text-center animate-in fade-in duration-300">
-          <div className="relative">
-            <div className="mx-auto mb-4 inline-flex">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50 px-4">
+        <div className="w-full max-w-sm animate-in fade-in zoom-in-95 duration-500">
+          {/* Spinner with concentric pulsing halos for visual energy */}
+          <div className="relative mx-auto w-24 h-24 mb-6">
+            <span className="absolute inset-0 rounded-full bg-blue-400/20 animate-ping" />
+            <span className="absolute inset-2 rounded-full bg-blue-400/25 animate-pulse" />
+            <span className="absolute inset-0 flex items-center justify-center">
               <LogoSpinner size="lg" ariaLabel="Loading" />
-            </div>
+            </span>
           </div>
-          <p className="text-slate-700 font-medium text-lg">Loading payment details...</p>
-          <p className="text-slate-500 text-sm mt-2">Please wait</p>
+
+          {/* Title with sequential bouncing dots so the eye stays engaged */}
+          <div className="text-center mb-6">
+            <p className="text-slate-800 font-semibold text-lg inline-flex items-baseline justify-center gap-1.5">
+              <span>Loading payment details</span>
+              <span className="inline-flex items-baseline gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-bounce [animation-delay:0ms]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-bounce [animation-delay:150ms]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-bounce [animation-delay:300ms]" />
+              </span>
+            </p>
+            <p className="text-slate-500 text-sm mt-2">Securing your booking session</p>
+          </div>
+
+          {/* Shimmer skeleton previewing the payment card that's about to appear */}
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-5 space-y-3 overflow-hidden">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-slate-200 animate-pulse" />
+              <div className="flex-1 space-y-2">
+                <div className="h-3 w-2/3 rounded bg-slate-200 animate-pulse [animation-delay:100ms]" />
+                <div className="h-2.5 w-1/2 rounded bg-slate-200/70 animate-pulse [animation-delay:150ms]" />
+              </div>
+            </div>
+            <div className="border-t border-slate-100 my-1" />
+            <div className="h-3 w-3/4 rounded bg-slate-200 animate-pulse [animation-delay:200ms]" />
+            <div className="h-3 w-2/5 rounded bg-slate-200 animate-pulse [animation-delay:300ms]" />
+            <div className="h-11 w-full rounded-xl bg-gradient-to-r from-slate-200 via-slate-100 to-slate-200 animate-pulse [animation-delay:400ms] mt-4 bg-[length:200%_100%]" />
+          </div>
+
+          {/* Reassurance strip — subtle, professional */}
+          <div className="mt-5 flex items-center justify-center gap-2 text-xs text-slate-400">
+            <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd" />
+            </svg>
+            <span>Encrypted connection</span>
+          </div>
         </div>
       </div>
     );
@@ -507,9 +718,10 @@ export default function PaymentPage() {
 
       <div className="public-container py-8 lg:py-12">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
-          {/* Main Content - Payment Methods */}
+          {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Payment Status */}
+
+            {/* ── Success ── */}
             {paymentStatus === "success" && (
               <div className="bg-white border-2 border-emerald-200 rounded-2xl p-6 lg:p-8 shadow-lg animate-in fade-in slide-in-from-top-4">
                 <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -544,6 +756,7 @@ export default function PaymentPage() {
               </div>
             )}
 
+            {/* ── Pending ── */}
             {paymentStatus === "pending" && (
               <div className="bg-white border-2 border-blue-200 rounded-2xl p-6 lg:p-8 shadow-lg animate-in fade-in slide-in-from-top-4">
                 <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
@@ -552,9 +765,15 @@ export default function PaymentPage() {
                       <LogoSpinner size="sm" ariaLabel="Processing" />
                     </div>
                     <div>
-                      <h2 className="text-2xl font-bold text-blue-950">Waiting for Payment</h2>
+                      <h2 className="text-2xl font-bold text-blue-950">
+                        {paymentChannel === "CARD" ? "Verifying Card Payment" : "Waiting for Payment"}
+                      </h2>
                       <p className="mt-2 text-sm leading-6 text-blue-800">
-                        We sent a payment request to your phone. Keep this page open and approve the prompt on your mobile money account.
+                        {paymentChannel === "MNO"
+                          ? "We sent a payment request to your phone. Keep this page open and approve the prompt on your mobile money account."
+                          : paymentChannel === "BANK"
+                          ? "Please check your bank app or SMS for an authorization request and approve it to complete your payment."
+                          : "Please wait while we verify your card payment. Do not close this page."}
                       </p>
                     </div>
                   </div>
@@ -580,8 +799,16 @@ export default function PaymentPage() {
                     </div>
                   </div>
                   <div>
-                    <div className="text-xs font-semibold uppercase text-slate-500">Phone</div>
-                    <div className="mt-1 font-semibold text-slate-900">{phoneNumber || invoice?.booking.guestPhone || "-"}</div>
+                    <div className="text-xs font-semibold uppercase text-slate-500">
+                      {paymentChannel === "MNO" ? "Phone" : paymentChannel === "BANK" ? "Bank" : "Method"}
+                    </div>
+                    <div className="mt-1 font-semibold text-slate-900">
+                      {paymentChannel === "MNO"
+                        ? (phoneNumber || invoice?.booking.guestPhone || "-")
+                        : paymentChannel === "BANK"
+                        ? (BANK_PROVIDERS.find((b) => b.code === selectedBankCode)?.name || selectedBankCode || "-")
+                        : "Visa / Mastercard"}
+                    </div>
                   </div>
                 </div>
                 {paymentRef && (
@@ -592,6 +819,7 @@ export default function PaymentPage() {
               </div>
             )}
 
+            {/* ── Timeout ── */}
             {paymentStatus === "timeout" && (
               <div className="bg-white border-2 border-amber-200 rounded-2xl p-6 lg:p-8 shadow-lg animate-in fade-in slide-in-from-top-4">
                 <div className="flex items-start gap-4">
@@ -601,13 +829,14 @@ export default function PaymentPage() {
                   <div>
                     <h2 className="text-2xl font-bold text-amber-950">Payment Not Confirmed Yet</h2>
                     <p className="mt-2 text-sm leading-6 text-amber-800">
-                      Your booking details are still here. You do not need to choose the room again. If you did not approve the phone prompt, try sending a new payment request.
+                      Your booking details are still here. You do not need to choose the room again. If you did not approve the payment prompt, try sending a new payment request.
                     </p>
                   </div>
                 </div>
               </div>
             )}
 
+            {/* ── Failed ── */}
             {paymentStatus === "failed" && !authRequired && (
               <div className="rounded-2xl border border-rose-200 bg-white p-5 shadow-lg shadow-rose-950/5 animate-in fade-in slide-in-from-top-4 lg:p-6">
                 <div className="flex items-start gap-4">
@@ -619,139 +848,379 @@ export default function PaymentPage() {
                       Payment Request Failed
                     </h2>
                     <p className="mt-2 max-w-xl text-sm leading-6 text-slate-600">
-                      Your booking details are saved. Please confirm the phone number and try again.
+                      Your booking details are saved. Please review the details below and try again.
                     </p>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Payment Method Selection */}
-            {(paymentStatus === "idle" || paymentStatus === "failed" || paymentStatus === "timeout") && (
-              <>
-                <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-slate-200/60 p-5 lg:p-6 transition-all duration-300 hover:shadow-xl">
-                  <h2 className="text-xl lg:text-2xl font-bold text-slate-900 mb-4 lg:mb-5">
-                    Select Payment Method
-                  </h2>
-
-                  <div className="grid grid-cols-2 gap-3 lg:gap-4">
-                    {PAYMENT_METHODS.map((method) => (
-                      <button
-                        key={method.id}
-                        type="button"
-                        onClick={() => setSelectedMethod(method)}
-                        className={`group relative p-3.5 lg:p-4 rounded-lg border-2 transition-all duration-300 ${
-                          selectedMethod?.id === method.id
-                            ? "border-[#02665e] bg-gradient-to-br from-[#02665e]/10 to-blue-50/50 shadow-md ring-2 ring-[#02665e]/20"
-                            : "border-slate-200 hover:border-[#02665e]/50 hover:shadow-md bg-white"
-                        }`}
-                      >
-                        <div className="flex flex-col items-center text-center gap-2">
-                          <div className="relative h-16 w-24 flex-shrink-0">
-                            <Image
-                              src={method.icon}
-                              alt={method.name}
-                              fill
-                              sizes="96px"
-                              className="object-contain"
-                            />
-                          </div>
-                          <div className="w-full">
-                            <div className={`font-bold text-sm lg:text-base mb-0.5 ${
-                              selectedMethod?.id === method.id
-                                ? "text-[#02665e]"
-                                : "text-slate-900"
-                            }`}>
-                              {method.name}
-                            </div>
-                            <div className="text-xs text-slate-600">
-                              {method.description}
-                            </div>
-                          </div>
-                          {selectedMethod?.id === method.id && (
-                            <div className="absolute top-1.5 right-1.5">
-                              <div className="w-5 h-5 rounded-full bg-[#02665e] flex items-center justify-center shadow-md">
-                                <CheckCircle2 className="w-3 h-3 text-white" />
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </button>
-                    ))}
+            {/* ── Payment method selection (shown when idle / failed / timeout) ── */}
+            {(paymentStatus === "idle" || paymentStatus === "failed" || paymentStatus === "timeout") && draftUnavailable && (
+              <div className="rounded-2xl border-2 border-rose-200 bg-white p-6 shadow-lg shadow-rose-950/5">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-rose-50 ring-1 ring-rose-100">
+                      <AlertCircle className="h-6 w-6 text-rose-700" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-black text-slate-950">Selected room is no longer available</h2>
+                      <p className="mt-2 text-sm leading-6 text-slate-600">
+                        {invoice?.draftAvailability?.message || "Please select another room or choose a different property before paying."}
+                      </p>
+                      <div className="mt-3 text-xs font-semibold text-rose-700">
+                        Available now: {invoice?.draftAvailability?.availableRooms ?? 0} of {invoice?.draftAvailability?.requestedRooms ?? 1} requested
+                      </div>
+                    </div>
                   </div>
+                  <Link
+                    href={reselectHref}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-3 text-sm font-bold text-white no-underline shadow-sm transition hover:bg-rose-700"
+                  >
+                    Select another room
+                    <ChevronLeft className="h-4 w-4 rotate-180" />
+                  </Link>
+                </div>
+              </div>
+            )}
+
+            {(paymentStatus === "idle" || paymentStatus === "failed" || paymentStatus === "timeout") && !draftUnavailable && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 px-1 min-h-[28px]">
+                  {paymentChannel ? (
+                    <button
+                      type="button"
+                      onClick={() => { setPaymentChannel(null); setError(null); }}
+                      className="flex items-center gap-1.5 text-sm font-medium text-slate-400 hover:text-slate-700 transition-colors group"
+                    >
+                      <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform duration-150" />
+                      <span>Change payment method</span>
+                    </button>
+                  ) : (
+                    <>
+                      <ShieldCheck className="w-4 h-4 text-[#02665e]" />
+                      <h2 className="text-sm font-bold text-slate-700 tracking-wide uppercase">
+                        Choose How to Pay
+                      </h2>
+                    </>
+                  )}
                 </div>
 
-                {/* Phone Number Input */}
-                {selectedMethod && (
-                  <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-slate-200/60 p-5 lg:p-6 transition-all duration-300 hover:shadow-xl overflow-hidden">
-                    <h2 className="text-xl lg:text-2xl font-bold text-slate-900 mb-5">
-                      Enter Phone Number
-                    </h2>
+                {/* Global error / cooldown display */}
+                {error && !isPaymentCooldownMessage(error) && (
+                  <div className="bg-red-50/80 border-2 border-red-200 rounded-xl p-4 flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
+                    <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm font-medium text-red-700">{error}</p>
+                  </div>
+                )}
 
-                    <div className="space-y-4">
-                      <div className="min-w-0">
-                        <label className="flex w-full text-sm font-semibold text-slate-700 mb-3 items-center gap-2">
-                          <Smartphone className="w-4 h-4 text-[#02665e] flex-shrink-0" />
-                          <span>Phone Number <span className="text-red-500">*</span></span>
-                        </label>
-                        <input
-                          type="tel"
-                          value={phoneNumber}
-                          onChange={(e) => setPhoneNumber(e.target.value)}
-                          placeholder="+255 XXX XXX XXX"
-                          className="w-full min-w-0 px-4 py-3.5 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] transition-all duration-200 text-slate-900 font-medium bg-white shadow-sm hover:shadow-md box-border"
-                        />
-                        <p className="text-xs text-slate-500 mt-2 ml-1">
-                          Enter the phone number linked to your {selectedMethod.name} account
-                        </p>
+                {paymentCooldownSeconds > 0 && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-3">
+                    <Clock3 className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                    <p className="text-sm font-medium text-amber-700">
+                      Too many attempts — try again in {formatCountdown(paymentCooldownSeconds)}
+                    </p>
+                  </div>
+                )}
+
+                {/* ── Method selector: 3 standalone cards ── */}
+                <div className="space-y-2.5">
+
+                  {/* Mobile Money */}
+                  {(!paymentChannel || paymentChannel === "MNO") && (
+                    <button
+                      type="button"
+                      onClick={() => toggleChannel("MNO")}
+                      className={`group w-full flex items-center gap-4 px-5 py-4 rounded-2xl border-2 text-left transition-all duration-200 ${
+                        paymentChannel === "MNO"
+                          ? "border-red-300 bg-red-50 shadow-lg shadow-red-100"
+                          : "border-slate-100 bg-white shadow-sm hover:border-slate-200 hover:shadow-md"
+                      }`}
+                    >
+                      <div className={`p-2.5 rounded-xl flex-shrink-0 transition-colors ${
+                        paymentChannel === "MNO" ? "bg-red-100" : "bg-red-50 group-hover:bg-red-100"
+                      }`}>
+                        <Smartphone className={`w-5 h-5 transition-colors ${paymentChannel === "MNO" ? "text-red-600" : "text-red-500"}`} />
                       </div>
-
-                      {error && !isPaymentCooldownMessage(error) && (
-                        <div className="bg-red-50/80 border-2 border-red-200 rounded-xl p-4 flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
-                          <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-                          <p className="text-sm font-medium text-red-700">{error}</p>
+                      <div className="flex-1 min-w-0">
+                        <div className={`font-bold text-[15px] transition-colors ${paymentChannel === "MNO" ? "text-red-900" : "text-slate-900"}`}>
+                          Mobile Money
                         </div>
+                        <div className="text-xs text-slate-400 mt-0.5 font-medium">Airtel · M-Pesa · Mixx · HaloPesa</div>
+                      </div>
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                        paymentChannel === "MNO" ? "border-red-500 bg-red-500" : "border-slate-300"
+                      }`}>
+                        {paymentChannel === "MNO" && <div className="w-2 h-2 rounded-full bg-white" />}
+                      </div>
+                    </button>
+                  )}
+
+                  {/* Bank Transfer */}
+                  {(!paymentChannel || paymentChannel === "BANK") && (
+                    <button
+                      type="button"
+                      onClick={() => toggleChannel("BANK")}
+                      className={`group w-full flex items-center gap-4 px-5 py-4 rounded-2xl border-2 text-left transition-all duration-200 ${
+                        paymentChannel === "BANK"
+                          ? "border-green-300 bg-green-50 shadow-lg shadow-green-100"
+                          : "border-slate-100 bg-white shadow-sm hover:border-slate-200 hover:shadow-md"
+                      }`}
+                    >
+                      <div className={`p-2.5 rounded-xl flex-shrink-0 transition-colors ${
+                        paymentChannel === "BANK" ? "bg-green-100" : "bg-green-50 group-hover:bg-green-100"
+                      }`}>
+                        <Building2 className={`w-5 h-5 transition-colors ${paymentChannel === "BANK" ? "text-green-700" : "text-green-600"}`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className={`font-bold text-[15px] transition-colors ${paymentChannel === "BANK" ? "text-green-900" : "text-slate-900"}`}>
+                          Bank Transfer
+                        </div>
+                        <div className="text-xs text-slate-400 mt-0.5 font-medium">CRDB · NMB · NBC · 12 more</div>
+                      </div>
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                        paymentChannel === "BANK" ? "border-green-600 bg-green-600" : "border-slate-300"
+                      }`}>
+                        {paymentChannel === "BANK" && <div className="w-2 h-2 rounded-full bg-white" />}
+                      </div>
+                    </button>
+                  )}
+
+                  {/* Debit / Credit Card */}
+                  {(!paymentChannel || paymentChannel === "CARD") && (
+                    <button
+                      type="button"
+                      onClick={() => toggleChannel("CARD")}
+                      className={`group w-full flex items-center gap-4 px-5 py-4 rounded-2xl border-2 text-left transition-all duration-200 ${
+                        paymentChannel === "CARD"
+                          ? "border-violet-300 bg-violet-50 shadow-lg shadow-violet-100"
+                          : "border-slate-100 bg-white shadow-sm hover:border-slate-200 hover:shadow-md"
+                      }`}
+                    >
+                      <div className={`p-2.5 rounded-xl flex-shrink-0 transition-colors ${
+                        paymentChannel === "CARD" ? "bg-violet-100" : "bg-violet-50 group-hover:bg-violet-100"
+                      }`}>
+                        <CreditCard className={`w-5 h-5 transition-colors ${paymentChannel === "CARD" ? "text-violet-700" : "text-violet-600"}`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className={`font-bold text-[15px] transition-colors ${paymentChannel === "CARD" ? "text-violet-900" : "text-slate-900"}`}>
+                          Debit / Credit Card
+                        </div>
+                        <div className="text-xs text-slate-400 mt-0.5 font-medium">Visa · Mastercard · Secure checkout</div>
+                      </div>
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                        paymentChannel === "CARD" ? "border-violet-600 bg-violet-600" : "border-slate-300"
+                      }`}>
+                        {paymentChannel === "CARD" && <div className="w-2 h-2 rounded-full bg-white" />}
+                      </div>
+                    </button>
+                  )}
+
+                </div>
+
+                {/* ── Form panel — appears below when a channel is selected ── */}
+                {paymentChannel && (
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="p-5 lg:p-6 space-y-4">
+
+                      {/* ── MNO form ── */}
+                      {paymentChannel === "MNO" && (
+                        <>
+                          <div className="grid grid-cols-2 gap-3 lg:gap-4">
+                            {PAYMENT_METHODS.map((method) => (
+                              <button
+                                key={method.id}
+                                type="button"
+                                onClick={() => setSelectedMethod(method)}
+                                className={`group relative p-3.5 lg:p-4 rounded-lg border-2 transition-all duration-300 ${
+                                  selectedMethod?.id === method.id
+                                    ? "border-[#02665e] bg-gradient-to-br from-[#02665e]/10 to-blue-50/50 shadow-md ring-2 ring-[#02665e]/20"
+                                    : "border-slate-200 hover:border-[#02665e]/50 hover:shadow-md bg-white"
+                                }`}
+                              >
+                                <div className="flex flex-col items-center text-center gap-2">
+                                  <div className="relative h-16 w-24 flex-shrink-0">
+                                    <Image src={method.icon} alt={method.name} fill sizes="96px" className="object-contain" />
+                                  </div>
+                                  <div className="w-full">
+                                    <div className={`font-bold text-sm lg:text-base mb-0.5 ${
+                                      selectedMethod?.id === method.id ? "text-[#02665e]" : "text-slate-900"
+                                    }`}>
+                                      {method.name}
+                                    </div>
+                                    <div className="text-xs text-slate-600">{method.description}</div>
+                                  </div>
+                                  {selectedMethod?.id === method.id && (
+                                    <div className="absolute top-1.5 right-1.5">
+                                      <div className="w-5 h-5 rounded-full bg-[#02665e] flex items-center justify-center shadow-md">
+                                        <CheckCircle2 className="w-3 h-3 text-white" />
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+
+                          <div className="min-w-0">
+                            <label className="flex w-full text-sm font-semibold text-slate-700 mb-3 items-center gap-2">
+                              <Smartphone className="w-4 h-4 text-[#02665e] flex-shrink-0" />
+                              <span>Phone Number <span className="text-red-500">*</span></span>
+                            </label>
+                            <input
+                              type="tel"
+                              value={phoneNumber}
+                              onChange={(e) => setPhoneNumber(e.target.value)}
+                              placeholder="+255 XXX XXX XXX"
+                              className="w-full min-w-0 px-4 py-3.5 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] transition-all duration-200 text-slate-900 font-medium bg-white shadow-sm hover:shadow-md box-border"
+                            />
+                            {selectedMethod && (
+                              <p className="text-xs text-slate-500 mt-2 ml-1">
+                                Enter the number linked to your {selectedMethod.name} account
+                              </p>
+                            )}
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={handleMnoPayment}
+                            disabled={isDisabled || !selectedMethod || !phoneNumber.trim()}
+                            className="w-full py-4 px-6 rounded-xl bg-gradient-to-r from-[#02665e] to-[#014e47] text-white font-semibold hover:from-[#014e47] hover:to-[#02665e] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98]"
+                          >
+                            {submitting ? (
+                              <>
+                                <LogoSpinner size="sm" ariaLabel="Loading" className="text-white/90" />
+                                <span>Initiating payment...</span>
+                              </>
+                            ) : paymentCooldownSeconds > 0 ? (
+                              <>
+                                <Clock3 className="w-5 h-5" />
+                                <span>Try again in {formatCountdown(paymentCooldownSeconds)}</span>
+                              </>
+                            ) : (
+                              <>
+                                {paymentStatus === "failed" || paymentStatus === "timeout"
+                                  ? <RefreshCw className="w-5 h-5" />
+                                  : <Smartphone className="w-5 h-5" />
+                                }
+                                <span>
+                                  {paymentStatus === "failed" || paymentStatus === "timeout"
+                                    ? "Send payment request again"
+                                    : "Continue to Mobile Payment"}{" "}
+                                  {invoice?.totalAmount.toLocaleString()} {invoice?.currency}
+                                </span>
+                              </>
+                            )}
+                          </button>
+                        </>
                       )}
 
-                      <button
-                        type="button"
-                        onClick={handlePayment}
-                        disabled={submitting || authRequired || paymentCooldownSeconds > 0 || !phoneNumber.trim()}
-                        className="w-full py-4 px-6 rounded-xl bg-gradient-to-r from-[#02665e] to-[#014e47] text-white font-semibold hover:from-[#014e47] hover:to-[#02665e] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98]"
-                      >
-                        {submitting ? (
-                          <>
-                            <LogoSpinner size="sm" ariaLabel="Loading" className="text-white/90" />
-                            <span>Initiating payment...</span>
-                          </>
-                        ) : authRequired ? (
-                          <>
-                            <ShieldCheck className="w-5 h-5" />
-                            <span>Sign in to continue payment</span>
-                          </>
-                        ) : paymentCooldownSeconds > 0 ? (
-                          <>
-                            <Clock3 className="w-5 h-5" />
-                            <span>Try again in {formatCountdown(paymentCooldownSeconds)}</span>
-                          </>
-                        ) : (
-                          <>
-                            {paymentStatus === "failed" || paymentStatus === "timeout" ? (
-                              <RefreshCw className="w-5 h-5" />
+                      {/* ── Bank form ── */}
+                      {paymentChannel === "BANK" && (
+                        <>
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">
+                              Select Bank <span className="text-red-500">*</span>
+                            </label>
+                            <select
+                              value={selectedBankCode}
+                              onChange={(e) => setSelectedBankCode(e.target.value)}
+                              className="w-full px-4 py-3.5 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] transition-all duration-200 text-slate-900 bg-white shadow-sm"
+                            >
+                              <option value="">Choose your bank</option>
+                              {BANK_PROVIDERS.map((bank) => (
+                                <option key={bank.code} value={bank.code}>
+                                  {bank.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">
+                              Account Number <span className="text-slate-400 font-normal">(optional)</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={bankAccountNumber}
+                              onChange={(e) => setBankAccountNumber(e.target.value)}
+                              placeholder="Account number"
+                              maxLength={25}
+                              className="w-full max-w-[280px] px-3 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] transition-all bg-slate-50 focus:bg-white text-slate-900 text-sm font-mono tracking-wide block"
+                            />
+                            <p className="text-xs text-slate-400 mt-1.5">Leave blank if not required by your bank</p>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={handleBankPayment}
+                            disabled={isDisabled || !selectedBankCode}
+                            className="w-full py-4 px-6 rounded-xl bg-gradient-to-r from-[#02665e] to-[#014e47] text-white font-semibold hover:from-[#014e47] hover:to-[#02665e] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98]"
+                          >
+                            {submitting ? (
+                              <>
+                                <LogoSpinner size="sm" ariaLabel="Loading" className="text-white/90" />
+                                <span>Initiating bank payment...</span>
+                              </>
                             ) : (
-                              <CreditCard className="w-5 h-5" />
+                              <>
+                                {paymentStatus === "failed" || paymentStatus === "timeout"
+                                  ? <RefreshCw className="w-5 h-5" />
+                                  : <Building2 className="w-5 h-5" />
+                                }
+                                <span>
+                                  {paymentStatus === "failed" || paymentStatus === "timeout"
+                                    ? "Try bank payment again"
+                                    : "Continue to Bank Transfer"}{" "}
+                                  {invoice?.totalAmount.toLocaleString()} {invoice?.currency}
+                                </span>
+                              </>
                             )}
-                            <span>
-                              {paymentStatus === "failed" || paymentStatus === "timeout" ? "Send payment request again" : "Pay"}{" "}
-                              {invoice?.totalAmount.toLocaleString()} {invoice?.currency}
-                            </span>
-                          </>
-                        )}
-                      </button>
+                          </button>
+                        </>
+                      )}
+
+                      {/* ── Card form ── */}
+                      {paymentChannel === "CARD" && (
+                        <>
+                          <div className="flex items-start gap-3 p-4 bg-violet-50 rounded-xl border border-violet-100">
+                            <ShieldCheck className="w-5 h-5 text-violet-600 flex-shrink-0 mt-0.5" />
+                            <div>
+                              <div className="font-semibold text-slate-900 text-sm mb-1">Secure Hosted Checkout</div>
+                              <div className="text-xs text-slate-600 leading-relaxed">
+                                You will be redirected to AzamPay&apos;s secure card payment page. After completing payment you will be brought back here automatically.
+                              </div>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={handleCardPayment}
+                            disabled={isDisabled}
+                            className="w-full py-4 px-6 rounded-xl bg-gradient-to-r from-violet-600 to-violet-700 text-white font-semibold hover:from-violet-700 hover:to-violet-800 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98]"
+                          >
+                            {submitting ? (
+                              <>
+                                <LogoSpinner size="sm" ariaLabel="Loading" className="text-white/90" />
+                                <span>Redirecting to checkout...</span>
+                              </>
+                            ) : (
+                              <>
+                                <CreditCard className="w-5 h-5" />
+                                <span>
+                                  Continue to Card Payment{" "}
+                                  {invoice?.totalAmount.toLocaleString()} {invoice?.currency}
+                                </span>
+                              </>
+                            )}
+                          </button>
+                        </>
+                      )}
+
                     </div>
                   </div>
                 )}
-              </>
+              </div>
             )}
           </div>
 
@@ -863,7 +1332,6 @@ export default function PaymentPage() {
                   <div className="pb-4 border-b border-slate-200/60">
                     <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Price Breakdown</div>
                     <div className="space-y-2.5">
-                      {/* Accommodation */}
                       <div className="flex justify-between text-sm">
                         <span className="text-slate-600">
                           Accommodation ({invoice.booking.nights} night{invoice.booking.nights !== 1 ? "s" : ""}
@@ -873,8 +1341,7 @@ export default function PaymentPage() {
                           {invoice.priceBreakdown?.accommodationSubtotal.toLocaleString() || (invoice.property.basePrice * invoice.booking.nights).toLocaleString()} {invoice.currency}
                         </span>
                       </div>
-                      
-                      {/* Tax - Always shown */}
+
                       <div className="flex justify-between text-sm">
                         <span className="text-slate-600">
                           Tax {invoice.priceBreakdown?.taxPercent && invoice.priceBreakdown.taxPercent > 0 ? `(${invoice.priceBreakdown.taxPercent}%)` : ""}
@@ -883,20 +1350,16 @@ export default function PaymentPage() {
                           {invoice.priceBreakdown?.taxAmount ? invoice.priceBreakdown.taxAmount.toLocaleString() : "0"} {invoice.currency}
                         </span>
                       </div>
-                      
-                      {/* Service fee intentionally not shown here. */}
-                      
-                      {/* Transportation - only shown when transport was included */}
+
                       {(invoice.booking.includeTransport || (invoice.priceBreakdown?.transportFare && invoice.priceBreakdown.transportFare > 0)) && (
-                      <div className="flex justify-between text-sm">
-                        <span className="text-slate-600">Transportation</span>
-                        <span className="font-semibold text-slate-900">
-                          {invoice.priceBreakdown?.transportFare ? invoice.priceBreakdown.transportFare.toLocaleString() : "0"} {invoice.currency}
-                        </span>
-                      </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-slate-600">Transportation</span>
+                          <span className="font-semibold text-slate-900">
+                            {invoice.priceBreakdown?.transportFare ? invoice.priceBreakdown.transportFare.toLocaleString() : "0"} {invoice.currency}
+                          </span>
+                        </div>
                       )}
-                      
-                      {/* Subtotal - Always shown if breakdown exists */}
+
                       {invoice.priceBreakdown?.subtotal !== undefined && (
                         <div className="flex justify-between text-sm pt-2 border-t border-slate-200/60">
                           <span className="font-medium text-slate-700">Subtotal</span>
@@ -905,8 +1368,7 @@ export default function PaymentPage() {
                           </span>
                         </div>
                       )}
-                      
-                      {/* Discount - Always shown */}
+
                       <div className="flex justify-between text-sm">
                         <span className={`font-medium ${invoice.priceBreakdown?.discount && invoice.priceBreakdown.discount > 0 ? "text-green-600" : "text-slate-400"}`}>
                           Discount
@@ -949,6 +1411,7 @@ export default function PaymentPage() {
         </div>
       </div>
 
+      {/* Auth Required Modal */}
       {authRequired && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 backdrop-blur-sm">
           <div className="w-full max-w-sm rounded-3xl border border-emerald-100 bg-white p-5 shadow-[0_28px_90px_rgba(15,23,42,0.24)] animate-in fade-in zoom-in-95 duration-200">
@@ -988,4 +1451,3 @@ export default function PaymentPage() {
     </div>
   );
 }
-

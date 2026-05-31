@@ -856,8 +856,7 @@ export default function AdminOwnersPage() {
       )}
 
       {/* Pagination */}
-      {total > pageSize && (
-        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+      <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="text-sm text-gray-600">
               Showing <span className="font-semibold text-gray-900">{(page - 1) * pageSize + 1}</span> to{" "}
@@ -911,7 +910,6 @@ export default function AdminOwnersPage() {
         </div>
       </div>
         </div>
-      )}
     </div>
   );
 }

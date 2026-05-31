@@ -65,7 +65,7 @@ export default function UserMenu({ variant = "dark" }: { variant?: "light" | "da
     { href: "/account/bookings", label: "My Bookings", icon: Calendar },
     { href: "/account/rides", label: "My Rides", icon: Car },
     { href: "/account/group-stays", label: "My Group Stay", icon: Users },
-    { href: "/account/event-plans", label: "My Event Plan", icon: ClipboardList },
+    { href: "/account/tour-packages", label: "My Tour Packages", icon: ClipboardList },
   ];
 
   const settingsItems = [

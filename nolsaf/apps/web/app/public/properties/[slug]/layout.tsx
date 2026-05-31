@@ -37,24 +37,6 @@ const fetchProperty = cache(async (slug: string) => {
   return json?.property ?? json;
 });
 
-const fetchReviews = cache(async (propertyId: number) => {
-  try {
-    const apiBase =
-      process.env.API_ORIGIN ||
-      process.env.NEXT_PUBLIC_API_URL ||
-      "http://localhost:4000";
-
-    const res = await fetch(
-      `${apiBase}/api/property-reviews/${propertyId}`,
-      { next: { revalidate: 3600 } }
-    );
-    if (!res.ok) return null;
-    return await res.json();
-  } catch {
-    return null;
-  }
-});
-
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
 
@@ -185,20 +167,8 @@ export default async function PropertySlugLayout({ params, children }: Props) {
         jsonLd.priceRange = `${property.currency} ${property.basePrice.toLocaleString()}`;
       }
 
-      // Aggregate rating from reviews
-      if (property.id) {
-        const reviewsData = await fetchReviews(property.id as number);
-        const stats = reviewsData?.stats ?? reviewsData;
-        if (stats?.averageRating && stats?.totalReviews > 0) {
-          jsonLd.aggregateRating = {
-            "@type": "AggregateRating",
-            ratingValue: Number(stats.averageRating).toFixed(1),
-            reviewCount: stats.totalReviews,
-            bestRating: 5,
-            worstRating: 1,
-          };
-        }
-      }
+      // Review data is loaded by the interactive page. Avoid duplicating that
+      // backend request in layout JSON-LD generation on every property view.
     }
   } catch {
     // JSON-LD is enhancement only — never break the page

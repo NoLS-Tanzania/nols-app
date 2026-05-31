@@ -1,6 +1,6 @@
 "use client";
 // AdminPageHeader removed in favor of a centered, compact header for this page
-import { ChevronDown, Settings, Shield, Lock, AlertTriangle, Network, Clock } from "lucide-react";
+import { Settings, Shield, Lock, AlertTriangle, Network, Clock } from "lucide-react";
 import apiClient from "@/lib/apiClient";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { sanitizeTrustedHtml } from "@/utils/html";
@@ -44,6 +44,11 @@ export default function SystemSettingsPage(){
 
   interface SystemSettings {
     commissionPercent: number;
+    commissionCurrency: string;
+    driverCommissionPercent: number;
+    driverCommissionCurrency: string;
+    agentCommissionPercent: number;
+    agentCommissionCurrency: string;
     taxPercent: number;
     currency: string;
     invoicePrefix: string;
@@ -91,6 +96,11 @@ export default function SystemSettingsPage(){
 
   const [s,setS] = useState<SystemSettings>({
     commissionPercent: 0,
+    commissionCurrency: 'TZS',
+    driverCommissionPercent: 0,
+    driverCommissionCurrency: 'TZS',
+    agentCommissionPercent: 0,
+    agentCommissionCurrency: 'USD',
     taxPercent: 0,
     currency: 'TZS',
     invoicePrefix: 'INV-',
@@ -139,6 +149,7 @@ export default function SystemSettingsPage(){
   const [supportPhone, setSupportPhone] = useState<string>('');
 
   const [toast, setToast] = useState<string | null>(null);
+  const [savedCard, setSavedCard] = useState<boolean>(false);
   const [sessionPolicyAudit, setSessionPolicyAudit] = useState<SessionPolicyAuditEntry[]>([]);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<boolean>(false);
@@ -149,6 +160,12 @@ export default function SystemSettingsPage(){
     const t = window.setTimeout(() => setToast(null), 3500);
     return () => window.clearTimeout(t);
   }, [toast]);
+
+  useEffect(() => {
+    if (!savedCard) return;
+    const t = window.setTimeout(() => setSavedCard(false), 5000);
+    return () => window.clearTimeout(t);
+  }, [savedCard]);
 
   const load = useCallback(async ()=>{
     try {
@@ -312,6 +329,11 @@ export default function SystemSettingsPage(){
     // only send fields that exist on SystemSetting model
   const payload: any = {
       commissionPercent: Number(s.commissionPercent ?? 0),
+      commissionCurrency: s.commissionCurrency || 'TZS',
+      driverCommissionPercent: Number(s.driverCommissionPercent ?? 0),
+      driverCommissionCurrency: s.driverCommissionCurrency || 'TZS',
+      agentCommissionPercent: Number(s.agentCommissionPercent ?? 0),
+      agentCommissionCurrency: s.agentCommissionCurrency || 'USD',
       taxPercent: Number(s.taxPercent ?? 0),
       currency: s.currency || 'TZS',
       invoicePrefix: s.invoicePrefix || 'INV-',
@@ -345,7 +367,7 @@ export default function SystemSettingsPage(){
     setSaving(true);
     try {
       await api.put('/api/admin/settings', payload);
-      setToast('System settings saved (audit recorded)');
+      setSavedCard(true);
       setLastSavedAt(new Date());
       await load();
       await loadSessionPolicyAudit();
@@ -504,6 +526,50 @@ export default function SystemSettingsPage(){
         )}
       </AnimatePresence>
 
+      {/* Centered save-success card */}
+      <AnimatePresence>
+        {savedCard && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm px-4"
+            onClick={() => setSavedCard(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 16 }}
+              transition={{ duration: 0.22, ease: "easeOut" }}
+              className="w-full max-w-sm rounded-3xl bg-white shadow-2xl ring-1 ring-slate-200/60 overflow-hidden"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex flex-col items-center gap-4 px-8 py-8 text-center">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#02665e]/10">
+                  <svg className="h-8 w-8 text-[#02665e]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-slate-900">Settings Saved</p>
+                  <p className="mt-1 text-sm text-slate-500">All changes have been applied and the audit record has been updated.</p>
+                  {lastSavedAt && (
+                    <p className="mt-2 text-xs text-slate-400">Saved at {lastSavedAt.toLocaleTimeString()}</p>
+                  )}
+                </div>
+                <button
+                  onClick={() => setSavedCard(false)}
+                  className="mt-1 w-full rounded-xl bg-[#02665e] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#015b54] transition-colors"
+                >
+                  Done
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="mx-auto w-full max-w-4xl px-4 py-6 pb-28 sm:px-6 lg:px-8">
         <div className="space-y-5">
 
@@ -641,29 +707,127 @@ export default function SystemSettingsPage(){
                 <span className="inline-flex shrink-0 items-center rounded-xl border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.10em] text-emerald-700">Finance</span>
               </div>
               <div className="grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2">
-                <div>
-                  <label htmlFor="commissionPercent" className="block text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 mb-1.5">Commission Rate</label>
-                  <div className="flex overflow-hidden rounded-[12px] border border-slate-200 bg-slate-50/50 shadow-sm transition-all focus-within:border-[#02665e]/40 focus-within:ring-2 focus-within:ring-[#02665e]/15">
-                    <input
-                      id="commissionPercent"
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      inputMode="decimal"
-                      placeholder="10"
-                      value={s?.commissionPercent ?? 0}
-                      className="min-w-0 flex-1 border-0 bg-transparent px-4 py-2.5 text-sm text-slate-900 outline-none placeholder:text-slate-300"
-                      onChange={e=>setS((prev: any)=>({...(prev||{}), commissionPercent: Number(e.target.value)}))}
-                    />
-                    <div className="flex shrink-0 items-center border-l border-slate-200 bg-[#02665e]/10 px-3 text-sm font-bold text-[#02665e]">%</div>
+                {/* Property Commission */}
+                <div className="rounded-[14px] border border-slate-200 bg-slate-50/60 p-4 shadow-sm">
+                  <div className="mb-3">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Property Commission</p>
+                    <p className="mt-0.5 text-[11px] text-slate-400">Charged to property owners on accommodation bookings.</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Rate</p>
+                      <div className="flex overflow-hidden rounded-[10px] border border-slate-200 bg-white shadow-sm focus-within:border-[#02665e]/50 focus-within:ring-2 focus-within:ring-[#02665e]/15">
+                        <input
+                          id="commissionPercent"
+                          type="number" min={0} max={100} step="0.01" inputMode="decimal" placeholder="10"
+                          value={s?.commissionPercent ?? 0}
+                          className="min-w-0 flex-1 border-0 bg-transparent px-3 py-2 text-sm font-medium text-slate-900 outline-none placeholder:text-slate-300"
+                          onChange={e=>setS((prev: any)=>({...(prev||{}), commissionPercent: Number(e.target.value)}))}
+                        />
+                        <div className="flex shrink-0 items-center border-l border-slate-100 bg-[#02665e]/8 px-2.5 text-xs font-bold text-[#02665e]">%</div>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Currency</p>
+                      <select
+                        aria-label="Property commission currency"
+                        className="w-full rounded-[10px] border border-slate-200 bg-white py-2 pl-3 pr-3 text-sm font-medium text-slate-800 shadow-sm outline-none focus:border-[#02665e]/50 focus:ring-2 focus:ring-[#02665e]/15"
+                        value={s?.commissionCurrency || 'TZS'}
+                        onChange={e=>setS((prev: any)=>({...(prev||{}), commissionCurrency: e.target.value}))}
+                      >
+                        <option value="TZS">TZS</option>
+                        <option value="USD">USD</option>
+                        <option value="EUR">EUR</option>
+                        <option value="KSH">KSH</option>
+                        <option value="AED">AED</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <label htmlFor="currency" className="block text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 mb-1.5">Currency</label>
-                  <div className="flex overflow-hidden rounded-[12px] border border-slate-200 bg-slate-50/50 shadow-sm transition-all focus-within:border-[#02665e]/40 focus-within:ring-2 focus-within:ring-[#02665e]/15">
+                {/* Driver Commission */}
+                <div className="rounded-[14px] border border-slate-200 bg-slate-50/60 p-4 shadow-sm">
+                  <div className="mb-3">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Driver Commission</p>
+                    <p className="mt-0.5 text-[11px] text-slate-400">Deducted from driver transport trip payouts.</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Rate</p>
+                      <div className="flex overflow-hidden rounded-[10px] border border-slate-200 bg-white shadow-sm focus-within:border-[#02665e]/50 focus-within:ring-2 focus-within:ring-[#02665e]/15">
+                        <input
+                          id="driverCommissionPercent"
+                          type="number" min={0} max={100} step="0.01" inputMode="decimal" placeholder="10"
+                          value={s?.driverCommissionPercent ?? 0}
+                          className="min-w-0 flex-1 border-0 bg-transparent px-3 py-2 text-sm font-medium text-slate-900 outline-none placeholder:text-slate-300"
+                          onChange={e=>setS((prev: any)=>({...(prev||{}), driverCommissionPercent: Number(e.target.value)}))}
+                        />
+                        <div className="flex shrink-0 items-center border-l border-slate-100 bg-[#02665e]/8 px-2.5 text-xs font-bold text-[#02665e]">%</div>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Currency</p>
+                      <select
+                        aria-label="Driver commission currency"
+                        className="w-full rounded-[10px] border border-slate-200 bg-white py-2 pl-3 pr-3 text-sm font-medium text-slate-800 shadow-sm outline-none focus:border-[#02665e]/50 focus:ring-2 focus:ring-[#02665e]/15"
+                        value={s?.driverCommissionCurrency || 'TZS'}
+                        onChange={e=>setS((prev: any)=>({...(prev||{}), driverCommissionCurrency: e.target.value}))}
+                      >
+                        <option value="TZS">TZS</option>
+                        <option value="USD">USD</option>
+                        <option value="EUR">EUR</option>
+                        <option value="KSH">KSH</option>
+                        <option value="AED">AED</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                {/* Tour Agent Commission */}
+                <div className="rounded-[14px] border border-slate-200 bg-slate-50/60 p-4 shadow-sm">
+                  <div className="mb-3">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Tour Agent Commission</p>
+                    <p className="mt-0.5 text-[11px] text-slate-400">Platform fee deducted from agent tour earnings.</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Rate</p>
+                      <div className="flex overflow-hidden rounded-[10px] border border-slate-200 bg-white shadow-sm focus-within:border-[#02665e]/50 focus-within:ring-2 focus-within:ring-[#02665e]/15">
+                        <input
+                          id="agentCommissionPercent"
+                          type="number" min={0} max={100} step="0.01" inputMode="decimal" placeholder="15"
+                          value={s?.agentCommissionPercent ?? 0}
+                          className="min-w-0 flex-1 border-0 bg-transparent px-3 py-2 text-sm font-medium text-slate-900 outline-none placeholder:text-slate-300"
+                          onChange={e=>setS((prev: any)=>({...(prev||{}), agentCommissionPercent: Number(e.target.value)}))}
+                        />
+                        <div className="flex shrink-0 items-center border-l border-slate-100 bg-[#02665e]/8 px-2.5 text-xs font-bold text-[#02665e]">%</div>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Currency</p>
+                      <select
+                        aria-label="Agent commission currency"
+                        className="w-full rounded-[10px] border border-slate-200 bg-white py-2 pl-3 pr-3 text-sm font-medium text-slate-800 shadow-sm outline-none focus:border-[#02665e]/50 focus:ring-2 focus:ring-[#02665e]/15"
+                        value={s?.agentCommissionCurrency || 'USD'}
+                        onChange={e=>setS((prev: any)=>({...(prev||{}), agentCommissionCurrency: e.target.value}))}
+                      >
+                        <option value="TZS">TZS</option>
+                        <option value="USD">USD</option>
+                        <option value="EUR">EUR</option>
+                        <option value="KSH">KSH</option>
+                        <option value="AED">AED</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                {/* Display Currency (global formatting) */}
+                <div className="rounded-[14px] border border-slate-200 bg-slate-50/60 p-4 shadow-sm">
+                  <div className="mb-3">
+                    <label htmlFor="currency" className="block text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Display Currency</label>
+                    <p className="mt-0.5 text-[11px] text-slate-400">Default currency for displaying monetary values platform-wide.</p>
+                  </div>
+                  <div className="relative">
                     <select
                       id="currency"
-                      className="min-w-0 flex-1 appearance-none border-0 bg-transparent px-4 py-2.5 text-sm text-slate-900 outline-none"
+                      className="w-full rounded-[10px] border border-slate-200 bg-white py-2 pl-3 pr-3 text-sm font-medium text-slate-800 shadow-sm outline-none focus:border-[#02665e]/50 focus:ring-2 focus:ring-[#02665e]/15"
                       value={s?.currency||"TZS"}
                       onChange={e=>setS((prev: any)=>({...(prev||{}), currency: e.target.value}))}
                     >
@@ -673,9 +837,6 @@ export default function SystemSettingsPage(){
                       <option value="KSH">KSH</option>
                       <option value="AED">AED</option>
                     </select>
-                    <div className="flex shrink-0 items-center border-l border-slate-200 bg-slate-100 px-3 text-slate-500">
-                      <ChevronDown className="h-4 w-4" />
-                    </div>
                   </div>
                 </div>
               </div>
