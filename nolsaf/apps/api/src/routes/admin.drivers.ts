@@ -1257,6 +1257,11 @@ router.get("/trips/:id(\\d+)", async (req, res) => {
       include: {
         user: { select: { id: true, name: true, email: true, phone: true } },
         driver: { select: { id: true, name: true, email: true, phone: true } },
+        offers: {
+          select: { id: true, status: true, driverId: true, distanceKm: true, score: true },
+          orderBy: { createdAt: "desc" },
+          take: 5,
+        },
       },
     });
 
@@ -1283,12 +1288,50 @@ router.get("/trips/:id(\\d+)", async (req, res) => {
             paymentRef: true,
             createdAt: true,
             updatedAt: true,
+            approver: { select: { id: true, name: true, email: true } },
+            payer: { select: { id: true, name: true, email: true } },
           },
         });
       }
     } catch {
       payout = null;
     }
+
+    const coordinateText = (lat: any, lng: any) => {
+      if (lat == null || lng == null) return null;
+      const latNum = Number(lat);
+      const lngNum = Number(lng);
+      if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) return null;
+      return `${latNum.toFixed(6)}, ${lngNum.toFixed(6)}`;
+    };
+
+    const distanceKm = (fromLat: any, fromLng: any, toLat: any, toLng: any) => {
+      const lat1 = Number(fromLat);
+      const lng1 = Number(fromLng);
+      const lat2 = Number(toLat);
+      const lng2 = Number(toLng);
+      if (![lat1, lng1, lat2, lng2].every(Number.isFinite)) return null;
+      const toRad = (value: number) => (value * Math.PI) / 180;
+      const earthKm = 6371;
+      const dLat = toRad(lat2 - lat1);
+      const dLng = toRad(lng2 - lng1);
+      const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+      return Math.round(earthKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) * 10) / 10;
+    };
+
+    const durationMinutes = (start: any, end: any) => {
+      if (!start || !end) return null;
+      const startedAt = new Date(start).getTime();
+      const endedAt = new Date(end).getTime();
+      if (!Number.isFinite(startedAt) || !Number.isFinite(endedAt) || endedAt < startedAt) return null;
+      return Math.round((endedAt - startedAt) / 60000);
+    };
+
+    const acceptedOffer = (booking.offers || []).find((offer: any) => String(offer?.status || "").toUpperCase() === "ACCEPTED");
+    const notesUpper = String(booking.notes || "").toUpperCase();
+    const tripType = notesUpper.includes("AUTO_DISPATCH") || acceptedOffer ? "AUTO_DISPATCHED" : "SCHEDULED";
 
     const trip = {
       id: Number(booking.id),
@@ -1301,6 +1344,11 @@ router.get("/trips/:id(\\d+)", async (req, res) => {
       accomplishedAt: (booking.dropoffTime ?? booking.updatedAt ?? booking.scheduledDate ?? booking.createdAt)?.toISOString?.() ?? String(booking.dropoffTime ?? booking.updatedAt ?? booking.scheduledDate ?? booking.createdAt ?? ""),
       pickup: booking.fromAddress || [booking.fromWard, booking.fromDistrict, booking.fromRegion].filter(Boolean).join(", ") || "N/A",
       dropoff: booking.toAddress || [booking.toWard, booking.toDistrict, booking.toRegion].filter(Boolean).join(", ") || "N/A",
+      pickupCoordinate: coordinateText(booking.fromLatitude, booking.fromLongitude),
+      dropoffCoordinate: coordinateText(booking.toLatitude, booking.toLongitude),
+      distanceKm: distanceKm(booking.fromLatitude, booking.fromLongitude, booking.toLatitude, booking.toLongitude),
+      durationMinutes: durationMinutes(booking.pickupTime, booking.dropoffTime),
+      tripType,
       vehicleType: booking.vehicleType ?? null,
       passengerCount: booking.numberOfPassengers != null ? Number(booking.numberOfPassengers) : null,
       amount: booking.amount != null ? Number(booking.amount) : 0,
@@ -1346,6 +1394,8 @@ router.get("/trips/:id(\\d+)", async (req, res) => {
             paymentRef: payout.paymentRef ?? null,
             createdAt: payout.createdAt ? new Date(payout.createdAt).toISOString() : null,
             updatedAt: payout.updatedAt ? new Date(payout.updatedAt).toISOString() : null,
+            approvedBy: payout.approver ?? null,
+            paidBy: payout.payer ?? null,
           }
         : null,
     };
@@ -2732,23 +2782,24 @@ router.post("/trips/scheduled/:id/unassign", async (req, res) => {
 router.get("/invoices", async (req, res) => {
   try {
     const { driverId, status, date, start, end, page = "1", pageSize = "50", q = "" } = req.query as any;
-    
+
+    if (!(prisma as any).transportPayout) {
+      return res.json({ total: 0, page: Number(page), pageSize: Math.min(Number(pageSize), 100), items: [] });
+    }
+
     const where: any = {};
-    
-    // Filter by driver if specified
+
     if (typeof driverId !== "undefined" && String(driverId).trim() !== "") {
       const did = Number(driverId);
       if (Number.isFinite(did) && did > 0) {
         where.driverId = did;
       }
     }
-    
-    // Filter by status
+
     if (status) {
       where.status = status;
     }
-    
-    // Date filtering
+
     if (date) {
       const s = new Date(String(date) + "T00:00:00.000Z");
       const e = new Date(String(date) + "T23:59:59.999Z");
@@ -2758,57 +2809,145 @@ router.get("/invoices", async (req, res) => {
       const e = end ? new Date(String(end) + "T23:59:59.999Z") : new Date();
       where.createdAt = { gte: s, lte: e };
     }
-    
-    // Search query
+
     if (q) {
       const term = String(q).trim();
       if (term) {
-        // MySQL doesn't support `mode: "insensitive"`, so use plain contains.
         where.OR = [
           { paymentRef: { contains: term } },
           { paymentMethod: { contains: term } },
+          { booking: { is: { tripCode: { contains: term } } } },
           { driver: { is: { name: { contains: term } } } },
           { driver: { is: { email: { contains: term } } } },
         ];
       }
     }
-    
+
     const skip = (Number(page) - 1) * Number(pageSize);
     const take = Math.min(Number(pageSize), 100);
-    
-    const [items, total] = await Promise.all([
-      prisma.referralWithdrawal.findMany({
+
+    const [payouts, total] = await Promise.all([
+      (prisma as any).transportPayout.findMany({
         where,
         include: {
           driver: {
             select: { id: true, name: true, email: true, phone: true },
           },
+          booking: {
+            select: {
+              id: true,
+              tripCode: true,
+              status: true,
+              scheduledDate: true,
+              fromAddress: true,
+              fromWard: true,
+              fromDistrict: true,
+              fromRegion: true,
+              fromLatitude: true,
+              fromLongitude: true,
+              toAddress: true,
+              toWard: true,
+              toDistrict: true,
+              toRegion: true,
+              toLatitude: true,
+              toLongitude: true,
+              vehicleType: true,
+              amount: true,
+              currency: true,
+            },
+          },
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         skip,
         take,
       }),
-      prisma.referralWithdrawal.count({ where }),
+      (prisma as any).transportPayout.count({ where }),
     ]);
-    
-    const mapped = (items as any[]).map((w: any) => ({
-      id: w.id,
-      invoiceNumber: `WD-${w.id}`,
-      receiptNumber: w.paymentRef ?? null,
-      driver: w.driver
+
+    const driverIds = [
+      ...new Set((payouts as any[]).map((p: any) => Number(p.driverId)).filter((id: number) => Number.isFinite(id))),
+    ];
+    let withdrawals: any[] = [];
+    if ((prisma as any).referralWithdrawal && driverIds.length > 0) {
+      withdrawals = await (prisma as any).referralWithdrawal.findMany({
+        where: { driverId: { in: driverIds } },
+        orderBy: { createdAt: "desc" },
+        take: Math.max(100, take * 4),
+      });
+    }
+
+    const findWithdrawalForPayout = (p: any) => {
+      const net = Number(p.netPaid ?? 0);
+      return withdrawals.find((w: any) => (
+        Number(w.driverId) === Number(p.driverId) &&
+        String(w.status || "").toUpperCase() === String(p.status || "").toUpperCase() &&
+        Math.round(Number(w.totalAmount ?? 0)) === Math.round(net)
+      )) ?? withdrawals.find((w: any) => (
+        Number(w.driverId) === Number(p.driverId) &&
+        Math.round(Number(w.totalAmount ?? 0)) === Math.round(net)
+      )) ?? null;
+    };
+
+    const coordinateText = (lat: any, lng: any) => {
+      if (lat == null || lng == null) return null;
+      const latNum = Number(lat);
+      const lngNum = Number(lng);
+      if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) return null;
+      return `${latNum.toFixed(6)}, ${lngNum.toFixed(6)}`;
+    };
+
+    const routeText = (b: any) => ({
+      pickup: b?.fromAddress || [b?.fromWard, b?.fromDistrict, b?.fromRegion].filter(Boolean).join(", ") || "N/A",
+      dropoff: b?.toAddress || [b?.toWard, b?.toDistrict, b?.toRegion].filter(Boolean).join(", ") || "N/A",
+      pickupCoordinate: coordinateText(b?.fromLatitude, b?.fromLongitude),
+      dropoffCoordinate: coordinateText(b?.toLatitude, b?.toLongitude),
+    });
+
+    const mapped = (payouts as any[]).map((p: any) => {
+      const withdrawal = findWithdrawalForPayout(p);
+      const route = routeText(p.booking);
+      return {
+        id: Number(p.id),
+        payoutId: Number(p.id),
+        invoiceId: withdrawal ? Number(withdrawal.id) : null,
+        invoiceNumber: withdrawal ? `WD-${withdrawal.id}` : `DP-${p.id}`,
+        receiptNumber: withdrawal?.paymentRef ?? p.paymentRef ?? null,
+        trip: p.booking
+          ? {
+              id: Number(p.booking.id),
+              code: p.booking.tripCode || p.paymentRef || `TRIP-${p.booking.id}`,
+              status: p.booking.status || "COMPLETED",
+              scheduledAt: p.booking.scheduledDate ? new Date(p.booking.scheduledDate).toISOString() : null,
+              pickup: route.pickup,
+              dropoff: route.dropoff,
+              pickupCoordinate: route.pickupCoordinate,
+              dropoffCoordinate: route.dropoffCoordinate,
+              vehicleType: p.booking.vehicleType ?? null,
+            }
+          : null,
+        driver: p.driver
         ? {
-            id: w.driver.id,
-            name: w.driver.name || "Unknown Driver",
-            email: w.driver.email,
-            phone: w.driver.phone,
+            id: Number(p.driver.id),
+            name: p.driver.name || "Unknown Driver",
+            email: p.driver.email,
+            phone: p.driver.phone,
           }
         : null,
-      amount: Number(w.totalAmount ?? 0),
-      status: w.status || "PENDING",
-      issuedAt: (w.createdAt ?? w.approvedAt ?? w.paidAt)?.toISOString?.() ?? String(w.createdAt ?? ""),
-      createdAt: (w.createdAt ?? w.updatedAt)?.toISOString?.() ?? String(w.createdAt ?? ""),
-    }));
-    
+        amount: Number(p.netPaid ?? 0),
+        currency: p.currency || p.booking?.currency || "TZS",
+        gross: Number(p.grossAmount ?? p.booking?.amount ?? 0),
+        commissionPercent: Number(p.commissionPercent ?? 0),
+        commissionAmount: Number(p.commissionAmount ?? 0),
+        status: p.status || "PENDING",
+        paymentMethod: withdrawal?.paymentMethod ?? p.paymentMethod ?? null,
+        paymentRef: withdrawal?.paymentRef ?? p.paymentRef ?? null,
+        adminNotes: withdrawal?.adminNotes ?? null,
+        requestedAt: (withdrawal?.createdAt ?? p.createdAt)?.toISOString?.() ?? String(withdrawal?.createdAt ?? p.createdAt ?? ""),
+        issuedAt: (withdrawal?.createdAt ?? p.createdAt)?.toISOString?.() ?? String(withdrawal?.createdAt ?? p.createdAt ?? ""),
+        createdAt: (withdrawal?.createdAt ?? p.createdAt)?.toISOString?.() ?? String(withdrawal?.createdAt ?? p.createdAt ?? ""),
+      };
+    });
+
     return res.json({ total, page: Number(page), pageSize: take, items: mapped });
   } catch (err: any) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && (err.code === 'P2021' || err.code === 'P2022')) {
@@ -2917,6 +3056,518 @@ router.get("/invoices/stats", async (req, res) => {
     }
     console.error('Unhandled error in GET /admin/drivers/invoices/stats:', err);
     return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/** GET /admin/drivers/invoices/:id - full trip payout invoice review details */
+router.get("/invoices/:id(\\d+)", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ error: "invalid_invoice_id" });
+    if (!(prisma as any).transportPayout) return res.status(400).json({ error: "Driver payout invoices are not available" });
+
+    const payout = await (prisma as any).transportPayout.findUnique({
+      where: { id },
+      include: {
+        driver: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            payout: true,
+            paymentPhone: true,
+            vehicleType: true,
+            plateNumber: true,
+            kycStatus: true,
+          },
+        },
+        approver: { select: { id: true, name: true, email: true } },
+        payer: { select: { id: true, name: true, email: true } },
+        booking: {
+          select: {
+            id: true,
+            tripCode: true,
+            status: true,
+            paymentStatus: true,
+            paymentMethod: true,
+            paymentRef: true,
+            scheduledDate: true,
+            pickupTime: true,
+            dropoffTime: true,
+            fromAddress: true,
+            fromWard: true,
+            fromDistrict: true,
+            fromRegion: true,
+            fromLatitude: true,
+            fromLongitude: true,
+            toAddress: true,
+            toWard: true,
+            toDistrict: true,
+            toRegion: true,
+            toLatitude: true,
+            toLongitude: true,
+            vehicleType: true,
+            numberOfPassengers: true,
+            amount: true,
+            currency: true,
+            notes: true,
+            userRating: true,
+            userReview: true,
+            driverRating: true,
+            driverReview: true,
+            createdAt: true,
+            updatedAt: true,
+            user: { select: { id: true, name: true, email: true, phone: true } },
+            offers: {
+              select: { id: true, status: true, driverId: true, distanceKm: true, score: true },
+              orderBy: { createdAt: "desc" },
+              take: 5,
+            },
+          },
+        },
+      },
+    });
+
+    if (!payout) return res.status(404).json({ error: "Driver payout invoice not found" });
+
+    let withdrawal: any = null;
+    if ((prisma as any).referralWithdrawal) {
+      withdrawal = await (prisma as any).referralWithdrawal.findFirst({
+        where: {
+          driverId: payout.driverId,
+          totalAmount: payout.netPaid,
+        },
+        orderBy: { createdAt: "desc" },
+      });
+    }
+
+    let verifiedAudit: any = null;
+    let approvedAudit: any = null;
+    try {
+      if ((prisma as any).adminAudit) {
+        const auditRows = await (prisma as any).adminAudit.findMany({
+          where: {
+            targetUserId: payout.driverId,
+            action: { in: ["DRIVER_PAYOUT_INVOICE_VERIFY", "DRIVER_PAYOUT_INVOICE_APPROVE"] },
+          },
+          orderBy: { createdAt: "desc" },
+          take: 100,
+          include: {
+            admin: { select: { id: true, name: true, email: true } },
+          },
+        });
+
+        for (const row of auditRows as any[]) {
+          const details = row?.details && typeof row.details === "object" ? row.details : {};
+          if (Number((details as any).invoiceId) !== Number(payout.id)) continue;
+          if (!verifiedAudit && row.action === "DRIVER_PAYOUT_INVOICE_VERIFY") verifiedAudit = row;
+          if (!approvedAudit && row.action === "DRIVER_PAYOUT_INVOICE_APPROVE") approvedAudit = row;
+          if (verifiedAudit && approvedAudit) break;
+        }
+      }
+    } catch (auditErr: any) {
+      console.warn("Failed to load driver invoice audit timestamps:", auditErr?.message ?? auditErr);
+    }
+
+    const coordinateText = (lat: any, lng: any) => {
+      if (lat == null || lng == null) return null;
+      const latNum = Number(lat);
+      const lngNum = Number(lng);
+      if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) return null;
+      return `${latNum.toFixed(6)}, ${lngNum.toFixed(6)}`;
+    };
+
+    const distanceKm = (fromLat: any, fromLng: any, toLat: any, toLng: any) => {
+      const lat1 = Number(fromLat);
+      const lng1 = Number(fromLng);
+      const lat2 = Number(toLat);
+      const lng2 = Number(toLng);
+      if (![lat1, lng1, lat2, lng2].every(Number.isFinite)) return null;
+      const toRad = (value: number) => (value * Math.PI) / 180;
+      const earthKm = 6371;
+      const dLat = toRad(lat2 - lat1);
+      const dLng = toRad(lng2 - lng1);
+      const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+      return Math.round(earthKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) * 10) / 10;
+    };
+
+    const durationMinutes = (start: any, end: any) => {
+      if (!start || !end) return null;
+      const startedAt = new Date(start).getTime();
+      const endedAt = new Date(end).getTime();
+      if (!Number.isFinite(startedAt) || !Number.isFinite(endedAt) || endedAt < startedAt) return null;
+      return Math.round((endedAt - startedAt) / 60000);
+    };
+
+    const notesUpper = String(payout.booking?.notes || "").toUpperCase();
+    const acceptedOffer = (payout.booking?.offers || []).find((offer: any) => String(offer?.status || "").toUpperCase() === "ACCEPTED");
+    const tripType = notesUpper.includes("AUTO_DISPATCH") || acceptedOffer
+      ? "AUTO_DISPATCHED"
+      : "SCHEDULED";
+    const tripDistanceKm = distanceKm(
+      payout.booking?.fromLatitude,
+      payout.booking?.fromLongitude,
+      payout.booking?.toLatitude,
+      payout.booking?.toLongitude,
+    );
+    const tripDurationMinutes = durationMinutes(payout.booking?.pickupTime, payout.booking?.dropoffTime);
+
+    const route = {
+      pickup:
+        payout.booking?.fromAddress ||
+        [payout.booking?.fromWard, payout.booking?.fromDistrict, payout.booking?.fromRegion].filter(Boolean).join(", ") ||
+        "N/A",
+      dropoff:
+        payout.booking?.toAddress ||
+        [payout.booking?.toWard, payout.booking?.toDistrict, payout.booking?.toRegion].filter(Boolean).join(", ") ||
+        "N/A",
+      pickupCoordinate: coordinateText(payout.booking?.fromLatitude, payout.booking?.fromLongitude),
+      dropoffCoordinate: coordinateText(payout.booking?.toLatitude, payout.booking?.toLongitude),
+    };
+
+    return res.json({
+      invoice: {
+        id: Number(payout.id),
+        payoutId: Number(payout.id),
+        invoiceId: withdrawal ? Number(withdrawal.id) : null,
+        invoiceNumber: withdrawal ? `WD-${withdrawal.id}` : `DP-${payout.id}`,
+        status: payout.status || "PENDING",
+        amount: Number(payout.netPaid ?? 0),
+        currency: payout.currency || payout.booking?.currency || "TZS",
+        gross: Number(payout.grossAmount ?? payout.booking?.amount ?? 0),
+        commissionPercent: Number(payout.commissionPercent ?? 0),
+        commissionAmount: Number(payout.commissionAmount ?? 0),
+        paymentMethod: withdrawal?.paymentMethod ?? payout.paymentMethod ?? null,
+        paymentRef: withdrawal?.paymentRef ?? payout.paymentRef ?? null,
+        adminNotes: withdrawal?.adminNotes ?? null,
+        requestedAt: (withdrawal?.createdAt ?? payout.createdAt)?.toISOString?.() ?? String(withdrawal?.createdAt ?? payout.createdAt ?? ""),
+        verifiedAt: verifiedAudit?.createdAt ? new Date(verifiedAudit.createdAt).toISOString() : null,
+        approvedAt: payout.approvedAt ? new Date(payout.approvedAt).toISOString() : null,
+        paidAt: payout.paidAt ? new Date(payout.paidAt).toISOString() : null,
+        createdAt: payout.createdAt ? new Date(payout.createdAt).toISOString() : null,
+        updatedAt: payout.updatedAt ? new Date(payout.updatedAt).toISOString() : null,
+        driver: payout.driver
+          ? {
+              id: Number(payout.driver.id),
+              name: payout.driver.name || "Unknown Driver",
+              email: payout.driver.email,
+              phone: payout.driver.phone,
+              payout: payout.driver.payout ?? null,
+              paymentPhone: payout.driver.paymentPhone ?? null,
+              vehicleType: payout.driver.vehicleType ?? null,
+              plateNumber: payout.driver.plateNumber ?? null,
+              kycStatus: payout.driver.kycStatus ?? null,
+            }
+          : null,
+        approvedBy: payout.approver ?? null,
+        verifiedBy: verifiedAudit?.admin ?? null,
+        paidBy: payout.payer ?? null,
+        trip: payout.booking
+          ? {
+              id: Number(payout.booking.id),
+              code: payout.booking.tripCode || payout.paymentRef || `TRIP-${payout.booking.id}`,
+              status: payout.booking.status || "COMPLETED",
+              paymentStatus: payout.booking.paymentStatus ?? null,
+              paymentMethod: payout.booking.paymentMethod ?? null,
+              paymentRef: payout.booking.paymentRef ?? null,
+              scheduledAt: payout.booking.scheduledDate ? new Date(payout.booking.scheduledDate).toISOString() : null,
+              pickupTime: payout.booking.pickupTime ? new Date(payout.booking.pickupTime).toISOString() : null,
+              dropoffTime: payout.booking.dropoffTime ? new Date(payout.booking.dropoffTime).toISOString() : null,
+              pickup: route.pickup,
+              dropoff: route.dropoff,
+              pickupCoordinate: route.pickupCoordinate,
+              dropoffCoordinate: route.dropoffCoordinate,
+              distanceKm: tripDistanceKm,
+              durationMinutes: tripDurationMinutes,
+              tripType,
+              vehicleType: payout.booking.vehicleType ?? null,
+              passengerCount: payout.booking.numberOfPassengers ?? null,
+              amount: Number(payout.booking.amount ?? 0),
+              currency: payout.booking.currency ?? "TZS",
+              notes: payout.booking.notes ?? null,
+              customerRating: payout.booking.userRating != null ? Number(payout.booking.userRating) : null,
+              customerReview: payout.booking.userReview ?? null,
+              driverRating: payout.booking.driverRating != null ? Number(payout.booking.driverRating) : null,
+              driverReview: payout.booking.driverReview ?? null,
+              createdAt: payout.booking.createdAt ? new Date(payout.booking.createdAt).toISOString() : null,
+              updatedAt: payout.booking.updatedAt ? new Date(payout.booking.updatedAt).toISOString() : null,
+              user: payout.booking.user ?? null,
+            }
+          : null,
+      },
+    });
+  } catch (err: any) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && (err.code === "P2021" || err.code === "P2022")) {
+      console.warn("Prisma schema mismatch when querying driver invoice details:", err.message);
+      return res.status(404).json({ error: "Driver payout invoice not found" });
+    }
+    if (err instanceof Prisma.PrismaClientValidationError) {
+      console.warn("Prisma validation error when querying driver invoice details:", err.message);
+      return res.status(404).json({ error: "Driver payout invoice not found" });
+    }
+    console.error("Unhandled error in GET /admin/drivers/invoices/:id:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/** POST /admin/drivers/invoices/:id/verify - verify a pending driver payout invoice before approval */
+router.post("/invoices/:id(\\d+)/verify", limitAdminTripsWrite, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ error: "invalid_invoice_id" });
+
+    if (!(prisma as any).transportPayout) {
+      return res.status(400).json({ error: "Driver payout invoices are not available" });
+    }
+
+    const adminId = Number((req as any)?.user?.id);
+    const adminNotes = normalizeReason((req.body as any)?.adminNotes, 500);
+
+    const payout = await (prisma as any).transportPayout.findUnique({
+      where: { id },
+      include: {
+        driver: { select: { id: true, name: true, email: true, phone: true } },
+        booking: { select: { id: true, tripCode: true } },
+      },
+    });
+
+    if (!payout) return res.status(404).json({ error: "Driver payout invoice not found" });
+    if (payout.status !== "PENDING") {
+      return res.status(409).json({ error: `Invoice is already ${payout.status}` });
+    }
+
+    const updated = await (prisma as any).transportPayout.update({
+      where: { id },
+      data: {
+        status: "VERIFIED",
+      },
+      include: {
+        driver: { select: { id: true, name: true, email: true, phone: true } },
+        booking: { select: { id: true, tripCode: true } },
+      },
+    });
+
+    let verifiedAt = new Date();
+    try {
+      if (Number.isFinite(adminId)) {
+        const audit = await (prisma as any).adminAudit?.create?.({
+          data: {
+            adminId,
+            targetUserId: updated.driverId,
+            action: "DRIVER_PAYOUT_INVOICE_VERIFY",
+            details: {
+              invoiceId: updated.id,
+              invoiceNumber: `DP-${updated.id}`,
+              tripId: updated.booking?.id ?? null,
+              tripCode: updated.booking?.tripCode ?? null,
+              amount: Number(updated.netPaid ?? 0),
+              paymentMethod: updated.paymentMethod ?? null,
+              paymentRef: updated.paymentRef ?? null,
+              adminNotes: adminNotes || null,
+            },
+          },
+        });
+        if (audit?.createdAt) verifiedAt = new Date(audit.createdAt);
+      }
+    } catch {
+      // audit is best-effort
+    }
+
+    try {
+      const io = (req as any).app?.get?.("io") || (global as any).io;
+      if (io) {
+        io.emit("admin:driver-payout-invoice-verified", {
+          invoiceId: updated.id,
+          driverId: updated.driverId,
+          tripId: updated.booking?.id ?? null,
+          amount: Number(updated.netPaid ?? 0),
+        });
+      }
+    } catch (emitErr: any) {
+      console.warn("Failed to emit driver payout invoice verification notification:", emitErr?.message ?? emitErr);
+    }
+
+    return res.json({
+      success: true,
+      invoice: {
+        id: updated.id,
+        invoiceNumber: `DP-${updated.id}`,
+        tripId: updated.booking?.id ?? null,
+        tripCode: updated.booking?.tripCode ?? null,
+        driver: updated.driver
+          ? {
+              id: updated.driver.id,
+              name: updated.driver.name || "Unknown Driver",
+              email: updated.driver.email,
+              phone: updated.driver.phone,
+            }
+          : null,
+        amount: Number(updated.netPaid ?? 0),
+        currency: updated.currency || "TZS",
+        status: updated.status,
+        verifiedAt: verifiedAt.toISOString(),
+      },
+    });
+  } catch (err: any) {
+    console.error("Unhandled error in POST /admin/drivers/invoices/:id/verify:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/** POST /admin/drivers/invoices/:id/approve - approve a verified driver payout invoice */
+router.post("/invoices/:id(\\d+)/approve", limitAdminTripsWrite, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ error: "invalid_invoice_id" });
+
+    if (!(prisma as any).transportPayout) {
+      return res.status(400).json({ error: "Driver payout invoices are not available" });
+    }
+
+    const adminId = Number((req as any)?.user?.id);
+    const adminNotes = normalizeReason((req.body as any)?.adminNotes, 500);
+
+    const payout = await (prisma as any).transportPayout.findUnique({
+      where: { id },
+      include: {
+        driver: { select: { id: true, name: true, email: true, phone: true } },
+        booking: { select: { id: true, tripCode: true } },
+      },
+    });
+
+    if (!payout) return res.status(404).json({ error: "Driver payout invoice not found" });
+    if (payout.status !== "VERIFIED") {
+      if (payout.status === "PENDING") return res.status(409).json({ error: "Invoice must be verified before approval" });
+      return res.status(409).json({ error: `Invoice is already ${payout.status}` });
+    }
+
+    const updated = await (prisma as any).transportPayout.update({
+      where: { id },
+      data: {
+        status: "APPROVED",
+        approvedAt: new Date(),
+        approvedBy: Number.isFinite(adminId) ? adminId : null,
+      },
+      include: {
+        driver: { select: { id: true, name: true, email: true, phone: true } },
+        booking: { select: { id: true, tripCode: true } },
+      },
+    });
+
+    try {
+      if ((prisma as any).referralWithdrawal) {
+        const withdrawal = await (prisma as any).referralWithdrawal.findFirst({
+          where: {
+            driverId: payout.driverId,
+            totalAmount: payout.netPaid,
+            status: "PENDING",
+          },
+          orderBy: { createdAt: "desc" },
+        });
+
+        if (withdrawal) {
+          await (prisma as any).referralWithdrawal.update({
+            where: { id: withdrawal.id },
+            data: {
+              status: "APPROVED",
+              processedBy: Number.isFinite(adminId) ? adminId : null,
+              approvedAt: new Date(),
+              rejectedAt: null,
+              rejectionReason: null,
+              adminNotes: adminNotes || withdrawal.adminNotes,
+            },
+          });
+        }
+      }
+    } catch (withdrawalErr: any) {
+      console.warn("Failed to approve linked withdrawal for driver invoice:", withdrawalErr?.message ?? withdrawalErr);
+    }
+
+    try {
+      if ((prisma as any).referralEarning) {
+        await (prisma as any).referralEarning.updateMany({
+          where: { driverId: payout.driverId, withdrawal: { is: { totalAmount: payout.netPaid } }, status: "AVAILABLE_FOR_WITHDRAWAL" },
+          data: {
+            status: "WITHDRAWN",
+            withdrawnAt: new Date(),
+          },
+        });
+      }
+    } catch (earningsErr: any) {
+      console.warn("Failed to mark referral earnings withdrawn for driver invoice approval:", earningsErr?.message ?? earningsErr);
+    }
+
+    try {
+      if (Number.isFinite(adminId)) {
+        await (prisma as any).adminAudit?.create?.({
+          data: {
+            adminId,
+            targetUserId: updated.driverId,
+            action: "DRIVER_PAYOUT_INVOICE_APPROVE",
+            details: {
+              invoiceId: updated.id,
+              invoiceNumber: `DP-${updated.id}`,
+              tripId: updated.booking?.id ?? null,
+              tripCode: updated.booking?.tripCode ?? null,
+              amount: Number(updated.netPaid ?? 0),
+              paymentMethod: updated.paymentMethod ?? null,
+              paymentRef: updated.paymentRef ?? null,
+            },
+          },
+        });
+      }
+    } catch {
+      // audit is best-effort
+    }
+
+    try {
+      const io = (req as any).app?.get?.("io") || (global as any).io;
+      if (io) {
+        io.to(`driver:${updated.driverId}`).emit("driver-payout-invoice-approved", {
+          invoiceId: updated.id,
+          tripId: updated.booking?.id ?? null,
+          amount: Number(updated.netPaid ?? 0),
+          approvedAt: updated.approvedAt,
+          processedBy: Number.isFinite(adminId) ? adminId : null,
+        });
+        io.emit("admin:driver-payout-invoice-approved", {
+          invoiceId: updated.id,
+          driverId: updated.driverId,
+          tripId: updated.booking?.id ?? null,
+          amount: Number(updated.netPaid ?? 0),
+        });
+      }
+    } catch (emitErr: any) {
+      console.warn("Failed to emit driver payout invoice approval notification:", emitErr?.message ?? emitErr);
+    }
+
+    return res.json({
+      success: true,
+      invoice: {
+        id: updated.id,
+        invoiceNumber: `DP-${updated.id}`,
+        tripId: updated.booking?.id ?? null,
+        tripCode: updated.booking?.tripCode ?? null,
+        driver: updated.driver
+          ? {
+              id: updated.driver.id,
+              name: updated.driver.name || "Unknown Driver",
+              email: updated.driver.email,
+              phone: updated.driver.phone,
+            }
+          : null,
+        amount: Number(updated.netPaid ?? 0),
+        currency: updated.currency || "TZS",
+        status: updated.status,
+        approvedAt: updated.approvedAt ? new Date(updated.approvedAt).toISOString() : null,
+      },
+    });
+  } catch (err: any) {
+    console.error("Unhandled error in POST /admin/drivers/invoices/:id/approve:", err);
+    return res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -3130,15 +3781,44 @@ router.get("/paid/stats", async (req, res) => {
       console.warn("Error querying payment stats:", err.message);
     }
 
-    // Group by date
+    const dateKeyFor = (value: Date) => {
+      if (period === "year") {
+        return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-01`;
+      }
+      return value.toISOString().split("T")[0];
+    };
+
+    const buildEmptySeries = () => {
+      const seeded = new Map<string, { count: number; totalPaid: number; totalCommission: number }>();
+      const cursor = new Date(startDate);
+      cursor.setHours(0, 0, 0, 0);
+
+      if (period === "year") {
+        cursor.setDate(1);
+        while (cursor <= endDate) {
+          seeded.set(dateKeyFor(cursor), { count: 0, totalPaid: 0, totalCommission: 0 });
+          cursor.setMonth(cursor.getMonth() + 1);
+        }
+        return seeded;
+      }
+
+      while (cursor <= endDate) {
+        seeded.set(dateKeyFor(cursor), { count: 0, totalPaid: 0, totalCommission: 0 });
+        cursor.setDate(cursor.getDate() + 1);
+      }
+      return seeded;
+    };
+
+    // Group by date while preserving zero buckets so charts draw a real timeline.
     const dateMap = new Map<string, { count: number; totalPaid: number; totalCommission: number }>();
+    buildEmptySeries().forEach((value, key) => dateMap.set(key, value));
     
     payments.forEach((p) => {
-      const dateKey = p.paidAt.toISOString().split("T")[0];
+      const dateKey = dateKeyFor(new Date(p.paidAt));
       const existing = dateMap.get(dateKey) || { count: 0, totalPaid: 0, totalCommission: 0 };
       existing.count += 1;
-      existing.totalPaid += p.netPaid ?? 0;
-      existing.totalCommission += p.commissionAmount ?? 0;
+      existing.totalPaid += Number(p.netPaid ?? 0);
+      existing.totalCommission += Number(p.commissionAmount ?? 0);
       dateMap.set(dateKey, existing);
     });
 
@@ -3146,8 +3826,8 @@ router.get("/paid/stats", async (req, res) => {
       .map(([date, data]) => ({
         date,
         count: data.count,
-        totalPaid: data.totalPaid,
-        totalCommission: data.totalCommission,
+        totalPaid: Math.round(data.totalPaid),
+        totalCommission: Math.round(data.totalCommission),
       }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
@@ -3181,115 +3861,154 @@ router.get("/paid/stats", async (req, res) => {
 router.get("/revenues", async (req, res) => {
   try {
     const { driverId, date, start, end, page = "1", pageSize = "50", q = "" } = req.query as any;
-    
+
+    if (!(prisma as any).transportPayout) {
+      return res.json({ total: 0, page: Number(page), pageSize: Math.min(Number(pageSize), 100), items: [] });
+    }
+
     const where: any = {
-      booking: { is: { driverId: { not: null } } },
+      booking: {
+        is: {
+          status: { in: ["COMPLETED", "FINISHED"] },
+        },
+      },
     };
-    
-    // Filter by driver if specified
-    // Note: Invoice is for property bookings, not transport bookings
-    // Driver filtering doesn't apply to invoices as they're for property owners
-    // Remove driver filter for invoices
-    
-    // Date filtering
+
+    if (driverId) {
+      const did = Number(driverId);
+      if (Number.isFinite(did) && did > 0) where.driverId = did;
+    }
+
     if (date) {
       const s = new Date(String(date) + "T00:00:00.000Z");
       const e = new Date(String(date) + "T23:59:59.999Z");
-      where.issuedAt = { gte: s, lte: e };
+      where.createdAt = { gte: s, lte: e };
     } else if (start || end) {
       const s = start ? new Date(String(start) + "T00:00:00.000Z") : new Date(0);
       const e = end ? new Date(String(end) + "T23:59:59.999Z") : new Date();
-      where.issuedAt = { gte: s, lte: e };
+      where.createdAt = { gte: s, lte: e };
     }
-    
-    // Search query
+
     if (q) {
+      const term = String(q).trim();
       where.OR = [
-        // MySQL doesn't support `mode: "insensitive"`, so use plain contains.
-        { booking: { is: { driver: { is: { name: { contains: q } } } } } },
-        { booking: { is: { driver: { is: { email: { contains: q } } } } } },
+        { paymentRef: { contains: term } },
+        { paymentMethod: { contains: term } },
+        { driver: { is: { name: { contains: term } } } },
+        { driver: { is: { email: { contains: term } } } },
+        { booking: { is: { tripCode: { contains: term } } } },
+        { booking: { is: { fromAddress: { contains: term } } } },
+        { booking: { is: { toAddress: { contains: term } } } },
       ];
     }
-    
+
     const skip = (Number(page) - 1) * Number(pageSize);
     const take = Math.min(Number(pageSize), 100);
-    
-    // Get invoices grouped by owner (Invoice is for property bookings, not transport)
-    const invoices = await prisma.invoice.findMany({
+
+    const payouts = await (prisma as any).transportPayout.findMany({
       where,
       include: {
+        driver: {
+          select: { id: true, name: true, email: true, phone: true, vehicleType: true, plateNumber: true },
+        },
         booking: {
-          include: {
-            user: {
-              select: { id: true, name: true, email: true, phone: true },
-            },
+          select: {
+            id: true,
+            tripCode: true,
+            status: true,
+            fromAddress: true,
+            fromDistrict: true,
+            fromRegion: true,
+            toAddress: true,
+            toDistrict: true,
+            toRegion: true,
+            vehicleType: true,
           },
         },
       },
-      orderBy: { issuedAt: "desc" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     });
-    
-    // Group by driver
+
     const driverMap = new Map<number, {
       driver: any;
       grossRevenue: number;
       commissionAmount: number;
       netRevenue: number;
-      tripCount: number;
+      tripIds: Set<number>;
       invoiceCount: number;
       lastPaymentDate: Date | null;
+      areaRegistered: string | null;
+      vehicleType: string | null;
+      registrationNumber: string | null;
     }>();
-    
-    invoices.forEach((inv: any) => {
-      const driverId = inv.booking?.driverId;
-      if (!driverId) return;
-      
-      const gross = inv.totalAmount ?? inv.total ?? 0;
-      const commission = inv.commissionAmount ?? 0;
-      const net = inv.netPayable ?? gross - commission;
-      
-      if (!driverMap.has(driverId)) {
-        driverMap.set(driverId, {
-          driver: inv.booking?.driver,
+
+    const areaRegistered = (booking: any) => {
+      const district = booking?.fromDistrict || booking?.toDistrict || "";
+      const region = booking?.fromRegion || booking?.toRegion || "";
+      return [district, region].filter(Boolean).join(", ") || null;
+    };
+
+    (payouts as any[]).forEach((payout: any) => {
+      const payoutDriverId = Number(payout.driverId);
+      if (!Number.isFinite(payoutDriverId)) return;
+
+      const gross = Number(payout.grossAmount ?? payout.booking?.amount ?? 0);
+      const commission = Number(payout.commissionAmount ?? 0);
+      const net = Number(payout.netPaid ?? Math.max(0, gross - commission));
+
+      if (!driverMap.has(payoutDriverId)) {
+        driverMap.set(payoutDriverId, {
+          driver: payout.driver,
           grossRevenue: 0,
           commissionAmount: 0,
           netRevenue: 0,
-          tripCount: 0,
+          tripIds: new Set<number>(),
           invoiceCount: 0,
           lastPaymentDate: null,
+          areaRegistered: areaRegistered(payout.booking),
+          vehicleType: payout.driver?.vehicleType || payout.booking?.vehicleType || null,
+          registrationNumber: payout.driver?.plateNumber || null,
         });
       }
-      
-      const entry = driverMap.get(driverId)!;
+
+      const entry = driverMap.get(payoutDriverId)!;
+      const activityDate = payout.paidAt ?? payout.approvedAt ?? payout.updatedAt ?? payout.createdAt;
+      const activityDateValue = activityDate ? new Date(activityDate) : null;
+      if (!entry.lastPaymentDate || (activityDateValue && activityDateValue > entry.lastPaymentDate)) {
+        entry.areaRegistered = areaRegistered(payout.booking) || entry.areaRegistered;
+        entry.vehicleType = payout.driver?.vehicleType || payout.booking?.vehicleType || entry.vehicleType;
+        entry.registrationNumber = payout.driver?.plateNumber || entry.registrationNumber;
+      }
       entry.grossRevenue += gross;
       entry.commissionAmount += commission;
       entry.netRevenue += net;
       entry.invoiceCount += 1;
-      if (inv.booking) entry.tripCount += 1;
-      
-      if (inv.paidAt && (!entry.lastPaymentDate || new Date(inv.paidAt) > entry.lastPaymentDate)) {
-        entry.lastPaymentDate = new Date(inv.paidAt);
+      if (payout.booking?.id) entry.tripIds.add(Number(payout.booking.id));
+
+      if (activityDate && (!entry.lastPaymentDate || new Date(activityDate) > entry.lastPaymentDate)) {
+        entry.lastPaymentDate = new Date(activityDate);
       }
     });
-    
-    // Convert to array and sort by net revenue
+
     let items = Array.from(driverMap.values())
       .map((entry, idx) => ({
         id: idx + 1,
         driver: entry.driver,
-        grossRevenue: entry.grossRevenue,
-        commissionAmount: entry.commissionAmount,
-        netRevenue: entry.netRevenue,
-        tripCount: entry.tripCount,
+        grossRevenue: Math.round(entry.grossRevenue),
+        commissionAmount: Math.round(entry.commissionAmount),
+        netRevenue: Math.round(entry.netRevenue),
+        tripCount: entry.tripIds.size,
         invoiceCount: entry.invoiceCount,
+        areaRegistered: entry.areaRegistered,
+        vehicleType: entry.vehicleType,
+        registrationNumber: entry.registrationNumber,
         lastPaymentDate: entry.lastPaymentDate?.toISOString() || null,
       }))
       .sort((a, b) => b.netRevenue - a.netRevenue);
-    
-    // Apply pagination
+
     const total = items.length;
     items = items.slice(skip, skip + take);
-    
+
     return res.json({ total, page: Number(page), pageSize: take, items });
   } catch (err: any) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && (err.code === 'P2021' || err.code === 'P2022')) {
@@ -3337,55 +4056,114 @@ router.get("/revenues/stats", async (req, res) => {
     }
     startDate.setHours(0, 0, 0, 0);
 
-    // Note: Invoice model is for property bookings only, not transport bookings
-    // Property bookings don't have driverId. For driver revenues, we'd need to query
-    // TransportBooking or another model. For now, return empty data gracefully.
-    // If you need driver revenue stats, consider using TransportBooking or a separate revenue tracking model.
-    
-    // Return empty stats since property invoices don't track driver revenues
-    const invoices: any[] = [];
+    if (!(prisma as any).transportPayout) {
+      return res.json({
+        stats: [],
+        summary: { totalGrossRevenue: 0, totalNetRevenue: 0, totalCommission: 0, totalTrips: 0, totalInvoices: 0, averageRevenue: 0, growthRate: 0 },
+        topDrivers: [],
+        period,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+      });
+    }
 
-    // Group by date
+    const payouts = await (prisma as any).transportPayout.findMany({
+      where: {
+        createdAt: { gte: startDate, lte: endDate },
+        booking: {
+          is: {
+            status: { in: ["COMPLETED", "FINISHED"] },
+          },
+        },
+      },
+      include: {
+        driver: {
+          select: { id: true, name: true, email: true, phone: true },
+        },
+        booking: {
+          select: {
+            id: true,
+            tripCode: true,
+            status: true,
+          },
+        },
+      },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    });
+
+    const dateKeyFor = (value: Date) => {
+      if (period === "year") {
+        return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-01`;
+      }
+      return value.toISOString().split("T")[0];
+    };
+
+    const buildEmptySeries = () => {
+      const seeded = new Map<string, { grossRevenue: number; netRevenue: number; commissionAmount: number; tripCount: number }>();
+      const cursor = new Date(startDate);
+      cursor.setHours(0, 0, 0, 0);
+
+      if (period === "year") {
+        cursor.setDate(1);
+        while (cursor <= endDate) {
+          seeded.set(dateKeyFor(cursor), { grossRevenue: 0, netRevenue: 0, commissionAmount: 0, tripCount: 0 });
+          cursor.setMonth(cursor.getMonth() + 1);
+        }
+        return seeded;
+      }
+
+      while (cursor <= endDate) {
+        seeded.set(dateKeyFor(cursor), { grossRevenue: 0, netRevenue: 0, commissionAmount: 0, tripCount: 0 });
+        cursor.setDate(cursor.getDate() + 1);
+      }
+      return seeded;
+    };
+
+    // Group by date while preserving zero buckets so charts draw a real timeline.
     const dateMap = new Map<string, { grossRevenue: number; netRevenue: number; commissionAmount: number; tripCount: number }>();
+    buildEmptySeries().forEach((value, key) => dateMap.set(key, value));
     const driverRevenueMap = new Map<number, { name: string; total: number; tripCount: number }>();
-    
-    invoices.forEach((inv: any) => {
-      const dateKey = inv.issuedAt.toISOString().split("T")[0];
+    const tripIds = new Set<number>();
+
+    (payouts as any[]).forEach((payout: any) => {
+      const createdAt = payout.createdAt ? new Date(payout.createdAt) : new Date();
+      const dateKey = dateKeyFor(createdAt);
       const existing = dateMap.get(dateKey) || { grossRevenue: 0, netRevenue: 0, commissionAmount: 0, tripCount: 0 };
-      
-      // Convert Decimal fields to numbers
-      const gross = Number(inv.total ?? 0);
-      const commission = Number(inv.commissionAmount ?? 0);
-      const net = Number(inv.netPayable ?? (gross - commission));
-      
+
+      const gross = Number(payout.grossAmount ?? 0);
+      const commission = Number(payout.commissionAmount ?? 0);
+      const net = Number(payout.netPaid ?? Math.max(0, gross - commission));
+
       existing.grossRevenue += gross;
       existing.netRevenue += net;
       existing.commissionAmount += commission;
-      if (inv.booking) existing.tripCount += 1;
+      if (payout.booking?.id) {
+        existing.tripCount += 1;
+        tripIds.add(Number(payout.booking.id));
+      }
       dateMap.set(dateKey, existing);
-      
-      // Track by driver
-      const driverId = inv.booking?.driverId;
-      if (driverId) {
+
+      const driverId = Number(payout.driverId);
+      if (Number.isFinite(driverId)) {
         if (!driverRevenueMap.has(driverId)) {
           driverRevenueMap.set(driverId, {
-            name: inv.booking.driver?.name || "Unknown",
+            name: payout.driver?.name || "Unknown Driver",
             total: 0,
             tripCount: 0,
           });
         }
         const driverEntry = driverRevenueMap.get(driverId)!;
         driverEntry.total += net;
-        if (inv.booking) driverEntry.tripCount += 1;
+        if (payout.booking?.id) driverEntry.tripCount += 1;
       }
     });
 
     const stats = Array.from(dateMap.entries())
       .map(([date, data]) => ({
         date,
-        grossRevenue: data.grossRevenue,
-        netRevenue: data.netRevenue,
-        commissionAmount: data.commissionAmount,
+        grossRevenue: Math.round(data.grossRevenue),
+        netRevenue: Math.round(data.netRevenue),
+        commissionAmount: Math.round(data.commissionAmount),
         tripCount: data.tripCount,
       }))
       .sort((a, b) => a.date.localeCompare(b.date));
@@ -3394,20 +4172,20 @@ router.get("/revenues/stats", async (req, res) => {
       .map(([driverId, data]) => ({
         driverId,
         driverName: data.name,
-        totalRevenue: data.total,
+        totalRevenue: Math.round(data.total),
         tripCount: data.tripCount,
       }))
       .sort((a, b) => b.totalRevenue - a.totalRevenue)
-      .slice(0, 10);
+      .slice(0, 5);
 
     const summary = {
       totalGrossRevenue: stats.reduce((sum, s) => sum + s.grossRevenue, 0),
       totalNetRevenue: stats.reduce((sum, s) => sum + s.netRevenue, 0),
       totalCommission: stats.reduce((sum, s) => sum + s.commissionAmount, 0),
-      totalTrips: stats.reduce((sum, s) => sum + s.tripCount, 0),
-      totalInvoices: invoices.length,
-      averageRevenue: stats.length > 0 && stats.reduce((sum, s) => sum + s.tripCount, 0) > 0
-        ? stats.reduce((sum, s) => sum + s.netRevenue, 0) / stats.reduce((sum, s) => sum + s.tripCount, 0)
+      totalTrips: tripIds.size,
+      totalInvoices: (payouts as any[]).length,
+      averageRevenue: tripIds.size > 0
+        ? stats.reduce((sum, s) => sum + s.netRevenue, 0) / tripIds.size
         : 0,
       growthRate: 0, // Calculate based on previous period if needed
     };
@@ -3427,6 +4205,201 @@ router.get("/revenues/stats", async (req, res) => {
     }
     console.error('Unhandled error in GET /admin/drivers/revenues/stats:', err);
     return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/** GET /admin/drivers/revenues/:driverId/details?date=&start=&end= */
+router.get("/revenues/:driverId(\\d+)/details", async (req, res) => {
+  try {
+    const driverId = Number(req.params.driverId);
+    const { date, start, end } = req.query as any;
+    if (!Number.isFinite(driverId) || driverId <= 0) return res.status(400).json({ error: "Invalid driver id" });
+
+    if (!(prisma as any).transportPayout) {
+      return res.status(400).json({ error: "Driver revenue details are not available" });
+    }
+
+    const where: any = {
+      driverId,
+      booking: {
+        is: {
+          status: { in: ["COMPLETED", "FINISHED"] },
+        },
+      },
+    };
+
+    if (date) {
+      const s = new Date(String(date) + "T00:00:00.000Z");
+      const e = new Date(String(date) + "T23:59:59.999Z");
+      where.createdAt = { gte: s, lte: e };
+    } else if (start || end) {
+      const s = start ? new Date(String(start) + "T00:00:00.000Z") : new Date(0);
+      const e = end ? new Date(String(end) + "T23:59:59.999Z") : new Date();
+      where.createdAt = { gte: s, lte: e };
+    }
+
+    const payouts = await (prisma as any).transportPayout.findMany({
+      where,
+      include: {
+        driver: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            vehicleType: true,
+            plateNumber: true,
+            payout: true,
+            paymentPhone: true,
+            kycStatus: true,
+          },
+        },
+        booking: {
+          select: {
+            id: true,
+            tripCode: true,
+            status: true,
+            scheduledDate: true,
+            pickupTime: true,
+            dropoffTime: true,
+            fromAddress: true,
+            fromWard: true,
+            fromDistrict: true,
+            fromRegion: true,
+            toAddress: true,
+            toWard: true,
+            toDistrict: true,
+            toRegion: true,
+            vehicleType: true,
+            numberOfPassengers: true,
+            userRating: true,
+            userReview: true,
+            driverRating: true,
+            driverReview: true,
+            createdAt: true,
+            updatedAt: true,
+            user: { select: { id: true, name: true, email: true, phone: true } },
+          },
+        },
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    });
+
+    const driver = payouts[0]?.driver ?? await (prisma as any).user?.findUnique?.({
+      where: { id: driverId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        vehicleType: true,
+        plateNumber: true,
+        payout: true,
+        paymentPhone: true,
+        kycStatus: true,
+      },
+    });
+
+    const areaRegistered = (booking: any) => {
+      const district = booking?.fromDistrict || booking?.toDistrict || "";
+      const region = booking?.fromRegion || booking?.toRegion || "";
+      return [district, region].filter(Boolean).join(", ") || null;
+    };
+
+    const routeText = (booking: any) => ({
+      pickup: booking?.fromAddress || [booking?.fromWard, booking?.fromDistrict, booking?.fromRegion].filter(Boolean).join(", ") || "N/A",
+      dropoff: booking?.toAddress || [booking?.toWard, booking?.toDistrict, booking?.toRegion].filter(Boolean).join(", ") || "N/A",
+    });
+
+    const customerRatings: number[] = [];
+    const driverRatings: number[] = [];
+    const tripIds = new Set<number>();
+    let grossRevenue = 0;
+    let commissionAmount = 0;
+    let netRevenue = 0;
+    let lastPaymentDate: Date | null = null;
+
+    const trips = (payouts as any[]).map((payout: any) => {
+      const booking = payout.booking;
+      const route = routeText(booking);
+      const gross = Number(payout.grossAmount ?? 0);
+      const commission = Number(payout.commissionAmount ?? 0);
+      const net = Number(payout.netPaid ?? Math.max(0, gross - commission));
+      grossRevenue += gross;
+      commissionAmount += commission;
+      netRevenue += net;
+      if (booking?.id) tripIds.add(Number(booking.id));
+      if (booking?.userRating != null) customerRatings.push(Number(booking.userRating));
+      if (booking?.driverRating != null) driverRatings.push(Number(booking.driverRating));
+
+      const activityDate = payout.paidAt ?? payout.approvedAt ?? payout.updatedAt ?? payout.createdAt;
+      if (activityDate && (!lastPaymentDate || new Date(activityDate) > lastPaymentDate)) {
+        lastPaymentDate = new Date(activityDate);
+      }
+
+      return {
+        payoutId: Number(payout.id),
+        tripId: booking?.id != null ? Number(booking.id) : null,
+        tripCode: booking?.tripCode || payout.paymentRef || `TRIP-${booking?.id ?? payout.id}`,
+        status: booking?.status || "COMPLETED",
+        areaRegistered: areaRegistered(booking),
+        pickup: route.pickup,
+        dropoff: route.dropoff,
+        vehicleType: driver?.vehicleType || booking?.vehicleType || null,
+        registrationNumber: driver?.plateNumber || null,
+        passengerCount: booking?.numberOfPassengers != null ? Number(booking.numberOfPassengers) : null,
+        grossRevenue: Math.round(gross),
+        commissionAmount: Math.round(commission),
+        netRevenue: Math.round(net),
+        customerRating: booking?.userRating != null ? Number(booking.userRating) : null,
+        driverRating: booking?.driverRating != null ? Number(booking.driverRating) : null,
+        scheduledAt: booking?.scheduledDate ? new Date(booking.scheduledDate).toISOString() : null,
+        pickupTime: booking?.pickupTime ? new Date(booking.pickupTime).toISOString() : null,
+        dropoffTime: booking?.dropoffTime ? new Date(booking.dropoffTime).toISOString() : null,
+        paidAt: payout.paidAt ? new Date(payout.paidAt).toISOString() : null,
+        paymentMethod: payout.paymentMethod ?? null,
+        paymentRef: payout.paymentRef ?? null,
+        customer: booking?.user ?? null,
+      };
+    });
+
+    const average = (values: number[]) => values.length
+      ? Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 10) / 10
+      : null;
+
+    return res.json({
+      driver: driver
+        ? {
+            id: Number(driver.id),
+            name: driver.name ?? "",
+            email: driver.email ?? "",
+            phone: driver.phone ?? null,
+            vehicleType: driver.vehicleType ?? null,
+            registrationNumber: driver.plateNumber ?? null,
+            payout: driver.payout ?? null,
+            paymentPhone: driver.paymentPhone ?? null,
+            kycStatus: driver.kycStatus ?? null,
+          }
+        : null,
+      summary: {
+        grossRevenue: Math.round(grossRevenue),
+        commissionAmount: Math.round(commissionAmount),
+        netRevenue: Math.round(netRevenue),
+        tripCount: tripIds.size,
+        invoiceCount: payouts.length,
+        averageCustomerRating: average(customerRatings),
+        averageDriverRating: average(driverRatings),
+        lastPaymentDate: (lastPaymentDate as Date | null)?.toISOString() ?? null,
+      },
+      trips,
+    });
+  } catch (err: any) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && (err.code === "P2021" || err.code === "P2022")) {
+      console.warn("Prisma schema mismatch when querying driver revenue details:", err.message);
+      return res.status(404).json({ error: "Driver revenue details not found" });
+    }
+    console.error("Unhandled error in GET /admin/drivers/revenues/:driverId/details:", err);
+    return res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -5376,6 +6349,151 @@ router.post("/auto-create-reminders", async (req, res) => {
   }
 });
 
+/** GET /admin/drivers/stats/daily?date=YYYY-MM-DD
+ * Returns per-driver daily transport payout statistics for the selected date.
+ */
+router.get("/stats/daily", async (req, res) => {
+  try {
+    const { date } = req.query as any;
+    const selected = String(date || new Date().toISOString().split("T")[0]).slice(0, 10);
+    const start = new Date(selected + "T00:00:00.000Z");
+    const end = new Date(selected + "T23:59:59.999Z");
+    const range = { gte: start, lte: end };
+
+    const drivers = await prisma.user.findMany({
+      where: { role: "DRIVER" },
+      select: { id: true, name: true, email: true, phone: true },
+      orderBy: { id: "desc" },
+      take: 250,
+    });
+
+    const byDriver = new Map<number, any>();
+    for (const driver of drivers) {
+      byDriver.set(driver.id, {
+        id: driver.id,
+        name: driver.name || driver.email || `Driver ${driver.id}`,
+        email: driver.email || "",
+        phone: driver.phone || null,
+        todaysRides: 0,
+        earnings: 0,
+        grossRevenue: 0,
+        nolsafRevenue: 0,
+        paidEarnings: 0,
+        paidPayouts: 0,
+        pendingPayouts: 0,
+        verifiedPayouts: 0,
+        approvedPayouts: 0,
+        invoiceCount: 0,
+        rating: 0,
+        totalReviews: 0,
+      });
+    }
+
+    if ((prisma as any).transportPayout) {
+      const payouts = await (prisma as any).transportPayout.findMany({
+        where: {
+          booking: {
+            status: { in: ["COMPLETED", "FINISHED"] },
+            OR: [
+              { dropoffTime: range },
+              { scheduledDate: range },
+              { updatedAt: range },
+            ],
+          },
+        },
+        include: {
+          booking: {
+            select: {
+              id: true,
+              driverId: true,
+              userRating: true,
+              rating: true,
+            },
+          },
+        },
+      });
+
+      const tripIdsByDriver = new Map<number, Set<number>>();
+      const ratingsByDriver = new Map<number, number[]>();
+
+      for (const payout of payouts || []) {
+        const driverId = Number((payout as any).driverId ?? (payout as any).booking?.driverId);
+        if (!Number.isFinite(driverId)) continue;
+        const row = byDriver.get(driverId);
+        if (!row) continue;
+
+        const bookingId = Number((payout as any).transportBookingId ?? (payout as any).booking?.id);
+        if (Number.isFinite(bookingId)) {
+          if (!tripIdsByDriver.has(driverId)) tripIdsByDriver.set(driverId, new Set());
+          tripIdsByDriver.get(driverId)!.add(bookingId);
+        }
+
+        const status = String((payout as any).status ?? "").toUpperCase();
+        const gross = Number((payout as any).grossAmount ?? 0) || 0;
+        const commission = Number((payout as any).commissionAmount ?? 0) || 0;
+        const net = Number((payout as any).netPaid ?? 0) || 0;
+
+        row.grossRevenue += gross;
+        row.nolsafRevenue += commission;
+        row.earnings += net;
+        row.invoiceCount += 1;
+
+        if (status === "PAID") {
+          row.paidPayouts += 1;
+          row.paidEarnings += net;
+        } else if (status === "PENDING") {
+          row.pendingPayouts += 1;
+        } else if (status === "VERIFIED") {
+          row.verifiedPayouts += 1;
+        } else if (status === "APPROVED") {
+          row.approvedPayouts += 1;
+        }
+
+        const rating = Number((payout as any).booking?.userRating ?? (payout as any).booking?.rating ?? 0);
+        if (Number.isFinite(rating) && rating > 0) {
+          if (!ratingsByDriver.has(driverId)) ratingsByDriver.set(driverId, []);
+          ratingsByDriver.get(driverId)!.push(rating);
+        }
+      }
+
+      for (const [driverId, row] of byDriver.entries()) {
+        const trips = tripIdsByDriver.get(driverId);
+        const ratings = ratingsByDriver.get(driverId) || [];
+        row.todaysRides = trips?.size || 0;
+        row.rating = ratings.length ? Number((ratings.reduce((sum, r) => sum + r, 0) / ratings.length).toFixed(1)) : 0;
+        row.totalReviews = ratings.length;
+        row.earnings = Math.round(row.earnings);
+        row.grossRevenue = Math.round(row.grossRevenue);
+        row.nolsafRevenue = Math.round(row.nolsafRevenue);
+        row.paidEarnings = Math.round(row.paidEarnings);
+      }
+    }
+
+    const items = Array.from(byDriver.values()).sort((a, b) => {
+      const byRides = Number(b.todaysRides || 0) - Number(a.todaysRides || 0);
+      if (byRides !== 0) return byRides;
+      return Number(b.earnings || 0) - Number(a.earnings || 0);
+    });
+
+    return res.json({
+      date: selected,
+      total: items.length,
+      items,
+      summary: {
+        drivers: items.length,
+        activeDrivers: items.filter((x) => Number(x.todaysRides || 0) > 0).length,
+        rides: items.reduce((sum, x) => sum + Number(x.todaysRides || 0), 0),
+        grossRevenue: items.reduce((sum, x) => sum + Number(x.grossRevenue || 0), 0),
+        driverNet: items.reduce((sum, x) => sum + Number(x.earnings || 0), 0),
+        nolsafRevenue: items.reduce((sum, x) => sum + Number(x.nolsafRevenue || 0), 0),
+      },
+    });
+  } catch (err: any) {
+    console.error("Unhandled error in GET /admin/drivers/stats/daily:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 /** GET /admin/drivers/:id/stats
  * Returns comprehensive stats for a specific driver
  */
@@ -5401,38 +6519,121 @@ router.get("/:id(\\d+)/stats", async (req, res) => {
 
     let todaysRides = 0;
     let earnings = 0;
+    let grossRevenue = 0;
+    let nolsafRevenue = 0;
+    let paidEarnings = 0;
+    let paidPayouts = 0;
+    let pendingPayouts = 0;
+    let verifiedPayouts = 0;
+    let approvedPayouts = 0;
+    let invoiceCount = 0;
     let rating = 0;
+    let totalReviews = 0;
+    let trips: any[] = [];
 
     try {
       const start = date ? new Date(date + "T00:00:00.000Z") : today;
       const end = date ? new Date(date + "T23:59:59.999Z") : tomorrow;
       const range: any = date ? { gte: start, lte: end } : { gte: start, lt: end };
 
-      // Prefer transport bookings if available
+      // Prefer connected transport payouts so rides, earnings, commission, and paid state reconcile with finance pages.
       let usedTransport = false;
-      if ((prisma as any).transportBooking) {
+      if ((prisma as any).transportPayout) {
         try {
-          todaysRides = await (prisma as any).transportBooking.count({
+          const payouts = await (prisma as any).transportPayout.findMany({
             where: {
               driverId,
-              scheduledDate: range,
+              booking: {
+                status: { in: ["COMPLETED", "FINISHED"] },
+                OR: [
+                  { dropoffTime: range },
+                  { scheduledDate: range },
+                  { updatedAt: range },
+                ],
+              },
             },
+            include: {
+              booking: {
+                select: {
+                  id: true,
+                  tripCode: true,
+                  status: true,
+                  scheduledDate: true,
+                  pickupTime: true,
+                  dropoffTime: true,
+                  updatedAt: true,
+                  fromAddress: true,
+                  toAddress: true,
+                  fromRegion: true,
+                  fromDistrict: true,
+                  toRegion: true,
+                  toDistrict: true,
+                  vehicleType: true,
+                  userRating: true,
+                  rating: true,
+                },
+              },
+            },
+            orderBy: [{ paidAt: "desc" }, { updatedAt: "desc" }],
           });
 
-          const completedTrips = await (prisma as any).transportBooking.findMany({
-            where: {
-              driverId,
-              scheduledDate: range,
-              status: { in: ["COMPLETED", "FINISHED", "PAID"] },
-            },
-            select: { amount: true } as any,
-          });
+          const tripIds = new Set<number>();
+          const ratings: number[] = [];
 
-          earnings = (completedTrips || []).reduce((s: number, b: any) => s + (Number(b.amount) || 0), 0);
+          for (const payout of payouts || []) {
+            const booking = (payout as any).booking;
+            const bookingId = Number((payout as any).transportBookingId ?? booking?.id);
+            if (Number.isFinite(bookingId)) tripIds.add(bookingId);
+
+            const status = String((payout as any).status ?? "").toUpperCase();
+            const gross = Number((payout as any).grossAmount ?? 0) || 0;
+            const commission = Number((payout as any).commissionAmount ?? 0) || 0;
+            const net = Number((payout as any).netPaid ?? 0) || 0;
+
+            grossRevenue += gross;
+            nolsafRevenue += commission;
+            earnings += net;
+            invoiceCount += 1;
+
+            if (status === "PAID") {
+              paidPayouts += 1;
+              paidEarnings += net;
+            } else if (status === "PENDING") {
+              pendingPayouts += 1;
+            } else if (status === "VERIFIED") {
+              verifiedPayouts += 1;
+            } else if (status === "APPROVED") {
+              approvedPayouts += 1;
+            }
+
+            const r = Number(booking?.userRating ?? booking?.rating ?? 0);
+            if (Number.isFinite(r) && r > 0) ratings.push(r);
+
+            trips.push({
+              id: booking?.id ?? bookingId,
+              tripCode: booking?.tripCode ?? `TRP-${bookingId}`,
+              route: {
+                pickup: booking?.fromAddress ?? ([booking?.fromDistrict, booking?.fromRegion].filter(Boolean).join(", ") || "N/A"),
+                dropoff: booking?.toAddress ?? ([booking?.toDistrict, booking?.toRegion].filter(Boolean).join(", ") || "N/A"),
+              },
+              vehicleType: booking?.vehicleType ?? null,
+              status: booking?.status ?? null,
+              payoutStatus: status,
+              grossAmount: Math.round(gross),
+              commissionAmount: Math.round(commission),
+              driverNet: Math.round(net),
+              rating: Number.isFinite(r) && r > 0 ? Number(r.toFixed(1)) : null,
+              completedAt: (booking?.dropoffTime ?? booking?.updatedAt ?? booking?.scheduledDate ?? payout?.updatedAt)?.toISOString?.() ?? null,
+            });
+          }
+
+          todaysRides = tripIds.size;
+          totalReviews = ratings.length;
+          rating = ratings.length ? ratings.reduce((sum, r) => sum + r, 0) / ratings.length : 0;
           usedTransport = true;
         } catch (e: any) {
           // ignore and fall back to booking model
-          console.warn("Failed to fetch stats from TransportBooking", e);
+          console.warn("Failed to fetch stats from TransportPayout", e);
         }
       }
 
@@ -5474,6 +6675,7 @@ router.get("/:id(\\d+)/stats", async (req, res) => {
               (s: number, b: any) => s + (Number(b.totalAmount ?? b.price ?? b.total ?? b.fare) || 0),
               0
             );
+            grossRevenue = earnings;
             lastErr = null;
             break;
           } catch (err: any) {
@@ -5495,7 +6697,8 @@ router.get("/:id(\\d+)/stats", async (req, res) => {
         where: { id: driverId },
         select: { rating: true } as any,
       });
-      if (u && typeof (u as any).rating === "number") rating = (u as any).rating;
+      const storedRating = Number((u as any)?.rating ?? 0);
+      if (!rating && Number.isFinite(storedRating)) rating = storedRating;
     } catch (e) {
       console.warn('Failed to fetch rating', e);
     }
@@ -5508,8 +6711,18 @@ router.get("/:id(\\d+)/stats", async (req, res) => {
       },
       date: date || today.toISOString().split('T')[0],
       todaysRides,
-      earnings,
+      earnings: Math.round(earnings),
+      grossRevenue: Math.round(grossRevenue),
+      nolsafRevenue: Math.round(nolsafRevenue),
+      paidEarnings: Math.round(paidEarnings),
+      paidPayouts,
+      pendingPayouts,
+      verifiedPayouts,
+      approvedPayouts,
+      invoiceCount,
       rating: parseFloat(rating.toFixed(1)),
+      totalReviews,
+      trips,
     });
   } catch (err: any) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && (err.code === 'P2021' || err.code === 'P2022')) {
@@ -5519,7 +6732,17 @@ router.get("/:id(\\d+)/stats", async (req, res) => {
         date: (req.query as any).date || new Date().toISOString().split('T')[0],
         todaysRides: 0,
         earnings: 0,
+        grossRevenue: 0,
+        nolsafRevenue: 0,
+        paidEarnings: 0,
+        paidPayouts: 0,
+        pendingPayouts: 0,
+        verifiedPayouts: 0,
+        approvedPayouts: 0,
+        invoiceCount: 0,
         rating: 0,
+        totalReviews: 0,
+        trips: [],
       });
     }
     console.error('Unhandled error in GET /admin/drivers/:id/stats:', err);

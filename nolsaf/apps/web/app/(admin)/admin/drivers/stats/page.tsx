@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
-import { BarChart3, Truck, Search, Calendar, DollarSign, Star, Loader2 } from "lucide-react";
+import { BarChart3, Truck, Search, Calendar, DollarSign, Star, Loader2, Receipt, ShieldCheck, Wallet, MapPin } from "lucide-react";
 import apiClient from "@/lib/apiClient";
 import { useSearchParams } from "next/navigation";
 import DatePicker from "@/components/ui/DatePicker";
@@ -12,6 +12,19 @@ type Driver = {
   id: number;
   name: string;
   email: string;
+  phone?: string | null;
+  todaysRides?: number;
+  earnings?: number;
+  grossRevenue?: number;
+  nolsafRevenue?: number;
+  paidEarnings?: number;
+  paidPayouts?: number;
+  pendingPayouts?: number;
+  verifiedPayouts?: number;
+  approvedPayouts?: number;
+  invoiceCount?: number;
+  rating?: number;
+  totalReviews?: number;
 };
 
 type StatsData = {
@@ -19,8 +32,32 @@ type StatsData = {
   date: string;
   todaysRides: number;
   earnings: number;
+  grossRevenue: number;
+  nolsafRevenue: number;
+  paidEarnings: number;
+  paidPayouts: number;
+  pendingPayouts: number;
+  verifiedPayouts: number;
+  approvedPayouts: number;
+  invoiceCount: number;
   rating: number;
+  totalReviews: number;
+  trips: Array<{
+    id: number;
+    tripCode: string;
+    route: { pickup: string; dropoff: string };
+    vehicleType: string | null;
+    status: string | null;
+    payoutStatus: string;
+    grossAmount: number;
+    commissionAmount: number;
+    driverNet: number;
+    rating: number | null;
+    completedAt: string | null;
+  }>;
 };
+
+const formatMoney = (value: number | null | undefined) => `${Math.round(Number(value ?? 0)).toLocaleString()} TZS`;
 
 function formatDisplayDate(iso: string) {
   if (!iso) return "Date";
@@ -43,7 +80,7 @@ export default function AdminDriversStatsPage() {
   useEffect(() => {
     authify();
     loadDrivers();
-  }, []);
+  }, [selectedDate]);
 
   useEffect(() => {
     const raw = searchParams?.get("driverId") || "";
@@ -74,8 +111,13 @@ export default function AdminDriversStatsPage() {
   async function loadDrivers() {
     setLoading(true);
     try {
-      const r = await api.get<{ items: Driver[]; total: number }>("/api/admin/drivers", { params: { page: 1, pageSize: 100 } });
-      setDrivers(r.data?.items ?? []);
+      const r = await api.get<{ items: Driver[]; total: number }>("/api/admin/drivers/stats/daily", { params: { date: selectedDate } });
+      const items = r.data?.items ?? [];
+      setDrivers(items);
+      setSelectedDriver((current) => {
+        if (current && items.some((driver) => driver.id === current)) return current;
+        return items.find((driver) => Number(driver.todaysRides || 0) > 0)?.id ?? items[0]?.id ?? null;
+      });
     } catch (err) {
       console.error("Failed to load drivers", err);
     } finally {
@@ -114,7 +156,7 @@ export default function AdminDriversStatsPage() {
           </div>
           <div>
             <h1 style={{ fontSize: "1.35rem", fontWeight: 800, color: "white", margin: 0, letterSpacing: "-0.01em" }}>Driver Statistics</h1>
-            <p style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.62)", margin: "2px 0 0" }}>Per-driver daily performance · rides, earnings &amp; ratings</p>
+            <p style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.62)", margin: "2px 0 0" }}>Connected daily performance: accomplished rides, payouts, revenue &amp; ratings</p>
           </div>
         </div>
         <div style={{ position: "relative", zIndex: 1, display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
@@ -129,9 +171,15 @@ export default function AdminDriversStatsPage() {
                 <div style={{ fontSize: "1.3rem", fontWeight: 900, color: "#7dd3fc", fontVariantNumeric: "tabular-nums", lineHeight: 1.2 }}>{statsData.todaysRides}</div>
               </div>
               <div style={{ background: "rgba(16,185,129,0.16)", border: "1px solid rgba(16,185,129,0.35)", borderRadius: "0.85rem", padding: "0.6rem 1rem", minWidth: 120 }}>
-                <div style={{ fontSize: "0.63rem", fontWeight: 700, color: "rgba(110,231,183,0.85)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Earnings</div>
+                <div style={{ fontSize: "0.63rem", fontWeight: 700, color: "rgba(110,231,183,0.85)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Driver Net</div>
                 <div style={{ fontSize: "1.3rem", fontWeight: 900, color: "#6ee7b7", fontVariantNumeric: "tabular-nums", lineHeight: 1.2 }}>
                   {new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(statsData.earnings)} <span style={{ fontSize: "0.68rem", opacity: 0.7 }}>TZS</span>
+                </div>
+              </div>
+              <div style={{ background: "rgba(249,115,22,0.14)", border: "1px solid rgba(249,115,22,0.35)", borderRadius: "0.85rem", padding: "0.6rem 1rem", minWidth: 120 }}>
+                <div style={{ fontSize: "0.63rem", fontWeight: 700, color: "rgba(253,186,116,0.88)", letterSpacing: "0.08em", textTransform: "uppercase" }}>NoLSAF</div>
+                <div style={{ fontSize: "1.3rem", fontWeight: 900, color: "#fdba74", fontVariantNumeric: "tabular-nums", lineHeight: 1.2 }}>
+                  {new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(statsData.nolsafRevenue)} <span style={{ fontSize: "0.68rem", opacity: 0.7 }}>TZS</span>
                 </div>
               </div>
               <div style={{ background: "rgba(245,158,11,0.16)", border: "1px solid rgba(245,158,11,0.35)", borderRadius: "0.85rem", padding: "0.6rem 1rem", minWidth: 90 }}>
@@ -186,6 +234,17 @@ export default function AdminDriversStatsPage() {
                     <div>
                       <p className="font-medium" style={{ color: "rgba(255,255,255,0.90)" }}>{driver.name}</p>
                       <p className="text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>{driver.email}</p>
+                      <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
+                        <span className="px-2 py-0.5 rounded-full" style={{ background: "rgba(14,165,233,0.14)", border: "1px solid rgba(14,165,233,0.20)", color: "#7dd3fc" }}>
+                          {driver.todaysRides ?? 0} rides
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full" style={{ background: "rgba(16,185,129,0.14)", border: "1px solid rgba(16,185,129,0.20)", color: "#6ee7b7" }}>
+                          {formatMoney(driver.earnings || 0)}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full" style={{ background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.18)", color: "#fcd34d" }}>
+                          {(driver.rating || 0).toFixed(1)}/5
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -247,19 +306,19 @@ export default function AdminDriversStatsPage() {
                 <div style={{ background: "rgba(14,165,233,0.16)", border: "1px solid rgba(14,165,233,0.30)", borderRadius: "0.85rem", padding: "1.5rem" }}>
                   <div className="flex items-center gap-3 mb-2">
                     <Calendar className="h-6 w-6" style={{ color: "#7dd3fc" }} />
-                    <p className="text-sm" style={{ color: "rgba(125,211,252,0.80)" }}>Rides</p>
+                    <p className="text-sm" style={{ color: "rgba(125,211,252,0.80)" }}>Accomplished Rides</p>
                   </div>
                   <p className="text-3xl font-bold" style={{ color: "#7dd3fc" }}>{statsData.todaysRides}</p>
-                  <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.40)" }}>Completed trips</p>
+                  <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.40)" }}>{statsData.invoiceCount} payout records</p>
                 </div>
 
                 <div style={{ background: "rgba(16,185,129,0.16)", border: "1px solid rgba(16,185,129,0.30)", borderRadius: "0.85rem", padding: "1.5rem" }}>
                   <div className="flex items-center gap-3 mb-2">
-                    <DollarSign className="h-6 w-6" style={{ color: "#6ee7b7" }} />
-                    <p className="text-sm" style={{ color: "rgba(110,231,183,0.80)" }}>Earnings</p>
+                    <Wallet className="h-6 w-6" style={{ color: "#6ee7b7" }} />
+                    <p className="text-sm" style={{ color: "rgba(110,231,183,0.80)" }}>Driver Net</p>
                   </div>
-                  <p className="text-3xl font-bold" style={{ color: "#6ee7b7" }}>{statsData.earnings.toLocaleString()}</p>
-                  <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.40)" }}>TZS</p>
+                  <p className="text-2xl font-bold" style={{ color: "#6ee7b7" }}>{formatMoney(statsData.earnings)}</p>
+                  <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.40)" }}>{formatMoney(statsData.paidEarnings)} paid</p>
                 </div>
 
                 <div style={{ background: "rgba(245,158,11,0.16)", border: "1px solid rgba(245,158,11,0.30)", borderRadius: "0.85rem", padding: "1.5rem" }}>
@@ -268,8 +327,65 @@ export default function AdminDriversStatsPage() {
                     <p className="text-sm" style={{ color: "rgba(252,211,77,0.80)" }}>Rating</p>
                   </div>
                   <p className="text-3xl font-bold" style={{ color: "#fcd34d" }}>{statsData.rating.toFixed(1)}</p>
-                  <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.40)" }}>Average rating</p>
+                  <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.40)" }}>{statsData.totalReviews} trip reviews</p>
                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                <div style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "0.85rem", padding: "1rem" }}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <DollarSign className="h-5 w-5" style={{ color: "rgba(255,255,255,0.55)" }} />
+                    <p className="text-xs uppercase tracking-[0.12em]" style={{ color: "rgba(255,255,255,0.52)" }}>Gross Revenue</p>
+                  </div>
+                  <p className="text-lg font-bold" style={{ color: "rgba(255,255,255,0.92)" }}>{formatMoney(statsData.grossRevenue)}</p>
+                </div>
+                <div style={{ background: "rgba(249,115,22,0.12)", border: "1px solid rgba(249,115,22,0.26)", borderRadius: "0.85rem", padding: "1rem" }}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <ShieldCheck className="h-5 w-5" style={{ color: "#fdba74" }} />
+                    <p className="text-xs uppercase tracking-[0.12em]" style={{ color: "rgba(253,186,116,0.82)" }}>NoLSAF Revenue</p>
+                  </div>
+                  <p className="text-lg font-bold" style={{ color: "#fdba74" }}>{formatMoney(statsData.nolsafRevenue)}</p>
+                </div>
+                <div style={{ background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.26)", borderRadius: "0.85rem", padding: "1rem" }}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Receipt className="h-5 w-5" style={{ color: "#6ee7b7" }} />
+                    <p className="text-xs uppercase tracking-[0.12em]" style={{ color: "rgba(110,231,183,0.82)" }}>Payout Status</p>
+                  </div>
+                  <p className="text-sm font-semibold" style={{ color: "rgba(255,255,255,0.90)" }}>{statsData.paidPayouts} paid · {statsData.approvedPayouts} approved · {statsData.pendingPayouts + statsData.verifiedPayouts} in review</p>
+                </div>
+              </div>
+
+              <div className="mt-4 overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.10)", borderRadius: "0.85rem", background: "rgba(255,255,255,0.04)" }}>
+                <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+                  <div className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4" style={{ color: "#7dd3fc" }} />
+                    <p className="text-sm font-semibold" style={{ color: "rgba(255,255,255,0.86)" }}>Daily accomplished trips</p>
+                  </div>
+                  <span className="text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>{statsData.trips.length} records</span>
+                </div>
+                {statsData.trips.length === 0 ? (
+                  <div className="p-5 text-sm" style={{ color: "rgba(255,255,255,0.45)" }}>No completed payout trips found for this date.</div>
+                ) : (
+                  <div className="divide-y" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
+                    {statsData.trips.slice(0, 8).map((trip) => (
+                      <div key={`${trip.id}-${trip.payoutStatus}`} className="p-4 grid grid-cols-1 md:grid-cols-[1.4fr_1fr_auto] gap-3 items-center">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold truncate" style={{ color: "rgba(255,255,255,0.92)" }}>{trip.tripCode}</p>
+                          <p className="text-xs truncate" style={{ color: "rgba(255,255,255,0.50)" }}>{trip.route.pickup} to {trip.route.dropoff}</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2 text-xs">
+                          <span className="px-2 py-1 rounded-full" style={{ background: "rgba(16,185,129,0.15)", color: "#6ee7b7", border: "1px solid rgba(16,185,129,0.24)" }}>{trip.payoutStatus}</span>
+                          <span className="px-2 py-1 rounded-full" style={{ background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.68)", border: "1px solid rgba(255,255,255,0.10)" }}>{trip.vehicleType || "Vehicle"}</span>
+                          {trip.rating != null && <span className="px-2 py-1 rounded-full" style={{ background: "rgba(245,158,11,0.14)", color: "#fcd34d", border: "1px solid rgba(245,158,11,0.24)" }}>{trip.rating.toFixed(1)}/5</span>}
+                        </div>
+                        <div className="text-left md:text-right">
+                          <p className="text-sm font-bold" style={{ color: "#6ee7b7" }}>{formatMoney(trip.driverNet)}</p>
+                          <p className="text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>NoLSAF {formatMoney(trip.commissionAmount)}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           ) : (

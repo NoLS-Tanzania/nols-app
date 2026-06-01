@@ -12,52 +12,47 @@ import GlobalAlertGuard from "../components/GlobalAlertGuard";
 import ClientErrorReporter from "../components/ClientErrorReporter";
 import PerformanceMeasureGuard from "../components/PerformanceMeasureGuard";
 import RouteChromeShell from "../components/RouteChromeShell";
+import { SITE_URL, buildRootJsonLd, seoKeywords } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const SITE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://nolsaf.com";
-
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
+  applicationName: "NoLSAF",
+  creator: "NoLSAF",
+  publisher: "NoLSAF",
+  category: "travel",
+  classification: "Tourism, accommodation, transport, group stays, tour packages and travel planning",
   title: {
-    default: "NoLSAF | Quality Stay for Every Wallet",
+    default: "NoLSAF | Tanzania Tourism, Verified Stays, Tours & Transport",
     template: "%s | NoLSAF",
   },
   description:
-    "NoLSAF is East Africa's verification-first travel platform — discover verified accommodation, book transport, and plan end-to-end stays across Tanzania and beyond.",
-  keywords: [
-    "accommodation Tanzania",
-    "hotel booking Tanzania",
-    "Dar es Salaam hotels",
-    "Zanzibar accommodation",
-    "East Africa travel",
-    "NoLSAF",
-    "verified stays",
-    "group stays Tanzania",
-    "airport transfer Tanzania",
-  ],
+    "NoLSAF is a verification-first tourism platform for Tanzania and East Africa: verified accommodation, tour packages, group stays, airport transfers, travel planning, and trip cost estimates.",
+  keywords: seoKeywords,
   openGraph: {
     type: "website",
     siteName: "NoLSAF",
-    title: "NoLSAF | Quality Stay for Every Wallet",
+    title: "NoLSAF | Tanzania Tourism, Verified Stays, Tours & Transport",
     description:
-      "Verified accommodation, seamless transport and flexible payments all in one platform built for Africa.",
+      "Discover verified stays, tour packages, transport, group stays and travel planning across Tanzania, East Africa and Africa.",
     url: SITE_URL,
+    locale: "en_US",
     images: [
       {
         url: `${SITE_URL}/og-default.jpg`,
         width: 1200,
         height: 630,
-        alt: "NoLSAF — Quality Stay for Every Wallet",
+        alt: "NoLSAF - Tanzania tourism, verified accommodation, tours and transport",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "NoLSAF | Quality Stay for Every Wallet",
+    title: "NoLSAF | Tanzania Tourism, Verified Stays, Tours & Transport",
     description:
-      "Verified accommodation, seamless transport and flexible payments  built for you.",
+      "Verified accommodation, tours, transport, group stays and travel planning for Tanzania and East Africa.",
     images: [`${SITE_URL}/og-default.jpg`],
   },
   icons: {
@@ -72,6 +67,11 @@ export const metadata: Metadata = {
   alternates: {
     canonical: SITE_URL,
   },
+  other: {
+    "geo.region": "TZ",
+    "geo.placename": "Tanzania",
+    ICBM: "-6.7924, 39.2083",
+  },
 };
 
 /**
@@ -79,11 +79,18 @@ export const metadata: Metadata = {
  * Child segment layouts (/admin, /owner) will render their own header/sidebar.
  */
 export default function RootLayout({ children }: { children: ReactNode }) {
+  const jsonLd = buildRootJsonLd();
+
   return (
     <html lang="en" suppressHydrationWarning>
       {/* suppressHydrationWarning on <body> prevents browser-extension text/attribute
            injection (Grammarly, LastPass, etc.) from throwing React error #418. */}
       <body suppressHydrationWarning>
+        <script
+          type="application/ld+json"
+          suppressHydrationWarning
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
         <GlobalAlertGuard />
         <ClientErrorReporter />
         <PerformanceMeasureGuard />
