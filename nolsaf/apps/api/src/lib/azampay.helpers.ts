@@ -82,6 +82,44 @@ export function normalizePhone(raw: string): string | null {
   return n;
 }
 
+export function maskAzamPayPhone(phone: string | null | undefined): string | null {
+  if (!phone) return null;
+  const normalized = normalizePhone(phone) ?? phone;
+  const digits = normalized.replace(/\D/g, "");
+  if (digits.length < 4) return "***";
+  return `${normalized.startsWith("+") ? "+" : ""}${digits.slice(0, 3)}***${digits.slice(-4)}`;
+}
+
+export function describeAzamPayResponseBody(body: string): {
+  bodyKind: "empty" | "url" | "json" | "text";
+  bodyLength: number;
+  transactionId: string | null;
+  jsonKeys: string[];
+} {
+  const trimmed = body.trim();
+  if (!trimmed) {
+    return { bodyKind: "empty", bodyLength: 0, transactionId: null, jsonKeys: [] };
+  }
+
+  if (trimmed.startsWith("https://") || trimmed.startsWith("http://")) {
+    return { bodyKind: "url", bodyLength: trimmed.length, transactionId: null, jsonKeys: [] };
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    const record = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
+    const transactionId = record.transactionId ?? record.TransactionId ?? record.transId ?? null;
+    return {
+      bodyKind: "json",
+      bodyLength: trimmed.length,
+      transactionId: transactionId == null ? null : String(transactionId),
+      jsonKeys: Object.keys(record).slice(0, 20),
+    };
+  } catch {
+    return { bodyKind: "text", bodyLength: trimmed.length, transactionId: null, jsonKeys: [] };
+  }
+}
+
 // ── Outbound fetch wrapper ──────
 
 const MAX_ATTEMPTS = 3;

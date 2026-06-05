@@ -13,6 +13,8 @@ import {
   FETCH_TIMEOUT_MS,
   TZ_PHONE_RE,
   normalizePhone as normalizePhoneHelper,
+  maskAzamPayPhone,
+  describeAzamPayResponseBody,
   azampayPost,
   azampayCardPost,
 } from "../lib/azampay.helpers.js";
@@ -483,7 +485,8 @@ router.post(
     // MNO PostCheckout is a USSD push to the phone — the real payment surface is the
     // handset, not a browser checkout page. Discard any checkoutUrl the sandbox returns
     // so the frontend stays on the "check your phone" prompt and polls /status.
-    let azampayData: any = { transactionId: null };
+    const responseSummary = describeAzamPayResponseBody(apiRes.body);
+    let azampayData: any = { transactionId: responseSummary.transactionId };
     {
       const trimmed = apiRes.body.trim();
       if (!trimmed || trimmed.startsWith("https://") || trimmed.startsWith("http://")) {
@@ -500,6 +503,18 @@ router.post(
     }
 
     // Update booking — store paymentRef and mark as PENDING
+    console.info("[TourPay/MNO] checkout accepted", {
+      tourBookingId: booking.id,
+      paymentRef,
+      provider,
+      amount,
+      currency,
+      accountNumber: maskAzamPayPhone(normalizedPhone),
+      apiHost: AZAMPAY_API_URL,
+      httpStatus: apiRes.status,
+      response: responseSummary,
+    });
+
     await prisma.tourBooking.update({
       where: { id: booking.id },
       data: {
@@ -527,6 +542,8 @@ router.post(
             paymentRef,
             phoneNumber: normalizedPhone,
             provider,
+            azampayResponse: responseSummary,
+            apiHost: AZAMPAY_API_URL,
           },
         },
       });

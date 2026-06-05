@@ -25,6 +25,8 @@ import {
   IDEM_TTL_SEC,
   TZ_PHONE_RE,
   normalizePhone,
+  maskAzamPayPhone,
+  describeAzamPayResponseBody,
   azampayPost,
   makePaymentRateLimiter,
 } from "../lib/azampay.helpers.js";
@@ -247,7 +249,8 @@ router.post("/initiate", requireAuth, paymentUserLimiter, paymentTargetLimiter, 
     // handset, NOT a browser checkout page. We deliberately discard any checkoutUrl
     // the sandbox returns (debug-only) so the frontend stays on the "check your phone"
     // prompt and polls /status. The webhook is the source of truth for completion.
-    let azampayData: any = { transactionId: null };
+    const responseSummary = describeAzamPayResponseBody(apiRes.body);
+    let azampayData: any = { transactionId: responseSummary.transactionId };
     {
       const trimmed = apiRes.body.trim();
       if (!trimmed || trimmed.startsWith("https://") || trimmed.startsWith("http://")) {
@@ -265,6 +268,18 @@ router.post("/initiate", requireAuth, paymentUserLimiter, paymentTargetLimiter, 
     }
 
     // 9. AzamPay accepted the checkout request — only now move invoice forward.
+    console.info("[AzamPay] MNO checkout accepted", {
+      invoiceId: invoice.id,
+      paymentRef,
+      provider,
+      amount: Math.round(amount),
+      currency,
+      accountNumber: maskAzamPayPhone(normalizedPhone),
+      apiHost: AZAMPAY_API_URL,
+      httpStatus: apiRes.status,
+      response: responseSummary,
+    });
+
     await prisma.invoice.update({
       where: { id: invoice.id },
       data: {
@@ -295,6 +310,8 @@ router.post("/initiate", requireAuth, paymentUserLimiter, paymentTargetLimiter, 
             paymentRef,
             phoneNumber: normalizedPhone,
             provider,
+            azampayResponse: responseSummary,
+            apiHost: AZAMPAY_API_URL,
           },
         },
       });
