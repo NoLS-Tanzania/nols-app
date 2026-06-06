@@ -502,7 +502,8 @@ async function handleCoralNotification(kind: "callback" | "postback", encryptedV
       paymentRef,
       undefined,
       "CORALCOMMERCE",
-      notice.transactionId || notice.gatewayId || paymentRef
+      notice.transactionId || notice.gatewayId || paymentRef,
+      amount
     );
   }
 

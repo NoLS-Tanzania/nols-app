@@ -220,10 +220,88 @@ async function ensurePaidBookingReady(bookingId: number) {
   }
 }
 
-export async function markInvoicePaid(invId: number, method: string, paymentRef: string, phoneNumber?: string, provider?: string, transactionId?: string) {
+async function notifyTravellerInvoicePaid(updatedInvoice: any, sourceInvoice: any, confirmedAmount?: number) {
+  let context = { refCode: "?", guestEmail: false, guestPhone: false };
+  try {
+    const booking = sourceInvoice.booking;
+    const bookingId = Number(updatedInvoice.bookingId ?? booking?.id);
+    if (!Number.isFinite(bookingId) || bookingId <= 0 || !booking) return;
+
+    const guestEmail = booking.guestEmail || booking.user?.email || null;
+    const guestPhone = booking.guestPhone || booking.user?.phone || null;
+    if (!guestEmail && !guestPhone) return;
+
+    const currency = booking.property?.currency || "TZS";
+    const totalPaid = Number.isFinite(Number(confirmedAmount))
+      ? Number(confirmedAmount)
+      : Number(updatedInvoice.total ?? updatedInvoice.netPayable ?? booking.totalAmount ?? 0);
+    const guestName = booking.guestName || booking.user?.name || "Guest";
+    const roomsQty = Math.max(1, Number((booking as any).roomsQty ?? 1));
+    const code = await generateBookingCodeForBooking(bookingId);
+    const bookingCode = code.code;
+    const refCode = bookingCode ?? `BK-${bookingId}`;
+    context = { refCode, guestEmail: !!guestEmail, guestPhone: !!guestPhone };
+
+    const pdfData = {
+      guestName,
+      propertyName: String(booking.property?.title || "your property"),
+      bookingId,
+      bookingCode,
+      checkIn: booking.checkIn,
+      checkOut: booking.checkOut,
+      totalAmount: totalPaid,
+      roomsQty,
+      currency,
+      paidAt: updatedInvoice.paidAt ?? new Date(),
+    };
+
+    const [{ subject, html }, reservationPdf] = await Promise.all([
+      Promise.resolve(getBookingReceivedEmail({
+        guestName: pdfData.guestName,
+        propertyName: pdfData.propertyName,
+        bookingId: pdfData.bookingId,
+        bookingCode: pdfData.bookingCode,
+        checkIn: pdfData.checkIn,
+        checkOut: pdfData.checkOut,
+        totalAmount: pdfData.totalAmount,
+        roomsQty: pdfData.roomsQty,
+      })),
+      generateBookingReservationPdf(pdfData),
+    ]);
+
+    if (guestEmail) {
+      await sendMail(guestEmail, subject, html, [
+        { filename: `NolSAF-Booking-${refCode}.pdf`, content: reservationPdf },
+      ]);
+    }
+
+    if (guestPhone) {
+      const ci = new Date(booking.checkIn).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+      const co = new Date(booking.checkOut).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+      const smsText =
+        `NoLSAF: Payment Confirmed!\n` +
+        `Ref: ${refCode}\n` +
+        `Property: ${String(booking.property?.title || "").slice(0, 40)}\n` +
+        `Check-in: ${ci}\n` +
+        `Check-out: ${co}\n` +
+        `Paid: ${currency} ${totalPaid.toLocaleString("en-US")}\n` +
+        `Show your ref code on arrival. support@nolsaf.com`;
+      await sendSms(guestPhone, smsText);
+    }
+  } catch (confirmErr) {
+    console.error(
+      `[PAYMENT_CONFIRMED] Guest notification FAILED for booking ${sourceInvoice.booking?.id ?? "?"} ` +
+      `(invoiceId=${sourceInvoice.id}, refCode=${context.refCode}). ` +
+      `guestEmail=${context.guestEmail ? "set" : "none"}, guestPhone=${context.guestPhone ? "set" : "none"}. ` +
+      `Error: ${(confirmErr as any)?.message ?? String(confirmErr)}`
+    );
+  }
+}
+
+export async function markInvoicePaid(invId: number, method: string, paymentRef: string, phoneNumber?: string, provider?: string, transactionId?: string, confirmedAmount?: number) {
   const inv = await prisma.invoice.findUnique({
     where: { id: invId },
-    include: { booking: { include: { property: true } } },
+    include: { booking: { include: { property: true, user: true } } },
   });
   if (!inv) throw new Error("invoice not found");
   if (inv.status === "PAID") {
@@ -271,6 +349,7 @@ export async function markInvoicePaid(invId: number, method: string, paymentRef:
   // A public booking is only confirmed after payment succeeds, and the check-in
   // code must exist before it appears in My Bookings.
   await ensurePaidBookingReady(updated.bookingId);
+  await notifyTravellerInvoicePaid(updated, inv, confirmedAmount);
 
   // If the booking included scheduled transport, publish it to drivers now.
   try {
@@ -663,105 +742,15 @@ router.post("/azampay", webhookLimiter, async (req: any, res) => {
       
       // Verify amount matches within tolerance
       if (near(amount, want)) {
-        const updatedInvoice = await markInvoicePaid(
+        await markInvoicePaid(
           invoice.id,
           "AZAMPAY",
           paymentRef || eventId.toString(),
           phoneNumber || undefined,
           provider || undefined,
-          eventId.toString()
+          eventId.toString(),
+          amount
         );
-
-        // Generate booking code (idempotent — safe to call even if code already exists)
-        if (updatedInvoice.booking?.id) {
-          try {
-            await generateBookingCodeForBooking(updatedInvoice.booking.id);
-          } catch (codeError) {
-            console.error("Failed to generate booking code:", codeError);
-            // Don't fail the webhook if code generation fails
-          }
-        }
-
-        // Send guest payment confirmation: email with PDF receipts + SMS.
-        // Uses the AzamPay-confirmed `amount` — the exact value the guest paid via M-Pesa.
-        // This fires ONLY here (after payment success) — never at booking creation.
-        let _notifContext = { refCode: "?", guestEmail: false, guestPhone: false };
-        try {
-          const bookingId = invoice.booking.id;
-          // Email from linked account; phone from booking record or linked account.
-          const guestEmail = invoice.booking.user?.email || null;
-          const guestPhone = invoice.booking.guestPhone || invoice.booking.user?.phone || null;
-          const currency   = invoice.booking.property?.currency || "TZS";
-          // Use the AzamPay-confirmed payment amount — this is the source of truth.
-          const totalPaid  = amount;
-          const guestName  = invoice.booking.guestName || invoice.booking.user?.name || "Guest";
-          const roomsQty   = Math.max(1, Number((invoice.booking as any).roomsQty ?? 1));
-
-          // Fetch the active booking code (just generated above)
-          const checkinCode = await prisma.checkinCode.findFirst({
-            where: { bookingId, status: "ACTIVE" },
-            select: { code: true },
-          });
-          const bookingCode = checkinCode?.code;
-          const refCode = bookingCode ?? `BK-${bookingId}`;
-          _notifContext = { refCode, guestEmail: !!guestEmail, guestPhone: !!guestPhone };
-
-          const pdfData = {
-            guestName,
-            propertyName: String(invoice.booking.property?.title || "your property"),
-            bookingId,
-            bookingCode,
-            checkIn:     invoice.booking.checkIn,
-            checkOut:    invoice.booking.checkOut,
-            totalAmount: totalPaid,
-            roomsQty,
-            currency,
-            paidAt:      updatedInvoice.paidAt ?? new Date(),
-          };
-
-          const [{ subject, html }, reservationPdf] = await Promise.all([
-            Promise.resolve(getBookingReceivedEmail({
-              guestName:    pdfData.guestName,
-              propertyName: pdfData.propertyName,
-              bookingId:    pdfData.bookingId,
-              bookingCode:  pdfData.bookingCode,
-              checkIn:      pdfData.checkIn,
-              checkOut:     pdfData.checkOut,
-              totalAmount:  pdfData.totalAmount,
-              roomsQty:     pdfData.roomsQty,
-            })),
-            generateBookingReservationPdf(pdfData),
-          ]);
-
-          if (guestEmail) {
-            await sendMail(guestEmail, subject, html, [
-              { filename: `NolSAF-Booking-${refCode}.pdf`, content: reservationPdf },
-            ]);
-          }
-
-          if (guestPhone) {
-            const ci = new Date(invoice.booking.checkIn).toLocaleDateString("en-GB",  { day: "numeric", month: "short", year: "numeric" });
-            const co = new Date(invoice.booking.checkOut).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
-            const smsText =
-              `NoLSAF: Payment Confirmed!\n` +
-              `Ref: ${refCode}\n` +
-              `Property: ${String(invoice.booking.property?.title || "").slice(0, 40)}\n` +
-              `Check-in: ${ci}\n` +
-              `Check-out: ${co}\n` +
-              `Paid: ${currency} ${totalPaid.toLocaleString("en-US")}\n` +
-              `Show your ref code on arrival. support@nolsaf.com`;
-            await sendSms(guestPhone, smsText);
-          }
-        } catch (confirmErr) {
-          // Log with enough detail for ops to investigate and manually resend if needed.
-          // We intentionally do NOT block the webhook response — payment is confirmed regardless.
-          console.error(
-            `[PAYMENT_CONFIRMED] Guest notification FAILED for booking ${invoice.booking?.id ?? "?"} ` +
-            `(invoiceId=${invoice.id}, refCode=${_notifContext.refCode}). ` +
-            `guestEmail=${_notifContext.guestEmail ? "set" : "none"}, guestPhone=${_notifContext.guestPhone ? "set" : "none"}. ` +
-            `Error: ${(confirmErr as any)?.message ?? String(confirmErr)}`
-          );
-        }
       } else {
         // Suspicious underpayment — log with enough detail for admin investigation.
         console.warn(
