@@ -114,6 +114,16 @@ function truncate(value: string, max: number): string {
   return value.length > max ? value.slice(0, max) : value;
 }
 
+function appendQueryParams(url: string, params: Record<string, string | undefined>): string {
+  const cleanParams = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value) cleanParams.set(key, value);
+  }
+  const query = cleanParams.toString();
+  if (!query) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}${query}`;
+}
+
 function buildCoralOrder(params: {
   invoice: any;
   amount: number;
@@ -265,7 +275,12 @@ router.post("/initiate", requireAuth, coralUserLimiter, coralTargetLimiter, asyn
     }
 
     const paymentRef = invoice.paymentRef ?? `CORAL-${invoice.id}-${Date.now()}`;
-    const coralPayload = buildCoralOrder({ invoice, amount, currency, paymentRef, config });
+    const postbackConfig = {
+      ...config,
+      successUrl: appendQueryParams(config.successUrl, { invoiceId: String(invoice.id), accessToken }),
+      failureUrl: appendQueryParams(config.failureUrl, { invoiceId: String(invoice.id), accessToken }),
+    };
+    const coralPayload = buildCoralOrder({ invoice, amount, currency, paymentRef, config: postbackConfig });
 
     let apiRes;
     try {
@@ -542,6 +557,8 @@ router.all("/postback", coralFormParser, async (req, res) => {
         params.set("accessToken", accessToken);
         return res.redirect(`${webOrigin}/public/booking/tour-payment?${params.toString()}`);
       }
+      if (result.invoiceId) params.set("invoiceId", String(result.invoiceId));
+      if (accessToken) params.set("accessToken", accessToken);
       return res.redirect(`${webOrigin}/public/booking/payment?${params.toString()}`);
     }
     return res.json(result);
