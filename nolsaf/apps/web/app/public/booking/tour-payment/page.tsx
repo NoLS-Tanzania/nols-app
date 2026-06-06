@@ -151,6 +151,7 @@ export default function TourPaymentPage() {
 
     const cardReturn = searchParams?.get("cardReturn");
     const cardRef    = searchParams?.get("ref");
+    const cardMessage = searchParams?.get("message");
 
     if (cardReturn && cardRef) {
       if (cardReturn === "success") {
@@ -162,6 +163,12 @@ export default function TourPaymentPage() {
         setPaymentStatus("pending");
         setPaymentChannel("CARD");
         // Poll will start after booking loads (startPolling reads booking state)
+      } else if (cardReturn === "failed") {
+        setPaymentRef(cardRef);
+        setSubmitting(false);
+        setPaymentStatus("failed");
+        setPaymentChannel("CARD");
+        setError(cardMessage || "Card payment was not completed. No charge was confirmed.");
       }
     }
 
@@ -955,7 +962,9 @@ export default function TourPaymentPage() {
                             ) : (
                               <>
                                 <CreditCard className="w-4 h-4" />
-                                Pay with Card {fmt(amount, currency)}
+                                {paymentStatus === "failed" || paymentStatus === "timeout"
+                                  ? `Try Card Again ${fmt(amount, currency)}`
+                                  : `Pay with Card ${fmt(amount, currency)}`}
                               </>
                             )}
                           </button>

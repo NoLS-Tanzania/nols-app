@@ -274,6 +274,7 @@ export default function PaymentPage() {
     const accessToken    = searchParams?.get("accessToken");
     const cardReturn     = searchParams?.get("cardReturn");
     const cardRef        = searchParams?.get("ref");
+    const cardMessage    = searchParams?.get("message");
 
     if (!invoiceIdParam) {
       setError("Missing invoice ID");
@@ -300,6 +301,12 @@ export default function PaymentPage() {
         setPaymentStatus("pending");
         setPaymentChannel("CARD");
         startPolling(cardRef, invoiceIdNum);
+      } else if (cardReturn === "failed") {
+        setPaymentRef(cardRef);
+        setSubmitting(false);
+        setPaymentStatus("failed");
+        setPaymentChannel("CARD");
+        setError(toDisplayMessage(cardMessage, "Card payment was not completed. No charge was confirmed."));
       }
     }
 
@@ -584,6 +591,7 @@ export default function PaymentPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           invoiceId:   invoice.id,
+          idempotencyKey: `coral-card-${invoice.id}-${Date.now()}`,
           accessToken: searchParams?.get("accessToken") || undefined,
         }),
       });
@@ -842,10 +850,12 @@ export default function PaymentPage() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <h2 className="text-xl font-bold leading-tight text-slate-950 sm:text-2xl">
-                      Payment Request Failed
+                      {paymentChannel === "CARD" ? "Card Payment Not Completed" : "Payment Request Failed"}
                     </h2>
                     <p className="mt-2 max-w-xl text-sm leading-6 text-slate-600">
-                      Your booking details are saved. Please review the details below and try again.
+                      {paymentChannel === "CARD"
+                        ? "Your booking is still saved and unpaid. You can try card again, or choose mobile money or bank transfer."
+                        : "Your booking details are saved. Please review the details below and try again."}
                     </p>
                   </div>
                 </div>
@@ -1205,7 +1215,9 @@ export default function PaymentPage() {
                               <>
                                 <CreditCard className="w-5 h-5" />
                                 <span>
-                                  Continue to Card Payment{" "}
+                                  {paymentStatus === "failed" || paymentStatus === "timeout"
+                                    ? "Try Card Payment Again"
+                                    : "Continue to Card Payment"}{" "}
                                   {invoice?.totalAmount.toLocaleString()} {invoice?.currency}
                                 </span>
                               </>

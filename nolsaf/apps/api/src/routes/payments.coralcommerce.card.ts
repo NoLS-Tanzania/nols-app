@@ -527,7 +527,14 @@ async function handleCoralNotification(kind: "callback" | "postback", encryptedV
     });
   }
 
-  return { ok: true, invoiceId: invoice?.id ?? null, tourBookingId: tourBooking?.id ?? null, status: eventStatus, paymentRef };
+  return {
+    ok: true,
+    invoiceId: invoice?.id ?? null,
+    tourBookingId: tourBooking?.id ?? null,
+    status: eventStatus,
+    paymentRef,
+    message: notice.message || null,
+  };
 }
 
 router.post("/callback", coralFormParser, async (req, res) => {
@@ -549,10 +556,11 @@ router.all("/postback", coralFormParser, async (req, res) => {
     const result = await handleCoralNotification("postback", encrypted);
     const webOrigin = (process.env.WEB_ORIGIN || "").replace(/\/$/, "");
     if (webOrigin) {
-      const cardReturn = result.status === "SUCCESS" ? "success" : "pending";
+      const cardReturn = result.status === "SUCCESS" ? "success" : result.status === "FAILED" ? "failed" : "pending";
       const tourBookingId = getCallbackValue(req, "tourBookingId");
       const accessToken = getCallbackValue(req, "accessToken");
       const params = new URLSearchParams({ cardReturn, ref: result.paymentRef });
+      if (result.message) params.set("message", truncate(result.message, 160));
       if (tourBookingId && accessToken) {
         params.set("tourBookingId", tourBookingId);
         params.set("accessToken", accessToken);
