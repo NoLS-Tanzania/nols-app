@@ -140,6 +140,62 @@ const OPTIONAL_SECRETS: SecretConfig[] = [
     required: false,
     description: "Set to 'true' to reject AzamPay webhook calls with timestamps older than 5 minutes",
   },
+  // CoralCommerce hosted card checkout
+  {
+    key: "CORAL_UCF_ENABLED",
+    required: false,
+    description: "Set to 'true' to enable CoralCommerce hosted card checkout",
+  },
+  {
+    key: "CORAL_UCF_API_URL",
+    required: false,
+    description: "CoralCommerce UCF execute endpoint",
+    validate: (v) => v.startsWith("https://"),
+  },
+  {
+    key: "CORAL_UCF_USERNAME",
+    required: false,
+    description: "CoralCommerce technical username",
+  },
+  {
+    key: "CORAL_UCF_PASSWORD",
+    required: false,
+    description: "CoralCommerce technical password",
+  },
+  {
+    key: "CORAL_UCF_ALIAS",
+    required: false,
+    description: "CoralCommerce merchant alias",
+  },
+  {
+    key: "CORAL_UCF_CURRENCY",
+    required: false,
+    description: "CoralCommerce settlement currency override",
+    validate: (v) => /^[A-Z]{3}$/.test(v),
+  },
+  {
+    key: "CORAL_UCF_SHARED_ENCRYPTION_KEY",
+    required: false,
+    description: "CoralCommerce shared key for encrypted callbacks/postbacks",
+  },
+  {
+    key: "CORAL_UCF_CALLBACK_URL",
+    required: false,
+    description: "Public CoralCommerce asynchronous callback URL",
+    validate: (v) => v.startsWith("https://"),
+  },
+  {
+    key: "CORAL_UCF_POSTBACK_SUCCESS_URL",
+    required: false,
+    description: "Public CoralCommerce success postback URL",
+    validate: (v) => v.startsWith("https://"),
+  },
+  {
+    key: "CORAL_UCF_POSTBACK_FAILURE_URL",
+    required: false,
+    description: "Public CoralCommerce failure postback URL",
+    validate: (v) => v.startsWith("https://"),
+  },
   // Email providers
   {
     key: "RESEND_API_KEY",
@@ -263,6 +319,24 @@ export function validateSecrets(): void {
         key: config.key,
         reason: `Invalid format or too short`,
       });
+    }
+  }
+
+  if (String(process.env.CORAL_UCF_ENABLED || "").toLowerCase() === "true") {
+    const coralRequired = [
+      "CORAL_UCF_API_URL",
+      "CORAL_UCF_USERNAME",
+      "CORAL_UCF_PASSWORD",
+      "CORAL_UCF_ALIAS",
+      "CORAL_UCF_SHARED_ENCRYPTION_KEY",
+      "CORAL_UCF_CALLBACK_URL",
+      "CORAL_UCF_POSTBACK_SUCCESS_URL",
+    ];
+    for (const key of coralRequired) {
+      const value = process.env[key];
+      if (!value || value.trim() === "") {
+        missing.push(key);
+      }
     }
   }
 

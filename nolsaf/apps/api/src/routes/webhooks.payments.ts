@@ -201,7 +201,7 @@ function nextReceiptNumber(prefix = "RCPT", seq: number) {
   return `${prefix}/${y}/${String(seq).padStart(5, "0")}`;
 }
 
-async function markInvoicePaid(invId: number, method: string, paymentRef: string, phoneNumber?: string, provider?: string, transactionId?: string) {
+export async function markInvoicePaid(invId: number, method: string, paymentRef: string, phoneNumber?: string, provider?: string, transactionId?: string) {
   const inv = await prisma.invoice.findUnique({
     where: { id: invId },
     include: { booking: { include: { property: true } } },

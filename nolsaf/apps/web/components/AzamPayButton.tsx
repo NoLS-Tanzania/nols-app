@@ -25,7 +25,7 @@ type PaymentChannel = "MNO" | "BANK" | "CARD";
  * AzamPay Payment Button — supports MNO, Bank, and Card channels.
  *
  * MNO / Bank: initiates payment on our API → polls for status confirmation.
- * Card:       initiates checkout → redirects browser to AzamPay hosted page.
+ * Card:       initiates checkout → redirects browser to the hosted card page.
  *             On return, detects ?cardReturn=success|pending in the URL.
  */
 export default function AzamPayButton({
@@ -159,7 +159,7 @@ export default function AzamPayButton({
         endpoint = `${API_URL}/api/payments/azampay/bank/initiate`;
         body     = { invoiceId, idempotencyKey: key, bankCode: params.bankCode, accountNumber: params.accountNumber };
       } else {
-        endpoint = `${API_URL}/api/payments/azampay/card/initiate`;
+        endpoint = `${API_URL}/api/payments/coralcommerce/card/initiate`;
         body     = { invoiceId, idempotencyKey: key };
       }
 
@@ -175,7 +175,7 @@ export default function AzamPayButton({
 
       if (data.ok) {
         if (channel === "CARD" && data.checkoutUrl) {
-          // Card: redirect to AzamPay hosted page — page is leaving, keep processing state
+          // Card: redirect to hosted card page — page is leaving, keep processing state
           setPaymentStatus("pending");
           window.location.href = data.checkoutUrl;
           return; // Don't reset isSubmittingRef — browser is navigating away
@@ -230,7 +230,7 @@ export default function AzamPayButton({
         aria-label={
           isProcessing         ? "Processing payment..."     :
           paymentStatus === "pending"  ? "Payment in progress..."  :
-          "Pay with AzamPay"
+          "Pay securely"
         }
       >
         {isProcessing ? (
