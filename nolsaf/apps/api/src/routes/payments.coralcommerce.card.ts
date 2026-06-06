@@ -323,8 +323,20 @@ router.post("/initiate", requireAuth, coralUserLimiter, coralTargetLimiter, asyn
     });
 
     try {
-      await prisma.paymentEvent.create({
-        data: {
+      await prisma.paymentEvent.upsert({
+        where: { eventId: `${paymentRef}-INIT` },
+        update: {
+          status: "PENDING",
+          checkoutUrl: coralResult.redirectUrl.slice(0, 2048),
+          rawStatus: coralResult.code,
+          payload: {
+            paymentRef,
+            code: coralResult.code,
+            message: coralResult.message,
+            apiUrl: CORAL_UCF_API_URL,
+          },
+        },
+        create: {
           provider: "CORALCOMMERCE",
           eventId: `${paymentRef}-INIT`,
           invoiceId: invoice.id,

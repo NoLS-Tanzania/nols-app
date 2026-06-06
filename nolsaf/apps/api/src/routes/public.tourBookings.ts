@@ -833,8 +833,15 @@ router.post(
     });
 
     try {
-      await prisma.paymentEvent.create({
-        data: {
+      await prisma.paymentEvent.upsert({
+        where: { eventId: `CORAL-TOUR-${paymentRef}` },
+        update: {
+          status:         "PENDING",
+          checkoutUrl:    checkoutUrl.slice(0, 2048),
+          rawStatus:      null,
+          payload:        { paymentRef, apiUrl: CORAL_UCF_API_URL },
+        },
+        create: {
           provider:       "CORALCOMMERCE",
           eventId:        `CORAL-TOUR-${paymentRef}`,
           tourBookingId:  booking.id,
