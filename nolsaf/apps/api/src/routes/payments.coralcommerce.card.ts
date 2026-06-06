@@ -411,8 +411,20 @@ async function handleCoralNotification(kind: "callback" | "postback", encryptedV
       booking: { select: { property: { select: { currency: true } } } },
     },
   });
-  if (!invoice) {
-    throw new Error("coral_invoice_not_found");
+
+  const tourBooking = invoice ? null : await prisma.tourBooking.findFirst({
+    where: { paymentRef },
+    select: {
+      id: true,
+      status: true,
+      paymentStatus: true,
+      grossAmount: true,
+      currency: true,
+    },
+  });
+
+  if (!invoice && !tourBooking) {
+    throw new Error("coral_payment_target_not_found");
   }
 
   const isSuccess =
@@ -421,7 +433,9 @@ async function handleCoralNotification(kind: "callback" | "postback", encryptedV
   const isFailure = notice.status ? /^failure$/i.test(notice.status) : notice.code && notice.code !== "000";
   const eventStatus: "SUCCESS" | "FAILED" | "PENDING" = isSuccess ? "SUCCESS" : isFailure ? "FAILED" : "PENDING";
   const eventId = notice.transactionId || notice.gatewayId || `${paymentRef}-${kind}-${eventStatus}`;
-  const amount = Number(invoice.total ?? invoice.netPayable ?? 0);
+  const amount = invoice
+    ? Number(invoice.total ?? invoice.netPayable ?? 0)
+    : Number(tourBooking?.grossAmount ?? 0);
 
   const existing = await prisma.paymentEvent.findUnique({
     where: { eventId },
@@ -440,9 +454,12 @@ async function handleCoralNotification(kind: "callback" | "postback", encryptedV
       data: {
         provider: "CORALCOMMERCE",
         eventId,
-        invoiceId: invoice.id,
+        invoiceId: invoice?.id ?? null,
+        tourBookingId: tourBooking?.id ?? null,
         amount,
-        currency: resolveCoralCurrency(invoice.booking?.property?.currency),
+        currency: invoice
+          ? resolveCoralCurrency(invoice.booking?.property?.currency)
+          : resolveCoralCurrency(tourBooking?.currency),
         status: eventStatus,
         paymentChannel: "CARD",
         rawStatus: notice.status || notice.code || null,
@@ -451,7 +468,7 @@ async function handleCoralNotification(kind: "callback" | "postback", encryptedV
     });
   }
 
-  if (isSuccess && invoice.status !== "PAID") {
+  if (isSuccess && invoice && invoice.status !== "PAID") {
     await markInvoicePaid(
       invoice.id,
       "CARD",
@@ -462,7 +479,27 @@ async function handleCoralNotification(kind: "callback" | "postback", encryptedV
     );
   }
 
-  return { ok: true, invoiceId: invoice.id, status: eventStatus, paymentRef };
+  if (isSuccess && tourBooking && tourBooking.paymentStatus !== "PAID") {
+    await prisma.tourBooking.update({
+      where: { id: tourBooking.id },
+      data: {
+        paymentStatus: "PAID",
+        status: "CONFIRMED",
+        paidAt: new Date(),
+        paymentProvider: "CORALCOMMERCE",
+      },
+    });
+  } else if (isFailure && tourBooking && tourBooking.paymentStatus !== "PAID") {
+    await prisma.tourBooking.update({
+      where: { id: tourBooking.id },
+      data: {
+        paymentStatus: "FAILED",
+        paymentProvider: "CORALCOMMERCE",
+      },
+    });
+  }
+
+  return { ok: true, invoiceId: invoice?.id ?? null, tourBookingId: tourBooking?.id ?? null, status: eventStatus, paymentRef };
 }
 
 router.post("/callback", coralFormParser, async (req, res) => {
@@ -484,7 +521,15 @@ router.all("/postback", coralFormParser, async (req, res) => {
     const result = await handleCoralNotification("postback", encrypted);
     const webOrigin = (process.env.WEB_ORIGIN || "").replace(/\/$/, "");
     if (webOrigin) {
-      const params = new URLSearchParams({ cardReturn: result.status === "SUCCESS" ? "success" : "pending", ref: result.paymentRef });
+      const cardReturn = result.status === "SUCCESS" ? "success" : "pending";
+      const tourBookingId = getCallbackValue(req, "tourBookingId");
+      const accessToken = getCallbackValue(req, "accessToken");
+      const params = new URLSearchParams({ cardReturn, ref: result.paymentRef });
+      if (tourBookingId && accessToken) {
+        params.set("tourBookingId", tourBookingId);
+        params.set("accessToken", accessToken);
+        return res.redirect(`${webOrigin}/public/booking/tour-payment?${params.toString()}`);
+      }
       return res.redirect(`${webOrigin}/public/booking/payment?${params.toString()}`);
     }
     return res.json(result);

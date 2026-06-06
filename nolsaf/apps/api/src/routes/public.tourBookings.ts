@@ -16,8 +16,12 @@ import {
   maskAzamPayPhone,
   describeAzamPayResponseBody,
   azampayPost,
-  azampayCardPost,
 } from "../lib/azampay.helpers.js";
+import {
+  CORAL_UCF_API_URL,
+  coralPostJson64,
+  parseCoralInitiateResponse,
+} from "../lib/coralcommerce.helpers.js";
 
 const router = Router();
 
@@ -130,6 +134,43 @@ function money(value: number): number {
 function clean(value: unknown, max = 500): string | null {
   const s = sanitizeText(String(value || "").trim()).slice(0, max);
   return s || null;
+}
+
+function truncate(value: string, max: number): string {
+  return value.length > max ? value.slice(0, max) : value;
+}
+
+function resolveCoralTourCurrency(value?: string | null): "TZS" | "USD" {
+  const currency = String(value || "").trim().toUpperCase();
+  if (currency === "TZS" || currency === "USD") return currency;
+
+  const fallback = String(process.env.CORAL_UCF_CURRENCY || "").trim().toUpperCase();
+  if (fallback === "TZS" || fallback === "USD") return fallback;
+
+  return "TZS";
+}
+
+function requiredCoralTourConfig(): { username: string; password: string; alias: string; callbackUrl: string; successUrl: string; failureUrl: string } | null {
+  const username = process.env.CORAL_UCF_USERNAME;
+  const password = process.env.CORAL_UCF_PASSWORD;
+  const alias = process.env.CORAL_UCF_ALIAS;
+  const callbackUrl = process.env.CORAL_UCF_CALLBACK_URL;
+  const successUrl = process.env.CORAL_UCF_POSTBACK_SUCCESS_URL;
+  const failureUrl = process.env.CORAL_UCF_POSTBACK_FAILURE_URL || successUrl;
+  const missing = [
+    !username && "CORAL_UCF_USERNAME",
+    !password && "CORAL_UCF_PASSWORD",
+    !alias && "CORAL_UCF_ALIAS",
+    !callbackUrl && "CORAL_UCF_CALLBACK_URL",
+    !successUrl && "CORAL_UCF_POSTBACK_SUCCESS_URL",
+  ].filter(Boolean);
+
+  if (missing.length) {
+    console.error(`[TourPay/Card] CoralCommerce not configured; missing ${missing.join(", ")}`);
+    return null;
+  }
+
+  return { username: username!, password: password!, alias: alias!, callbackUrl: callbackUrl!, successUrl: successUrl!, failureUrl: failureUrl! };
 }
 
 function parseDate(value: string | null | undefined): Date | null {
@@ -687,8 +728,8 @@ router.post(
     if (!verifyTourBookingAccessToken(accessToken, id))
       return res.status(403).json({ ok: false, error: "invalid_access_token" });
 
-    if (!process.env.AZAMPAY_CARD_RETURN_URL) {
-      console.error("[TourPay/Card] AZAMPAY_CARD_RETURN_URL not configured");
+    const coralConfig = requiredCoralTourConfig();
+    if (!coralConfig) {
       return res.status(503).json({ ok: false, error: "payment_unavailable", message: "Card payments are not configured." });
     }
 
@@ -705,62 +746,97 @@ router.post(
       return res.status(410).json({ ok: false, error: "payment_access_expired", message: "This draft payment link has expired." });
 
     const amount   = Math.round(Number(booking.grossAmount));
-    const currency = booking.currency || "TZS";
+    const currency = resolveCoralTourCurrency(booking.currency);
     if (!Number.isFinite(amount) || amount <= 0)
       return res.status(400).json({ ok: false, error: "invalid_amount" });
 
     const paymentRef = booking.paymentRef ?? `TOUR-CARD-${booking.id}-${Date.now()}`;
-    const returnUrl  = `${process.env.AZAMPAY_CARD_RETURN_URL}?tourBookingId=${booking.id}&accessToken=${encodeURIComponent(accessToken)}`;
+    const postbackParams = new URLSearchParams({ tourBookingId: String(booking.id), accessToken });
+    const successUrl = `${coralConfig.successUrl}${coralConfig.successUrl.includes("?") ? "&" : "?"}${postbackParams.toString()}`;
+    const failureUrl = `${coralConfig.failureUrl}${coralConfig.failureUrl.includes("?") ? "&" : "?"}${postbackParams.toString()}`;
 
-    const azampayBody = {
-      amount:                Math.round(amount).toString(),
-      currencyCode:          currency,
-      merchantAccountNumber: "",
-      merchantMobileNumber:  "",
-      merchantName:          process.env.AZAMPAY_APP_NAME || "NoLSAF",
-      otp:                   "",
-      provider:              "CARD",
-      referenceId:           paymentRef,
-      returnURL:             returnUrl,
-      additionalProperties:  { tourBookingId: booking.id.toString(), bookingCode: booking.bookingCode },
+    const coralBody = {
+      Transaction: {
+        Version: "3.16",
+        Username: coralConfig.username,
+        Password: coralConfig.password,
+        Destination: "ucfurl",
+        Submission: { Number: 1, Stamp: truncate(paymentRef, 40) },
+        Identifier: paymentRef,
+        Alias: coralConfig.alias,
+        Currency: currency,
+        Order: {
+          Products: [
+            {
+              ID: 1,
+              Code: "TOUR",
+              Description: truncate(`NoLSAF tour booking ${booking.bookingCode}`, 100),
+              Price: amount,
+              Quantity: 1,
+              VAT: 0,
+              SubTotal: amount,
+            },
+          ],
+          Delivery: { Auto: true },
+          ProductTotal: amount,
+        },
+        UCF: {
+          CustomerFullName: "NoLSAF Guest",
+          CustomerEmail: "",
+          CustomerMobile: "",
+          CallbackUrl: coralConfig.callbackUrl,
+          CallbackFormat: "json",
+          CallbackMethod: "post",
+          CallbackVar: "UCFCallback",
+          TransactionType: "03",
+          PostBackSuccessUrl: successUrl,
+          PostBackFailureUrl: failureUrl,
+          DisplayOrderSummary: "true",
+        },
+      },
     };
 
-    let token: string;
-    try { token = await getAzamPayToken(); }
-    catch { return res.status(503).json({ ok: false, error: "payment_unavailable" }); }
-
-    let apiRes = await azampayCardPost("/api/v1/Partner/CardCheckout", azampayBody, token);
-    if (apiRes.status === 401) {
-      await invalidateAzamPayToken();
-      try { token = await getAzamPayToken(); } catch { /* handled below */ }
-      apiRes = await azampayCardPost("/api/v1/Partner/CardCheckout", azampayBody, token!);
+    let apiRes;
+    try {
+      apiRes = await coralPostJson64(coralBody);
+    } catch (err: any) {
+      console.error("[TourPay/Card] CoralCommerce request failed:", err?.message ?? "unknown");
+      return res.status(503).json({ ok: false, error: "payment_unavailable", message: "Payment service temporarily unavailable." });
     }
     if (!apiRes.ok) {
-      console.error(`[TourPay/Card] Checkout HTTP ${apiRes.status} — body: ${apiRes.body.slice(0, 500)}`);
+      console.error(`[TourPay/Card] CoralCommerce HTTP ${apiRes.status} via ${CORAL_UCF_API_URL} - body: ${apiRes.body.slice(0, 500)}`);
       return res.status(502).json({ ok: false, error: "payment_failed", message: "Card payment could not be initiated." });
     }
 
-    let azampayData: any;
-    try { azampayData = JSON.parse(apiRes.body); }
+    let coralResult;
+    try { coralResult = parseCoralInitiateResponse(apiRes.body); }
     catch {
-      console.error(`[TourPay/Card] Non-JSON response HTTP ${apiRes.status} — body: ${apiRes.body.slice(0, 500) || "(empty)"}`);
+      console.error(`[TourPay/Card] CoralCommerce non-JSON response HTTP ${apiRes.status} - body: ${apiRes.body.slice(0, 500) || "(empty)"}`);
       return res.status(502).json({ ok: false, error: "payment_failed", message: "Unexpected response from payment provider." });
     }
 
-    const checkoutUrl: string | null = azampayData.checkoutUrl ?? azampayData.CheckoutUrl ?? null;
-    if (!checkoutUrl)
-      return res.status(502).json({ ok: false, error: "payment_failed", message: "No checkout URL returned — please try again." });
+    const checkoutUrl = coralResult.redirectUrl;
+    if (coralResult.code !== "000" || !checkoutUrl) {
+      console.error("[TourPay/Card] CoralCommerce initiation rejected", JSON.stringify({
+        tourBookingId: booking.id,
+        paymentRef,
+        code: coralResult.code,
+        message: coralResult.message,
+        zone: coralResult.zone,
+      }));
+      return res.status(502).json({ ok: false, error: "payment_failed", message: coralResult.message || "Card payment could not be initiated." });
+    }
 
     await prisma.tourBooking.update({
       where: { id: booking.id },
-      data:  { paymentRef: booking.paymentRef ?? paymentRef, paymentStatus: "PENDING", checkoutSessionId: azampayData.transactionId ?? null },
+      data:  { paymentRef: booking.paymentRef ?? paymentRef, paymentStatus: "PENDING", paymentProvider: "CORALCOMMERCE", checkoutSessionId: truncate(paymentRef, 120) },
     });
 
     try {
       await prisma.paymentEvent.create({
         data: {
-          provider:       "AZAMPAY",
-          eventId:        azampayData.transactionId ?? `${paymentRef}-${Date.now()}`,
+          provider:       "CORALCOMMERCE",
+          eventId:        `CORAL-TOUR-${paymentRef}`,
           tourBookingId:  booking.id,
           amount,
           currency,
@@ -768,14 +844,14 @@ router.post(
           paymentChannel: "CARD",
           checkoutUrl:    checkoutUrl.slice(0, 2048),
           rawStatus:      null,
-          payload:        { transactionId: azampayData.transactionId ?? null, paymentRef, returnUrl },
+          payload:        { paymentRef, apiUrl: CORAL_UCF_API_URL },
         },
       });
     } catch (dbErr: any) {
       console.warn("[TourPay/Card] Failed to create PaymentEvent:", dbErr?.message ?? dbErr);
     }
 
-    return res.json({ ok: true, transactionId: azampayData.transactionId ?? paymentRef, paymentRef, checkoutUrl, status: "PENDING" });
+    return res.json({ ok: true, transactionId: paymentRef, paymentRef, checkoutUrl, status: "PENDING" });
   }),
 );
 
