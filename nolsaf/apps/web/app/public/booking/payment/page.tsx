@@ -731,23 +731,20 @@ export default function PaymentPage() {
                   Payment Successful
                 </h2>
                 <p className="text-center text-green-700 font-medium">
-                  Your booking is confirmed. The booking code will be available in your account.
+                  Your booking is confirmed. Your booking code is ready in your account.
                 </p>
                 <div className="mt-6 grid gap-3 sm:grid-cols-2">
                   <Link
                     href="/account/bookings"
-                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#02665e] px-5 py-3 font-semibold text-white shadow-md transition hover:bg-[#014e47]"
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#02665e] px-5 py-3 font-semibold text-white no-underline shadow-md transition hover:bg-[#014e47] hover:no-underline"
                   >
                     <ReceiptText className="h-5 w-5" />
                     My Bookings
                   </Link>
                   {invoice && (
                     <Link
-                      href={`/public/booking/receipt?${new URLSearchParams({
-                        invoiceId: String(invoice.id),
-                        accessToken: String(searchParams?.get("accessToken") || ""),
-                      }).toString()}`}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-3 font-semibold text-emerald-800 transition hover:bg-emerald-100"
+                      href={`/account/bookings/${invoice.booking.id}/receipt`}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-3 font-semibold text-emerald-800 no-underline transition hover:bg-emerald-100 hover:no-underline"
                     >
                       View Receipt
                     </Link>

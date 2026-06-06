@@ -201,13 +201,35 @@ function nextReceiptNumber(prefix = "RCPT", seq: number) {
   return `${prefix}/${y}/${String(seq).padStart(5, "0")}`;
 }
 
+async function ensurePaidBookingReady(bookingId: number) {
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    select: { id: true, status: true },
+  });
+  if (!booking || booking.status === "CANCELED") return;
+
+  if (booking.status === "NEW") {
+    await prisma.booking.update({
+      where: { id: bookingId },
+      data: { status: "CONFIRMED" },
+    });
+  }
+
+  if (["NEW", "CONFIRMED", "CHECKED_IN", "CHECKED_OUT"].includes(booking.status)) {
+    await generateBookingCodeForBooking(bookingId);
+  }
+}
+
 export async function markInvoicePaid(invId: number, method: string, paymentRef: string, phoneNumber?: string, provider?: string, transactionId?: string) {
   const inv = await prisma.invoice.findUnique({
     where: { id: invId },
     include: { booking: { include: { property: true } } },
   });
   if (!inv) throw new Error("invoice not found");
-  if (inv.status === "PAID") return inv;
+  if (inv.status === "PAID") {
+    await ensurePaidBookingReady(inv.bookingId);
+    return inv;
+  }
 
   const seq = await prisma.invoice.count({ where: { status: "PAID" } });
   const receiptNumber = inv.receiptNumber ?? nextReceiptNumber("RCPT", seq + 1);
@@ -246,12 +268,9 @@ export async function markInvoicePaid(invId: number, method: string, paymentRef:
     include: { booking: true },
   });
 
-  // A public booking is only confirmed after payment succeeds.
-  // Do not revive cancelled/expired bookings; only promote fresh NEW holds.
-  await prisma.booking.updateMany({
-    where: { id: updated.bookingId, status: "NEW" },
-    data: { status: "CONFIRMED" },
-  });
+  // A public booking is only confirmed after payment succeeds, and the check-in
+  // code must exist before it appears in My Bookings.
+  await ensurePaidBookingReady(updated.bookingId);
 
   // If the booking included scheduled transport, publish it to drivers now.
   try {
