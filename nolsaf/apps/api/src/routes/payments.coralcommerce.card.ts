@@ -175,6 +175,16 @@ function buildCoralOrder(params: {
   };
 }
 
+function resolveCoralCurrency(invoiceCurrency?: string | null): "TZS" | "USD" {
+  const currency = String(invoiceCurrency || "").trim().toUpperCase();
+  if (currency === "TZS" || currency === "USD") return currency;
+
+  const fallback = String(process.env.CORAL_UCF_CURRENCY || "").trim().toUpperCase();
+  if (fallback === "TZS" || fallback === "USD") return fallback;
+
+  return "TZS";
+}
+
 router.post("/initiate", requireAuth, coralUserLimiter, coralTargetLimiter, async (req, res) => {
   try {
     const parsed = coralCardInitiateSchema.safeParse(req.body);
@@ -246,7 +256,7 @@ router.post("/initiate", requireAuth, coralUserLimiter, coralTargetLimiter, asyn
     }
 
     const amount = Number(invoice.total ?? invoice.netPayable ?? 0);
-    const currency = process.env.CORAL_UCF_CURRENCY || invoice.booking?.property?.currency || "TZS";
+    const currency = resolveCoralCurrency(invoice.booking?.property?.currency);
     if (!Number.isFinite(amount) || amount <= 0)
       return res.status(400).json({ error: "invalid_amount", message: "Invoice has no payable amount" });
 
@@ -393,7 +403,13 @@ async function handleCoralNotification(kind: "callback" | "postback", encryptedV
 
   const invoice = await prisma.invoice.findFirst({
     where: { paymentRef },
-    select: { id: true, status: true, total: true, netPayable: true },
+    select: {
+      id: true,
+      status: true,
+      total: true,
+      netPayable: true,
+      booking: { select: { property: { select: { currency: true } } } },
+    },
   });
   if (!invoice) {
     throw new Error("coral_invoice_not_found");
@@ -426,7 +442,7 @@ async function handleCoralNotification(kind: "callback" | "postback", encryptedV
         eventId,
         invoiceId: invoice.id,
         amount,
-        currency: process.env.CORAL_UCF_CURRENCY || "TZS",
+        currency: resolveCoralCurrency(invoice.booking?.property?.currency),
         status: eventStatus,
         paymentChannel: "CARD",
         rawStatus: notice.status || notice.code || null,

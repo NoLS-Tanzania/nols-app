@@ -170,7 +170,7 @@ const OPTIONAL_SECRETS: SecretConfig[] = [
   {
     key: "CORAL_UCF_CURRENCY",
     required: false,
-    description: "CoralCommerce settlement currency override",
+    description: "Optional CoralCommerce fallback currency when an invoice/property currency is unavailable",
     validate: (v) => /^[A-Z]{3}$/.test(v),
   },
   {
