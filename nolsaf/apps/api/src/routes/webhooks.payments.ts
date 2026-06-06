@@ -209,7 +209,7 @@ export async function markInvoicePaid(invId: number, method: string, paymentRef:
   if (!inv) throw new Error("invoice not found");
   if (inv.status === "PAID") return inv;
 
-  const seq = await prisma.invoice.count({ status: "PAID" });
+  const seq = await prisma.invoice.count({ where: { status: "PAID" } });
   const receiptNumber = inv.receiptNumber ?? nextReceiptNumber("RCPT", seq + 1);
 
   const payload = JSON.stringify({
