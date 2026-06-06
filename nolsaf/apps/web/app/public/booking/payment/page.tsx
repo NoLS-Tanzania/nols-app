@@ -24,6 +24,8 @@ const PAYMENT_RETRY_LIMIT = 3;
 const PAYMENT_POLL_MAX_ATTEMPTS = 45;
 const PAYMENT_POLL_FAST_DELAY_MS = 3000;
 const PAYMENT_POLL_SLOW_DELAY_MS = 10000;
+const CARD_VERIFICATION_FAILED_MESSAGE =
+  "Card verification failed. No payment was taken. Please try again or choose another payment method.";
 
 type PaymentMethod = {
   id: "Airtel" | "Mixx" | "MPESA" | "Halopesa";
@@ -274,7 +276,6 @@ export default function PaymentPage() {
     const accessToken    = searchParams?.get("accessToken");
     const cardReturn     = searchParams?.get("cardReturn");
     const cardRef        = searchParams?.get("ref");
-    const cardMessage    = searchParams?.get("message");
 
     if (!invoiceIdParam) {
       setError("Missing invoice ID");
@@ -306,7 +307,7 @@ export default function PaymentPage() {
         setSubmitting(false);
         setPaymentStatus("failed");
         setPaymentChannel("CARD");
-        setError(toDisplayMessage(cardMessage, "Card payment was not completed. No charge was confirmed."));
+        setError(CARD_VERIFICATION_FAILED_MESSAGE);
       }
     }
 

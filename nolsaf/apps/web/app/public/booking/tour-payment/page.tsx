@@ -26,6 +26,8 @@ const PAYMENT_POLL_FAST_DELAY_MS = 3000;
 const PAYMENT_POLL_SLOW_DELAY_MS = 10000;
 const PAYMENT_RETRY_LIMIT = 3;
 const PAYMENT_RETRY_WINDOW_SECONDS = 5 * 60;
+const CARD_VERIFICATION_FAILED_MESSAGE =
+  "Card verification failed. No payment was taken. Please try again or choose another payment method.";
 
 type MnoMethod = "Airtel" | "Mixx" | "MPESA" | "Halopesa";
 
@@ -151,7 +153,6 @@ export default function TourPaymentPage() {
 
     const cardReturn = searchParams?.get("cardReturn");
     const cardRef    = searchParams?.get("ref");
-    const cardMessage = searchParams?.get("message");
 
     if (cardReturn && cardRef) {
       if (cardReturn === "success") {
@@ -168,7 +169,7 @@ export default function TourPaymentPage() {
         setSubmitting(false);
         setPaymentStatus("failed");
         setPaymentChannel("CARD");
-        setError(cardMessage || "Card payment was not completed. No charge was confirmed.");
+        setError(CARD_VERIFICATION_FAILED_MESSAGE);
       }
     }
 
