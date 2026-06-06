@@ -579,7 +579,7 @@ export default function PaymentPage() {
     setPaymentStatus("pending");
 
     try {
-      const response = await fetch(`/api/payments/azampay/card/initiate`, {
+      const response = await fetch(`/api/payments/coralcommerce/card/initiate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -602,7 +602,7 @@ export default function PaymentPage() {
       }
 
       if (result.checkoutUrl) {
-        // Browser navigates to AzamPay hosted checkout; callback returns with ?cardReturn=
+        // Browser navigates to hosted checkout; callback returns with ?cardReturn=
         window.location.href = result.checkoutUrl;
         return; // keep submitting=true — page is navigating away
       }
@@ -1188,7 +1188,7 @@ export default function PaymentPage() {
                             <div>
                               <div className="font-semibold text-slate-900 text-sm mb-1">Secure Hosted Checkout</div>
                               <div className="text-xs text-slate-600 leading-relaxed">
-                                You will be redirected to AzamPay&apos;s secure card payment page. After completing payment you will be brought back here automatically.
+                                You will be redirected to a secure hosted card checkout page. After completing payment you will be brought back here automatically.
                               </div>
                             </div>
                           </div>

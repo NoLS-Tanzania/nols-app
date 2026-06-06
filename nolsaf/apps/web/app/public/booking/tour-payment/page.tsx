@@ -407,7 +407,7 @@ export default function TourPaymentPage() {
       }
 
       if (result.checkoutUrl) {
-        // Browser navigates to AzamPay hosted checkout; callback returns with ?cardReturn=
+        // Browser navigates to hosted checkout; callback returns with ?cardReturn=
         window.location.href = result.checkoutUrl;
         return; // keep submitting=true — page is navigating away
       }
@@ -936,7 +936,7 @@ export default function TourPaymentPage() {
                           <div className="flex items-start gap-3 p-3.5 bg-violet-50 rounded-xl border border-violet-100">
                             <ShieldCheck className="w-4 h-4 text-violet-600 flex-shrink-0 mt-0.5" />
                             <div className="text-xs text-gray-600 leading-relaxed">
-                              You will be redirected to AzamPay&apos;s secure card payment page. After completing payment you will return here automatically.
+                              You will be redirected to a secure hosted card checkout page. After completing payment you will return here automatically.
                             </div>
                           </div>
 
