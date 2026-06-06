@@ -743,7 +743,7 @@ export default function PaymentPage() {
                   </Link>
                   {invoice && (
                     <Link
-                      href={`/account/bookings/${invoice.booking.id}/receipt`}
+                      href={`/account/bookings?receiptBookingId=${invoice.booking.id}`}
                       className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-3 font-semibold text-emerald-800 no-underline transition hover:bg-emerald-100 hover:no-underline"
                     >
                       View Receipt

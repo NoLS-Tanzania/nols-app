@@ -237,6 +237,13 @@ export default function MyBookingsPage() {
     }
   }, []);
 
+  useEffect(() => {
+    const requestedReceiptId = Number(new URLSearchParams(window.location.search).get("receiptBookingId"));
+    if (Number.isFinite(requestedReceiptId) && requestedReceiptId > 0) {
+      openReceipt(requestedReceiptId);
+    }
+  }, [openReceipt]);
+
   const closeReceipt = useCallback(() => {
     setReceiptBookingId(null);
     setReceiptHtml("");
