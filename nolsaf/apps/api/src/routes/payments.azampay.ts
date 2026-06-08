@@ -79,7 +79,7 @@ function verifyPublicInvoiceAccessToken(token: string | undefined, invoiceId: nu
   }
 }
 
-// ── Rate limiters (built from shared factory) ─────────────────────────────────
+// ── Rate limiters (built from shared factory) ─────
 
 const paymentUserLimiter = makePaymentRateLimiter({
   windowMs: PAYMENT_USER_WINDOW_MS,
@@ -98,7 +98,7 @@ const paymentTargetLimiter = makePaymentRateLimiter({
   },
 });
 
-// ── Input schema ──────────────────────────────────────────────────────────────
+// ── Input schema ──
 
 // TZ_PHONE_RE imported from azampay.helpers
 
@@ -254,6 +254,7 @@ router.post("/initiate", requireAuth, paymentUserLimiter, paymentTargetLimiter, 
     // the sandbox returns (debug-only) so the frontend stays on the "check your phone"
     // prompt and polls /status. The webhook is the source of truth for completion.
     const responseSummary = describeAzamPayResponseBody(apiRes.body);
+    const mnoEndpoint = `${AZAMPAY_MNO_API_URL}/azampay/mno/checkout`;
     let azampayData: any = { transactionId: responseSummary.transactionId };
     {
       const trimmed = apiRes.body.trim();
@@ -263,6 +264,7 @@ router.post("/initiate", requireAuth, paymentUserLimiter, paymentTargetLimiter, 
       } else {
         try {
           const parsed = JSON.parse(trimmed);
+          console.info("[AzamPay] Raw MNO Response", parsed);
           azampayData = { transactionId: parsed.transactionId ?? null };
         } catch {
           console.error(`[AzamPay] Non-JSON response HTTP ${apiRes.status} — body: ${trimmed.slice(0, 500)}`);
@@ -280,6 +282,7 @@ router.post("/initiate", requireAuth, paymentUserLimiter, paymentTargetLimiter, 
       currency,
       accountNumber: maskAzamPayPhone(normalizedPhone),
       apiHost: AZAMPAY_MNO_API_URL,
+      endpoint: mnoEndpoint,
       httpStatus: apiRes.status,
       response: responseSummary,
     });
