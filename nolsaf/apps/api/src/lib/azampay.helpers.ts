@@ -36,7 +36,7 @@ export const AZAMPAY_MNO_API_URL = (
 export const FETCH_TIMEOUT_MS = 10_000;
 export const IDEM_TTL_SEC     = 10 * 60; // 10 minutes
 
-/** Tanzania phone: +255 or 0, then network digit (6=Airtel, 7=Vodacom/Mixx/Halo, 2=TTCL), then 8 digits */
+/** Tanzania phone: +255 or 0, then network digit (6=Airtel, 7=Vodacom/Tigo/Halo, 2=TTCL), then 8 digits */
 export const TZ_PHONE_RE = /^(\+255|0)(6|7|2)\d{8}$/;
 
 // ── Supported bank codes ───────────────────────────────────────────────────────

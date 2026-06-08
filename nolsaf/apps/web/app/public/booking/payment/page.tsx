@@ -45,13 +45,13 @@ const PAYMENT_METHODS: PaymentMethod[] = [
     id: "MPESA",
     name: "M-Pesa",
     icon: "/assets/M-pesa.png",
-    description: "Pay with M-Pesa",
+    description: "Pay with Mpesa",
   },
   {
     id: "Mixx",
     name: "Mixx by Yas",
     icon: "/assets/mix%20by%20yas.png",
-    description: "Pay with Mixx by Yas",
+    description: "Pay with Tigo",
   },
   {
     id: "Halopesa",

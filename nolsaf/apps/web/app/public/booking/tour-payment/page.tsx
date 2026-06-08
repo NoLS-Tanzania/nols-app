@@ -29,7 +29,7 @@ const PAYMENT_RETRY_WINDOW_SECONDS = 5 * 60;
 const CARD_VERIFICATION_FAILED_MESSAGE =
   "Card verification failed. No payment was taken. Please try again or choose another payment method.";
 
-type MnoMethod = "Airtel" | "Mixx" | "MPESA" | "Halopesa";
+type MnoMethod = "Airtel" | "Tigo" | "Mpesa" | "Halopesa";
 
 type PaymentMethod = {
   id: MnoMethod;
@@ -40,8 +40,8 @@ type PaymentMethod = {
 
 const PAYMENT_METHODS: PaymentMethod[] = [
   { id: "Airtel",   name: "Airtel Money", icon: "/assets/airtel_money.png",   description: "Pay with Airtel Money" },
-  { id: "MPESA",    name: "M-Pesa",       icon: "/assets/M-pesa.png",         description: "Pay with M-Pesa" },
-  { id: "Mixx",     name: "Mixx by Yas",  icon: "/assets/mix%20by%20yas.png", description: "Pay with Mixx by Yas" },
+  { id: "Mpesa",    name: "MPesa",       icon: "/assets/M-pesa.png",         description: "Pay with Mpesa" },
+  { id: "Tigo",     name: "Tigo",  icon: "/assets/mix%20by%20yas.png", description: "Pay with Tigo" },
   { id: "Halopesa", name: "HaloPesa",     icon: "/assets/halopesa.png",       description: "Pay with HaloPesa" },
 ];
 
