@@ -50,7 +50,7 @@ const PAYMENT_METHODS: PaymentMethod[] = [
   {
     id: "Tigo",
     name: "Tigo",
-    icon: "/assets/tigo_pesa.png",
+    icon: "/assets/mix by yas.png",
     description: "Pay with Tigo",
   },
   {
