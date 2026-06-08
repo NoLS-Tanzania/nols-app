@@ -1,4 +1,4 @@
-/**
+﻿/**
  * CoralCommerce Hosted Card Checkout Routes
  *
  * UCF is a hosted checkout flow. We submit a Base64 JSON message as `json64`,
