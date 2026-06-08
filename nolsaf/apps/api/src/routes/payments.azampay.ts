@@ -219,12 +219,14 @@ const azampayProvider = azampayProviderMap[provider];
       return res.status(400).json({ error: "invalid_amount", message: "Invoice has no payable amount" });
 
     // 5. Payment ref (normalizedPhone already computed and validated above)
-    const paymentRef = invoice.paymentRef ?? `INV-${invoice.id}-${Date.now()}`;
+    const paymentRef = `INV-${invoice.id}-${Date.now()}`;
 
     // 6. Build checkout payload (no secret material inside)
     // TZS has no fractional cents — always send as a rounded integer string.
+    const azamAccountNumber = normalizedPhone.replace(/^\+/, "");
+
     const azampayBody = {
-  accountNumber: normalizedPhone,
+  accountNumber: azamAccountNumber,
   amount: Math.round(amount),
   currency,
   externalId: paymentRef,
