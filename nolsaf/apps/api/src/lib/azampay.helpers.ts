@@ -26,6 +26,13 @@ export const AZAMPAY_CARD_API_URL = (
   process.env.AZAMPAY_CARD_API_URL || AZAMPAY_API_URL
 ).replace(/\/$/, "");
 
+// MNO direct push (USSD handset prompt) uses the checkout domain, not the API domain.
+// This triggers immediate USSD prompt on customer phone, not a hosted checkout page.
+// Set AZAMPAY_MNO_API_URL in .env.local to override.
+export const AZAMPAY_MNO_API_URL = (
+  process.env.AZAMPAY_MNO_API_URL || "https://checkout.azampay.co.tz"
+).replace(/\/$/, "");
+
 export const FETCH_TIMEOUT_MS = 10_000;
 export const IDEM_TTL_SEC     = 10 * 60; // 10 minutes
 
@@ -211,6 +218,15 @@ export async function azampayCardPost(
   token: string
 ): Promise<AzamPayResponse> {
   return postWithRetries(`${AZAMPAY_CARD_API_URL}${path}`, body, token, "AzamPay/Card");
+}
+
+/** Same as azampayPost but targets AZAMPAY_MNO_API_URL (direct MNO USSD push endpoint). */
+export async function azampayMnoPost(
+  path: string,
+  body: object,
+  token: string
+): Promise<AzamPayResponse> {
+  return postWithRetries(`${AZAMPAY_MNO_API_URL}${path}`, body, token, "AzamPay/MNO");
 }
 
 // ── Idempotency helpers (Redis → in-process LRU fallback) ─────────────────────

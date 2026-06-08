@@ -21,6 +21,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { computeDraftBookingAvailability, unavailableDraftPaymentResponse } from "../lib/draftBookingAvailability.js";
 import {
   AZAMPAY_API_URL,
+  AZAMPAY_MNO_API_URL,
   FETCH_TIMEOUT_MS,
   IDEM_TTL_SEC,
   TZ_PHONE_RE,
@@ -28,6 +29,7 @@ import {
   maskAzamPayPhone,
   describeAzamPayResponseBody,
   azampayPost,
+  azampayMnoPost,
   makePaymentRateLimiter,
 } from "../lib/azampay.helpers.js";
 
@@ -232,12 +234,14 @@ router.post("/initiate", requireAuth, paymentUserLimiter, paymentTargetLimiter, 
       return res.status(503).json({ error: "payment_unavailable", message: "Payment service temporarily unavailable" });
     }
 
-    // 8. Call AzamPay; retry once on 401 (stale token)
-    let apiRes = await azampayPost("/api/v1/Partner/PostCheckout", azampayBody, token);
+    // 8. Call AzamPay MNO direct push endpoint; retry once on 401 (stale token)
+    // The /azampay/mno/checkout endpoint (not /api/v1/Partner/PostCheckout) triggers
+    // USSD handset prompt directly instead of returning a hosted checkout URL.
+    let apiRes = await azampayMnoPost("/azampay/mno/checkout", azampayBody, token);
     if (apiRes.status === 401) {
       await invalidateAzamPayToken();
       try { token = await getAzamPayToken(); } catch { /* let next block handle */ }
-      apiRes = await azampayPost("/api/v1/Partner/PostCheckout", azampayBody, token!);
+      apiRes = await azampayMnoPost("/azampay/mno/checkout", azampayBody, token!);
     }
 
     if (!apiRes.ok) {
@@ -275,7 +279,7 @@ router.post("/initiate", requireAuth, paymentUserLimiter, paymentTargetLimiter, 
       amount: Math.round(amount),
       currency,
       accountNumber: maskAzamPayPhone(normalizedPhone),
-      apiHost: AZAMPAY_API_URL,
+      apiHost: AZAMPAY_MNO_API_URL,
       httpStatus: apiRes.status,
       response: responseSummary,
     });
@@ -311,7 +315,7 @@ router.post("/initiate", requireAuth, paymentUserLimiter, paymentTargetLimiter, 
             phoneNumber: normalizedPhone,
             provider,
             azampayResponse: responseSummary,
-            apiHost: AZAMPAY_API_URL,
+            apiHost: AZAMPAY_MNO_API_URL,
           },
         },
       });
