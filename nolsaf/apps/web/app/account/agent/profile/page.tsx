@@ -1361,17 +1361,7 @@ export default function AgentOperatorProfileEditor() {
     }
   }
 
-  async function save() {
-    try {
-      setSaving(true);
-      setError(null);
-      setValidationErrors([]);
-      setSuccess(null);
-      autosaveBlockedUntilRef.current = 0;
-      if (autosaveTimerRef.current) {
-        clearTimeout(autosaveTimerRef.current);
-        autosaveTimerRef.current = null;
-      }
+async function persistProfileDraft(showSuccessMessage = true) {
       const { nextProfile: profileToSave, nextDrafts } = mergeValidItineraryDrafts(profile);
       const res = await api.patch("/api/agent/operator-profile", serializeProfileForApi(profileToSave));
       const nextAgent = (res.data as AgentMe)?.agent ?? null;
@@ -1381,25 +1371,45 @@ export default function AgentOperatorProfileEditor() {
       if (nextAgent) setAgent(nextAgent);
       lastSavedSnapshotRef.current = JSON.stringify(nextProfile);
       hasLoadedProfileRef.current = true;
-      setSuccess("Operator profile saved.");
-    } catch (e: any) {
-      const status = Number(e?.response?.status || 0);
-      const friendly = parseFriendlyValidationErrors(e?.response?.data);
-      setValidationErrors(friendly);
-      setError(status === 429
-        ? "Too many save requests right now. Please wait a few seconds and try Save draft again."
-        : e?.response?.data?.message || e?.response?.data?.error || "Unable to save operator profile.");
-    } finally {
-      setSaving(false);
+      if (showSuccessMessage) {
+        setSuccess("Operator profile saved.");
+      }
+      return nextProfile;
     }
-  }
 
-  async function submitForReview() {
-    try {
-      setSubmitting(true);
-      setError(null);
-      setValidationErrors([]);
-      setSuccess(null);
+    async function save() {
+      try {
+        setSaving(true);
+        setError(null);
+        setValidationErrors([]);
+        setSuccess(null);
+        autosaveBlockedUntilRef.current = 0;
+        if (autosaveTimerRef.current) {
+          clearTimeout(autosaveTimerRef.current);
+          autosaveTimerRef.current = null;
+        }
+        await persistProfileDraft(true);
+      } catch (e: any) {
+        const status = Number(e?.response?.status || 0);
+        const friendly = parseFriendlyValidationErrors(e?.response?.data);
+        setValidationErrors(friendly);
+        setError(status === 429
+          ? "Too many save requests right now. Please wait a few seconds and try Save draft again."
+          : e?.response?.data?.message || e?.response?.data?.error || "Unable to save operator profile.");
+      } finally {
+        setSaving(false);
+      }
+    }
+
+    async function submitForReview() {
+      try {
+        setSubmitting(true);
+        setError(null);
+        setValidationErrors([]);
+        setSuccess(null);
+        if (JSON.stringify(profile) !== lastSavedSnapshotRef.current) {
+          await persistProfileDraft(false);
+        }
       const res = await api.post("/api/agent/operator-profile/submit");
       const nextAgent = (res.data as AgentMe)?.agent ?? null;
       if (nextAgent?.operatorProfile) {
