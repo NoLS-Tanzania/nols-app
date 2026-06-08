@@ -28,7 +28,7 @@ const CARD_VERIFICATION_FAILED_MESSAGE =
   "Card verification failed. No payment was taken. Please try again or choose another payment method.";
 
 type PaymentMethod = {
-  id: "Airtel" | "Mixx" | "MPESA" | "Halopesa";
+  id: "Airtel" | "Tigo" | "Mpesa" | "Halopesa";
   name: string;
   icon: string;
   description: string;
@@ -42,15 +42,15 @@ const PAYMENT_METHODS: PaymentMethod[] = [
     description: "Pay with Airtel Money",
   },
   {
-    id: "MPESA",
-    name: "M-Pesa",
+    id: "Mpesa",
+    name: "Mpesa",
     icon: "/assets/M-pesa.png",
     description: "Pay with Mpesa",
   },
   {
-    id: "Mixx",
-    name: "Mixx by Yas",
-    icon: "/assets/mix%20by%20yas.png",
+    id: "Tigo",
+    name: "Tigo",
+    icon: "/assets/tigo_pesa.png",
     description: "Pay with Tigo",
   },
   {
@@ -954,7 +954,7 @@ export default function PaymentPage() {
                         <div className={`font-bold text-[15px] transition-colors ${paymentChannel === "MNO" ? "text-red-900" : "text-slate-900"}`}>
                           Mobile Money
                         </div>
-                        <div className="text-xs text-slate-400 mt-0.5 font-medium">Airtel · M-Pesa · Mixx · HaloPesa</div>
+                        <div className="text-xs text-slate-400 mt-0.5 font-medium">Airtel · Mpesa · Tigo · HaloPesa</div>
                       </div>
                       <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
                         paymentChannel === "MNO" ? "border-red-500 bg-red-500" : "border-slate-300"

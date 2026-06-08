@@ -424,7 +424,7 @@ router.get(
 
 const initiatePaymentSchema = z.object({
   phoneNumber: z.string().min(9).max(15),
-  provider: z.enum(["Airtel", "Mixx", "MPESA", "Halopesa"]).default("Airtel"),
+  provider: z.enum(["Airtel", "Tigo", "Mpesa", "Halopesa"]).default("Airtel"),
   accessToken: z.string().min(20).max(1024),
 });
 

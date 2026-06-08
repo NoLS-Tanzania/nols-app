@@ -546,7 +546,7 @@ export function isWebhookIpAllowed(clientIp: string, allowedIps: string[]): bool
  */
 export function detectPaymentChannel(payload: any): "MNO" | "BANK" | "CARD" | null {
   const p = String(payload.provider || payload.paymentMethod || "").toLowerCase();
-  if (["airtel", "m-pesa", "mixx", "halopesa", "vodacom", "tigo"].some((x) => p.includes(x)))
+  if (["airtel", "mpesa", "mixx", "halopesa", "vodacom", "tigo"].some((x) => p.includes(x)))
     return "MNO";
   if (p === "card" || payload.cardType || payload.maskedPan)
     return "CARD";
