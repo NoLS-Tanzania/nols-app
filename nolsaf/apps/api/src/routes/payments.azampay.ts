@@ -108,8 +108,8 @@ const initiateSchema = z.object({
     /^[\d+]+$/,
     "Phone number must contain only digits and an optional leading +"
   ),
-  provider:       z.enum(["Airtel", "Mixx", "Tigo", "MPESA", "Mpesa", "Halopesa", "Azampesa"]).default("Airtel"),
-  idempotencyKey: z.string().min(8).max(128).optional(),
+
+provider:       z.enum(["Airtel", "Tigo", "Halopesa", "Azampesa", "Mpesa"]).default("Airtel"),  idempotencyKey: z.string().min(8).max(128).optional(),
   accessToken:    z.string().min(20).max(1024).optional(),
 });
 
@@ -128,17 +128,7 @@ router.post("/initiate", requireAuth, paymentUserLimiter, paymentTargetLimiter, 
       });
     }
     const { invoiceId, phoneNumber, provider, idempotencyKey, accessToken } = parsed.data;
-    const azampayProviderMap = {
-  Airtel: "Airtel",
-  Mixx: "Tigo",
-  Tigo: "Tigo",
-  MPESA: "Mpesa",
-  Mpesa: "Mpesa",
-  Halopesa: "Halopesa",
-  Azampesa: "Azampesa",
-} as const;
-
-const azampayProvider = azampayProviderMap[provider];
+    
 
     // Normalise & validate phone before anything else (fast-fail)
     const normalizedPhone = normalizePhone(phoneNumber);
@@ -230,7 +220,7 @@ const azampayProvider = azampayProviderMap[provider];
   amount: Math.round(amount),
   currency,
   externalId: paymentRef,
-  provider: azampayProvider,
+  provider,
   additionalProperties: {},
 };
 
@@ -278,7 +268,7 @@ if (parsed.success === false) {
   console.error("[AzamPay] MNO push rejected by AzamPay", {
     invoiceId: invoice.id,
     paymentRef,
-    provider: azampayProvider,
+    provider,
     selectedProvider: provider,
     amount: Math.round(amount),
     currency,
