@@ -265,6 +265,28 @@ router.post("/initiate", requireAuth, paymentUserLimiter, paymentTargetLimiter, 
         try {
           const parsed = JSON.parse(trimmed);
           console.info("[AzamPay] Raw MNO Response", parsed);
+if (parsed.success === false) {
+  console.error("[AzamPay] MNO push rejected by AzamPay", {
+    invoiceId: invoice.id,
+    paymentRef,
+    provider,
+    amount: Math.round(amount),
+    currency,
+    accountNumber: maskAzamPayPhone(normalizedPhone),
+    apiHost: AZAMPAY_MNO_API_URL,
+    endpoint: mnoEndpoint,
+    httpStatus: apiRes.status,
+    message: parsed.message,
+    messageCode: parsed.messageCode,
+    referenceId: String(parsed.message || "").match(/Reference Id:\s*([a-zA-Z0-9]+)/)?.[1] ?? null,
+  });
+
+  return res.status(502).json({
+    error: "payment_failed",
+    message: parsed.message || "Payment push could not be initiated. Please verify the payment details and try again.",
+  });
+}
+
           azampayData = { transactionId: parsed.transactionId ?? null };
         } catch {
           console.error(`[AzamPay] Non-JSON response HTTP ${apiRes.status} — body: ${trimmed.slice(0, 500)}`);
