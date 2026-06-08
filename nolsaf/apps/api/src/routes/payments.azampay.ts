@@ -108,14 +108,14 @@ const initiateSchema = z.object({
     /^[\d+]+$/,
     "Phone number must contain only digits and an optional leading +"
   ),
-  provider:       z.enum(["Airtel", "Mixx", "MPESA", "Halopesa"]).default("Airtel"),
+  provider:       z.enum(["Airtel", "Mixx", "Tigo", "MPESA", "Mpesa", "Halopesa", "Azampesa"]).default("Airtel"),
   idempotencyKey: z.string().min(8).max(128).optional(),
   accessToken:    z.string().min(20).max(1024).optional(),
 });
 
 // normalizePhone, azampayPost, idemGet, idemSet, localIdem all imported from azampay.helpers
 
-// ── POST /api/payments/azampay/initiate ───────────────────────────────────────
+// ── POST /api/payments/azampay/initiate ────
 
 router.post("/initiate", requireAuth, paymentUserLimiter, paymentTargetLimiter, async (req, res) => {
   try {
@@ -128,6 +128,17 @@ router.post("/initiate", requireAuth, paymentUserLimiter, paymentTargetLimiter, 
       });
     }
     const { invoiceId, phoneNumber, provider, idempotencyKey, accessToken } = parsed.data;
+    const azampayProviderMap = {
+  Airtel: "Airtel",
+  Mixx: "Tigo",
+  Tigo: "Tigo",
+  MPESA: "Mpesa",
+  Mpesa: "Mpesa",
+  Halopesa: "Halopesa",
+  Azampesa: "Azampesa",
+} as const;
+
+const azampayProvider = azampayProviderMap[provider];
 
     // Normalise & validate phone before anything else (fast-fail)
     const normalizedPhone = normalizePhone(phoneNumber);
@@ -213,17 +224,13 @@ router.post("/initiate", requireAuth, paymentUserLimiter, paymentTargetLimiter, 
     // 6. Build checkout payload (no secret material inside)
     // TZS has no fractional cents — always send as a rounded integer string.
     const azampayBody = {
-      accountNumber: normalizedPhone,
-      amount: Math.round(amount).toString(),
-      currency,
-      externalId: paymentRef,
-      language: "SW",
-      provider,
-      additionalProperties: {
-        invoiceId: invoice.id.toString(),
-        bookingId: invoice.bookingId?.toString() ?? "",
-      },
-    };
+  accountNumber: normalizedPhone,
+  amount: Math.round(amount),
+  currency,
+  externalId: paymentRef,
+  provider: azampayProvider,
+  additionalProperties: {},
+};
 
     // 7. Acquire Bearer token — fail fast with opaque 503 on error
     let token: string;
@@ -269,7 +276,8 @@ if (parsed.success === false) {
   console.error("[AzamPay] MNO push rejected by AzamPay", {
     invoiceId: invoice.id,
     paymentRef,
-    provider,
+    provider: azampayProvider,
+    selectedProvider: provider,
     amount: Math.round(amount),
     currency,
     accountNumber: maskAzamPayPhone(normalizedPhone),
