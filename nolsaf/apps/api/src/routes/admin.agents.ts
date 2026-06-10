@@ -11,8 +11,9 @@ import { buildOperatorProfileSeed, mergeOperatorProfileSeed } from "../lib/opera
 import { rateLimitWithRedis as rateLimit } from "../lib/redisRateLimitStore.js";
 import { Prisma } from "@prisma/client";
 import { sendMail } from "../lib/mailer.js";
-import { getAgentSuspensionEmail, getAgentRestorationEmail } from "../lib/authEmailTemplates.js";
+import { getAgentSuspensionEmail, getAgentRestorationEmail, getOperatorProfileApprovedEmail, getOperatorProfileRejectedEmail } from "../lib/authEmailTemplates.js";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 
 // ============================================================
 // Constants
@@ -1471,7 +1472,12 @@ router.patch(
 
       const agent = await prisma.agent.findUnique({
         where: { id: Number(id) },
-        select: { id: true, userId: true, operatorProfile: true },
+        select: {
+          id: true,
+          userId: true,
+          operatorProfile: true,
+          user: { select: { id: true, email: true, name: true, fullName: true, passwordHash: true } },
+        },
       });
       if (!agent) return sendError(res, 404, "Agent not found");
 
@@ -1533,6 +1539,71 @@ router.patch(
           reason: cleanReason || null,
         },
       );
+
+      // Notify the operator by email — this is their only signal that the
+      // review happened, and (if they never finished onboarding) the only
+      // way they can get a working password-setup link.
+      const recipientEmail = agent.user?.email;
+      if (recipientEmail) {
+        try {
+          const recipientName = agent.user?.fullName || agent.user?.name || "Operator";
+          const companyName = typeof currentProfile.companyName === "string" ? currentProfile.companyName : undefined;
+          const origin = process.env.WEB_ORIGIN || process.env.APP_ORIGIN || "http://localhost:3000";
+          const portalUrl = `${origin}/account/agent`;
+          const loginUrl = `${origin}/account/login`;
+
+          let setupLink: string | undefined;
+          let setupLinkExpiresHours: number | undefined;
+
+          if (!agent.user?.passwordHash) {
+            const raw = crypto.randomBytes(24).toString("hex");
+            const hashed = crypto.createHash("sha256").update(raw).digest("hex");
+            const expiresAt = Date.now() + 1000 * 60 * 60 * 72; // 72 hours
+
+            await prisma.user.update({
+              where: { id: agent.userId },
+              data: {
+                resetPasswordToken: hashed as any,
+                resetPasswordExpires: new Date(expiresAt) as any,
+              } as any,
+            });
+
+            const next = encodeURIComponent("/account/agent");
+            const usernameParam = recipientEmail ? `&username=${encodeURIComponent(recipientEmail)}` : "";
+            setupLink = `${origin}/account/reset-password?token=${raw}&id=${agent.userId}&next=${next}&reason=onboarding${usernameParam}`;
+            setupLinkExpiresHours = 72;
+          }
+
+          const { subject, html } = status === "APPROVED"
+            ? getOperatorProfileApprovedEmail({
+                name: recipientName,
+                companyName,
+                portalUrl,
+                loginUrl,
+                setupLink,
+                setupLinkExpiresHours,
+                contactEmail: "partners@nolsaf.com",
+              })
+            : getOperatorProfileRejectedEmail({
+                name: recipientName,
+                companyName,
+                reason: cleanReason || undefined,
+                portalUrl,
+                loginUrl,
+                setupLink,
+                setupLinkExpiresHours,
+                contactEmail: "partners@nolsaf.com",
+              });
+
+          sendMail(recipientEmail, subject, html).catch((err: any) =>
+            console.warn("[PROFILE_REVIEW] Notification email failed:", err?.message)
+          );
+        } catch (notifyErr: any) {
+          console.warn("[PROFILE_REVIEW] Failed to prepare notification email:", notifyErr?.message);
+        }
+      } else {
+        console.warn("[PROFILE_REVIEW] Skipping notification: agent has no email on file", { agentId: agent.id });
+      }
 
       return sendSuccess(res, {
         review: (updated.operatorProfile as any)?.review || null,

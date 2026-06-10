@@ -488,8 +488,16 @@ router.post(
       return res.status(400).json({ ok: false, error: "invalid_amount", message: "Booking has no payable amount." });
     }
 
-    const paymentRef = booking.paymentRef ?? `TOUR-${booking.id}-${Date.now()}`;
     const currency = booking.currency || "TZS";
+    if (currency !== "TZS") {
+      return res.status(400).json({
+        ok: false,
+        error: "currency_not_supported",
+        message: "Mobile money payments are only available for TZS bookings. Please use card payment.",
+      });
+    }
+
+    const paymentRef = booking.paymentRef ?? `TOUR-${booking.id}-${Date.now()}`;
 
     const azampayBody = {
       accountNumber: normalizedPhone,
@@ -642,6 +650,13 @@ router.post(
     const currency = booking.currency || "TZS";
     if (!Number.isFinite(amount) || amount <= 0)
       return res.status(400).json({ ok: false, error: "invalid_amount" });
+    if (currency !== "TZS") {
+      return res.status(400).json({
+        ok: false,
+        error: "currency_not_supported",
+        message: "Bank transfer payments are only available for TZS bookings. Please use card payment.",
+      });
+    }
 
     const paymentRef  = booking.paymentRef ?? `TOUR-BANK-${booking.id}-${Date.now()}`;
     const azampayBody = {

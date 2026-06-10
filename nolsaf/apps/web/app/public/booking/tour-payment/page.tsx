@@ -513,6 +513,7 @@ export default function TourPaymentPage() {
   const operatorName = (booking?.operatorSnapshot as any)?.companyName || "Tour Operator";
   const amount       = Number(booking?.amountDue ?? booking?.grossAmount ?? 0);
   const currency     = booking?.currency || "TZS";
+  const isTZS        = currency === "TZS";
 
   const bookingSummaryCard = booking ? (
     <div className="rounded-2xl overflow-hidden shadow-sm border border-[#02665e]/10">
@@ -672,11 +673,21 @@ export default function TourPaymentPage() {
                   )}
                 </div>
 
+                {/* USD-only notice */}
+                {!isTZS && !paymentChannel && (
+                  <div className="flex items-start gap-2.5 rounded-xl bg-blue-50 border border-blue-100 px-4 py-3 text-xs text-blue-700">
+                    <ShieldCheck className="w-4 h-4 flex-shrink-0 mt-0.5 text-blue-500" />
+                    <span>
+                      This booking is priced in <strong>USD</strong>. Please pay by card below. Any Visa or Mastercard works, and your bank will convert the amount automatically.
+                    </span>
+                  </div>
+                )}
+
                 {/* ── Method selector: 3 standalone cards ── */}
                 <div className="space-y-2.5">
 
-                  {/* Mobile Money */}
-                  {(!paymentChannel || paymentChannel === "MNO") && (
+                  {/* Mobile Money — TZS only */}
+                  {isTZS && (!paymentChannel || paymentChannel === "MNO") && (
                     <button
                       type="button"
                       onClick={() => toggleChannel("MNO")}
@@ -705,8 +716,8 @@ export default function TourPaymentPage() {
                     </button>
                   )}
 
-                  {/* Bank Transfer */}
-                  {(!paymentChannel || paymentChannel === "BANK") && (
+                  {/* Bank Transfer — TZS only */}
+                  {isTZS && (!paymentChannel || paymentChannel === "BANK") && (
                     <button
                       type="button"
                       onClick={() => toggleChannel("BANK")}
