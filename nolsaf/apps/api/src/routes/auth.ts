@@ -5,7 +5,7 @@ import { hashPassword, verifyPassword } from '../lib/crypto.js';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { generateAuthenticationOptions, verifyAuthenticationResponse } from '@simplewebauthn/server';
-import { sendMail } from '../lib/mailer.js';
+import { sendMail, SECURITY_EMAIL_FROM } from '../lib/mailer.js';
 import { getPasswordResetEmail, getLoginAlertEmail, getPasswordChangedConfirmationEmail } from '../lib/authEmailTemplates.js';
 import { sendSms } from '../lib/sms.js';
 import { addPasswordToHistory, isPasswordReused } from '../lib/security.js';
@@ -971,7 +971,7 @@ router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res,
             country,
             resetPasswordUrl: `${appUrl}/account/forgot-password`,
           });
-          await sendMail(user.email, subject, html);
+          await sendMail(user.email, subject, html, undefined, { from: SECURITY_EMAIL_FROM, replyTo: "security@nolsaf.com" });
         }
       } catch (e) {
         console.warn('[LOGIN] Sign-in alert email failed:', e);
@@ -1865,7 +1865,7 @@ router.post('/forgot-password', async (req, res) => {
     if (user.email) {
       try {
         const { subject: resetSubject, html: resetHtml } = getPasswordResetEmail(user.name || user.email || 'there', resetLink);
-        await sendMail(user.email, resetSubject, resetHtml);
+        await sendMail(user.email, resetSubject, resetHtml, undefined, { from: SECURITY_EMAIL_FROM, replyTo: "security@nolsaf.com" });
       } catch (e) {
         console.warn('Failed to send reset email:', e);
       }
@@ -1969,7 +1969,7 @@ router.post('/reset-password', async (req, res) => {
           device: String(req.headers['user-agent'] || '').slice(0, 120) || undefined,
           securityUrl: `${appUrl}/account/forgot-password`,
         });
-        await sendMail(recipientEmail, cSubject, cHtml);
+        await sendMail(recipientEmail, cSubject, cHtml, undefined, { from: SECURITY_EMAIL_FROM, replyTo: "security@nolsaf.com" });
       }
     } catch (emailErr) {
       console.warn('[reset-password] Failed to send confirmation email:', emailErr);

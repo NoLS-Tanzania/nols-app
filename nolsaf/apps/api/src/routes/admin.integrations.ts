@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { requireAuth, requireRole, type AuthedRequest } from "../middleware/auth.js";
-import { sendMail } from "../lib/mailer.js";
+import { sendMail, DEFAULT_EMAIL_FROM } from "../lib/mailer.js";
 
 const router = Router();
 
@@ -84,7 +84,7 @@ router.post("/test-email", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "Provide a valid \"to\" email address in the request body" });
   }
 
-  const from = process.env.EMAIL_FROM || process.env.RESEND_FROM_DOMAIN || "no-reply@nolsapp.com";
+  const from = DEFAULT_EMAIL_FROM;
   const provider = process.env.RESEND_API_KEY ? "resend" : process.env.SMTP_HOST ? "smtp" : "none";
   const nodeEnv = process.env.NODE_ENV || "(not set)";
 
@@ -111,8 +111,8 @@ router.post("/test-email", async (req: Request, res: Response) => {
       to,
       nodeEnv,
       configuredProvider: provider,
-      hint: provider === "resend" && from.includes("nolsapp.com")
-        ? "The 'from' domain (nolsapp.com) may not be verified in Resend. Set EMAIL_FROM to an address on your verified Resend domain (e.g. no-reply@nolsaf.com)."
+      hint: provider === "resend"
+        ? "The 'from' domain may not be verified in Resend. Set EMAIL_FROM to an address on your verified Resend domain (e.g. notifications@nolsaf.com)."
         : provider === "none"
         ? "No email provider is configured. Set RESEND_API_KEY or SMTP_HOST."
         : undefined,

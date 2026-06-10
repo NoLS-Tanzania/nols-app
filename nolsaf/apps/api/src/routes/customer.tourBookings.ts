@@ -1605,6 +1605,251 @@ router.delete("/:id/report-issue/:issueId", (async (req: AuthedRequest, res) => 
   }
 }) as RequestHandler);
 
+const GROUP_MEMBER_DOCUMENT_TYPES = ["PASSPORT", "NATIONAL_ID", "BIRTH_CERTIFICATE", "OTHER"];
+const GROUP_MEMBER_RELATIONS = ["SPOUSE", "CHILD", "PARENT", "SIBLING", "RELATIVE", "FRIEND", "COLLEAGUE", "OTHER"];
+
+function cleanUrl(value: unknown, max = 600): string {
+  const text = cleanText(value, max);
+  if (!text) return "";
+  try {
+    const parsed = new URL(text);
+    return parsed.protocol === "http:" || parsed.protocol === "https:" ? text : "";
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * GET /api/customer/tour-bookings/:id/group-members
+ * Returns the traveller group roster linked to this package booking.
+ */
+router.get("/:id/group-members", (async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const idNum = Number(req.params.id);
+    if (!Number.isFinite(idNum) || idNum <= 0) return res.status(400).json({ error: "Invalid booking id" });
+
+    const booking = await prisma.tourBooking.findFirst({
+      where: { id: idNum, customerId: userId },
+      select: { id: true, title: true, bookingCode: true, travelerCount: true, metadata: true },
+    });
+    if (!booking) return res.status(404).json({ error: "Tour booking not found" });
+
+    const md = safeObject(booking.metadata);
+    const members = safeArray(md.groupMembers);
+
+    return res.json({
+      ok: true,
+      bookingId: booking.id,
+      title: booking.title,
+      bookingCode: booking.bookingCode,
+      travelerCount: booking.travelerCount,
+      members,
+    });
+  } catch (error: any) {
+    console.error("GET /customer/tour-bookings/:id/group-members error:", error);
+    return res.status(500).json({ error: "Failed to load traveller group" });
+  }
+}) as RequestHandler);
+
+/**
+ * POST /api/customer/tour-bookings/:id/group-members
+ * Adds a traveller to the group roster for this package booking.
+ */
+router.post("/:id/group-members", (async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const idNum = Number(req.params.id);
+    const fullName = cleanText((req.body as any)?.fullName, 120);
+    const documentTypeRaw = cleanText((req.body as any)?.documentType, 30).toUpperCase();
+    const documentType = GROUP_MEMBER_DOCUMENT_TYPES.includes(documentTypeRaw) ? documentTypeRaw : "";
+    const documentNumber = cleanText((req.body as any)?.documentNumber, 60);
+    const nationality = cleanText((req.body as any)?.nationality, 80);
+    const phone = cleanText((req.body as any)?.phone, 30);
+    const relationRaw = cleanText((req.body as any)?.relation, 30).toUpperCase();
+    const relation = GROUP_MEMBER_RELATIONS.includes(relationRaw) ? relationRaw : "OTHER";
+    const notes = cleanText((req.body as any)?.notes, 500);
+    const photoUrl = cleanUrl((req.body as any)?.photoUrl);
+    const documentUrl = cleanUrl((req.body as any)?.documentUrl);
+    const documentFileName = cleanText((req.body as any)?.documentFileName, 160);
+
+    if (!Number.isFinite(idNum) || idNum <= 0) return res.status(400).json({ error: "Invalid booking id" });
+    if (!fullName) return res.status(400).json({ error: "Traveller's full name is required" });
+
+    const booking = await prisma.tourBooking.findFirst({
+      where: { id: idNum, customerId: userId },
+      select: { id: true, metadata: true, travelerCount: true },
+    });
+    if (!booking) return res.status(404).json({ error: "Tour booking not found" });
+
+    const nowIso = new Date().toISOString();
+    const md = safeObject(booking.metadata);
+    const prev = safeArray(md.groupMembers);
+    const capacity = Number(booking.travelerCount || 0);
+    if (capacity > 0 && prev.length >= capacity) {
+      return res.status(409).json({ error: `This trip is set up for ${capacity} traveller(s). Update the traveller count first.` });
+    }
+
+    const entry = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      fullName,
+      documentType: documentType || null,
+      documentNumber: documentNumber || null,
+      nationality: nationality || null,
+      phone: phone || null,
+      relation,
+      notes: notes || null,
+      photoUrl: photoUrl || null,
+      documentUrl: documentUrl || null,
+      documentFileName: documentUrl ? documentFileName || null : null,
+      addedByUserId: userId,
+      createdAt: nowIso,
+    };
+    md.groupMembers = [...prev, entry].slice(-50);
+    appendTimelineEvent(md, {
+      type: "GROUP_MEMBER_ADDED",
+      label: "Traveller added to group",
+      at: nowIso,
+      meta: { fullName, relation },
+    });
+
+    await prisma.tourBooking.update({
+      where: { id: booking.id },
+      data: { metadata: md as any },
+      select: { id: true },
+    });
+
+    return res.json({ ok: true, member: entry, members: md.groupMembers });
+  } catch (error: any) {
+    console.error("POST /customer/tour-bookings/:id/group-members error:", error);
+    return res.status(500).json({ error: "Failed to add traveller" });
+  }
+}) as RequestHandler);
+
+/**
+ * PATCH /api/customer/tour-bookings/:id/group-members/:memberId
+ * Updates an existing traveller's details in the group roster.
+ */
+router.patch("/:id/group-members/:memberId", (async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const idNum = Number(req.params.id);
+    const memberId = cleanText(req.params.memberId, 120);
+
+    if (!Number.isFinite(idNum) || idNum <= 0) return res.status(400).json({ error: "Invalid booking id" });
+    if (!memberId) return res.status(400).json({ error: "Invalid member id" });
+
+    const fullName = cleanText((req.body as any)?.fullName, 120);
+    const documentTypeRaw = cleanText((req.body as any)?.documentType, 30).toUpperCase();
+    const documentType = GROUP_MEMBER_DOCUMENT_TYPES.includes(documentTypeRaw) ? documentTypeRaw : "";
+    const documentNumber = cleanText((req.body as any)?.documentNumber, 60);
+    const nationality = cleanText((req.body as any)?.nationality, 80);
+    const phone = cleanText((req.body as any)?.phone, 30);
+    const relationRaw = cleanText((req.body as any)?.relation, 30).toUpperCase();
+    const relation = GROUP_MEMBER_RELATIONS.includes(relationRaw) ? relationRaw : "OTHER";
+    const notes = cleanText((req.body as any)?.notes, 500);
+    const photoUrl = cleanUrl((req.body as any)?.photoUrl);
+    const documentUrl = cleanUrl((req.body as any)?.documentUrl);
+    const documentFileName = cleanText((req.body as any)?.documentFileName, 160);
+
+    if (!fullName) return res.status(400).json({ error: "Traveller's full name is required" });
+
+    const booking = await prisma.tourBooking.findFirst({
+      where: { id: idNum, customerId: userId },
+      select: { id: true, metadata: true },
+    });
+    if (!booking) return res.status(404).json({ error: "Tour booking not found" });
+
+    const md = safeObject(booking.metadata);
+    const prev = safeArray(md.groupMembers);
+    const idx = prev.findIndex((entry: any) => String(entry?.id || "") === memberId);
+    if (idx === -1) return res.status(404).json({ error: "Traveller not found in this group" });
+
+    const nowIso = new Date().toISOString();
+    const existing = safeObject(prev[idx]);
+    const updated = {
+      ...existing,
+      fullName,
+      documentType: documentType || null,
+      documentNumber: documentNumber || null,
+      nationality: nationality || null,
+      phone: phone || null,
+      relation,
+      notes: notes || null,
+      photoUrl: photoUrl || existing.photoUrl || null,
+      documentUrl: documentUrl || existing.documentUrl || null,
+      documentFileName: (documentUrl ? documentFileName : existing.documentFileName) || null,
+      updatedAt: nowIso,
+    };
+    const next = [...prev];
+    next[idx] = updated;
+    md.groupMembers = next;
+    appendTimelineEvent(md, {
+      type: "GROUP_MEMBER_UPDATED",
+      label: "Traveller details updated",
+      at: nowIso,
+      meta: { fullName, relation },
+    });
+
+    await prisma.tourBooking.update({
+      where: { id: booking.id },
+      data: { metadata: md as any },
+      select: { id: true },
+    });
+
+    return res.json({ ok: true, member: updated, members: md.groupMembers });
+  } catch (error: any) {
+    console.error("PATCH /customer/tour-bookings/:id/group-members/:memberId error:", error);
+    return res.status(500).json({ error: "Failed to update traveller" });
+  }
+}) as RequestHandler);
+
+/**
+ * DELETE /api/customer/tour-bookings/:id/group-members/:memberId
+ * Removes a traveller from the group roster for this package booking.
+ */
+router.delete("/:id/group-members/:memberId", (async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const idNum = Number(req.params.id);
+    const memberId = cleanText(req.params.memberId, 120);
+
+    if (!Number.isFinite(idNum) || idNum <= 0) return res.status(400).json({ error: "Invalid booking id" });
+    if (!memberId) return res.status(400).json({ error: "Invalid member id" });
+
+    const booking = await prisma.tourBooking.findFirst({
+      where: { id: idNum, customerId: userId },
+      select: { id: true, metadata: true },
+    });
+    if (!booking) return res.status(404).json({ error: "Tour booking not found" });
+
+    const md = safeObject(booking.metadata);
+    const prev = safeArray(md.groupMembers);
+    const removed = prev.find((entry: any) => String(entry?.id || "") === memberId);
+    const next = prev.filter((entry: any) => String(entry?.id || "") !== memberId);
+    if (next.length === prev.length) return res.status(404).json({ error: "Traveller not found in this group" });
+
+    md.groupMembers = next;
+    appendTimelineEvent(md, {
+      type: "GROUP_MEMBER_REMOVED",
+      label: "Traveller removed from group",
+      at: new Date().toISOString(),
+      meta: { fullName: removed?.fullName || null },
+    });
+
+    await prisma.tourBooking.update({
+      where: { id: booking.id },
+      data: { metadata: md as any },
+      select: { id: true },
+    });
+
+    return res.json({ ok: true, members: md.groupMembers });
+  } catch (error: any) {
+    console.error("DELETE /customer/tour-bookings/:id/group-members/:memberId error:", error);
+    return res.status(500).json({ error: "Failed to remove traveller" });
+  }
+}) as RequestHandler);
+
 /**
  * GET /api/customer/tour-bookings/:id/voucher
  * Returns voucher payload for this package booking.

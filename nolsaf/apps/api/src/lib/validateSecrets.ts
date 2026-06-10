@@ -230,7 +230,12 @@ const OPTIONAL_SECRETS: SecretConfig[] = [
   {
     key: "EMAIL_FROM",
     required: false,
-    description: "Default sender email address",
+    description: "Default sender email address (e.g. notifications@nolsaf.com)",
+  },
+  {
+    key: "EMAIL_FROM_SECURITY",
+    required: false,
+    description: "Sender address for security emails: password reset/changed, login alerts (e.g. security@nolsaf.com)",
   },
   // SMS providers
   {

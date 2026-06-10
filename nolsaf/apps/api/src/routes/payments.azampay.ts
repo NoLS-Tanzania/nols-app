@@ -263,7 +263,6 @@ router.post("/initiate", requireAuth, paymentUserLimiter, paymentTargetLimiter, 
       } else {
         try {
           const parsed = JSON.parse(trimmed);
-          console.info("[AzamPay] Raw MNO Response", parsed);
 if (parsed.success === false) {
   console.error("[AzamPay] MNO push rejected by AzamPay", {
     invoiceId: invoice.id,

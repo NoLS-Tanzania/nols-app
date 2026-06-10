@@ -1595,7 +1595,7 @@ router.patch(
                 contactEmail: "partners@nolsaf.com",
               });
 
-          sendMail(recipientEmail, subject, html).catch((err: any) =>
+          sendMail(recipientEmail, subject, html, undefined, { replyTo: "partners@nolsaf.com" }).catch((err: any) =>
             console.warn("[PROFILE_REVIEW] Notification email failed:", err?.message)
           );
         } catch (notifyErr: any) {
@@ -2026,7 +2026,7 @@ router.post(
           suspendedAt: now.toLocaleString("en-GB", { dateStyle: "long", timeStyle: "short" }),
           contactEmail: "hr@nolsaf.com",
         });
-        sendMail(recipientEmail, subject, html).catch((err: any) =>
+        sendMail(recipientEmail, subject, html, undefined, { replyTo: "hr@nolsaf.com" }).catch((err: any) =>
           console.warn("[SUSPEND] Suspension email failed:", err?.message)
         );
       }
@@ -2105,7 +2105,7 @@ router.post(
           notes,
           contactEmail: "hr@nolsaf.com",
         });
-        sendMail(recipientEmail, subject, html).catch((err: any) =>
+        sendMail(recipientEmail, subject, html, undefined, { replyTo: "hr@nolsaf.com" }).catch((err: any) =>
           console.warn("[RESTORE] Restoration email failed:", err?.message)
         );
       }

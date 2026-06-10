@@ -6,7 +6,7 @@
  *   - Password reset
  *   - Welcome (new account)
  */
-import { BRAND_TEAL, BRAND_DARK, TEXT_MUTED, baseEmail, securityEmail, calloutBox, ctaButton, careersEmail, infoCard } from "./emailBase.js";
+import { BRAND_TEAL, BRAND_DARK, TEXT_MAIN, TEXT_MUTED, baseEmail, securityEmail, calloutBox, ctaButton, careersEmail, infoCard } from "./emailBase.js";
 
 // ─── 1. Email verification ────────────────────────────────────────────────────
 export function getEmailVerificationEmail(
@@ -68,25 +68,23 @@ export function getPasswordResetEmail(
   expiryMinutes = 60
 ): { subject: string; html: string } {
   const body = `
-    <p style="margin:0 0 14px;font-size:15px;font-weight:600;color:#1e3d72;">Hello ${name},</p>
+    <p style="margin:0 0 14px;font-size:15px;font-weight:600;color:${BRAND_DARK};">Hello ${name},</p>
     <p style="margin:0 0 14px;color:#374151;">We received a request to reset the password for your NoLSAF account. If this was you, click the button below to set a new password.</p>
 
-    <table width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0;background:#f0f4ff;border-left:3px solid #1e3d72;border-radius:4px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0;background:#eef6f5;border-left:3px solid ${BRAND_TEAL};border-radius:4px;">
       <tr><td style="padding:14px 16px;">
-        <p style="margin:0;font-size:13px;color:#374151;line-height:1.7;">
-          &#8226; This link is valid for <strong>${expiryMinutes} minutes</strong> and can only be used <strong>once</strong>.<br>
-          &#8226; If you did not request this, your password has not been changed you can safely ignore this email.
-        </p>
+        <p style="margin:0 0 6px;font-size:13px;color:#374151;line-height:1.7;">This link is valid for <strong>${expiryMinutes} minutes</strong> and can only be used <strong>once</strong>.</p>
+        <p style="margin:0;font-size:13px;color:#374151;line-height:1.7;">If you did not request this, your password has not been changed and you can safely ignore this email.</p>
       </td></tr>
     </table>
 
-    ${ctaButton(resetUrl, "Reset My Password", "#1e3d72")}
+    ${ctaButton(resetUrl, "Reset My Password", BRAND_DARK)}
 
     <p style="margin:18px 0 0;font-size:12px;color:#6b7280;">
       Or copy and paste this URL into your browser:<br>
-      <a href="${resetUrl}" style="color:#1e3d72;word-break:break-all;text-decoration:none;font-size:11px;">${resetUrl}</a>
+      <a href="${resetUrl}" style="color:${BRAND_DARK};word-break:break-all;text-decoration:none;font-size:11px;">${resetUrl}</a>
     </p>
-    <p style="margin:20px 0 0;font-size:13px;color:#374151;">Warm regards,<br><strong style="color:#1e3d72;">The NoLSAF Security Team</strong></p>
+    <p style="margin:20px 0 0;font-size:13px;color:#374151;">Warm regards,<br><strong style="color:${BRAND_DARK};">The NoLSAF Security Team</strong></p>
   `;
 
   return {
@@ -120,7 +118,7 @@ export function getPasswordChangedConfirmationEmail(
 
   const tableRows = rows.map(([label, value]) => `
     <tr>
-      <td style="padding:9px 14px;font-size:12px;font-weight:600;color:#1e3d72;white-space:nowrap;border-bottom:1px solid #e8ecf4;width:110px;font-family:'Poppins','Segoe UI',Arial,sans-serif;">${label}</td>
+      <td style="padding:9px 14px;font-size:12px;font-weight:600;color:${BRAND_DARK};white-space:nowrap;border-bottom:1px solid #e8ecf4;width:110px;font-family:'Poppins','Segoe UI',Arial,sans-serif;">${label}</td>
       <td style="padding:9px 14px;font-size:12px;color:#374151;border-bottom:1px solid #e8ecf4;word-break:break-all;font-family:'Poppins','Segoe UI',Arial,sans-serif;">${value}</td>
     </tr>`).join("");
 
@@ -131,8 +129,9 @@ export function getPasswordChangedConfirmationEmail(
 
   const body = `
     <p style="margin:0 0 14px;font-size:15px;font-weight:600;color:#16a34a;">&#10003;&nbsp; Password changed successfully</p>
-    <p style="margin:0 0 14px;color:#374151;">Hello ${data.name}, your NoLSAF account password was just changed. Here are the details:</p>
+    <p style="margin:0 0 16px;color:#374151;">Hello ${data.name}, your NoLSAF account password was just changed.</p>
 
+    <p style="margin:0 0 8px;font-size:11px;font-weight:700;color:${TEXT_MUTED};letter-spacing:1.2px;text-transform:uppercase;">Account details</p>
     ${detailTable}
 
     <table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;background:#fef2f2;border-left:3px solid #dc2626;border-radius:4px;">
@@ -147,7 +146,7 @@ export function getPasswordChangedConfirmationEmail(
 
     ${ctaButton(data.securityUrl, "Reset Password Now", "#dc2626")}
 
-    <p style="margin:20px 0 0;font-size:13px;color:#374151;">If this was you, no further action is needed.<br><strong style="color:#1e3d72;">The NoLSAF Security Team</strong></p>
+    <p style="margin:20px 0 0;font-size:13px;color:#374151;">If this was you, no further action is needed.<br><strong style="color:${BRAND_DARK};">The NoLSAF Security Team</strong></p>
   `;
 
   return {
@@ -222,7 +221,7 @@ export function getLoginAlertEmail(data: LoginAlertEmailData): { subject: string
 
   const tableRows = rows.map(([label, value]) => `
     <tr>
-      <td style="padding:9px 14px;font-size:12px;font-weight:600;color:#1e3d72;white-space:nowrap;border-bottom:1px solid #e8ecf4;width:110px;font-family:'Poppins','Segoe UI',Arial,sans-serif;">${label}</td>
+      <td style="padding:9px 14px;font-size:12px;font-weight:600;color:${BRAND_DARK};white-space:nowrap;border-bottom:1px solid #e8ecf4;width:110px;font-family:'Poppins','Segoe UI',Arial,sans-serif;">${label}</td>
       <td style="padding:9px 14px;font-size:12px;color:#374151;border-bottom:1px solid #e8ecf4;word-break:break-all;font-family:'Poppins','Segoe UI',Arial,sans-serif;">${value}</td>
     </tr>`).join("");
 
@@ -232,9 +231,10 @@ export function getLoginAlertEmail(data: LoginAlertEmailData): { subject: string
     </table>`;
 
   const body = `
-    <p style="margin:0 0 14px;font-size:15px;font-weight:600;color:#1e3d72;">Hello ${data.name},</p>
-    <p style="margin:0 0 14px;color:#374151;">We detected a new sign-in to your NoLSAF account from a device we haven't seen before. Here are the details:</p>
+    <p style="margin:0 0 14px;font-size:15px;font-weight:600;color:${BRAND_DARK};">Hello ${data.name},</p>
+    <p style="margin:0 0 16px;color:#374151;">We detected a new sign-in to your NoLSAF account from a device we haven't seen before.</p>
 
+    <p style="margin:0 0 8px;font-size:11px;font-weight:700;color:${TEXT_MUTED};letter-spacing:1.2px;text-transform:uppercase;">Sign-in details</p>
     ${detailTable}
 
     <table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;background:#fef2f2;border-left:3px solid #dc2626;border-radius:4px;">
@@ -250,7 +250,7 @@ export function getLoginAlertEmail(data: LoginAlertEmailData): { subject: string
 
     ${ctaButton(data.resetPasswordUrl, "Reset My Password", "#dc2626")}
 
-    <p style="margin:18px 0 0;font-size:13px;color:#374151;">If this was you, no action is needed. Future sign-ins from this device will not trigger another alert.<br><strong style="color:#1e3d72;">The NoLSAF Security Team</strong></p>
+    <p style="margin:18px 0 0;font-size:13px;color:#374151;">If this was you, no action is needed. Future sign-ins from this device will not trigger another alert.<br><strong style="color:${BRAND_DARK};">The NoLSAF Security Team</strong></p>
   `;
 
   return {
@@ -395,5 +395,127 @@ export function getAgentRestorationEmail(data: {
   return {
     subject: `[Update] Your NoLSAF Agent account has been reinstated — Ref: ${data.caseRef}`,
     html: careersEmail("✅", "Access Reinstated", "Account Restoration Notice", body, data.contactEmail || "hr@nolsaf.com"),
+  };
+}
+
+// ─── 8. Operator profile review approved ────
+export function getOperatorProfileApprovedEmail(data: {
+  name: string;
+  companyName?: string;
+  portalUrl: string;
+  loginUrl: string;
+  setupLink?: string;
+  setupLinkExpiresHours?: number;
+  contactEmail?: string;
+}): { subject: string; html: string } {
+  const GREEN = "#059669";
+  const greeting = data.companyName ? `${data.name} (${data.companyName})` : data.name;
+
+  const cta = data.setupLink
+    ? ctaButton(data.setupLink, "Set your password", GREEN)
+    : ctaButton(data.portalUrl, "Open Agent Portal", GREEN);
+
+  const setupNote = data.setupLink && data.setupLinkExpiresHours
+    ? `<p style="margin:10px 0 18px;font-size:13px;color:${TEXT_MUTED};text-align:center;">This password setup link expires in ${data.setupLinkExpiresHours} hours.</p>`
+    : "";
+
+  const loginLine = !data.setupLink
+    ? `<p style="margin:0 0 10px;font-size:14px;color:${TEXT_MAIN};">Sign in at: <a href="${data.loginUrl}" style="color:${GREEN};text-decoration:none;font-weight:600;">${data.loginUrl}</a></p>`
+    : "";
+
+  const body = `
+    <p style="margin:0 0 14px;font-size:16px;font-weight:700;color:${GREEN};">Congratulations, ${greeting}!</p>
+
+    <table width="100%" cellpadding="0" cellspacing="0"
+      style="margin:0 0 16px;background:#ecfdf5;border-left:4px solid ${GREEN};border-radius:4px;">
+      <tr><td style="padding:14px 18px;">
+        <p style="margin:0;font-size:13px;font-weight:700;color:${GREEN};">
+          ✔ Your operator profile has been approved
+        </p>
+      </td></tr>
+    </table>
+
+    <p style="margin:0 0 14px;color:${TEXT_MAIN};line-height:1.75;">
+      Your tour packages and operator details are now live and bookable on the NoLSAF marketplace.
+    </p>
+
+    ${data.setupLink
+      ? `<p style="margin:0 0 14px;color:${TEXT_MAIN};line-height:1.75;">Before you continue, finish setting up your Agent Portal access by creating a password using the button below.</p>`
+      : `<p style="margin:0 0 14px;color:${TEXT_MAIN};line-height:1.75;">You can manage your packages and bookings anytime from your Agent Portal.</p>`}
+
+    ${cta}
+    ${setupNote}
+    ${loginLine}
+
+    <p style="margin:24px 0 0;">Warm regards,<br><strong style="color:${BRAND_DARK};">The NoLSAF Team</strong></p>
+  `;
+
+  return {
+    subject: "Your operator profile has been approved — NoLSAF",
+    html: careersEmail("✅", "Profile Approved", "Operator Profile Review", body, data.contactEmail || "partners@nolsaf.com"),
+  };
+}
+
+// ─── 9. Operator profile review rejected ────
+export function getOperatorProfileRejectedEmail(data: {
+  name: string;
+  companyName?: string;
+  reason?: string;
+  portalUrl: string;
+  loginUrl: string;
+  setupLink?: string;
+  setupLinkExpiresHours?: number;
+  contactEmail?: string;
+}): { subject: string; html: string } {
+  const AMBER = "#b45309";
+  const greeting = data.companyName ? `${data.name} (${data.companyName})` : data.name;
+
+  const reasonBlock = data.reason
+    ? `<table width="100%" cellpadding="0" cellspacing="0"
+        style="margin:16px 0;background:#fffbeb;border-left:4px solid ${AMBER};border-radius:4px;">
+        <tr><td style="padding:14px 18px;">
+          <p style="margin:0 0 6px;font-size:13px;font-weight:700;color:${AMBER};">Feedback from our review team</p>
+          <p style="margin:0;font-size:13px;color:#78350f;line-height:1.7;">${data.reason}</p>
+        </td></tr>
+      </table>`
+    : "";
+
+  const cta = data.setupLink
+    ? ctaButton(data.setupLink, "Set your password", AMBER)
+    : ctaButton(data.portalUrl, "Open Agent Portal", AMBER);
+
+  const setupNote = data.setupLink && data.setupLinkExpiresHours
+    ? `<p style="margin:10px 0 18px;font-size:13px;color:${TEXT_MUTED};text-align:center;">This password setup link expires in ${data.setupLinkExpiresHours} hours.</p>`
+    : "";
+
+  const loginLine = !data.setupLink
+    ? `<p style="margin:0 0 10px;font-size:14px;color:${TEXT_MAIN};">Sign in at: <a href="${data.loginUrl}" style="color:${AMBER};text-decoration:none;font-weight:600;">${data.loginUrl}</a></p>`
+    : "";
+
+  const body = `
+    <p style="margin:0 0 14px;font-size:16px;font-weight:700;color:${AMBER};">Hello ${greeting},</p>
+
+    <p style="margin:0 0 14px;color:${TEXT_MAIN};line-height:1.75;">
+      Thanks for submitting your operator profile for review. It needs a few changes before it can go
+      live on the NoLSAF marketplace.
+    </p>
+
+    ${reasonBlock}
+
+    <p style="margin:0 0 14px;color:${TEXT_MAIN};line-height:1.75;">
+      Please log in to your Agent Portal, update your profile based on the feedback above, and submit it
+      again for review.
+    </p>
+
+    ${cta}
+    ${setupNote}
+    ${loginLine}
+
+    <p style="margin:24px 0 0;">Warm regards,<br><strong style="color:${BRAND_DARK};">The NoLSAF Team</strong></p>
+  `;
+
+  return {
+    subject: "Action needed: updates required for your operator profile — NoLSAF",
+    html: careersEmail("📝", "Profile Needs Updates", "Operator Profile Review", body, data.contactEmail || "partners@nolsaf.com"),
   };
 }

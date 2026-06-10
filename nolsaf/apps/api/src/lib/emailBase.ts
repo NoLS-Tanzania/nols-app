@@ -128,17 +128,16 @@ function buildSecurityFooter(): string {
   return `
     <tr>
       <td style="padding:0 40px;">
-        <div style="height:1px;background:linear-gradient(90deg,transparent,#e4eceb,transparent);"></div>
+        <div style="height:1px;background:${BORDER};"></div>
       </td>
     </tr>
     <tr>
       <td style="padding:24px 40px 28px;text-align:center;">
         <p style="margin:0 0 4px;font-size:13px;font-weight:700;color:${BRAND_TEAL};letter-spacing:0.6px;font-family:'Poppins','Segoe UI',Arial,sans-serif;">NoLSAF</p>
-        <p style="margin:0 0 14px;font-size:11px;color:${TEXT_MUTED};font-family:'Poppins','Segoe UI',Arial,sans-serif;">
-          Dar es Salaam, Tanzania
-          &nbsp;&bull;&nbsp;
+        <p style="margin:0 0 2px;font-size:11px;color:${TEXT_MUTED};font-family:'Poppins','Segoe UI',Arial,sans-serif;">Dar es Salaam, Tanzania</p>
+        <p style="margin:0 0 14px;font-size:11px;font-family:'Poppins','Segoe UI',Arial,sans-serif;">
           <a href="mailto:security@nolsaf.com" style="color:${BRAND_TEAL};text-decoration:none;">security@nolsaf.com</a>
-          &nbsp;&bull;&nbsp;
+          &nbsp;&nbsp;
           <a href="https://nolsaf.com" style="color:${BRAND_TEAL};text-decoration:none;">nolsaf.com</a>
         </p>
         <p style="margin:0 0 10px;font-size:11px;color:#9ca3af;line-height:1.65;max-width:440px;margin-left:auto;margin-right:auto;font-family:'Poppins','Segoe UI',Arial,sans-serif;">
@@ -154,37 +153,15 @@ function buildSecurityFooter(): string {
 
 // ─── Security email wrapper ────
 /**
- * Security-themed email shell — dark navy/slate header with an embedded
- * lock SVG watermark. Used for password reset, password-changed confirmation,
- * and other security-critical transactional emails.
+ * Security-themed email shell — plain, light header with the NoLSAF
+ * wordmark and a small status label. Used for password reset,
+ * password-changed confirmation, and other security-critical
+ * transactional emails.
  */
 export function securityEmail(
   badgeLabel: string,
   body: string
 ): string {
-  // Inline SVG: faint NOLSAF watermark + decorative lock shapes on both sides
-  const headerSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="580" height="72" viewBox="0 0 580 72" style="display:block;margin:0 auto;">
-  <text x="290" y="58" text-anchor="middle" font-family="Arial,sans-serif" font-size="68" font-weight="900" letter-spacing="14" fill="rgba(255,255,255,0.035)">NOLSAF</text>
-  <!-- Left mini-lock -->
-  <g opacity="0.14" transform="translate(52,16)">
-    <rect x="0" y="14" width="22" height="17" rx="3" fill="white"/>
-    <path d="M4 14v-4a7 7 0 0114 0v4" stroke="white" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-    <circle cx="11" cy="22.5" r="2" fill="rgba(0,0,0,0.25)"/>
-    <rect x="10" y="24.5" width="2" height="3" rx="1" fill="rgba(0,0,0,0.2)"/>
-  </g>
-  <!-- Right mini-lock -->
-  <g opacity="0.14" transform="translate(506,16)">
-    <rect x="0" y="14" width="22" height="17" rx="3" fill="white"/>
-    <path d="M4 14v-4a7 7 0 0114 0v4" stroke="white" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-    <circle cx="11" cy="22.5" r="2" fill="rgba(0,0,0,0.25)"/>
-    <rect x="10" y="24.5" width="2" height="3" rx="1" fill="rgba(0,0,0,0.2)"/>
-  </g>
-  <!-- Shield left -->
-  <path d="M110 32 L118 28 L126 32 L126 42 Q118 47 118 47 Q110 42 110 42 Z" fill="rgba(255,255,255,0.06)"/>
-  <!-- Shield right -->
-  <path d="M454 32 L462 28 L470 32 L470 42 Q462 47 462 47 Q454 42 454 42 Z" fill="rgba(255,255,255,0.06)"/>
-</svg>`;
-
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -205,27 +182,11 @@ export function securityEmail(
 
         <!-- ══ HEADER ══ -->
         <tr>
-          <td style="background:linear-gradient(150deg,#0c1830 0%,#1a2d52 38%,#1e3d72 68%,#162e5a 100%);padding:28px 36px 0;text-align:center;">
-
-            <!-- Wordmark -->
-            <h1 style="margin:0 0 6px;color:#ffffff;font-size:24px;font-weight:900;letter-spacing:7px;text-transform:uppercase;line-height:1.1;font-family:'Poppins','Segoe UI',Arial,sans-serif;">NoLSAF</h1>
-
-            <!-- Tagline -->
-            <p style="margin:0 0 16px;color:rgba(255,255,255,0.55);font-size:10px;letter-spacing:2.5px;text-transform:uppercase;font-style:italic;font-family:'Poppins','Segoe UI',Arial,sans-serif;">Security &nbsp;&bull;&nbsp; Privacy &nbsp;&bull;&nbsp; Trust</p>
-
-            <!-- Badge -->
-            <div style="display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.22);border-radius:22px;padding:7px 20px;margin-bottom:18px;">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.90)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;vertical-align:middle;display:inline-block;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-              <span style="color:#ffffff;font-size:13px;font-weight:600;font-family:'Poppins','Segoe UI',Arial,sans-serif;vertical-align:middle;">${badgeLabel}</span>
-            </div>
-
-            <!-- Decorative SVG -->
-            ${headerSvg}
+          <td style="padding:28px 36px;text-align:center;border-bottom:3px solid ${BRAND_TEAL};">
+            <h1 style="margin:0 0 6px;color:${BRAND_DARK};font-size:22px;font-weight:800;letter-spacing:6px;text-transform:uppercase;line-height:1.1;font-family:'Poppins','Segoe UI',Arial,sans-serif;">NoLSAF</h1>
+            <p style="margin:0;color:${TEXT_MUTED};font-size:11px;letter-spacing:2px;text-transform:uppercase;font-family:'Poppins','Segoe UI',Arial,sans-serif;">${badgeLabel}</p>
           </td>
         </tr>
-
-        <!-- 3px accent line -->
-        <tr><td style="height:3px;background:linear-gradient(90deg,#1e3d72,#3b82f6,#1e3d72);font-size:0;line-height:0;">&nbsp;</td></tr>
 
         <!-- Body -->
         <tr>
@@ -249,10 +210,10 @@ function buildCareersFooter(supportEmail: string): string {
   return `
     <tr>
       <td style="padding:20px 56px 28px;text-align:center;border-top:1px solid #e8eded;">
-        <p style="margin:0;font-size:12px;color:#b0b8bf;line-height:1.6;">
-          &copy; ${year} NoLSAF &nbsp;&bull;&nbsp;
+        <p style="margin:0 0 4px;font-size:12px;color:#b0b8bf;line-height:1.6;">&copy; ${year} NoLSAF</p>
+        <p style="margin:0;font-size:12px;line-height:1.6;">
           <a href="mailto:${supportEmail}" style="color:${BRAND_TEAL};text-decoration:none;">${supportEmail}</a>
-          &nbsp;&bull;&nbsp;
+          &nbsp;&nbsp;
           <a href="https://nolsaf.com/careers" style="color:${BRAND_TEAL};text-decoration:none;">nolsaf.com/careers</a>
         </p>
       </td>
@@ -291,48 +252,10 @@ export function careersEmail(
 
         <!-- ══ HEADER ══ -->
         <tr>
-          <td style="background:linear-gradient(150deg,#011a18 0%,#01352f 42%,#025950 72%,#014d47 100%);padding:30px 40px 0;text-align:center;">
-
-            <!-- Wordmark -->
-            <h1 style="margin:0 0 7px;color:#ffffff;font-size:26px;font-weight:900;letter-spacing:7px;text-transform:uppercase;line-height:1.1;font-family:'Poppins','Segoe UI',Arial,sans-serif;">NoLSAF</h1>
-
-            <!-- Italic tagline -->
-            <p style="margin:0 0 18px;color:rgba(255,255,255,0.60);font-size:11px;font-style:italic;line-height:1.65;font-family:'Poppins','Segoe UI',Arial,sans-serif;">
-              Africa's finest travel experiences &mdash; where every journey matters<br>and every talent shapes the road ahead.
-            </p>
-
-            <!-- SVG: faint NOLSAF watermark + dashboard-style graph line -->
-            <div style="font-size:0;line-height:0;">
-              <svg xmlns="http://www.w3.org/2000/svg" width="580" height="96" viewBox="0 0 580 96" style="display:block;width:100%;max-width:100%;">
-                <!-- Watermark text -->
-                <text x="290" y="80" font-family="Arial Black,Arial,sans-serif" font-size="86" font-weight="900"
-                  fill="rgba(255,255,255,0.032)" text-anchor="middle" letter-spacing="6">NOLSAF</text>
-                <!-- Gradient fill under graph line -->
-                <defs>
-                  <linearGradient id="gFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stop-color="rgba(100,210,190,0.13)"/>
-                    <stop offset="100%" stop-color="rgba(100,210,190,0.00)"/>
-                  </linearGradient>
-                </defs>
-                <path d="M0 72 C70 62,130 44,200 40 C268 37,315 60,375 50 C430 41,500 22,580 10 L580 96 L0 96 Z"
-                  fill="url(#gFill)"/>
-                <!-- Graph line -->
-                <path d="M0 72 C70 62,130 44,200 40 C268 37,315 60,375 50 C430 41,500 22,580 10"
-                  fill="none" stroke="rgba(100,210,190,0.50)" stroke-width="1.8"
-                  stroke-linecap="round" stroke-linejoin="round"/>
-                <!-- Data point dots -->
-                <circle cx="200" cy="40" r="3.5" fill="rgba(100,210,190,0.80)" stroke="rgba(255,255,255,0.45)" stroke-width="1.5"/>
-                <circle cx="375" cy="50" r="3.5" fill="rgba(100,210,190,0.80)" stroke="rgba(255,255,255,0.45)" stroke-width="1.5"/>
-                <circle cx="578" cy="10" r="5"   fill="#5dcfb8"                stroke="rgba(255,255,255,0.70)" stroke-width="2"/>
-              </svg>
-            </div>
-
+          <td style="padding:28px 36px;text-align:center;border-bottom:3px solid ${BRAND_TEAL};">
+            <h1 style="margin:0 0 6px;color:${BRAND_DARK};font-size:24px;font-weight:800;letter-spacing:6px;text-transform:uppercase;line-height:1.1;font-family:'Poppins','Segoe UI',Arial,sans-serif;">NoLSAF</h1>
+            <p style="margin:0;color:${TEXT_MUTED};font-size:11px;letter-spacing:2px;text-transform:uppercase;font-family:'Poppins','Segoe UI',Arial,sans-serif;">${jobTitle}</p>
           </td>
-        </tr>
-
-        <!-- Accent line -->
-        <tr>
-          <td style="background:linear-gradient(90deg,#014d47 0%,#02665e 30%,#059669 50%,#02665e 70%,#014d47 100%);height:3px;font-size:0;line-height:0;">&nbsp;</td>
         </tr>
 
         <!-- Body -->
