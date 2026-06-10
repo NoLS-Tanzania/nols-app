@@ -307,7 +307,19 @@ function normalizePhone(phone: unknown): string | null {
   return normalized ? normalized : null;
 }
 
+// The hired-application backfill below is a best-effort safety net — agents are
+// provisioned at hire time (admin.careers.applications.ts). Running it on every
+// admin list load multiplied DB write traffic (each write replaces the whole
+// operatorProfile JSON column, risking lost updates against concurrent operator
+// edits) and added seconds of latency on remote DBs. Throttle per instance.
+let lastEnsureAgentsRunAt = 0;
+const ENSURE_AGENTS_MIN_INTERVAL_MS = 5 * 60 * 1000;
+
 async function ensureAgentsFromHiredApplications(req: AuthedRequest): Promise<void> {
+  const now = Date.now();
+  if (now - lastEnsureAgentsRunAt < ENSURE_AGENTS_MIN_INTERVAL_MS) return;
+  lastEnsureAgentsRunAt = now;
+
   const normalizeLanguageStrings = (value: unknown): string[] => {
     if (!Array.isArray(value)) return [];
     const out: string[] = [];
