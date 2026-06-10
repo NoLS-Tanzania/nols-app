@@ -22,6 +22,7 @@ import { sendSms } from "../lib/sms.js";
 import { sendMail } from "../lib/mailer.js";
 import { getBookingReceivedEmail } from "../lib/bookingEmailTemplates.js";
 import { generateBookingReservationPdf } from "../lib/bookingPdfGen.js";
+import { notifyUser } from "../lib/notifications.js";
 import crypto from "crypto";
 import { generateBookingCodeForBooking } from "../lib/bookingCodeService.js";
 import { rateLimitWithRedis as rateLimit } from "../lib/redisRateLimitStore.js";
@@ -783,17 +784,13 @@ router.post("/azampay", webhookLimiter, async (req: any, res) => {
           });
           if (agent?.userId) {
             try {
-              await prisma.notification.create({
-                data: {
-                  userId: agent.userId,
-                  title: "New paid tour booking",
-                  body:
-                    `Tour booking ${tourBooking.bookingCode} has been paid. ` +
-                    `Guest: ${tourBooking.guestName || "Unknown"}. ` +
-                    `Amount: ${tourBooking.currency} ${want.toLocaleString("en-US")}.`,
-                  type: "tour_booking",
-                  meta: { kind: "tour_booking_paid", tourBookingId: tourBooking.id, bookingCode: tourBooking.bookingCode },
-                },
+              await notifyUser(agent.userId, "agent_tour_booking_paid", {
+                kind: "tour_booking_paid",
+                tourBookingId: tourBooking.id,
+                bookingCode: tourBooking.bookingCode,
+                guestName: tourBooking.guestName,
+                amount: want,
+                currency: tourBooking.currency,
               });
             } catch { /* non-fatal */ }
           }

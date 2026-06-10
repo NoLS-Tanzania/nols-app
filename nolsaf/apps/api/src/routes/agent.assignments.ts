@@ -7,6 +7,7 @@ import { prisma } from "@nolsaf/prisma";
 import { AuthedRequest, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../middleware/errorHandler.js";
 import { audit } from "../lib/audit.js";
+import { notifyAdmins } from "../lib/notifications.js";
 import {
   limitAgentNotifyAdmin,
   limitAgentPortalRead,
@@ -1892,6 +1893,16 @@ router.post(
       );
     } catch {
       // ignore audit failures for claim response path
+    }
+
+    try {
+      await notifyAdmins("payout_claim_submitted", {
+        tourBookingId: updated.id,
+        bookingCode: updated.bookingCode,
+        operatorName: (agent.operatorProfile as any)?.companyName || null,
+      });
+    } catch {
+      // non-fatal
     }
 
     return res.json({

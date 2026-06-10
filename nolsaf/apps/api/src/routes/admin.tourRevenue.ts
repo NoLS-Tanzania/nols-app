@@ -2,6 +2,7 @@ import { Router } from "express";
 import type { RequestHandler } from "express";
 import { prisma } from "@nolsaf/prisma";
 import { requireAuth, requireRole } from "../middleware/auth.js";
+import { notifyUser } from "../lib/notifications.js";
 
 const router = Router();
 const PAYMENT_ACCESS_TOKEN_HOURS = 12;
@@ -363,6 +364,28 @@ router.post("/action", async (req: any, res) => {
       });
     } catch {
       // Audit logging is optional
+    }
+
+    try {
+      const operatorAgent = await prisma.agent.findUnique({
+        where: { id: (booking as any).operatorAgentId },
+        select: { userId: true },
+      });
+      if (operatorAgent?.userId) {
+        const template =
+          action === "verify" ? "agent_payout_verified" :
+          action === "approve" ? "agent_payout_approved" :
+          action === "disburse" ? "agent_payout_disbursed" :
+          "agent_payout_rejected";
+        await notifyUser(operatorAgent.userId, template, {
+          tourBookingId: updated.id,
+          bookingCode: (updated as any).bookingCode,
+          reason: actionReason || null,
+          paymentRef: paymentRef || null,
+        });
+      }
+    } catch {
+      // non-fatal
     }
 
     return res.json({
