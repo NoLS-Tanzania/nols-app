@@ -126,14 +126,14 @@ function getEnglishResponse(input: string): { response: string; type: ResponseTy
   // === GREETINGS & INITIAL CONTACT ===
   if (/^(hi+|hello|hey|hola|salut|good\s*(morning|afternoon|evening)|greetings|jambo|habari|mambo|niaje|sasa|shikamoo|hujambo|yo|sup|what'?s\s*up)/i.test(input)) {
     return {
-      response: "Niaje! 👋 Naitwa Twiga 🦒, your friendly travel assistant at NoLSAF! 😊\n\nI can help with:\n🏨 Find & book verified accommodation\n🚗 Add transport to your booking (to/from your stay, tours, inter-city)\n🧭 Discover destinations and plan trips\n💳 Pay with M-Pesa, cards, or bank transfer\n👥 Group bookings & custom itineraries\n\nAccommodation and tourism access, all connected. Just ask me anything!",
+      response: "Niaje! 👋 Naitwa Twiga 🦒, your friendly travel assistant at NoLSAF! 😊\n\nI can help with:\n🏨 Find & book verified accommodation\n🚗 Add transport to your booking (to/from your stay, tours, inter-city)\n🧭 Discover destinations and plan trips\n💳 Pay with Mpesa, cards, or bank transfer\n👥 Group bookings & custom itineraries\n\nAccommodation and tourism access, all connected. Just ask me anything!",
       type: "greeting"
     };
   }
 
   // === ABOUT NOLSAF ===
   if (/(what is nolsaf|what'?s nolsaf|about nolsaf|nolsaf is|tell me about nolsaf|who is nolsaf|who are you|what do you do|what is this platform|explain nolsaf|nolsaf mean|meaning of nolsaf)/.test(input)) {
-    return { response: "NoLSAF connects your entire African journey in one unified platform 🌍\n\nBook verified accommodation, get transport to and from your stay, discover destinations, and pay with local methods, all seamlessly linked.\n\nPlanning a Serengeti safari? Book your lodge, add transport to get there and around, arrange game drives, and pay with M-Pesa. No app switching, no friction.\n\n🏨 Verified Stays: hotels, lodges, villas, apartments across East Africa\n🚗 Integrated Transport: rides to/from your accommodation, city tours, inter-city travel\n🧭 Destination Discovery: safaris, cultural experiences, local guides\n💳 Local Payments: M-Pesa, Mixx by Yas, Airtel Money, cards accepted\n👥 Group Bookings: families, corporates, events\n🎯 Custom Trip Planning: end-to-end itineraries by local experts\n\nAccommodation and tourism access, unified. Operating across Tanzania 🇹🇿, Kenya 🇰🇪, and expanding pan-Africa. What would you like to know more about?", type: "other" };
+    return { response: "NoLSAF connects your entire African journey in one unified platform 🌍\n\nBook verified accommodation, get transport to and from your stay, discover destinations, and pay with local methods, all seamlessly linked.\n\nPlanning a Serengeti safari? Book your lodge, add transport to get there and around, arrange game drives, and pay with Mpesa. No app switching, no friction.\n\n🏨 Verified Stays: hotels, lodges, villas, apartments across East Africa\n🚗 Integrated Transport: rides to/from your accommodation, city tours, inter-city travel\n🧭 Destination Discovery: safaris, cultural experiences, local guides\n💳 Local Payments: MPesa, Tigo, Airtel Money, cards accepted\n👥 Group Bookings: families, corporates, events\n🎯 Custom Trip Planning: end-to-end itineraries by local experts\n\nAccommodation and tourism access, unified. Operating across Tanzania 🇹🇿, Kenya 🇰🇪, and expanding pan-Africa. What would you like to know more about?", type: "other" };
   }
 
   // === NOLSAF NAME / BRAND ===
@@ -383,7 +383,7 @@ function getEnglishResponse(input: string): { response: string; type: ResponseTy
 
   // === DEFAULT RESPONSE ===
   return {
-    response: "I'm not sure I caught that, but I'm here to help! 🤝\n\nNoLSAF connects accommodation and tourism access in one unified platform. Here's what I can assist with:\n\n🏨 Book verified stays\n🚗 Add transport to your booking (to/from your stay, tours)\n🧭 Discover destinations and plan trips\n💳 Pay with M-Pesa, cards, or bank transfer\n👥 Group bookings for families & corporates\n🎯 Custom trip planning with local experts\n👤 Account, registration & referrals\n\nTry asking:\n• \"How do I book a property?\"\n• \"Tell me about Zanzibar\"\n• \"What payment methods do you accept?\"\n• \"How do I become a property owner?\"",
+    response: "I'm not sure I caught that, but I'm here to help! 🤝\n\nNoLSAF connects accommodation and tourism access in one unified platform. Here's what I can assist with:\n\n🏨 Book verified stays\n🚗 Add transport to your booking (to/from your stay, tours)\n🧭 Discover destinations and plan trips\n💳 Pay with Mpesa, cards, or bank transfer\n👥 Group bookings for families & corporates\n🎯 Custom trip planning with local experts\n👤 Account, registration & referrals\n\nTry asking:\n• \"How do I book a property?\"\n• \"Tell me about Zanzibar\"\n• \"What payment methods do you accept?\"\n• \"How do I become a property owner?\"",
     type: "default"
   };
 }

@@ -66,13 +66,13 @@ type NotificationDeps = {
   getAdminWelcomeSms: (args: { name: string; isNewlyCreated: boolean }) => string;
 };
 
-// ─── Prompt helpers ──────────────────────────────────────────────────────────
+// ─── Prompt helpers ───────
 
 function ask(rl: readline.Interface, question: string): Promise<string> {
   return new Promise(resolve => rl.question(question, resolve));
 }
 
-// ─── Password strength ───────────────────────────────────────────────────────
+// ─── Password strength ──────
 
 interface PasswordCheck { label: string; pass: boolean; }
 

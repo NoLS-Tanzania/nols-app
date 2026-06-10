@@ -1126,6 +1126,14 @@ router.post(
     const nowIso = new Date().toISOString();
     const updatedProfile = {
       ...profile,
+      // Reset top-level review fields left over from a prior admin decision
+      // (e.g. reviewStatus: "APPROVED"/"REJECTED") so they don't shadow the
+      // fresh `review.status: "PENDING"` below in admin UIs that read
+      // `reviewStatus || review.status`.
+      reviewStatus: "PENDING",
+      reviewReason: null,
+      reviewedAt: null,
+      reviewedByAdminId: null,
       review: {
         status: "PENDING",
         submittedAt: nowIso,
