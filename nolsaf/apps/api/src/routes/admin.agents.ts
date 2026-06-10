@@ -403,6 +403,11 @@ async function ensureAgentsFromHiredApplications(req: AuthedRequest): Promise<vo
           educationLevel: true,
           yearsOfExperience: true,
           languages: true,
+          // operatorProfile MUST be loaded here: the backfill loop below merges the
+          // seed into it and writes the result back. Without it, the merge sees
+          // `undefined` and overwrites the operator's full profile with seed-only data
+          // on every admin agents list load.
+          operatorProfile: true,
           user: {
             select: {
               id: true,
@@ -584,7 +589,9 @@ async function ensureAgentsFromHiredApplications(req: AuthedRequest): Promise<vo
         if (e?.code === "P2002") {
           agent = await prisma.agent.findUnique({
             where: { userId: user.id },
-            select: { id: true },
+            // operatorProfile must be selected: the backfill below merges into it
+            // and writes the result back — without it the merge wipes the profile.
+            select: { id: true, areasOfOperation: true, specializations: true, educationLevel: true, yearsOfExperience: true, languages: true, operatorProfile: true },
           });
         } else {
           console.warn("[ensureAgentsFromHiredApplications] Failed to create agent", {
@@ -663,8 +670,14 @@ async function ensureAgentsFromHiredApplications(req: AuthedRequest): Promise<vo
           if (incomingLanguages.length > 0) agentUpdate.languages = incomingLanguages;
         }
 
-        if (Object.keys(operatorProfileSeed).length > 0) {
-          agentUpdate.operatorProfile = mergeOperatorProfileSeed((agent as any).operatorProfile, operatorProfileSeed) as any;
+        if (Object.keys(operatorProfileSeed).length > 0 && (agent as any).operatorProfile !== undefined) {
+          const mergedProfile = mergeOperatorProfileSeed((agent as any).operatorProfile, operatorProfileSeed) as any;
+          // Only write when the merge actually fills a previously-blank field —
+          // unconditional writes replace the whole JSON column and can destroy
+          // concurrent operator edits/submissions.
+          if (JSON.stringify(mergedProfile) !== JSON.stringify((agent as any).operatorProfile ?? {})) {
+            agentUpdate.operatorProfile = mergedProfile;
+          }
         }
 
         if (Object.keys(agentUpdate).length > 0) {
@@ -789,8 +802,14 @@ async function ensureAgentsFromHiredApplications(req: AuthedRequest): Promise<vo
         if (incomingLanguages.length > 0) agentUpdate.languages = incomingLanguages;
       }
 
-      if (Object.keys(operatorProfileSeed).length > 0) {
-        agentUpdate.operatorProfile = mergeOperatorProfileSeed(agent.operatorProfile, operatorProfileSeed) as any;
+      if (Object.keys(operatorProfileSeed).length > 0 && agent.operatorProfile !== undefined) {
+        const mergedProfile = mergeOperatorProfileSeed(agent.operatorProfile, operatorProfileSeed) as any;
+        // Only write when the merge actually fills a previously-blank field.
+        // Writing unconditionally replaces the whole JSON column on every admin
+        // list load, which destroys concurrent operator edits/submissions.
+        if (JSON.stringify(mergedProfile) !== JSON.stringify(agent.operatorProfile ?? {})) {
+          agentUpdate.operatorProfile = mergedProfile;
+        }
       }
 
       if (Object.keys(agentUpdate).length > 0) {
