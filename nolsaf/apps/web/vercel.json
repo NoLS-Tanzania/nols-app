@@ -2,5 +2,6 @@
   "framework": "nextjs",
   "installCommand": "cd ../.. && npm ci",
   "buildCommand": "cd ../.. && npm run build --workspace=@nolsaf/web",
-  "outputDirectory": ".next"
+  "outputDirectory": ".next",
+  "ignoreCommand": "cd ../.. && git diff --quiet HEAD^ HEAD -- apps/web packages/shared"
 }
