@@ -24,6 +24,10 @@ docker-data/
 apps/api/reports/load-*.json
 apps/api/reports/capacity-*.json
 
+# Local diagnostic reports (transaction tests, card-progress notes)
+/.local-reports/
+/reports/
+
 # Security: Never commit secrets
 *.pem
 *.key
