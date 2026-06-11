@@ -91,7 +91,7 @@ export const REGION_BY_ID: Record<string, Region> =
   Object.fromEntries(REGIONS.map(r => [r.id, r])) as Record<string, Region>;
 
 // Full data structure with wards and streets (for future use)
-// This contains complete hierarchical data: regions -> districts -> wards -> streets
+// This contains complete hierarchical data: regions -> districts -> wards -> streets that can be used for more detailed location selective
 
 // Note: REGIONS_FULL_DATA (with wards and streets) is NOT exported from this file
 // To avoid conflicts, import REGIONS_FULL_DATA from the separate file:
