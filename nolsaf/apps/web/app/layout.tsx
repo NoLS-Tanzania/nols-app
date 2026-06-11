@@ -25,7 +25,7 @@ export const metadata: Metadata = {
   category: "travel",
   classification: "Tourism, accommodation, transport, group stays, tour packages and travel planning",
   title: {
-    default: "NoLSAF | Tanzania Tourism, Verified Stays, Tours & Transport",
+    default: "NoLSAF | Quality Stays, Tours & Transport",
     template: "%s | NoLSAF",
   },
   description:
@@ -34,7 +34,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     siteName: "NoLSAF",
-    title: "NoLSAF | Tanzania Tourism, Verified Stays, Tours & Transport",
+    title: "NoLSAF | Quality Stays, Tours & Transport",
     description:
       "Discover verified stays, tour packages, transport, group stays and travel planning across Tanzania, East Africa and Africa.",
     url: SITE_URL,
@@ -50,7 +50,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "NoLSAF | Tanzania Tourism, Verified Stays, Tours & Transport",
+    title: "NoLSAF | Quality Stays, Tours & Transport",
     description:
       "Verified accommodation, tours, transport, group stays and travel planning for Tanzania and East Africa.",
     images: [`${SITE_URL}/og-default.jpg`],
