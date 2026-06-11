@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { LayoutDashboard, Calendar, Users, Truck, Building2, Shield, TrendingUp, Settings } from "lucide-react";
+import { LayoutDashboard, Calendar, Users, Truck, Building2, Shield, TrendingUp, Settings, MapPin } from "lucide-react";
 import Chart from "@/components/Chart";
 import { useEffect, useState, type ReactNode } from "react";
 
@@ -250,6 +250,13 @@ export default function AdminManagementPageClient() {
       href: "/admin/management/updates",
       icon: <Calendar className="h-4 w-4 text-purple-600" />,
       accentClass: "bg-purple-500",
+    },
+    {
+      title: "Pickup Points",
+      subtitle: "Transport coordinates",
+      href: "/admin/management/pickup-points",
+      icon: <MapPin className="h-4 w-4 text-rose-600" />,
+      accentClass: "bg-rose-500",
     },
   ];
 
