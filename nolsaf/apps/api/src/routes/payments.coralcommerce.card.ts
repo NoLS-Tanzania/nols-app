@@ -24,7 +24,7 @@ import {
   parseCoralEncryptedJson,
   parseCoralInitiateResponse,
 } from "../lib/coralcommerce.helpers.js";
-import { markInvoicePaid } from "./webhooks.payments.js";
+import { markInvoicePaid, markGroupBookingDepositPaid } from "./webhooks.payments.js";
 
 const router = Router();
 const coralFormParser = multer().none();
@@ -450,7 +450,21 @@ async function handleCoralNotification(kind: "callback" | "postback", encryptedV
     },
   });
 
-  if (!invoice && !tourBooking) {
+  const groupBooking = (invoice || tourBooking) ? null : await prisma.groupBooking.findFirst({
+    where: { paymentRef },
+    select: {
+      id: true,
+      userId: true,
+      depositAmount: true,
+      depositPaid: true,
+      currency: true,
+      assignedOwnerId: true,
+      toRegion: true,
+      toDistrict: true,
+    },
+  });
+
+  if (!invoice && !tourBooking && !groupBooking) {
     throw new Error("coral_payment_target_not_found");
   }
 
@@ -462,7 +476,9 @@ async function handleCoralNotification(kind: "callback" | "postback", encryptedV
   const eventId = notice.transactionId || notice.gatewayId || `${paymentRef}-${kind}-${eventStatus}`;
   const amount = invoice
     ? Number(invoice.total ?? invoice.netPayable ?? 0)
-    : Number(tourBooking?.grossAmount ?? 0);
+    : tourBooking
+    ? Number(tourBooking?.grossAmount ?? 0)
+    : Math.round(Number(groupBooking?.depositAmount ?? 0));
 
   const existing = await prisma.paymentEvent.findUnique({
     where: { eventId },
@@ -483,10 +499,13 @@ async function handleCoralNotification(kind: "callback" | "postback", encryptedV
         eventId,
         invoiceId: invoice?.id ?? null,
         tourBookingId: tourBooking?.id ?? null,
+        groupBookingId: groupBooking?.id ?? null,
         amount,
         currency: invoice
           ? resolveCoralCurrency(invoice.booking?.property?.currency)
-          : resolveCoralCurrency(tourBooking?.currency),
+          : tourBooking
+          ? resolveCoralCurrency(tourBooking?.currency)
+          : resolveCoralCurrency(groupBooking?.currency),
         status: eventStatus,
         paymentChannel: "CARD",
         rawStatus: notice.status || notice.code || null,
@@ -527,10 +546,25 @@ async function handleCoralNotification(kind: "callback" | "postback", encryptedV
     });
   }
 
+  if (isSuccess && groupBooking && !groupBooking.depositPaid) {
+    try {
+      const result = await markGroupBookingDepositPaid(groupBooking, amount, "CORALCOMMERCE");
+      if (!result.ok && result.reason === "amount_mismatch") {
+        console.warn(
+          `[CoralCommerce/Card] Amount mismatch on group booking deposit ${groupBooking.id}: ` +
+          `expected ${Math.round(Number(groupBooking.depositAmount || 0))}, received ${amount}.`
+        );
+      }
+    } catch (err: any) {
+      console.error(`[CoralCommerce/Card] Failed to mark group booking ${groupBooking.id} deposit as paid:`, err?.message ?? err);
+    }
+  }
+
   return {
     ok: true,
     invoiceId: invoice?.id ?? null,
     tourBookingId: tourBooking?.id ?? null,
+    groupBookingId: groupBooking?.id ?? null,
     status: eventStatus,
     paymentRef,
     message: notice.message || null,
@@ -554,9 +588,18 @@ router.all("/postback", coralFormParser, async (req, res) => {
     const encrypted = getCallbackValue(req, "UCFResponse");
     if (!encrypted) return res.status(400).json({ ok: false, error: "missing_ucf_response" });
     const result = await handleCoralNotification("postback", encrypted);
+    const cardReturn = result.status === "SUCCESS" ? "success" : result.status === "FAILED" ? "failed" : "pending";
+
+    const kind = getCallbackValue(req, "kind");
+    const groupBookingId = getCallbackValue(req, "groupBookingId");
+    if (kind === "group_stay_deposit" && groupBookingId) {
+      const params = new URLSearchParams({ cardReturn, ref: result.paymentRef, groupBookingId });
+      if (result.message) params.set("message", truncate(result.message, 160));
+      return res.redirect(`nolsaf://group-stay-card-return?${params.toString()}`);
+    }
+
     const webOrigin = (process.env.WEB_ORIGIN || "").replace(/\/$/, "");
     if (webOrigin) {
-      const cardReturn = result.status === "SUCCESS" ? "success" : result.status === "FAILED" ? "failed" : "pending";
       const tourBookingId = getCallbackValue(req, "tourBookingId");
       const accessToken = getCallbackValue(req, "accessToken");
       const params = new URLSearchParams({ cardReturn, ref: result.paymentRef });

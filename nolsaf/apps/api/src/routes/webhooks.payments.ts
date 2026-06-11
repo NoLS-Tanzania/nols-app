@@ -528,6 +528,76 @@ function near(a: number, b: number): boolean {
   return Math.abs(a - b) <= absTolerance;
 }
 
+type GroupBookingDepositTarget = {
+  id: number;
+  userId: number;
+  depositAmount: any;
+  depositPaid: boolean;
+  currency: string;
+  assignedOwnerId: number | null;
+  toRegion: string | null;
+  toDistrict: string | null;
+};
+
+/** Mark a group booking's deposit as paid (idempotent), notify the customer/owner, and send an SMS receipt. */
+export async function markGroupBookingDepositPaid(
+  groupBooking: GroupBookingDepositTarget,
+  amount: number,
+  provider: string
+): Promise<{ ok: boolean; reason?: "already_paid" | "amount_mismatch" }> {
+  if (groupBooking.depositPaid) return { ok: false, reason: "already_paid" };
+  const want = Math.round(Number(groupBooking.depositAmount || 0));
+  if (!(want > 0 && near(amount, want))) return { ok: false, reason: "amount_mismatch" };
+
+  await prisma.groupBooking.update({
+    where: { id: groupBooking.id },
+    data: {
+      depositPaid: true,
+      depositPaidAt: new Date(),
+      status: "CONFIRMED",
+      paymentProvider: provider,
+    },
+  });
+
+  const destination = [groupBooking.toDistrict, groupBooking.toRegion].filter(Boolean).join(", ");
+
+  // Notify customer
+  try {
+    await notifyUser(groupBooking.userId, "group_stay_update", {
+      title: "Deposit received — booking confirmed",
+      body: `We received your deposit of ${groupBooking.currency} ${want.toLocaleString("en-US")} for your group stay${destination ? ` to ${destination}` : ""}. Your booking is now confirmed.`,
+      groupBookingId: groupBooking.id,
+    });
+  } catch { /* non-fatal */ }
+
+  // Notify assigned owner
+  if (groupBooking.assignedOwnerId) {
+    try {
+      await notifyUser(groupBooking.assignedOwnerId, "group_stay_update", {
+        title: "Group stay deposit paid",
+        body: `The customer paid the deposit for group stay #${groupBooking.id}${destination ? ` (${destination})` : ""}. The booking is now confirmed.`,
+        groupBookingId: groupBooking.id,
+      });
+    } catch { /* non-fatal */ }
+  }
+
+  // SMS to customer
+  try {
+    const user = await prisma.user.findUnique({ where: { id: groupBooking.userId }, select: { phone: true } });
+    if (user?.phone) {
+      const smsText =
+        `NoLSAF: Group Stay Confirmed!\n` +
+        `Ref: #${groupBooking.id}\n` +
+        (destination ? `Destination: ${destination.slice(0, 30)}\n` : "") +
+        `Deposit paid: ${groupBooking.currency} ${want.toLocaleString("en-US")}\n` +
+        `support@nolsaf.com`;
+      await sendSms(user.phone, smsText);
+    }
+  } catch { /* non-fatal */ }
+
+  return { ok: true };
+}
+
 // ── Webhook security helpers (exported for unit tests) ─────────
 
 /**
@@ -707,6 +777,25 @@ router.post("/azampay", webhookLimiter, async (req: any, res) => {
       });
     }
 
+    // Also find a group booking deposit by paymentRef (when no invoice/tour booking found)
+    let groupBooking = null as any;
+    if (!invoice && !tourBooking && paymentRef) {
+      groupBooking = await prisma.groupBooking.findFirst({
+        where: { paymentRef: paymentRef.toString() },
+        select: {
+          id: true,
+          userId: true,
+          depositAmount: true,
+          depositPaid: true,
+          currency: true,
+          status: true,
+          assignedOwnerId: true,
+          toRegion: true,
+          toDistrict: true,
+        },
+      });
+    }
+
     // Record the payment event (only if not already existing)
     const recorded = existing ?? await prisma.paymentEvent.create({
       data: {
@@ -714,6 +803,7 @@ router.post("/azampay", webhookLimiter, async (req: any, res) => {
         eventId:        eventId.toString(),
         invoiceId:      invoice?.id ?? null,
         tourBookingId:  tourBooking?.id ?? null,
+        groupBookingId: groupBooking?.id ?? null,
         amount,
         currency:       payload.currency || "TZS",
         status:         normalizedStatus,
@@ -817,6 +907,21 @@ router.post("/azampay", webhookLimiter, async (req: any, res) => {
           `[WEBHOOK] Amount mismatch on tour booking ${tourBooking.id}: ` +
           `expected ${want} TZS, received ${amount} TZS.`
         );
+      }
+    }
+
+    // ── Group stay deposit payment success ─────────────────────────────────────
+    if (groupBooking && normalizedStatus === "SUCCESS" && !groupBooking.depositPaid) {
+      try {
+        const result = await markGroupBookingDepositPaid(groupBooking, amount, "AZAMPAY");
+        if (!result.ok && result.reason === "amount_mismatch") {
+          console.warn(
+            `[WEBHOOK] Amount mismatch on group booking deposit ${groupBooking.id}: ` +
+            `expected ${Math.round(Number(groupBooking.depositAmount || 0))} TZS, received ${amount} TZS.`
+          );
+        }
+      } catch (groupErr) {
+        console.error(`[WEBHOOK] Failed to mark group booking ${groupBooking.id} deposit as paid:`, (groupErr as any)?.message ?? groupErr);
       }
     }
 

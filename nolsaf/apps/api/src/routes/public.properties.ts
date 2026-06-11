@@ -5,6 +5,7 @@ import { toPublicCard, toPublicDetail } from "../lib/publicPropertyDto.js";
 import { Prisma } from "@prisma/client";
 import { withCache, cacheKeys, cacheTags, measureTime } from "../lib/performance.js";
 import { REAL_BOOKING_STATUSES } from "../lib/bookingStatus.js";
+import { calculateAvailability } from "../lib/availabilityCalculator.js";
 
 const router = Router();
 
@@ -328,6 +329,25 @@ const listPublicProperties: RequestHandler = async (req, res) => {
       { city: { contains: q } },
       { street: { contains: q } },
     ];
+
+    // A property may not mention a park by name (e.g. its title is "Riverside Lodge"),
+    // but the owner may have linked it to a TourismSite (e.g. "Serengeti National Park")
+    // and marked it as INSIDE/NEARBY. Resolve matching sites by name and surface those
+    // properties too, so searching "Serengeti" or "Ngorongoro" finds them.
+    try {
+      const matchingSites = await prisma.tourismSite.findMany({
+        where: { name: { contains: q } },
+        select: { id: true },
+      });
+      if (matchingSites.length > 0) {
+        where.OR.push({ tourismSiteId: { in: matchingSites.map((s) => s.id) } });
+      }
+    } catch (e: any) {
+      // Fail soft if the TourismSite table isn't migrated yet.
+      if (!(e instanceof Prisma.PrismaClientKnownRequestError && (e.code === "P2021" || e.code === "P2022"))) {
+        throw e;
+      }
+    }
   }
 
   if (region) {
@@ -1162,6 +1182,62 @@ const topCities: RequestHandler = async (req, res) => {
 };
 
 router.get("/top-cities", topCities);
+
+/**
+ * GET /api/public/properties/availability?ids=1,2,3&date=YYYY-MM-DD
+ * GET /api/public/properties/availability?ids=1&checkIn=YYYY-MM-DD&checkOut=YYYY-MM-DD&roomType=Single
+ * Returns rooms-available counts for a set of properties on a given day
+ * (or for a check-in/check-out range, optionally narrowed to a room type).
+ */
+router.get("/availability", (async (req, res) => {
+  const ids = String(req.query.ids || "")
+    .split(",")
+    .map((s) => parseInt(s.trim(), 10))
+    .filter((n) => !isNaN(n));
+  if (ids.length === 0) return res.status(400).json({ error: "invalid_ids" });
+
+  const dateParam = req.query.date ? String(req.query.date) : undefined;
+  const checkInParam = req.query.checkIn ? String(req.query.checkIn) : undefined;
+  const checkOutParam = req.query.checkOut ? String(req.query.checkOut) : undefined;
+  const roomType = req.query.roomType ? String(req.query.roomType) : undefined;
+
+  let startDate: Date;
+  let endDate: Date;
+  let dateLabel: string;
+
+  if (checkInParam && checkOutParam) {
+    startDate = new Date(`${checkInParam}T00:00:00.000Z`);
+    endDate = new Date(`${checkOutParam}T00:00:00.000Z`);
+    dateLabel = checkInParam;
+  } else if (dateParam) {
+    startDate = new Date(`${dateParam}T00:00:00.000Z`);
+    endDate = new Date(startDate.getTime() + 24 * 60 * 60 * 1000);
+    dateLabel = dateParam;
+  } else {
+    return res.status(400).json({ error: "missing_date" });
+  }
+
+  if (isNaN(startDate.getTime()) || isNaN(endDate.getTime()) || endDate <= startDate) {
+    return res.status(400).json({ error: "invalid_date" });
+  }
+
+  const items = await Promise.all(
+    ids.map(async (id) => {
+      try {
+        const result = await calculateAvailability(id, startDate, endDate, null, roomType);
+        return {
+          id,
+          roomsAvailable: result.summary.totalAvailableRooms,
+          totalRooms: result.summary.totalRooms,
+        };
+      } catch {
+        return { id, roomsAvailable: null, totalRooms: null };
+      }
+    })
+  );
+
+  return res.json({ date: dateLabel, items });
+}) as RequestHandler);
 
 /**
  * GET /api/public/properties/:id/booking-count

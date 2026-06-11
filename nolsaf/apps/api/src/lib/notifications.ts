@@ -39,6 +39,11 @@ export async function notifyAdmins(template: string, data: any) {
         body: `A new booking${data.bookingId ? ` #${data.bookingId}` : ""} has been created${data.propertyTitle ? ` for "${data.propertyTitle}"` : ""}${data.checkIn ? ` (check-in: ${data.checkIn})` : ""}.`
       },
 
+      group_stay_message: {
+        title: "Group Stay Follow-up",
+        body: `${data.customerName || "A customer"} sent a message on group stay #${data.groupBookingId}${data.messageType && data.messageType !== "General" ? ` (${data.messageType})` : ""}: "${data.message}"`
+      },
+
       payout_claim_submitted: {
         title: "Tour Payout Claim Submitted",
         body: `${data.operatorName ? `${data.operatorName} ` : "An operator "}submitted a payout claim for booking ${data.bookingCode || `#${data.tourBookingId}`}. Review it in the tour revenue dashboard.`
@@ -80,6 +85,8 @@ export async function notifyAdmins(template: string, data: any) {
               ? "careers"
             : template.startsWith("cancellation")
               ? "cancellation"
+              : template.startsWith("group_stay")
+                ? "booking"
               : template.startsWith("booking")
                 ? "booking"
                 : "property"
