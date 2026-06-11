@@ -1,12 +1,36 @@
 import { Router } from "express";
 import type { RequestHandler } from "express";
+import { z } from "zod";
 import { prisma } from "@nolsaf/prisma";
 import { AuthedRequest, requireAuth } from "../middleware/auth.js";
 import { limitPlanRequestMessages } from "../middleware/rateLimit.js";
 import { sanitizeText } from "../lib/sanitize.js";
+import { notifyAdmins } from "../lib/notifications.js";
+import { getAzamPayToken, invalidateAzamPayToken } from "../lib/azampay.auth.js";
+import {
+  normalizePhone,
+  azampayPost,
+  describeAzamPayResponseBody,
+  makePaymentRateLimiter,
+} from "../lib/azampay.helpers.js";
+import {
+  CORAL_UCF_API_URL,
+  coralPostJson64,
+  parseCoralInitiateResponse,
+} from "../lib/coralcommerce.helpers.js";
+import { loadGroupStayDepositReceipt } from "../lib/groupStayReceipts.js";
+import { signGroupStayReceiptToken } from "../lib/groupStayReceiptToken.js";
+import { getEffectiveCommissionPercent, roundMoney } from "../lib/accommodationPayout.js";
 
 export const router = Router();
 router.use(requireAuth as RequestHandler);
+
+// ── Rate limiter for deposit payment initiation ─────────────────────────────
+const depositPaymentLimiter = makePaymentRateLimiter({
+  windowMs: 10 * 60 * 1000,
+  limit: 4,
+  keyFn: (req: any) => `group-stay-deposit:${req.user?.id || req.ip || "anon"}`,
+});
 
 function coerceIdArray(value: unknown): number[] {
   if (!Array.isArray(value)) return [];
@@ -283,6 +307,9 @@ router.post("/:id/auction-confirm", async (req, res) => {
         status: true,
         recommendedPropertyIds: true,
         confirmedPropertyId: true,
+        checkIn: true,
+        checkOut: true,
+        roomsNeeded: true,
       },
     });
 
@@ -305,7 +332,11 @@ router.post("/:id/auction-confirm", async (req, res) => {
         status: { not: "WITHDRAWN" },
       },
       select: {
+        id: true,
         ownerId: true,
+        totalAmount: true,
+        currency: true,
+        property: { select: { services: true } },
       },
     });
 
@@ -314,18 +345,68 @@ router.post("/:id/auction-confirm", async (req, res) => {
     }
 
     const now = new Date();
+    const ownerAmount = Number(claim.totalAmount || 0);
+    const commissionPercent = await getEffectiveCommissionPercent(claim.property?.services);
+    const commissionAmount = roundMoney(ownerAmount * (commissionPercent / 100));
+    const totalAmount = roundMoney(ownerAmount + commissionAmount);
+    // Deposit = the platform's commission, collected upfront from the customer.
+    const depositAmount = totalAmount > 0 ? commissionAmount : null;
+
     await (prisma as any).groupBooking.update({
       where: { id: bookingId },
       data: {
         confirmedPropertyId: propertyId,
         propertyConfirmedAt: now,
-        status: "CONFIRMED",
+        status: "AWAITING_DEPOSIT",
         confirmedAt: now,
         assignedOwnerId: claim.ownerId,
         ownerAssignedAt: now,
         isOpenForClaims: false,
+        totalAmount,
+        ownerAmount,
+        commissionPercent,
+        currency: claim.currency,
+        depositAmount,
+        depositDueAt: new Date(now.getTime() + 24 * 60 * 60 * 1000),
       },
     });
+
+    // Mark the chosen claim as accepted and reject the other shortlisted offers
+    try {
+      await (prisma as any).groupBookingClaim.update({
+        where: { id: claim.id },
+        data: { status: "ACCEPTED", reviewedAt: now },
+      });
+      await (prisma as any).groupBookingClaim.updateMany({
+        where: {
+          groupBookingId: bookingId,
+          propertyId: { in: recommendedIds.filter((id) => id !== propertyId) },
+          status: "PENDING",
+        },
+        data: { status: "REJECTED", reviewedAt: now },
+      });
+    } catch {
+      // claim status updates are best-effort
+    }
+
+    // Block out the confirmed property's calendar for these dates so it can't be double-booked
+    if (booking.checkIn && booking.checkOut) {
+      try {
+        await (prisma as any).propertyAvailabilityBlock.create({
+          data: {
+            propertyId,
+            ownerId: claim.ownerId,
+            startDate: booking.checkIn,
+            endDate: booking.checkOut,
+            source: "GROUP_STAY",
+            notes: `Reserved for group stay request #${bookingId}`,
+            bedsBlocked: booking.roomsNeeded || 1,
+          },
+        });
+      } catch {
+        // availability block is best-effort; admins can reconcile manually if it fails
+      }
+    }
 
     try {
       await (prisma as any).groupBookingAudit.create({
@@ -336,6 +417,8 @@ router.post("/:id/auction-confirm", async (req, res) => {
           description: `Customer confirmed auction propertyId=${propertyId}`,
           metadata: {
             propertyId,
+            totalAmount,
+            depositAmount,
           },
           createdAt: now,
         },
@@ -344,10 +427,585 @@ router.post("/:id/auction-confirm", async (req, res) => {
       // audit is best-effort
     }
 
-    return res.json({ ok: true, bookingId, propertyId });
+    return res.json({ ok: true, bookingId, propertyId, totalAmount, depositAmount });
   } catch (error: any) {
     console.error("POST /customer/group-stays/:id/auction-confirm error:", error);
     return res.status(500).json({ error: "Failed to confirm auction offer" });
+  }
+});
+
+/**
+ * GET /api/customer/group-stays/:id/deposit-status
+ * Poll the deposit payment status for a group booking
+ */
+router.get("/:id/deposit-status", async (req, res) => {
+  try {
+    res.setHeader("Content-Type", "application/json");
+    const userId = (req as AuthedRequest).user!.id;
+    const bookingId = parseInt(String(req.params.id), 10);
+    if (!Number.isFinite(bookingId)) {
+      return res.status(400).json({ ok: false, error: "Invalid booking id" });
+    }
+
+    const booking = await prisma.groupBooking.findFirst({
+      where: { id: bookingId, userId },
+      select: {
+        status: true,
+        totalAmount: true,
+        ownerAmount: true,
+        commissionPercent: true,
+        currency: true,
+        depositAmount: true,
+        depositPaid: true,
+        depositPaidAt: true,
+        depositDueAt: true,
+      },
+    });
+
+    if (!booking) {
+      return res.status(404).json({ ok: false, error: "Group booking not found or access denied" });
+    }
+
+    return res.json({
+      ok: true,
+      status: booking.status,
+      totalAmount: booking.totalAmount != null ? Number(booking.totalAmount) : null,
+      ownerAmount: booking.ownerAmount != null ? Number(booking.ownerAmount) : null,
+      commissionPercent: booking.commissionPercent != null ? Number(booking.commissionPercent) : null,
+      currency: booking.currency,
+      depositAmount: booking.depositAmount != null ? Number(booking.depositAmount) : null,
+      depositPaid: booking.depositPaid,
+      depositPaidAt: booking.depositPaidAt,
+      depositDueAt: (booking as any).depositDueAt ?? null,
+    });
+  } catch (error: any) {
+    console.error("GET /customer/group-stays/:id/deposit-status error:", error);
+    return res.status(500).json({ ok: false, error: "Failed to load deposit status" });
+  }
+});
+
+/**
+ * GET /api/customer/group-stays/:id/deposit-receipt
+ * Download a PDF receipt for a paid group stay deposit.
+ */
+router.get("/:id/deposit-receipt", async (req, res) => {
+  try {
+    const userId = (req as AuthedRequest).user!.id;
+    const bookingId = parseInt(String(req.params.id), 10);
+    if (!Number.isFinite(bookingId)) {
+      return res.status(400).json({ ok: false, error: "Invalid booking id" });
+    }
+
+    const result = await loadGroupStayDepositReceipt(bookingId, userId);
+    if (!result.ok) {
+      return res.status(result.status).json({ ok: false, error: result.error, message: result.message });
+    }
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${result.filename}"`);
+    res.setHeader("Content-Length", String(result.buffer.length));
+    return res.send(result.buffer);
+  } catch (error: any) {
+    console.error("GET /customer/group-stays/:id/deposit-receipt error:", error);
+    return res.status(500).json({ ok: false, error: "Failed to generate deposit receipt" });
+  }
+});
+
+/**
+ * GET /api/customer/group-stays/:id/deposit-receipt-token
+ * Issue a short-lived token the mobile app can use to open the receipt PDF
+ * in the device browser/viewer (which cannot send an Authorization header).
+ */
+router.get("/:id/deposit-receipt-token", async (req, res) => {
+  try {
+    const userId = (req as AuthedRequest).user!.id;
+    const bookingId = parseInt(String(req.params.id), 10);
+    if (!Number.isFinite(bookingId)) {
+      return res.status(400).json({ ok: false, error: "Invalid booking id" });
+    }
+
+    const booking = await prisma.groupBooking.findFirst({
+      where: { id: bookingId, userId },
+      select: { id: true, depositPaid: true },
+    });
+    if (!booking) {
+      return res.status(404).json({ ok: false, error: "Group booking not found or access denied" });
+    }
+    if (!booking.depositPaid) {
+      return res.status(400).json({ ok: false, error: "deposit_not_paid", message: "No deposit payment has been recorded for this booking yet." });
+    }
+
+    const token = signGroupStayReceiptToken(booking.id, userId);
+    return res.json({ ok: true, token });
+  } catch (error: any) {
+    console.error("GET /customer/group-stays/:id/deposit-receipt-token error:", error);
+    return res.status(500).json({ ok: false, error: "Failed to issue receipt token" });
+  }
+});
+
+const initiateMnoSchema = z.object({
+  phoneNumber: z.string().min(9).max(15),
+  provider: z.enum(["Airtel", "Tigo", "Mpesa", "Halopesa"]).default("Airtel"),
+});
+
+const initiateBankSchema = z.object({
+  bankCode: z.enum(["CRDB", "NMB"]),
+  accountNumber: z.string().min(1).max(30).regex(/^[\w-]+$/).optional(),
+});
+
+async function loadAwaitingDepositBooking(bookingId: number, userId: number) {
+  const booking = await prisma.groupBooking.findFirst({
+    where: { id: bookingId, userId },
+    select: {
+      id: true,
+      status: true,
+      depositAmount: true,
+      depositPaid: true,
+      currency: true,
+      paymentRef: true,
+      depositDueAt: true,
+    },
+  });
+
+  if (!booking) {
+    return { ok: false, error: { status: 404, body: { ok: false, error: "not_found", message: "Group booking not found or access denied" } } } as const;
+  }
+  if (booking.status.toUpperCase() !== "AWAITING_DEPOSIT" || booking.depositPaid) {
+    return { ok: false, error: { status: 400, body: { ok: false, error: "not_awaiting_deposit", message: "This booking is not awaiting a deposit payment." } } } as const;
+  }
+  if ((booking as any).depositDueAt && new Date((booking as any).depositDueAt).getTime() < Date.now()) {
+    return { ok: false, error: { status: 400, body: { ok: false, error: "deposit_expired", message: "The deposit window for this offer has expired. Please request a new group stay offer." } } } as const;
+  }
+  const depositAmount = Math.round(Number(booking.depositAmount || 0));
+  if (!Number.isFinite(depositAmount) || depositAmount <= 0) {
+    return { ok: false, error: { status: 400, body: { ok: false, error: "invalid_amount", message: "This booking has no payable deposit amount." } } } as const;
+  }
+  const currency = booking.currency || "TZS";
+  if (currency !== "TZS") {
+    return { ok: false, error: { status: 400, body: { ok: false, error: "currency_not_supported", message: "Deposit payments are only available for TZS bookings." } } } as const;
+  }
+
+  return { ok: true, booking, depositAmount, currency } as const;
+}
+
+/**
+ * POST /api/customer/group-stays/:id/deposit/initiate-mno
+ * Start a mobile-money (AzamPay PostCheckout) deposit payment
+ */
+router.post("/:id/deposit/initiate-mno", depositPaymentLimiter, async (req, res) => {
+  try {
+    res.setHeader("Content-Type", "application/json");
+    const userId = (req as AuthedRequest).user!.id;
+    const bookingId = parseInt(String(req.params.id), 10);
+    if (!Number.isFinite(bookingId)) {
+      return res.status(400).json({ ok: false, error: "invalid_id" });
+    }
+
+    const parsed = initiateMnoSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      return res.status(400).json({ ok: false, error: "validation_error", details: parsed.error.flatten() });
+    }
+    const { phoneNumber, provider } = parsed.data;
+
+    const normalizedPhone = normalizePhone(phoneNumber);
+    if (!normalizedPhone) {
+      return res.status(400).json({
+        ok: false,
+        error: "invalid_phone",
+        message: "Please enter a valid Tanzanian phone number (e.g. +255712345678 or 0712345678).",
+      });
+    }
+
+    const result = await loadAwaitingDepositBooking(bookingId, userId);
+    if (!result.ok) {
+      return res.status(result.error.status).json(result.error.body);
+    }
+    const { booking, depositAmount, currency } = result;
+
+    const paymentRef = booking.paymentRef ?? `GBDEP-${booking.id}-${Date.now()}`;
+
+    const azampayBody = {
+      accountNumber: normalizedPhone,
+      amount: depositAmount.toString(),
+      currency,
+      externalId: paymentRef,
+      language: "SW",
+      provider,
+      additionalProperties: {
+        groupBookingId: booking.id.toString(),
+        kind: "GROUP_STAY_DEPOSIT",
+      },
+    };
+
+    let token: string;
+    try {
+      token = await getAzamPayToken();
+    } catch {
+      return res.status(503).json({ ok: false, error: "payment_unavailable", message: "Payment service temporarily unavailable." });
+    }
+
+    let apiRes = await azampayPost("/api/v1/Partner/PostCheckout", azampayBody, token);
+    if (apiRes.status === 401) {
+      await invalidateAzamPayToken();
+      try { token = await getAzamPayToken(); } catch { /* handled below */ }
+      apiRes = await azampayPost("/api/v1/Partner/PostCheckout", azampayBody, token!);
+    }
+
+    if (!apiRes.ok) {
+      console.error(`[GroupStayDeposit/MNO] Checkout HTTP ${apiRes.status} — body: ${apiRes.body.slice(0, 500)}`);
+      return res.status(502).json({ ok: false, error: "payment_failed", message: "Payment could not be initiated. Please try again." });
+    }
+
+    const responseSummary = describeAzamPayResponseBody(apiRes.body);
+    let azampayData: any = { transactionId: responseSummary.transactionId };
+    {
+      const trimmed = apiRes.body.trim();
+      if (!trimmed || trimmed.startsWith("https://") || trimmed.startsWith("http://")) {
+        // Empty 200 (push ack) OR sandbox debug URL — both mean "push sent"
+      } else {
+        try {
+          const parsed = JSON.parse(trimmed);
+          azampayData = { transactionId: parsed.transactionId ?? null };
+        } catch {
+          console.error(`[GroupStayDeposit/MNO] Non-JSON response HTTP ${apiRes.status} — body: ${trimmed.slice(0, 500)}`);
+          return res.status(502).json({ ok: false, error: "payment_failed", message: "Unexpected response from payment provider." });
+        }
+      }
+    }
+
+    await prisma.groupBooking.update({
+      where: { id: booking.id },
+      data: {
+        paymentRef: booking.paymentRef ?? paymentRef,
+        payerPhone: normalizedPhone,
+        paymentProvider: "AZAMPAY",
+        checkoutSessionId: azampayData.transactionId ?? null,
+      },
+    });
+
+    try {
+      await prisma.paymentEvent.create({
+        data: {
+          provider: "AZAMPAY",
+          eventId: azampayData.transactionId ?? `${paymentRef}-${Date.now()}`,
+          groupBookingId: booking.id,
+          amount: depositAmount,
+          currency,
+          status: "PENDING",
+          paymentChannel: "MNO",
+          phone: normalizedPhone,
+          payload: {
+            transactionId: azampayData.transactionId ?? null,
+            paymentRef,
+            phoneNumber: normalizedPhone,
+            provider,
+            azampayResponse: responseSummary,
+          },
+        },
+      });
+    } catch (dbErr: any) {
+      console.warn("[GroupStayDeposit/MNO] Failed to create PaymentEvent:", dbErr?.message ?? dbErr);
+    }
+
+    return res.json({
+      ok: true,
+      transactionId: azampayData.transactionId ?? paymentRef,
+      paymentRef,
+      status: "PENDING",
+    });
+  } catch (error: any) {
+    console.error("POST /customer/group-stays/:id/deposit/initiate-mno error:", error);
+    return res.status(500).json({ ok: false, error: "Failed to initiate deposit payment" });
+  }
+});
+
+/**
+ * POST /api/customer/group-stays/:id/deposit/initiate-bank
+ * Start a bank-transfer (AzamPay BankCheckout) deposit payment
+ */
+router.post("/:id/deposit/initiate-bank", depositPaymentLimiter, async (req, res) => {
+  try {
+    res.setHeader("Content-Type", "application/json");
+    const userId = (req as AuthedRequest).user!.id;
+    const bookingId = parseInt(String(req.params.id), 10);
+    if (!Number.isFinite(bookingId)) {
+      return res.status(400).json({ ok: false, error: "invalid_id" });
+    }
+
+    const parsed = initiateBankSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      return res.status(400).json({ ok: false, error: "validation_error", details: parsed.error.flatten() });
+    }
+    const { bankCode, accountNumber } = parsed.data;
+
+    const result = await loadAwaitingDepositBooking(bookingId, userId);
+    if (!result.ok) {
+      return res.status(result.error.status).json(result.error.body);
+    }
+    const { booking, depositAmount, currency } = result;
+
+    const paymentRef = booking.paymentRef ?? `GBDEP-BANK-${booking.id}-${Date.now()}`;
+
+    const azampayBody = {
+      amount: depositAmount.toString(),
+      currencyCode: currency,
+      merchantAccountNumber: accountNumber ?? "",
+      merchantMobileNumber: "",
+      merchantName: process.env.AZAMPAY_APP_NAME || "NoLSAF",
+      otp: "",
+      provider: bankCode,
+      referenceId: paymentRef,
+      additionalProperties: {
+        groupBookingId: booking.id.toString(),
+        kind: "GROUP_STAY_DEPOSIT",
+      },
+    };
+
+    let token: string;
+    try {
+      token = await getAzamPayToken();
+    } catch {
+      return res.status(503).json({ ok: false, error: "payment_unavailable", message: "Payment service temporarily unavailable." });
+    }
+
+    let apiRes = await azampayPost("/api/v1/Partner/BankCheckout", azampayBody, token);
+    if (apiRes.status === 401) {
+      await invalidateAzamPayToken();
+      try { token = await getAzamPayToken(); } catch { /* handled below */ }
+      apiRes = await azampayPost("/api/v1/Partner/BankCheckout", azampayBody, token!);
+    }
+    if (!apiRes.ok) {
+      console.error(`[GroupStayDeposit/Bank] Checkout HTTP ${apiRes.status} — body: ${apiRes.body.slice(0, 500)}`);
+      return res.status(502).json({ ok: false, error: "payment_failed", message: "Bank payment could not be initiated." });
+    }
+
+    let azampayData: any;
+    try {
+      azampayData = JSON.parse(apiRes.body);
+    } catch {
+      console.error(`[GroupStayDeposit/Bank] Non-JSON response HTTP ${apiRes.status} — body: ${apiRes.body.slice(0, 500) || "(empty)"}`);
+      return res.status(502).json({ ok: false, error: "payment_failed", message: "Unexpected response from payment provider." });
+    }
+
+    await prisma.groupBooking.update({
+      where: { id: booking.id },
+      data: {
+        paymentRef: booking.paymentRef ?? paymentRef,
+        paymentProvider: "AZAMPAY",
+        checkoutSessionId: azampayData.transactionId ?? null,
+      },
+    });
+
+    try {
+      await prisma.paymentEvent.create({
+        data: {
+          provider: "AZAMPAY",
+          eventId: azampayData.transactionId ?? `${paymentRef}-${Date.now()}`,
+          groupBookingId: booking.id,
+          amount: depositAmount,
+          currency,
+          status: "PENDING",
+          paymentChannel: "BANK",
+          payload: { transactionId: azampayData.transactionId ?? null, paymentRef, bankCode },
+        },
+      });
+    } catch (dbErr: any) {
+      console.warn("[GroupStayDeposit/Bank] Failed to create PaymentEvent:", dbErr?.message ?? dbErr);
+    }
+
+    return res.json({
+      ok: true,
+      transactionId: azampayData.transactionId ?? paymentRef,
+      paymentRef,
+      status: "PENDING",
+    });
+  } catch (error: any) {
+    console.error("POST /customer/group-stays/:id/deposit/initiate-bank error:", error);
+    return res.status(500).json({ ok: false, error: "Failed to initiate deposit payment" });
+  }
+});
+
+// ── CoralCommerce config helpers (per-route, mirrors public.tourBookings.ts) ──
+function truncate(value: string, max: number): string {
+  return value.length > max ? value.slice(0, max) : value;
+}
+
+function resolveCoralCurrency(value: string): "TZS" | "USD" {
+  const currency = String(value || "").trim().toUpperCase();
+  if (currency === "TZS" || currency === "USD") return currency;
+  const fallback = String(process.env.CORAL_UCF_CURRENCY || "").trim().toUpperCase();
+  if (fallback === "TZS" || fallback === "USD") return fallback;
+  return "TZS";
+}
+
+function requiredCoralConfig(): { username: string; password: string; alias: string; callbackUrl: string; successUrl: string; failureUrl: string } | null {
+  const username = process.env.CORAL_UCF_USERNAME;
+  const password = process.env.CORAL_UCF_PASSWORD;
+  const alias = process.env.CORAL_UCF_ALIAS;
+  const callbackUrl = process.env.CORAL_UCF_CALLBACK_URL;
+  const successUrl = process.env.CORAL_UCF_POSTBACK_SUCCESS_URL;
+  const failureUrl = process.env.CORAL_UCF_POSTBACK_FAILURE_URL || successUrl;
+  const missing = [
+    !username && "CORAL_UCF_USERNAME",
+    !password && "CORAL_UCF_PASSWORD",
+    !alias && "CORAL_UCF_ALIAS",
+    !callbackUrl && "CORAL_UCF_CALLBACK_URL",
+    !successUrl && "CORAL_UCF_POSTBACK_SUCCESS_URL",
+  ].filter(Boolean);
+
+  if (missing.length) {
+    console.error(`[GroupStayDeposit/Card] CoralCommerce not configured; missing ${missing.join(", ")}`);
+    return null;
+  }
+
+  return { username: username!, password: password!, alias: alias!, callbackUrl: callbackUrl!, successUrl: successUrl!, failureUrl: failureUrl! };
+}
+
+/**
+ * POST /api/customer/group-stays/:id/deposit/initiate-card
+ * Start a CoralCommerce card checkout for the deposit payment
+ */
+router.post("/:id/deposit/initiate-card", depositPaymentLimiter, async (req, res) => {
+  try {
+    res.setHeader("Content-Type", "application/json");
+    const userId = (req as AuthedRequest).user!.id;
+    const bookingId = parseInt(String(req.params.id), 10);
+    if (!Number.isFinite(bookingId)) {
+      return res.status(400).json({ ok: false, error: "invalid_id" });
+    }
+
+    const coralConfig = requiredCoralConfig();
+    if (!coralConfig) {
+      return res.status(503).json({ ok: false, error: "payment_unavailable", message: "Card payments are not configured." });
+    }
+
+    const result = await loadAwaitingDepositBooking(bookingId, userId);
+    if (!result.ok) {
+      return res.status(result.error.status).json(result.error.body);
+    }
+    const { booking, depositAmount, currency } = result;
+
+    const paymentRef = booking.paymentRef ?? `GBDEP-CARD-${booking.id}-${Date.now()}`;
+    const coralCurrency = resolveCoralCurrency(currency);
+
+    const postbackParams = new URLSearchParams({
+      kind: "group_stay_deposit",
+      groupBookingId: String(booking.id),
+    });
+    const successUrl = `${coralConfig.successUrl}${coralConfig.successUrl.includes("?") ? "&" : "?"}${postbackParams.toString()}`;
+    const failureUrl = `${coralConfig.failureUrl}${coralConfig.failureUrl.includes("?") ? "&" : "?"}${postbackParams.toString()}`;
+
+    const coralBody = {
+      Transaction: {
+        Version: "3.16",
+        Username: coralConfig.username,
+        Password: coralConfig.password,
+        Destination: "ucfurl",
+        Submission: { Number: 1, Stamp: truncate(paymentRef, 40) },
+        Identifier: paymentRef,
+        Alias: coralConfig.alias,
+        Currency: coralCurrency,
+        Order: {
+          Products: [
+            {
+              ID: 1,
+              Code: "GROUPSTAY",
+              Description: truncate(`NoLSAF group stay deposit #${booking.id}`, 100),
+              Price: depositAmount,
+              Quantity: 1,
+              VAT: 0,
+              SubTotal: depositAmount,
+            },
+          ],
+          Delivery: { Auto: true },
+          ProductTotal: depositAmount,
+        },
+        UCF: {
+          CustomerFullName: "NoLSAF Guest",
+          CustomerEmail: "",
+          CustomerMobile: "",
+          CallbackUrl: coralConfig.callbackUrl,
+          CallbackFormat: "json",
+          CallbackMethod: "post",
+          CallbackVar: "UCFCallback",
+          TransactionType: "03",
+          PostBackSuccessUrl: successUrl,
+          PostBackFailureUrl: failureUrl,
+          DisplayOrderSummary: "true",
+        },
+      },
+    };
+
+    let apiRes;
+    try {
+      apiRes = await coralPostJson64(coralBody);
+    } catch (err: any) {
+      console.error("[GroupStayDeposit/Card] CoralCommerce request failed:", err?.message ?? "unknown");
+      return res.status(503).json({ ok: false, error: "payment_unavailable", message: "Payment service temporarily unavailable." });
+    }
+    if (!apiRes.ok) {
+      console.error(`[GroupStayDeposit/Card] CoralCommerce HTTP ${apiRes.status} via ${CORAL_UCF_API_URL} - body: ${apiRes.body.slice(0, 500)}`);
+      return res.status(502).json({ ok: false, error: "payment_failed", message: "Card payment could not be initiated." });
+    }
+
+    let coralResult;
+    try { coralResult = parseCoralInitiateResponse(apiRes.body); }
+    catch {
+      console.error(`[GroupStayDeposit/Card] CoralCommerce non-JSON response HTTP ${apiRes.status} - body: ${apiRes.body.slice(0, 500) || "(empty)"}`);
+      return res.status(502).json({ ok: false, error: "payment_failed", message: "Unexpected response from payment provider." });
+    }
+
+    const checkoutUrl = coralResult.redirectUrl;
+    if (coralResult.code !== "000" || !checkoutUrl) {
+      console.error("[GroupStayDeposit/Card] CoralCommerce initiation rejected", JSON.stringify({
+        groupBookingId: booking.id,
+        paymentRef,
+        code: coralResult.code,
+        message: coralResult.message,
+        zone: coralResult.zone,
+      }));
+      return res.status(502).json({ ok: false, error: "payment_failed", message: coralResult.message || "Card payment could not be initiated." });
+    }
+
+    await prisma.groupBooking.update({
+      where: { id: booking.id },
+      data: {
+        paymentRef: booking.paymentRef ?? paymentRef,
+        paymentProvider: "CORALCOMMERCE",
+        checkoutSessionId: truncate(paymentRef, 120),
+      },
+    });
+
+    try {
+      await prisma.paymentEvent.upsert({
+        where: { eventId: `CORAL-GBDEP-${paymentRef}` },
+        update: {
+          status: "PENDING",
+          checkoutUrl: checkoutUrl.slice(0, 2048),
+          rawStatus: null,
+          payload: { paymentRef, apiUrl: CORAL_UCF_API_URL },
+        },
+        create: {
+          provider: "CORALCOMMERCE",
+          eventId: `CORAL-GBDEP-${paymentRef}`,
+          groupBookingId: booking.id,
+          amount: depositAmount,
+          currency: coralCurrency,
+          status: "PENDING",
+          paymentChannel: "CARD",
+          checkoutUrl: checkoutUrl.slice(0, 2048),
+          rawStatus: null,
+          payload: { paymentRef, apiUrl: CORAL_UCF_API_URL },
+        },
+      });
+    } catch (dbErr: any) {
+      console.warn("[GroupStayDeposit/Card] Failed to create PaymentEvent:", dbErr?.message ?? dbErr);
+    }
+
+    return res.json({ ok: true, transactionId: paymentRef, paymentRef, checkoutUrl, status: "PENDING" });
+  } catch (error: any) {
+    console.error("POST /customer/group-stays/:id/deposit/initiate-card error:", error);
+    return res.status(500).json({ ok: false, error: "Failed to initiate deposit payment" });
   }
 });
 
@@ -423,6 +1081,14 @@ router.post("/:id/message", limitPlanRequestMessages, (async (req: AuthedRequest
       data: {
         updatedAt: new Date(),
       },
+    });
+
+    // Notify admins so they can follow up on the customer's question
+    void notifyAdmins("group_stay_message", {
+      groupBookingId: bookingId,
+      customerName: user.name || user.email || "A customer",
+      messageType: sanitizedMessageType,
+      message: sanitizedMessage,
     });
 
     // Create audit log entry

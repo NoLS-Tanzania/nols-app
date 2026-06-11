@@ -22,7 +22,7 @@ import {
 import { z } from "zod";
 
 const AUTO_RECEIVED_MESSAGE =
-  "Thank you for your interest in using NoLSaf for your group stay! We have received your booking request and our team is currently reviewing it. We will get back to you soon with accommodation options and pricing tailored to your group's needs. We appreciate your patience!";
+  "Thanks for posting your group stay request on NoLSAF! It is now open for verified property owners in your destination area to bid with their best offers. Our team is reviewing the responses and will share the top picks here so you can pick the one that suits your group best. We appreciate your patience!";
 
 const router = Router();
 

@@ -831,12 +831,32 @@ model GroupBooking {
   openedForClaimsAt     DateTime?
 
   // ==================== Status & Financial ====================
-  /// Booking status: PENDING, CONFIRMED, PROCESSING, CANCELED, COMPLETED
+  /// Booking status: PENDING, AWAITING_DEPOSIT, CONFIRMED, PROCESSING, CANCELED, COMPLETED
   status      String   @default("PENDING")
   /// Total estimated or confirmed amount for the booking
   totalAmount Decimal? @db.Decimal(12, 2)
   /// Currency code (default: TZS)
   currency    String   @default("TZS")
+  /// Deposit amount required to confirm the booking (10% of totalAmount)
+  depositAmount Decimal? @db.Decimal(12, 2)
+  /// Whether the deposit has been paid
+  depositPaid   Boolean  @default(false)
+  /// Timestamp when the deposit was paid
+  depositPaidAt DateTime?
+  /// Deadline to pay the deposit before the offer expires (set to 24h after AWAITING_DEPOSIT)
+  depositDueAt  DateTime?
+  /// Owner's payout amount for this stay (their offered/discounted total, before commission markup)
+  ownerAmount       Decimal? @db.Decimal(12, 2)
+  /// Commission percentage applied on top of ownerAmount to derive totalAmount (snapshot at confirm time)
+  commissionPercent Decimal? @db.Decimal(5, 2)
+  /// Gateway merchant reference for the deposit payment (set when payment is initiated)
+  paymentRef        String? @unique @db.VarChar(80)
+  /// AzamPay transactionId for the deposit checkout
+  checkoutSessionId String? @unique @db.VarChar(120)
+  /// Phone number used to pay the deposit
+  payerPhone        String? @db.VarChar(40)
+  /// Payment provider used for the deposit (e.g. AZAMPAY)
+  paymentProvider   String? @db.VarChar(40)
 
   // ==================== Administrative Notes ====================
   /// Internal admin notes about this booking
@@ -869,6 +889,8 @@ model GroupBooking {
   messages   GroupBookingMessage[]
   /// Owner claims/offers for this group stay
   claims     GroupBookingClaim[]
+  /// Payment events for the deposit
+  paymentEvents PaymentEvent[]
 
   // ==================== Indexes ====================
   @@index([userId])
@@ -1905,6 +1927,9 @@ model PaymentEvent {
   /// Tour booking this payment event is associated with
   tourBookingId Int?
 
+  /// Group booking this payment event is associated with (deposit payments)
+  groupBookingId Int?
+
   /// Payment amount
   amount Decimal @db.Decimal(12, 2)
 
@@ -1936,13 +1961,15 @@ model PaymentEvent {
   updatedAt DateTime @updatedAt
 
   // Relations
-  invoice     Invoice?     @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
-  tourBooking TourBooking? @relation(fields: [tourBookingId], references: [id], onDelete: SetNull)
+  invoice      Invoice?      @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  tourBooking  TourBooking?  @relation(fields: [tourBookingId], references: [id], onDelete: SetNull)
+  groupBooking GroupBooking? @relation(fields: [groupBookingId], references: [id], onDelete: SetNull)
 
   @@index([provider])
   @@index([eventId])
   @@index([invoiceId])
   @@index([tourBookingId])
+  @@index([groupBookingId])
   @@index([status])
   @@index([createdAt])
   @@index([paymentChannel])

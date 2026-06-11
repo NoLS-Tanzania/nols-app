@@ -240,8 +240,8 @@ export const GroupBookingQueryInput = z.object({
   region: z.string().optional(),
   dateFrom: z.string().datetime().optional(),
   dateTo: z.string().datetime().optional(),
-  page: z.number().int().positive().default(1),
-  pageSize: z.number().int().min(1).max(100).default(20),
+  page: z.coerce.number().int().positive().default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
 });
 
 // ==================== Type Exports ====================
