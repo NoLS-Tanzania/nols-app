@@ -1,0 +1,48 @@
+{
+  "expo": {
+    "name": "NoLSAF",
+    "slug": "nolsaf",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "nolsaf",
+    "splash": {
+      "backgroundColor": "#012a26",
+      "resizeMode": "contain"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.nolsaf.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "NoLSAF uses your location to set your pickup point so a driver can collect you and bring you to your booked stay."
+      }
+    },
+    "android": {
+      "package": "com.nolsaf.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#02665e"
+      },
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "NoLSAF uses your location to set your pickup point so a driver can collect you and bring you to your booked stay."
+        }
+      ],
+      "expo-web-browser"
+    ],
+    "extra": {
+      "apiUrl": "${EXPO_PUBLIC_API_URL}",
+      "socketUrl": "${EXPO_PUBLIC_SOCKET_URL}"
+    }
+  }
+}

@@ -6,7 +6,8 @@
   "workspaces": [
     "apps/api",
     "apps/web",
-    "packages/*"
+    "packages/*",
+    "apps/mobile"
   ],
   "devDependencies": {
     "@prisma/adapter-mariadb": "^7.3.0",
