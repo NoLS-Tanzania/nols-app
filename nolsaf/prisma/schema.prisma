@@ -3027,3 +3027,36 @@ model TripDestination {
   @@index([isActive, popularity])
   @@map("trip_destinations")
 }
+
+// =========================================================
+//  TRANSPORT PICKUP POINT MODEL - Airports, bus terminals,
+//  ferry ports and train stations used as pickup locations
+// =========================================================
+model TransportPickupPoint {
+  id          Int      @id @default(autoincrement())
+  /// Stable unique code, e.g. JNIA, BUS_UBUNGO, FERRY_KIVUKONI
+  code        String   @unique @db.VarChar(64)
+  /// Full display name
+  name        String   @db.VarChar(200)
+  /// Short label for compact UI lists
+  shortLabel  String   @db.VarChar(120)
+  city        String   @db.VarChar(120)
+  /// airport | bus_terminal | ferry_port | train_station
+  category    String   @db.VarChar(20)
+  /// FLIGHT | BUS | FERRY | TRAIN
+  arrivalType String   @db.VarChar(20)
+  latitude    Decimal  @db.Decimal(10, 6)
+  longitude   Decimal  @db.Decimal(10, 6)
+  /// IATA code for airports
+  iataCode    String?  @db.VarChar(8)
+  /// Coordinates confirmed against a trusted source
+  verified    Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isActive, category])
+  @@index([city])
+  @@map("transport_pickup_points")
+}
