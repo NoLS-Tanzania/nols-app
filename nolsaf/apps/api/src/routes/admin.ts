@@ -36,6 +36,7 @@ import adminOwnersRouter from "./admin.owners.js";
 import adminObservabilityRouter from "./admin.observability";
 import adminPaymentsRouter from "./admin.payments";
 import adminPerformanceHighlightsRouter from "./admin.performance.highlights";
+import adminPickupPointsRouter from "./admin.pickupPoints";
 import adminPlanWithUsRequestsRouter from "./admin.planWithUs.requests";
 import adminPlanWithUsSummaryRouter from "./admin.planWithUs.summary";
 import adminPodcastsRouter from "./admin.podcasts";
@@ -145,6 +146,7 @@ export function registerAdminPostPaymentRoutes(app: Express): void {
   app.use("/api/admin/observability", requireRole("ADMIN") as RequestHandler, adminObservabilityRouter as RequestHandler);
   app.use("/api/admin/cancellations", requireRole("ADMIN") as RequestHandler, adminCancellationsRouter as RequestHandler);
   app.use("/api/admin/no4p-otp", requireRole("ADMIN") as RequestHandler, adminNo4pOtpRouter as RequestHandler);
+  app.use("/api/admin/pickup-points", requireRole("ADMIN") as RequestHandler, adminPickupPointsRouter as RequestHandler);
   app.use("/api/admin/updates", adminUpdatesRouter as RequestHandler);
   app.use("/api/admin/podcasts", adminPodcastsRouter as RequestHandler);
   app.use("/admin/contracts/templates", adminContractTemplatesRouter as RequestHandler);

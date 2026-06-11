@@ -11,6 +11,7 @@ import publicGroupStayReceiptRouter from "./public.groupStayReceipt";
 import publicInvoicesRouter from "./public.invoices";
 import publicNolScopeRouter from "./public.nolscope";
 import publicAgentsRouter from "./public.agents";
+import publicPickupPointsRouter from "./public.pickupPoints";
 import publicPlanRequestRouter from "./public.planRequest";
 import publicPodcastsRouter from "./public.podcasts";
 import publicPropertiesRouter from "./public.properties";
@@ -40,6 +41,7 @@ export function registerPublicContentRoutes(app: Express): void {
   app.use("/api/public/invoices", publicInvoicesRouter);
   app.use("/api/public/reports", publicReportsRouter);
   app.use("/api/public/group-stays/receipt", publicGroupStayReceiptRouter);
+  app.use("/api/public/pickup-points", publicPickupPointsRouter);
   app.use("/api/public/properties", publicPropertiesRouter);
   app.use("/api/public/tourism-sites", publicTourismSitesRouter);
   app.use("/api/public/nolscope", publicNolScopeRouter);
