@@ -6,11 +6,12 @@ import { z } from "zod";
 import { prisma } from "@nolsaf/prisma";
 import { rateLimitWithRedis as rateLimit } from "../lib/redisRateLimitStore.js";
 import { AVAILABILITY_BLOCKING_BOOKING_STATUSES } from "../lib/bookingStatus.js";
+import { filterPayableAvailabilityBlocks } from "../lib/groupStayAvailabilityBlocks.js";
 
 export const router = Router();
 
 const availabilityCache = new Map<string, { expiresAt: number; payload: any }>();
-const availabilityCacheTtlMs = 15_000;
+const availabilityCacheTtlMs = 0;
 const maxAvailabilityCacheEntries = 500;
 
 /** Derive room-type key from roomCode (e.g. "Suite-1" -> "Suite", "Suite" -> "Suite") */
@@ -158,7 +159,7 @@ router.post("/check", availabilityLimiter, (async (req: Request, res: Response) 
     });
 
     // Get all availability blocks that overlap with the requested dates
-    const availabilityBlocks = await prisma.propertyAvailabilityBlock.findMany({
+    const rawAvailabilityBlocks = await prisma.propertyAvailabilityBlock.findMany({
       where: {
         propertyId,
         AND: [
@@ -178,8 +179,10 @@ router.post("/check", availabilityLimiter, (async (req: Request, res: Response) 
         roomCode: true,
         bedsBlocked: true,
         source: true,
+        notes: true,
       },
     });
+    const availabilityBlocks = await filterPayableAvailabilityBlocks(rawAvailabilityBlocks);
 
     // Parse roomsSpec to get room types and their capacities.
     // Supports multiple shapes across the app: {code, rooms, beds} or {roomType, roomsCount, beds} etc.

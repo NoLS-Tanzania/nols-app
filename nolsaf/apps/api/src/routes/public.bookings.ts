@@ -13,6 +13,7 @@ import { maybeAuth } from "../middleware/auth.js";
 import { AUTO_DISPATCH_LOOKAHEAD_MS, MIN_TRANSPORT_LEAD_MS } from "../lib/transportPolicy.js";
 import { generateTransportTripCode } from "../lib/tripCode.js";
 import { AVAILABILITY_BLOCKING_BOOKING_STATUSES } from "../lib/bookingStatus.js";
+import { filterPayableAvailabilityBlocks } from "../lib/groupStayAvailabilityBlocks.js";
 
 /** Sign a short-lived token proving the caller created this booking. */
 function signBookingAccessToken(bookingId: number): string {
@@ -56,6 +57,22 @@ async function getEffectiveCommissionPercent(params: { propertyServices: unknown
   } catch {
     return 0;
   }
+}
+
+function formatBlockSourceSummary(blocks: Array<{ source?: string | null }>): string | null {
+  const labels = new Map<string, string>();
+  for (const block of blocks) {
+    const source = String(block.source || "OTHER").toUpperCase();
+    if (source === "GROUP_STAY") labels.set(source, "confirmed group-stay reservations");
+    else if (source === "AIRBNB") labels.set(source, "Airbnb reservations");
+    else if (source === "BOOKING_COM") labels.set(source, "Booking.com reservations");
+    else if (source === "WALK_IN") labels.set(source, "walk-in reservations");
+    else labels.set(source, "external reservations");
+  }
+  const unique = Array.from(labels.values());
+  if (!unique.length) return null;
+  if (unique.length === 1) return `Availability is held by ${unique[0]}`;
+  return `Availability is held by ${unique.slice(0, -1).join(", ")} and ${unique[unique.length - 1]}`;
 }
 
 function roundMoney(value: number): number {
@@ -498,7 +515,7 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
       });
 
       // Check availability blocks (external bookings); fetch all overlapping to count by room TYPE
-      const conflictingBlocks = await tx.propertyAvailabilityBlock.findMany({
+      const rawConflictingBlocks = await tx.propertyAvailabilityBlock.findMany({
         where: {
           propertyId: data.propertyId,
           AND: [
@@ -513,8 +530,10 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
           roomCode: true,
           source: true,
           bedsBlocked: true,
+          notes: true,
         },
       });
+      const conflictingBlocks = await filterPayableAvailabilityBlocks(rawConflictingBlocks, tx as any);
 
       // Parse roomsSpec to get room types and their capacities
       let roomTypes: Array<{ code?: string; roomCode?: string; name?: string; beds?: number; rooms?: number; roomsCount?: number }> = [];
@@ -705,8 +724,8 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
         conflictReasons.push(`${availabilityCheck.conflictingBookings.length} existing booking(s)`);
       }
       if (availabilityCheck.conflictingBlocks && availabilityCheck.conflictingBlocks.length > 0) {
-        const sources = availabilityCheck.conflictingBlocks.map((b: any) => b.source || "external").join(", ");
-        conflictReasons.push(`Blocked by external booking(s) from: ${sources}`);
+        const blockSummary = formatBlockSourceSummary(availabilityCheck.conflictingBlocks);
+        if (blockSummary) conflictReasons.push(blockSummary);
       }
 
       const availableRooms = Number.isFinite(availabilityCheck.totalAvailableRooms as any) ? (availabilityCheck.totalAvailableRooms as any) : 0;
@@ -730,7 +749,7 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
       })();
       return res.status(409).json({
         error: "Property not available for selected dates",
-        message: `${leading}${typeMsg} ${conflictReasons.join(". ")}. Available: ${availableRooms} rooms, ${availableBeds} beds.`,
+        message: [leading + typeMsg, ...conflictReasons, `Available: ${availableRooms} rooms, ${availableBeds} beds.`].filter(Boolean).join(" "),
         selectedRoomType: selType,
         availableForSelectedType: selAvail,
         requestId,
@@ -921,12 +940,13 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
         },
       });
 
-      const finalConflictingBlocks = await tx.propertyAvailabilityBlock.findMany({
+      const rawFinalConflictingBlocks = await tx.propertyAvailabilityBlock.findMany({
         where: {
           propertyId: data.propertyId,
           AND: [{ startDate: { lt: checkOut } }, { endDate: { gt: checkIn } }],
         },
       });
+      const finalConflictingBlocks = await filterPayableAvailabilityBlocks(rawFinalConflictingBlocks, tx as any);
 
       // Fetch property to check capacity (matching availability checker logic)
       const propertyForFinalCheck = await tx.property.findUnique({

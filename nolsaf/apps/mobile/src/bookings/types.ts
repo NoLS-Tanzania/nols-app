@@ -17,10 +17,29 @@ export type BookingListItem = {
   checkOut: string | null;
   status: string;
   totalAmount: number | null;
+  roomType?: string | null;
+  rooms?: number | null;
   isValid: boolean;
   isPaid: boolean;
   bookingCode: string | null;
+  codeStatus?: string | null;
+  invoice?: {
+    id: number;
+    invoiceNumber?: string | null;
+    receiptNumber?: string | null;
+    status?: string | null;
+    total?: number | null;
+    netPayable?: number | null;
+    paidAt?: string | null;
+  } | null;
   dashboardBucket: "PAID" | "DRAFT";
+  draftExpiresAt?: string | null;
+  draftExpiryStatus?: "ACTIVE" | "EXPIRED" | string | null;
+  invoiceId?: number | null;
+  invoiceAccessToken?: string | null;
+  draftAvailability?: InvoiceDraftAvailability | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
 };
 
 export type BookingListResponse = {
