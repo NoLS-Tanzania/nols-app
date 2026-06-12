@@ -109,6 +109,9 @@ model User {
   referredBy   Int? // Driver who referred this user
   referralCode String? // Referral code used
 
+  /// Per-user notification preferences, e.g. { "bookings": true, "promotions": false, "referrals": true }
+  notificationPrefs Json?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

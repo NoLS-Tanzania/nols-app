@@ -52,6 +52,7 @@ type SavedPropertyWithRelations = {
     ward: string | null;
     basePrice: any;
     currency: string | null;
+    services: any;
     photos: any;
     images?: Array<{ url: string | null }>;
   };
@@ -67,6 +68,7 @@ type PropertyItem = {
   primaryImage: string | null;
   basePrice: number | null;
   currency: string | null;
+  services: unknown;
   savedAt: string;
   sharedAt: string | null;
 };
@@ -119,6 +121,7 @@ function transformSavedPropertyToItem(
     primaryImage,
     basePrice: sp.property.basePrice ? Number(sp.property.basePrice) : null,
     currency: sp.property.currency,
+    services: sp.property.services ?? null,
     savedAt: sp.savedAt.toISOString(),
     sharedAt: sp.sharedAt?.toISOString() || null,
   };
@@ -153,6 +156,7 @@ async function fetchSavedProperties(
             ward: true,
             basePrice: true,
             currency: true,
+            services: true,
             photos: true,
             images: {
               where: { status: "READY" },

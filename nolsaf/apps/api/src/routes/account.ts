@@ -6,12 +6,21 @@ import { AuthedRequest, requireAuth } from "../middleware/auth.js";
 import { audit } from "../lib/audit.js";
 import { hashPassword, verifyPassword, encrypt, decrypt, hashCode, verifyCode } from "../lib/crypto.js";
 import { hashCode as hashOtpCode } from "../lib/otp.js";
-import { validatePasswordStrength, isPasswordReused, addPasswordToHistory } from "../lib/security.js";
+import { validatePasswordStrength, isPasswordReused, addPasswordToHistory, getPasswordChangeCooldownRemaining, recordPasswordChangeSuccess } from "../lib/security.js";
 import { validatePasswordWithSettings } from "../lib/securitySettings.js";
 import { authenticator } from "otplib";
 import QRCode from "qrcode";
 import { rateLimitWithRedis as rateLimit } from "../lib/redisRateLimitStore.js";
+import { limitContactChangeOtp } from "../middleware/rateLimit.js";
 import { sendSms } from "../lib/sms.js";
+import { sendMail, SECURITY_EMAIL_FROM } from "../lib/mailer.js";
+import {
+  generateOtp as generateContactChangeOtp,
+  storeContactChangeOtp,
+  getContactChangeOtpEntry,
+  deleteContactChangeOtp,
+  verifyContactChangeOtp,
+} from "../lib/contactChangeOtp.js";
 import { isAllowedDocumentTypeForRole, isTrustedUserDocumentUrl } from "../lib/userDocumentSecurity.js";
 import { getRedis } from "../lib/redis.js";
 import { invalidateAuthSessionCacheForUser } from "../lib/authSessionCache.js";
@@ -101,14 +110,27 @@ function getUserId(req: AuthedRequest): number {
 }
 
 // Zod Validation Schemas
+// NOTE: `phone` and `email` are intentionally NOT part of this schema. Changing either
+// requires verifying ownership of the new destination via /account/contact/* below —
+// see requestContactChange / confirmContactChange.
 const updateProfileSchema = z.object({
   fullName: z.string().min(1).max(160).optional(),
   name: z.string().min(1).max(160).optional(),
-  phone: z.string().regex(/^\+?[1-9]\d{1,14}$/).optional(),
-  email: z.string().email().max(190).optional(),
   avatarUrl: z.string().url().max(500).optional(),
   tin: z.string().max(50).optional(),
   address: z.string().max(500).optional(),
+  gender: z.string().max(20).optional(),
+  nationality: z.string().max(80).optional(),
+}).strict();
+
+const requestContactChangeSchema = z.object({
+  field: z.enum(["phone", "email"]),
+  value: z.string().min(1).max(190),
+}).strict();
+
+const confirmContactChangeSchema = z.object({
+  field: z.enum(["phone", "email"]),
+  otp: z.string().min(4).max(8),
 }).strict();
 
 const updatePayoutsSchema = z.object({
@@ -131,7 +153,6 @@ interface PasswordChangeAttempt {
   failures: number;
   lastFailure: number;
   lockedUntil: number | null;
-  lastSuccess: number | null;
 }
 
 const passwordChangeAttempts = new Map<number, PasswordChangeAttempt>();
@@ -139,7 +160,7 @@ const passwordChangeAttempts = new Map<number, PasswordChangeAttempt>();
 // Get or create attempt tracker for user
 function getPasswordChangeAttempt(userId: number): PasswordChangeAttempt {
   if (!passwordChangeAttempts.has(userId)) {
-    passwordChangeAttempts.set(userId, { failures: 0, lastFailure: 0, lockedUntil: null, lastSuccess: null });
+    passwordChangeAttempts.set(userId, { failures: 0, lastFailure: 0, lockedUntil: null });
   }
   return passwordChangeAttempts.get(userId)!;
 }
@@ -153,7 +174,7 @@ setInterval(() => {
       attempt.lockedUntil = null;
     }
     // Remove entries with no recent activity (older than 1 hour)
-    if (!attempt.lockedUntil && now - attempt.lastFailure > 3600000 && (!attempt.lastSuccess || now - attempt.lastSuccess > 3600000)) {
+    if (!attempt.lockedUntil && now - attempt.lastFailure > 3600000) {
       passwordChangeAttempts.delete(userId);
     }
   }
@@ -320,6 +341,8 @@ const getMe: RequestHandler = async (req, res) => {
     if (hasField('dateOfBirth')) select.dateOfBirth = true;
     if (hasField('region')) select.region = true;
     if (hasField('district')) select.district = true;
+    if (hasField('gender')) select.gender = true;
+    if (hasField('nationality')) select.nationality = true;
     // Always try to include payout (like tin and address)
     select.payout = true;
 
@@ -751,8 +774,6 @@ const updateProfile: RequestHandler = async (req, res) => {
     const updateData: any = {};
     if (data.fullName !== undefined) updateData.fullName = data.fullName;
     if (data.name !== undefined) updateData.name = data.name;
-    if (data.phone !== undefined) updateData.phone = data.phone;
-    if (data.email !== undefined) updateData.email = data.email;
     if (data.avatarUrl !== undefined) updateData.avatarUrl = data.avatarUrl;
     // Always try to save tin and address if provided
     if (data.tin !== undefined) {
@@ -760,6 +781,12 @@ const updateProfile: RequestHandler = async (req, res) => {
     }
     if (data.address !== undefined) {
       updateData.address = data.address;
+    }
+    if (data.gender !== undefined) {
+      updateData.gender = data.gender;
+    }
+    if (data.nationality !== undefined) {
+      updateData.nationality = data.nationality;
     }
 
     const extractUnknownArg = (err: any): string | null => {
@@ -814,6 +841,166 @@ const updateProfile: RequestHandler = async (req, res) => {
   }
 };
 router.put("/profile", updateProfile as unknown as RequestHandler);
+
+function contactChangeOtpEmailHtml(otp: string): string {
+  return [
+    '<div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:0 auto;padding:24px;">',
+    '<h2 style="color:#02665e;margin:0 0 12px;">Confirm your new email</h2>',
+    '<p style="color:#334155;font-size:14px;">Use this code to confirm this email address for your NoLSAF account. It expires in 5 minutes.</p>',
+    `<p style="font-size:32px;font-weight:bold;letter-spacing:8px;color:#0f172a;background:#f1f5f9;border-radius:12px;padding:16px;text-align:center;">${otp}</p>`,
+    '<p style="color:#64748b;font-size:12px;">If you did not request this change, you can safely ignore this email — your account will not be affected.</p>',
+    '</div>',
+  ].join('');
+}
+
+const FIELD_REGEX: Record<"phone" | "email", RegExp> = {
+  phone: /^\+?[1-9]\d{1,14}$/,
+  email: /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/,
+};
+
+const FIELD_LABEL: Record<"phone" | "email", string> = {
+  phone: "phone number",
+  email: "email address",
+};
+
+/**
+ * POST /account/contact/request-change
+ * Sends a one-time code to the NEW phone/email so the authenticated user can prove
+ * they own it before it replaces their current verified contact destination.
+ */
+const requestContactChange: RequestHandler = async (req, res) => {
+  try {
+    const userId = getUserId(req as AuthedRequest);
+    const validationResult = requestContactChangeSchema.safeParse(req.body);
+    if (!validationResult.success) {
+      return sendError(res, 400, "Invalid input", validationResult.error.issues);
+    }
+    const { field } = validationResult.data;
+    const value = field === "email" ? validationResult.data.value.trim().toLowerCase() : validationResult.data.value.trim();
+
+    if (!FIELD_REGEX[field].test(value)) {
+      return sendError(res, 400, `Please enter a valid ${FIELD_LABEL[field]}.`);
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, phone: true, email: true, phoneVerifiedAt: true, emailVerifiedAt: true },
+    });
+    if (!user) return sendError(res, 404, "User not found");
+
+    const current = field === "email" ? (user as any).email : (user as any).phone;
+    const currentVerifiedAt = field === "email" ? (user as any).emailVerifiedAt : (user as any).phoneVerifiedAt;
+    const isReverifyingCurrent = typeof current === "string" && current.toLowerCase() === value.toLowerCase();
+    if (isReverifyingCurrent && currentVerifiedAt) {
+      return sendError(res, 400, `This is already your current ${FIELD_LABEL[field]} and it's verified.`);
+    }
+
+    // Reject if another account already owns this destination.
+    const existing = await prisma.user.findFirst({
+      where: { [field]: value, NOT: { id: userId } } as any,
+      select: { id: true },
+    });
+    if (existing) {
+      return sendError(res, 409, `This ${FIELD_LABEL[field]} is already associated with another account.`);
+    }
+
+    const otp = generateContactChangeOtp();
+    await storeContactChangeOtp(userId, field, value, otp);
+
+    if (field === "phone") {
+      const smsResult = await sendSms(value, `Your NoLSAF verification code is ${otp}`);
+      if (!smsResult?.success) {
+        return sendError(res, 502, "Failed to send the verification code. Please try again.");
+      }
+    } else {
+      try {
+        await sendMail(value, "Confirm your new NoLSAF email", contactChangeOtpEmailHtml(otp), undefined, {
+          bypassEligibilityCheck: true,
+          from: SECURITY_EMAIL_FROM,
+        });
+      } catch {
+        return sendError(res, 502, "Failed to send the verification code. Please try again.");
+      }
+    }
+
+    try {
+      await audit(req as AuthedRequest, "CONTACT_CHANGE_REQUESTED", `user:${userId}`, null, { field, value });
+    } catch {
+      // best-effort audit
+    }
+
+    const payload: any = { ok: true, message: "Verification code sent" };
+    if (process.env.NODE_ENV !== "production") payload.otp = otp;
+    return res.json(payload);
+  } catch (error) {
+    console.error("account.contact.requestChange failed", error);
+    sendError(res, 500, "Failed to send verification code");
+  }
+};
+router.post("/contact/request-change", limitContactChangeOtp as unknown as RequestHandler, requestContactChange as unknown as RequestHandler);
+
+/**
+ * POST /account/contact/confirm-change
+ * Verifies the OTP sent to the new phone/email and applies the change, marking the
+ * new destination as verified.
+ */
+const confirmContactChange: RequestHandler = async (req, res) => {
+  try {
+    const userId = getUserId(req as AuthedRequest);
+    const validationResult = confirmContactChangeSchema.safeParse(req.body);
+    if (!validationResult.success) {
+      return sendError(res, 400, "Invalid input", validationResult.error.issues);
+    }
+    const { field, otp } = validationResult.data;
+
+    const entry = await getContactChangeOtpEntry(userId, field);
+    if (!entry) {
+      return sendError(res, 400, "No pending change found, or the code has expired. Please request a new code.");
+    }
+
+    // Development master OTP override — accepts this code regardless of stored value.
+    // DISABLED in production for security.
+    const isProduction = process.env.NODE_ENV === 'production';
+    const MASTER_OTP = isProduction ? null : (process.env.DEV_MASTER_OTP || '123456');
+    const isMasterOtp = !isProduction && MASTER_OTP && String(otp) === MASTER_OTP;
+
+    if (!isMasterOtp && !verifyContactChangeOtp(otp, entry.codeHash)) {
+      return sendError(res, 400, "Invalid verification code.");
+    }
+
+    // Re-check uniqueness in case another account claimed this destination meanwhile.
+    const existing = await prisma.user.findFirst({
+      where: { [field]: entry.value, NOT: { id: userId } } as any,
+      select: { id: true },
+    });
+    if (existing) {
+      await deleteContactChangeOtp(userId, field);
+      return sendError(res, 409, `This ${FIELD_LABEL[field]} is already associated with another account.`);
+    }
+
+    const before = await prisma.user.findUnique({ where: { id: userId }, select: { phone: true, email: true } });
+    const verifiedAtField = field === "email" ? "emailVerifiedAt" : "phoneVerifiedAt";
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: { [field]: entry.value, [verifiedAtField]: new Date() } as any,
+      select: { id: true, phone: true, email: true, phoneVerifiedAt: true, emailVerifiedAt: true },
+    });
+
+    await deleteContactChangeOtp(userId, field);
+
+    try {
+      await audit(req as AuthedRequest, "CONTACT_CHANGED", `user:${userId}`, before, { field, value: entry.value });
+    } catch {
+      // best-effort audit
+    }
+
+    sendSuccess(res, { user: updated }, `Your ${FIELD_LABEL[field]} has been updated.`);
+  } catch (error) {
+    console.error("account.contact.confirmChange failed", error);
+    sendError(res, 500, "Failed to confirm change");
+  }
+};
+router.post("/contact/confirm-change", confirmContactChange as unknown as RequestHandler);
 
 /** PUT /account/payouts (Owner only fields) */
 const updatePayouts: RequestHandler = async (req, res) => {
@@ -1028,12 +1215,14 @@ const changePassword: RequestHandler = async (req, res) => {
       });
     }
 
-    // DoS protection: Check 30-minute cooldown after successful password change
-    if (attempt.lastSuccess && (now - attempt.lastSuccess) < (30 * 60 * 1000)) {
-      const remaining = Math.ceil((30 * 60 * 1000 - (now - attempt.lastSuccess)) / 60000);
+    // DoS protection: Check 30-minute cooldown after successful password change, shared with
+    // the OTP-based forgot-password reset flow so the cooldown can't be bypassed by switching flows.
+    const cooldownRemaining = getPasswordChangeCooldownRemaining(user.id);
+    if (cooldownRemaining > 0) {
+      const remaining = Math.ceil(cooldownRemaining / 60000);
       return sendError(res, 429, `Password was recently changed. Please wait ${remaining} minute(s) before changing it again.`, {
         reasons: [`Password change cooldown active. Try again in ${remaining} minute(s).`],
-        cooldownUntil: attempt.lastSuccess + (30 * 60 * 1000)
+        cooldownUntil: now + cooldownRemaining
       });
     }
 
@@ -1097,9 +1286,9 @@ const changePassword: RequestHandler = async (req, res) => {
     }
 
     // Record successful password change and set cooldown
-    attempt.lastSuccess = now;
     attempt.failures = 0;
     attempt.lockedUntil = null;
+    recordPasswordChangeSuccess(user.id);
 
     // Check if force logout on password change is enabled
     const { shouldForceLogout, clearAuthCookie } = await import('../lib/sessionManager.js');
@@ -2312,6 +2501,52 @@ const deleteAccount: RequestHandler = async (req, res) => {
   }
 };
 router.delete("/", sensitive as unknown as RequestHandler, deleteAccount as unknown as RequestHandler);
+
+const DEFAULT_NOTIFICATION_PREFS = {
+  bookings: true,
+  promotions: true,
+  referrals: true,
+};
+
+const notificationPrefsSchema = z.object({
+  bookings: z.boolean().optional(),
+  promotions: z.boolean().optional(),
+  referrals: z.boolean().optional(),
+}).strict();
+
+/** GET /account/notification-preferences */
+const getNotificationPreferences: RequestHandler = async (req, res) => {
+  try {
+    const userId = getUserId(req as AuthedRequest);
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { notificationPrefs: true } as any });
+    const prefs = { ...DEFAULT_NOTIFICATION_PREFS, ...((user as any)?.notificationPrefs as object | null) };
+    sendSuccess(res, { preferences: prefs });
+  } catch (error: any) {
+    console.error('account.notificationPreferences.get failed', error);
+    sendError(res, 500, "Failed to load notification preferences");
+  }
+};
+router.get("/notification-preferences", getNotificationPreferences as unknown as RequestHandler);
+
+/** PUT /account/notification-preferences */
+const updateNotificationPreferences: RequestHandler = async (req, res) => {
+  try {
+    const userId = getUserId(req as AuthedRequest);
+    const parsed = notificationPrefsSchema.safeParse(req.body);
+    if (!parsed.success) return sendError(res, 400, "Invalid notification preferences", parsed.error.flatten());
+
+    const existing = await prisma.user.findUnique({ where: { id: userId }, select: { notificationPrefs: true } as any });
+    const current = { ...DEFAULT_NOTIFICATION_PREFS, ...((existing as any)?.notificationPrefs as object | null) };
+    const next = { ...current, ...parsed.data };
+
+    await prisma.user.update({ where: { id: userId }, data: { notificationPrefs: next } as any });
+    sendSuccess(res, { preferences: next }, "Notification preferences updated");
+  } catch (error: any) {
+    console.error('account.notificationPreferences.update failed', error);
+    sendError(res, 500, "Failed to update notification preferences");
+  }
+};
+router.put("/notification-preferences", updateNotificationPreferences as unknown as RequestHandler);
 
 /** GET /account/sessions - list user sessions with pagination */
 const listSessions: RequestHandler = async (req, res) => {
