@@ -28,6 +28,7 @@ import {
   updateAccount2fa
 } from "../auth/authApi";
 import { AppButton, AppCard, AppInput, AppStack, AppText, SafeScreen, ScreenHeader } from "../components";
+import { getErrorMessage } from "../lib/apiClient";
 import { env } from "../lib/env";
 import { RootStackParamList } from "../navigation/types";
 import { colors, radius, shadows, spacing } from "../theme";
@@ -116,7 +117,7 @@ function PasswordPanel() {
         await signOut();
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not change password.");
+      setError(getErrorMessage(err, "Could not change password."));
     } finally {
       setLoading(false);
     }

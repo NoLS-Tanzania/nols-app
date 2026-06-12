@@ -16,6 +16,10 @@ type PropertyRailProps = {
   autoRotate?: boolean;
   /** System default commission percent, used when a property has no override. */
   systemCommission?: number;
+  /** IDs of properties the traveller has saved. Omit to hide the bookmark icon. */
+  savedIds?: Set<number>;
+  /** Toggles the saved state for a property. */
+  onToggleSave?: (property: PublicPropertyCard) => void;
 };
 
 const GAP = spacing[3];
@@ -28,7 +32,7 @@ const RESUME_MS = 6000;
  * auto rotates so the row never sits static, pauses briefly after a manual
  * swipe, and shows chevron hints plus dots so hidden tiles are discoverable.
  */
-export function PropertyRail({ items, onCardPress, autoRotate = true, systemCommission = 0 }: PropertyRailProps) {
+export function PropertyRail({ items, onCardPress, autoRotate = true, systemCommission = 0, savedIds, onToggleSave }: PropertyRailProps) {
   const { width } = useWindowDimensions();
   const reducedMotion = useReducedMotion();
   const scrollRef = useRef<ScrollView>(null);
@@ -116,6 +120,8 @@ export function PropertyRail({ items, onCardPress, autoRotate = true, systemComm
               onInteractChange={handleCardInteract}
               autoSlidePhotos={autoRotate && !reducedMotion}
               systemCommission={systemCommission}
+              saved={savedIds?.has(property.id)}
+              onToggleSave={onToggleSave ? () => onToggleSave(property) : undefined}
             />
           </View>
         ))}

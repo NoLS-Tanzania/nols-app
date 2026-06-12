@@ -1,27 +1,22 @@
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { Building2, Car, Check, CheckCircle2, ChevronLeft, ChevronRight, Eye, EyeOff, Lock, Mail, Phone, ShieldCheck, User } from "lucide-react-native";
+import { CheckCircle2, Eye, EyeOff, Mail, Phone, ShieldCheck } from "lucide-react-native";
 import { useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, TextInput, View } from "react-native";
 
-import { useAuth } from "../auth";
-import { completeOtpProfile, sendOtp, verifyOtp } from "../auth/authApi";
+import { resetPassword, sendOtp, verifyOtp } from "../auth/authApi";
 import { OtpChannel } from "../auth/types";
 import { AppButton, AppCard, AppInput, AppStack, AppText, GuestBottomNav, PhoneNumberField, SafeScreen, ScreenHeader } from "../components";
+import { getErrorMessage } from "../lib/apiClient";
+import { formatCooldown, getCooldownUntil } from "../lib/otpCooldown";
 import { DEFAULT_PHONE_COUNTRY_CODE, isPhoneLengthValid } from "../lib/phone";
 import { RootStackParamList } from "../navigation/types";
 import { colors, radius, spacing } from "../theme";
 
-type Props = NativeStackScreenProps<RootStackParamList, "Register">;
-type Step = "role" | "contact" | "otp" | "profile";
-type IconType = typeof User;
+type Props = NativeStackScreenProps<RootStackParamList, "ForgotPassword">;
+type Step = "contact" | "otp" | "password" | "done";
+type IconType = typeof Mail;
 
 const RESEND_COOLDOWN_SEC = 60;
-
-const ROLE_OPTIONS: { key: string; Icon: IconType; title: string; text: string; enabled: boolean; badge?: string }[] = [
-  { key: "CUSTOMER", Icon: User, title: "Traveller", text: "Book verified stays, rides, and tour packages.", enabled: true, badge: "Recommended" },
-  { key: "OWNER", Icon: Building2, title: "Property owner", text: "List and manage your verified properties.", enabled: false },
-  { key: "DRIVER", Icon: Car, title: "Driver", text: "Accept ride and tour requests nearby.", enabled: false }
-];
 
 function maskDestination(channel: OtpChannel, value: string) {
   if (channel === "PHONE") {
@@ -32,33 +27,67 @@ function maskDestination(channel: OtpChannel, value: string) {
   return `${local.slice(0, 2)}****@${domain}`;
 }
 
-export function RegisterScreen({ navigation, route }: Props) {
-  const { completeOtpSignIn } = useAuth();
-  const referralCode = route.params?.ref;
-
-  const [step, setStep] = useState<Step>("role");
+export function ForgotPasswordScreen({ navigation }: Props) {
+  const [step, setStep] = useState<Step>("contact");
   const [channel, setChannel] = useState<OtpChannel>("PHONE");
   const [countryCode, setCountryCode] = useState(DEFAULT_PHONE_COUNTRY_CODE);
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
-  const [agreed, setAgreed] = useState(false);
   const [code, setCode] = useState("");
-  const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [sessionToken, setSessionToken] = useState<string | null>(null);
+  const [resetUserId, setResetUserId] = useState<number | null>(null);
+  const [resetToken, setResetToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [rateLimitMessage, setRateLimitMessage] = useState<string | null>(null);
+  const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
+  const [cooldownRemaining, setCooldownRemaining] = useState(0);
   const [loading, setLoading] = useState(false);
   const [resendIn, setResendIn] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const cooldownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
+      if (cooldownTimerRef.current) clearInterval(cooldownTimerRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (cooldownTimerRef.current) {
+      clearInterval(cooldownTimerRef.current);
+      cooldownTimerRef.current = null;
+    }
+    if (!cooldownUntil) {
+      setCooldownRemaining(0);
+      return;
+    }
+    const tick = () => {
+      const remaining = cooldownUntil - Date.now();
+      if (remaining <= 0) {
+        setCooldownRemaining(0);
+        setCooldownUntil(null);
+        setRateLimitMessage(null);
+        if (cooldownTimerRef.current) {
+          clearInterval(cooldownTimerRef.current);
+          cooldownTimerRef.current = null;
+        }
+        return;
+      }
+      setCooldownRemaining(remaining);
+    };
+    tick();
+    cooldownTimerRef.current = setInterval(tick, 1000);
+    return () => {
+      if (cooldownTimerRef.current) {
+        clearInterval(cooldownTimerRef.current);
+        cooldownTimerRef.current = null;
+      }
+    };
+  }, [cooldownUntil]);
 
   function startResendCooldown() {
     setResendIn(RESEND_COOLDOWN_SEC);
@@ -79,37 +108,52 @@ export function RegisterScreen({ navigation, route }: Props) {
   const contactValid = channel === "PHONE" ? isPhoneLengthValid(phone, countryCode) : /^\S+@\S+\.\S{2,}$/.test(email.trim());
 
   async function sendCode(resend = false) {
-    if (loading || (resend && resendIn > 0)) return;
+    if (loading || (resend && resendIn > 0) || cooldownRemaining > 0) return;
     setLoading(true);
     setError(null);
     try {
-      await sendOtp(destination, "CUSTOMER");
+      await sendOtp(destination, "RESET");
+      setRateLimitMessage(null);
+      setCooldownUntil(null);
       startResendCooldown();
       if (!resend) {
         setCode("");
         setStep("otp");
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not send the code. Please try again.");
+      const cooldown = getCooldownUntil(e);
+      if (cooldown) {
+        setRateLimitMessage(e instanceof Error ? e.message : "Too many OTP requests.");
+        setCooldownUntil(cooldown);
+      } else {
+        setError(e instanceof Error ? e.message : "Could not send the code. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
   }
 
   async function verifyCode() {
-    if (loading || code.trim().length !== 6) return;
+    if (loading || code.trim().length !== 6 || cooldownRemaining > 0) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await verifyOtp(destination, code.trim(), "CUSTOMER");
-      if (!res.token) {
+      const res = await verifyOtp(destination, code.trim(), "RESET");
+      if (!res.resetToken || !res.user?.id) {
         throw new Error(res.message || res.error || "Verification failed. Please try again.");
       }
-      setSessionToken(res.token);
+      setResetToken(res.resetToken);
+      setResetUserId(res.user.id);
       setError(null);
-      setStep("profile");
+      setStep("password");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Verification failed. Please try again.");
+      const cooldown = getCooldownUntil(e);
+      if (cooldown) {
+        setRateLimitMessage(e instanceof Error ? e.message : "Too many verification attempts.");
+        setCooldownUntil(cooldown);
+      } else {
+        setError(e instanceof Error ? e.message : "Verification failed. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -122,22 +166,21 @@ export function RegisterScreen({ navigation, route }: Props) {
     { label: "At least one symbol", ok: /[^A-Za-z0-9]/.test(password) },
     { label: "Confirmation matches", ok: Boolean(confirmPassword) && password === confirmPassword }
   ];
-  const profileValid = name.trim().length >= 2 && passwordChecks.every((item) => item.ok);
+  const passwordValid = passwordChecks.every((item) => item.ok);
 
-  async function finishProfile() {
-    if (loading || !sessionToken || !profileValid) return;
+  async function submitNewPassword() {
+    if (loading || !resetToken || !resetUserId || !passwordValid) return;
     setLoading(true);
     setError(null);
     try {
-      await completeOtpProfile(sessionToken, {
-        name: name.trim(),
-        password,
-        ...(channel === "PHONE" && /^\S+@\S+\.\S{2,}$/.test(email.trim()) ? { email: email.trim().toLowerCase() } : {}),
-        ...(referralCode ? { referralCode } : {})
-      });
-      await completeOtpSignIn(sessionToken);
+      const res = await resetPassword(resetUserId, resetToken, password);
+      if (!res.ok) {
+        throw new Error(res.message || res.error || "Could not reset your password. Please try again.");
+      }
+      setStep("done");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not finish your profile. Please try again.");
+      setError(getErrorMessage(e, "Could not reset your password. Please try again."));
+    } finally {
       setLoading(false);
     }
   }
@@ -147,77 +190,14 @@ export function RegisterScreen({ navigation, route }: Props) {
       <SafeScreen contentStyle={styles.screen}>
         <AppStack gap={6}>
           <ScreenHeader
-            title="Create your account"
-            subtitle="Verified registration with a one-time code sent to your phone or email."
+            title="Reset your password"
+            subtitle="Verify it's you with a one-time code, then choose a new password."
             onBack={() => {
-              if (step === "contact") setStep("role");
-              else if (step === "otp") setStep("contact");
-              else if (step === "profile") setStep("otp");
+              if (step === "otp") setStep("contact");
+              else if (step === "password") setStep("otp");
               else navigation.goBack();
             }}
           />
-
-          {referralCode ? (
-            <AppText variant="bodySmall" tone="primary" weight="bold" style={styles.center}>
-              You were invited by a friend
-            </AppText>
-          ) : null}
-
-          {step === "role" ? (
-            <AppCard>
-              <AppStack gap={4}>
-                <View>
-                  <AppText variant="titleSm" weight="extraBold">
-                    Who is joining NoLSAF?
-                  </AppText>
-                  <AppText variant="caption" tone="muted">
-                    Pick the account type that fits you best.
-                  </AppText>
-                </View>
-                <AppStack gap={3}>
-                  {ROLE_OPTIONS.map(({ key, Icon, title, text, enabled, badge }) => (
-                    <Pressable
-                      key={key}
-                      accessibilityRole="button"
-                      disabled={!enabled}
-                      onPress={() => setStep("contact")}
-                      style={({ pressed }) => [styles.roleCard, enabled ? styles.roleCardEnabled : styles.roleCardDisabled, pressed && enabled && styles.pressed]}
-                    >
-                      <View style={[styles.roleIcon, enabled ? styles.roleIconEnabled : styles.roleIconDisabled]}>
-                        <Icon color={enabled ? colors.white : colors.softText} size={22} />
-                      </View>
-                      <View style={styles.flex}>
-                        <View style={styles.roleTitleRow}>
-                          <AppText variant="bodySmall" weight="extraBold" tone={enabled ? "default" : "muted"}>
-                            {title}
-                          </AppText>
-                          {badge ? (
-                            <View style={styles.recommendedBadge}>
-                              <AppText variant="caption" weight="bold" tone="inverse">
-                                {badge}
-                              </AppText>
-                            </View>
-                          ) : null}
-                          {!enabled ? (
-                            <View style={styles.soonBadge}>
-                              <Lock color={colors.softText} size={11} />
-                              <AppText variant="caption" weight="bold" tone="muted">
-                                Web only
-                              </AppText>
-                            </View>
-                          ) : null}
-                        </View>
-                        <AppText variant="caption" tone="muted">
-                          {text}
-                        </AppText>
-                      </View>
-                      {enabled ? <ChevronRight color={colors.brand[300]} size={20} /> : null}
-                    </Pressable>
-                  ))}
-                </AppStack>
-              </AppStack>
-            </AppCard>
-          ) : null}
 
           {step === "contact" ? (
             <AppCard>
@@ -248,20 +228,22 @@ export function RegisterScreen({ navigation, route }: Props) {
                     textContentType="emailAddress"
                   />
                 )}
-                <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: agreed }} onPress={() => setAgreed(!agreed)} style={styles.agreeRow}>
-                  <View style={[styles.checkbox, agreed && styles.checkboxChecked]}>
-                    {agreed ? <Check color={colors.white} size={14} /> : null}
-                  </View>
-                  <AppText variant="caption" tone="muted" style={styles.flex}>
-                    I agree to the NoLSAF Terms and Conditions and Privacy Policy.
-                  </AppText>
-                </Pressable>
                 {error ? (
                   <AppText variant="bodySmall" tone="danger">
                     {error}
                   </AppText>
                 ) : null}
-                <AppButton title="Send code" loading={loading} disabled={!contactValid || !agreed} onPress={() => sendCode(false)} />
+                {rateLimitMessage && cooldownRemaining > 0 ? (
+                  <AppText variant="bodySmall" tone="danger">
+                    {rateLimitMessage} Please wait {formatCooldown(cooldownRemaining)} before requesting another code.
+                  </AppText>
+                ) : null}
+                <AppButton
+                  title={cooldownRemaining > 0 ? `Try again in ${formatCooldown(cooldownRemaining)}` : "Send code"}
+                  loading={loading}
+                  disabled={!contactValid || cooldownRemaining > 0}
+                  onPress={() => sendCode(false)}
+                />
               </AppStack>
             </AppCard>
           ) : null}
@@ -296,48 +278,45 @@ export function RegisterScreen({ navigation, route }: Props) {
                     {error}
                   </AppText>
                 ) : null}
-                <AppButton title="Verify" loading={loading} disabled={code.trim().length !== 6} onPress={verifyCode} />
+                {rateLimitMessage && cooldownRemaining > 0 ? (
+                  <AppText variant="bodySmall" tone="danger">
+                    {rateLimitMessage} Please wait {formatCooldown(cooldownRemaining)} before trying again.
+                  </AppText>
+                ) : null}
+                <AppButton title="Verify" loading={loading} disabled={code.trim().length !== 6 || cooldownRemaining > 0} onPress={verifyCode} />
                 <AppButton
-                  title={resendIn > 0 ? `Resend code in ${resendIn}s` : "Resend code"}
+                  title={
+                    cooldownRemaining > 0
+                      ? `Try again in ${formatCooldown(cooldownRemaining)}`
+                      : resendIn > 0
+                        ? `Resend code in ${resendIn}s`
+                        : "Resend code"
+                  }
                   variant="ghost"
-                  disabled={resendIn > 0 || loading}
+                  disabled={resendIn > 0 || loading || cooldownRemaining > 0}
                   onPress={() => sendCode(true)}
                 />
               </AppStack>
             </AppCard>
           ) : null}
 
-          {step === "profile" ? (
+          {step === "password" ? (
             <AppCard>
               <AppStack gap={4}>
                 <AppText variant="titleSm" weight="extraBold">
-                  Finish your profile
+                  Choose a new password
                 </AppText>
-                <AppInput label="Full name" required value={name} onChangeText={setName} placeholder="Your name" textContentType="name" />
-                {channel === "PHONE" ? (
-                  <AppInput
-                    label="Email"
-                    value={email}
-                    onChangeText={setEmail}
-                    placeholder="you@example.com"
-                    autoCapitalize="none"
-                    keyboardType="email-address"
-                    textContentType="emailAddress"
-                  />
-                ) : null}
                 <PasswordField
-                  label="Password"
-                  required
+                  label="New password"
                   value={password}
                   onChangeText={setPassword}
                   placeholder="8 to 12 characters"
                   visible={showPassword}
                   onToggle={() => setShowPassword((value) => !value)}
                 />
-                {(password || confirmPassword) && !passwordChecks.every((item) => item.ok) ? <PasswordChecklist checks={passwordChecks} /> : null}
+                {(password || confirmPassword) && !passwordValid ? <PasswordChecklist checks={passwordChecks} /> : null}
                 <PasswordField
-                  label="Confirm password"
-                  required
+                  label="Confirm new password"
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
                   placeholder="Re-enter your password"
@@ -349,18 +328,30 @@ export function RegisterScreen({ navigation, route }: Props) {
                     {error}
                   </AppText>
                 ) : null}
-                <AppButton title="Finish and login" loading={loading} disabled={!profileValid} onPress={finishProfile} />
+                <AppButton title="Reset password" loading={loading} disabled={!passwordValid} onPress={submitNewPassword} />
               </AppStack>
             </AppCard>
           ) : null}
 
-          {step === "role" ? (
-            <Pressable accessibilityRole="button" onPress={() => navigation.navigate("Login")} style={styles.loginLink}>
-              <ChevronLeft color={colors.primary} size={14} />
-              <AppText variant="bodySmall" tone="primary" weight="bold">
-                Already have an account? Login
-              </AppText>
-            </Pressable>
+          {step === "done" ? (
+            <AppCard>
+              <AppStack gap={3}>
+                <View style={styles.otpHeader}>
+                  <View style={styles.otpIcon}>
+                    <CheckCircle2 color={colors.primary} size={20} />
+                  </View>
+                  <View style={styles.flex}>
+                    <AppText variant="titleSm" weight="extraBold">
+                      Password updated
+                    </AppText>
+                    <AppText variant="caption" tone="muted">
+                      You can now login with your new password.
+                    </AppText>
+                  </View>
+                </View>
+                <AppButton title="Back to login" onPress={() => navigation.replace("Login")} />
+              </AppStack>
+            </AppCard>
           ) : null}
         </AppStack>
       </SafeScreen>
@@ -372,7 +363,6 @@ export function RegisterScreen({ navigation, route }: Props) {
 
 function PasswordField({
   label,
-  required,
   value,
   onChangeText,
   visible,
@@ -380,7 +370,6 @@ function PasswordField({
   placeholder
 }: {
   label: string;
-  required?: boolean;
   value: string;
   onChangeText: (value: string) => void;
   visible: boolean;
@@ -391,11 +380,6 @@ function PasswordField({
     <View style={styles.passwordWrap}>
       <AppText variant="label" weight="semiBold" tone="muted">
         {label}
-        {required ? (
-          <AppText variant="label" weight="bold" tone="danger">
-            {" *"}
-          </AppText>
-        ) : null}
       </AppText>
       <View style={styles.passwordInputRow}>
         <TextInput
@@ -458,64 +442,6 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0
   },
-  center: {
-    textAlign: "center",
-    paddingHorizontal: spacing[3]
-  },
-  roleCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing[3],
-    borderRadius: radius.md,
-    borderWidth: 1.5,
-    padding: spacing[3]
-  },
-  roleCardEnabled: {
-    borderColor: colors.brand[200],
-    backgroundColor: colors.brand[50]
-  },
-  roleCardDisabled: {
-    borderColor: colors.border,
-    backgroundColor: "#f8fafc"
-  },
-  roleIcon: {
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: radius.full
-  },
-  roleIconEnabled: {
-    backgroundColor: colors.primary
-  },
-  roleIconDisabled: {
-    backgroundColor: "#f1f5f9",
-    borderWidth: 1,
-    borderColor: colors.border
-  },
-  roleTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    flexWrap: "wrap",
-    gap: spacing[2]
-  },
-  recommendedBadge: {
-    borderRadius: radius.full,
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing[2],
-    paddingVertical: 2
-  },
-  soonBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    borderRadius: radius.full,
-    backgroundColor: "#f1f5f9",
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: spacing[2],
-    paddingVertical: 2
-  },
   channelRow: {
     flexDirection: "row",
     gap: spacing[2]
@@ -536,25 +462,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     borderColor: colors.primary
   },
-  agreeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing[2]
-  },
-  checkbox: {
-    width: 22,
-    height: 22,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: radius.sm,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    backgroundColor: colors.white
-  },
-  checkboxChecked: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary
-  },
   otpHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -569,16 +476,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brand[50],
     borderWidth: 1,
     borderColor: colors.brand[100]
-  },
-  loginLink: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing[1]
-  },
-  pressed: {
-    opacity: 0.78,
-    transform: [{ scale: 0.99 }]
   },
   passwordWrap: {
     gap: spacing[2],
@@ -637,5 +534,9 @@ const styles = StyleSheet.create({
   ruleIconOk: {
     borderColor: colors.brand[100],
     backgroundColor: "#e9f7ef"
+  },
+  pressed: {
+    opacity: 0.78,
+    transform: [{ scale: 0.99 }]
   }
 });

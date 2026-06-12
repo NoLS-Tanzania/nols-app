@@ -97,3 +97,24 @@ export type PublicHomeSummary = {
     samples?: Record<string, PublicPropertyCard | null>;
   };
 };
+
+export type SavedPropertyItem = {
+  id: number;
+  slug: string;
+  title: string;
+  location: string;
+  primaryImage: string | null;
+  basePrice: number | null;
+  currency: string | null;
+  services: unknown;
+  savedAt: string;
+  sharedAt: string | null;
+};
+
+export type SavedPropertyListResponse = {
+  ok: boolean;
+  items: SavedPropertyItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+};

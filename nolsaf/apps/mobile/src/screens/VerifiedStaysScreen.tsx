@@ -24,7 +24,7 @@ import {
 } from "../components";
 import { TANZANIA_REGIONS as REGIONS } from "../data/destinations";
 import { RootStackParamList } from "../navigation/types";
-import { fetchPropertiesAvailability, fetchPublicProperties, PublicPropertyCard } from "../properties";
+import { fetchPropertiesAvailability, fetchPublicProperties, PublicPropertyCard, useSavedProperties } from "../properties";
 import { colors, radius, spacing } from "../theme";
 
 type Props = NativeStackScreenProps<RootStackParamList, "VerifiedStays">;
@@ -66,7 +66,8 @@ function abbreviateAmount(n: number): string {
 }
 
 export function VerifiedStaysScreen({ navigation, route }: Props) {
-  const { status } = useAuth();
+  const { status, token } = useAuth();
+  const { savedIds, toggleSave } = useSavedProperties(token);
   const [items, setItems] = useState<PublicPropertyCard[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -76,7 +77,9 @@ export function VerifiedStaysScreen({ navigation, route }: Props) {
   const [region, setRegion] = useState(route.params?.region ?? "");
   const [availabilityDate, setAvailabilityDate] = useState("");
   const [availabilityMap, setAvailabilityMap] = useState<Record<number, number | null>>({});
-  const [filters, setFilters] = useState<PropertyFilters>(DEFAULT_PROPERTY_FILTERS);
+  const [filters, setFilters] = useState<PropertyFilters>(
+    route.params?.propertyType ? { ...DEFAULT_PROPERTY_FILTERS, types: [route.params.propertyType] } : DEFAULT_PROPERTY_FILTERS
+  );
   const [filtersVisible, setFiltersVisible] = useState(false);
   const [priceMin, setPriceMin] = useState(0);
   const [priceMax, setPriceMax] = useState(0);
@@ -355,7 +358,13 @@ export function VerifiedStaysScreen({ navigation, route }: Props) {
           <AppText variant="titleSm" weight="bold">
             Featured
           </AppText>
-          <PropertyRail items={featured} onCardPress={openProperty} systemCommission={systemCommission} />
+          <PropertyRail
+            items={featured}
+            onCardPress={openProperty}
+            systemCommission={systemCommission}
+            savedIds={savedIds}
+            onToggleSave={status === "authenticated" ? (property) => toggleSave(property.id) : undefined}
+          />
         </AppStack>
       ) : null}
 
@@ -406,7 +415,14 @@ export function VerifiedStaysScreen({ navigation, route }: Props) {
           ListHeaderComponent={header}
           ListHeaderComponentStyle={styles.headerSpacing}
           renderItem={({ item }) => (
-            <PropertyRail items={item} autoRotate={false} onCardPress={openProperty} systemCommission={systemCommission} />
+            <PropertyRail
+              items={item}
+              autoRotate={false}
+              onCardPress={openProperty}
+              systemCommission={systemCommission}
+              savedIds={savedIds}
+              onToggleSave={status === "authenticated" ? (property) => toggleSave(property.id) : undefined}
+            />
           )}
           ItemSeparatorComponent={() => <View style={styles.rowSeparator} />}
           ListEmptyComponent={empty}

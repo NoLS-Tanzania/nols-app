@@ -1,4 +1,4 @@
-import { BadgeCheck, Home, MapPin } from "lucide-react-native";
+import { BadgeCheck, Bookmark, Home, MapPin } from "lucide-react-native";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Image, Platform, Pressable, StyleSheet, View } from "react-native";
 
@@ -19,6 +19,10 @@ type PropertyCardProps = {
   autoSlidePhotos?: boolean;
   /** System default commission percent, used when the property has no override. */
   systemCommission?: number;
+  /** Whether the traveller has saved this property. Omit the bookmark entirely when undefined. */
+  saved?: boolean;
+  /** Toggles the saved state for this property. */
+  onToggleSave?: () => void;
 };
 
 const PHOTO_INTERVAL_MS = 10000;
@@ -36,7 +40,7 @@ function availability(rooms: number): { label: string; bg: string; color: string
  * The image auto slides through the property photos every 10 seconds when more
  * than one is available, and the whole tile springs on press.
  */
-export function PropertyCard({ property, onPress, onInteractChange, autoSlidePhotos = false, systemCommission = 0 }: PropertyCardProps) {
+export function PropertyCard({ property, onPress, onInteractChange, autoSlidePhotos = false, systemCommission = 0, saved, onToggleSave }: PropertyCardProps) {
   const scale = useRef(new Animated.Value(1)).current;
   const fade = useRef(new Animated.Value(1)).current;
   const [photoIndex, setPhotoIndex] = useState(0);
@@ -125,6 +129,20 @@ export function PropertyCard({ property, onPress, onInteractChange, autoSlidePho
           <View style={styles.badge} accessibilityLabel="Verified">
             <BadgeCheck color={colors.primary} size={18} />
           </View>
+
+          {onToggleSave ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={saved ? "Remove from saved" : "Save"}
+              onPress={(e) => {
+                e.stopPropagation();
+                onToggleSave();
+              }}
+              style={[styles.saveBadge, saved && styles.saveBadgeOn]}
+            >
+              <Bookmark color={saved ? colors.white : colors.ink} size={16} fill={saved ? colors.white : "transparent"} />
+            </Pressable>
+          ) : null}
 
           {photos.length > 1 ? (
             <View style={styles.photoDots}>
@@ -227,6 +245,24 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "rgba(255,255,255,0.85)",
     ...shadows.card
+  },
+  saveBadge: {
+    position: "absolute",
+    top: spacing[2],
+    left: spacing[2],
+    width: 30,
+    height: 30,
+    borderRadius: radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.white,
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.85)",
+    ...shadows.card
+  },
+  saveBadgeOn: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary
   },
   photoDots: {
     position: "absolute",

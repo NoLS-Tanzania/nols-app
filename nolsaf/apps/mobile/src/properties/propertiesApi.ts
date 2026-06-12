@@ -1,5 +1,5 @@
 import { apiRequest } from "../lib/apiClient";
-import { PropertyListResponse, PropertySearchParams, PublicHomeSummary, PublicPropertyDetail } from "./types";
+import { PropertyListResponse, PropertySearchParams, PublicHomeSummary, PublicPropertyDetail, SavedPropertyListResponse } from "./types";
 
 export async function fetchPublicProperties(params: PropertySearchParams = {}) {
   const query = new URLSearchParams();
@@ -80,4 +80,25 @@ export async function fetchAvailabilityRange(id: number, checkIn: string, checkO
   const query = new URLSearchParams({ ids: String(id), checkIn, checkOut });
   if (roomType) query.set("roomType", roomType);
   return apiRequest<AvailabilityResponse>(`/api/public/properties/availability?${query.toString()}`);
+}
+
+/** List the authenticated traveller's saved properties. */
+export async function fetchSavedProperties(token: string, params: { page?: number; pageSize?: number } = {}) {
+  const query = new URLSearchParams();
+  query.set("page", String(params.page ?? 1));
+  query.set("pageSize", String(params.pageSize ?? 50));
+  return apiRequest<SavedPropertyListResponse>(`/api/customer/saved-properties?${query.toString()}`, { token });
+}
+
+/** Save a property to favorites. */
+export async function saveProperty(token: string, propertyId: number) {
+  return apiRequest<{ ok: boolean; data?: { id: number; slug: string; title: string; savedAt: string } }>(
+    "/api/customer/saved-properties",
+    { token, method: "POST", body: { propertyId } }
+  );
+}
+
+/** Remove a property from the saved list. */
+export async function unsaveProperty(token: string, propertyId: number) {
+  return apiRequest<{ ok: boolean; message?: string }>(`/api/customer/saved-properties/${propertyId}`, { token, method: "DELETE" });
 }

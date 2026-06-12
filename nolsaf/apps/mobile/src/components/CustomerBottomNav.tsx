@@ -36,7 +36,7 @@ const navItems: NavItem[] = [
   },
   {
     route: "MyBookings",
-    label: "My Bookings",
+    label: "My Stay",
     icon: (color) => <CalendarCheck color={color} size={21} strokeWidth={2.4} />
   },
   {

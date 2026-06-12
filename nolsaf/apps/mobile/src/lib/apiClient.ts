@@ -13,6 +13,23 @@ export type ApiError = Error & {
   payload?: unknown;
 };
 
+/**
+ * Extracts a human-readable message from an API error. Prefers `payload.reasons`
+ * (friendly explanations), falls back to `error.message` unless it looks like a raw
+ * machine-readable code (e.g. "password_reused", "weak_password"), in which case the
+ * provided fallback is used instead.
+ */
+export function getErrorMessage(error: unknown, fallback: string): string {
+  const payload = (error as ApiError | undefined)?.payload as { reasons?: unknown } | undefined;
+  if (Array.isArray(payload?.reasons) && payload!.reasons.length) {
+    return payload!.reasons.map(String).join(" ");
+  }
+  if (error instanceof Error && error.message && !/^[a-z][a-z0-9_]*$/.test(error.message)) {
+    return error.message;
+  }
+  return fallback;
+}
+
 export function apiBaseUrl() {
   const base = env.apiUrl.trim().replace(/\/+$/, "");
   if (!base) {

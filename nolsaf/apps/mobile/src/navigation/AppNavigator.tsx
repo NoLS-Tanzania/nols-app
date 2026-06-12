@@ -1,26 +1,32 @@
-import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
+import { LinkingOptions, NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 
 import { useAuth } from "../auth";
+import { webOrigin } from "../lib/webOrigin";
 import { AccountScreen } from "../screens/AccountScreen";
+import { AccountPreferencesScreen } from "../screens/AccountPreferencesScreen";
 import { AccountResourcesScreen } from "../screens/AccountResourcesScreen";
 import { AccountSecurityScreen } from "../screens/AccountSecurityScreen";
+import { BusinessAccessScreen } from "../screens/BusinessAccessScreen";
 import { AddTransportScreen } from "../screens/AddTransportScreen";
 import { BookingPaymentScreen } from "../screens/BookingPaymentScreen";
 import { BookingReviewScreen } from "../screens/BookingReviewScreen";
 import { CostCalculatorScreen } from "../screens/CostCalculatorScreen";
 import { CustomerHomeScreen } from "../screens/CustomerHomeScreen";
+import { ForgotPasswordScreen } from "../screens/ForgotPasswordScreen";
 import { LoginScreen } from "../screens/LoginScreen";
 import { MyBookingsScreen } from "../screens/MyBookingsScreen";
 import { MyRidesScreen } from "../screens/MyRidesScreen";
 import { MyToursScreen } from "../screens/MyToursScreen";
+import { NotificationsScreen } from "../screens/NotificationsScreen";
 import { OnboardingScreen } from "../screens/OnboardingScreen";
 import { PaymentsScreen } from "../screens/PaymentsScreen";
 import { ProfileCompletionScreen } from "../screens/ProfileCompletionScreen";
 import { PropertyDetailScreen } from "../screens/PropertyDetailScreen";
 import { RegisterScreen } from "../screens/RegisterScreen";
 import { RideDetailScreen } from "../screens/RideDetailScreen";
+import { SavedPropertiesScreen } from "../screens/SavedPropertiesScreen";
 import { SearchScreen } from "../screens/SearchScreen";
 import { TourDetailScreen } from "../screens/TourDetailScreen";
 import { TourOperatorScreen } from "../screens/TourOperatorScreen";
@@ -38,6 +44,18 @@ import { colors } from "../theme";
 import { RootStackParamList } from "./types";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+
+// Lets a shared invite link (https://<web-origin>/register?ref=CUSTOMER-123 or
+// nolsaf://register?ref=CUSTOMER-123) open the app straight to the Register
+// screen with the referral code attached.
+const linking: LinkingOptions<RootStackParamList> = {
+  prefixes: ["nolsaf://", webOrigin()],
+  config: {
+    screens: {
+      Register: "register"
+    }
+  }
+};
 
 const navigationTheme = {
   ...DefaultTheme,
@@ -63,7 +81,7 @@ export function AppNavigator() {
   }
 
   return (
-    <NavigationContainer theme={navigationTheme}>
+    <NavigationContainer theme={navigationTheme} linking={linking}>
       <Stack.Navigator
         initialRouteName="Onboarding"
         screenOptions={{
@@ -83,6 +101,10 @@ export function AppNavigator() {
             <Stack.Screen name="TourDetail" component={TourDetailScreen} />
             <Stack.Screen name="AddTransport" component={AddTransportScreen} />
             <Stack.Screen name="Account" component={AccountScreen} />
+            <Stack.Screen name="AccountPreferences" component={AccountPreferencesScreen} />
+            <Stack.Screen name="BusinessAccess" component={BusinessAccessScreen} />
+            <Stack.Screen name="Notifications" component={NotificationsScreen} />
+            <Stack.Screen name="SavedProperties" component={SavedPropertiesScreen} />
             <Stack.Screen name="AccountResources" component={AccountResourcesScreen} />
             <Stack.Screen name="TravellerGroups" component={TravellerGroupsScreen} />
             <Stack.Screen name="GroupStayRequest" component={GroupStayRequestScreen} />
@@ -107,6 +129,7 @@ export function AppNavigator() {
           <>
             <Stack.Screen name="Onboarding" component={OnboardingScreen} />
             <Stack.Screen name="Login" component={LoginScreen} />
+            <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
             <Stack.Screen name="Register" component={RegisterScreen} />
             <Stack.Screen name="VerifiedStays" component={VerifiedStaysScreen} />
             <Stack.Screen name="TourPackages" component={TourPackagesScreen} />

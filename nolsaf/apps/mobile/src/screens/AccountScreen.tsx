@@ -24,40 +24,26 @@ import {
   Users
 } from "lucide-react-native";
 import * as DocumentPicker from "expo-document-picker";
-import { useState } from "react";
-import { ActivityIndicator, Alert, Image, Linking, Pressable, ScrollView, Share, StyleSheet, View } from "react-native";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, Share, StyleSheet, View } from "react-native";
 
 import { useAuth } from "../auth";
 import { AppCard, AppText, ConfirmSheet, CustomerBottomNav, SafeScreen, ScreenHeader } from "../components";
 import { apiUploadFile } from "../lib/apiClient";
-import { env } from "../lib/env";
 import { RootStackParamList } from "../navigation/types";
+import { fetchReferralInfo } from "../referrals";
 import { colors, radius, shadows, spacing } from "../theme";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Account">;
 type IconType = typeof User;
 
-function webOrigin() {
-  const raw = env.apiUrl.trim().replace(/\/+$/, "");
-  if (!raw) return "http://localhost:3000";
-  try {
-    const url = new URL(raw);
-    if (/^(localhost|127\.0\.0\.1|10\.0\.2\.2)$/i.test(url.hostname) && url.port === "4000") {
-      url.port = "3000";
-    }
-    url.pathname = "";
-    url.search = "";
-    url.hash = "";
-    return url.toString().replace(/\/+$/, "");
-  } catch {
-    return raw.replace(/\/api.*$/i, "");
-  }
-}
+const ROLE_LABELS: Record<string, string> = {
+  CUSTOMER: "Traveller"
+};
 
-function openWeb(path: string) {
-  Linking.openURL(`${webOrigin()}${path}`).catch(() => {
-    Alert.alert("NoLSAF web", "Could not open this web page right now.");
-  });
+function roleLabel(role?: string | null) {
+  const key = String(role || "CUSTOMER").toUpperCase();
+  return ROLE_LABELS[key] || key;
 }
 
 export function AccountScreen({ navigation }: Props) {
@@ -65,6 +51,18 @@ export function AccountScreen({ navigation }: Props) {
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [referralLink, setReferralLink] = useState<string | null>(null);
+  const [referralTotal, setReferralTotal] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    fetchReferralInfo(token)
+      .then((res) => {
+        setReferralLink(res.link);
+        setReferralTotal(res.total);
+      })
+      .catch(() => undefined);
+  }, [token]);
 
   const displayName = user?.fullName || user?.name || user?.email || "NoLSAF customer";
   const initial = String(displayName).trim().charAt(0).toUpperCase() || "N";
@@ -110,10 +108,22 @@ export function AccountScreen({ navigation }: Props) {
     }
   }
 
-  function inviteFriends() {
-    Share.share({
-      message: "Join me on NoLSAF for verified stays, rides, and approved tour packages."
-    }).catch(() => undefined);
+  async function inviteFriends() {
+    let link = referralLink;
+    if (!link && token) {
+      try {
+        const res = await fetchReferralInfo(token);
+        link = res.link;
+        setReferralLink(res.link);
+        setReferralTotal(res.total);
+      } catch {
+        // ignore - fall back to a linkless share
+      }
+    }
+    const message = link
+      ? `Join me on NoLSAF for verified stays, rides, and approved tour packages: ${link}`
+      : "Join me on NoLSAF for verified stays, rides, and approved tour packages.";
+    Share.share({ message }).catch(() => undefined);
   }
 
   return (
@@ -125,7 +135,7 @@ export function AccountScreen({ navigation }: Props) {
             subtitle="Your NoLSAF profile, travel activity, security, policies, and support."
             onBack={() => navigation.goBack()}
             action={
-              <Pressable accessibilityRole="button" onPress={() => openWeb("/account/notifications")} style={styles.headerBell}>
+              <Pressable accessibilityRole="button" onPress={() => navigation.navigate("Notifications")} style={styles.headerBell}>
                 <Bell color={colors.ink} size={20} />
               </Pressable>
             }
@@ -157,7 +167,7 @@ export function AccountScreen({ navigation }: Props) {
                   {displayName}
                 </AppText>
                 <AppText variant="bodySmall" tone="muted" numberOfLines={1}>
-                  {String(user?.role || "CUSTOMER").toUpperCase()}
+                  {roleLabel(user?.role)}
                 </AppText>
               </View>
               <View style={styles.profileScore}>
@@ -197,8 +207,17 @@ export function AccountScreen({ navigation }: Props) {
           </AppCard>
 
           <MenuSection title="Profile Tools">
-            <MenuRow Icon={Bookmark} title="Saved" subtitle="Saved stays, tours, and useful places." onPress={() => openWeb("/account/saved")} />
-            <MenuRow Icon={Gift} title="Invite friends" subtitle="Share NoLSAF with other travellers." onPress={inviteFriends} />
+            <MenuRow Icon={Bookmark} title="Saved" subtitle="Saved stays, tours, and useful places." onPress={() => navigation.navigate("SavedProperties")} />
+            <MenuRow
+              Icon={Gift}
+              title="Invite friends"
+              subtitle={
+                referralTotal != null && referralTotal > 0
+                  ? `${referralTotal} friend${referralTotal === 1 ? "" : "s"} joined using your invite.`
+                  : "Share NoLSAF with other travellers."
+              }
+              onPress={inviteFriends}
+            />
             <MenuRow Icon={Users} title="Traveller groups" subtitle="Manage people connected to your trips." onPress={() => navigation.navigate("TravellerGroups")} />
           </MenuSection>
 
@@ -230,8 +249,8 @@ export function AccountScreen({ navigation }: Props) {
           </MenuSection>
 
           <MenuSection title="Session">
-            <MenuRow Icon={Settings} title="Account preferences" subtitle="Language, notifications, and account controls." onPress={() => openWeb("/account/settings")} />
-            <MenuRow Icon={HeartHandshake} title="Business access" subtitle="Operator, host, and partner tools open from web." onPress={() => openWeb("/account/business")} />
+            <MenuRow Icon={Settings} title="Account preferences" subtitle="Notifications and account controls." onPress={() => navigation.navigate("AccountPreferences")} />
+            <MenuRow Icon={HeartHandshake} title="Business access" subtitle="Operator, host, and partner tools open from web." onPress={() => navigation.navigate("BusinessAccess")} />
             <MenuRow Icon={LogOut} title="Sign out" subtitle="Remove this secure session from the device." danger onPress={() => setConfirmLogout(true)} />
           </MenuSection>
         </View>

@@ -255,6 +255,25 @@ export async function addPasswordToHistory(userId: string | number, newHash: str
   return { persisted: false };
 }
 
+// ----- Password change cooldown (shared across /account/password/change and OTP-based reset) -----
+// Prevents a user from changing/resetting their password again too soon, regardless of which
+// flow (authenticated change vs. forgot-password OTP) they use.
+const PASSWORD_CHANGE_COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes
+const passwordChangeSuccess = new Map<string, number>();
+
+/** Returns the remaining cooldown in ms (0 if none) since the user last changed their password. */
+export function getPasswordChangeCooldownRemaining(userId: string | number): number {
+  const last = passwordChangeSuccess.get(String(userId));
+  if (!last) return 0;
+  const remaining = PASSWORD_CHANGE_COOLDOWN_MS - (Date.now() - last);
+  return remaining > 0 ? remaining : 0;
+}
+
+/** Records a successful password change/reset, starting the cooldown window. */
+export function recordPasswordChangeSuccess(userId: string | number) {
+  passwordChangeSuccess.set(String(userId), Date.now());
+}
+
 export default {
   hashPassword,
   verifyPassword,

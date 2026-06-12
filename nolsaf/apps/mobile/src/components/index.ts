@@ -20,6 +20,7 @@ export * from "./InfoGrid";
 export * from "./NolsafLogoMark";
 export * from "./OptionPickerSheet";
 export * from "./PaymentMethodCard";
+export * from "./PhoneNumberField";
 export * from "./PickupPickerSheet";
 export * from "./PriceRangeSlider";
 export * from "./PropertyCard";

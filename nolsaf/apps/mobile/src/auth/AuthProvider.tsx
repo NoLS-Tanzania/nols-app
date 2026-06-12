@@ -7,6 +7,8 @@ import { AuthState, AuthUser, RegisterCustomerInput, UpdateProfileInput } from "
 type AuthContextValue = AuthState & {
   signIn: (email: string, password: string) => Promise<void>;
   signUpCustomer: (input: RegisterCustomerInput) => Promise<void>;
+  /** Adopts a session token obtained from a successful OTP verification. */
+  completeOtpSignIn: (token: string, fallbackUser?: AuthUser) => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   updateProfile: (input: UpdateProfileInput) => Promise<void>;
@@ -49,11 +51,6 @@ export function AuthProvider({ children }: PropsWithChildren) {
       }
 
       const user = await getCurrentAccount(token);
-      if (String(user.role).toUpperCase() === "ADMIN") {
-        await clearStoredToken();
-        becomeGuest("Admin access is web-only for NoLSAF.");
-        return;
-      }
       applyAuthenticatedState(token, user);
     } catch {
       await clearStoredToken();
@@ -74,10 +71,6 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
       if (!response.ok || !token || !loginUser) {
         throw new Error(response.message || response.error || "Login failed.");
-      }
-
-      if (String(loginUser.role).toUpperCase() === "ADMIN") {
-        throw new Error("Admin access is web-only for NoLSAF.");
       }
 
       await storeToken(token);
@@ -101,6 +94,23 @@ export function AuthProvider({ children }: PropsWithChildren) {
       await signIn(input.email, input.password);
     },
     [signIn]
+  );
+
+  const completeOtpSignIn = useCallback(
+    async (token: string, fallbackUser?: AuthUser) => {
+      await storeToken(token);
+      try {
+        const profile = await getCurrentAccount(token);
+        applyAuthenticatedState(token, profile);
+      } catch (err) {
+        if (fallbackUser) {
+          applyAuthenticatedState(token, fallbackUser);
+          return;
+        }
+        throw err;
+      }
+    },
+    [applyAuthenticatedState]
   );
 
   const signOut = useCallback(async () => {
@@ -137,11 +147,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
       ...state,
       signIn,
       signUpCustomer,
+      completeOtpSignIn,
       signOut,
       refreshProfile,
       updateProfile
     }),
-    [refreshProfile, signIn, signOut, signUpCustomer, state, updateProfile]
+    [completeOtpSignIn, refreshProfile, signIn, signOut, signUpCustomer, state, updateProfile]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

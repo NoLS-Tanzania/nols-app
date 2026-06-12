@@ -42,7 +42,7 @@ function formatDates(checkIn: string | null, checkOut: string | null) {
   return `${fmt(checkIn)} → ${fmt(checkOut)}`;
 }
 
-export function MyBookingsScreen(_props: Props) {
+export function MyBookingsScreen({ navigation }: Props) {
   const { token } = useAuth();
   const [items, setItems] = useState<BookingListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -77,6 +77,7 @@ export function MyBookingsScreen(_props: Props) {
           <ScreenHeader
             title="My bookings"
             subtitle="Your verified stays. Add NoLSAF transport to any paid booking to reach it door to door."
+            centered
           />
 
           {loading ? (
@@ -92,6 +93,8 @@ export function MyBookingsScreen(_props: Props) {
             <StateView
               title="No bookings yet"
               message="Book a verified stay first. Transport is offered on your booked stays, because NoLSAF brings you to them."
+              actionLabel="Browse verified stays"
+              onAction={() => navigation.navigate("VerifiedStays")}
             />
           ) : (
             <AppStack gap={5}>

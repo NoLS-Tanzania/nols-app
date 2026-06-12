@@ -43,7 +43,7 @@ export function OptionPickerSheet({ visible, title, subtitle, options, value, on
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return options;
-    return options.filter((o) => o.label.toLowerCase().includes(q));
+    return options.filter((o) => o.label.toLowerCase().includes(q) || o.description?.toLowerCase().includes(q));
   }, [query, options]);
 
   const searchable = options.length > 8;

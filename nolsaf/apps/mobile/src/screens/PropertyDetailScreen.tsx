@@ -1,6 +1,7 @@
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import {
   ArrowLeft,
+  Bookmark,
   BadgeCheck,
   Bath,
   BedDouble,
@@ -79,7 +80,8 @@ import {
   parsePropertyServices,
   PropertyReview,
   PropertyReviewsResponse,
-  PublicPropertyDetail
+  PublicPropertyDetail,
+  useSavedProperties
 } from "../properties";
 import { fetchSystemCommission } from "../bookings/checkoutApi";
 import { getPropertyCommission, priceWithCommission } from "../bookings/priceUtils";
@@ -172,6 +174,7 @@ function formatPretty(ymd: string): string {
 export function PropertyDetailScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const { token } = useAuth();
+  const { savedIds, toggleSave } = useSavedProperties(token);
   const { id } = route.params;
   const [detail, setDetail] = useState<PublicPropertyDetail | null>(null);
   const [commission, setCommission] = useState(0);
@@ -325,6 +328,8 @@ export function PropertyDetailScreen({ navigation, route }: Props) {
           location={location}
           topInset={insets.top}
           onBack={() => navigation.goBack()}
+          saved={savedIds.has(id)}
+          onToggleSave={token ? () => toggleSave(id) : undefined}
         />
 
         <View style={styles.body}>
@@ -814,13 +819,17 @@ function HeroGallery({
   title,
   location,
   topInset,
-  onBack
+  onBack,
+  saved,
+  onToggleSave
 }: {
   images: string[];
   title: string;
   location: string;
   topInset: number;
   onBack: () => void;
+  saved?: boolean;
+  onToggleSave?: () => void;
 }) {
   const { width } = useWindowDimensions();
   const reducedMotion = useReducedMotion();
@@ -906,13 +915,26 @@ function HeroGallery({
         <ArrowLeft color={colors.ink} size={22} />
       </Pressable>
 
-      {images.length > 0 ? (
-        <View style={styles.heroCounter}>
-          <AppText variant="caption" weight="bold" tone="inverse">
-            {index + 1} / {images.length}
-          </AppText>
-        </View>
-      ) : null}
+      <View style={styles.heroTopRight}>
+        {images.length > 0 ? (
+          <View style={styles.heroCounter}>
+            <AppText variant="caption" weight="bold" tone="inverse">
+              {index + 1} / {images.length}
+            </AppText>
+          </View>
+        ) : null}
+
+        {onToggleSave ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={saved ? "Remove from saved" : "Save"}
+            onPress={onToggleSave}
+            style={[styles.heroSaveButton, saved && styles.heroSaveButtonOn]}
+          >
+            <Bookmark color={saved ? colors.white : colors.ink} size={18} fill={saved ? colors.white : "transparent"} />
+          </Pressable>
+        ) : null}
+      </View>
 
       <View style={styles.heroOverlay}>
         {images.length > 1 ? (
@@ -1422,14 +1444,30 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.92)"
   },
-  heroCounter: {
+  heroTopRight: {
     position: "absolute",
     top: spacing[3],
     right: spacing[3],
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[2]
+  },
+  heroCounter: {
     borderRadius: radius.full,
     backgroundColor: "rgba(2,6,23,0.55)",
     paddingHorizontal: spacing[3],
     paddingVertical: spacing[1]
+  },
+  heroSaveButton: {
+    width: 42,
+    height: 42,
+    borderRadius: radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.92)"
+  },
+  heroSaveButtonOn: {
+    backgroundColor: colors.primary
   },
   heroOverlay: {
     position: "absolute",

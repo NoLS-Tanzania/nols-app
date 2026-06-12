@@ -1,7 +1,8 @@
 export type RootStackParamList = {
   Onboarding: undefined;
   Login: undefined;
-  Register: undefined;
+  ForgotPassword: undefined;
+  Register: { ref?: string } | undefined;
   CustomerHome: undefined;
   CostCalculator: undefined;
   MyRides: undefined;
@@ -15,6 +16,10 @@ export type RootStackParamList = {
     propertyArea: string;
   };
   Account: undefined;
+  AccountPreferences: undefined;
+  BusinessAccess: undefined;
+  Notifications: undefined;
+  SavedProperties: undefined;
   AccountSecurity: { mode: "password" | "passkeys" | "2fa" };
   AccountResources: { mode: "policies" | "help" | "support" };
   TravellerGroups: { tourBookingId?: number; tourBookingTitle?: string } | undefined;
@@ -24,7 +29,12 @@ export type RootStackParamList = {
   GroupStayDeposit: { id: number };
   ProfileCompletion: undefined;
   Payments: undefined;
-  VerifiedStays: { region?: string } | undefined;
+  VerifiedStays:
+    | {
+        region?: string;
+        propertyType?: "HOTEL" | "LODGE" | "APARTMENT" | "VILLA" | "GUEST_HOUSE" | "BUNGALOW" | "CABIN" | "HOMESTAY" | "CONDO" | "HOUSE";
+      }
+    | undefined;
   TourPackages: undefined;
   TourOperator: { agentId: number; operatorName?: string };
   TourPackageDetail: { agentId: number; packageId: string | number | null; operatorName?: string };

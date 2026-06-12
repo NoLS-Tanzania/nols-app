@@ -143,7 +143,8 @@ function ServiceCard({ Icon, title, text, onPress }: { Icon: IconType; title: st
 }
 
 function PlacesSearch({ navigation, route }: Props) {
-  const { status } = useAuth();
+  const { status, user } = useAuth();
+  const recentSearchesKey = `${RECENT_SEARCHES_KEY}:${status === "authenticated" && user ? user.id : "guest"}`;
   const initialDestination = route.params?.destination ?? "";
   const initialCity = route.params?.city;
   const initialPropertyType = route.params?.propertyType;
@@ -167,26 +168,27 @@ function PlacesSearch({ navigation, route }: Props) {
   }, []);
 
   useEffect(() => {
-    AsyncStorage.getItem(RECENT_SEARCHES_KEY)
+    setRecentSearches([]);
+    AsyncStorage.getItem(recentSearchesKey)
       .then((raw) => {
         if (!raw) return;
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) setRecentSearches(parsed.filter((x) => typeof x === "string"));
       })
       .catch(() => {});
-  }, []);
+  }, [recentSearchesKey]);
 
   function rememberSearch(term: string) {
     setRecentSearches((prev) => {
       const next = [term, ...prev.filter((x) => x.toLowerCase() !== term.toLowerCase())].slice(0, MAX_RECENT_SEARCHES);
-      AsyncStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(next)).catch(() => {});
+      AsyncStorage.setItem(recentSearchesKey, JSON.stringify(next)).catch(() => {});
       return next;
     });
   }
 
   function clearRecentSearches() {
     setRecentSearches([]);
-    AsyncStorage.removeItem(RECENT_SEARCHES_KEY).catch(() => {});
+    AsyncStorage.removeItem(recentSearchesKey).catch(() => {});
   }
 
   const tourResults = useMemo(

@@ -1,6 +1,6 @@
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { ReactNode, useEffect, useRef, useState } from "react";
-import { Building2, CheckCircle2, ExternalLink, Filter, GalleryHorizontal, Home, Landmark, MapPin, MapPinned, PackageCheck, Route, Search, TicketsPlane, TrendingUp, UsersRound } from "lucide-react-native";
+import { Bell, Building2, CheckCircle2, ExternalLink, Filter, GalleryHorizontal, Home, Landmark, MapPin, MapPinned, PackageCheck, Route, Search, TicketsPlane, TrendingUp, UsersRound } from "lucide-react-native";
 import { Animated, Easing, ImageBackground, ImageSourcePropType, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from "react-native";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 
@@ -8,6 +8,7 @@ import { useAuth } from "../auth";
 import { AppButton, AppCard, AppStack, AppText, CustomerBottomNav, FeaturedTourOperatorCard, GetThereSection, GuestBottomNav, NolsafLogoMark, SafeScreen } from "../components";
 import { TOURISM_COUNTRIES } from "../data/destinations";
 import { RootStackParamList } from "../navigation/types";
+import { fetchCustomerNotifications } from "../notifications";
 import { fetchPublicProperties, fetchPublicPropertiesHomeSummary, PublicPropertyCard } from "../properties";
 import { colors, radius, spacing } from "../theme";
 import { FeaturedTourOperator, fetchFeaturedTourOperators } from "../tours";
@@ -84,9 +85,10 @@ function rotateItems<T>(items: T[], startIndex: number) {
 }
 
 export function OnboardingScreen({ navigation }: Props) {
-  const { status } = useAuth();
+  const { status, token } = useAuth();
   const isAuthed = status === "authenticated";
   const { width: windowWidth } = useWindowDimensions();
+  const [unreadCount, setUnreadCount] = useState(0);
   const [destination, setDestination] = useState("");
   const [activeQuickAction, setActiveQuickAction] = useState("all");
   const [promptIndex, setPromptIndex] = useState(0);
@@ -114,6 +116,24 @@ export function OnboardingScreen({ navigation }: Props) {
     92,
     Math.floor((windowWidth - spacing[4] * 4 - spacing[2] * (quickVisibleCount - 1)) / quickVisibleCount)
   );
+
+  useEffect(() => {
+    if (!isAuthed || !token) {
+      setUnreadCount(0);
+      return;
+    }
+    let cancelled = false;
+    fetchCustomerNotifications(token, { tab: "unread", page: 1, pageSize: 1 })
+      .then((res) => {
+        if (!cancelled) setUnreadCount(res.totalUnread ?? res.total ?? 0);
+      })
+      .catch(() => {
+        if (!cancelled) setUnreadCount(0);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthed, token]);
 
   useEffect(() => {
     if (destination.trim()) return;
@@ -322,7 +342,20 @@ export function OnboardingScreen({ navigation }: Props) {
               </View>
               <View style={styles.authLinks}>
                 {isAuthed ? (
-                  <TopAuthLink label="Account" onPress={() => navigation.navigate("Account")} />
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => navigation.navigate("Notifications")}
+                    style={({ pressed }) => [styles.notificationButton, pressed && styles.pressed]}
+                  >
+                    <Bell color={colors.white} size={20} />
+                    {unreadCount > 0 ? (
+                      <View style={styles.notificationBadge}>
+                        <AppText variant="caption" weight="bold" tone="inverse" style={styles.notificationBadgeText}>
+                          {unreadCount > 9 ? "9+" : String(unreadCount)}
+                        </AppText>
+                      </View>
+                    ) : null}
+                  </Pressable>
                 ) : (
                   <>
                     <TopAuthLink label="Register" onPress={() => navigation.navigate("Register")} />
@@ -421,8 +454,7 @@ export function OnboardingScreen({ navigation }: Props) {
                           accent={item.accent}
                           count={typeCounts[item.key]}
                           onPress={() =>
-                            navigation.navigate("Search", {
-                              filter: "stays",
+                            navigation.navigate("VerifiedStays", {
                               propertyType: item.key
                             })
                           }
@@ -472,10 +504,8 @@ export function OnboardingScreen({ navigation }: Props) {
                         width={cityCardWidth}
                         onPress={() => {
                           stopCityAutoRotate();
-                          navigation.navigate("Search", {
-                            city: city.name,
-                            destination: city.name,
-                            filter: "stays"
+                          navigation.navigate("VerifiedStays", {
+                            region: city.name
                           });
                         }}
                       />
@@ -1231,6 +1261,34 @@ const styles = StyleSheet.create({
     minHeight: 36,
     justifyContent: "center",
     paddingHorizontal: spacing[1]
+  },
+  notificationButton: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: radius.full,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)"
+  },
+  notificationBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 3,
+    borderRadius: radius.full,
+    backgroundColor: colors.danger,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: colors.primaryDeep
+  },
+  notificationBadgeText: {
+    fontSize: 10,
+    lineHeight: 12
   },
   topAuthText: {
     color: "#eefaf7"
