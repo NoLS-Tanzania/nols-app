@@ -389,25 +389,6 @@ router.post("/:id/auction-confirm", async (req, res) => {
       // claim status updates are best-effort
     }
 
-    // Block out the confirmed property's calendar for these dates so it can't be double-booked
-    if (booking.checkIn && booking.checkOut) {
-      try {
-        await (prisma as any).propertyAvailabilityBlock.create({
-          data: {
-            propertyId,
-            ownerId: claim.ownerId,
-            startDate: booking.checkIn,
-            endDate: booking.checkOut,
-            source: "GROUP_STAY",
-            notes: `Reserved for group stay request #${bookingId}`,
-            bedsBlocked: booking.roomsNeeded || 1,
-          },
-        });
-      } catch {
-        // availability block is best-effort; admins can reconcile manually if it fails
-      }
-    }
-
     try {
       await (prisma as any).groupBookingAudit.create({
         data: {

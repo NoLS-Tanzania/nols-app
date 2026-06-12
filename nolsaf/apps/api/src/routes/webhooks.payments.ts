@@ -28,6 +28,7 @@ import { generateBookingCodeForBooking } from "../lib/bookingCodeService.js";
 import { rateLimitWithRedis as rateLimit } from "../lib/redisRateLimitStore.js";
 import { safeEq } from "../lib/signature.js";
 import { normalizePhone } from "../lib/azampay.helpers.js";
+import { ensurePaidGroupStayAvailabilityBlock } from "../lib/groupStayAvailabilityBlocks.js";
 
 const router = Router();
 
@@ -535,6 +536,10 @@ type GroupBookingDepositTarget = {
   depositPaid: boolean;
   currency: string;
   assignedOwnerId: number | null;
+  confirmedPropertyId?: number | null;
+  checkIn?: Date | string | null;
+  checkOut?: Date | string | null;
+  roomsNeeded?: number | null;
   toRegion: string | null;
   toDistrict: string | null;
 };
@@ -558,6 +563,12 @@ export async function markGroupBookingDepositPaid(
       paymentProvider: provider,
     },
   });
+
+  try {
+    await ensurePaidGroupStayAvailabilityBlock(groupBooking);
+  } catch (err: any) {
+    console.error(`[GroupStay] Failed to create paid availability hold for booking #${groupBooking.id}:`, err?.message ?? err);
+  }
 
   const destination = [groupBooking.toDistrict, groupBooking.toRegion].filter(Boolean).join(", ");
 
@@ -790,6 +801,10 @@ router.post("/azampay", webhookLimiter, async (req: any, res) => {
           currency: true,
           status: true,
           assignedOwnerId: true,
+          confirmedPropertyId: true,
+          checkIn: true,
+          checkOut: true,
+          roomsNeeded: true,
           toRegion: true,
           toDistrict: true,
         },
