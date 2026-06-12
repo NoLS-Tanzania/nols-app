@@ -16,7 +16,7 @@ import { audit } from '../lib/audit.js';
 import { hashCode } from '../lib/otp.js';
 import { maybeAuth, requireAuth } from '../middleware/auth.js';
 import { limitOtpSend, limitOtpVerify, limitLoginAttempts, limitRegisterAttempts } from '../middleware/rateLimit.js';
-import { isEmailLocked, recordFailedAttempt, clearFailedAttempts, getRemainingAttempts, getLockoutStatus } from '../lib/loginAttemptTracker.js';
+import { isEmailLocked, recordFailedAttempt, clearFailedAttempts } from '../lib/loginAttemptTracker.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { buildDriverCaseRef } from '../lib/driverCaseRef.js';
 import { getRedis } from '../lib/redis.js';
@@ -409,6 +409,7 @@ router.post('/send-otp', limitOtpSend, async (req, res) => {
   const { channel, destination } = resolved;
   const destinationWhere = channel === 'PHONE' ? { phone: destination } : { email: destination };
   const destinationLabel = channel === 'PHONE' ? 'phone number' : 'email address';
+  const genericOtpResponse = { ok: true, message: 'If this destination can receive a code, one has been sent.', channel };
 
   const normalizedRole = normalizeSignupRole(role);
 
@@ -421,11 +422,7 @@ router.post('/send-otp', limitOtpSend, async (req, res) => {
         select: { id: true },
       });
       if (!existing) {
-        return res.status(404).json({
-          error: 'account_not_found',
-          message: `No account found for this ${destinationLabel}. Please register first.`,
-          action: 'register',
-        });
+        return res.json(genericOtpResponse);
       }
     } catch {
       return res.status(503).json({
@@ -465,11 +462,7 @@ router.post('/send-otp', limitOtpSend, async (req, res) => {
         select: { id: true },
       });
       if (!existing) {
-        return res.status(404).json({
-          error: 'account_not_found',
-          message: `This ${destinationLabel} doesn't have an account. Please create an account first.`,
-          action: 'register',
-        });
+        return res.json(genericOtpResponse);
       }
     } catch {
       // If the DB is temporarily unavailable, fall through and attempt the send.
@@ -482,11 +475,6 @@ router.post('/send-otp', limitOtpSend, async (req, res) => {
   const codeHash = hashCode(String(otp));
   const entity = otpEntityKey(channel, destination, codeHash);
   const destinationMasked = channel === 'PHONE' ? maskPhoneForAudit(destination) : maskEmailForAudit(destination);
-
-  // Log OTP only in development mode (not in production)
-  if (process.env.NODE_ENV !== 'production') {
-    console.log(`[DEV] OTP for ${destination}${normalizedRole ? ` (role=${normalizedRole})` : ''}: ${otp}`);
-  }
 
   let provider: string | null = null;
   let sendFailureReason: string | null = null;
@@ -560,10 +548,7 @@ router.post('/send-otp', limitOtpSend, async (req, res) => {
     // swallow
   }
 
-  // In development it's useful to return the OTP; remove in production
-  const payload: any = { ok: true, message: 'OTP sent', channel };
-  if (process.env.NODE_ENV !== 'production') payload.otp = otp;
-  return res.json(payload);
+  return res.json({ ok: true, message: 'OTP sent', channel });
 });
 
 // POST /api/auth/verify-otp
@@ -581,64 +566,6 @@ router.post('/verify-otp', limitOtpVerify, async (req, res) => {
   const verifiedAtField = channel === 'PHONE' ? 'phoneVerifiedAt' : 'emailVerifiedAt';
 
   const requestedRole = normalizeSignupRole(role);
-
-  // Development master OTP override — accepts this code regardless of stored value.
-  // DISABLED in production for security
-  const isProduction = process.env.NODE_ENV === 'production';
-  const MASTER_OTP = isProduction ? null : (process.env.DEV_MASTER_OTP || '123456');
-  if (!isProduction && MASTER_OTP && String(otp) === MASTER_OTP) {
-    // allow even if there's no stored OTP (dev convenience)
-    const entry = await getOtpEntry(channel, destination) || { role: requestedRole || null };
-    await deleteOtp(channel, destination);
-
-    const storedRole = normalizeSignupRole(entry.role);
-    const effectiveRole = storedRole || requestedRole;
-
-    // If the caller requested a password reset flow, generate a reset token
-    if (effectiveRole === 'RESET') {
-      try {
-        const raw = crypto.randomBytes(24).toString('hex');
-        const hashed = crypto.createHash('sha256').update(raw).digest('hex');
-        const expiresAt = Date.now() + 1000 * 60 * 60; // 1 hour
-        // try to persist
-        let u: any = null;
-        try {
-          u = await prisma.user.findFirst({ where: destinationWhere });
-          if (u) {
-            await prisma.user.update({ where: { id: u.id }, data: { resetPasswordToken: hashed as any, resetPasswordExpires: new Date(expiresAt) as any } as any });
-          } else {
-            resetTokenStore[hashed] = { userId: `u_${Date.now()}`, expiresAt };
-          }
-        } catch (e) {
-          resetTokenStore[hashed] = { userId: `u_${Date.now()}`, expiresAt };
-        }
-        const origin = process.env.WEB_ORIGIN || process.env.APP_ORIGIN || 'http://localhost:3000';
-        const resetLink = `${origin}/account/reset-password?token=${raw}&id=${u ? u.id : `u_${Date.now()}`}`;
-        const out: any = { ok: true, message: 'verified (master otp)', resetToken: raw, link: resetLink };
-        if (process.env.NODE_ENV !== 'production') out.debug = { token: raw, link: resetLink };
-        return res.json(out);
-      } catch (e) {
-        console.warn('failed to generate reset token for master otp', e);
-      }
-    }
-
-    // In dev, still issue a real JWT if possible (so production behavior can be tested locally).
-    try {
-      const safeRole = (effectiveRole || 'CUSTOMER') as 'CUSTOMER' | 'OWNER' | 'DRIVER';
-      const user = await prisma.user.upsert({
-        where: destinationWhere as any,
-        update: { [verifiedAtField]: new Date() },
-        create: { ...destinationWhere, role: safeRole, [verifiedAtField]: new Date() } as any,
-        select: { id: true, role: true, email: true, phone: true },
-      });
-      const token = await signUserJwt({ id: user.id, role: user.role, email: user.email });
-      await setAuthCookie(res, token, user.role);
-      return res.json({ ok: true, message: "verified (master otp)", token, user: { id: user.id, phone: user.phone, email: user.email, role: user.role } });
-    } catch (e: any) {
-      console.error("verify-otp (master otp) failed to issue JWT", e);
-      return res.status(503).json({ error: 'database_unavailable', message: 'Unable to create account right now.' });
-    }
-  }
 
   const entry = await getOtpEntry(channel, destination);
   if (!entry) {
@@ -753,22 +680,20 @@ router.post('/verify-otp', limitOtpVerify, async (req, res) => {
   if (effectiveRole === 'RESET') {
     try {
       const user = await prisma.user.findFirst({ where: destinationWhere });
+      if (!user) {
+        return res.status(400).json({ message: 'Unable to reset password with this verification code.' });
+      }
       const raw = crypto.randomBytes(24).toString('hex');
       const hashed = crypto.createHash('sha256').update(raw).digest('hex');
       const expiresAt = Date.now() + 1000 * 60 * 60; // 1 hour
       try {
-        if (user) {
-          await prisma.user.update({ where: { id: user.id }, data: { resetPasswordToken: hashed as any, resetPasswordExpires: new Date(expiresAt) as any } as any });
-        } else {
-          resetTokenStore[hashed] = { userId: `u_${Date.now()}`, expiresAt };
-        }
+        await prisma.user.update({ where: { id: user.id }, data: { resetPasswordToken: hashed as any, resetPasswordExpires: new Date(expiresAt) as any } as any });
       } catch (e) {
-        resetTokenStore[hashed] = { userId: user ? String(user.id) : `u_${Date.now()}`, expiresAt };
+        resetTokenStore[hashed] = { userId: String(user.id), expiresAt };
       }
       const origin = process.env.WEB_ORIGIN || process.env.APP_ORIGIN || 'http://localhost:3000';
-      const resetLink = `${origin}/account/reset-password?token=${raw}&id=${user ? user.id : `u_${Date.now()}`}`;
-      const out: any = { ok: true, message: 'verified', resetToken: raw, link: resetLink, user: user ? { id: user.id, phone: user.phone, email: user.email } : { id: `u_${Date.now()}`, ...destinationWhere } };
-      if (process.env.NODE_ENV !== 'production') out.debug = { token: raw, link: resetLink };
+      const resetLink = `${origin}/account/reset-password?token=${raw}&id=${user.id}`;
+      const out: any = { ok: true, message: 'verified', resetToken: raw, link: resetLink, user: { id: user.id, phone: user.phone, email: user.email } };
       return res.json(out);
     } catch (e) {
       console.error('failed to create reset token after otp verify', e);
@@ -933,16 +858,9 @@ router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res,
       } catch (err) {
         console.error('[LOGIN] Failed to record failed attempt:', err);
       }
-      let remaining = 5; // Default
-      try {
-        remaining = await getRemainingAttempts(identifier);
-      } catch (err) {
-        console.error('[LOGIN] Failed to get remaining attempts:', err);
-      }
       return res.status(401).json({ 
         error: "invalid_credentials",
-        message: "Incorrect email or password.",
-        remainingAttempts: remaining
+        message: "Incorrect email or password."
       });
     }
     
@@ -973,16 +891,9 @@ router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res,
         /* ignore */
       }
 
-      let remaining = 5; // Default
-      try {
-        remaining = await getRemainingAttempts(identifier);
-      } catch (err) {
-        console.error('[LOGIN] Failed to get remaining attempts:', err);
-      }
       return res.status(401).json({ 
         error: "invalid_credentials",
-        message: "Incorrect email or password.",
-        remainingAttempts: remaining
+        message: "Incorrect email or password."
       });
     }
     
@@ -1009,13 +920,6 @@ router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res,
         /* ignore */
       }
 
-      let remaining = 5; // Default
-      try {
-        remaining = await getRemainingAttempts(identifier);
-      } catch (err) {
-        console.error('[LOGIN] Failed to get remaining attempts:', err);
-      }
-      
       // Check if account is now locked
       let newLockoutStatus;
       try {
@@ -1036,8 +940,7 @@ router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res,
       
       return res.status(401).json({ 
         error: "invalid_credentials",
-        message: "Incorrect email or password.",
-        remainingAttempts: remaining
+        message: "Incorrect email or password."
       });
     }
 
@@ -2049,14 +1952,9 @@ router.post('/forgot-password', async (req, res) => {
       where: email ? { email: String(email).trim().toLowerCase() } : { phone: normalizedPhone || String(phone) },
     });
     
-    // Security: Always respond with 200 to avoid user enumeration
-    // Only send reset link if user actually exists in database
     if (!user) {
-      console.log(`[forgot-password] User not found for ${email ? 'email' : 'phone'}: ${email || phone} - No reset link sent`);
       return res.json({ ok: true, message: 'If an account exists, an email/SMS has been sent.' });
     }
-    
-    console.log(`[forgot-password] User found (ID: ${user.id}) for ${email ? 'email' : 'phone'}: ${email || phone} - Generating reset link`);
 
     // generate raw token and a hashed token for storage
     const raw = crypto.randomBytes(24).toString('hex');
@@ -2091,9 +1989,7 @@ router.post('/forgot-password', async (req, res) => {
       }
     }
 
-    const out: any = { ok: true, message: 'If an account exists, an email/SMS has been sent.' };
-    if (process.env.NODE_ENV !== 'production') out.debug = { token: raw, link: resetLink };
-    return res.json(out);
+    return res.json({ ok: true, message: 'If an account exists, an email/SMS has been sent.' });
   } catch (err) {
     console.error('forgot-password error', err);
     return res.status(500).json({ message: 'failed' });
