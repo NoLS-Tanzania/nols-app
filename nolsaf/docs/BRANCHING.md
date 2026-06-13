@@ -1,58 +1,76 @@
-# Branch Strategy — API, Web & Mobile
+# Branch Strategy - Shared Core and App Branches
 
-This repo is a single monorepo (`apps/api`, `apps/web`, `apps/mobile`, shared `packages/`
-and `prisma/`). All three apps live in every branch's working tree, but each branch
-has a distinct *role*. This doc explains what each branch is for, what gets deployed
-from it, and how the three apps relate on each one.
+This repository is a monorepo. The important rule is simple:
 
-## `main` — Production
+- Shared code is integrated through `staging`.
+- App-only code stays on that app's branch.
+- `main` is for production-ready releases.
 
-- The source of truth for what's live for real users.
-- `apps/api` → deployed to the production Render service.
-- `apps/web` → deployed to the production Vercel project (Production environment).
-- `apps/mobile` → not deployed from here directly; production mobile builds are cut
-  via EAS from a tagged commit on this branch (or `staging` once it's stable).
-- Only merge into `main` once changes have been verified on `staging`.
+## `main` - Production
 
-## `staging` — Active development (API + Web)
+- Production release branch.
+- `apps/web` is deployed to the production Vercel project.
+- `apps/api` runs on the production AWS API environment and production database.
+- Only merge tested work from `staging` into `main`.
 
-- Day-to-day development branch for `apps/api` and `apps/web`.
-- `apps/api` → deployed to the staging Render service (staging DB).
-- `apps/web` → deployed as a Vercel Preview, pointed at the staging API
-  (`API_ORIGIN` / `NEXT_PUBLIC_API_URL` set to the staging API URL in Vercel's
-  Preview env vars for this branch).
-- `apps/mobile` also exists here (kept in sync via merges/cherry-picks from
-  `native-expo-foundation`) so the mobile app always has a working copy of the
-  latest API contract — but mobile isn't *built/deployed* from this branch.
-- This is the branch most backend/web feature work should target.
+## `staging` - Shared Integration
 
-## `native-expo-foundation` — Mobile app development
+`staging` is the shared truth branch. It owns anything that can affect more than
+one app:
 
-- Active development branch for `apps/mobile` (Expo / React Native).
-- Started as a sync of `staging` (so it has the same `apps/api`/`apps/web` code),
-  plus the mobile app added on top.
-- `apps/mobile` → not deployed via Vercel/Render. It's built/distributed through
-  **EAS Build** (dev/preview/production profiles) and **EAS Submit** to the
-  Play Store / App Store. OTA JS updates go through **EAS Update**.
-- `apps/web`'s `vercel.json` has an `ignoreCommand` that skips the Vercel build
-  entirely on this branch unless a commit actually touches `apps/web` or
-  `packages/shared` — so pure-mobile commits don't trigger (or fail) a web
-  preview build.
-- The mobile app talks to the **same backend API** as web — `EXPO_PUBLIC_API_URL`
-  in `apps/mobile/.env*` points at the staging (or production) Render API URL
-  depending on the EAS build profile.
-- Periodically rebase/sync this branch from `staging` to pick up backend/web
-  fixes (e.g. new endpoints the mobile app needs), via merge or cherry-pick —
-  same as was done for the pickup-points route wiring fix.
+- `apps/api`
+- `apps/web`
+- `packages/*`
+- `prisma/`
+- root workspace files such as `package.json`, `package-lock.json`, TypeScript,
+  lint, build, and deployment config
+- shared contracts for auth, booking, payments, pricing, availability, and user
+  data
 
-## How the three apps connect across branches
+When API or shared package behavior changes, commit it to `staging` first. Then
+merge or rebase `staging` into the app branch that needs the change.
 
-| | `apps/api` | `apps/web` | `apps/mobile` |
-|---|---|---|---|
-| **main** | Production Render | Production Vercel | EAS production builds (from tagged commits) |
-| **staging** | Staging Render | Staging Vercel preview | present, kept in sync, not deployed |
-| **native-expo-foundation** | same code as staging, not separately deployed | same code as staging, web build skipped via `ignoreCommand` unless web changed | EAS dev/preview builds |
+## `nolsaf-native-expo` - Customer Mobile App
 
-In short: **API and Web have a normal CI/CD pipeline (Render + Vercel) driven by
-`main`/`staging`. Mobile has a separate pipeline (EAS) driven by
-`native-expo-foundation`, but always consumes the same API as web.**
+- Owns customer mobile work in `apps/mobile`.
+- Uses EAS for Android/iOS builds.
+- Pulls API, package, payment, auth, and contract updates from `staging`.
+- Should not hide API or shared package changes inside mobile-only commits.
+
+## `nolsaf-driver-expo` - Driver Mobile App
+
+- Owns driver app work in `apps/driver`.
+- Uses EAS for Android/iOS builds.
+- Pulls shared UI, API, auth, ride, payout, and notification contracts from
+  `staging`.
+- Driver-only screens, navigation, assets, and app config belong here.
+
+## Future `nolsaf-partners-expo` - Partner Mobile App
+
+- Will own partner app work in `apps/partners`.
+- Pulls shared contracts and packages from `staging`.
+- Partner-only screens, navigation, assets, and app config belong there.
+
+## Commit Routing
+
+Use this routing before every commit:
+
+| Change type | Branch |
+| --- | --- |
+| API behavior, database, payment/auth/booking logic | `staging` |
+| Web UI or Vercel-facing web changes | `staging` |
+| Shared packages or root workspace config | `staging` |
+| Customer mobile only | `nolsaf-native-expo` |
+| Driver app only | `nolsaf-driver-expo` |
+| Partner app only | `nolsaf-partners-expo` |
+
+## Sync Flow
+
+1. Commit shared work to `staging`.
+2. Verify API/web/shared package checks on `staging`.
+3. Merge or rebase `staging` into app branches that need the shared work.
+4. Commit app-only work on the app branch.
+5. Merge tested `staging` into `main` for production releases.
+
+This keeps `staging` as the tree that holds shared behavior, while each app
+branch stays focused on its own product surface.
