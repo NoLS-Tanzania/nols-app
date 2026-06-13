@@ -8,6 +8,8 @@ import { getEffectiveCommissionPercent, resolveOwnerPayoutAmount } from "../lib/
 export const router = Router();
 router.use(requireAuth as unknown as RequestHandler, requireRole("OWNER") as unknown as RequestHandler);
 
+const OWNER_INVOICE_PREFIX = "OINV-";
+
 /** GET /owner/invoices/for-booking/:bookingId — check if invoice already exists (used to lock Generate Invoice UI) */
 router.get("/for-booking/:bookingId", async (req, res) => {
   const r = req as AuthedRequest;
@@ -20,7 +22,7 @@ router.get("/for-booking/:bookingId", async (req, res) => {
   //   and historically used statuses like APPROVED. Those must NOT lock the owner's "Generate Invoice".
   // - Owner-submitted invoices are identified by invoiceNumber prefix "OINV-".
   const inv = await prisma.invoice.findFirst({
-    where: { ownerId, bookingId, invoiceNumber: { startsWith: "OINV-" } } as any,
+    where: { ownerId, bookingId, invoiceNumber: { startsWith: OWNER_INVOICE_PREFIX } } as any,
     orderBy: { id: "desc" } as any,
     select: { id: true, status: true, invoiceNumber: true, paymentRef: true, commissionPercent: true } as any,
   });
@@ -35,7 +37,6 @@ router.get("/for-booking/:bookingId", async (req, res) => {
 });
 
 // Helper to format an invoice number (YYYYMM-<bookingId>-<codeId>)
-// Helper to format an invoice number (YYYYMM-<bookingId>-<codeId>)
 function makeInvoiceNumber(bookingId: number, codeId: number) {
   const now = new Date();
   const ym = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2, "0")}`;
@@ -43,6 +44,21 @@ function makeInvoiceNumber(bookingId: number, codeId: number) {
   // Premium, consistent format; deterministic for idempotency.
   // Example: OINV-202602-000123-0042
   return `OINV-${ym}-${String(bookingId).padStart(6, "0")}-${String(codeId).padStart(4, "0")}`;
+}
+
+function isPrismaErrorCode(error: unknown, code: string) {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError ||
+    typeof (error as any)?.code === "string"
+  ) && (error as any)?.code === code;
+}
+
+async function findOwnerInvoiceForBooking(ownerId: number, bookingId: number) {
+  return prisma.invoice.findFirst({
+    where: { ownerId, bookingId, invoiceNumber: { startsWith: OWNER_INVOICE_PREFIX } } as any,
+    orderBy: { id: "desc" } as any,
+    select: { id: true, status: true } as any,
+  });
 }
 
 router.post("/from-booking", async (req, res) => {
@@ -64,30 +80,38 @@ router.post("/from-booking", async (req, res) => {
     if (booking.status !== "CHECKED_IN") return res.status(400).json({ error: "Booking must be CHECKED_IN" });
     if (!booking.code || booking.code.status !== "USED") return res.status(400).json({ error: "Check-in code must be USED" });
 
-    // Owner details (sender)
-    const owner = await prisma.user.findUnique({ where: { id: ownerId } });
+    const existingForBooking = await findOwnerInvoiceForBooking(ownerId, booking.id);
+    if (existingForBooking) {
+      return res.status(200).json({
+        ok: true,
+        existed: true,
+        invoiceId: existingForBooking.id,
+        status: existingForBooking.status,
+      });
+    }
 
-  // Compute line item amount
-  const nights = Math.max(1, Math.ceil((+booking.checkOut - +booking.checkIn) / (1000*60*60*24)));
-  // Prefer totalAmount if you already computed; otherwise fallback to nights * pricePerNight
-  const pricePerNight = (booking as any).pricePerNight ?? booking.property?.basePrice ?? null;
-  const transportFare = (booking as any).includeTransport ? Number((booking as any).transportFare || 0) : 0;
-  const accommodationGross = booking.totalAmount
-    ? Math.max(0, Number(booking.totalAmount) - transportFare)
-    : (pricePerNight ? (pricePerNight as any) * nights : 0);
+    // Compute line item amount
+    const nights = Math.max(1, Math.ceil((+booking.checkOut - +booking.checkIn) / (1000*60*60*24)));
+    // Prefer totalAmount if you already computed; otherwise fallback to nights * pricePerNight
+    const pricePerNight = (booking as any).pricePerNight ?? booking.property?.basePrice ?? null;
+    const transportFare = (booking as any).includeTransport ? Number((booking as any).transportFare || 0) : 0;
+    const accommodationGross = booking.totalAmount
+      ? Math.max(0, Number(booking.totalAmount) - transportFare)
+      : (pricePerNight ? (pricePerNight as any) * nights : 0);
 
-  // Create invoice + item atomically
-  type MinimalInvoice = Prisma.InvoiceGetPayload<{ select: { id: true } }>;
+    // Create invoice + item atomically
+    type MinimalInvoice = Prisma.InvoiceGetPayload<{ select: { id: true; status: true } }>;
 
-  interface InvoiceCreationDuplicate {
-    duplicate: number;
-  }
+    interface InvoiceCreationDuplicate {
+      duplicate: number;
+      status: string;
+    }
 
-  interface InvoiceCreationSuccess {
-    invoiceId: number;
-  }
+    interface InvoiceCreationSuccess {
+      invoiceId: number;
+    }
 
-  type InvoiceCreationResult = InvoiceCreationDuplicate | InvoiceCreationSuccess;
+    type InvoiceCreationResult = InvoiceCreationDuplicate | InvoiceCreationSuccess;
 
     const invoiceNumber = makeInvoiceNumber(booking.id, booking.code!.id);
     const commissionPercent = await getEffectiveCommissionPercent((booking.property as any)?.services);
@@ -101,14 +125,14 @@ router.post("/from-booking", async (req, res) => {
 
     const created: InvoiceCreationResult = await prisma.$transaction(
       async (tx: Prisma.TransactionClient): Promise<InvoiceCreationResult> => {
-      // prevent duplicates using the unique invoiceNumber (safe for retries/double-click)
-      const exists: MinimalInvoice | null = await tx.invoice.findFirst({
-        where: { invoiceNumber, ownerId } as any,
-        select: { id: true },
-      });
-      if (exists) {
-        return { duplicate: exists.id };
-      }
+        // Prevent duplicates for this booking and prefix, including invoices created in a prior month.
+        const exists: MinimalInvoice | null = await tx.invoice.findFirst({
+          where: { ownerId, bookingId: booking.id, invoiceNumber: { startsWith: OWNER_INVOICE_PREFIX } } as any,
+          select: { id: true, status: true },
+        });
+        if (exists) {
+          return { duplicate: exists.id, status: exists.status };
+        }
 
         // IMPORTANT: Prisma schema for Invoice in this codebase does NOT include
         // sender/receiver fields or invoice items. Keep creation aligned to schema.
@@ -127,7 +151,7 @@ router.post("/from-booking", async (req, res) => {
             commissionAmount: null,
             netPayable: ownerPayout as any,
           } as any,
-          select: { id: true },
+          select: { id: true, status: true },
         });
 
         return { invoiceId: invoice.id };
@@ -136,29 +160,28 @@ router.post("/from-booking", async (req, res) => {
 
     if ("duplicate" in created) {
       // Idempotent: return existing invoice as success (avoid "error" UX and prevent retries creating duplicates).
-      return res.status(200).json({ ok: true, existed: true, invoiceId: created.duplicate, status: "DRAFT" });
+      return res.status(200).json({ ok: true, existed: true, invoiceId: created.duplicate, status: created.status });
     }
 
     return res.status(201).json({ ok: true, existed: false, invoiceId: created.invoiceId, status: "DRAFT" });
   } catch (err: any) {
+    console.error("POST /api/owner/invoices/from-booking error:", {
+      message: err?.message,
+      code: err?.code,
+      meta: err?.meta,
+    });
+
     // If a retry/double-click races, invoiceNumber uniqueness may throw P2002.
     // Resolve by returning the existing invoiceId (idempotent behavior).
     try {
-      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      if (isPrismaErrorCode(err, "P2002")) {
         const authReq = req as AuthedRequest;
         const ownerId = authReq.user!.id;
         const { bookingId } = authReq.body as { bookingId: number };
         if (bookingId) {
-          const booking = await prisma.booking.findFirst({
-            where: { id: bookingId, property: { ownerId } },
-            include: { code: true },
-          });
-          if (booking?.code?.id) {
-            const invoiceNumber = makeInvoiceNumber(booking.id, booking.code.id);
-            const existing = await prisma.invoice.findFirst({ where: { ownerId, invoiceNumber } as any, select: { id: true } as any });
-            if (existing?.id) {
-              return res.status(200).json({ ok: true, existed: true, invoiceId: existing.id, status: "DRAFT" });
-            }
+          const existing = await findOwnerInvoiceForBooking(ownerId, Number(bookingId));
+          if (existing?.id) {
+            return res.status(200).json({ ok: true, existed: true, invoiceId: existing.id, status: existing.status });
           }
         }
       }
@@ -174,7 +197,7 @@ router.get("/:id", async (req: Request, res: Response) => {
   const authReq = req as AuthedRequest;
   const id = Number(authReq.params.id);
   const inv = await prisma.invoice.findFirst({
-    where: { id, ownerId: authReq.user!.id, invoiceNumber: { startsWith: "OINV-" } } as any,
+    where: { id, ownerId: authReq.user!.id, invoiceNumber: { startsWith: OWNER_INVOICE_PREFIX } } as any,
     include: {
       booking: {
         include: {
@@ -232,7 +255,7 @@ router.post("/:id/submit", async (req, res) => {
   const id = Number(authReq.params.id);
   const ownerId = authReq.user!.id;
 
-  const inv = await prisma.invoice.findFirst({ where: { id, ownerId, invoiceNumber: { startsWith: "OINV-" } } as any });
+  const inv = await prisma.invoice.findFirst({ where: { id, ownerId, invoiceNumber: { startsWith: OWNER_INVOICE_PREFIX } } as any });
   if (!inv) return res.status(404).json({ error: "Not found" });
 
   // Idempotent: if already submitted/processed, do nothing (prevents repeats + duplicate admin events).
