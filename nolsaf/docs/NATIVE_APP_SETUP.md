@@ -384,6 +384,10 @@ Current linked plan files:
 * `NATIVE_TOUR_OPERATORS.md`, the customer Tour Operators experience, from discovery
   through operator profile, package detail, booking, confirm, payment, and post booking
   management.
+* `NATIVE_DRIVER_APP.md`, the Driver native app (Phase 4 of this file), covering the
+  auth and KYC gate, dashboard, trips and active trip flow, scheduled trips, earnings,
+  profile, management, security, and policies, with live map and dispatch deferred to
+  its own later phase.
 
 ### Admin Exclusion Policy
 
@@ -645,27 +649,56 @@ Exit criteria:
 - Driver flows are tested with real dispatch and payout smoke data.
 - Customer app remains stable.
 
-### Phase 5: Owner or Operator Decision
+### Phase 5: NoLSAF Partners (Owner and Operator)
 
-Choose one next role after customer and driver foundations are stable.
+Owner and Operator share one native app, "NoLSAF Partners", separated by role inside
+the app rather than as two separate apps. This is a deliberate departure from how web
+is structured today, made for native:
 
-Owner app candidates:
+- On web, Owner is its own full portal with a separate login (`(auth)/owner/login`)
+  and its own route group and layout (`(owner)/owner/**`), covering properties,
+  bookings, revenue, reports, group stays, invoices, messages, notifications,
+  security settings, and policies.
+- On web, Operator (agent) is not a separate portal. An operator logs in as a normal
+  account holder and the operator tools live inside the regular account area
+  (`account/agent/**`): assignments, bookings, contract, documents, profile, reports,
+  revenues, security, and tour bookings.
+- For native, both become dashboards inside one "NoLSAF Partners" app
+  (`com.nolsaf.partners`), gated by the account's role(s) after login, the same way
+  `apps/driver` gates on `kycStatus` and `suspendedAt`. An account that holds both the
+  Owner and the Operator role sees both dashboards in one app, with no double login
+  and no double install. An account with only one role sees only that dashboard.
+- The shared package built for `apps/mobile` and `apps/driver` (theme tokens, UI
+  primitives, account, security, document upload, policy pages) extends to
+  `apps/partners` as well, following the same "extract once, consume everywhere" rule
+  as `NATIVE_DRIVER_APP.md`.
 
+Owner dashboard candidates:
+
+- Properties (approved, pending, availability)
 - Booking visibility
 - Group stay offer responses
-- Property performance summaries
-- Owner payout status
+- Property performance summaries and reports
+- Revenue, invoices, and owner payout status
+- Messages and notifications
+- Security settings (2FA, password, login history)
 
-Operator app candidates:
+Operator dashboard candidates:
 
 - Tour package operations
 - Tour booking visibility
 - Assigned guide/operator workflows
+- Operator profile, contract, documents, and revenues
+- Security settings (2FA, password, login history)
 
 Exit criteria:
 
-- Product decision is made: owner first or operator first.
-- Scope is small enough for a high-quality native release.
+- Role gated dashboard switching works for accounts with one role, and for accounts
+  with both roles.
+- Scope per dashboard is small enough for a high quality native release.
+- A linked plan file, for example `NATIVE_PARTNERS_APP.md`, is written before
+  scaffolding `apps/partners`, following the same screen by screen format as
+  `NATIVE_DRIVER_APP.md`.
 - Financial/admin-sensitive actions remain properly protected.
 
 ### Phase 6: Store Readiness
