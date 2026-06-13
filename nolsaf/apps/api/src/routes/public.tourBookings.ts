@@ -612,8 +612,10 @@ router.post(
 // ── POST /:id/initiate-bank-payment ──────────────────────────────────────────
 
 const initiateBankPaymentSchema = z.object({
-  bankCode:      z.enum(["CRDB","NMB","NBC","STANBIC","EQUITY","IM","ABSA","TCB","BOA","DTB","UBA","AZANIA","KCB","NCBA","YETU"] as const),
-  accountNumber: z.string().min(1).max(30).regex(/^[\w\-]+$/).optional(),
+  bankCode:      z.enum(["CRDB","NMB"] as const),
+  accountNumber: z.string().min(1).max(30).regex(/^[\w\-]+$/),
+  merchantMobileNumber: z.string().min(9).max(15).regex(/^[\d+]+$/),
+  otp:           z.string().min(1).max(50),
   accessToken:   z.string().min(20).max(1024),
 });
 
@@ -629,7 +631,16 @@ router.post(
     if (!parsed.success)
       return res.status(400).json({ ok: false, error: "validation_error", details: parsed.error.flatten() });
 
-    const { bankCode, accountNumber, accessToken } = parsed.data;
+    const { bankCode, accountNumber, merchantMobileNumber, otp, accessToken } = parsed.data;
+    const normalizedBankMobile = normalizePhone(merchantMobileNumber);
+    if (!normalizedBankMobile) {
+      return res.status(400).json({
+        ok: false,
+        error: "invalid_phone",
+        message: "Please enter a valid mobile number registered with your bank account.",
+      });
+    }
+    const azamBankMobileNumber = normalizedBankMobile.replace(/^\+/, "");
 
     if (!verifyTourBookingAccessToken(accessToken, id))
       return res.status(403).json({ ok: false, error: "invalid_access_token" });
@@ -662,10 +673,10 @@ router.post(
     const azampayBody = {
       amount:                Math.round(amount).toString(),
       currencyCode:          currency,
-      merchantAccountNumber: accountNumber ?? "",
-      merchantMobileNumber:  "",
+      merchantAccountNumber: accountNumber,
+      merchantMobileNumber:  azamBankMobileNumber,
       merchantName:          process.env.AZAMPAY_APP_NAME || "NoLSAF",
-      otp:                   "",
+      otp,
       provider:              bankCode,
       referenceId:           paymentRef,
       additionalProperties:  { tourBookingId: booking.id.toString(), bookingCode: booking.bookingCode },
@@ -709,7 +720,7 @@ router.post(
           status:         "PENDING",
           paymentChannel: "BANK",
           rawStatus:      null,
-          payload:        { transactionId: azampayData.transactionId ?? null, paymentRef, bankCode },
+          payload:        { transactionId: azampayData.transactionId ?? null, paymentRef, bankCode, merchantMobileNumber: normalizedBankMobile },
         },
       });
     } catch (dbErr: any) {

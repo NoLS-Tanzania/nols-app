@@ -62,22 +62,40 @@ const PAYMENT_METHODS: PaymentMethod[] = [
 ];
 
 const BANK_PROVIDERS = [
-  { code: "CRDB",    name: "CRDB Bank" },
-  { code: "NMB",     name: "NMB Bank" },
-  { code: "NBC",     name: "NBC Bank" },
-  { code: "STANBIC", name: "Stanbic Bank" },
-  { code: "EQUITY",  name: "Equity Bank" },
-  { code: "IM",      name: "I&M Bank" },
-  { code: "ABSA",    name: "ABSA Bank" },
-  { code: "TCB",     name: "TCB Bank" },
-  { code: "BOA",     name: "Bank of Africa" },
-  { code: "DTB",     name: "Diamond Trust" },
-  { code: "UBA",     name: "UBA Bank" },
-  { code: "AZANIA",  name: "Bank of Azania" },
-  { code: "KCB",     name: "KCB Bank" },
-  { code: "NCBA",    name: "NCBA Bank" },
-  { code: "YETU",    name: "Yetu Microfinance" },
+  {
+    code: "CRDB",
+    name: "CRDB Bank",
+    logo: "/assets/NoLSAF_CRDB.png",
+    activeClass: "border-[#0f8b3d] bg-[#f0fff5] text-[#07502a] shadow-sm ring-2 ring-[#0f8b3d]/15",
+    dotClass: "border-[#0f8b3d] bg-[#0f8b3d]",
+  },
+  {
+    code: "NMB",
+    name: "NMB Bank",
+    logo: "/assets/NoLSAF_NMB.png",
+    activeClass: "border-[#0069b4] bg-[#eff8ff] text-[#00477a] shadow-sm ring-2 ring-[#0069b4]/15",
+    dotClass: "border-[#0069b4] bg-[#0069b4]",
+  },
 ] as const;
+
+const BANK_OTP_INSTRUCTIONS: Record<string, { title: string; steps: string[] }> = {
+  CRDB: {
+    title: "Generate CRDB OTP",
+    steps: [
+      "Dial *150*03# and enter your SIM Banking PIN.",
+      "Choose 7 Other services, then 5 AzamPay.",
+      "Select Link AzamPay Account to generate the OTP.",
+    ],
+  },
+  NMB: {
+    title: "Generate NMB OTP",
+    steps: [
+      "Dial *150*66#.",
+      "Choose 8 More, then 5 Register Sarafu.",
+      "Choose 1 Select Account No. to generate the OTP.",
+    ],
+  },
+};
 
 function formatCountdown(totalSeconds: number) {
   const safeSeconds = Math.max(0, Math.floor(totalSeconds));
@@ -221,6 +239,8 @@ export default function PaymentPage() {
   // Bank state
   const [selectedBankCode, setSelectedBankCode] = useState("");
   const [bankAccountNumber, setBankAccountNumber] = useState("");
+  const [bankMobileNumber, setBankMobileNumber] = useState("");
+  const [bankOtp, setBankOtp] = useState("");
 
   // Payment channel accordion (null = all collapsed)
   const [paymentChannel, setPaymentChannel] = useState<"MNO" | "BANK" | "CARD" | null>(null);
@@ -535,6 +555,20 @@ export default function PaymentPage() {
       setError("Please select a bank");
       return;
     }
+    const cleanedBankMobile = bankMobileNumber.replace(/\s+/g, "");
+    const phoneRegex = /^(\+255|255|0)?[0-9]{9}$/;
+    if (!bankAccountNumber.trim()) {
+      setError("Please enter the bank account number selected while generating the OTP.");
+      return;
+    }
+    if (!phoneRegex.test(cleanedBankMobile)) {
+      setError("Please enter the mobile number registered with your bank account.");
+      return;
+    }
+    if (!bankOtp.trim()) {
+      setError("Please enter the OTP generated from your bank menu.");
+      return;
+    }
 
     setError(null);
     setAuthRequired(false);
@@ -549,7 +583,9 @@ export default function PaymentPage() {
         body: JSON.stringify({
           invoiceId:     invoice.id,
           bankCode:      selectedBankCode,
-          accountNumber: bankAccountNumber.trim() || undefined,
+          accountNumber: bankAccountNumber.trim(),
+          merchantMobileNumber: cleanedBankMobile,
+          otp:           bankOtp.trim(),
           accessToken:   searchParams?.get("accessToken") || undefined,
         }),
       });
@@ -636,6 +672,8 @@ export default function PaymentPage() {
     ? `/public/properties/${encodeURIComponent(invoice.property.slug)}`
     : "/public/properties";
   const isDisabled = submitting || paymentCooldownSeconds > 0 || authRequired || draftUnavailable;
+  const bankInstruction = selectedBankCode ? BANK_OTP_INSTRUCTIONS[selectedBankCode] : null;
+  const bankReady = Boolean(selectedBankCode && bankAccountNumber.trim() && bankMobileNumber.trim() && bankOtp.trim());
 
   if (loading) {
     return (
@@ -778,7 +816,7 @@ export default function PaymentPage() {
                         {paymentChannel === "MNO"
                           ? "We sent a payment request to your phone. Keep this page open and approve the prompt on your mobile money account."
                           : paymentChannel === "BANK"
-                          ? "Please check your bank app or SMS for an authorization request and approve it to complete your payment."
+                          ? "We are confirming the bank checkout using the OTP you generated. Keep this page open while we verify the payment."
                           : "Please wait while we verify your card payment. Do not close this page."}
                       </p>
                     </div>
@@ -984,7 +1022,7 @@ export default function PaymentPage() {
                         <div className={`font-bold text-[15px] transition-colors ${paymentChannel === "BANK" ? "text-green-900" : "text-slate-900"}`}>
                           Bank Transfer
                         </div>
-                        <div className="text-xs text-slate-400 mt-0.5 font-medium">CRDB · NMB · NBC · 12 more</div>
+                        <div className="text-xs text-slate-400 mt-0.5 font-medium">CRDB · NMB OTP checkout</div>
                       </div>
                       <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
                         paymentChannel === "BANK" ? "border-green-600 bg-green-600" : "border-slate-300"
@@ -1126,43 +1164,119 @@ export default function PaymentPage() {
                       {/* ── Bank form ── */}
                       {paymentChannel === "BANK" && (
                         <>
-                          <div>
+                          <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-4">
+                            <div className="flex items-start gap-3">
+                              <div className="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-[#02665e] text-white">
+                                <Building2 className="h-4 w-4" />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="text-sm font-bold text-slate-950">Bank OTP checkout</div>
+                                <p className="mt-1 text-xs leading-5 text-slate-600">
+                                  Generate the OTP from your bank SIM menu first, then enter the same account number, registered mobile number, and OTP below.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="min-w-0 max-w-full overflow-hidden">
                             <label className="block text-sm font-semibold text-slate-700 mb-2">
                               Select Bank <span className="text-red-500">*</span>
                             </label>
-                            <select
-                              value={selectedBankCode}
-                              onChange={(e) => setSelectedBankCode(e.target.value)}
-                              className="w-full px-4 py-3.5 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] transition-all duration-200 text-slate-900 bg-white shadow-sm"
-                            >
-                              <option value="">Choose your bank</option>
-                              {BANK_PROVIDERS.map((bank) => (
-                                <option key={bank.code} value={bank.code}>
-                                  {bank.name}
-                                </option>
-                              ))}
-                            </select>
+                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                              {BANK_PROVIDERS.map((bank) => {
+                                const active = selectedBankCode === bank.code;
+                                return (
+                                  <button
+                                    key={bank.code}
+                                    type="button"
+                                    onClick={() => setSelectedBankCode(bank.code)}
+                                    className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-all ${
+                                      active
+                                        ? bank.activeClass
+                                        : "border-slate-200 bg-white text-slate-800 hover:border-emerald-200 hover:bg-emerald-50/40"
+                                    }`}
+                                  >
+                                    <span className="relative flex h-11 w-14 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg">
+                                      <Image src={bank.logo} alt={`${bank.name} logo`} fill sizes="56px" className="object-contain" />
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                      <span className="block text-sm font-bold">{bank.name}</span>
+                                      <span className="mt-0.5 block text-xs text-slate-500">{bank.code} SIM banking OTP</span>
+                                    </span>
+                                    <span className={`h-4 w-4 rounded-full border-2 ${active ? bank.dotClass : "border-slate-300"}`} />
+                                  </button>
+                                );
+                              })}
+                            </div>
                           </div>
+
+                          {bankInstruction && (
+                            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
+                              <div className="text-sm font-bold text-emerald-950">{bankInstruction.title}</div>
+                              <p className="mt-1 text-xs leading-5 text-emerald-800">
+                                Complete these steps on your phone before pressing the payment button.
+                              </p>
+                              <ol className="mt-3 space-y-2 text-xs leading-5 text-emerald-900">
+                                {bankInstruction.steps.map((step, index) => (
+                                  <li key={step} className="flex gap-2">
+                                    <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-white text-[11px] font-bold text-[#02665e] ring-1 ring-emerald-100">
+                                      {index + 1}
+                                    </span>
+                                    <span>{step}</span>
+                                  </li>
+                                ))}
+                              </ol>
+                            </div>
+                          )}
 
                           <div>
                             <label className="block text-sm font-semibold text-slate-700 mb-2">
-                              Account Number <span className="text-slate-400 font-normal">(optional)</span>
+                              Account Number <span className="text-red-500">*</span>
                             </label>
                             <input
                               type="text"
                               value={bankAccountNumber}
                               onChange={(e) => setBankAccountNumber(e.target.value)}
-                              placeholder="Account number"
-                              maxLength={25}
-                              className="w-full max-w-[280px] px-3 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] transition-all bg-slate-50 focus:bg-white text-slate-900 text-sm font-mono tracking-wide block"
+                              placeholder="Account number selected for OTP"
+                              maxLength={30}
+                              className="block box-border w-full max-w-full min-w-0 px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] transition-all bg-slate-50 focus:bg-white text-slate-900 text-sm font-mono tracking-wide"
                             />
-                            <p className="text-xs text-slate-400 mt-1.5">Leave blank if not required by your bank</p>
+                            <p className="mt-1.5 max-w-full break-words text-xs leading-5 text-slate-500">Use the same account you selected while generating the OTP.</p>
+                          </div>
+
+                          <div className="min-w-0 max-w-full overflow-hidden">
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">
+                              Bank Registered Mobile Number <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              type="tel"
+                              value={bankMobileNumber}
+                              onChange={(e) => setBankMobileNumber(e.target.value)}
+                              placeholder="+255 XXX XXX XXX"
+                              maxLength={15}
+                              className="block box-border w-full max-w-full min-w-0 px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] transition-all bg-slate-50 focus:bg-white text-slate-900 text-sm"
+                            />
+                            <p className="mt-1.5 max-w-full break-words text-xs leading-5 text-slate-500">This is the number registered for SIM banking on that bank account.</p>
+                          </div>
+
+                          <div className="min-w-0 max-w-full overflow-hidden">
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">
+                              Bank OTP <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={bankOtp}
+                              onChange={(e) => setBankOtp(e.target.value)}
+                              placeholder="Enter OTP from bank menu"
+                              maxLength={50}
+                              className="block box-border w-full max-w-full min-w-0 px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] transition-all bg-slate-50 focus:bg-white text-slate-900 text-sm font-mono tracking-wide"
+                            />
+                            <p className="mt-1.5 max-w-full break-words text-xs leading-5 text-slate-500">The OTP comes from the bank menu, not from NoLSAF.</p>
                           </div>
 
                           <button
                             type="button"
                             onClick={handleBankPayment}
-                            disabled={isDisabled || !selectedBankCode}
+                            disabled={isDisabled || !bankReady}
                             className="w-full py-4 px-6 rounded-xl bg-gradient-to-r from-[#02665e] to-[#014e47] text-white font-semibold hover:from-[#014e47] hover:to-[#02665e] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98]"
                           >
                             {submitting ? (
