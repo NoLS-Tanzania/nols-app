@@ -929,9 +929,7 @@ const requestContactChange: RequestHandler = async (req, res) => {
       // best-effort audit
     }
 
-    const payload: any = { ok: true, message: "Verification code sent" };
-    if (process.env.NODE_ENV !== "production") payload.otp = otp;
-    return res.json(payload);
+    return res.json({ ok: true, message: "Verification code sent" });
   } catch (error) {
     console.error("account.contact.requestChange failed", error);
     sendError(res, 500, "Failed to send verification code");
@@ -958,13 +956,7 @@ const confirmContactChange: RequestHandler = async (req, res) => {
       return sendError(res, 400, "No pending change found, or the code has expired. Please request a new code.");
     }
 
-    // Development master OTP override — accepts this code regardless of stored value.
-    // DISABLED in production for security.
-    const isProduction = process.env.NODE_ENV === 'production';
-    const MASTER_OTP = isProduction ? null : (process.env.DEV_MASTER_OTP || '123456');
-    const isMasterOtp = !isProduction && MASTER_OTP && String(otp) === MASTER_OTP;
-
-    if (!isMasterOtp && !verifyContactChangeOtp(otp, entry.codeHash)) {
+    if (!verifyContactChangeOtp(otp, entry.codeHash)) {
       return sendError(res, 400, "Invalid verification code.");
     }
 

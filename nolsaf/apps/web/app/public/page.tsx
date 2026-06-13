@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { SITE_URL, seoKeywords } from "@/lib/seo";
 
 export const metadata: Metadata = {
-  title: "NoLSAF | Quality Stays, Tours & Transport",
+  title: { absolute: "NoLSAF | Quality Stays, Tours & Transport" },
   description:
     "Discover verified accommodation, Tanzania tour packages, airport transfers, group stays, travel planning and NoLScope cost estimates across Tanzania and East Africa.",
   keywords: seoKeywords,
