@@ -586,6 +586,7 @@ export function BookingPaymentScreen({ navigation, route }: Props) {
                 ) : null}
                 <AppInput
                   label="Bank account number"
+                  required
                   value={bankAccount}
                   onChangeText={setBankAccount}
                   placeholder="Account number selected for OTP"
@@ -594,6 +595,7 @@ export function BookingPaymentScreen({ navigation, route }: Props) {
                 />
                 <AppInput
                   label="Bank registered mobile number"
+                  required
                   value={bankMobile}
                   onChangeText={(t) => setBankMobile(capTzPhoneInput(t))}
                   placeholder="07XXXXXXXX or +255 7XXXXXXXX"
@@ -602,6 +604,7 @@ export function BookingPaymentScreen({ navigation, route }: Props) {
                 />
                 <AppInput
                   label="Bank OTP"
+                  required
                   value={bankOtp}
                   onChangeText={setBankOtp}
                   placeholder="Enter OTP from bank menu"

@@ -594,6 +594,7 @@ export function GroupStayDepositPaymentScreen({ navigation, route }: Props) {
                 ) : null}
                 <AppInput
                   label="Bank account number"
+                  required
                   value={bankAccount}
                   onChangeText={setBankAccount}
                   placeholder="Account number selected for OTP"
@@ -602,6 +603,7 @@ export function GroupStayDepositPaymentScreen({ navigation, route }: Props) {
                 />
                 <AppInput
                   label="Bank registered mobile number"
+                  required
                   value={bankMobile}
                   onChangeText={(value) => setBankMobile(capTzPhoneInput(value))}
                   placeholder="07XXXXXXXX or +255 7XXXXXXXX"
@@ -610,6 +612,7 @@ export function GroupStayDepositPaymentScreen({ navigation, route }: Props) {
                 />
                 <AppInput
                   label="Bank OTP"
+                  required
                   value={bankOtp}
                   onChangeText={setBankOtp}
                   placeholder="Enter OTP from bank menu"
