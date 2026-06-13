@@ -219,7 +219,10 @@ router.get("/:id", async (req: Request, res: Response) => {
   if (!inv) return res.status(404).json({ error: "Not found" });
 
   // Enrich response for the owner UI (these are derived fields, not stored on Invoice).
-  const owner = await prisma.user.findUnique({ where: { id: authReq.user!.id } });
+  const owner = await prisma.user.findUnique({
+    where: { id: authReq.user!.id },
+    select: { id: true, name: true, phone: true, address: true } as any,
+  });
   const checkIn = (inv as any).booking?.checkIn ? new Date((inv as any).booking.checkIn) : null;
   const checkOut = (inv as any).booking?.checkOut ? new Date((inv as any).booking.checkOut) : null;
   const nights =
