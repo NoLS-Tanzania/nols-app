@@ -29,12 +29,16 @@ and no in progress traveller mobile work.
 - Native apps are not deployed from here directly. Production mobile builds are cut
   via EAS from a tagged commit on the relevant native branch, once that branch's work
   has been verified on `staging`.
-- Only merge into `main` once changes have been verified on `staging`.
+- `main` only ever merges from `staging`. `staging` is the preview environment for
+  what becomes production, so changes reach `main` exclusively by being verified on
+  `staging` first, then merged from `staging` into `main`. Native branches, and any
+  other branch, never merge directly into `main`.
 
 ## `staging` — The one source of truth for `apps/api` and `apps/web`
 
-- Day to day development branch for `apps/api` and `apps/web`.
-- `apps/api` deploys to the staging Render service (staging database).
+- Day to day development branch for `apps/api` and `apps/web`, and the preview
+  environment for what will become production.
+- `apps/api` deploys to the staging Render service, using the Aiven staging database.
 - `apps/web` deploys as a Vercel Preview, pointed at the staging API.
 - `staging` does not contain `apps/mobile`, `apps/driver`, or `apps/partners`, and does
   not contain the native planning docs (`NATIVE_APP_SETUP.md`,
@@ -158,17 +162,19 @@ fork.
 
 | | `apps/api` | `apps/web` | native app |
 |---|---|---|---|
-| **main** | Production AWS | Production Vercel | EAS production builds (from tagged commits on the relevant native branch) |
-| **staging** | Staging Render | Staging Vercel preview | not present |
+| **main** | Production AWS (Production AWS database) | Production Vercel | EAS production builds (from tags on the relevant native branch) |
+| **staging** | Staging Render (Aiven staging database) | Staging Vercel preview | not present |
 | **nolsaf-native-expo** | synced from staging | synced from staging, web build skipped via `ignoreCommand` unless web changed | `apps/mobile`, EAS dev/preview builds |
 | **nolsaf-driver-expo** | synced from staging | synced from staging, same `ignoreCommand` pattern | `apps/driver`, EAS dev/preview builds |
 | **nolsaf-partners-expo** | synced from staging | synced from staging, same `ignoreCommand` pattern | `apps/partners`, EAS dev/preview builds |
 
-In short: **`apps/api` and `apps/web` have one normal CI/CD pipeline: production runs
-from `main` with API/database on AWS and web on Vercel, while `staging` runs the
-staging API/web pipeline. Each native app has its own EAS pipeline, driven by its own
-branch, but every native branch always consumes the same `apps/api` and `apps/web` as
-`staging`, kept current through one directional syncing.**
+In short: **`apps/api` and `apps/web` have one normal CI/CD pipeline: `staging` is the
+preview environment (API on Render with the Aiven staging database, web on a Vercel
+Preview), and `main` is production (API on AWS with the production AWS database, web
+on Vercel Production), reached only by merging `staging` into `main`. Each native app
+has its own EAS pipeline, driven by its own branch, but every native branch always
+consumes the same `apps/api` and `apps/web` as `staging`, kept current through one
+directional syncing.**
 
 ## Git commands for managing these branches
 
@@ -258,24 +264,22 @@ git push origin staging
 Then sync `nolsaf-driver-expo` (and later `nolsaf-partners-expo`) from `staging` as
 described above, so they pick up `packages/native-ui` the normal way.
 
-### Promoting a native branch toward `main`
+### Cutting a production build from a native branch
 
-Only after the relevant phase has been verified on `staging` quality checks and the
-native branch is fully synced with `staging`:
+`main` only ever merges from `staging` (see "`main` — Production" above), so a native
+branch never merges into `main`. Instead, once the relevant phase is fully synced with
+`staging` and verified, tag the commit on the native branch itself and cut the EAS
+production build from that tag:
 
 ```bash
 git fetch origin
-git checkout main
-git merge --no-ff <native-branch-name>
-git push origin main
-```
-
-Tag the commit used for the EAS production build so it can be traced back later:
-
-```bash
+git checkout <native-branch-name>
+git pull origin <native-branch-name>
 git tag <app-name>-v<version>
 git push origin <app-name>-v<version>
 ```
+
+EAS production profiles point at this tag, not at `main`.
 
 ### Quick health check between any two branches
 
