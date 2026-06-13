@@ -1,0 +1,48 @@
+{
+  "expo": {
+    "name": "NoLSAF Driver",
+    "slug": "nolsaf-driver",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "nolsafdriver",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/Splash.png",
+      "backgroundColor": "#ffffff",
+      "resizeMode": "contain"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "buildNumber": "1",
+      "bundleIdentifier": "com.nolsaf.driver",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "NoLSAF Driver uses your location while a trip is active so the passenger and dispatch can see your progress."
+      }
+    },
+    "android": {
+      "package": "com.nolsaf.driver",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "NoLSAF Driver uses your location while a trip is active so the passenger and dispatch can see your progress."
+        }
+      ]
+    ]
+  }
+}
