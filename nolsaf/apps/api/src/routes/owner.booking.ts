@@ -29,6 +29,14 @@ function differenceInCalendarDays(end: Date | string, start: Date | string) {
   return Math.round((e.getTime() - s.getTime()) / 86400000);
 }
 
+const bookingUserSelect = {
+  id: true,
+  name: true,
+  fullName: true,
+  email: true,
+  phone: true,
+} as const;
+
 /** PREVIEW: validate code and return all details (no state change) */
 const validateBooking: RequestHandler = async (req, res) => {
   const r = req as AuthedRequest;
@@ -70,7 +78,7 @@ const validateBooking: RequestHandler = async (req, res) => {
           include: {
             property: { select: { id: true, title: true, type: true, basePrice: true, currency: true, services: true } },
             code: true,
-            user: true,
+            user: { select: bookingUserSelect },
           },
         });
         if (!booking) validationError = "Booking not found for this owner";
@@ -258,25 +266,18 @@ const getSidebarBookingCounts: RequestHandler = async (req, res) => {
     const ownerId = r.user?.id;
     if (!ownerId) return res.status(401).json({ error: "Unauthorized" });
 
-    const propertyIds = await prisma.property.findMany({
-      where: { ownerId },
-      select: { id: true },
-    });
-    const ids = propertyIds.map((p) => p.id);
-    if (ids.length === 0) return res.json({ checkedIn: 0, checkoutDue: 0 });
-
     const cutoff = new Date(Date.now() + 7 * 60 * 60 * 1000);
+    const ownerCheckedInWhere = {
+      property: { ownerId },
+      status: "CHECKED_IN",
+    };
     const [checkedIn, checkoutDue] = await Promise.all([
       prisma.booking.count({
-        where: {
-          propertyId: { in: ids },
-          status: "CHECKED_IN",
-        },
+        where: ownerCheckedInWhere,
       }),
       prisma.booking.count({
         where: {
-          propertyId: { in: ids },
-          status: "CHECKED_IN",
+          ...ownerCheckedInWhere,
           checkOut: { lte: cutoff },
         },
       }),
