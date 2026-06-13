@@ -19,6 +19,7 @@ import {
   StateView
 } from "../components";
 import { apiBaseUrl, ApiError } from "../lib/apiClient";
+import { getBankOtpInstruction } from "../lib/bankOtp";
 import { capTzPhoneInput, normalizeTzPhone } from "../lib/phone";
 import {
   fetchGroupBookingById,
@@ -98,6 +99,8 @@ export function GroupStayDepositPaymentScreen({ navigation, route }: Props) {
   const [phone, setPhone] = useState("");
   const [bankCode, setBankCode] = useState<"CRDB" | "NMB" | "">("");
   const [bankAccount, setBankAccount] = useState("");
+  const [bankMobile, setBankMobile] = useState("");
+  const [bankOtp, setBankOtp] = useState("");
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
   const [paymentRef, setPaymentRef] = useState<string | null>(null);
@@ -240,10 +243,28 @@ export function GroupStayDepositPaymentScreen({ navigation, route }: Props) {
       setError("Choose your bank.");
       return;
     }
+    const bankMobileForApi = normalizeTzPhone(bankMobile);
+    if (!bankAccount.trim()) {
+      setError("Enter the bank account number you selected while generating the OTP.");
+      return;
+    }
+    if (!bankMobileForApi) {
+      setError("Enter the mobile number registered with your bank account.");
+      return;
+    }
+    if (!bankOtp.trim()) {
+      setError("Enter the OTP generated from your bank menu.");
+      return;
+    }
     setError(null);
     setStatus("pending");
     try {
-      const res = await initiateGroupBookingDepositBank(token, id, { bankCode, accountNumber: bankAccount.trim() || undefined });
+      const res = await initiateGroupBookingDepositBank(token, id, {
+        bankCode,
+        accountNumber: bankAccount.trim(),
+        merchantMobileNumber: bankMobileForApi,
+        otp: bankOtp.trim()
+      });
       setPaymentRef(res.paymentRef || res.transactionId || null);
       beginPolling();
     } catch (err) {
@@ -302,6 +323,8 @@ export function GroupStayDepositPaymentScreen({ navigation, route }: Props) {
   const msUntilDue = dueAt ? dueAt - now : null;
   const isExpired = !deposit.depositPaid && (statusUpper === "EXPIRED" || (statusUpper === "AWAITING_DEPOSIT" && msUntilDue != null && msUntilDue <= 0));
   const alreadyConfirmed = deposit.depositPaid || (statusUpper !== "AWAITING_DEPOSIT" && !isExpired);
+  const bankInstruction = getBankOtpInstruction(bankCode);
+  const bankReady = Boolean(bankCode && bankAccount.trim() && normalizeTzPhone(bankMobile) && bankOtp.trim());
 
   if (status !== "success" && isExpired) {
     return (
@@ -393,7 +416,7 @@ export function GroupStayDepositPaymentScreen({ navigation, route }: Props) {
                 </AppText>
                 <AppText variant="bodySmall" tone="muted">
                   {channel === "BANK"
-                    ? "Approve the request in your bank app or SMS prompt."
+                    ? "We are confirming the bank checkout using the OTP you generated."
                     : channel === "CARD"
                       ? "We are checking the card payment result."
                       : "Approve the mobile money prompt to complete payment."}
@@ -550,20 +573,48 @@ export function GroupStayDepositPaymentScreen({ navigation, route }: Props) {
                             {item.name}
                           </AppText>
                           <AppText variant="caption" tone="soft">
-                            Approve in app or SMS
+                            OTP checkout
                           </AppText>
                         </View>
                       </Pressable>
                     );
                   })}
                 </View>
+                {bankInstruction ? (
+                  <View style={styles.otpGuide}>
+                    <AppText variant="caption" weight="bold" tone="primary">
+                      {bankInstruction.title}
+                    </AppText>
+                    {bankInstruction.steps.map((step, index) => (
+                      <AppText key={step} variant="caption" tone="muted">
+                        {index + 1}. {step}
+                      </AppText>
+                    ))}
+                  </View>
+                ) : null}
                 <AppInput
-                  label="Account number (optional)"
+                  label="Bank account number"
                   value={bankAccount}
                   onChangeText={setBankAccount}
-                  placeholder="Leave blank if not needed"
+                  placeholder="Account number selected for OTP"
                   keyboardType="number-pad"
-                  maxLength={25}
+                  maxLength={30}
+                />
+                <AppInput
+                  label="Bank registered mobile number"
+                  value={bankMobile}
+                  onChangeText={(value) => setBankMobile(capTzPhoneInput(value))}
+                  placeholder="07XXXXXXXX or +255 7XXXXXXXX"
+                  keyboardType="phone-pad"
+                  maxLength={13}
+                />
+                <AppInput
+                  label="Bank OTP"
+                  value={bankOtp}
+                  onChangeText={setBankOtp}
+                  placeholder="Enter OTP from bank menu"
+                  keyboardType="number-pad"
+                  maxLength={50}
                 />
               </>
             ) : (
@@ -605,7 +656,7 @@ export function GroupStayDepositPaymentScreen({ navigation, route }: Props) {
         <AppButton
           title={`Pay ${depositAmount.toLocaleString()} ${currency}`}
           onPress={channel === "BANK" ? payBank : channel === "CARD" ? payCard : payMobileMoney}
-          disabled={channel === "BANK" ? !bankCode : channel === "CARD" ? false : !provider || !phone.trim()}
+          disabled={channel === "BANK" ? !bankReady : channel === "CARD" ? false : !provider || !phone.trim()}
           icon={channel === "BANK" ? <Landmark color={colors.white} size={18} /> : channel === "CARD" ? <CreditCard color={colors.white} size={18} /> : <Smartphone color={colors.white} size={18} />}
         />
       </BottomActionBar>
@@ -721,6 +772,14 @@ const styles = StyleSheet.create({
   },
   bankTileOn: { borderColor: colors.primary, backgroundColor: colors.brand[50] },
   bankLogo: { width: 52, height: 34 },
+  otpGuide: {
+    gap: spacing[1],
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.brand[100],
+    backgroundColor: colors.white,
+    padding: spacing[3]
+  },
   cardPanel: {
     flexDirection: "row",
     alignItems: "center",

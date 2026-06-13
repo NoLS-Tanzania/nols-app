@@ -68,7 +68,7 @@ export function PaymentsScreen({ navigation }: Props) {
         Icon={Landmark}
         iconColor="#15803d"
         title="Bank"
-        description="Pay directly from your bank account. We send a payment request to your bank, approve it in your banking app or the SMS prompt to confirm."
+        description="Pay from CRDB or NMB by generating a bank OTP first, then submit the OTP, account number, and bank-registered phone to confirm."
         providers={BANKS}
       />
 

@@ -1,13 +1,20 @@
 import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold } from "@expo-google-fonts/inter";
+import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Animated, Easing, StyleSheet, Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
-import { AuthProvider } from "./src/auth/AuthProvider";
+import { AuthProvider, useAuth } from "./src/auth/AuthProvider";
 import { NolsafLogoMark } from "./src/components";
 import { AppNavigator } from "./src/navigation/AppNavigator";
 import { colors } from "./src/theme";
+
+const MIN_SPLASH_MS = 2000;
+
+void SplashScreen.preventAutoHideAsync().catch(() => {
+  // The splash may already be hidden during fast refresh.
+});
 
 function BrandedBootScreen() {
   const spin = useRef(new Animated.Value(0)).current;
@@ -52,6 +59,7 @@ function BrandedBootScreen() {
     inputRange: [0, 1],
     outputRange: ["0deg", "360deg"]
   });
+
   const ringScale = pulse.interpolate({
     inputRange: [0, 1],
     outputRange: [0.92, 1.08]
@@ -78,7 +86,16 @@ function BrandedBootScreen() {
   );
 }
 
+function AppContent() {
+  const { status } = useAuth();
+  if (status === "loading") return <BrandedBootScreen />;
+  return <AppNavigator />;
+}
+
 export default function App() {
+  const [minimumSplashElapsed, setMinimumSplashElapsed] = useState(false);
+  const [appReady, setAppReady] = useState(false);
+  const splashHiddenRef = useRef(false);
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -87,21 +104,40 @@ export default function App() {
     Inter_800ExtraBold
   });
 
-  if (!fontsLoaded) {
-    return <BrandedBootScreen />;
-  }
+  useEffect(() => {
+    const timer = setTimeout(() => setMinimumSplashElapsed(true), MIN_SPLASH_MS);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (fontsLoaded && minimumSplashElapsed) setAppReady(true);
+  }, [fontsLoaded, minimumSplashElapsed]);
+
+  const hideSplashAfterLayout = useCallback(() => {
+    if (!appReady || splashHiddenRef.current) return;
+    splashHiddenRef.current = true;
+    void SplashScreen.hideAsync().catch(() => undefined);
+  }, [appReady]);
 
   return (
-    <SafeAreaProvider>
+    <SafeAreaProvider style={styles.appRoot} onLayout={hideSplashAfterLayout}>
       <StatusBar style="dark" backgroundColor={colors.surface} />
-      <AuthProvider>
-        <AppNavigator />
-      </AuthProvider>
+      {appReady ? (
+        <AuthProvider>
+          <AppContent />
+        </AuthProvider>
+      ) : (
+        <BrandedBootScreen />
+      )}
     </SafeAreaProvider>
   );
 }
 
 const styles = StyleSheet.create({
+  appRoot: {
+    flex: 1,
+    backgroundColor: colors.primaryDeep
+  },
   bootRoot: {
     flex: 1,
     alignItems: "center",

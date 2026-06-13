@@ -74,7 +74,7 @@ export function initiateGroupBookingDepositMno(
 export function initiateGroupBookingDepositBank(
   token: string,
   id: number,
-  params: { bankCode: "CRDB" | "NMB"; accountNumber?: string }
+  params: { bankCode: "CRDB" | "NMB"; accountNumber: string; merchantMobileNumber: string; otp: string }
 ) {
   return apiRequest<DepositPaymentInitiateResult>(`/api/customer/group-stays/${id}/deposit/initiate-bank`, {
     method: "POST",

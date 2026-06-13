@@ -643,14 +643,18 @@ export async function initiateTourBankPayment(params: {
   bookingId: number;
   accessToken: string;
   bankCode: string;
-  accountNumber?: string;
+  accountNumber: string;
+  merchantMobileNumber: string;
+  otp: string;
 }) {
   return apiRequest<TourPaymentInitiateResult>(`/api/public/tour-bookings/${params.bookingId}/initiate-bank-payment`, {
     method: "POST",
     body: {
       accessToken: params.accessToken,
       bankCode: params.bankCode,
-      accountNumber: params.accountNumber || undefined
+      accountNumber: params.accountNumber,
+      merchantMobileNumber: params.merchantMobileNumber,
+      otp: params.otp
     }
   });
 }

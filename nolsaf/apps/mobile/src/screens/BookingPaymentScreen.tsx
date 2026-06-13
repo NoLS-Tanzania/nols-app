@@ -27,6 +27,7 @@ import {
   StateView
 } from "../components";
 import { ApiError } from "../lib/apiClient";
+import { getBankOtpInstruction } from "../lib/bankOtp";
 import { capTzPhoneInput, normalizeTzPhone } from "../lib/phone";
 import { RootStackParamList } from "../navigation/types";
 import { colors, radius, spacing } from "../theme";
@@ -82,6 +83,8 @@ export function BookingPaymentScreen({ navigation, route }: Props) {
   const [phone, setPhone] = useState("");
   const [bankCode, setBankCode] = useState("");
   const [bankAccount, setBankAccount] = useState("");
+  const [bankMobile, setBankMobile] = useState("");
+  const [bankOtp, setBankOtp] = useState("");
   const [status, setStatus] = useState<PayStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [paymentRef, setPaymentRef] = useState<string | null>(null);
@@ -204,13 +207,28 @@ export function BookingPaymentScreen({ navigation, route }: Props) {
       setError("Choose your bank to continue.");
       return;
     }
+    const bankMobileForApi = normalizeTzPhone(bankMobile);
+    if (!bankAccount.trim()) {
+      setError("Enter the bank account number you selected while generating the OTP.");
+      return;
+    }
+    if (!bankMobileForApi) {
+      setError("Enter the mobile number registered with your bank account.");
+      return;
+    }
+    if (!bankOtp.trim()) {
+      setError("Enter the OTP generated from your bank menu.");
+      return;
+    }
     setError(null);
     setStatus("pending");
     try {
       const res = await initiateBankPayment(token, {
         invoiceId: invoice.id,
         bankCode,
-        accountNumber: bankAccount.trim() || undefined,
+        accountNumber: bankAccount.trim(),
+        merchantMobileNumber: bankMobileForApi,
+        otp: bankOtp.trim(),
         accessToken
       });
       setPaymentRef(res.paymentRef || res.transactionId || invoice.paymentRef || null);
@@ -286,6 +304,8 @@ export function BookingPaymentScreen({ navigation, route }: Props) {
   const currency = invoice.currency || "TZS";
   const breakdown = invoice.priceBreakdown;
   const bookingCode = invoice.booking.bookingCode;
+  const bankInstruction = getBankOtpInstruction(bankCode);
+  const bankReady = Boolean(bankCode && bankAccount.trim() && normalizeTzPhone(bankMobile) && bankOtp.trim());
 
   // ── Success ──
   if (status === "success") {
@@ -344,7 +364,7 @@ export function BookingPaymentScreen({ navigation, route }: Props) {
                 </AppText>
                 <AppText variant="bodySmall" tone="muted">
                   {channel === "BANK"
-                    ? `We sent a request to ${BANKS.find((b) => b.code === bankCode)?.name || "your bank"}. Approve it in your bank app or the SMS prompt to confirm.`
+                    ? `We are confirming the ${BANKS.find((b) => b.code === bankCode)?.name || "bank"} checkout using the OTP you generated.`
                     : channel === "CARD"
                       ? "We are confirming your card payment. This can take a moment."
                       : `We sent a payment request to ${phone}. Approve the prompt on your mobile money account to confirm.`}
@@ -552,16 +572,44 @@ export function BookingPaymentScreen({ navigation, route }: Props) {
                     );
                   })}
                 </View>
+                {bankInstruction ? (
+                  <View style={styles.otpGuide}>
+                    <AppText variant="caption" weight="bold" tone="primary">
+                      {bankInstruction.title}
+                    </AppText>
+                    {bankInstruction.steps.map((step, index) => (
+                      <AppText key={step} variant="caption" tone="muted">
+                        {index + 1}. {step}
+                      </AppText>
+                    ))}
+                  </View>
+                ) : null}
                 <AppInput
-                  label="Account number (optional)"
+                  label="Bank account number"
                   value={bankAccount}
                   onChangeText={setBankAccount}
-                  placeholder="Leave blank if not required"
+                  placeholder="Account number selected for OTP"
                   keyboardType="number-pad"
-                  maxLength={25}
+                  maxLength={30}
+                />
+                <AppInput
+                  label="Bank registered mobile number"
+                  value={bankMobile}
+                  onChangeText={(t) => setBankMobile(capTzPhoneInput(t))}
+                  placeholder="07XXXXXXXX or +255 7XXXXXXXX"
+                  keyboardType="phone-pad"
+                  maxLength={13}
+                />
+                <AppInput
+                  label="Bank OTP"
+                  value={bankOtp}
+                  onChangeText={setBankOtp}
+                  placeholder="Enter OTP from bank menu"
+                  keyboardType="number-pad"
+                  maxLength={50}
                 />
                 <AppText variant="caption" tone="soft">
-                  Approve the request in your bank app or the SMS prompt to complete payment.
+                  Use the OTP generated from your bank SIM menu. The OTP is submitted securely to confirm this checkout.
                 </AppText>
               </>
             ) : (
@@ -622,7 +670,7 @@ export function BookingPaymentScreen({ navigation, route }: Props) {
             )
           }
           onPress={channel === "BANK" ? handleBankPay : channel === "CARD" ? handleCardPay : handlePay}
-          disabled={channel === "BANK" ? !bankCode : channel === "CARD" ? false : !provider || !phone.trim()}
+          disabled={channel === "BANK" ? !bankReady : channel === "CARD" ? false : !provider || !phone.trim()}
         />
       </BottomActionBar>
     </View>
@@ -741,6 +789,14 @@ const styles = StyleSheet.create({
     justifyContent: "center"
   },
   bankRadioOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  otpGuide: {
+    gap: spacing[1],
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.brand[100],
+    backgroundColor: colors.white,
+    padding: spacing[3]
+  },
   providerGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing[2] },
   providerTile: {
     width: "48%",

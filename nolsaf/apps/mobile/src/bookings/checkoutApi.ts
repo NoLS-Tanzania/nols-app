@@ -81,11 +81,18 @@ export async function initiateCardPayment(
   });
 }
 
-/** Start a bank transfer charge. Like the MNO push, there is no redirect: the
- *  customer approves in their bank app/SMS and the caller polls the invoice. */
+/** Start a bank checkout charge. CRDB/NMB require an OTP generated from SIM
+ *  banking before we submit the checkout request. */
 export async function initiateBankPayment(
   token: string | null,
-  params: { invoiceId: number; bankCode: string; accountNumber?: string; accessToken: string }
+  params: {
+    invoiceId: number;
+    bankCode: string;
+    accountNumber: string;
+    merchantMobileNumber: string;
+    otp: string;
+    accessToken: string;
+  }
 ) {
   return apiRequest<PaymentInitiateResult>(`/api/payments/azampay/bank/initiate`, {
     method: "POST",
@@ -93,7 +100,9 @@ export async function initiateBankPayment(
     body: {
       invoiceId: params.invoiceId,
       bankCode: params.bankCode,
-      accountNumber: params.accountNumber || undefined,
+      accountNumber: params.accountNumber,
+      merchantMobileNumber: params.merchantMobileNumber,
+      otp: params.otp,
       accessToken: params.accessToken
     }
   });

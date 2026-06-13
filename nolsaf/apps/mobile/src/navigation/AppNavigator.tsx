@@ -1,6 +1,5 @@
 import { LinkingOptions, NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
 
 import { useAuth } from "../auth";
 import { webOrigin } from "../lib/webOrigin";
@@ -72,14 +71,6 @@ const navigationTheme = {
 export function AppNavigator() {
   const { status } = useAuth();
 
-  if (status === "loading") {
-    return (
-      <View style={styles.loading}>
-        <ActivityIndicator color={colors.primary} />
-      </View>
-    );
-  }
-
   return (
     <NavigationContainer theme={navigationTheme} linking={linking}>
       <Stack.Navigator
@@ -144,12 +135,3 @@ export function AppNavigator() {
     </NavigationContainer>
   );
 }
-
-const styles = StyleSheet.create({
-  loading: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.surface
-  }
-});
