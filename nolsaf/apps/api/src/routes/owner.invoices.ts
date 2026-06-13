@@ -61,6 +61,14 @@ async function findOwnerInvoiceForBooking(ownerId: number, bookingId: number) {
   });
 }
 
+const bookingUserSelect = {
+  id: true,
+  name: true,
+  fullName: true,
+  email: true,
+  phone: true,
+} as const;
+
 router.post("/from-booking", async (req, res) => {
   try {
     const authReq = req as AuthedRequest;
@@ -202,7 +210,7 @@ router.get("/:id", async (req: Request, res: Response) => {
       booking: {
         include: {
           property: { select: { id: true, title: true, type: true, basePrice: true, currency: true } },
-          user: true,
+          user: { select: bookingUserSelect },
           code: true,
         },
       },
