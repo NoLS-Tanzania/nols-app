@@ -228,6 +228,7 @@ const sendLevelMessage: RequestHandler = async (req, res) => {
       if ((prisma as any).adminAudit) {
         await (prisma as any).adminAudit.create({
           data: {
+            adminId: driverId,
             action: 'DRIVER_LEVEL_MESSAGE',
             performedBy: driverId,
             targetUserId: driverId,

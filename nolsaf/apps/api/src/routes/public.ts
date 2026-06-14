@@ -6,6 +6,7 @@ import publicBookingRouter from "./public.booking";
 import publicBookingsRouter from "./public.bookings";
 import publicCareersApplyRouter from "./public.careers.apply";
 import publicCareersRouter from "./public.careers";
+import publicDriverVerificationRouter from "./public.driverVerification";
 import { router as publicEmailVerify } from "./public.email.verify";
 import publicGroupStayReceiptRouter from "./public.groupStayReceipt";
 import publicInvoicesRouter from "./public.invoices";
@@ -47,6 +48,7 @@ export function registerPublicContentRoutes(app: Express): void {
   app.use("/api/public/nolscope", publicNolScopeRouter);
   app.use("/api/public/agents", publicAgentsRouter);
   app.use("/api/public/tour-bookings", publicTourBookingsRouter);
+  app.use("/api/public/driver-verification", publicDriverVerificationRouter);
 }
 
 export function registerPublicPlanRequestRoute(app: Express): void {
