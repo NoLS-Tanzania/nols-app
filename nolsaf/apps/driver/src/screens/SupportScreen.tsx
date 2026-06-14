@@ -1,6 +1,6 @@
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { AppCard, AppStack, AppText, colors, radius, spacing } from "@nolsaf/native-ui";
-import { ArrowLeft, ChevronDown, ChevronUp, Mail, MessageCircle, Phone } from "lucide-react-native";
+import { ArrowLeft, ChevronDown, ChevronRight, ChevronUp, Headphones, Mail, MessageCircle, Phone } from "lucide-react-native";
 import { useState } from "react";
 import { Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
 
@@ -130,23 +130,70 @@ export function SupportScreen({ navigation }: Props) {
 
         <AppCard>
           <AppStack gap={3}>
-            <AppText variant="titleSm" weight="bold">
-              {CONTACT.name}
-            </AppText>
-            <AppText variant="caption" tone="muted">
-              Available {CONTACT.hours}
-            </AppText>
+            <View style={styles.supportHeader}>
+              <View style={styles.supportIconWrap}>
+                <Headphones color={colors.primary} size={20} />
+              </View>
+              <AppStack gap={1} style={styles.supportHeaderText}>
+                <AppText variant="titleSm" weight="bold">
+                  {CONTACT.name}
+                </AppText>
+                <View style={styles.availabilityPill}>
+                  <View style={styles.availabilityDot} />
+                  <AppText variant="caption" weight="bold" tone="success">
+                    Available {CONTACT.hours}
+                  </AppText>
+                </View>
+              </AppStack>
+            </View>
+
             <Pressable accessibilityRole="button" onPress={() => Linking.openURL(`mailto:${CONTACT.email}`)} style={styles.contactRow}>
-              <Mail color={colors.primary} size={18} />
-              <AppText variant="bodySmall">{CONTACT.email}</AppText>
+              <View style={styles.contactIconWrap}>
+                <Mail color={colors.primary} size={18} />
+              </View>
+              <View style={styles.contactInfo}>
+                <AppText variant="caption" tone="muted">
+                  Email
+                </AppText>
+                <AppText variant="bodySmall" weight="bold">
+                  {CONTACT.email}
+                </AppText>
+              </View>
+              <ChevronRight color={colors.softText} size={18} />
             </Pressable>
-            <Pressable accessibilityRole="button" onPress={() => Linking.openURL(`tel:${CONTACT.phone.replace(/\s+/g, "")}`)} style={styles.contactRow}>
-              <Phone color={colors.primary} size={18} />
-              <AppText variant="bodySmall">{CONTACT.phone}</AppText>
+
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => Linking.openURL(`tel:${CONTACT.phone.replace(/\s+/g, "")}`)}
+              style={styles.contactRow}
+            >
+              <View style={styles.contactIconWrap}>
+                <Phone color={colors.primary} size={18} />
+              </View>
+              <View style={styles.contactInfo}>
+                <AppText variant="caption" tone="muted">
+                  Phone
+                </AppText>
+                <AppText variant="bodySmall" weight="bold">
+                  {CONTACT.phone}
+                </AppText>
+              </View>
+              <ChevronRight color={colors.softText} size={18} />
             </Pressable>
+
             <Pressable accessibilityRole="button" onPress={() => Linking.openURL(CONTACT.whatsapp)} style={styles.contactRow}>
-              <MessageCircle color={colors.primary} size={18} />
-              <AppText variant="bodySmall">WhatsApp</AppText>
+              <View style={styles.contactIconWrap}>
+                <MessageCircle color={colors.primary} size={18} />
+              </View>
+              <View style={styles.contactInfo}>
+                <AppText variant="caption" tone="muted">
+                  WhatsApp
+                </AppText>
+                <AppText variant="bodySmall" weight="bold">
+                  Chat with our team
+                </AppText>
+              </View>
+              <ChevronRight color={colors.softText} size={18} />
             </Pressable>
           </AppStack>
         </AppCard>
@@ -198,9 +245,57 @@ const styles = StyleSheet.create({
   faqBody: {
     paddingTop: spacing[1]
   },
+  supportHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[3]
+  },
+  supportIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.full,
+    backgroundColor: colors.brand[50],
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  supportHeaderText: {
+    flex: 1,
+    minWidth: 0
+  },
+  availabilityPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[1]
+  },
+  availabilityDot: {
+    width: 6,
+    height: 6,
+    borderRadius: radius.full,
+    backgroundColor: colors.success
+  },
   contactRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing[2]
+    gap: spacing[3],
+    padding: spacing[3],
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface
+  },
+  contactIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.full,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  contactInfo: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2
   }
 });

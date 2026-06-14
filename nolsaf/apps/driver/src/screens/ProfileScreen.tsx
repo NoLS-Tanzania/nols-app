@@ -12,42 +12,44 @@ import {
   StateView,
   StatusBadge
 } from "@nolsaf/native-ui";
-import { File, Paths } from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
 import * as Sharing from "expo-sharing";
-import { AlertCircle, ArrowLeft, ChevronLeft, ChevronRight, Download, IdCard, Shield, Trash2, UserCircle, X } from "lucide-react-native";
+import { AlertCircle, ArrowLeft, Car, ChevronLeft, ChevronRight, CreditCard, Download, Eye, EyeOff, IdCard, Landmark, Lock, Shield, Smartphone, Trash2, UserCircle, X } from "lucide-react-native";
 import * as QRCode from "qrcode";
-import { useCallback, useEffect, useState } from "react";
+import { ComponentProps, useCallback, useEffect, useRef, useState } from "react";
 import { Image, Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import Svg, { Rect } from "react-native-svg";
+import { captureRef } from "react-native-view-shot";
 
 import { useAuth } from "../auth/AuthProvider";
 import {
+  confirmContactChange,
   fetchPaymentMethods,
   fetchProfile,
+  requestContactChange,
   updateDocument,
   updateDriverProfile,
   updatePayoutDetails,
   uploadFile,
   deleteAccount
 } from "../driver/driverApi";
-import { DOCUMENT_STATUS_TONE, DocumentType, DriverProfile } from "../driver/types";
+import { ContactField, DOCUMENT_STATUS_TONE, DocumentType, DriverProfile } from "../driver/types";
 import { env } from "../lib/env";
 import { RootStackParamList } from "../navigation/types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Profile">;
 
-const DOCUMENT_TYPES: Array<{ type: DocumentType; label: string }> = [
-  { type: "DRIVER_LICENSE", label: "Driving license" },
-  { type: "NATIONAL_ID", label: "National ID" },
-  { type: "VEHICLE_REGISTRATION", label: "Vehicle registration" },
-  { type: "INSURANCE", label: "Insurance" }
+const DOCUMENT_TYPES: Array<{ type: DocumentType; label: string; icon: typeof IdCard }> = [
+  { type: "DRIVER_LICENSE", label: "Driving license", icon: IdCard },
+  { type: "NATIONAL_ID", label: "National ID", icon: CreditCard },
+  { type: "VEHICLE_REGISTRATION", label: "Vehicle registration", icon: Car },
+  { type: "INSURANCE", label: "Insurance", icon: Shield }
 ];
 
 const ID_CARD_ASPECT_RATIO = 85.6 / 53.98;
+const ID_CARD_EXPORT_WIDTH = 856;
+const ID_CARD_EXPORT_HEIGHT = Math.round(ID_CARD_EXPORT_WIDTH / ID_CARD_ASPECT_RATIO);
 const LICENSE_DOC_TYPES = new Set(["DRIVER_LICENSE", "DRIVING_LICENSE", "DRIVER_LICENCE", "DRIVING_LICENCE", "LICENSE"]);
-const NOLSAF_LOGO_PATH =
-  "M504.04,245.75h-24.85c.18,1.71.34,3.44.54,5.19v88.35c-.05.13-1.02.77-1.23.81-1.99.39-6.53.27-8.59-.02-17.18-2.35-25.88-16.52-35.18-29.34-8.39-11.57-16.34-23.42-24.4-35.1-6.75-9.78-15.87-24.25-27.39-28.45-6.23-2.27-15.24-1.28-22-1.42-.45-.01-.85-.17-1.28-.25-.13.02-.37.54-.37.57v106.28c0,.4-.39,1.01.54,1.2l22.08.03c.14-.03.36-.53.36-.57v-75.12l.55-.33c.14.03.93,1.1,1.09,1.34,9.03,13.21,17.85,26.64,26.78,39.95,12.83,19.15,22.43,37.09,46.98,42.73,4.02.93,8.49,1.81,12.66,2.15,1.21.09,8.1-.24,8.41.21.16.65.15,1.42.07,2.09-2.1,17.92-18.01,32.38-35.87,32.84-28.1-.86-56.85,1.11-84.87,0-13.72-.54-27.16-7.95-33.41-20.5-2.88-5.76-3.66-11.69-4.04-18.06v-113.37c.59-12.06,4.98-22.52,14.83-29.79,7.51-5.54,15.4-7.75,24.83-8.1,28.99.43,58.11-.86,87.02.72,8.24,1.73,15.82,5.72,21.5,11.62h29.83c-4.48-10.07-11.56-18.93-20.76-25.28-11.69-8.08-26-11.5-40.02-12.47h-80.65c-32.59,2.38-58.8,26.87-61.32,60v118.87c1.22,34.56,29.86,59.84,63.51,61.55h85.3c33.11-2.72,56.91-26.65,59.33-59.78.36-39.49.37-79.06.02-118.55Z";
 
 function publicIdCode(profile: DriverProfile) {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -80,6 +82,32 @@ function driverIdNumber(profile: DriverProfile, licenseExpiry?: Date | null) {
 function display(value: string | number | null | undefined) {
   const text = value == null ? "" : String(value).trim();
   return text || "--";
+}
+
+function maskAccountNumber(value: string) {
+  if (!value || value.length <= 4) return value;
+  return "•".repeat(Math.max(4, value.length - 4)) + value.slice(-4);
+}
+
+function normalizeName(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function describeApiError(e: unknown, fallback: string) {
+  if (e instanceof Error) {
+    const payload = (e as { payload?: { details?: Array<{ path?: Array<string | number>; message?: string }> } }).payload;
+    if (Array.isArray(payload?.details) && payload.details.length) {
+      const reasons = payload.details
+        .map((issue) => {
+          const field = Array.isArray(issue.path) && issue.path.length ? String(issue.path[issue.path.length - 1]) : null;
+          return field && issue.message ? `${field}: ${issue.message}` : issue.message;
+        })
+        .filter(Boolean);
+      if (reasons.length) return reasons.join(" ");
+    }
+    if (e.message && e.message !== "Invalid input") return e.message;
+  }
+  return fallback;
 }
 
 function hasDocument(profile: DriverProfile, type: DocumentType) {
@@ -160,134 +188,15 @@ function getMissingIdCardItems(profile: DriverProfile, licenseExpiry: Date | nul
   return missing;
 }
 
-function escapeHtml(value: string | number | null | undefined) {
-  return display(value)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function buildQrSvg(value: string, size = 168) {
-  const qr = QRCode.create(value, { errorCorrectionLevel: "M" });
-  const modules = qr.modules;
-  const quiet = 4;
-  const cell = size / (modules.size + quiet * 2);
-  const rects: string[] = [];
-  for (let row = 0; row < modules.size; row += 1) {
-    for (let col = 0; col < modules.size; col += 1) {
-      if (modules.get(row, col)) {
-        rects.push(`<rect x="${(col + quiet) * cell}" y="${(row + quiet) * cell}" width="${cell}" height="${cell}" />`);
-      }
-    }
-  }
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><rect width="100%" height="100%" fill="#fff"/> <g fill="#081827">${rects.join("")}</g></svg>`;
-}
-
-function buildDriverIdHtml(profile: DriverProfile, licenseExpiry: Date, verificationUrl: string) {
-  const name = profile.fullName || profile.name || "Driver";
-  const idNo = driverIdNumber(profile, licenseExpiry);
-  const plate = profile.plateNumber || profile.vehiclePlate;
-  const vehicle = [profile.vehicleMake, profile.vehicleType].filter(Boolean).join(" / ");
-  const area = profile.operationArea || profile.region || profile.district || "Tanzania";
-  const issued = new Date().toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
-  const qrSvg = buildQrSvg(verificationUrl, 154);
-
-  return `<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>NoLSAF Driver ID - ${escapeHtml(name)}</title>
-  <style>
-    @page { size: 85.6mm 53.98mm; margin: 0; }
-    * { box-sizing: border-box; }
-    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #eef5f4; font-family: Arial, sans-serif; color: #fff; }
-    .document { display: grid; gap: 8mm; padding: 8mm; }
-    .card { position: relative; width: 85.6mm; height: 53.98mm; overflow: hidden; background: linear-gradient(135deg, #123447, #1f6670 58%, #2f7e88); box-shadow: 0 24px 70px rgba(15, 23, 42, 0.24); page-break-inside: avoid; }
-    .seal { position: absolute; left: 7mm; bottom: 5mm; width: 32mm; height: 32mm; border: .45mm solid rgba(16,185,129,.10); border-radius: 50%; color: rgba(255,255,255,.045); display: grid; place-items: center; font-size: 19mm; font-weight: 900; letter-spacing: -.08em; }
-    .logo-seal { position: absolute; right: 22mm; bottom: 8mm; width: 28mm; height: 31mm; opacity: .045; }
-    .micro-border { position: absolute; inset: 2.5mm; border: .2mm solid rgba(255,255,255,.08); border-radius: 3mm; }
-    .gridlines { position: absolute; inset: 0; background-image: linear-gradient(35deg, rgba(255,255,255,.028) 1px, transparent 1px); background-size: 11px 11px; opacity: .24; }
-    .content { position: relative; z-index: 1; height: 100%; display: grid; grid-template-columns: 22mm 1fr 22mm; gap: 3mm; padding: 5mm 4mm 8mm 5mm; }
-    .avatar { width: 18mm; height: 18mm; border-radius: 999px; overflow: hidden; display: grid; place-items: center; border: 1.1mm solid rgba(16, 185, 129, 0.75); background: rgba(255,255,255,0.12); font-size: 23px; font-weight: 900; margin-top: 4mm; }
-    .avatar img { width: 100%; height: 100%; object-fit: cover; }
-    .brand { font-size: 7px; letter-spacing: 0.28em; text-transform: uppercase; color: rgba(255,255,255,0.58); font-weight: 900; }
-    h1 { margin: 3.2mm 0 1mm; max-width: 34mm; font-size: 15px; line-height: 1.05; text-transform: uppercase; letter-spacing: .02em; }
-    .cert { color: #34d399; font-size: 6px; letter-spacing: 0.16em; text-transform: uppercase; font-weight: 900; }
-    .facts { display: grid; grid-template-columns: 1fr 1fr; gap: 1.6mm 3mm; margin-top: 3.2mm; }
-    .label { color: rgba(255,255,255,0.44); font-size: 5px; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 800; }
-    .value { margin-top: .55mm; color: white; font-size: 6.8px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .qr { align-self: start; justify-self: end; width: 20mm; padding: 1.3mm; background: #fff; border-radius: 2mm; }
-    .qr svg { width: 100%; height: auto; display: block; }
-    .scan { margin-top: 1.2mm; color: rgba(255,255,255,.68); text-align: center; font-size: 5.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .12em; }
-    .footer { position: absolute; left: 5mm; right: 4mm; bottom: 2.2mm; display: flex; align-items: center; justify-content: space-between; color: rgba(255,255,255,0.56); font-size: 5.2px; }
-    .back-content { position: relative; z-index: 1; height: 100%; display: grid; grid-template-rows: 1fr auto; gap: 3mm; padding: 6mm 6mm 4mm; }
-    .back-copy { display: grid; gap: 2.4mm; color: rgba(255,255,255,.82); font-size: 7.4px; line-height: 1.42; font-weight: 700; text-align: center; align-self: center; }
-    .back-copy strong { color: #fff; font-size: 8.2px; text-transform: uppercase; letter-spacing: .08em; }
-    .back-divider { width: 34mm; height: .25mm; margin: .3mm auto; background: rgba(255,255,255,.24); }
-    .notice { border-top: .25mm solid rgba(255,255,255,.14); padding-top: 2mm; color: rgba(255,255,255,.72); font-size: 6px; line-height: 1.35; font-weight: 700; }
-  </style>
-</head>
-<body>
-  <main class="document">
-    <section class="card">
-      <div class="seal">NS</div>
-      <svg class="logo-seal" viewBox="285 175 235 260" fill="none" aria-hidden="true"><path fill="#ffffff" d="${NOLSAF_LOGO_PATH}" /></svg>
-      <div class="gridlines"></div>
-      <div class="micro-border"></div>
-      <div class="content">
-        <div class="avatar">${profile.avatarUrl ? `<img src="${escapeHtml(profile.avatarUrl)}" alt="Driver photo" />` : escapeHtml(name[0] || "D")}</div>
-        <div>
-          <div class="brand">NoLSAF</div>
-          <h1>${escapeHtml(name)}</h1>
-          <div class="cert">${profile.isVipDriver ? "Premium Driver" : "Certified Driver"}</div>
-          <div class="facts">
-            <div><div class="label">ID No.</div><div class="value">${escapeHtml(idNo)}</div></div>
-            <div><div class="label">Plate</div><div class="value">${escapeHtml(plate)}</div></div>
-            <div><div class="label">Vehicle</div><div class="value">${escapeHtml(vehicle)}</div></div>
-            <div><div class="label">Area</div><div class="value">${escapeHtml(area)}</div></div>
-            <div><div class="label">Issued</div><div class="value">${escapeHtml(issued)}</div></div>
-            <div><div class="label">Valid until</div><div class="value">${escapeHtml(formatDate(licenseExpiry))}</div></div>
-          </div>
-        </div>
-        <div>
-          <div class="qr">${qrSvg}</div>
-          <div class="scan">Scan to verify</div>
-        </div>
-      </div>
-      <div class="footer"><span>Official Driver ID</span><strong>${escapeHtml(idNo)}</strong></div>
-    </section>
-    <section class="card">
-      <div class="seal">NS</div>
-      <div class="gridlines"></div>
-      <div class="back-content">
-        <div class="back-copy">
-          <strong>Present this card before every route.</strong>
-          <span>Show this Driver ID to the Traveller before the trip starts for identification and verification.</span>
-          <span>Some Travellers may scan the front QR to confirm that your driver status, profile, vehicle, and license validity match NoLSAF records.</span>
-          <div class="back-divider"></div>
-          <span>If found, return to NoLSAF support or report through the official NoLSAF APP.</span>
-        </div>
-        <div class="notice">
-          This card is property of NoLSAF and must not be transferred, copied, or altered.
-        </div>
-      </div>
-    </section>
-  </main>
-</body>
-</html>`;
-}
-
 export function ProfileScreen({ navigation }: Props) {
   const { token, user, signOut } = useAuth();
+  const idCardExportRef = useRef<View>(null);
   const [profile, setProfile] = useState<DriverProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [personal, setPersonal] = useState({
     fullName: "",
-    name: "",
     phone: "",
     email: "",
     nationality: "",
@@ -314,7 +223,6 @@ export function ProfileScreen({ navigation }: Props) {
 
   const [payout, setPayout] = useState({
     bankAccountName: "",
-    bankName: "",
     bankAccountNumber: "",
     bankBranch: "",
     mobileMoneyProvider: "",
@@ -323,6 +231,8 @@ export function ProfileScreen({ navigation }: Props) {
   });
   const [savingPayout, setSavingPayout] = useState(false);
   const [payoutMessage, setPayoutMessage] = useState<string | null>(null);
+  const [showBankAccount, setShowBankAccount] = useState(false);
+  const [showMobileMoneyNumber, setShowMobileMoneyNumber] = useState(false);
 
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [documentUploading, setDocumentUploading] = useState<DocumentType | null>(null);
@@ -335,6 +245,15 @@ export function ProfileScreen({ navigation }: Props) {
   const [idCardSide, setIdCardSide] = useState<"front" | "back">("front");
   const [sharingIdCard, setSharingIdCard] = useState(false);
   const [idCardError, setIdCardError] = useState<string | null>(null);
+
+  const [contactChange, setContactChange] = useState<{
+    field: ContactField;
+    step: "enter" | "verify";
+    value: string;
+    otp: string;
+    loading: boolean;
+    error: string | null;
+  } | null>(null);
 
   const load = useCallback(async () => {
     if (!token) {
@@ -356,7 +275,6 @@ export function ProfileScreen({ navigation }: Props) {
       } as Record<string, unknown>;
       setPersonal({
         fullName: firstText(profileRes.fullName, extras.fullName, profileRes.name),
-        name: firstText(profileRes.name, extras.name, profileRes.fullName),
         phone: firstText(profileRes.phone, extras.phone),
         email: firstText(profileRes.email, extras.email),
         nationality: firstText(profileRes.nationality, extras.nationality),
@@ -377,15 +295,14 @@ export function ProfileScreen({ navigation }: Props) {
       });
       setPayout({
         bankAccountName: p.bankAccountName || "",
-        bankName: p.bankName || "",
         bankAccountNumber: p.bankAccountNumber || "",
         bankBranch: p.bankBranch || "",
         mobileMoneyProvider: p.mobileMoneyProvider || "",
-        mobileMoneyNumber: p.mobileMoneyNumber || "",
+        mobileMoneyNumber: firstText(p.mobileMoneyNumber, profileRes.paymentPhone, extras.paymentPhone),
         payoutPreferred: p.payoutPreferred || ""
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load your profile.");
+      setError(describeApiError(e, "Failed to load your profile."));
     } finally {
       setLoading(false);
     }
@@ -402,9 +319,7 @@ export function ProfileScreen({ navigation }: Props) {
     try {
       await updateDriverProfile(token, {
         fullName: personal.fullName || null,
-        name: personal.name || null,
-        phone: personal.phone || null,
-        email: personal.email || null,
+        name: personal.fullName || null,
         nationality: personal.nationality || null,
         gender: personal.gender || null,
         dateOfBirth: personal.dateOfBirth || null,
@@ -413,7 +328,7 @@ export function ProfileScreen({ navigation }: Props) {
       });
       setPersonalMessage("Saved.");
     } catch (e) {
-      setPersonalMessage(e instanceof Error ? e.message : "Could not save your details.");
+      setPersonalMessage(describeApiError(e, "Could not save your details."));
     } finally {
       setSavingPersonal(false);
     }
@@ -436,7 +351,7 @@ export function ProfileScreen({ navigation }: Props) {
       });
       setDrivingMessage("Saved.");
     } catch (e) {
-      setDrivingMessage(e instanceof Error ? e.message : "Could not save your driving details.");
+      setDrivingMessage(describeApiError(e, "Could not save your driving details."));
     } finally {
       setSavingDriving(false);
     }
@@ -444,12 +359,16 @@ export function ProfileScreen({ navigation }: Props) {
 
   async function savePayout() {
     if (!token) return;
+    const accountName = payout.bankAccountName.trim();
+    if (accountName && normalizeName(accountName) !== normalizeName(registeredName)) {
+      setPayoutMessage("Name mismatch. Please provide your real name.");
+      return;
+    }
     setSavingPayout(true);
     setPayoutMessage(null);
     try {
       await updatePayoutDetails(token, {
         bankAccountName: payout.bankAccountName || null,
-        bankName: payout.bankName || null,
         bankAccountNumber: payout.bankAccountNumber || null,
         bankBranch: payout.bankBranch || null,
         mobileMoneyProvider: payout.mobileMoneyProvider || null,
@@ -458,7 +377,7 @@ export function ProfileScreen({ navigation }: Props) {
       });
       setPayoutMessage("Saved.");
     } catch (e) {
-      setPayoutMessage(e instanceof Error ? e.message : "Could not save your payout details.");
+      setPayoutMessage(describeApiError(e, "Could not save your payout details."));
     } finally {
       setSavingPayout(false);
     }
@@ -484,7 +403,7 @@ export function ProfileScreen({ navigation }: Props) {
       await updateDriverProfile(token, { avatarUrl: upload.secure_url });
       setProfile((prev) => (prev ? { ...prev, avatarUrl: upload.secure_url } : prev));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not upload your photo.");
+      setError(describeApiError(e, "Could not upload your photo."));
     } finally {
       setAvatarUploading(false);
     }
@@ -534,7 +453,7 @@ export function ProfileScreen({ navigation }: Props) {
         return { ...prev, documents };
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not upload your document.");
+      setError(describeApiError(e, "Could not upload your document."));
     } finally {
       setDocumentUploading(null);
     }
@@ -553,14 +472,80 @@ export function ProfileScreen({ navigation }: Props) {
       await deleteAccount(token);
       await signOut();
     } catch (e) {
-      setDeleteError(e instanceof Error ? e.message : "Could not delete your account.");
+      setDeleteError(describeApiError(e, "Could not delete your account."));
       closeDeleteFlow();
     } finally {
       setDeleting(false);
     }
   }
 
+  function openContactChange(field: ContactField) {
+    setContactChange({
+      field,
+      step: "enter",
+      value: field === "phone" ? personal.phone : personal.email,
+      otp: "",
+      loading: false,
+      error: null
+    });
+  }
+
+  function closeContactChange() {
+    setContactChange(null);
+  }
+
+  async function requestContactCode() {
+    if (!token || !contactChange) return;
+    const value = contactChange.value.trim();
+    if (!value) {
+      setContactChange((m) => (m ? { ...m, error: `Enter your new ${m.field}.` } : m));
+      return;
+    }
+    setContactChange((m) => (m ? { ...m, loading: true, error: null } : m));
+    try {
+      await requestContactChange(token, contactChange.field, value);
+      setContactChange((m) => (m ? { ...m, step: "verify", loading: false, otp: "" } : m));
+    } catch (e) {
+      setContactChange((m) => (m ? { ...m, loading: false, error: describeApiError(e, "Could not send verification code.") } : m));
+    }
+  }
+
+  async function confirmContactCode() {
+    if (!token || !contactChange) return;
+    const otp = contactChange.otp.trim();
+    if (!otp) {
+      setContactChange((m) => (m ? { ...m, error: "Enter the verification code." } : m));
+      return;
+    }
+    setContactChange((m) => (m ? { ...m, loading: true, error: null } : m));
+    try {
+      const response = await confirmContactChange(token, contactChange.field, otp);
+      const updatedUser = response.data.user;
+      setProfile((prev) =>
+        prev
+          ? {
+              ...prev,
+              phone: updatedUser.phone ?? prev.phone,
+              email: updatedUser.email ?? prev.email,
+              phoneVerifiedAt: updatedUser.phoneVerifiedAt ?? prev.phoneVerifiedAt,
+              emailVerifiedAt: updatedUser.emailVerifiedAt ?? prev.emailVerifiedAt
+            }
+          : prev
+      );
+      setPersonal((s) => ({
+        ...s,
+        phone: updatedUser.phone ?? s.phone,
+        email: updatedUser.email ?? s.email
+      }));
+      setContactChange(null);
+    } catch (e) {
+      setContactChange((m) => (m ? { ...m, loading: false, error: describeApiError(e, "Invalid or expired code.") } : m));
+    }
+  }
+
   const registeredName = (profile?.fullName || profile?.name || user?.fullName || user?.name || "").trim();
+  const accountNameMismatch = Boolean(payout.bankAccountName.trim()) && normalizeName(payout.bankAccountName) !== normalizeName(registeredName);
+  const profileApproved = profile?.kycStatus === "APPROVED_KYC";
   const licenseExpiry = profile ? getLicenseExpiry(profile) : null;
   const verificationUrl = profile ? getVerificationUrl(profile) : "";
   const missingIdCardItems = profile ? getMissingIdCardItems(profile, licenseExpiry) : [];
@@ -584,14 +569,22 @@ export function ProfileScreen({ navigation }: Props) {
         setIdCardError("Your driving license has expired. Upload a renewed license before downloading the ID card.");
         return;
       }
-      const file = new File(Paths.cache, `nolsaf-driver-id-${profile.id}.html`);
-      file.write(buildDriverIdHtml(profile, licenseExpiry, verificationUrl));
-      await Sharing.shareAsync(file.uri, {
+      if (!idCardExportRef.current) {
+        setIdCardError("ID card preview is not ready yet. Try again.");
+        return;
+      }
+      const uri = await captureRef(idCardExportRef, {
+        format: "jpg",
+        quality: 0.96,
+        result: "tmpfile"
+      });
+      await Sharing.shareAsync(uri, {
         dialogTitle: "Download NoLSAF Driver ID",
-        mimeType: "text/html"
+        mimeType: "image/jpeg",
+        UTI: "public.jpeg"
       });
     } catch (e) {
-      setIdCardError(e instanceof Error ? e.message : "Could not download this ID card.");
+      setIdCardError(describeApiError(e, "Could not download this ID card."));
     } finally {
       setSharingIdCard(false);
     }
@@ -732,15 +725,62 @@ export function ProfileScreen({ navigation }: Props) {
                 <AppText variant="titleSm" weight="bold">
                   Personal details
                 </AppText>
-                <AppInput label="Full name" value={personal.fullName} onChangeText={(v) => setPersonal((s) => ({ ...s, fullName: v }))} />
-                <AppInput label="Display name" value={personal.name} onChangeText={(v) => setPersonal((s) => ({ ...s, name: v }))} />
-                <AppInput label="Phone" value={personal.phone} onChangeText={(v) => setPersonal((s) => ({ ...s, phone: v }))} keyboardType="phone-pad" />
-                <AppInput label="Email" value={personal.email} onChangeText={(v) => setPersonal((s) => ({ ...s, email: v }))} keyboardType="email-address" autoCapitalize="none" />
+                <AppInput label="Full name" value={personal.fullName} editable={false} style={styles.lockedInput} hint={<LockedHint />} />
+                <AppText variant="caption" tone="muted" style={styles.lockedHelp}>
+                  Your legal name is verified and can't be changed here. Contact NoLSAF support if it needs correcting.
+                </AppText>
+                <AppInput
+                  label="Phone"
+                  value={personal.phone}
+                  editable={false}
+                  style={styles.lockedInput}
+                  hint={
+                    profile.phoneVerifiedAt ? (
+                      <StatusBadge status="verified" label="Verified" />
+                    ) : (
+                      <View style={styles.unverifiedPill}>
+                        <AlertCircle color="#b45309" size={12} />
+                        <AppText variant="caption" weight="bold" style={styles.unverifiedPillText}>
+                          Unverified
+                        </AppText>
+                      </View>
+                    )
+                  }
+                />
+                <Pressable accessibilityRole="button" onPress={() => openContactChange("phone")} style={styles.changeContactRow}>
+                  <AppText variant="caption" weight="bold" tone="primary">
+                    Change phone number
+                  </AppText>
+                </Pressable>
+
+                <AppInput
+                  label="Email"
+                  value={personal.email}
+                  editable={false}
+                  style={styles.lockedInput}
+                  hint={
+                    profile.emailVerifiedAt ? (
+                      <StatusBadge status="verified" label="Verified" />
+                    ) : (
+                      <View style={styles.unverifiedPill}>
+                        <AlertCircle color="#b45309" size={12} />
+                        <AppText variant="caption" weight="bold" style={styles.unverifiedPillText}>
+                          Unverified
+                        </AppText>
+                      </View>
+                    )
+                  }
+                />
+                <Pressable accessibilityRole="button" onPress={() => openContactChange("email")} style={styles.changeContactRow}>
+                  <AppText variant="caption" weight="bold" tone="primary">
+                    Change email address
+                  </AppText>
+                </Pressable>
                 <AppInput label="Nationality" value={personal.nationality} onChangeText={(v) => setPersonal((s) => ({ ...s, nationality: v }))} />
                 <AppInput label="Gender" value={personal.gender} onChangeText={(v) => setPersonal((s) => ({ ...s, gender: v }))} />
                 <AppInput label="Date of birth" value={personal.dateOfBirth} onChangeText={(v) => setPersonal((s) => ({ ...s, dateOfBirth: v }))} placeholder="YYYY-MM-DD" />
-                <AppInput label="Region" value={personal.region} onChangeText={(v) => setPersonal((s) => ({ ...s, region: v }))} />
-                <AppInput label="District" value={personal.district} onChangeText={(v) => setPersonal((s) => ({ ...s, district: v }))} />
+                <LockableField label="Region" value={personal.region} onChangeText={(v) => setPersonal((s) => ({ ...s, region: v }))} locked={profileApproved} />
+                <LockableField label="District" value={personal.district} onChangeText={(v) => setPersonal((s) => ({ ...s, district: v }))} locked={profileApproved} />
                 <AppButton title="Save personal details" loading={savingPersonal} onPress={savePersonal} />
                 {personalMessage ? (
                   <AppText variant="caption" tone={personalMessage === "Saved." ? "muted" : "danger"}>
@@ -755,13 +795,13 @@ export function ProfileScreen({ navigation }: Props) {
                 <AppText variant="titleSm" weight="bold">
                   Driving details
                 </AppText>
-                <AppInput label="Vehicle type" value={driving.vehicleType} onChangeText={(v) => setDriving((s) => ({ ...s, vehicleType: v }))} />
-                <AppInput label="Vehicle make" value={driving.vehicleMake} onChangeText={(v) => setDriving((s) => ({ ...s, vehicleMake: v }))} />
-                <AppInput label="Vehicle plate" value={driving.vehiclePlate} onChangeText={(v) => setDriving((s) => ({ ...s, vehiclePlate: v }))} />
-                <AppInput label="Plate number" value={driving.plateNumber} onChangeText={(v) => setDriving((s) => ({ ...s, plateNumber: v }))} />
-                <AppInput label="License number" value={driving.licenseNumber} onChangeText={(v) => setDriving((s) => ({ ...s, licenseNumber: v }))} />
+                <LockableField label="Vehicle type" value={driving.vehicleType} onChangeText={(v) => setDriving((s) => ({ ...s, vehicleType: v }))} locked={profileApproved} />
+                <LockableField label="Vehicle make" value={driving.vehicleMake} onChangeText={(v) => setDriving((s) => ({ ...s, vehicleMake: v }))} locked={profileApproved} />
+                <LockableField label="Vehicle plate" value={driving.vehiclePlate} onChangeText={(v) => setDriving((s) => ({ ...s, vehiclePlate: v }))} locked={profileApproved} />
+                <LockableField label="Plate number" value={driving.plateNumber} onChangeText={(v) => setDriving((s) => ({ ...s, plateNumber: v }))} locked={profileApproved} />
+                <LockableField label="License number" value={driving.licenseNumber} onChangeText={(v) => setDriving((s) => ({ ...s, licenseNumber: v }))} locked={profileApproved} />
                 <AppInput label="NIN" value={driving.nin} onChangeText={(v) => setDriving((s) => ({ ...s, nin: v }))} />
-                <AppInput label="Operation area" value={driving.operationArea} onChangeText={(v) => setDriving((s) => ({ ...s, operationArea: v }))} />
+                <LockableField label="Operation area" value={driving.operationArea} onChangeText={(v) => setDriving((s) => ({ ...s, operationArea: v }))} locked={profileApproved} />
                 <AppInput label="Payment phone" value={driving.paymentPhone} onChangeText={(v) => setDriving((s) => ({ ...s, paymentPhone: v }))} keyboardType="phone-pad" />
                 <AppButton title="Save driving details" loading={savingDriving} onPress={saveDriving} />
                 {drivingMessage ? (
@@ -777,33 +817,102 @@ export function ProfileScreen({ navigation }: Props) {
                 <AppText variant="titleSm" weight="bold">
                   Payout details
                 </AppText>
+                <AppText variant="caption" tone="muted">
+                  Choose how you'd like to receive your earnings. Account details are hidden by default, tap "Show" to view or edit them.
+                </AppText>
+                <AppText variant="caption" tone="muted">
+                  Payouts are only made to accounts registered in your name as the approved driver.
+                </AppText>
                 <View style={styles.toggleRow}>
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => setPayout((s) => ({ ...s, payoutPreferred: "BANK" }))}
-                    style={[styles.toggle, payout.payoutPreferred === "BANK" && styles.toggleActive]}
-                  >
-                    <AppText variant="caption" weight="bold" tone={payout.payoutPreferred === "BANK" ? "inverse" : "muted"}>
-                      Bank
-                    </AppText>
-                  </Pressable>
                   <Pressable
                     accessibilityRole="button"
                     onPress={() => setPayout((s) => ({ ...s, payoutPreferred: "MOBILE_MONEY" }))}
                     style={[styles.toggle, payout.payoutPreferred === "MOBILE_MONEY" && styles.toggleActive]}
                   >
+                    <Smartphone color={payout.payoutPreferred === "MOBILE_MONEY" ? colors.white : colors.mutedText} size={16} />
                     <AppText variant="caption" weight="bold" tone={payout.payoutPreferred === "MOBILE_MONEY" ? "inverse" : "muted"}>
                       Mobile money
                     </AppText>
                   </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => setPayout((s) => ({ ...s, payoutPreferred: "BANK" }))}
+                    style={[styles.toggle, payout.payoutPreferred === "BANK" && styles.toggleActive]}
+                  >
+                    <Landmark color={payout.payoutPreferred === "BANK" ? colors.white : colors.mutedText} size={16} />
+                    <AppText variant="caption" weight="bold" tone={payout.payoutPreferred === "BANK" ? "inverse" : "muted"}>
+                      Bank
+                    </AppText>
+                  </Pressable>
                 </View>
-                <AppInput label="Bank account name" value={payout.bankAccountName} onChangeText={(v) => setPayout((s) => ({ ...s, bankAccountName: v }))} />
-                <AppInput label="Bank name" value={payout.bankName} onChangeText={(v) => setPayout((s) => ({ ...s, bankName: v }))} />
-                <AppInput label="Bank account number" value={payout.bankAccountNumber} onChangeText={(v) => setPayout((s) => ({ ...s, bankAccountNumber: v }))} />
-                <AppInput label="Bank branch" value={payout.bankBranch} onChangeText={(v) => setPayout((s) => ({ ...s, bankBranch: v }))} />
-                <AppInput label="Mobile money provider" value={payout.mobileMoneyProvider} onChangeText={(v) => setPayout((s) => ({ ...s, mobileMoneyProvider: v }))} />
-                <AppInput label="Mobile money number" value={payout.mobileMoneyNumber} onChangeText={(v) => setPayout((s) => ({ ...s, mobileMoneyNumber: v }))} keyboardType="phone-pad" />
-                <AppButton title="Save payout details" loading={savingPayout} onPress={savePayout} />
+
+                <AppInput
+                  label="Account holder name"
+                  placeholder="Name on the account (must match your driver profile)"
+                  value={payout.bankAccountName}
+                  onChangeText={(v) => setPayout((s) => ({ ...s, bankAccountName: v }))}
+                  error={accountNameMismatch ? "Name mismatch. Please provide your real name." : undefined}
+                />
+
+                <View style={styles.payoutSection}>
+                  <View style={styles.payoutSectionHeader}>
+                    <Smartphone color={colors.primary} size={16} />
+                    <AppText variant="bodySmall" weight="bold">
+                      Mobile money
+                    </AppText>
+                  </View>
+                  <AppInput
+                    label="Mobile money provider"
+                    placeholder="e.g. M-Pesa, Tigo Pesa, Airtel Money"
+                    value={payout.mobileMoneyProvider}
+                    onChangeText={(v) => setPayout((s) => ({ ...s, mobileMoneyProvider: v }))}
+                  />
+                  <AppInput
+                    label="Mobile money number"
+                    placeholder="e.g. 0712 345 678"
+                    value={showMobileMoneyNumber ? payout.mobileMoneyNumber : maskAccountNumber(payout.mobileMoneyNumber)}
+                    onChangeText={showMobileMoneyNumber ? (v) => setPayout((s) => ({ ...s, mobileMoneyNumber: v })) : undefined}
+                    editable={showMobileMoneyNumber}
+                    style={!showMobileMoneyNumber ? styles.lockedInput : undefined}
+                    keyboardType="phone-pad"
+                    hint={
+                      <Pressable accessibilityRole="button" onPress={() => setShowMobileMoneyNumber((v) => !v)} style={styles.revealButton}>
+                        {showMobileMoneyNumber ? <EyeOff color={colors.primary} size={14} /> : <Eye color={colors.primary} size={14} />}
+                        <AppText variant="caption" weight="bold" tone="primary">
+                          {showMobileMoneyNumber ? "Hide" : "Show"}
+                        </AppText>
+                      </Pressable>
+                    }
+                  />
+                </View>
+
+                <View style={styles.payoutSection}>
+                  <View style={styles.payoutSectionHeader}>
+                    <Landmark color={colors.primary} size={16} />
+                    <AppText variant="bodySmall" weight="bold">
+                      Bank transfer
+                    </AppText>
+                  </View>
+                  <AppInput
+                    label="Bank account number"
+                    placeholder="Enter your account number"
+                    value={showBankAccount ? payout.bankAccountNumber : maskAccountNumber(payout.bankAccountNumber)}
+                    onChangeText={showBankAccount ? (v) => setPayout((s) => ({ ...s, bankAccountNumber: v })) : undefined}
+                    editable={showBankAccount}
+                    style={!showBankAccount ? styles.lockedInput : undefined}
+                    hint={
+                      <Pressable accessibilityRole="button" onPress={() => setShowBankAccount((v) => !v)} style={styles.revealButton}>
+                        {showBankAccount ? <EyeOff color={colors.primary} size={14} /> : <Eye color={colors.primary} size={14} />}
+                        <AppText variant="caption" weight="bold" tone="primary">
+                          {showBankAccount ? "Hide" : "Show"}
+                        </AppText>
+                      </Pressable>
+                    }
+                  />
+                  <AppInput label="Bank branch" placeholder="e.g. Dar es Salaam Main Branch" value={payout.bankBranch} onChangeText={(v) => setPayout((s) => ({ ...s, bankBranch: v }))} />
+                </View>
+
+                <AppButton title="Save payout details" loading={savingPayout} disabled={accountNameMismatch} onPress={savePayout} />
                 {payoutMessage ? (
                   <AppText variant="caption" tone={payoutMessage === "Saved." ? "muted" : "danger"}>
                     {payoutMessage}
@@ -814,13 +923,22 @@ export function ProfileScreen({ navigation }: Props) {
 
             <AppCard>
               <AppStack gap={3}>
-                <AppText variant="titleSm" weight="bold">
-                  Documents
-                </AppText>
-                {DOCUMENT_TYPES.map(({ type, label }) => {
+                <AppStack gap={1}>
+                  <AppText variant="titleSm" weight="bold">
+                    Documents
+                  </AppText>
+                  <AppText variant="caption" tone="muted">
+                    Upload clear, unedited photos of each document for faster approval.
+                  </AppText>
+                </AppStack>
+                {DOCUMENT_TYPES.map(({ type, label, icon: Icon }) => {
                   const doc = profile.documents?.find((d) => d.type === type);
+                  const expiry = type === "DRIVER_LICENSE" ? getDocumentExpiryDate(doc) : null;
                   return (
-                    <View key={type} style={styles.documentRow}>
+                    <View key={type} style={styles.documentCard}>
+                      <View style={styles.documentIconWrap}>
+                        <Icon color={colors.primary} size={18} />
+                      </View>
                       <View style={styles.documentInfo}>
                         <AppText variant="bodySmall" weight="bold">
                           {label}
@@ -828,18 +946,21 @@ export function ProfileScreen({ navigation }: Props) {
                         {doc ? (
                           <StatusBadge status={DOCUMENT_STATUS_TONE[doc.status]} label={doc.status} />
                         ) : (
-                          <AppText variant="caption" tone="muted">
-                            Not uploaded
-                          </AppText>
+                          <View style={styles.unverifiedPill}>
+                            <AlertCircle color="#b45309" size={12} />
+                            <AppText variant="caption" weight="bold" style={styles.unverifiedPillText}>
+                              Not uploaded
+                            </AppText>
+                          </View>
                         )}
                         {doc?.reason ? (
                           <AppText variant="caption" tone="danger">
                             {doc.reason}
                           </AppText>
                         ) : null}
-                        {type === "DRIVER_LICENSE" && getDocumentExpiryDate(doc) ? (
-                          <AppText variant="caption" tone={isExpired(getDocumentExpiryDate(doc)) ? "danger" : "muted"}>
-                            Expires {formatDate(getDocumentExpiryDate(doc))}
+                        {expiry ? (
+                          <AppText variant="caption" tone={isExpired(expiry) ? "danger" : "muted"}>
+                            Expires {formatDate(expiry)}
                           </AppText>
                         ) : null}
                       </View>
@@ -848,16 +969,22 @@ export function ProfileScreen({ navigation }: Props) {
                         variant="secondary"
                         loading={documentUploading === type}
                         onPress={() => handlePickDocument(type)}
+                        style={styles.documentButton}
                       />
                     </View>
                   );
                 })}
-                <AppInput
-                  label="Driving license expiry date"
-                  value={licenseExpiresOn}
-                  onChangeText={setLicenseExpiresOn}
-                  placeholder="YYYY-MM-DD"
-                />
+                <View style={styles.payoutSection}>
+                  <AppInput
+                    label="Driving license expiry date"
+                    value={licenseExpiresOn}
+                    onChangeText={setLicenseExpiresOn}
+                    placeholder="YYYY-MM-DD"
+                  />
+                  <AppText variant="caption" tone="muted">
+                    We'll remind you before it expires so you can renew on time.
+                  </AppText>
+                </View>
               </AppStack>
             </AppCard>
 
@@ -880,6 +1007,17 @@ export function ProfileScreen({ navigation }: Props) {
           </AppStack>
         ) : null}
       </ScrollView>
+
+      {profile && licenseExpiry ? (
+        <View ref={idCardExportRef} collapsable={false} style={idStyles.exportSheet}>
+          <View style={idStyles.exportCardWrap}>
+            <DriverIdCardPreview profile={profile} licenseExpiry={licenseExpiry} verificationUrl={verificationUrl} side="front" />
+          </View>
+          <View style={idStyles.exportCardWrap}>
+            <DriverIdCardPreview profile={profile} licenseExpiry={licenseExpiry} verificationUrl={verificationUrl} side="back" />
+          </View>
+        </View>
+      ) : null}
 
       <Modal visible={deleteStep !== null} transparent animationType="fade" onRequestClose={closeDeleteFlow}>
         <View style={deleteStyles.overlay}>
@@ -1011,7 +1149,96 @@ export function ProfileScreen({ navigation }: Props) {
           </View>
         </View>
       </Modal>
+
+      <Modal visible={contactChange !== null} transparent animationType="fade" onRequestClose={closeContactChange}>
+        <View style={styles.contactModalOverlay}>
+          <View style={styles.contactModalSheet}>
+            <View style={styles.contactModalHeader}>
+              <AppText variant="title" weight="bold">
+                {contactChange?.field === "phone" ? "Change phone number" : "Change email address"}
+              </AppText>
+              <Pressable accessibilityRole="button" onPress={closeContactChange}>
+                <X color={colors.mutedText} size={22} />
+              </Pressable>
+            </View>
+            {contactChange?.step === "enter" ? (
+              <AppStack gap={3}>
+                <AppText variant="bodySmall" tone="muted">
+                  Enter your new {contactChange.field === "phone" ? "phone number" : "email address"}. We'll send a verification code to confirm it's yours.
+                </AppText>
+                <AppInput
+                  label={contactChange.field === "phone" ? "New phone number" : "New email address"}
+                  value={contactChange.value}
+                  onChangeText={(v) => setContactChange((m) => (m ? { ...m, value: v, error: null } : m))}
+                  keyboardType={contactChange.field === "phone" ? "phone-pad" : "email-address"}
+                  autoCapitalize="none"
+                />
+                {contactChange.error ? (
+                  <AppText variant="caption" style={styles.contactModalError}>
+                    {contactChange.error}
+                  </AppText>
+                ) : null}
+                <AppButton title="Send verification code" loading={contactChange.loading} onPress={requestContactCode} />
+              </AppStack>
+            ) : null}
+            {contactChange?.step === "verify" ? (
+              <AppStack gap={3}>
+                <AppText variant="bodySmall" tone="muted">
+                  Enter the verification code we sent to {contactChange.value}.
+                </AppText>
+                <AppInput
+                  label="Verification code"
+                  value={contactChange.otp}
+                  onChangeText={(v) => setContactChange((m) => (m ? { ...m, otp: v, error: null } : m))}
+                  keyboardType="number-pad"
+                />
+                {contactChange.error ? (
+                  <AppText variant="caption" style={styles.contactModalError}>
+                    {contactChange.error}
+                  </AppText>
+                ) : null}
+                <AppButton title="Confirm" loading={contactChange.loading} onPress={confirmContactCode} />
+                <Pressable accessibilityRole="button" onPress={() => setContactChange((m) => (m ? { ...m, step: "enter", otp: "", error: null } : m))}>
+                  <AppText variant="caption" weight="bold" tone="primary" style={styles.center}>
+                    Use a different {contactChange.field === "phone" ? "number" : "email"}
+                  </AppText>
+                </Pressable>
+              </AppStack>
+            ) : null}
+          </View>
+        </View>
+      </Modal>
     </View>
+  );
+}
+
+function LockedHint() {
+  return (
+    <View style={styles.lockedPill}>
+      <Lock color={colors.mutedText} size={12} />
+      <AppText variant="caption" weight="bold" tone="muted" style={styles.lockedPillText}>
+        Locked
+      </AppText>
+    </View>
+  );
+}
+
+type LockableFieldProps = Omit<ComponentProps<typeof AppInput>, "editable" | "style" | "hint"> & {
+  value: string;
+  onChangeText: (value: string) => void;
+  locked: boolean;
+};
+
+function LockableField({ value, onChangeText, locked, ...rest }: LockableFieldProps) {
+  return (
+    <AppInput
+      {...rest}
+      value={value}
+      onChangeText={locked ? undefined : onChangeText}
+      editable={!locked}
+      style={locked ? styles.lockedInput : undefined}
+      hint={locked ? <LockedHint /> : undefined}
+    />
   );
 }
 
@@ -1342,7 +1569,10 @@ const styles = StyleSheet.create({
   },
   toggle: {
     flex: 1,
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    gap: spacing[1],
     paddingVertical: spacing[2],
     borderRadius: radius.full,
     backgroundColor: colors.white,
@@ -1353,16 +1583,116 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     borderColor: colors.primary
   },
-  documentRow: {
+  payoutSection: {
+    gap: spacing[2],
+    padding: spacing[3],
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface
+  },
+  payoutSectionHeader: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: spacing[3]
+    gap: spacing[2],
+    marginBottom: spacing[1]
+  },
+  revealButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[1]
+  },
+  documentCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[3],
+    padding: spacing[3],
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface
+  },
+  documentIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.full,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center"
   },
   documentInfo: {
     flex: 1,
     minWidth: 0,
     gap: spacing[1]
+  },
+  documentButton: {
+    alignSelf: "center"
+  },
+  lockedInput: {
+    backgroundColor: colors.surface,
+    color: colors.mutedText
+  },
+  lockedPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[1],
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
+    paddingHorizontal: spacing[2],
+    paddingVertical: 3
+  },
+  lockedPillText: {
+    letterSpacing: 0.4
+  },
+  lockedHelp: {
+    marginTop: -spacing[1],
+    lineHeight: 18
+  },
+  unverifiedPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[1],
+    borderRadius: radius.full,
+    backgroundColor: "#fef3c7",
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[1]
+  },
+  unverifiedPillText: {
+    color: "#b45309",
+    textTransform: "uppercase"
+  },
+  changeContactRow: {
+    alignSelf: "flex-start",
+    marginTop: -spacing[1],
+    marginBottom: spacing[1],
+    paddingVertical: spacing[1]
+  },
+  contactModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.5)",
+    justifyContent: "flex-end"
+  },
+  contactModalSheet: {
+    backgroundColor: colors.white,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    padding: spacing[5],
+    gap: spacing[3]
+  },
+  contactModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between"
+  },
+  contactModalError: {
+    color: colors.danger
+  },
+  center: {
+    textAlign: "center"
   }
 });
 
@@ -1404,6 +1734,19 @@ const idStyles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(20,184,166,0.32)"
+  },
+  exportSheet: {
+    position: "absolute",
+    left: -10000,
+    top: 0,
+    width: ID_CARD_EXPORT_WIDTH,
+    padding: 32,
+    gap: 28,
+    backgroundColor: colors.white
+  },
+  exportCardWrap: {
+    width: ID_CARD_EXPORT_WIDTH - 64,
+    height: ID_CARD_EXPORT_HEIGHT - 40
   },
   card: {
     overflow: "hidden",

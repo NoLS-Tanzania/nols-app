@@ -2,6 +2,7 @@ import { InvoiceItem } from "../driver/types";
 
 export type RootStackParamList = {
   Login: undefined;
+  ForgotPassword: undefined;
   Home: undefined;
   Trips: undefined;
   Earnings: undefined;
@@ -31,4 +32,5 @@ export type RootStackParamList = {
   Support: undefined;
   ClaimPolicy: undefined;
   Safety: undefined;
+  WebPage: { title: string; url: string };
 };

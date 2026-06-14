@@ -583,7 +583,9 @@ export type DriverProfile = {
   id: number;
   role: string;
   email: string;
+  emailVerifiedAt?: string | null;
   phone?: string | null;
+  phoneVerifiedAt?: string | null;
   name?: string | null;
   fullName?: string | null;
   avatarUrl?: string | null;
@@ -649,6 +651,27 @@ export type UpdateProfileBody = Partial<{
 export type UpdateProfileResponse = {
   ok: true;
   message: string;
+};
+
+export type ContactField = "phone" | "email";
+
+export type RequestContactChangeResponse = {
+  ok: true;
+  message: string;
+};
+
+export type ConfirmContactChangeResponse = {
+  success: true;
+  message?: string;
+  data: {
+    user: {
+      id: number;
+      phone?: string | null;
+      email?: string | null;
+      phoneVerifiedAt?: string | null;
+      emailVerifiedAt?: string | null;
+    };
+  };
 };
 
 export type PaymentMethodsResponse = {

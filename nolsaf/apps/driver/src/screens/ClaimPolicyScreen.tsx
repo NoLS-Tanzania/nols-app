@@ -1,7 +1,7 @@
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { AppCard, AppStack, AppText, colors, radius, spacing } from "@nolsaf/native-ui";
 import { ArrowLeft, ExternalLink } from "lucide-react-native";
-import { Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { RootStackParamList } from "../navigation/types";
 
@@ -75,7 +75,11 @@ export function ClaimPolicyScreen({ navigation }: Props) {
             Read the full policies
           </AppText>
           {POLICY_LINKS.map((link) => (
-            <Pressable key={link.path} accessibilityRole="button" onPress={() => Linking.openURL(`${WEB_BASE_URL}${link.path}`)}>
+            <Pressable
+              key={link.path}
+              accessibilityRole="button"
+              onPress={() => navigation.navigate("WebPage", { title: link.label, url: `${WEB_BASE_URL}${link.path}` })}
+            >
               <AppCard style={styles.linkCard}>
                 <AppText variant="bodySmall" weight="bold" style={styles.linkText}>
                   {link.label}

@@ -9,6 +9,8 @@ import {
   ClaimResponse,
   ClaimsFinishedResponse,
   ClaimsPendingResponse,
+  ConfirmContactChangeResponse,
+  ContactField,
   DashboardResponse,
   DeleteAccountResponse,
   DriverLevel,
@@ -28,6 +30,7 @@ import {
   ReferralPerformance,
   ReferralWithdrawalsResponse,
   ReminderItem,
+  RequestContactChangeResponse,
   SafetyResponse,
   ScheduledTripsResponse,
   SendLevelMessageResponse,
@@ -218,6 +221,22 @@ export function updateDriverProfile(token: string, body: UpdateProfileBody) {
   return apiRequest<UpdateProfileResponse>("/api/driver/profile", { token, method: "PUT", body });
 }
 
+export function requestContactChange(token: string, field: ContactField, value: string) {
+  return apiRequest<RequestContactChangeResponse>("/api/account/contact/request-change", {
+    token,
+    method: "POST",
+    body: { field, value }
+  });
+}
+
+export function confirmContactChange(token: string, field: ContactField, otp: string) {
+  return apiRequest<ConfirmContactChangeResponse>("/api/account/contact/confirm-change", {
+    token,
+    method: "POST",
+    body: { field, otp }
+  });
+}
+
 export function fetchPaymentMethods(token: string) {
   return apiRequest<PaymentMethodsResponse>("/api/account/payment-methods", { token });
 }
@@ -256,6 +275,34 @@ export function update2FA(token: string, body: Update2FABody) {
 
 export function changePassword(token: string, body: ChangePasswordBody) {
   return apiRequest<ChangePasswordResponse>("/api/account/password/change", { token, method: "POST", body });
+}
+
+type PasswordResetDestination = { email: string } | { phone: string };
+
+export function sendPasswordResetOtp(destination: PasswordResetDestination) {
+  return apiRequest<{ ok: boolean; message: string; channel?: "EMAIL" | "PHONE"; otpExpiresInSeconds?: number }>("/api/auth/send-otp", {
+    method: "POST",
+    body: { ...destination, role: "RESET" }
+  });
+}
+
+export function verifyPasswordResetOtp(destination: PasswordResetDestination, otp: string) {
+  return apiRequest<{
+    ok: boolean;
+    message: string;
+    resetToken: string;
+    user: { id: string | number; email?: string | null; phone?: string | null };
+  }>("/api/auth/verify-otp", {
+    method: "POST",
+    body: { ...destination, otp, role: "RESET" }
+  });
+}
+
+export function resetPasswordWithToken(userId: string | number, token: string, password: string) {
+  return apiRequest<{ ok: boolean; message: string }>("/api/auth/reset-password", {
+    method: "POST",
+    body: { userId, token, password }
+  });
 }
 
 export function fetchLoginHistory(token: string) {

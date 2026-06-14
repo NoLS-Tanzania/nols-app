@@ -19,6 +19,7 @@ import { ContractScreen } from "../screens/ContractScreen";
 import { DashboardScreen } from "../screens/DashboardScreen";
 import { EarningsScreen } from "../screens/EarningsScreen";
 import { HistoryScreen } from "../screens/HistoryScreen";
+import { ForgotPasswordScreen } from "../screens/ForgotPasswordScreen";
 import { InsuranceScreen } from "../screens/InsuranceScreen";
 import { InvoiceDetailScreen } from "../screens/InvoiceDetailScreen";
 import { InvoicesScreen } from "../screens/InvoicesScreen";
@@ -41,6 +42,7 @@ import { SupportScreen } from "../screens/SupportScreen";
 import { TripDetailScreen } from "../screens/TripDetailScreen";
 import { TripsScreen } from "../screens/TripsScreen";
 import { TwoFactorScreen } from "../screens/TwoFactorScreen";
+import { WebPageScreen } from "../screens/WebPageScreen";
 import { RootStackParamList } from "./types";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -101,6 +103,7 @@ export function AppNavigator() {
             <Stack.Screen name="Support" component={SupportScreen} />
             <Stack.Screen name="ClaimPolicy" component={ClaimPolicyScreen} />
             <Stack.Screen name="Safety" component={SafetyScreen} />
+            <Stack.Screen name="WebPage" component={WebPageScreen} />
           </>
         ) : status === "authenticated" ? (
           <>
@@ -113,7 +116,10 @@ export function AppNavigator() {
             ) : null}
           </>
         ) : (
-          <Stack.Screen name="Login" component={LoginScreen} />
+          <>
+            <Stack.Screen name="Login" component={LoginScreen} />
+            <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+          </>
         )}
       </Stack.Navigator>
     </NavigationContainer>

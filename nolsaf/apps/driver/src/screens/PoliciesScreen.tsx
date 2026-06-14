@@ -1,7 +1,7 @@
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { AppCard, AppText, colors, radius, spacing } from "@nolsaf/native-ui";
 import { ArrowLeft, ExternalLink } from "lucide-react-native";
-import { Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { RootStackParamList } from "../navigation/types";
 
@@ -46,10 +46,14 @@ export function PoliciesScreen({ navigation }: Props) {
         </Pressable>
 
         <AppText variant="bodySmall" tone="muted">
-          These open in your browser so you always see the latest version.
+          These always show the latest version, right inside the app.
         </AppText>
         {LINKS.map((link) => (
-          <Pressable key={link.path} accessibilityRole="button" onPress={() => Linking.openURL(`${WEB_BASE_URL}${link.path}`)}>
+          <Pressable
+            key={link.path}
+            accessibilityRole="button"
+            onPress={() => navigation.navigate("WebPage", { title: link.label, url: `${WEB_BASE_URL}${link.path}` })}
+          >
             <AppCard style={styles.linkCard}>
               <View style={styles.linkText}>
                 <AppText variant="bodySmall" weight="bold">
