@@ -35,8 +35,8 @@ const upload = multer({
   },
 });
 
-// OTP TTL: 5 minutes (reduced from 2 min for better UX, still short enough to be secure)
-const OTP_TTL_SEC = 5 * 60;
+// OTP TTL: 3 minutes, shared by signup, login, and reset verification.
+const OTP_TTL_SEC = 3 * 60;
 const OTP_TTL_MS  = OTP_TTL_SEC * 1000;
 
 // Redis key prefixes for OTP store — one namespace per delivery channel.
@@ -548,7 +548,7 @@ router.post('/send-otp', limitOtpSend, async (req, res) => {
     // swallow
   }
 
-  return res.json({ ok: true, message: 'OTP sent', channel });
+  return res.json({ ok: true, message: 'OTP sent', channel, otpExpiresInSeconds: OTP_TTL_SEC });
 });
 
 // POST /api/auth/verify-otp
