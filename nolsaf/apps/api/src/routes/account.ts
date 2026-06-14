@@ -595,10 +595,24 @@ const getMe: RequestHandler = async (req, res) => {
         // Attach extra profile fields stored in payout.profileExtras (used for environments without columns)
         const extras = (payout as any).profileExtras;
         if (extras && typeof extras === 'object') {
+          if ((user as any).fullName == null && typeof (extras as any).fullName !== 'undefined') (user as any).fullName = (extras as any).fullName;
+          if ((user as any).name == null && typeof (extras as any).name !== 'undefined') (user as any).name = (extras as any).name;
+          if ((user as any).phone == null && typeof (extras as any).phone !== 'undefined') (user as any).phone = (extras as any).phone;
+          if ((user as any).email == null && typeof (extras as any).email !== 'undefined') (user as any).email = (extras as any).email;
           if ((user as any).region == null && typeof (extras as any).region !== 'undefined') (user as any).region = (extras as any).region;
           if ((user as any).district == null && typeof (extras as any).district !== 'undefined') (user as any).district = (extras as any).district;
           if ((user as any).timezone == null && typeof (extras as any).timezone !== 'undefined') (user as any).timezone = (extras as any).timezone;
           if ((user as any).dateOfBirth == null && typeof (extras as any).dateOfBirth !== 'undefined') (user as any).dateOfBirth = (extras as any).dateOfBirth;
+          if ((user as any).nationality == null && typeof (extras as any).nationality !== 'undefined') (user as any).nationality = (extras as any).nationality;
+          if ((user as any).gender == null && typeof (extras as any).gender !== 'undefined') (user as any).gender = (extras as any).gender;
+          if ((user as any).nin == null && typeof (extras as any).nin !== 'undefined') (user as any).nin = (extras as any).nin;
+          if ((user as any).licenseNumber == null && typeof (extras as any).licenseNumber !== 'undefined') (user as any).licenseNumber = (extras as any).licenseNumber;
+          if ((user as any).plateNumber == null && typeof (extras as any).plateNumber !== 'undefined') (user as any).plateNumber = (extras as any).plateNumber;
+          if ((user as any).vehiclePlate == null && typeof (extras as any).vehiclePlate !== 'undefined') (user as any).vehiclePlate = (extras as any).vehiclePlate;
+          if ((user as any).vehicleType == null && typeof (extras as any).vehicleType !== 'undefined') (user as any).vehicleType = (extras as any).vehicleType;
+          if ((user as any).vehicleMake == null && typeof (extras as any).vehicleMake !== 'undefined') (user as any).vehicleMake = (extras as any).vehicleMake;
+          if ((user as any).operationArea == null && typeof (extras as any).operationArea !== 'undefined') (user as any).operationArea = (extras as any).operationArea;
+          if ((user as any).paymentPhone == null && typeof (extras as any).paymentPhone !== 'undefined') (user as any).paymentPhone = (extras as any).paymentPhone;
         }
       } else {
         // Ensure payout fields are set to null if no payout data exists
