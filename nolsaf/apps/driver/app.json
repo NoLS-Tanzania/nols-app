@@ -42,6 +42,12 @@
         {
           "locationWhenInUsePermission": "NoLSAF Driver uses your location while a trip is active so the passenger and dispatch can see your progress."
         }
+      ],
+      [
+        "@rnmapbox/maps",
+        {
+          "RNMapboxMapsImpl": "mapbox"
+        }
       ]
     ]
   }

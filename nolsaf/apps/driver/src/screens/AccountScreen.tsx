@@ -1,12 +1,29 @@
-import { AppButton, AppCard, AppStack, AppText, colors, radius, SafeScreen } from "@nolsaf/native-ui";
-import { Mail, Phone, UserCircle } from "lucide-react-native";
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { AppButton, AppCard, AppText, colors, radius, SafeScreen, spacing } from "@nolsaf/native-ui";
+import { ChevronRight, FileText, HelpCircle, Settings, ShieldCheck, UserCircle } from "lucide-react-native";
 import { useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 
 import { useAuth } from "../auth/AuthProvider";
 import { DriverBottomNav } from "../components/DriverBottomNav";
+import { RootStackParamList } from "../navigation/types";
 
-export function AccountScreen() {
+type Props = NativeStackScreenProps<RootStackParamList, "Account">;
+
+const LINKS: Array<{
+  key: "Profile" | "Management" | "Security" | "Policies" | "Support";
+  label: string;
+  description: string;
+  icon: (color: string) => JSX.Element;
+}> = [
+  { key: "Profile", label: "Profile", description: "Personal, vehicle, and payout details", icon: (c) => <UserCircle color={c} size={20} /> },
+  { key: "Management", label: "Management", description: "License, insurance, and contract", icon: (c) => <FileText color={c} size={20} /> },
+  { key: "Security", label: "Security", description: "Password, two factor, and login history", icon: (c) => <ShieldCheck color={c} size={20} /> },
+  { key: "Policies", label: "Policies", description: "Terms, privacy, and other policies", icon: (c) => <Settings color={c} size={20} /> },
+  { key: "Support", label: "Support", description: "Frequently asked questions and contact", icon: (c) => <HelpCircle color={c} size={20} /> }
+];
+
+export function AccountScreen({ navigation }: Props) {
   const { user, signOut } = useAuth();
   const [loggingOut, setLoggingOut] = useState(false);
 
@@ -28,42 +45,41 @@ export function AccountScreen() {
       </AppText>
 
       <AppCard>
-        <AppStack gap={3}>
-          <View style={styles.avatarRow}>
-            <View style={styles.avatar}>
-              <UserCircle color={colors.primary} size={32} />
-            </View>
-            <AppStack gap={1} style={styles.identity}>
-              <AppText variant="title" weight="bold">
-                {name}
-              </AppText>
-              <AppText variant="bodySmall" tone="muted">
-                Driver
-              </AppText>
-            </AppStack>
+        <View style={styles.identityRow}>
+          <View style={styles.avatar}>
+            <UserCircle color={colors.primary} size={32} />
           </View>
-
-          <View style={styles.divider} />
-
-          {user?.email ? (
-            <View style={styles.detailRow}>
-              <Mail color={colors.mutedText} size={18} />
-              <AppText variant="body" style={styles.detailText}>
+          <View style={styles.identity}>
+            <AppText variant="title" weight="bold">
+              {name}
+            </AppText>
+            {user?.email ? (
+              <AppText variant="bodySmall" tone="muted">
                 {user.email}
               </AppText>
-            </View>
-          ) : null}
-
-          {user?.phone ? (
-            <View style={styles.detailRow}>
-              <Phone color={colors.mutedText} size={18} />
-              <AppText variant="body" style={styles.detailText}>
-                {user.phone}
-              </AppText>
-            </View>
-          ) : null}
-        </AppStack>
+            ) : null}
+          </View>
+        </View>
       </AppCard>
+
+      <View style={styles.linksWrap}>
+        {LINKS.map((link) => (
+          <Pressable key={link.key} accessibilityRole="button" onPress={() => navigation.navigate(link.key)}>
+            <AppCard style={styles.linkCard}>
+              <View style={styles.linkIcon}>{link.icon(colors.primary)}</View>
+              <View style={styles.linkText}>
+                <AppText variant="bodySmall" weight="bold">
+                  {link.label}
+                </AppText>
+                <AppText variant="caption" tone="muted">
+                  {link.description}
+                </AppText>
+              </View>
+              <ChevronRight color={colors.mutedText} size={18} />
+            </AppCard>
+          </Pressable>
+        ))}
+      </View>
 
       <AppButton title="Log out" variant="secondary" loading={loggingOut} onPress={handleLogout} />
 
@@ -79,7 +95,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     gap: 16
   },
-  avatarRow: {
+  identityRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12
@@ -94,20 +110,29 @@ const styles = StyleSheet.create({
   },
   identity: {
     flexShrink: 1,
-    minWidth: 0
+    minWidth: 0,
+    gap: 2
   },
-  divider: {
-    height: 1,
-    backgroundColor: colors.border
+  linksWrap: {
+    gap: spacing[3]
   },
-  detailRow: {
+  linkCard: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10
+    gap: spacing[3]
   },
-  detailText: {
-    flexShrink: 1,
-    minWidth: 0
+  linkIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.brand[50]
+  },
+  linkText: {
+    flex: 1,
+    minWidth: 0,
+    gap: spacing[1]
   },
   navWrap: {
     marginTop: "auto",

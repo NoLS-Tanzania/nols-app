@@ -15,6 +15,20 @@ const REQUIRED_DRIVER_DOCUMENT_GROUPS = [
   ["INSURANCE"]
 ];
 
+function extractExpiryDate(metadata: Record<string, unknown> | null | undefined): Date | null {
+  if (!metadata) return null;
+  const raw =
+    metadata.expiresAt ??
+    metadata.expiresOn ??
+    metadata.expiryDate ??
+    metadata.expiry ??
+    metadata.licenseExpiresOn ??
+    metadata.licenseExpiryDate;
+  if (!raw) return null;
+  const date = new Date(String(raw).includes("T") ? String(raw) : `${String(raw)}T23:59:59.999Z`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 function isDriverOnboardingComplete(account: AuthUser): boolean {
   const requiredTextFields = [
     account.name,
@@ -38,6 +52,12 @@ function isDriverOnboardingComplete(account: AuthUser): boolean {
   const docTypes = new Set(
     docs.filter((doc) => doc?.url).map((doc) => String(doc?.type ?? "").toUpperCase())
   );
+  const licenseDoc = docs.find((doc) => {
+    const type = String(doc?.type ?? "").toUpperCase();
+    return ["DRIVER_LICENSE", "DRIVING_LICENSE", "DRIVER_LICENCE", "DRIVING_LICENCE", "LICENSE"].includes(type) && Boolean(doc?.url);
+  });
+  const licenseExpiry = extractExpiryDate(licenseDoc?.metadata);
+  if (!licenseExpiry || licenseExpiry.getTime() < Date.now()) return false;
 
   return REQUIRED_DRIVER_DOCUMENT_GROUPS.every((group) => group.some((type) => docTypes.has(type)));
 }
@@ -48,16 +68,16 @@ export function getDriverGateState(user: AuthUser): DriverGateState {
     return user.kycNote ? "action_required" : "pending_kyc";
   }
 
-  if (user.kycStatus == null && !isDriverOnboardingComplete(user)) {
-    return "incomplete_onboarding";
-  }
-
   if (user.suspendedAt || user.isDisabled) {
     return "suspended";
   }
 
   if (user.kycStatus === "REJECTED_KYC") {
     return "rejected";
+  }
+
+  if (!isDriverOnboardingComplete(user)) {
+    return "incomplete_onboarding";
   }
 
   return "ok";

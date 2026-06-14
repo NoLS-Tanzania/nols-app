@@ -1,57 +1,89 @@
-import { AppCard, AppStack, AppText, colors, radius, SafeScreen } from "@nolsaf/native-ui";
-import { Wallet } from "lucide-react-native";
-import { StyleSheet, View } from "react-native";
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { AppCard, AppText, colors, radius, spacing } from "@nolsaf/native-ui";
+import { FileText, Gift, Trophy, Users, Wallet } from "lucide-react-native";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { DriverBottomNav } from "../components/DriverBottomNav";
+import { RootStackParamList } from "../navigation/types";
 
-export function EarningsScreen() {
+type Props = NativeStackScreenProps<RootStackParamList, "Earnings">;
+
+const QUICK_LINKS: Array<{
+  key: "Payouts" | "Bonus" | "Level" | "Referral" | "Invoices";
+  label: string;
+  description: string;
+  icon: (color: string) => JSX.Element;
+}> = [
+  { key: "Payouts", label: "Payouts", description: "Your completed payouts", icon: (c) => <Wallet color={c} size={20} /> },
+  { key: "Bonus", label: "Bonus", description: "Eligibility and history", icon: (c) => <Gift color={c} size={20} /> },
+  { key: "Level", label: "Level", description: "Progress and benefits", icon: (c) => <Trophy color={c} size={20} /> },
+  { key: "Referral", label: "Referral", description: "Invite drivers and earn", icon: (c) => <Users color={c} size={20} /> },
+  { key: "Invoices", label: "Invoices", description: "Receipts and statements", icon: (c) => <FileText color={c} size={20} /> }
+];
+
+export function EarningsScreen({ navigation }: Props) {
   return (
-    <SafeScreen contentStyle={styles.content}>
-      <AppCard style={styles.card}>
-        <AppStack gap={3}>
-          <View style={styles.iconMark}>
-            <Wallet color={colors.primary} size={26} />
-          </View>
-          <AppStack gap={1}>
-            <AppText variant="title" weight="bold" style={styles.center}>
-              Earnings are coming soon
-            </AppText>
-            <AppText variant="bodySmall" tone="muted" style={styles.center}>
-              Your daily and weekly earnings breakdown, payouts, and statements will appear here once this feature launches in the app.
-            </AppText>
-          </AppStack>
-        </AppStack>
-      </AppCard>
-      <View style={styles.navWrap}>
-        <DriverBottomNav active="Earnings" />
-      </View>
-    </SafeScreen>
+    <View style={styles.root}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <AppText variant="title" weight="bold">
+          Earnings
+        </AppText>
+        <AppText variant="bodySmall" tone="muted">
+          Track your payouts, bonuses, level progress, referrals, and invoices.
+        </AppText>
+
+        <View style={styles.linksWrap}>
+          {QUICK_LINKS.map((link) => (
+            <Pressable key={link.key} accessibilityRole="button" onPress={() => navigation.navigate(link.key)}>
+              <AppCard style={styles.linkCard}>
+                <View style={styles.linkIcon}>{link.icon(colors.primary)}</View>
+                <View style={styles.linkText}>
+                  <AppText variant="bodySmall" weight="bold">
+                    {link.label}
+                  </AppText>
+                  <AppText variant="caption" tone="muted">
+                    {link.description}
+                  </AppText>
+                </View>
+              </AppCard>
+            </Pressable>
+          ))}
+        </View>
+      </ScrollView>
+      <DriverBottomNav active="Earnings" />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  content: {
-    flexGrow: 1,
-    justifyContent: "center",
-    gap: 16
+  root: {
+    flex: 1,
+    backgroundColor: colors.surface
   },
-  card: {
-    alignItems: "center"
+  scrollContent: {
+    gap: spacing[4],
+    padding: spacing[4],
+    paddingBottom: spacing[8]
   },
-  iconMark: {
-    alignSelf: "center",
-    width: 56,
-    height: 56,
+  linksWrap: {
+    gap: spacing[3]
+  },
+  linkCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[3]
+  },
+  linkIcon: {
+    width: 40,
+    height: 40,
     borderRadius: radius.full,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.brand[50]
   },
-  center: {
-    textAlign: "center"
-  },
-  navWrap: {
-    marginHorizontal: -16,
-    marginBottom: -16
+  linkText: {
+    flex: 1,
+    minWidth: 0,
+    gap: spacing[1]
   }
 });

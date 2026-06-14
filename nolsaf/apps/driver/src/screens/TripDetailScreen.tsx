@@ -6,11 +6,13 @@ import { Linking, Pressable, StyleSheet, View } from "react-native";
 
 import { useAuth } from "../auth/AuthProvider";
 import { formatTripWhen } from "../components/TripCard";
+import { TripMap } from "../components/TripMap";
 import { TripStatusBadge } from "../components/TripStatusBadge";
 import {
   acceptTrip,
   cancelTrip,
   declineTrip,
+  fetchDriverMap,
   fetchMessageTemplates,
   fetchTripDetail,
   sendQuickMessage,
@@ -18,6 +20,7 @@ import {
 } from "../driver/driverApi";
 import { MessageTemplate, TRIP_STAGE_FLOW, TRIP_STAGE_LABELS, TripDetail } from "../driver/types";
 import { useLocationPing } from "../hooks/useLocationPing";
+import { formatEta } from "../lib/eta";
 import { RootStackParamList } from "../navigation/types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "TripDetail">;
@@ -60,7 +63,24 @@ export function TripDetailScreen({ navigation, route }: Props) {
 
   const isActive = trip?.status === "CONFIRMED" || trip?.status === "IN_PROGRESS";
 
-  useLocationPing({ enabled: Boolean(isActive), tripId, token });
+  const { position: livePosition } = useLocationPing({ enabled: Boolean(isActive), tripId, token });
+  const [seedPosition, setSeedPosition] = useState<{ lat: number; lng: number } | null>(null);
+
+  useEffect(() => {
+    if (!token || !isActive) return;
+    fetchDriverMap(token)
+      .then((res) => {
+        if (res.driverLocation) setSeedPosition({ lat: res.driverLocation.lat, lng: res.driverLocation.lng });
+      })
+      .catch(() => {});
+  }, [token, isActive]);
+
+  const driverPosition = livePosition || seedPosition;
+
+  const pickupPoint = trip?.pickupLat != null && trip?.pickupLng != null ? { lat: trip.pickupLat, lng: trip.pickupLng } : null;
+  const dropoffPoint = trip?.dropoffLat != null && trip?.dropoffLng != null ? { lat: trip.dropoffLat, lng: trip.dropoffLng } : null;
+  const etaTarget = trip?.status === "IN_PROGRESS" ? dropoffPoint : pickupPoint;
+  const etaText = driverPosition && etaTarget ? formatEta(driverPosition, etaTarget) : null;
 
   useEffect(() => {
     if (!token || !isActive) return;
@@ -182,6 +202,17 @@ export function TripDetailScreen({ navigation, route }: Props) {
                 {trip.amount != null ? <AmountText amount={trip.amount} currency={trip.currency || "TZS"} /> : null}
               </AppStack>
             </AppCard>
+
+            {isActive && (pickupPoint || dropoffPoint) ? (
+              <AppStack gap={2}>
+                <TripMap pickup={pickupPoint} dropoff={dropoffPoint} driverPosition={driverPosition} />
+                {etaText ? (
+                  <AppText variant="bodySmall" weight="bold" tone="primary">
+                    {etaText}
+                  </AppText>
+                ) : null}
+              </AppStack>
+            ) : null}
 
             <AppCard>
               <AppStack gap={3}>

@@ -1,3 +1,5 @@
+import { InvoiceItem } from "../driver/types";
+
 export type RootStackParamList = {
   Login: undefined;
   Home: undefined;
@@ -10,4 +12,23 @@ export type RootStackParamList = {
   History: undefined;
   Reminders: undefined;
   Rating: undefined;
+  Payouts: undefined;
+  Bonus: undefined;
+  Level: undefined;
+  Referral: undefined;
+  Invoices: undefined;
+  InvoiceDetail: { invoice: InvoiceItem };
+  Profile: undefined;
+  Management: undefined;
+  License: undefined;
+  Insurance: undefined;
+  Contract: undefined;
+  Security: undefined;
+  ChangePassword: undefined;
+  TwoFactor: undefined;
+  LoginHistory: undefined;
+  Policies: undefined;
+  Support: undefined;
+  ClaimPolicy: undefined;
+  Safety: undefined;
 };

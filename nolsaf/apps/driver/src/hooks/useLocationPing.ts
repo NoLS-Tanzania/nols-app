@@ -1,6 +1,6 @@
 import { useIsFocused } from "@react-navigation/native";
 import * as Location from "expo-location";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { sendLocationPing } from "../driver/driverApi";
 
@@ -15,6 +15,7 @@ type UseLocationPingOptions = {
 export function useLocationPing({ enabled, tripId, token }: UseLocationPingOptions) {
   const isFocused = useIsFocused();
   const tickingRef = useRef(false);
+  const [position, setPosition] = useState<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
     if (!enabled || !isFocused || !token) return;
@@ -27,14 +28,15 @@ export function useLocationPing({ enabled, tripId, token }: UseLocationPingOptio
       if (tickingRef.current) return;
       tickingRef.current = true;
       try {
-        const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
         if (cancelled) return;
+        setPosition({ lat: current.coords.latitude, lng: current.coords.longitude });
         await sendLocationPing(authToken, {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-          headingDeg: position.coords.heading ?? undefined,
-          speedMps: position.coords.speed ?? undefined,
-          accuracyM: position.coords.accuracy ?? undefined,
+          lat: current.coords.latitude,
+          lng: current.coords.longitude,
+          headingDeg: current.coords.heading ?? undefined,
+          speedMps: current.coords.speed ?? undefined,
+          accuracyM: current.coords.accuracy ?? undefined,
           transportBookingId: tripId
         });
       } catch {
@@ -56,4 +58,6 @@ export function useLocationPing({ enabled, tripId, token }: UseLocationPingOptio
       if (intervalId) clearInterval(intervalId);
     };
   }, [enabled, isFocused, tripId, token]);
+
+  return { position };
 }

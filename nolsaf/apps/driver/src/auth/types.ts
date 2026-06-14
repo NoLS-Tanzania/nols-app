@@ -7,6 +7,7 @@ export type DriverDocument = {
   type?: string | null;
   url?: string | null;
   status?: string | null;
+  metadata?: Record<string, unknown> | null;
 };
 
 export type AuthUser = {

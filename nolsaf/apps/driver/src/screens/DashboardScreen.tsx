@@ -21,6 +21,7 @@ import { AvailabilitySwitch } from "../components/AvailabilitySwitch";
 import { DriverBottomNav } from "../components/DriverBottomNav";
 import { fetchAvailability, fetchDashboard, fetchNotifications, setAvailability } from "../driver/driverApi";
 import { DashboardResponse } from "../driver/types";
+import { useDriverSocket } from "../hooks/useDriverSocket";
 import { RootStackParamList } from "../navigation/types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Home">;
@@ -67,6 +68,15 @@ export function DashboardScreen({ navigation }: Props) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useDriverSocket({
+    "driver:availability:update": () => {
+      if (!token) return;
+      fetchAvailability(token)
+        .then((res) => setAvailableState(res.available))
+        .catch(() => {});
+    }
+  });
 
   async function toggleAvailability(next: boolean) {
     if (!token) return;

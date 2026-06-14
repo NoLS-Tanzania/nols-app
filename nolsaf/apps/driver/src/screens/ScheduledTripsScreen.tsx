@@ -8,6 +8,7 @@ import { useAuth } from "../auth/AuthProvider";
 import { formatTripWhen, TripCard } from "../components/TripCard";
 import { claimTrip, fetchAssignedScheduledTrips, fetchClaimsFinished, fetchClaimsPending, fetchScheduledTrips } from "../driver/driverApi";
 import { ClaimItem, FinishedClaimItem, ScheduledTripItem } from "../driver/types";
+import { useDriverSocket } from "../hooks/useDriverSocket";
 import { RootStackParamList } from "../navigation/types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ScheduledTrips">;
@@ -72,6 +73,12 @@ export function ScheduledTripsScreen({ navigation }: Props) {
   useEffect(() => {
     void load(activeTab);
   }, [activeTab, load]);
+
+  useDriverSocket({
+    "transport:booking:claim_awarded": () => {
+      if (activeTab === "claims" || activeTab === "assigned") void load(activeTab, "refresh");
+    }
+  });
 
   function openClaim(item: AnyScheduledItem) {
     setClaimTarget(item);
@@ -174,6 +181,11 @@ export function ScheduledTripsScreen({ navigation }: Props) {
                 <AppText variant="body" tone="muted">
                   Confirm both agreements before claiming this scheduled trip.
                 </AppText>
+                <Pressable accessibilityRole="button" onPress={() => navigation.navigate("ClaimPolicy")}>
+                  <AppText variant="bodySmall" weight="bold" tone="primary">
+                    What does claiming mean?
+                  </AppText>
+                </Pressable>
               </AppStack>
 
               <AppStack gap={3}>
