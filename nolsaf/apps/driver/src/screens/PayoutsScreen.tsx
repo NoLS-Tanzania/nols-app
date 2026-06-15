@@ -1,12 +1,13 @@
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { AmountText, AppCard, AppStack, AppText, colors, radius, spacing, StateView } from "@nolsaf/native-ui";
-import { ArrowLeft } from "lucide-react-native";
+import { AmountText, AppButton, AppCard, AppStack, AppText, colors, radius, spacing, StateView } from "@nolsaf/native-ui";
+import { ArrowLeft, FileText } from "lucide-react-native";
 import { useCallback, useEffect, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 
 import { useAuth } from "../auth/AuthProvider";
 import { fetchPayouts } from "../driver/driverApi";
 import { PayoutItem } from "../driver/types";
+import { useDriverSocket } from "../hooks/useDriverSocket";
 import { RootStackParamList } from "../navigation/types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Payouts">;
@@ -51,6 +52,25 @@ export function PayoutsScreen({ navigation }: Props) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useDriverSocket({
+    "driver-payout-invoice-paid": () => void load("refresh"),
+    "driver-payout-invoice-approved": () => void load("refresh")
+  });
+
+  const viewReceipt = useCallback(
+    (item: PayoutItem) => {
+      navigation.navigate("InvoiceDetail", {
+        invoice: {
+          ...item,
+          invoiceId: item.invoiceId ?? item.id,
+          status: "PAID",
+          issuedAt: item.paidAt
+        }
+      });
+    },
+    [navigation]
+  );
 
   return (
     <View style={styles.root}>
@@ -102,6 +122,12 @@ export function PayoutsScreen({ navigation }: Props) {
                     Commission: {(item.commissionAmount ?? 0).toLocaleString()}
                   </AppText>
                 </View>
+                <AppButton
+                  title="View receipt"
+                  variant="secondary"
+                  icon={<FileText color={colors.primary} size={16} />}
+                  onPress={() => viewReceipt(item)}
+                />
               </AppCard>
             ))}
           </AppStack>

@@ -44,11 +44,6 @@ export type DashboardResponse = {
   goalProgress: number;
   todaysRides: number;
   acceptanceRate: number;
-  earningsBreakdown: {
-    base: number;
-    tips: number;
-    bonus: number;
-  };
   rating: number;
   totalReviews: number;
   onlineHours: number;
@@ -133,11 +128,14 @@ export type TripDetail = {
   currency: string | null;
   paymentStatus: string | null;
   notes: string | null;
+  /** Language the passenger requested the driver speak, e.g. "sw", "en" */
+  requiredLanguage: string | null;
   createdAt: string | null;
   updatedAt: string | null;
   messagesCount: number;
   locationPingsCount: number;
   assignmentSource: "ADMIN" | "AUTO";
+  stageHistory: Array<{ stage: TripStage; at: string }>;
 };
 
 export type TripStage =
@@ -196,6 +194,25 @@ export type ScheduledTripProperty = {
   ward?: string;
 };
 
+export type TripOffer = {
+  bookingId: number;
+  tripCode?: string | null;
+  vehicleType?: string | null;
+  scheduledDate?: string | null;
+  fromAddress?: string | null;
+  toAddress?: string | null;
+  fromLatitude?: number | null;
+  fromLongitude?: number | null;
+  toLatitude?: number | null;
+  toLongitude?: number | null;
+  amount?: number | null;
+  currency?: string | null;
+  offer: {
+    expiresAt: string;
+    radiusKm?: number;
+  };
+};
+
 export type ScheduledTripItem = {
   id: number;
   vehicleType?: string;
@@ -227,6 +244,7 @@ export type ScheduledTripItem = {
   property?: ScheduledTripProperty;
   tripCode: string;
   createdAt: string;
+  awardedAt?: string;
 };
 
 export type ScheduledTripsResponse = {
@@ -249,11 +267,20 @@ export type ClaimsPendingResponse = {
   pageSize: number;
 };
 
+export type PayoutStatus = "PENDING" | "APPROVED" | "PAID";
+
 export type FinishedClaimItem = ScheduledTripItem & {
   userRating?: number;
   userReview?: string;
   driverRating?: number;
   driverReview?: string;
+  completedAt?: string | null;
+  payoutId?: number | null;
+  payoutStatus?: PayoutStatus | null;
+  payoutGrossAmount?: number | string | null;
+  payoutCommissionAmount?: number | string | null;
+  payoutNetPaid?: number | string | null;
+  payoutCurrency?: string | null;
 };
 
 export type ClaimsFinishedResponse = {
@@ -273,6 +300,19 @@ export type ClaimResponse = {
   trip: unknown;
 };
 
+export type PayoutClaimResponse = {
+  ok: boolean;
+  alreadyClaimed: boolean;
+  payout: {
+    id: number;
+    status: PayoutStatus;
+    grossAmount: number | string;
+    commissionAmount: number | string;
+    netPaid: number | string;
+    currency: string;
+  } | null;
+};
+
 export type ReminderItem = {
   id: string;
   type: "INFO" | "WARNING";
@@ -286,10 +326,6 @@ export type ReminderItem = {
 };
 
 export type RatingSummary = {
-  id: number;
-  name: string;
-  email: string;
-  createdAt: string;
   rating: number | null;
   monthlyTrips: number;
   monthsOfService: number;
@@ -325,6 +361,7 @@ export type InvoiceItem = PayoutItem & {
   invoiceId: number;
   status: InvoiceStatus;
   issuedAt: string | null;
+  approvedAt?: string | null;
 };
 
 export type InvoicesResponse = {
@@ -380,6 +417,16 @@ export type BonusEligibility = {
   };
 };
 
+export type BonusGrantedNotification = {
+  bonusAmount: number;
+  bonusReasonType: string;
+  reason: string;
+  period: string;
+  bonusPaymentRef: string;
+  grantedAt: string;
+  grantedBy: { id: number; name: string };
+};
+
 export type DriverPerformance = {
   driver: { id: number; name: string; email: string };
   metrics: {
@@ -389,6 +436,8 @@ export type DriverPerformance = {
     meetsPerformanceExcellence: boolean;
     monthlyTrips: number;
     totalTrips: number;
+    completedTrips: number;
+    cancelledTrips: number;
     activeDaysThisMonth: number;
     meetsVolumeMilestone: boolean;
     monthsOfService: number;
@@ -427,11 +476,19 @@ export type DriverLevel = {
   };
   levelBenefits: string[];
   nextLevelBenefits: string[];
+  allLevels: Array<{ level: number; levelName: string; benefits: string[] }>;
 };
 
 export type SendLevelMessageResponse = {
   success: boolean;
   message: string;
+};
+
+export type AdminLevelMessageResponse = {
+  messageId: number;
+  response: string;
+  adminName: string;
+  timestamp: string;
 };
 
 export type ReferralListItem = {
@@ -606,6 +663,8 @@ export type DriverProfile = {
   operationArea?: string | null;
   paymentPhone?: string | null;
   paymentVerified?: boolean;
+  /** Languages this driver can speak, e.g. ["sw", "en"] */
+  languages?: string[] | null;
   isVipDriver?: boolean;
   kycStatus?: string | null;
   kycNote?: string | null;
@@ -646,6 +705,7 @@ export type UpdateProfileBody = Partial<{
   vehicleMake: string | null;
   operationArea: string | null;
   paymentPhone: string | null;
+  languages: string[] | null;
 }>;
 
 export type UpdateProfileResponse = {

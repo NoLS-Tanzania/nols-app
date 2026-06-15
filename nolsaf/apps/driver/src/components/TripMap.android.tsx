@@ -37,7 +37,7 @@ export function TripMap({ pickup, dropoff, driverPosition }: TripMapProps) {
   return (
     <View style={styles.container}>
       <MapView style={styles.map}>
-        <Camera centerCoordinate={[center.lng, center.lat]} zoomLevel={11} />
+        <Camera centerCoordinate={[center.lng, center.lat]} zoomLevel={14} animationMode="flyTo" animationDuration={800} />
         {pickup ? (
           <PointAnnotation id="pickup" coordinate={[pickup.lng, pickup.lat]}>
             <View style={[styles.marker, { backgroundColor: colors.primary }]} />
@@ -65,7 +65,7 @@ export function TripMap({ pickup, dropoff, driverPosition }: TripMapProps) {
 
 const styles = StyleSheet.create({
   container: {
-    height: 200,
+    height: 260,
     borderRadius: radius.lg,
     overflow: "hidden"
   },

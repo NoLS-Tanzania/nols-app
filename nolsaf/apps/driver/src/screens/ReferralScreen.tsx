@@ -14,9 +14,9 @@ import {
   StateView,
   StatusBadge
 } from "@nolsaf/native-ui";
-import { ArrowLeft, Share2 } from "lucide-react-native";
+import { ArrowLeft, Copy, Share2 } from "lucide-react-native";
 import { useCallback, useEffect, useState } from "react";
-import { Pressable, RefreshControl, ScrollView, Share, StyleSheet, View } from "react-native";
+import { Alert, Linking, Platform, Pressable, RefreshControl, ScrollView, Share, StyleSheet, View } from "react-native";
 
 import { useAuth } from "../auth/AuthProvider";
 import {
@@ -66,6 +66,7 @@ export function ReferralScreen({ navigation }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [withdrawing, setWithdrawing] = useState(false);
   const [showWithdrawConfirm, setShowWithdrawConfirm] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const load = useCallback(
     async (tab: TabKey, mode: "initial" | "refresh" = "initial") => {
@@ -106,12 +107,68 @@ export function ReferralScreen({ navigation }: Props) {
     "referral-notification": () => void load(activeTab, "refresh")
   });
 
+  async function copyToClipboard(text: string) {
+    const nav = (globalThis as { navigator?: { clipboard?: { writeText?: (value: string) => Promise<void> } } }).navigator;
+    if (nav?.clipboard?.writeText) {
+      try {
+        await nav.clipboard.writeText(text);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  }
+
+  function showCopiedFeedback() {
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function handleCopyLink() {
+    if (!referral) return;
+    const ok = await copyToClipboard(referral.referralLink);
+    if (ok) {
+      showCopiedFeedback();
+    } else {
+      Alert.alert("Referral link", referral.referralLink);
+    }
+  }
+
   async function handleShare() {
     if (!referral) return;
+    const shareText = `Join NoLSAF as a driver using my referral code ${referral.referralCode}: ${referral.referralLink}`;
+    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
+
     try {
-      await Share.share({
-        message: `Join NoLSAF as a driver using my referral code ${referral.referralCode}: ${referral.referralLink}`
-      });
+      const canOpenWhatsapp = await Linking.canOpenURL(whatsappUrl);
+      if (canOpenWhatsapp) {
+        await Linking.openURL(whatsappUrl);
+        return;
+      }
+    } catch {
+      // fall through to generic share
+    }
+
+    if (Platform.OS === "web") {
+      const nav = (globalThis as { navigator?: { share?: (data: { title?: string; text?: string; url?: string }) => Promise<void> } }).navigator;
+      if (nav?.share) {
+        try {
+          await nav.share({ title: "Join NoLSAF", text: shareText, url: referral.referralLink });
+        } catch {
+          // user dismissed the share sheet
+        }
+        return;
+      }
+      if (await copyToClipboard(shareText)) {
+        showCopiedFeedback();
+      } else {
+        Alert.alert("Referral link", shareText);
+      }
+      return;
+    }
+    try {
+      await Share.share({ message: shareText });
     } catch {
       // user dismissed the share sheet
     }
@@ -174,6 +231,21 @@ export function ReferralScreen({ navigation }: Props) {
                 Your referral code
               </AppText>
               <CodeText value={referral.referralCode} tone="inverse" />
+
+              <View style={styles.linkRow}>
+                <AppText variant="caption" tone="inverse" style={styles.linkText} selectable numberOfLines={1}>
+                  {referral.referralLink}
+                </AppText>
+                <Pressable accessibilityRole="button" onPress={handleCopyLink} style={styles.linkCopyButton}>
+                  <Copy color={colors.white} size={16} />
+                </Pressable>
+              </View>
+              {copied ? (
+                <AppText variant="caption" tone="inverse">
+                  Copied to clipboard!
+                </AppText>
+              ) : null}
+
               <AppButton
                 title="Share referral link"
                 variant="secondary"
@@ -440,6 +512,29 @@ const styles = StyleSheet.create({
   },
   card: {
     gap: spacing[2]
+  },
+  linkRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing[2],
+    paddingVertical: spacing[2],
+    paddingHorizontal: spacing[3],
+    borderRadius: radius.md,
+    backgroundColor: "rgba(255,255,255,0.08)"
+  },
+  linkText: {
+    flex: 1,
+    minWidth: 0,
+    opacity: 0.85
+  },
+  linkCopyButton: {
+    width: 28,
+    height: 28,
+    borderRadius: radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.15)"
   },
   row: {
     flexDirection: "row",

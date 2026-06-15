@@ -1,8 +1,8 @@
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { AmountText, AppButton, AppCard, AppStack, AppText, colors, ConfirmSheet, radius, SafeScreen, spacing, StateView } from "@nolsaf/native-ui";
-import { ArrowLeft, MapPin, Phone, User } from "lucide-react-native";
+import { AmountText, AppButton, AppCard, AppStack, AppText, colors, radius, SafeScreen, spacing, StateView } from "@nolsaf/native-ui";
+import { ArrowLeft, Check, CheckCheck, Flag, Globe, MapPin, Navigation, Phone, User, UserCheck } from "lucide-react-native";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Linking, Pressable, StyleSheet, View } from "react-native";
+import { Linking, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { useAuth } from "../auth/AuthProvider";
 import { formatTripWhen } from "../components/TripCard";
@@ -10,7 +10,6 @@ import { TripMap } from "../components/TripMap";
 import { TripStatusBadge } from "../components/TripStatusBadge";
 import {
   acceptTrip,
-  cancelTrip,
   declineTrip,
   fetchDriverMap,
   fetchMessageTemplates,
@@ -18,12 +17,56 @@ import {
   sendQuickMessage,
   updateTripStage
 } from "../driver/driverApi";
-import { MessageTemplate, TRIP_STAGE_FLOW, TRIP_STAGE_LABELS, TripDetail } from "../driver/types";
+import { MessageTemplate, TRIP_STAGE_FLOW, TRIP_STAGE_LABELS, TripDetail, TripStage } from "../driver/types";
 import { useLocationPing } from "../hooks/useLocationPing";
-import { formatEta } from "../lib/eta";
+import { formatEta, haversineDistanceKm } from "../lib/eta";
 import { RootStackParamList } from "../navigation/types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "TripDetail">;
+
+const ARRIVAL_RADIUS_KM = 0.1;
+
+function formatDistance(km: number) {
+  if (km < 1) return `${Math.max(0, Math.round(km * 1000))} m`;
+  return `${km.toFixed(1)} km`;
+}
+
+const LANGUAGE_LABELS: Record<string, string> = {
+  sw: "Swahili",
+  en: "English",
+  ar: "Arabic",
+  fr: "French"
+};
+
+function languageLabel(code: string) {
+  return LANGUAGE_LABELS[code.toLowerCase()] ?? code;
+}
+
+const STAGE_ICONS: Record<TripStage, typeof MapPin> = {
+  arrived_at_pickup: MapPin,
+  passenger_picked_up: UserCheck,
+  in_transit: Navigation,
+  arrived_at_destination: Flag,
+  completed: CheckCheck
+};
+
+function formatDuration(fromIso: string, toIso: string) {
+  const minutes = Math.max(0, Math.round((new Date(toIso).getTime() - new Date(fromIso).getTime()) / 60000));
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest ? `${hours}h ${rest}m` : `${hours}h`;
+}
+
+function openExternalNavigation(point: { lat: number; lng: number }) {
+  const { lat, lng } = point;
+  const url = Platform.select({
+    ios: `maps://app?daddr=${lat},${lng}&dirflg=d`,
+    android: `google.navigation:q=${lat},${lng}`,
+    default: `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving&dir_action=navigate`
+  });
+  Linking.openURL(url!).catch(() => Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving&dir_action=navigate`));
+}
 
 export function TripDetailScreen({ navigation, route }: Props) {
   const { tripId } = route.params;
@@ -32,8 +75,6 @@ export function TripDetailScreen({ navigation, route }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
-  const [stageIndex, setStageIndex] = useState(0);
-  const [cancelVisible, setCancelVisible] = useState(false);
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [sendingKey, setSendingKey] = useState<string | null>(null);
   const [sentKey, setSentKey] = useState<string | null>(null);
@@ -49,7 +90,6 @@ export function TripDetailScreen({ navigation, route }: Props) {
     try {
       const detail = await fetchTripDetail(token, tripId);
       setTrip(detail);
-      setStageIndex(detail.status === "IN_PROGRESS" && detail.pickupTime ? 2 : 0);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load this trip.");
     } finally {
@@ -89,7 +129,14 @@ export function TripDetailScreen({ navigation, route }: Props) {
       .catch(() => setTemplates([]));
   }, [token, isActive]);
 
-  const nextStage = useMemo(() => TRIP_STAGE_FLOW[stageIndex] ?? null, [stageIndex]);
+  const completedStages = useMemo(() => new Set((trip?.stageHistory || []).map((entry) => entry.stage)), [trip?.stageHistory]);
+  const nextStage = useMemo(() => TRIP_STAGE_FLOW.find((stage) => !completedStages.has(stage)) ?? null, [completedStages]);
+  const pickupConfirmed = completedStages.has("arrived_at_pickup");
+
+  const distanceToDropoffKm = driverPosition && dropoffPoint ? haversineDistanceKm(driverPosition, dropoffPoint) : null;
+  const isArrivalStage = nextStage === "arrived_at_destination";
+  const arrivalGateActive = isArrivalStage && distanceToDropoffKm != null;
+  const isNearDestination = !arrivalGateActive || distanceToDropoffKm! <= ARRIVAL_RADIUS_KM;
 
   async function handleAccept() {
     if (!token || !trip) return;
@@ -122,28 +169,12 @@ export function TripDetailScreen({ navigation, route }: Props) {
     setActionLoading(true);
     try {
       await updateTripStage(token, trip.id, { stage: nextStage });
-      if (nextStage === "completed") {
-        await load();
-      } else {
-        setStageIndex((i) => i + 1);
-        await load();
+      if (nextStage === "passenger_picked_up" && dropoffPoint) {
+        openExternalNavigation(dropoffPoint);
       }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not update the trip stage.");
-    } finally {
-      setActionLoading(false);
-    }
-  }
-
-  async function handleCancel() {
-    if (!token || !trip) return;
-    setActionLoading(true);
-    try {
-      await cancelTrip(token, trip.id);
-      setCancelVisible(false);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not cancel this trip.");
+      setError(e instanceof Error ? e.message : "Could not update the trip stage.");
     } finally {
       setActionLoading(false);
     }
@@ -196,9 +227,14 @@ export function TripDetailScreen({ navigation, route }: Props) {
                     </AppText>
                   ) : null}
                 </View>
-                <AppText variant="bodySmall" tone="muted">
-                  {formatTripWhen(trip.pickupTime || trip.scheduledDate) || "Time not set"}
-                </AppText>
+                <View style={styles.pickupTimeRow}>
+                  <AppText variant="caption" tone="muted">
+                    Pick-up time
+                  </AppText>
+                  <AppText variant="bodySmall" weight="bold">
+                    {formatTripWhen(trip.pickupTime || trip.scheduledDate) || "Time not set"}
+                  </AppText>
+                </View>
                 {trip.amount != null ? <AmountText amount={trip.amount} currency={trip.currency || "TZS"} /> : null}
               </AppStack>
             </AppCard>
@@ -206,11 +242,29 @@ export function TripDetailScreen({ navigation, route }: Props) {
             {isActive && (pickupPoint || dropoffPoint) ? (
               <AppStack gap={2}>
                 <TripMap pickup={pickupPoint} dropoff={dropoffPoint} driverPosition={driverPosition} />
-                {etaText ? (
-                  <AppText variant="bodySmall" weight="bold" tone="primary">
-                    {etaText}
-                  </AppText>
-                ) : null}
+                <View style={styles.mapFooterRow}>
+                  <View style={styles.etaInfo}>
+                    <View style={styles.etaIconBubble}>
+                      <MapPin color={colors.primary} size={16} />
+                    </View>
+                    <View>
+                      <AppText variant="caption" tone="muted">
+                        {trip.status === "IN_PROGRESS" ? "Drop-off location" : "Pickup location"}
+                      </AppText>
+                      <AppText variant="bodySmall" weight="bold" tone="primary">
+                        {etaText || "Distance unavailable"}
+                      </AppText>
+                    </View>
+                  </View>
+                  {etaTarget ? (
+                    <Pressable accessibilityRole="button" onPress={() => openExternalNavigation(etaTarget)} style={styles.navigateButton}>
+                      <Navigation color={colors.white} size={16} />
+                      <AppText variant="caption" weight="bold" style={styles.navigateButtonText}>
+                        Navigate
+                      </AppText>
+                    </Pressable>
+                  ) : null}
+                </View>
               </AppStack>
             ) : null}
 
@@ -244,6 +298,57 @@ export function TripDetailScreen({ navigation, route }: Props) {
               </AppStack>
             </AppCard>
 
+            {trip.stageHistory.length > 0 ? (
+              <AppCard>
+                <AppStack gap={4}>
+                  <View style={styles.timelineHeader}>
+                    <AppText variant="titleSm" weight="bold">
+                      Trip timeline
+                    </AppText>
+                    <View style={styles.timelineCountBadge}>
+                      <AppText variant="caption" weight="bold" tone="primary">
+                        {trip.stageHistory.length}/{TRIP_STAGE_FLOW.length} steps
+                      </AppText>
+                    </View>
+                  </View>
+                  <AppStack gap={0}>
+                    {trip.stageHistory.map((entry, index) => {
+                      const StageIcon = STAGE_ICONS[entry.stage] || Check;
+                      const isLast = index === trip.stageHistory.length - 1;
+                      const previous = index > 0 ? trip.stageHistory[index - 1] : null;
+                      return (
+                        <View key={entry.stage} style={styles.timelineRow}>
+                          <View style={styles.timelineRail}>
+                            <View style={[styles.timelineDot, isLast && styles.timelineDotCurrent]}>
+                              <StageIcon color={isLast ? colors.primary : colors.white} size={14} />
+                            </View>
+                            {!isLast ? <View style={styles.timelineLine} /> : null}
+                          </View>
+                          <View style={[styles.timelineContent, isLast && styles.timelineContentLast]}>
+                            <View style={styles.timelineTitleRow}>
+                              <AppText variant="bodySmall" weight="bold">
+                                {TRIP_STAGE_LABELS[entry.stage] || entry.stage}
+                              </AppText>
+                              {previous ? (
+                                <View style={styles.timelineDurationBadge}>
+                                  <AppText variant="caption" weight="medium" tone="muted">
+                                    +{formatDuration(previous.at, entry.at)}
+                                  </AppText>
+                                </View>
+                              ) : null}
+                            </View>
+                            <AppText variant="caption" tone="muted">
+                              {formatTripWhen(entry.at)}
+                            </AppText>
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </AppStack>
+                </AppStack>
+              </AppCard>
+            ) : null}
+
             {trip.passengerName || trip.phoneNumber ? (
               <AppCard>
                 <View style={styles.passengerRow}>
@@ -257,8 +362,16 @@ export function TripDetailScreen({ navigation, route }: Props) {
                     <AppText variant="caption" tone="muted">
                       {trip.notes || "No notes for this trip"}
                     </AppText>
+                    {trip.requiredLanguage ? (
+                      <View style={styles.languageRow}>
+                        <Globe color={colors.primary} size={12} />
+                        <AppText variant="caption" tone="primary">
+                          Speaks {languageLabel(trip.requiredLanguage)}
+                        </AppText>
+                      </View>
+                    ) : null}
                   </AppStack>
-                  {trip.phoneNumber ? (
+                  {trip.phoneNumber && !pickupConfirmed ? (
                     <Pressable accessibilityRole="button" onPress={callPassenger} style={styles.callButton}>
                       <Phone color={colors.white} size={18} />
                     </Pressable>
@@ -277,15 +390,36 @@ export function TripDetailScreen({ navigation, route }: Props) {
             {isActive ? (
               <AppStack gap={3}>
                 {nextStage ? (
-                  <AppButton title={TRIP_STAGE_LABELS[nextStage]} onPress={handleAdvanceStage} loading={actionLoading} />
+                  isArrivalStage && !isNearDestination ? (
+                    <View style={styles.nearDestinationBanner}>
+                      <AppText variant="bodySmall" weight="bold" tone="primary">
+                        Near destination
+                      </AppText>
+                      <AppText variant="caption" tone="muted">
+                        Get within 100m of the drop-off to mark arrival
+                        {distanceToDropoffKm != null ? ` (${formatDistance(distanceToDropoffKm)} away)` : ""}
+                      </AppText>
+                    </View>
+                  ) : (
+                    <AppButton
+                      title={nextStage === "passenger_picked_up" ? "Start trip & navigate" : TRIP_STAGE_LABELS[nextStage]}
+                      icon={nextStage === "passenger_picked_up" ? <Navigation color={colors.white} size={16} /> : undefined}
+                      onPress={handleAdvanceStage}
+                      loading={actionLoading}
+                    />
+                  )
                 ) : null}
 
-                {templates.length > 0 ? (
+                {templates.length > 0 && !pickupConfirmed ? (
                   <AppStack gap={2}>
                     <AppText variant="titleSm" weight="bold">
                       Quick messages
                     </AppText>
-                    <View style={styles.messagesRow}>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.messagesRow}
+                    >
                       {templates.map((tpl) => (
                         <Pressable
                           key={tpl.key}
@@ -294,33 +428,19 @@ export function TripDetailScreen({ navigation, route }: Props) {
                           disabled={sendingKey === tpl.key}
                           style={[styles.messageChip, sentKey === tpl.key && styles.messageChipSent]}
                         >
-                          <AppText variant="caption" weight="medium" tone={sentKey === tpl.key ? "success" : "default"}>
+                          <AppText variant="caption" weight="medium" tone={sentKey === tpl.key ? "success" : "default"} numberOfLines={1}>
                             {sentKey === tpl.key ? "Sent" : tpl.text}
                           </AppText>
                         </Pressable>
                       ))}
-                    </View>
+                    </ScrollView>
                   </AppStack>
                 ) : null}
-
-                <AppButton title="Cancel trip" variant="danger" onPress={() => setCancelVisible(true)} />
               </AppStack>
             ) : null}
           </AppStack>
         ) : null}
       </SafeScreen>
-
-      <ConfirmSheet
-        visible={cancelVisible}
-        title="Cancel this trip?"
-        message="The passenger will be notified that you cancelled. This cannot be undone."
-        confirmLabel="Cancel trip"
-        cancelLabel="Keep trip"
-        destructive
-        loading={actionLoading}
-        onConfirm={handleCancel}
-        onCancel={() => setCancelVisible(false)}
-      />
     </View>
   );
 }
@@ -348,11 +468,62 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border
   },
+  pickupTimeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between"
+  },
+  mapFooterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[2]
+  },
+  etaInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[2],
+    flexShrink: 1
+  },
+  etaIconBubble: {
+    width: 32,
+    height: 32,
+    borderRadius: radius.full,
+    backgroundColor: colors.brand[50],
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  navigateButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[1],
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[2],
+    borderRadius: radius.full
+  },
+  navigateButtonText: {
+    color: colors.white
+  },
   topRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     minWidth: 0
+  },
+  nearDestinationBanner: {
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.brand[100],
+    backgroundColor: colors.brand[50],
+    paddingHorizontal: spacing[4],
+    paddingVertical: spacing[3],
+    gap: spacing[1]
   },
   routeRow: {
     flexDirection: "row",
@@ -363,6 +534,71 @@ const styles = StyleSheet.create({
   routeText: {
     flex: 1,
     minWidth: 0
+  },
+  languageRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[1],
+    marginTop: 2
+  },
+  timelineHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between"
+  },
+  timelineCountBadge: {
+    borderRadius: radius.full,
+    backgroundColor: colors.brand[50],
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[1]
+  },
+  timelineRow: {
+    flexDirection: "row",
+    gap: spacing[3]
+  },
+  timelineRail: {
+    alignItems: "center"
+  },
+  timelineDot: {
+    width: 28,
+    height: 28,
+    borderRadius: radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.primary
+  },
+  timelineDotCurrent: {
+    backgroundColor: colors.brand[50],
+    borderWidth: 2,
+    borderColor: colors.primary
+  },
+  timelineLine: {
+    width: 2,
+    flex: 1,
+    minHeight: spacing[5],
+    marginVertical: spacing[1],
+    backgroundColor: colors.brand[100]
+  },
+  timelineContent: {
+    flex: 1,
+    minWidth: 0,
+    paddingBottom: spacing[4],
+    gap: 2
+  },
+  timelineContentLast: {
+    paddingBottom: 0
+  },
+  timelineTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing[2]
+  },
+  timelineDurationBadge: {
+    borderRadius: radius.full,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing[2],
+    paddingVertical: 2
   },
   passengerRow: {
     flexDirection: "row",
@@ -388,16 +624,16 @@ const styles = StyleSheet.create({
   },
   messagesRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing[2]
+    gap: spacing[2],
+    paddingRight: spacing[1]
   },
   messageChip: {
     borderRadius: radius.full,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.white,
-    paddingHorizontal: spacing[3],
-    paddingVertical: spacing[2]
+    paddingHorizontal: spacing[4],
+    paddingVertical: spacing[3]
   },
   messageChipSent: {
     backgroundColor: colors.brand[50],

@@ -14,7 +14,7 @@ import {
 } from "@nolsaf/native-ui";
 import * as ImagePicker from "expo-image-picker";
 import * as Sharing from "expo-sharing";
-import { AlertCircle, ArrowLeft, Car, ChevronLeft, ChevronRight, CreditCard, Download, Eye, EyeOff, IdCard, Landmark, Lock, Shield, Smartphone, Trash2, UserCircle, X } from "lucide-react-native";
+import { AlertCircle, ArrowLeft, Car, Check, ChevronLeft, ChevronRight, CreditCard, Download, Eye, EyeOff, IdCard, Landmark, Lock, Shield, Smartphone, Trash2, UserCircle, X } from "lucide-react-native";
 import * as QRCode from "qrcode";
 import { ComponentProps, useCallback, useEffect, useRef, useState } from "react";
 import { Image, Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
@@ -78,6 +78,19 @@ function driverIdNumber(profile: DriverProfile, licenseExpiry?: Date | null) {
   const idPart = Number.isFinite(id) && id > 0 ? String(id) : "PENDING";
   return `NLS/D/${idPart}/${publicIdCode(profile)}/${twoDigitYear(new Date())}${twoDigitYear(licenseExpiry)}`;
 }
+
+const SUPPORTED_LANGUAGES: Array<{ code: string; label: string; flag: string }> = [
+  { code: "sw", label: "Swahili", flag: "🇹🇿" },
+  { code: "en", label: "English", flag: "🇬🇧" },
+  { code: "ar", label: "Arabic", flag: "🇸🇦" },
+  { code: "fr", label: "French", flag: "🇫🇷" },
+  { code: "zh", label: "Chinese", flag: "🇨🇳" },
+  { code: "es", label: "Spanish", flag: "🇪🇸" },
+  { code: "pt", label: "Portuguese", flag: "🇵🇹" },
+  { code: "de", label: "German", flag: "🇩🇪" },
+  { code: "hi", label: "Hindi", flag: "🇮🇳" },
+  { code: "it", label: "Italian", flag: "🇮🇹" }
+];
 
 function display(value: string | number | null | undefined) {
   const text = value == null ? "" : String(value).trim();
@@ -221,6 +234,10 @@ export function ProfileScreen({ navigation }: Props) {
   const [savingDriving, setSavingDriving] = useState(false);
   const [drivingMessage, setDrivingMessage] = useState<string | null>(null);
 
+  const [languages, setLanguages] = useState<string[]>([]);
+  const [savingLanguages, setSavingLanguages] = useState(false);
+  const [languagesMessage, setLanguagesMessage] = useState<string | null>(null);
+
   const [payout, setPayout] = useState({
     bankAccountName: "",
     bankAccountNumber: "",
@@ -293,6 +310,7 @@ export function ProfileScreen({ navigation }: Props) {
         operationArea: firstText(profileRes.operationArea, extras.operationArea, profileRes.region, extras.region),
         paymentPhone: firstText(profileRes.paymentPhone, extras.paymentPhone, p.mobileMoneyNumber)
       });
+      setLanguages(Array.isArray(profileRes.languages) ? profileRes.languages : []);
       setPayout({
         bankAccountName: p.bankAccountName || "",
         bankAccountNumber: p.bankAccountNumber || "",
@@ -354,6 +372,24 @@ export function ProfileScreen({ navigation }: Props) {
       setDrivingMessage(describeApiError(e, "Could not save your driving details."));
     } finally {
       setSavingDriving(false);
+    }
+  }
+
+  function toggleLanguage(code: string) {
+    setLanguages((prev) => (prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]));
+  }
+
+  async function saveLanguages() {
+    if (!token) return;
+    setSavingLanguages(true);
+    setLanguagesMessage(null);
+    try {
+      await updateDriverProfile(token, { languages: languages.length ? languages : null });
+      setLanguagesMessage("Saved.");
+    } catch (e) {
+      setLanguagesMessage(describeApiError(e, "Could not save your languages."));
+    } finally {
+      setSavingLanguages(false);
     }
   }
 
@@ -807,6 +843,53 @@ export function ProfileScreen({ navigation }: Props) {
                 {drivingMessage ? (
                   <AppText variant="caption" tone={drivingMessage === "Saved." ? "muted" : "danger"}>
                     {drivingMessage}
+                  </AppText>
+                ) : null}
+              </AppStack>
+            </AppCard>
+
+            <AppCard>
+              <AppStack gap={3}>
+                <AppStack gap={1}>
+                  <AppText variant="titleSm" weight="bold">
+                    Languages
+                  </AppText>
+                  <AppText variant="caption" tone="muted">
+                    Only pick a language if you can confidently hold a conversation in it. Some
+                    travellers choose their driver based on this, so accuracy matters.
+                  </AppText>
+                </AppStack>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.languageScrollContent}>
+                  {SUPPORTED_LANGUAGES.map(({ code, label, flag }) => {
+                    const selected = languages.includes(code);
+                    return (
+                      <Pressable
+                        key={code}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected }}
+                        onPress={() => toggleLanguage(code)}
+                        style={[styles.languageChip, selected && styles.languageChipActive]}
+                      >
+                        <AppText variant="bodySmall">{flag}</AppText>
+                        <AppText variant="caption" weight="bold" tone={selected ? "inverse" : "muted"}>
+                          {label}
+                        </AppText>
+                        {selected ? <Check color={colors.white} size={14} /> : null}
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+                <AppText variant="caption" tone="muted">
+                  {languages.length > 0
+                    ? `Selected: ${languages
+                        .map((code) => SUPPORTED_LANGUAGES.find((l) => l.code === code)?.label ?? code)
+                        .join(", ")}`
+                    : "No languages selected yet."}
+                </AppText>
+                <AppButton title="Save languages" loading={savingLanguages} onPress={saveLanguages} />
+                {languagesMessage ? (
+                  <AppText variant="caption" tone={languagesMessage === "Saved." ? "muted" : "danger"}>
+                    {languagesMessage}
                   </AppText>
                 ) : null}
               </AppStack>
@@ -1565,7 +1648,28 @@ const styles = StyleSheet.create({
   },
   toggleRow: {
     flexDirection: "row",
-    gap: spacing[2]
+    gap: spacing[2],
+    flexWrap: "wrap"
+  },
+  languageScrollContent: {
+    gap: spacing[2],
+    paddingVertical: spacing[1],
+    paddingRight: spacing[2]
+  },
+  languageChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[1],
+    paddingVertical: spacing[2],
+    paddingHorizontal: spacing[3],
+    borderRadius: radius.full,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border
+  },
+  languageChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary
   },
   toggle: {
     flex: 1,

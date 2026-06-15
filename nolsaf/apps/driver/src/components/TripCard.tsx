@@ -1,5 +1,5 @@
-import { AmountText, AppCard, AppText, colors, spacing } from "@nolsaf/native-ui";
-import { ArrowRight, MapPin } from "lucide-react-native";
+import { AmountText, AppCard, AppText, colors, radius, spacing } from "@nolsaf/native-ui";
+import { ChevronRight } from "lucide-react-native";
 import { ReactNode } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 
@@ -31,24 +31,30 @@ export function TripCard({ status, pickup, dropoff, when, tripCode, amount, curr
     <AppCard style={styles.card}>
       <View style={styles.topRow}>
         {status ? <TripStatusBadge status={status} /> : <View />}
-        {when ? (
-          <AppText variant="caption" tone="muted">
-            {when}
-          </AppText>
-        ) : null}
+        <View style={styles.topRowEnd}>
+          {when ? (
+            <AppText variant="caption" tone="muted">
+              {when}
+            </AppText>
+          ) : null}
+          {onPress ? <ChevronRight color={colors.softText} size={18} /> : null}
+        </View>
       </View>
 
-      <View style={styles.routeRow}>
-        <MapPin color={colors.primary} size={16} />
-        <AppText variant="bodySmall" weight="medium" numberOfLines={1} style={styles.routeText}>
-          {pickup || "Pickup location"}
-        </AppText>
-      </View>
-      <View style={styles.routeRow}>
-        <ArrowRight color={colors.mutedText} size={16} />
-        <AppText variant="bodySmall" weight="medium" numberOfLines={1} style={styles.routeText}>
-          {dropoff || "Dropoff location"}
-        </AppText>
+      <View style={styles.routeBlock}>
+        <View style={styles.routeLineColumn}>
+          <View style={[styles.dot, { backgroundColor: colors.primary }]} />
+          <View style={styles.routeLine} />
+          <View style={[styles.dot, { backgroundColor: colors.danger }]} />
+        </View>
+        <View style={styles.routeTextColumn}>
+          <AppText variant="bodySmall" weight="bold" numberOfLines={1}>
+            {pickup || "Pickup location"}
+          </AppText>
+          <AppText variant="bodySmall" weight="bold" numberOfLines={1}>
+            {dropoff || "Dropoff location"}
+          </AppText>
+        </View>
       </View>
 
       <View style={styles.bottomRow}>
@@ -78,7 +84,7 @@ export function TripCard({ status, pickup, dropoff, when, tripCode, amount, curr
 
 const styles = StyleSheet.create({
   card: {
-    gap: spacing[2]
+    gap: spacing[3]
   },
   pressed: {
     opacity: 0.85
@@ -89,15 +95,38 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     minWidth: 0
   },
-  routeRow: {
+  topRowEnd: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing[2],
+    gap: spacing[1]
+  },
+  routeBlock: {
+    flexDirection: "row",
+    gap: spacing[3],
     minWidth: 0
   },
-  routeText: {
+  routeLineColumn: {
+    alignItems: "center",
+    paddingTop: 4,
+    paddingBottom: 4
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: radius.full
+  },
+  routeLine: {
+    width: 2,
     flex: 1,
-    minWidth: 0
+    minHeight: 14,
+    marginVertical: 2,
+    backgroundColor: colors.border
+  },
+  routeTextColumn: {
+    flex: 1,
+    minWidth: 0,
+    justifyContent: "space-between",
+    gap: spacing[3]
   },
   bottomRow: {
     flexDirection: "row",

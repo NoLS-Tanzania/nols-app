@@ -1,7 +1,9 @@
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import {
   AmountText,
+  AppButton,
   AppCard,
+  AppInput,
   AppStack,
   AppText,
   colors,
@@ -12,19 +14,27 @@ import {
   spacing,
   StateView
 } from "@nolsaf/native-ui";
-import { AlertTriangle, Bell, Info, Star, Sparkles, TrendingUp } from "lucide-react-native";
+import { AlertTriangle, Bell, Car, Clock, Info, MapPin, Settings, Star, Sparkles, TrendingUp } from "lucide-react-native";
+import * as SecureStore from "expo-secure-store";
 import { useCallback, useEffect, useState } from "react";
-import { Linking, Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
+import { Linking, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 
 import { useAuth } from "../auth/AuthProvider";
 import { AvailabilitySwitch } from "../components/AvailabilitySwitch";
 import { DriverBottomNav } from "../components/DriverBottomNav";
+import { EarningsLineChart } from "../components/EarningsLineChart";
 import { fetchAvailability, fetchDashboard, fetchNotifications, setAvailability } from "../driver/driverApi";
 import { DashboardResponse } from "../driver/types";
 import { useDriverSocket } from "../hooks/useDriverSocket";
 import { RootStackParamList } from "../navigation/types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Home">;
+
+type DriverGoals = { trips?: number; money?: number; moneyUrgent?: boolean };
+
+function goalsStorageKey(driverId: string | number) {
+  return `driver_goals:${String(driverId)}`;
+}
 
 export function DashboardScreen({ navigation }: Props) {
   const { user, token } = useAuth();
@@ -35,6 +45,13 @@ export function DashboardScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [goals, setGoals] = useState<DriverGoals | null>(null);
+  const [showGoalsModal, setShowGoalsModal] = useState(false);
+  const [formTrips, setFormTrips] = useState("");
+  const [formMoney, setFormMoney] = useState("");
+  const [formMoneyUrgent, setFormMoneyUrgent] = useState(false);
+  const [savingGoals, setSavingGoals] = useState(false);
 
   const load = useCallback(
     async (mode: "initial" | "refresh" = "initial") => {
@@ -78,6 +95,61 @@ export function DashboardScreen({ navigation }: Props) {
     }
   });
 
+  useEffect(() => {
+    if (!user?.id) return;
+    SecureStore.getItemAsync(goalsStorageKey(user.id))
+      .then((raw) => {
+        if (raw) setGoals(JSON.parse(raw) as DriverGoals);
+      })
+      .catch(() => {});
+  }, [user?.id]);
+
+  function openGoalsModal() {
+    setFormTrips(goals?.trips != null ? String(goals.trips) : "");
+    setFormMoney(goals?.money != null ? String(goals.money) : "");
+    setFormMoneyUrgent(!!goals?.moneyUrgent);
+    setShowGoalsModal(true);
+  }
+
+  async function persistGoals(next: DriverGoals | null) {
+    if (!user?.id) return;
+    const key = goalsStorageKey(user.id);
+    if (next) {
+      await SecureStore.setItemAsync(key, JSON.stringify(next));
+    } else {
+      await SecureStore.deleteItemAsync(key);
+    }
+    setGoals(next);
+  }
+
+  async function handleSaveGoals() {
+    setSavingGoals(true);
+    try {
+      const trips = Number(formTrips);
+      const money = Number(formMoney);
+      const next: DriverGoals = {};
+      if (Number.isFinite(trips) && trips > 0) next.trips = trips;
+      if (Number.isFinite(money) && money > 0) {
+        next.money = money;
+        next.moneyUrgent = formMoneyUrgent;
+      }
+      await persistGoals(Object.keys(next).length ? next : null);
+      setShowGoalsModal(false);
+    } finally {
+      setSavingGoals(false);
+    }
+  }
+
+  async function handleClearGoals() {
+    setSavingGoals(true);
+    try {
+      await persistGoals(null);
+      setShowGoalsModal(false);
+    } finally {
+      setSavingGoals(false);
+    }
+  }
+
   async function toggleAvailability(next: boolean) {
     if (!token) return;
     setAvailabilityLoading(true);
@@ -94,6 +166,18 @@ export function DashboardScreen({ navigation }: Props) {
 
   const name = user?.fullName || user?.name || "Driver";
   const firstName = name.split(" ")[0];
+
+  const earningsChart = dashboard?.earningsChart ?? [];
+  const weeklyEarnings = earningsChart.reduce((sum, point) => sum + point.amount, 0);
+
+  const moneyGoal = goals?.money ?? dashboard?.todayGoal ?? 0;
+  const goalProgress = dashboard
+    ? goals?.money
+      ? Math.min(Math.round((dashboard.todayEarnings / (goals.money || 1)) * 100), 100)
+      : dashboard.goalProgress
+    : 0;
+  const tripsGoal = goals?.trips;
+  const tripsGoalProgress = dashboard && tripsGoal ? Math.min(Math.round((dashboard.todaysRides / tripsGoal) * 100), 100) : null;
 
   return (
     <View style={styles.root}>
@@ -139,13 +223,23 @@ export function DashboardScreen({ navigation }: Props) {
               <ResponsiveRow gap={3}>
                 <AppCard style={styles.statCard}>
                   <AppStack gap={1}>
-                    <AppText variant="caption" tone="muted">
-                      Today's earnings
-                    </AppText>
+                    <View style={styles.goalHeaderRow}>
+                      <AppText variant="caption" tone="muted">
+                        Today's earnings
+                      </AppText>
+                      <Pressable accessibilityRole="button" onPress={openGoalsModal} style={styles.goalEditButton}>
+                        <Settings color={colors.mutedText} size={14} />
+                      </Pressable>
+                    </View>
                     <AmountText amount={dashboard.todayEarnings} />
                     <AppText variant="caption" tone="soft">
-                      Goal: {dashboard.todayGoal.toLocaleString()} TZS ({dashboard.goalProgress}%)
+                      Goal: {moneyGoal.toLocaleString()} TZS ({goalProgress}%)
                     </AppText>
+                    {tripsGoal ? (
+                      <AppText variant="caption" tone="soft">
+                        Trips: {dashboard.todaysRides}/{tripsGoal} ({tripsGoalProgress}%)
+                      </AppText>
+                    ) : null}
                   </AppStack>
                 </AppCard>
                 <AppCard style={styles.statCard}>
@@ -197,29 +291,13 @@ export function DashboardScreen({ navigation }: Props) {
 
               <AppCard>
                 <AppStack gap={3}>
-                  <AppText variant="titleSm" weight="bold">
-                    Earnings breakdown
-                  </AppText>
-                  <View style={styles.breakdownRow}>
-                    <AppStack gap={1} style={styles.breakdownItem}>
-                      <AppText variant="caption" tone="muted">
-                        Base fare
-                      </AppText>
-                      <AmountText amount={dashboard.earningsBreakdown.base} variant="bodySmall" />
-                    </AppStack>
-                    <AppStack gap={1} style={styles.breakdownItem}>
-                      <AppText variant="caption" tone="muted">
-                        Tips
-                      </AppText>
-                      <AmountText amount={dashboard.earningsBreakdown.tips} variant="bodySmall" />
-                    </AppStack>
-                    <AppStack gap={1} style={styles.breakdownItem}>
-                      <AppText variant="caption" tone="muted">
-                        Bonus
-                      </AppText>
-                      <AmountText amount={dashboard.earningsBreakdown.bonus} variant="bodySmall" />
-                    </AppStack>
+                  <View style={styles.chartHeaderRow}>
+                    <AppText variant="titleSm" weight="bold">
+                      This week
+                    </AppText>
+                    <AmountText amount={weeklyEarnings} variant="bodySmall" />
                   </View>
+                  <EarningsLineChart data={dashboard.earningsChart} />
                 </AppStack>
               </AppCard>
 
@@ -248,17 +326,35 @@ export function DashboardScreen({ navigation }: Props) {
                 ) : (
                   <AppStack gap={2}>
                     {dashboard.recentTrips.map((trip) => (
-                      <AppCard key={trip.id}>
-                        <View style={styles.tripRow}>
-                          <AppStack gap={1} style={styles.tripText}>
-                            <AppText variant="bodySmall" weight="bold" numberOfLines={1}>
-                              {trip.from} to {trip.to}
+                      <AppCard key={trip.id} style={styles.tripCard}>
+                        <View style={styles.tripIconBubble}>
+                          <Car color={colors.primary} size={18} />
+                        </View>
+                        <AppStack gap={1} style={styles.tripText}>
+                          <AppText variant="bodySmall" weight="bold" numberOfLines={1}>
+                            {trip.from}
+                          </AppText>
+                          <AppText variant="caption" tone="muted" numberOfLines={1}>
+                            to {trip.to}
+                          </AppText>
+                          <View style={styles.tripMetaRow}>
+                            <Clock color={colors.softText} size={11} />
+                            <AppText variant="caption" tone="soft">
+                              {trip.time}
                             </AppText>
-                            <AppText variant="caption" tone="muted">
-                              {trip.time} - {trip.distance}
-                            </AppText>
-                          </AppStack>
-                          <AmountText amount={trip.amount} variant="bodySmall" />
+                            {trip.distance !== "N/A" ? (
+                              <>
+                                <View style={styles.tripMetaDot} />
+                                <MapPin color={colors.softText} size={11} />
+                                <AppText variant="caption" tone="soft">
+                                  {trip.distance}
+                                </AppText>
+                              </>
+                            ) : null}
+                          </View>
+                        </AppStack>
+                        <View style={styles.tripAmountBadge}>
+                          <AmountText amount={trip.amount} variant="caption" weight="bold" tone="primary" style={styles.tripAmountText} />
                         </View>
                       </AppCard>
                     ))}
@@ -301,6 +397,35 @@ export function DashboardScreen({ navigation }: Props) {
         </ScrollView>
       </SafeScreen>
       <DriverBottomNav active="Home" />
+
+      <Modal visible={showGoalsModal} transparent animationType="fade" onRequestClose={() => setShowGoalsModal(false)}>
+        <View style={styles.goalsOverlay}>
+          <View style={styles.goalsSheet}>
+            <AppStack gap={4}>
+              <AppText variant="title" weight="bold">
+                Set your goals
+              </AppText>
+              <AppInput
+                label="Earnings goal (TZS)"
+                value={formMoney}
+                onChangeText={setFormMoney}
+                keyboardType="number-pad"
+                placeholder={dashboard ? String(dashboard.todayGoal) : undefined}
+              />
+              <AppInput label="Trips goal" value={formTrips} onChangeText={setFormTrips} keyboardType="number-pad" placeholder="e.g. 10" />
+              <Pressable accessibilityRole="button" onPress={() => setFormMoneyUrgent((v) => !v)} style={styles.urgentRow}>
+                <View style={[styles.checkbox, formMoneyUrgent && styles.checkboxChecked]} />
+                <AppText variant="bodySmall">Mark this earnings goal as urgent</AppText>
+              </Pressable>
+              <AppStack gap={2}>
+                <AppButton title="Save goals" loading={savingGoals} onPress={handleSaveGoals} />
+                <AppButton title="Clear goals" variant="ghost" onPress={handleClearGoals} />
+                <AppButton title="Cancel" variant="ghost" onPress={() => setShowGoalsModal(false)} />
+              </AppStack>
+            </AppStack>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -317,6 +442,43 @@ const styles = StyleSheet.create({
   scrollContent: {
     gap: spacing[4],
     paddingBottom: spacing[8]
+  },
+  goalHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between"
+  },
+  goalEditButton: {
+    padding: 2
+  },
+  goalsOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(2,6,23,0.42)",
+    padding: spacing[4]
+  },
+  goalsSheet: {
+    borderRadius: radius.xl,
+    backgroundColor: colors.white,
+    padding: spacing[5],
+    ...shadows.sheet
+  },
+  urgentRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[2]
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.white
+  },
+  checkboxChecked: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary
   },
   header: {
     flexDirection: "row",
@@ -367,13 +529,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing[1]
   },
-  breakdownRow: {
+  chartHeaderRow: {
     flexDirection: "row",
-    gap: spacing[3]
-  },
-  breakdownItem: {
-    flex: 1,
-    minWidth: 0
+    alignItems: "center",
+    justifyContent: "space-between"
   },
   peakRow: {
     flexDirection: "row",
@@ -384,15 +543,45 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     minWidth: 0
   },
-  tripRow: {
+  tripCard: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     gap: spacing[3]
   },
+  tripIconBubble: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.full,
+    backgroundColor: colors.brand[50],
+    alignItems: "center",
+    justifyContent: "center"
+  },
   tripText: {
-    flexShrink: 1,
+    flex: 1,
     minWidth: 0
+  },
+  tripMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[1],
+    marginTop: 2
+  },
+  tripMetaDot: {
+    width: 3,
+    height: 3,
+    borderRadius: radius.full,
+    backgroundColor: colors.border,
+    marginHorizontal: 2
+  },
+  tripAmountBadge: {
+    flexShrink: 0,
+    backgroundColor: colors.brand[50],
+    borderRadius: radius.full,
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[1]
+  },
+  tripAmountText: {
+    fontSize: 12
   },
   reminderRow: {
     flexDirection: "row",

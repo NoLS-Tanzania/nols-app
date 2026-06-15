@@ -24,6 +24,7 @@ import {
   MessageTemplate,
   NotificationsResponse,
   PaymentMethodsResponse,
+  PayoutClaimResponse,
   PayoutsResponse,
   RatingSummary,
   ReferralEarningsResponse,
@@ -150,6 +151,10 @@ export function claimTrip(token: string, tripId: number) {
   return apiRequest<ClaimResponse>(`/api/driver/trips/${tripId}/claim`, { token, method: "POST" });
 }
 
+export function claimPayout(token: string, tripId: number) {
+  return apiRequest<PayoutClaimResponse>(`/api/driver/trips/${tripId}/payout-claim`, { token, method: "POST" });
+}
+
 export function fetchReminders(token: string) {
   return apiRequest<ReminderItem[]>("/api/driver/reminders", { token });
 }
@@ -158,8 +163,17 @@ export function markReminderRead(token: string, id: string) {
   return apiRequest<ReminderItem>(`/api/driver/reminders/${encodeURIComponent(id)}/read`, { token, method: "POST" });
 }
 
-export function fetchRating(token: string) {
-  return apiRequest<RatingSummary>("/api/driver/performance", { token });
+export async function fetchRating(token: string): Promise<RatingSummary> {
+  const performance = await apiRequest<DriverPerformance>("/api/driver/performance", { token });
+  return {
+    rating: performance.metrics.rating,
+    monthlyTrips: performance.metrics.monthlyTrips,
+    monthsOfService: performance.metrics.monthsOfService,
+    completedTrips: performance.metrics.completedTrips,
+    cancelledTrips: performance.metrics.cancelledTrips,
+    activeDays: performance.metrics.activeDaysThisMonth,
+    totalTrips: performance.metrics.totalTrips
+  };
 }
 
 export function fetchPayouts(token: string, page = 1, pageSize = 20) {

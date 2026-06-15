@@ -79,7 +79,7 @@ export function RatingScreen({ navigation }: Props) {
           ) : summary ? (
             <AppStack gap={4}>
               <AppCard tone="brand" style={styles.heroCard}>
-                <AppText variant="display" weight="extraBold">
+                <AppText variant="display" weight="extraBold" tone="inverse">
                   {summary.rating != null ? summary.rating.toFixed(1) : "--"}
                 </AppText>
                 <View style={styles.starsRow}>

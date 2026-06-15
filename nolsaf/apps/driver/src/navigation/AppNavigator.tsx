@@ -1,4 +1,4 @@
-import { DefaultTheme, NavigationContainer } from "@react-navigation/native";
+import { DefaultTheme, NavigationContainer, useNavigationContainerRef } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { colors } from "@nolsaf/native-ui";
 
@@ -39,6 +39,7 @@ import { SafetyScreen } from "../screens/SafetyScreen";
 import { ScheduledTripsScreen } from "../screens/ScheduledTripsScreen";
 import { SecurityScreen } from "../screens/SecurityScreen";
 import { SupportScreen } from "../screens/SupportScreen";
+import { TripOfferProvider } from "../components/TripOfferProvider";
 import { TripDetailScreen } from "../screens/TripDetailScreen";
 import { TripsScreen } from "../screens/TripsScreen";
 import { TwoFactorScreen } from "../screens/TwoFactorScreen";
@@ -61,11 +62,14 @@ const navigationTheme = {
 
 export function AppNavigator() {
   const { status, user } = useAuth();
+  const navigationRef = useNavigationContainerRef<RootStackParamList>();
 
   const gateState = status === "authenticated" && user ? getDriverGateState(user) : "ok";
+  const ready = status === "authenticated" && gateState === "ok";
 
   return (
-    <NavigationContainer theme={navigationTheme}>
+    <NavigationContainer ref={navigationRef} theme={navigationTheme}>
+      {ready ? <TripOfferProvider navigationRef={navigationRef} /> : null}
       <Stack.Navigator
         screenOptions={{
           headerShown: false,

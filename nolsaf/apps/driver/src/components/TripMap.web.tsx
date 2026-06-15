@@ -21,7 +21,7 @@ export function TripMap(_props: TripMapProps) {
 
 const styles = StyleSheet.create({
   container: {
-    height: 200,
+    height: 260,
     borderRadius: radius.lg,
     overflow: "hidden",
     alignItems: "center",

@@ -6,6 +6,7 @@ import { ArrowLeft } from "lucide-react-native";
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 
+import { InvoiceStatusTimeline } from "../components/InvoiceStatusTimeline";
 import { ReceiptCard } from "../components/ReceiptCard";
 import { RootStackParamList } from "../navigation/types";
 
@@ -70,6 +71,8 @@ export function InvoiceDetailScreen({ route, navigation }: Props) {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <AppStack gap={4}>
           <ReceiptCard invoice={invoice} />
+
+          <InvoiceStatusTimeline invoice={invoice} />
 
           {unavailable ? (
             <AppText variant="bodySmall" tone="muted" style={styles.center}>

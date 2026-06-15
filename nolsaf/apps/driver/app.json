@@ -48,7 +48,8 @@
         {
           "RNMapboxMapsImpl": "mapbox"
         }
-      ]
+      ],
+      "expo-audio"
     ]
   }
 }

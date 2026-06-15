@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { StyleSheet, View } from "react-native";
 import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from "react-native-maps";
 
@@ -13,18 +14,34 @@ export type TripMapProps = {
 
 export function TripMap({ pickup, dropoff, driverPosition }: TripMapProps) {
   const center = driverPosition || pickup || dropoff;
+  const mapRef = useRef<MapView>(null);
+
+  useEffect(() => {
+    if (!driverPosition || !mapRef.current) return;
+    mapRef.current.animateToRegion(
+      {
+        latitude: driverPosition.lat,
+        longitude: driverPosition.lng,
+        latitudeDelta: 0.02,
+        longitudeDelta: 0.02
+      },
+      800
+    );
+  }, [driverPosition?.lat, driverPosition?.lng]);
+
   if (!center) return null;
 
   return (
     <View style={styles.container}>
       <MapView
+        ref={mapRef}
         style={styles.map}
         provider={PROVIDER_DEFAULT}
         initialRegion={{
           latitude: center.lat,
           longitude: center.lng,
-          latitudeDelta: 0.05,
-          longitudeDelta: 0.05
+          latitudeDelta: 0.02,
+          longitudeDelta: 0.02
         }}
       >
         {pickup ? <Marker coordinate={{ latitude: pickup.lat, longitude: pickup.lng }} title="Pickup" pinColor={colors.primary} /> : null}
@@ -47,7 +64,7 @@ export function TripMap({ pickup, dropoff, driverPosition }: TripMapProps) {
 
 const styles = StyleSheet.create({
   container: {
-    height: 200,
+    height: 260,
     borderRadius: radius.lg,
     overflow: "hidden"
   },

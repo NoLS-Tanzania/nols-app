@@ -17,23 +17,23 @@ const POLICY_LINKS: Array<{ label: string; path: string }> = [
 const STEPS: Array<{ title: string; body: string }> = [
   {
     title: "Trips open 72 hours before pickup",
-    body: "Scheduled trips become available to claim 72 hours before their pickup time. Check the Available tab regularly so you do not miss a trip you want."
+    body: "Scheduled trips become available to bid on 72 hours before their pickup time. Check the Available tab regularly so you do not miss a trip you want."
   },
   {
-    title: "More than one driver can claim",
-    body: "Claiming a trip is not a guarantee. Other drivers may also claim the same trip during the open window."
+    title: "More than one driver can bid",
+    body: "Bidding on a trip is not a guarantee. Other drivers may also bid on the same trip during the open window."
   },
   {
-    title: "NoLSAF reviews every claim",
-    body: "Our team reviews all claims for a trip and awards it to one driver, considering factors such as location, rating, and availability. This is the auction model."
+    title: "NoLSAF reviews every bid",
+    body: "Our team reviews all bids for a trip and awards it to one driver, considering factors such as location, rating, and availability. This is the auction model."
   },
   {
-    title: "Your claim status",
-    body: "After you claim a trip, it moves to Pending. Once NoLSAF reviews it, your claim becomes Approved (you are awarded the trip) or Rejected (another driver was awarded it). You can track this in the Claims tab."
+    title: "Your bid status",
+    body: "After you bid on a trip, it moves to Pending. Once NoLSAF reviews it, your bid becomes Approved (you are awarded the trip) or Rejected (another driver was awarded it). You can track this in the Pending tab."
   },
   {
     title: "Awaiting NoLSAF review",
-    body: "If you see Awaiting NoLSAF review, your claim has been submitted and is in the queue. You do not need to do anything else while you wait."
+    body: "If you see Awaiting NoLSAF review, your bid has been submitted and is in the queue. You do not need to do anything else while you wait."
   }
 ];
 
@@ -45,13 +45,13 @@ export function ClaimPolicyScreen({ navigation }: Props) {
           <ArrowLeft color={colors.ink} size={22} />
         </Pressable>
         <AppText variant="title" weight="bold">
-          What does claiming mean?
+          What does bidding mean?
         </AppText>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <AppText variant="bodySmall" tone="muted">
-          Scheduled trips work a little differently from on demand trips. Here is how claiming and the auction
+          Scheduled trips work a little differently from on demand trips. Here is how bidding and the auction
           review process work.
         </AppText>
 

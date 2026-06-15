@@ -8,23 +8,35 @@ import { env } from "../lib/env";
 export type DriverSocketEvent =
   | "driver:availability:update"
   | "transport:booking:claim_awarded"
+  | "transport:booking:created"
   | "referral-update"
   | "referral-notification"
-  | "bonus-granted";
+  | "bonus-granted"
+  | "driver-payout-invoice-approved"
+  | "driver-payout-invoice-paid"
+  | "trip:update"
+  | "admin-level-message-response";
 
 type DriverSocketHandlers = Partial<Record<DriverSocketEvent, (payload: unknown) => void>>;
 
 const SOCKET_EVENTS: DriverSocketEvent[] = [
   "driver:availability:update",
   "transport:booking:claim_awarded",
+  "transport:booking:created",
   "referral-update",
   "referral-notification",
-  "bonus-granted"
+  "bonus-granted",
+  "driver-payout-invoice-approved",
+  "driver-payout-invoice-paid",
+  "trip:update",
+  "admin-level-message-response"
 ];
 
-export function useDriverSocket(handlers: DriverSocketHandlers, options: { enabled?: boolean } = {}) {
+export function useDriverSocket(handlers: DriverSocketHandlers, options: { enabled?: boolean; requireFocus?: boolean } = {}) {
   const { status, token } = useAuth();
-  const isFocused = useIsFocused();
+  const requireFocus = options.requireFocus ?? true;
+  const focused = useIsFocused();
+  const isFocused = requireFocus ? focused : true;
   const enabled = options.enabled ?? true;
   const handlersRef = useRef(handlers);
   handlersRef.current = handlers;
