@@ -36,7 +36,8 @@ export const router = Router();
  *   arrivalTime?: string, // ISO date string
  *   pickupLocation?: string, // Pickup location description (e.g., "JNIA Terminal 1", "Ubungo Bus Terminal")
  *   numberOfPassengers?: number,
- *   notes?: string
+ *   notes?: string,
+ *   requiredLanguage?: string // e.g. "sw", "en" - language the passenger wants the driver to speak
  * }
  */
 router.post("/", limitTransportBooking, async (req: Request, res: Response) => {
@@ -63,6 +64,8 @@ router.post("/", limitTransportBooking, async (req: Request, res: Response) => {
       pickupLocation: z.string().optional(),
       numberOfPassengers: z.number().int().positive().max(20).default(1), // Max 20 passengers
       notes: z.string().optional(),
+      // Language the passenger would like the driver to speak, e.g. "sw", "en"
+      requiredLanguage: z.string().min(1).max(40).optional(),
     });
 
     const data = schema.parse(req.body);
@@ -163,6 +166,7 @@ router.post("/", limitTransportBooking, async (req: Request, res: Response) => {
             pickupLocation: data.pickupLocation ? sanitizeText(data.pickupLocation) : null,
             numberOfPassengers: data.numberOfPassengers || 1,
             notes: data.notes ? sanitizeText(data.notes) : null,
+            requiredLanguage: data.requiredLanguage ? sanitizeText(data.requiredLanguage) : null,
             paymentStatus: "PENDING",
             tripCode,
             tripCodeHash,

@@ -112,6 +112,10 @@ model User {
   /// Per-user notification preferences, e.g. { "bookings": true, "promotions": false, "referrals": true }
   notificationPrefs Json?
 
+  /// Spoken languages, e.g. ["sw", "en"]. For drivers: languages they can communicate in.
+  /// For customers: languages they'd like their driver to speak (used to match against driver.languages).
+  languages Json?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1122,6 +1126,10 @@ model TransportBooking {
 
   /// Special instructions or notes
   notes String? @db.Text
+
+  /// Language the passenger would like the driver to speak (e.g. "sw", "en"). Optional — matched
+  /// against the driver's User.languages where available.
+  requiredLanguage String? @db.VarChar(40)
 
   // ==================== Arrival Information (for airport, bus station, etc.) ====================
   /// Arrival type: FLIGHT, BUS, TRAIN, FERRY, OTHER
