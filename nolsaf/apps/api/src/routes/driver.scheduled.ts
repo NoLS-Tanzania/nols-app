@@ -981,7 +981,7 @@ router.post("/:id/claim", limitDriverTripClaim, (async (req: AuthedRequest, res:
       }
 
       return { updated, claim };
-    });
+    }, { timeout: 15000 });
 
     // Audit log for driver claim
     try {
