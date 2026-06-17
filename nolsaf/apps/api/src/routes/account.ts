@@ -367,6 +367,7 @@ const getMe: RequestHandler = async (req, res) => {
     if (hasField('kycStatus')) select.kycStatus = true;
     if (hasField('kycNote')) select.kycNote = true;
     if (hasField('kycFieldApprovals')) select.kycFieldApprovals = true;
+    if (hasField('languages')) select.languages = true;
 
     try {
       user = await prisma.user.findUnique({ where: { id: userId }, select } as any);

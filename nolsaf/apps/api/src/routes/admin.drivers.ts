@@ -1719,6 +1719,20 @@ router.post("/trips/:id(\\d+)/payout/pay", async (req, res) => {
       return upserted;
     });
 
+    try {
+      const io = (req as any).app?.get?.("io") || (global as any).io;
+      if (io) {
+        io.to(`driver:${payout.driverId}`).emit("driver-payout-invoice-paid", {
+          invoiceId: payout.id,
+          tripId: bookingId,
+          amount: Number(payout.netPaid ?? 0),
+          paidAt: payout.paidAt ? new Date(payout.paidAt).toISOString() : null,
+        });
+      }
+    } catch (emitErr: any) {
+      console.warn("Failed to emit driver payout invoice paid notification:", emitErr?.message ?? emitErr);
+    }
+
     return res.json({
       ok: true,
       payout: {

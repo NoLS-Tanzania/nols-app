@@ -4,8 +4,10 @@
   "version": "0.1.0",
   "packageManager": "npm@11.6.1",
   "workspaces": [
-    "apps/*",
-    "packages/*"
+    "apps/api",
+    "apps/web",
+    "packages/shared",
+    "packages/prisma"
   ],
   "devDependencies": {
     "@prisma/adapter-mariadb": "^7.3.0",

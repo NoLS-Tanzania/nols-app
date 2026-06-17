@@ -11,8 +11,9 @@ RUN npm i -g npm@11.6.1
 # Copy the monorepo (this Dockerfile is intended to be built with the nolsaf/ folder as the build context)
 COPY . .
 
-# Install dependencies
-RUN npm ci
+# Install only the web/shared workspaces needed for this image. Native-only
+# workspaces stay in the repo but should not affect web deploys.
+RUN npm ci --include-workspace-root --workspace=@nolsaf/web --workspace=@nolsaf/shared --workspace=@nolsaf/prisma
 
 # Stage 2: Builder
 FROM node:22-bookworm-slim AS builder

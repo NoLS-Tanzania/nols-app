@@ -1,6 +1,9 @@
 # Branch Strategy - Shared Core and App Branches
 
-This repository is a monorepo. The important rule is simple:
+This repository is a monorepo. The root workspace list is intentionally explicit
+so API/web deploys do not install native-only apps or packages.
+
+The important rule is simple:
 
 - Shared code is integrated through `staging`.
 - App-only code stays on that app's branch.
@@ -15,20 +18,30 @@ This repository is a monorepo. The important rule is simple:
 
 ## `staging` - Shared Integration
 
-`staging` is the shared truth branch. It owns anything that can affect more than
-one app:
+`staging` is the shared truth branch for API, web, database, and deployable shared
+contracts. It owns anything that can affect more than one product surface at the
+API/web/runtime level:
 
 - `apps/api`
 - `apps/web`
-- `packages/*`
+- deployable shared packages such as `packages/shared` and `packages/prisma`
 - `prisma/`
 - root workspace files such as `package.json`, `package-lock.json`, TypeScript,
   lint, build, and deployment config
-- shared contracts for auth, booking, payments, pricing, availability, and user
-  data
+- shared contracts for auth, booking, payments, pricing, availability, rides,
+  payouts, notifications, and user data
 
-When API or shared package behavior changes, commit it to `staging` first. Then
-merge or rebase `staging` into the app branch that needs the change.
+When API behavior, database schema, or deployable shared package behavior changes,
+commit it to `staging` first. Then merge or rebase `staging` into the app branch
+that needs the change.
+
+Native-only shared UI packages, such as `packages/native-ui`, must not be installed
+by API/web deploys. They may live on native app branches and should be synced only
+to the native branches that need them.
+
+Because the root workspace list is deployment-sensitive, native branch syncs should
+not blindly take `staging`'s `package.json` if that would remove `apps/mobile`,
+`apps/driver`, or native-only shared packages from local tooling.
 
 ## `nolsaf-native-expo` - Customer Mobile App
 
@@ -59,7 +72,8 @@ Use this routing before every commit:
 | --- | --- |
 | API behavior, database, payment/auth/booking logic | `staging` |
 | Web UI or Vercel-facing web changes | `staging` |
-| Shared packages or root workspace config | `staging` |
+| API/web shared packages or root deployment config | `staging` |
+| Native-only shared UI packages | Native app branches that need them |
 | Customer mobile only | `nolsaf-native-expo` |
 | Driver app only | `nolsaf-driver-expo` |
 | Partner app only | `nolsaf-partners-expo` |

@@ -150,6 +150,8 @@ router.get("/", async (req, res) => {
       // Volume Achievement criteria
       monthlyTrips: totalMonthlyTrips,
       totalTrips: totalTrips,
+      completedTrips: completedTrips,
+      cancelledTrips: cancelledTrips,
       activeDaysThisMonth: activeDays.size,
       meetsVolumeMilestone: totalMonthlyTrips >= 50, // Can be 50, 100, 150, 200+
 
