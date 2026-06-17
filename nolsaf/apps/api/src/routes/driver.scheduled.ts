@@ -7,6 +7,7 @@ import { z } from "zod";
 import { limitDriverTripAction, limitDriverTripClaim, limitDriverTripsList } from "../middleware/rateLimit.js";
 import { AUTO_DISPATCH_GRACE_MS, AUTO_DISPATCH_LOOKAHEAD_MS } from "../lib/transportPolicy.js";
 import { sendSms } from "../lib/sms.js";
+import { notifyAdmins } from "../lib/notifications.js";
 
 export const router = Router();
 
@@ -728,6 +729,18 @@ router.post("/:id/payout-claim", limitDriverTripAction, (async (req: AuthedReque
           status: "PENDING",
         },
       });
+
+      // Notify admins that a driver submitted a payout claim to review.
+      try {
+        await notifyAdmins("transport_payout_claim_submitted", {
+          transportBookingId: bookingId,
+          driverName: (user as any)?.name || (user as any)?.fullName || null,
+          grossAmount,
+          netPaid,
+        });
+      } catch (notifyErr) {
+        console.error("notifyAdmins(transport_payout_claim_submitted) failed:", notifyErr);
+      }
 
       return res.json({
         ok: true,

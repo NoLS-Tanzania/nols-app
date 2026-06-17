@@ -62,6 +62,10 @@ export async function notifyAdmins(template: string, data: any) {
         title: "Manual Assignment Required (10 min)",
         body: `A transport trip${data.transportBookingId ? ` #${data.transportBookingId}` : ""} was not assigned within 10 minutes. Admin manual assignment is now required.`
       },
+      transport_payout_claim_submitted: {
+        title: "Driver Payout Claim Submitted",
+        body: `${data.driverName ? `${data.driverName} ` : "A driver "}submitted a payout claim for trip${data.transportBookingId ? ` #${data.transportBookingId}` : ""}. Review and approve it in the driver payouts dashboard.`
+      },
     };
 
     const templateData = notificationTemplates[template] || {
