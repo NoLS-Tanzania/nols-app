@@ -20,7 +20,11 @@
       "buildNumber": "1",
       "bundleIdentifier": "com.nolsaf.driver",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "NoLSAF Driver uses your location while a trip is active so the passenger and dispatch can see your progress."
+        "NSLocationWhenInUseUsageDescription": "NoLSAF Driver uses your location while a trip is active so the passenger and dispatch can see your progress.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "NoLSAF Driver shares your location during an active trip, even in the background, so the passenger and dispatch can keep seeing your progress.",
+        "UIBackgroundModes": [
+          "location"
+        ]
       }
     },
     "android": {
@@ -33,14 +37,20 @@
       "edgeToEdgeEnabled": true,
       "permissions": [
         "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION"
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION"
       ]
     },
     "plugins": [
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "NoLSAF Driver uses your location while a trip is active so the passenger and dispatch can see your progress."
+          "locationWhenInUsePermission": "NoLSAF Driver uses your location while a trip is active so the passenger and dispatch can see your progress.",
+          "locationAlwaysAndWhenInUsePermission": "NoLSAF Driver shares your location during an active trip, even in the background, so the passenger and dispatch can keep seeing your progress.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
         }
       ],
       [
@@ -49,7 +59,12 @@
           "RNMapboxMapsImpl": "mapbox"
         }
       ],
-      "expo-audio"
+      "expo-audio",
+      "expo-asset",
+      "expo-font",
+      "expo-secure-store",
+      "expo-sharing",
+      "expo-status-bar"
     ]
   }
 }

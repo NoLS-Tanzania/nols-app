@@ -7,6 +7,9 @@ import { Animated, Easing, StyleSheet, Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { AuthProvider, useAuth } from "./src/auth/AuthProvider";
+// Registers the background trip-location task so the OS can run it even when the
+// app is backgrounded or relaunched headlessly mid-trip.
+import "./src/lib/backgroundLocationTask";
 import { AppNavigator } from "./src/navigation/AppNavigator";
 
 const MIN_SPLASH_MS = 2000;
@@ -70,7 +73,7 @@ function BrandedBootScreen() {
 
   return (
     <View style={styles.bootRoot}>
-      <StatusBar style="light" backgroundColor={colors.primaryDeep} />
+      <StatusBar style="light" />
       <View pointerEvents="none" style={styles.bootDecorOne} />
       <View pointerEvents="none" style={styles.bootDecorTwo} />
       <View style={styles.bootCenter}>
@@ -120,7 +123,7 @@ export default function App() {
 
   return (
     <SafeAreaProvider style={styles.appRoot} onLayout={hideSplashAfterLayout}>
-      <StatusBar style="dark" backgroundColor={colors.surface} />
+      <StatusBar style="dark" />
       {appReady ? (
         <AuthProvider>
           <AppContent />
