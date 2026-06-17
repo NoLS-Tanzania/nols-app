@@ -13,6 +13,7 @@ import { requireAuth, AuthedRequest } from "../middleware/auth.js";
 import { z } from "zod";
 import { limitDriverTripsList, limitDriverTripAction, limitDriverLocationUpdate, limitDriverAvailabilityToggle } from "../middleware/rateLimit.js";
 import { isTrustedUserDocumentUrl } from "../lib/userDocumentSecurity.js";
+import { notifyAdmins } from "../lib/notifications.js";
 
 // local no-op audit helper to satisfy references to `audit`
 // If the application provides an audit function via req.app.get('audit'), delegate to it.
@@ -730,25 +731,36 @@ const getTripDetails: RequestHandler = async (req, res) => {
     const dropoffLng = (booking as any).toLongitude != null ? Number((booking as any).toLongitude) : null;
 
     let assignmentSource: "ADMIN" | "AUTO" = "AUTO";
+    let stageHistory: Array<{ stage: string; at: string }> = [];
     try {
       if ((prisma as any).auditLog) {
-        const last = await (prisma as any).auditLog.findFirst({
+        const auditRows = await (prisma as any).auditLog.findMany({
           where: {
             entity: "TRANSPORT_BOOKING",
             entityId: tripId,
-            action: { in: ["TRANSPORT_ADMIN_ASSIGN_DRIVER", "TRANSPORT_ASSIGN_DRIVER"] },
+            action: { in: ["TRANSPORT_ADMIN_ASSIGN_DRIVER", "TRANSPORT_ASSIGN_DRIVER", "TRANSPORT_TRIP_STAGE_UPDATE"] },
           },
-          orderBy: { createdAt: "desc" },
+          orderBy: { createdAt: "asc" },
+          select: { action: true, actorRole: true, afterJson: true, createdAt: true },
         });
-        if (last) {
-          const action = String((last as any)?.action ?? "");
-          const actorRole = String((last as any)?.actorRole ?? "").toUpperCase();
-          if (action === "TRANSPORT_ADMIN_ASSIGN_DRIVER") assignmentSource = "ADMIN";
-          else if (action === "TRANSPORT_ASSIGN_DRIVER") assignmentSource = actorRole === "ADMIN" ? "ADMIN" : "AUTO";
+
+        for (const row of auditRows) {
+          const action = String(row.action ?? "");
+          const actorRole = String(row.actorRole ?? "").toUpperCase();
+          if (action === "TRANSPORT_ADMIN_ASSIGN_DRIVER") {
+            assignmentSource = "ADMIN";
+          } else if (action === "TRANSPORT_ASSIGN_DRIVER") {
+            assignmentSource = actorRole === "ADMIN" ? "ADMIN" : "AUTO";
+          } else if (action === "TRANSPORT_TRIP_STAGE_UPDATE") {
+            const stage = (row.afterJson as any)?.stage;
+            if (stage && !stageHistory.some((s) => s.stage === stage)) {
+              stageHistory.push({ stage, at: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString() });
+            }
+          }
         }
       }
     } catch {
-      // ignore
+      // ignore — non-fatal
     }
 
     return res.json({
@@ -778,6 +790,7 @@ const getTripDetails: RequestHandler = async (req, res) => {
       messagesCount: booking._count?.messages ?? 0,
       locationPingsCount: booking._count?.driverLocationPings ?? 0,
       assignmentSource,
+      stageHistory,
     });
   } catch (err) {
     console.warn('driver.trip.details: failed', String(err));
@@ -1255,12 +1268,166 @@ const postTripStage: RequestHandler = async (req, res) => {
   }
 };
 
+const DEFAULT_TRANSPORT_DRIVER_COMMISSION_PERCENT = 10;
+
+function roundMoney(amount: number) {
+  return Math.round((Number(amount) || 0) * 100) / 100;
+}
+
+/** Map a TransportPayout status (PENDING/APPROVED/PAID) to the driver-app InvoiceStatus. */
+function payoutStatusToInvoiceStatus(status: unknown): "REQUESTED" | "APPROVED" | "PAID" | "REJECTED" {
+  switch (String(status ?? "").toUpperCase()) {
+    case "PAID":
+      return "PAID";
+    case "APPROVED":
+      return "APPROVED";
+    case "REJECTED":
+      return "REJECTED";
+    case "PENDING":
+    default:
+      return "REQUESTED";
+  }
+}
+
+/** Read driverCommissionPercent from SystemSetting; falls back to the hardcoded default. */
+async function getDriverCommissionPercent(): Promise<number> {
+  try {
+    const setting = await prisma.systemSetting.findUnique({
+      where: { id: 1 },
+      select: { driverCommissionPercent: true } as any,
+    });
+    const pct = Number((setting as any)?.driverCommissionPercent ?? DEFAULT_TRANSPORT_DRIVER_COMMISSION_PERCENT);
+    return Number.isFinite(pct) ? Math.max(0, Math.min(100, pct)) : DEFAULT_TRANSPORT_DRIVER_COMMISSION_PERCENT;
+  } catch {
+    return DEFAULT_TRANSPORT_DRIVER_COMMISSION_PERCENT;
+  }
+}
+
+/**
+ * POST /driver/trips/:tripId/payout-claim
+ * Driver signals they want to be paid for a completed trip. Pre-creates a PENDING
+ * TransportPayout record (one per booking) for admin review/approval. Idempotent:
+ * if a payout already exists, returns it with alreadyClaimed=true.
+ */
+const postClaimPayout: RequestHandler = async (req, res) => {
+  const user = (req as AuthedRequest).user!;
+  if (String(user.role || "").toUpperCase() !== "DRIVER") {
+    return res.status(403).json({ error: "Driver access required" });
+  }
+
+  const tripId = Number(req.params.tripId);
+  if (!Number.isFinite(tripId) || tripId <= 0) return res.status(400).json({ error: "invalid_trip_id" });
+
+  if (!(prisma as any).transportPayout) {
+    return res.status(409).json({ error: "transport_payout_unavailable" });
+  }
+
+  try {
+    const booking = await prisma.transportBooking.findUnique({
+      where: { id: tripId },
+      select: { id: true, status: true, driverId: true, amount: true, currency: true },
+    });
+    if (!booking) return res.status(404).json({ error: "not_found" });
+    if (!booking.driverId || Number(booking.driverId) !== Number(user.id)) {
+      return res.status(403).json({ error: "not_assigned_to_you" });
+    }
+
+    const status = String(booking.status ?? "").toUpperCase();
+    if (!["COMPLETED", "FINISHED"].includes(status)) {
+      return res.status(409).json({ error: "trip_not_completed" });
+    }
+
+    const grossAmount = Number(booking.amount ?? 0);
+    if (!Number.isFinite(grossAmount) || grossAmount <= 0) {
+      return res.status(409).json({ error: "trip_amount_not_set" });
+    }
+    const currency = booking.currency ?? "TZS";
+
+    const commissionPercent = await getDriverCommissionPercent();
+    const commissionAmount = roundMoney((grossAmount * commissionPercent) / 100);
+    const netPaid = roundMoney(grossAmount - commissionAmount);
+
+    const { payout, alreadyClaimed } = await prisma.$transaction(async (tx) => {
+      const existing = await (tx as any).transportPayout.findUnique({
+        where: { transportBookingId: tripId },
+      });
+      if (existing) {
+        return { payout: existing, alreadyClaimed: true };
+      }
+
+      const created = await (tx as any).transportPayout.create({
+        data: {
+          transportBookingId: tripId,
+          driverId: Number(user.id),
+          currency,
+          grossAmount: grossAmount as any,
+          commissionPercent: commissionPercent as any,
+          commissionAmount: commissionAmount as any,
+          netPaid: netPaid as any,
+          status: "PENDING",
+        },
+      });
+
+      try {
+        await (tx as any).auditLog?.create?.({
+          data: {
+            actorId: Number(user.id),
+            actorRole: "DRIVER",
+            action: "TRANSPORT_PAYOUT_CLAIM_SUBMITTED",
+            entity: "TRANSPORT_BOOKING",
+            entityId: tripId,
+            beforeJson: null,
+            afterJson: { payoutStatus: "PENDING", currency, grossAmount, commissionPercent, commissionAmount, netPaid },
+            ip: requestIp(req),
+            ua: String(req.headers["user-agent"] || "") || null,
+          },
+        });
+      } catch {
+        // non-fatal
+      }
+
+      return { payout: created, alreadyClaimed: false };
+    });
+
+    if (!alreadyClaimed) {
+      try {
+        await notifyAdmins("transport_payout_claim_submitted", {
+          transportBookingId: tripId,
+          driverName: (user as any)?.name || (user as any)?.fullName || null,
+          grossAmount,
+          netPaid,
+          currency,
+        });
+      } catch {
+        // non-fatal
+      }
+    }
+
+    return res.json({
+      ok: true,
+      alreadyClaimed,
+      payout: {
+        id: payout.id,
+        status: payout.status,
+        grossAmount: Number(payout.grossAmount),
+        commissionAmount: Number(payout.commissionAmount),
+        netPaid: Number(payout.netPaid),
+        currency: payout.currency,
+      },
+    });
+  } catch (err: any) {
+    console.error("driver.trip.payout-claim failed", err);
+    return res.status(500).json({ error: "failed", details: err?.message || String(err) });
+  }
+};
+
 router.get('/trips', limitDriverTripsList, getTrips as unknown as RequestHandler);
 
 router.post("/trips/:tripId/accept", limitDriverTripAction, postAcceptTrip as unknown as RequestHandler);
 router.post("/trips/:tripId/decline", limitDriverTripAction, postDeclineTrip as unknown as RequestHandler);
 router.post("/trips/:tripId/cancel", limitDriverTripAction, postCancelTrip as unknown as RequestHandler);
 router.post("/trips/:tripId/stage", limitDriverTripAction, postTripStage as unknown as RequestHandler);
+router.post("/trips/:tripId/payout-claim", limitDriverTripAction, postClaimPayout as unknown as RequestHandler);
 
 /**
  * GET /driver/safety?date=...&start=...&end=...
@@ -1442,74 +1609,38 @@ const getInvoices: RequestHandler = async (req, res) => {
   const skip = (page - 1) * pageSize;
 
   try {
-    // Use Invoice -> Booking relationship to return invoices for this driver
-    if ((prisma as any).invoice && (prisma as any).booking) {
-      // First, try to query with a where clause if booking.driverId exists
-      let items: any[] = [];
-      let total = 0;
-      
-      try {
-        // Try querying with nested where clause first (more efficient)
-        const [itemsResult, totalResult] = await Promise.all([
-          prisma.invoice.findMany({
-            where: {
-              booking: {
-                is: {
-                  driverId: user.id,
-                },
-              },
-            },
-            include: { booking: true },
-            orderBy: { id: 'desc' },
-            skip,
-            take: pageSize,
-          }),
-          prisma.invoice.count({
-            where: {
-              booking: {
-                is: {
-                  driverId: user.id,
-                },
-              },
-            },
-          }),
-        ]);
-        items = itemsResult;
-        total = totalResult;
-      } catch (queryErr: any) {
-        // If nested where fails (e.g., driverId field doesn't exist), fall back to client-side filtering
-        console.warn('Nested where query failed, falling back to client-side filter:', queryErr?.message);
-        
-        // Fetch all invoices and filter client-side
-        const allItems = await prisma.invoice.findMany({
-          where: {},
-          include: { booking: true },
-          orderBy: { id: 'desc' },
-        });
-        
-        // Filter to only invoices for this driver
-        items = (allItems || [])
-          .filter((inv: any) => inv.booking && Number(inv.booking.driverId) === Number(user.id))
-          .slice(skip, skip + pageSize);
-        total = (allItems || []).filter((inv: any) => inv.booking && Number(inv.booking.driverId) === Number(user.id)).length;
-      }
+    // Driver invoices ARE transport payout records (same source the admin driver-invoices
+    // dashboard uses). A driver "claims" a payout -> a TransportPayout row is created and
+    // moves PENDING -> APPROVED -> PAID. Surface that progress here.
+    if ((prisma as any).transportPayout) {
+      const where = { driverId: user.id };
+      const [payouts, total] = await Promise.all([
+        (prisma as any).transportPayout.findMany({
+          where,
+          include: { booking: { select: { tripCode: true } } },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          skip,
+          take: pageSize,
+        }),
+        (prisma as any).transportPayout.count({ where }),
+      ]);
 
-      // Map to response format
-      const mapped = items.map((inv: any) => ({
-        id: inv.id,
-        invoiceId: inv.id,
-        invoiceNumber: inv.invoiceNumber,
-        status: inv.status,
-        tripCode: inv.booking?.tripCode ?? inv.booking?.code ?? null,
-        issuedAt: inv.issuedAt,
-        paidAt: inv.paidAt,
-        paidTo: inv.paymentRef ?? inv.paymentMethod ?? null,
-        gross: inv.total ?? null,
-        commissionAmount: inv.commissionAmount ?? null,
-        netPaid: inv.netPayable ?? null,
-        receiptNumber: inv.receiptNumber ?? null,
+      const mapped = (payouts as any[]).map((p: any) => ({
+        id: p.id,
+        invoiceId: p.id,
+        invoiceNumber: p.booking?.tripCode ? `Trip ${p.booking.tripCode}` : null,
+        status: payoutStatusToInvoiceStatus(p.status),
+        tripCode: p.booking?.tripCode ?? null,
+        issuedAt: p.createdAt ? new Date(p.createdAt).toISOString() : null,
+        approvedAt: p.approvedAt ? new Date(p.approvedAt).toISOString() : null,
+        paidAt: p.paidAt ? new Date(p.paidAt).toISOString() : null,
+        paidTo: p.paymentRef ?? p.paymentMethod ?? null,
+        gross: p.grossAmount != null ? Number(p.grossAmount) : null,
+        commissionAmount: p.commissionAmount != null ? Number(p.commissionAmount) : null,
+        netPaid: p.netPaid != null ? Number(p.netPaid) : null,
+        receiptNumber: p.paymentRef ?? null,
       }));
-      
+
       return res.json({ total, page, pageSize, items: mapped });
     }
 
@@ -1526,6 +1657,30 @@ const getInvoices: RequestHandler = async (req, res) => {
   }
 };
 router.get('/invoices', getInvoices as unknown as RequestHandler);
+
+// GET /driver/goals — fetch this driver's saved weekly goals
+const getGoals: RequestHandler = async (req: any, res: any) => {
+  const user = req.user!;
+  const row = await prisma.user.findUnique({ where: { id: Number(user.id) }, select: { driverGoals: true } });
+  return res.json({ ok: true, goals: (row?.driverGoals as any) ?? null });
+};
+router.get('/goals', getGoals);
+
+// PUT /driver/goals — save (or clear) this driver's weekly goals
+const putGoals: RequestHandler = async (req: any, res: any) => {
+  const user = req.user!;
+  const body = req.body as { trips?: number | null; money?: number | null; moneyUrgent?: boolean | null } | null;
+  const goals = body && (body.trips != null || body.money != null)
+    ? {
+        trips: body.trips != null && Number.isFinite(Number(body.trips)) && Number(body.trips) > 0 ? Number(body.trips) : null,
+        money: body.money != null && Number.isFinite(Number(body.money)) && Number(body.money) > 0 ? Number(body.money) : null,
+        moneyUrgent: body.moneyUrgent === true,
+      }
+    : null;
+  await prisma.user.update({ where: { id: Number(user.id) }, data: { driverGoals: goals as any } });
+  return res.json({ ok: true, goals });
+};
+router.put('/goals', putGoals);
 
 /**
  * POST /driver/location
@@ -1779,6 +1934,7 @@ const updateDriverProfile: RequestHandler = async (req, res) => {
     // Optional extra fields (not always present in Prisma schema)
     region,
     district,
+    languages,
   } = req.body ?? {};
   const userId = (req as AuthedRequest).user!.id;
   const role = String((req as AuthedRequest).user?.role ?? "").trim().toUpperCase();
@@ -1857,6 +2013,7 @@ const updateDriverProfile: RequestHandler = async (req, res) => {
   if (hasField('vehicleMake') && typeof vehicleMake !== 'undefined') data.vehicleMake = vehicleMake;
   if (hasField('operationArea') && typeof operationArea !== 'undefined') data.operationArea = operationArea;
   if (hasField('paymentPhone') && typeof paymentPhone !== 'undefined') data.paymentPhone = paymentPhone;
+  if (hasField('languages') && typeof languages !== 'undefined') data.languages = Array.isArray(languages) ? languages : null;
   // Resubmitting profile clears any outstanding admin note (driver has addressed it)
   if (hasField('kycNote')) data.kycNote = null;
 

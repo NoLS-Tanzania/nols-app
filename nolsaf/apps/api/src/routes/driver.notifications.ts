@@ -129,4 +129,34 @@ router.post('/:id/mark-read', (async (req: AuthedRequest, res: any) => {
   return res.json(r);
 }) as any);
 
+// DELETE /api/driver/notifications/:id
+router.delete('/:id', (async (req: AuthedRequest, res: any) => {
+  const { id } = req.params;
+  const driverId = req.user!.id;
+
+  if (String(id).startsWith('reminder:')) {
+    const reminderId = Number(String(id).slice('reminder:'.length));
+    if (Number.isNaN(reminderId)) return res.status(400).json({ ok: false, error: 'invalid_id' });
+    if (!(prisma as any).driverReminder) return res.status(404).json({ ok: false, error: 'not_found' });
+
+    const deleted = await (prisma as any).driverReminder.deleteMany({
+      where: { id: reminderId, driverId: Number(driverId) },
+    });
+    if (!deleted || deleted.count === 0) return res.status(404).json({ ok: false, error: 'not_found' });
+    return res.json({ ok: true });
+  }
+
+  const normalizedId = String(id).startsWith('notification:')
+    ? String(id).slice('notification:'.length)
+    : id;
+  const notificationId = Number(normalizedId);
+  if (Number.isNaN(notificationId)) return res.status(400).json({ ok: false, error: 'invalid_id' });
+
+  const deleted = await prisma.notification.deleteMany({
+    where: { id: notificationId, userId: Number(driverId) },
+  });
+  if (!deleted || deleted.count === 0) return res.status(404).json({ ok: false, error: 'not_found' });
+  return res.json({ ok: true });
+}) as any);
+
 export default router;

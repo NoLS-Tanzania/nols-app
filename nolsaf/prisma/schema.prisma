@@ -112,6 +112,12 @@ model User {
   /// Per-user notification preferences, e.g. { "bookings": true, "promotions": false, "referrals": true }
   notificationPrefs Json?
 
+  /// Driver weekly goals set by the driver (synced across devices)
+  driverGoals Json?
+
+  /// Languages the driver can speak (JSON array of strings, e.g. ["English", "Swahili"])
+  languages Json?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
