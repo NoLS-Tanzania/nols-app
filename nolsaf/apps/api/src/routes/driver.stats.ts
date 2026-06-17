@@ -620,6 +620,30 @@ const getInvoices: RequestHandler = async (req, res) => {
 };
 router.get('/invoices', getInvoices as unknown as RequestHandler);
 
+// GET /driver/goals — fetch this driver's saved weekly goals
+const getGoals: RequestHandler = async (req: any, res: any) => {
+  const user = req.user!;
+  const row = await prisma.user.findUnique({ where: { id: Number(user.id) }, select: { driverGoals: true } });
+  return res.json({ ok: true, goals: (row?.driverGoals as any) ?? null });
+};
+router.get('/goals', getGoals);
+
+// PUT /driver/goals — save (or clear) this driver's weekly goals
+const putGoals: RequestHandler = async (req: any, res: any) => {
+  const user = req.user!;
+  const body = req.body as { trips?: number | null; money?: number | null; moneyUrgent?: boolean | null } | null;
+  const goals = body && (body.trips != null || body.money != null)
+    ? {
+        trips: body.trips != null && Number.isFinite(Number(body.trips)) && Number(body.trips) > 0 ? Number(body.trips) : null,
+        money: body.money != null && Number.isFinite(Number(body.money)) && Number(body.money) > 0 ? Number(body.money) : null,
+        moneyUrgent: body.moneyUrgent === true,
+      }
+    : null;
+  await prisma.user.update({ where: { id: Number(user.id) }, data: { driverGoals: goals as any } });
+  return res.json({ ok: true, goals });
+};
+router.put('/goals', putGoals);
+
 /**
  * POST /driver/location
  * Body: { lat: number, lng: number }

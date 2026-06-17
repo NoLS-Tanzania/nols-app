@@ -116,6 +116,9 @@ model User {
   /// For customers: languages they'd like their driver to speak (used to match against driver.languages).
   languages Json?
 
+  /// Driver weekly goals set by the driver, synced across devices, e.g. { "trips": 20, "money": 150000, "moneyUrgent": false }
+  driverGoals Json?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
