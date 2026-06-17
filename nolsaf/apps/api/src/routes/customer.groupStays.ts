@@ -349,15 +349,15 @@ router.post("/:id/auction-confirm", async (req, res) => {
     const commissionPercent = await getEffectiveCommissionPercent(claim.property?.services);
     const commissionAmount = roundMoney(ownerAmount * (commissionPercent / 100));
     const totalAmount = roundMoney(ownerAmount + commissionAmount);
-    // Deposit = the platform's commission, collected upfront from the customer.
-    const depositAmount = totalAmount > 0 ? commissionAmount : null;
+    // Temporarily free for testing: do not collect the upfront group-stay deposit.
+    const depositAmount = 0;
 
     await (prisma as any).groupBooking.update({
       where: { id: bookingId },
       data: {
         confirmedPropertyId: propertyId,
         propertyConfirmedAt: now,
-        status: "AWAITING_DEPOSIT",
+        status: "CONFIRMED",
         confirmedAt: now,
         assignedOwnerId: claim.ownerId,
         ownerAssignedAt: now,
@@ -367,7 +367,9 @@ router.post("/:id/auction-confirm", async (req, res) => {
         commissionPercent,
         currency: claim.currency,
         depositAmount,
-        depositDueAt: new Date(now.getTime() + 24 * 60 * 60 * 1000),
+        depositPaid: true,
+        depositPaidAt: now,
+        depositDueAt: null,
       },
     });
 

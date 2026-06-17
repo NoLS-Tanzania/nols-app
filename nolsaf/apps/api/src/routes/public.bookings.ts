@@ -80,6 +80,21 @@ function roundMoney(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+function parseBookingDate(value: string): Date {
+  const trimmed = String(value || "").trim();
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+  if (dateOnly) {
+    const [, year, month, day] = dateOnly;
+    return new Date(Number(year), Number(month) - 1, Number(day));
+  }
+
+  return new Date(trimmed);
+}
+
+function toCalendarDate(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
 type CreatedTransportBooking = {
   id: number;
   tripCode: string | null;
@@ -260,8 +275,8 @@ const bookingLimiter = rateLimit({
 // Validation schema for booking creation
 const createBookingSchema = z.object({
   propertyId: z.number().int().positive(),
-  checkIn: z.string().datetime(), // ISO 8601 format
-  checkOut: z.string().datetime(),
+  checkIn: z.string().min(1), // YYYY-MM-DD or ISO 8601 format
+  checkOut: z.string().min(1),
   guestName: z.string().min(2).max(160),
   guestPhone: z.string().min(10).max(40),
   guestEmail: z.string().email().optional().nullable(),
@@ -392,15 +407,15 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
   const transportPickupMode = String(data.transportPickupMode ?? "").trim().toLowerCase();
 
     // Validate dates
-    const checkIn = new Date(data.checkIn);
-    const checkOut = new Date(data.checkOut);
-    const now = new Date();
+    const checkIn = parseBookingDate(data.checkIn);
+    const checkOut = parseBookingDate(data.checkOut);
+    const today = toCalendarDate(new Date());
 
     if (isNaN(checkIn.getTime()) || isNaN(checkOut.getTime())) {
       return res.status(400).json({ error: "Invalid date format", requestId });
     }
 
-    if (checkIn < now) {
+    if (toCalendarDate(checkIn) < today) {
       return res.status(400).json({ error: "Check-in date cannot be in the past", requestId });
     }
 
@@ -887,6 +902,12 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
         // the base fare only. This is conservative but safe: never accept a client-supplied amount.
         transportFare = cfg.baseFare;
       }
+    }
+
+    // Temporarily free so the integrated transport path can be tested end-to-end
+    // before the public launch. Keep this server-side so invoices cannot charge it.
+    if (data.includeTransport) {
+      transportFare = 0;
     }
     
     const totalAmount = roundMoney(accommodationGross + transportFare);

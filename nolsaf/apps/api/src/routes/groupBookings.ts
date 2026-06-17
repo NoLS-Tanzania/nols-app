@@ -26,6 +26,17 @@ const AUTO_RECEIVED_MESSAGE =
 
 const router = Router();
 
+function parseGroupBookingRouteDate(value: string): Date {
+  const trimmed = String(value || "").trim();
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+  if (dateOnly) {
+    const [, year, month, day] = dateOnly;
+    return new Date(Number(year), Number(month) - 1, Number(day));
+  }
+
+  return new Date(trimmed);
+}
+
 // Apply authentication middleware to all routes in this router
 router.use(requireAuth as RequestHandler);
 
@@ -61,8 +72,8 @@ const createGroupBooking: RequestHandler = async (req, res) => {
     // Calculate duration if dates are provided
     let duration: number | null = null;
     if (validatedInput.checkin && validatedInput.checkout) {
-      const checkInDate = new Date(validatedInput.checkin);
-      const checkOutDate = new Date(validatedInput.checkout);
+      const checkInDate = parseGroupBookingRouteDate(validatedInput.checkin);
+      const checkOutDate = parseGroupBookingRouteDate(validatedInput.checkout);
       duration = Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24));
     }
     
@@ -101,8 +112,8 @@ const createGroupBooking: RequestHandler = async (req, res) => {
         privateRoomCount: validatedInput.privateRoomCount,
         
         // Date information
-        checkIn: validatedInput.checkin ? new Date(validatedInput.checkin) : null,
-        checkOut: validatedInput.checkout ? new Date(validatedInput.checkout) : null,
+        checkIn: validatedInput.checkin ? parseGroupBookingRouteDate(validatedInput.checkin) : null,
+        checkOut: validatedInput.checkout ? parseGroupBookingRouteDate(validatedInput.checkout) : null,
         useDates: validatedInput.useDates ?? true,
         
         // Arrangement details
