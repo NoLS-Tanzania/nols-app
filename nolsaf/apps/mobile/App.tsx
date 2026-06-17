@@ -71,7 +71,7 @@ function BrandedBootScreen() {
 
   return (
     <View style={styles.bootRoot}>
-      <StatusBar style="light" backgroundColor={colors.primaryDeep} />
+      <StatusBar style="light" />
       <View pointerEvents="none" style={styles.bootDecorOne} />
       <View pointerEvents="none" style={styles.bootDecorTwo} />
       <View style={styles.bootCenter}>
@@ -121,7 +121,7 @@ export default function App() {
 
   return (
     <SafeAreaProvider style={styles.appRoot} onLayout={hideSplashAfterLayout}>
-      <StatusBar style="dark" backgroundColor={colors.surface} />
+      <StatusBar style="dark" />
       {appReady ? (
         <AuthProvider>
           <AppContent />

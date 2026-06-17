@@ -193,7 +193,7 @@ function Chip({ label, active, onPress }: { label: string; active: boolean; onPr
 
 const styles = StyleSheet.create({
   overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(2,6,23,0.45)" },
-  overlayTap: { ...StyleSheet.absoluteFillObject },
+  overlayTap: { ...StyleSheet.absoluteFill },
   sheet: {
     maxHeight: "86%",
     borderTopLeftRadius: radius.xl,

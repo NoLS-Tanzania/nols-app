@@ -233,7 +233,7 @@ const styles = StyleSheet.create({
   tourImageScroller: { flex: 1 },
   tourPackageImage: { height: "100%" },
   tourPackageImageRadius: { borderRadius: radius.lg },
-  tourPackageImageOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(1,42,38,0.34)" },
+  tourPackageImageOverlay: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(1,42,38,0.34)" },
   tourPackageFallback: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.primary, borderRadius: radius.lg },
   tourVerifiedBadge: {
     position: "absolute",

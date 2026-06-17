@@ -144,7 +144,7 @@ export function OptionPickerSheet({ visible, title, subtitle, options, value, on
 const styles = StyleSheet.create({
   flex: { flex: 1, minWidth: 0 },
   overlay: { flex: 1, justifyContent: "flex-end" },
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(2,6,23,0.42)" },
+  backdrop: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(2,6,23,0.42)" },
   sheet: {
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,

@@ -422,7 +422,7 @@ const styles = StyleSheet.create({
     height: "100%"
   },
   avatarOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(2,6,23,0.42)"

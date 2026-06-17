@@ -1167,7 +1167,7 @@ const styles = StyleSheet.create({
     gap: spacing[5]
   },
   heroPattern: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     opacity: 1
   },
   logoWatermark: {
@@ -1370,7 +1370,7 @@ const styles = StyleSheet.create({
     overflow: "hidden"
   },
   searchCardAccent: {
-    ...StyleSheet.absoluteFillObject
+    ...StyleSheet.absoluteFill
   },
   searchAccentDot: {
     position: "absolute",
@@ -1543,7 +1543,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: radius.lg
   },
   cityImageOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(1,42,38,0.36)"
   },
   cityImageFallback: {
@@ -1620,7 +1620,7 @@ const styles = StyleSheet.create({
     elevation: 2
   },
   featuredHeaderDecor: {
-    ...StyleSheet.absoluteFillObject
+    ...StyleSheet.absoluteFill
   },
   featuredHeaderGlow: {
     position: "absolute",
@@ -1772,7 +1772,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg
   },
   tourPackageImageOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(1,42,38,0.34)"
   },
   tourPackageFallback: {
@@ -2037,10 +2037,10 @@ const styles = StyleSheet.create({
     elevation: 2
   },
   countryFlagGradient: {
-    ...StyleSheet.absoluteFillObject
+    ...StyleSheet.absoluteFill
   },
   countryTourismDecor: {
-    ...StyleSheet.absoluteFillObject
+    ...StyleSheet.absoluteFill
   },
   countryTourismOrb: {
     position: "absolute",
@@ -2246,7 +2246,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface
   },
   propertyImageZoom: {
-    ...StyleSheet.absoluteFillObject
+    ...StyleSheet.absoluteFill
   },
   propertyImage: {
     flex: 1,
@@ -2259,7 +2259,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 22
   },
   propertyOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(1,42,38,0.44)"
   },
   propertyStatus: {

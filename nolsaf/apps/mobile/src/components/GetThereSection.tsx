@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
     ...shadows.card
   },
   heroGradient: {
-    ...StyleSheet.absoluteFillObject
+    ...StyleSheet.absoluteFill
   },
   heroContent: {
     padding: spacing[5],
