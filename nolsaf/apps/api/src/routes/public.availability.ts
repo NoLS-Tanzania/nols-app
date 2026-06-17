@@ -29,6 +29,21 @@ function findBucketKey(roomCode: string | null | undefined, keys: string[]): str
   return keys.find((k) => rc === k || (k && rc.startsWith(k + "-"))) || null;
 }
 
+function parseAvailabilityDate(value: string): Date {
+  const trimmed = String(value || "").trim();
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+  if (dateOnly) {
+    const [, year, month, day] = dateOnly;
+    return new Date(Number(year), Number(month) - 1, Number(day));
+  }
+
+  return new Date(trimmed);
+}
+
+function toCalendarDate(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
 // Rate limiter for availability checks
 const availabilityLimiter = rateLimit({
   windowMs: 60_000, // 1 minute
@@ -47,8 +62,8 @@ const availabilityLimiter = rateLimit({
 // Validation schema
 const checkAvailabilitySchema = z.object({
   propertyId: z.number().int().positive(),
-  checkIn: z.string().datetime(), // ISO 8601 format
-  checkOut: z.string().datetime(),
+  checkIn: z.string().min(1), // YYYY-MM-DD or ISO 8601 format
+  checkOut: z.string().min(1),
   roomCode: z.string().max(60).optional().nullable(), // Optional: check specific room
 });
 
@@ -74,16 +89,16 @@ router.post("/check", availabilityLimiter, (async (req: Request, res: Response) 
     const requestedTypeKey = requestedRoomCode ? roomCodeToTypeKey(requestedRoomCode) : null;
 
     // Validate dates
-    const checkIn = new Date(checkInStr);
-    const checkOut = new Date(checkOutStr);
-    const now = new Date();
+    const checkIn = parseAvailabilityDate(checkInStr);
+    const checkOut = parseAvailabilityDate(checkOutStr);
+    const today = toCalendarDate(new Date());
 
     if (isNaN(checkIn.getTime()) || isNaN(checkOut.getTime())) {
       res.status(400).json({ error: "Invalid date format" });
       return;
     }
 
-    if (checkIn < now) {
+    if (toCalendarDate(checkIn) < today) {
       res.status(400).json({ error: "Check-in date cannot be in the past" });
       return;
     }

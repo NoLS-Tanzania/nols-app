@@ -876,8 +876,8 @@ function PropertyAvailabilityChecker({
         signal: controller.signal,
         body: JSON.stringify({
           propertyId,
-          checkIn: checkInDate.toISOString(),
-          checkOut: checkOutDate.toISOString(),
+          checkIn,
+          checkOut,
         }),
       });
       const data = await response.json();
@@ -1303,8 +1303,8 @@ function RoomQuickViewModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           propertyId,
-          checkIn: ci.toISOString(),
-          checkOut: co.toISOString(),
+          checkIn: ci_s,
+          checkOut: co_s,
           roomCode: null,
         }),
       });

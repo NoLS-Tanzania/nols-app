@@ -330,8 +330,8 @@ export default function BookingConfirmPage() {
           signal: controller.signal,
           body: JSON.stringify({
             propertyId: bookingData.propertyId,
-            checkIn: checkInDate.toISOString(),
-            checkOut: checkOutDate.toISOString(),
+            checkIn: checkInRaw,
+            checkOut: checkOutRaw,
             roomCode: roomCode || null,
           }),
         });
