@@ -255,7 +255,7 @@ export function LevelScreen({ navigation }: Props) {
                 Level Benefits
               </AppText>
               <AppStack gap={3}>
-                {level.allLevels.map((tier) => (
+                {(level.allLevels ?? []).map((tier) => (
                   <LevelTierCard key={tier.level} tier={tier} currentLevel={level.currentLevel} />
                 ))}
               </AppStack>

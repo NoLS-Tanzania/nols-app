@@ -129,6 +129,7 @@ export function TripDetailScreen({ navigation, route }: Props) {
       .catch(() => setTemplates([]));
   }, [token, isActive]);
 
+  const stageHistory = trip?.stageHistory ?? [];
   const completedStages = useMemo(() => new Set((trip?.stageHistory || []).map((entry) => entry.stage)), [trip?.stageHistory]);
   const nextStage = useMemo(() => TRIP_STAGE_FLOW.find((stage) => !completedStages.has(stage)) ?? null, [completedStages]);
   const pickupConfirmed = completedStages.has("arrived_at_pickup");
@@ -298,7 +299,7 @@ export function TripDetailScreen({ navigation, route }: Props) {
               </AppStack>
             </AppCard>
 
-            {trip.stageHistory.length > 0 ? (
+            {stageHistory.length > 0 ? (
               <AppCard>
                 <AppStack gap={4}>
                   <View style={styles.timelineHeader}>
@@ -307,17 +308,17 @@ export function TripDetailScreen({ navigation, route }: Props) {
                     </AppText>
                     <View style={styles.timelineCountBadge}>
                       <AppText variant="caption" weight="bold" tone="primary">
-                        {trip.stageHistory.length}/{TRIP_STAGE_FLOW.length} steps
+                        {stageHistory.length}/{TRIP_STAGE_FLOW.length} steps
                       </AppText>
                     </View>
                   </View>
                   <AppStack gap={0}>
-                    {trip.stageHistory.map((entry, index) => {
+                    {stageHistory.map((entry, index) => {
                       const StageIcon = STAGE_ICONS[entry.stage] || Check;
-                      const isLast = index === trip.stageHistory.length - 1;
-                      const previous = index > 0 ? trip.stageHistory[index - 1] : null;
+                      const isLast = index === stageHistory.length - 1;
+                      const previous = index > 0 ? stageHistory[index - 1] : null;
                       return (
-                        <View key={entry.stage} style={styles.timelineRow}>
+                        <View key={`${entry.stage}-${index}`} style={styles.timelineRow}>
                           <View style={styles.timelineRail}>
                             <View style={[styles.timelineDot, isLast && styles.timelineDotCurrent]}>
                               <StageIcon color={isLast ? colors.primary : colors.white} size={14} />

@@ -15,7 +15,6 @@ import {
   StateView
 } from "@nolsaf/native-ui";
 import { AlertTriangle, Bell, Car, Clock, Info, MapPin, Settings, Star, Sparkles, TrendingUp } from "lucide-react-native";
-import * as SecureStore from "expo-secure-store";
 import { useCallback, useEffect, useState } from "react";
 import { Linking, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 
@@ -23,18 +22,12 @@ import { useAuth } from "../auth/AuthProvider";
 import { AvailabilitySwitch } from "../components/AvailabilitySwitch";
 import { DriverBottomNav } from "../components/DriverBottomNav";
 import { EarningsLineChart } from "../components/EarningsLineChart";
-import { fetchAvailability, fetchDashboard, fetchNotifications, setAvailability } from "../driver/driverApi";
-import { DashboardResponse } from "../driver/types";
+import { fetchAvailability, fetchDashboard, fetchGoals, fetchNotifications, saveGoals, setAvailability } from "../driver/driverApi";
+import { DashboardResponse, DriverGoals } from "../driver/types";
 import { useDriverSocket } from "../hooks/useDriverSocket";
 import { RootStackParamList } from "../navigation/types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Home">;
-
-type DriverGoals = { trips?: number; money?: number; moneyUrgent?: boolean };
-
-function goalsStorageKey(driverId: string | number) {
-  return `driver_goals:${String(driverId)}`;
-}
 
 export function DashboardScreen({ navigation }: Props) {
   const { user, token } = useAuth();
@@ -96,13 +89,11 @@ export function DashboardScreen({ navigation }: Props) {
   });
 
   useEffect(() => {
-    if (!user?.id) return;
-    SecureStore.getItemAsync(goalsStorageKey(user.id))
-      .then((raw) => {
-        if (raw) setGoals(JSON.parse(raw) as DriverGoals);
-      })
+    if (!token) return;
+    fetchGoals(token)
+      .then((res) => { if (res.goals) setGoals(res.goals); })
       .catch(() => {});
-  }, [user?.id]);
+  }, [token]);
 
   function openGoalsModal() {
     setFormTrips(goals?.trips != null ? String(goals.trips) : "");
@@ -112,13 +103,8 @@ export function DashboardScreen({ navigation }: Props) {
   }
 
   async function persistGoals(next: DriverGoals | null) {
-    if (!user?.id) return;
-    const key = goalsStorageKey(user.id);
-    if (next) {
-      await SecureStore.setItemAsync(key, JSON.stringify(next));
-    } else {
-      await SecureStore.deleteItemAsync(key);
-    }
+    if (!token) return;
+    await saveGoals(token, next);
     setGoals(next);
   }
 

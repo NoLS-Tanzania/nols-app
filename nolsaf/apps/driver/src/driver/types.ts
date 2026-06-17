@@ -1,3 +1,11 @@
+export type DriverGoals = {
+  trips?: number | null;
+  money?: number | null;
+  moneyUrgent?: boolean;
+};
+
+export type GoalsResponse = { ok: boolean; goals: DriverGoals | null };
+
 export type PeakHours = {
   active: boolean;
   start: string;

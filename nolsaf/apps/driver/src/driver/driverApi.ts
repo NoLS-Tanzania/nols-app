@@ -13,11 +13,13 @@ import {
   ContactField,
   DashboardResponse,
   DeleteAccountResponse,
+  DriverGoals,
   DriverLevel,
   DriverMapData,
   DriverPerformance,
   DriverProfile,
   DriverReferral,
+  GoalsResponse,
   InvoicesResponse,
   LicenseInfo,
   LoginHistoryResponse,
@@ -76,6 +78,13 @@ export function markNotificationRead(token: string, id: string) {
   return apiRequest<{ ok: boolean }>(`/api/driver/notifications/${encodeURIComponent(id)}/mark-read`, {
     token,
     method: "POST"
+  });
+}
+
+export function deleteNotification(token: string, id: string) {
+  return apiRequest<{ ok: boolean }>(`/api/driver/notifications/${encodeURIComponent(id)}`, {
+    token,
+    method: "DELETE"
   });
 }
 
@@ -182,6 +191,14 @@ export function fetchPayouts(token: string, page = 1, pageSize = 20) {
 
 export function fetchInvoices(token: string, page = 1, pageSize = 20) {
   return apiRequest<InvoicesResponse>(`/api/driver/invoices?page=${page}&pageSize=${pageSize}`, { token });
+}
+
+export function fetchGoals(token: string) {
+  return apiRequest<GoalsResponse>("/api/driver/goals", { token });
+}
+
+export function saveGoals(token: string, goals: DriverGoals | null) {
+  return apiRequest<GoalsResponse>("/api/driver/goals", { token, method: "PUT", body: goals ?? {} });
 }
 
 export function fetchBonusHistory(token: string) {
