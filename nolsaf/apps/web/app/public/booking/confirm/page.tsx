@@ -879,7 +879,7 @@ export default function BookingConfirmPage() {
   const currency = property?.currency || "TZS"; // always TZS — settlement currency
 
   // Calculate total including transport
-  const finalTotal = totalAmount;
+  const finalTotal = totalAmount + (includeTransport && transportFare !== null ? transportFare : 0);
 
   // ── Display-currency conversion (presentation only — never changes what is charged) ──
   // If viewer has selected a non-TZS display currency, convert TZS amounts for display.
@@ -933,8 +933,8 @@ export default function BookingConfirmPage() {
       }
 
       try {
-        calculateTransportFare(origin, destination, propertyCurrency, fareAt, transportVehicleType);
-        setTransportFare(0);
+        const fare = calculateTransportFare(origin, destination, propertyCurrency, fareAt, transportVehicleType);
+        setTransportFare(fare.total);
       } catch (err: any) {
         console.error("Fare calculation error:", err);
       }
@@ -2605,7 +2605,7 @@ export default function BookingConfirmPage() {
                                   <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Total fare</div>
                                   <div className="flex items-baseline gap-1.5">
                                     <span className="text-2xl font-black text-slate-900 leading-none tabular-nums">
-                                      Free for testing
+                                      {transportFare.toLocaleString()}
                                     </span>
                                     <span className="text-sm font-semibold text-slate-400">{currency}</span>
                                   </div>
@@ -2624,7 +2624,7 @@ export default function BookingConfirmPage() {
                             <div className="px-5 py-3 bg-emerald-50/60 border-t border-emerald-100 flex items-center gap-2">
                               <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
                               <span className="text-xs text-emerald-800 font-medium">
-                                Free while this transport flow is open for testing.
+                                Fare is calculated from pickup distance, estimated time, and vehicle type.
                               </span>
                             </div>
                           </div>
@@ -2720,7 +2720,15 @@ export default function BookingConfirmPage() {
                       Transportation ({getVehicleTypeLabel(transportVehicleType)})
                     </span>
                     <span className="font-bold text-[#02665e] text-right">
-                      Free for testing
+                      {(() => {
+                        const d = fmtDisplay(transportFare);
+                        return (
+                          <>
+                            <span>{d.primary}</span>
+                            {d.note && <span className="block text-xs font-normal text-slate-500 mt-0.5">{d.note}</span>}
+                          </>
+                        );
+                      })()}
                     </span>
                   </div>
                 )}
