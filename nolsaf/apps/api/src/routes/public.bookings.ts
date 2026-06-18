@@ -904,12 +904,6 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
       }
     }
 
-    // Temporarily free so the integrated transport path can be tested end-to-end
-    // before the public launch. Keep this server-side so invoices cannot charge it.
-    if (data.includeTransport) {
-      transportFare = 0;
-    }
-    
     const totalAmount = roundMoney(accommodationGross + transportFare);
 
     // Ownership linking:
