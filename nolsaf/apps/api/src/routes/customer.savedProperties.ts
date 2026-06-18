@@ -55,7 +55,7 @@ type SavedPropertyWithRelations = {
     services: any;
     photos: any;
     images?: Array<{ url: string | null }>;
-  };
+  } | null;
   savedAt: Date;
   sharedAt: Date | null;
 };
@@ -85,12 +85,13 @@ function getUserId(req: AuthedRequest): number | null {
 // Helper function to transform saved property to response item
 function transformSavedPropertyToItem(
   sp: SavedPropertyWithRelations
-): PropertyItem {
-  if (!sp || !sp.property) {
-    throw new Error("Invalid saved property data");
+): PropertyItem | null {
+  if (!sp?.property?.id) {
+    return null;
   }
 
-  const slug = buildPropertySlug(sp.property.title, sp.property.id);
+  const title = sp.property.title || "Untitled property";
+  const slug = buildPropertySlug(title, sp.property.id);
   
   // Extract primary image - use the first image URL if available, otherwise use photos
   let primaryImage: string | null = null;
@@ -116,7 +117,7 @@ function transformSavedPropertyToItem(
   return {
     id: sp.property.id,
     slug,
-    title: sp.property.title,
+    title,
     location,
     primaryImage,
     basePrice: sp.property.basePrice ? Number(sp.property.basePrice) : null,
@@ -125,6 +126,21 @@ function transformSavedPropertyToItem(
     savedAt: sp.savedAt.toISOString(),
     sharedAt: sp.sharedAt?.toISOString() || null,
   };
+}
+
+function transformSavedPropertiesToItems(
+  properties: SavedPropertyWithRelations[]
+): PropertyItem[] {
+  const items: PropertyItem[] = [];
+
+  for (const sp of properties) {
+    const item = transformSavedPropertyToItem(sp);
+    if (item) {
+      items.push(item);
+    }
+  }
+
+  return items;
 }
 
 // Helper function to fetch saved properties with pagination
@@ -223,9 +239,7 @@ router.get(
         queryParams.pageSize
       );
 
-      const items: PropertyItem[] = properties.map((sp) =>
-        transformSavedPropertyToItem(sp)
-      );
+      const items = transformSavedPropertiesToItems(properties);
 
       res.json({
         ok: true,
@@ -483,9 +497,7 @@ router.get(
         queryParams.pageSize
       );
 
-      const items: PropertyItem[] = properties.map((sp) =>
-        transformSavedPropertyToItem(sp)
-      );
+      const items = transformSavedPropertiesToItems(properties);
 
       res.json({
         ok: true,
