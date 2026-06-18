@@ -157,6 +157,24 @@ export function calculateSurgeMultiplier(
   return 1.0; // No surge
 }
 
+function getPricingTimeParts(date: Date, timeZone = "Africa/Dar_es_Salaam"): { hour: number; dayOfWeek: number } {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    weekday: "short",
+    hour: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+
+  const rawHour = Number(parts.find((part) => part.type === "hour")?.value ?? "0");
+  const weekday = parts.find((part) => part.type === "weekday")?.value ?? "Sun";
+  const dayOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(weekday);
+
+  return {
+    hour: Number.isFinite(rawHour) ? rawHour % 24 : 0,
+    dayOfWeek: dayOfWeek >= 0 ? dayOfWeek : 0,
+  };
+}
+
 /**
  * Calculate transportation fare (UPFRONT PRICING METHOD)
  * 
@@ -191,8 +209,7 @@ export function calculateTransportFare(
 
   // Calculate surge multiplier
   const pricingTime = at instanceof Date && !isNaN(at.getTime()) ? at : new Date();
-  const hourOfDay = pricingTime.getHours();
-  const dayOfWeek = pricingTime.getDay();
+  const { hour: hourOfDay, dayOfWeek } = getPricingTimeParts(pricingTime);
   const surgeMultiplier = calculateSurgeMultiplier(hourOfDay, dayOfWeek);
 
   // Calculate fare components

@@ -2526,6 +2526,7 @@ export default function BookingConfirmPage() {
                           : null;
                         const distKm = fareDetail ? fareDetail.distance : null;
                         const etaMin = fareDetail ? fareDetail.estimatedTime : null;
+                        const surgeAmount = fareDetail ? Math.max(0, fareDetail.total - fareDetail.subtotal) : 0;
                         return (
                           <div className="animate-in fade-in slide-in-from-bottom-3 duration-400 rounded-2xl overflow-hidden border border-slate-200/80 bg-white shadow-lg">
                             {/* ── Route card header ── */}
@@ -2622,6 +2623,14 @@ export default function BookingConfirmPage() {
                                     <span>Base {fareDetail.baseFare.toLocaleString()}</span>
                                     <span>Distance {fareDetail.distanceFare.toLocaleString()}</span>
                                     <span>Time {fareDetail.timeFare.toLocaleString()}</span>
+                                    {surgeAmount > 0 && (
+                                      <span className="font-semibold text-orange-600">
+                                        Surge +{surgeAmount.toLocaleString()}
+                                      </span>
+                                    )}
+                                    <span className="mt-1 border-t border-slate-200 pt-1 font-bold text-slate-700">
+                                      Total {fareDetail.total.toLocaleString()}
+                                    </span>
                                   </div>
                                 )}
                               </div>

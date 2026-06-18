@@ -174,6 +174,24 @@ function calculateSurgeMultiplier(hourOfDay: number, dayOfWeek: number): number 
   return 1.0;
 }
 
+function getPricingTimeParts(date: Date, timeZone = "Africa/Dar_es_Salaam"): { hour: number; dayOfWeek: number } {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    weekday: "short",
+    hour: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+
+  const rawHour = Number(parts.find((part) => part.type === "hour")?.value ?? "0");
+  const weekday = parts.find((part) => part.type === "weekday")?.value ?? "Sun";
+  const dayOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(weekday);
+
+  return {
+    hour: Number.isFinite(rawHour) ? rawHour % 24 : 0,
+    dayOfWeek: dayOfWeek >= 0 ? dayOfWeek : 0,
+  };
+}
+
 /** Derive room-type key from roomCode (e.g. "Suite-1" -> "Suite", "Suite" -> "Suite") for capacity by type */
 function roomCodeToTypeKey(roomCode: string | null | undefined): string {
   const s = String(roomCode ?? "").trim();
@@ -884,7 +902,8 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
           return isNaN(d.getTime()) ? new Date() : d;
         })();
 
-        const surgeMultiplier = calculateSurgeMultiplier(pricingTime.getHours(), pricingTime.getDay());
+        const { hour, dayOfWeek } = getPricingTimeParts(pricingTime);
+        const surgeMultiplier = calculateSurgeMultiplier(hour, dayOfWeek);
 
         const baseFare = cfg.baseFare;
         const distanceFare = distance * cfg.perKmRate;
