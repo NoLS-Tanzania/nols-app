@@ -5,18 +5,10 @@
 
 export function sanitizeHtml(input: string | null | undefined): string {
   if (!input) return '';
-  
-  // Remove HTML tags
-  const withoutTags = input.replace(/<[^>]*>/g, '');
-  
-  // Escape HTML entities
-  return withoutTags
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#x27;')
-    .replace(/\//g, '&#x2F;');
+
+  // Remove HTML tags. The result is stored/displayed as plain text, so no
+  // entity-escaping is applied (it would otherwise show up literally, e.g. "&#x27;").
+  return input.replace(/<[^>]*>/g, '');
 }
 
 /**
@@ -24,17 +16,10 @@ export function sanitizeHtml(input: string | null | undefined): string {
  */
 export function sanitizeText(input: string | null | undefined): string {
   if (!input) return '';
-  
-  // Remove HTML tags
-  const withoutTags = input.replace(/<[^>]*>/g, '');
-  
-  // Escape HTML entities but preserve newlines
-  return withoutTags
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#x27;');
+
+  // Remove HTML tags. The result is stored/displayed as plain text, so no
+  // entity-escaping is applied (it would otherwise show up literally, e.g. "&#x27;").
+  return input.replace(/<[^>]*>/g, '');
 }
 
 /**

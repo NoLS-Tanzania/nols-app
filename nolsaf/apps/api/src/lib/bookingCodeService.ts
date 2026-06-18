@@ -558,13 +558,13 @@ export async function validateBookingCode(
             error = "This booking has a cancellation request currently under review. The code has been suspended pending admin decision.";
             break;
           case "PROCESSING":
-            error = "This booking's cancellation has been approved and is being processed. The code has been voided — the guest will be refunded.";
+            error = "This booking's cancellation has been approved and is being processed. The code has been voided. The guest will be refunded.";
             break;
           case "REFUNDED":
             error = "This booking was cancelled and the guest has been refunded. The check-in code is no longer valid.";
             break;
           case "REJECTED":
-            error = "A cancellation request existed for this booking but was rejected. The code was voided by an admin — please contact support.";
+            error = "A cancellation request existed for this booking but was rejected. The code was voided by an admin, Please contact support.";
             break;
           default:
             error = checkinCode.voidReason

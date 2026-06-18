@@ -1,4 +1,5 @@
 import type { Server as SocketServer } from "socket.io";
+import { startExpireGroupBookingDeposits } from "./expireGroupBookingDeposits.js";
 import { startExpireStaleBookings } from "./expireStaleBookings.js";
 import { startOwnerBusinessLicenceExpiryReminders } from "./ownerBusinessLicenceExpiryReminders.js";
 import { startTransportAutoDispatch } from "./transportAutoDispatch.js";
@@ -59,5 +60,7 @@ export function startBackgroundWorkers(io: SocketServer): void {
     startOwnerBusinessLicenceExpiryReminders({ io });
     // Expire NEW bookings that were never paid within 30 minutes (anti-squatting).
     startExpireStaleBookings();
+    // Expire group stay offers whose 24h deposit window has passed.
+    startExpireGroupBookingDeposits();
   });
 }

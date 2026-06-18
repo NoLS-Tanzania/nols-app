@@ -23,11 +23,13 @@ import { requireAuth } from "../middleware/auth.js";
 import { getAzamPayToken, invalidateAzamPayToken } from "../lib/azampay.auth.js";
 import { computeDraftBookingAvailability, unavailableDraftPaymentResponse } from "../lib/draftBookingAvailability.js";
 import {
-  SUPPORTED_BANK_CODES,
+  AZAMPAY_MNO_API_URL,
   idemGet,
   idemSet,
-  azampayPost,
+  azampayMnoPost,
   makePaymentRateLimiter,
+  normalizePhone,
+  maskAzamPayPhone,
 } from "../lib/azampay.helpers.js";
 
 const router = Router();
@@ -54,13 +56,17 @@ const bankTargetLimiter = makePaymentRateLimiter({
 // ── Input schemas ──
 
 export const bankInitiateSchema = z.object({
-  invoiceId:      z.number().int().positive(),
-  bankCode:       z.enum(SUPPORTED_BANK_CODES),
-  accountNumber:  z.string().min(1).max(30).regex(/^[\w\-]+$/).optional(),
+  invoiceId: z.number().int().positive(),
+  bankCode: z.enum(["CRDB", "NMB"]),
+  accountNumber: z.string().min(1).max(30).regex(/^[\w\-]+$/),
+  merchantMobileNumber: z.string().min(9).max(15).regex(
+    /^[\d+]+$/,
+    "Mobile number must contain only digits and an optional leading +"
+  ),
+  otp: z.string().min(1).max(50),
   idempotencyKey: z.string().min(8).max(128).optional(),
-  accessToken:    z.string().min(20).max(1024).optional(),
+  accessToken: z.string().min(20).max(1024).optional(),
 });
-
 // ── Public invoice access JWT (same logic as MNO route) ───
 
 type PublicInvoiceAccessPayload = {
@@ -115,8 +121,26 @@ router.post(
           details: parsed.error.issues.map((i) => ({ path: i.path, message: i.message })),
         });
       }
-      const { invoiceId, bankCode, accountNumber, idempotencyKey, accessToken } = parsed.data;
 
+      const {
+  invoiceId,
+  bankCode,
+  accountNumber,
+  merchantMobileNumber,
+  otp,
+  idempotencyKey,
+  accessToken,
+} = parsed.data;
+
+const normalizedBankMobile = normalizePhone(merchantMobileNumber);
+if (!normalizedBankMobile) {
+  return res.status(400).json({
+    error: "validation_error",
+    message: "Invalid mobile number. Please enter a valid Tanzanian number.",
+  });
+}
+
+const azamBankMobileNumber = normalizedBankMobile.replace(/^\+/, "");
       // 2. Idempotency key
       const idemKey = idempotencyKey ?? `azp-bank-${invoiceId}-${bankCode}`;
       const cachedCheckout = await idemGet(idemKey);
@@ -192,19 +216,16 @@ router.post(
 
       // 8. AzamPay bank checkout payload
       const azampayBody = {
-        amount:                Math.round(amount).toString(),
-        currencyCode:          currency,
-        merchantAccountNumber: accountNumber ?? "",
-        merchantMobileNumber:  "",
-        merchantName:          process.env.AZAMPAY_APP_NAME || "NoLSAF",
-        otp:                   "",
-        provider:              bankCode,
-        referenceId:           paymentRef,
-        additionalProperties:  {
-          invoiceId:  invoice.id.toString(),
-          bookingId:  invoice.bookingId?.toString() ?? "",
-        },
-      };
+      amount: Math.round(amount),
+      currencyCode: currency,
+      merchantAccountNumber: accountNumber,
+      merchantMobileNumber: azamBankMobileNumber,
+      merchantName: process.env.AZAMPAY_APP_NAME || "NoLSAF",
+      otp,
+      provider: bankCode,
+      referenceId: paymentRef,
+      additionalProperties: {},
+    };
 
       // 9. Acquire Bearer token
       let token: string;
@@ -216,11 +237,11 @@ router.post(
       }
 
       // 10. Call AzamPay; retry once on 401
-      let apiRes = await azampayPost("/api/v1/Partner/BankCheckout", azampayBody, token);
+      let apiRes = await azampayMnoPost("/azampay/bank/checkout", azampayBody, token);
       if (apiRes.status === 401) {
         await invalidateAzamPayToken();
         try { token = await getAzamPayToken(); } catch { /* let next block handle */ }
-        apiRes = await azampayPost("/api/v1/Partner/BankCheckout", azampayBody, token!);
+        apiRes = await azampayMnoPost("/azampay/bank/checkout", azampayBody, token!);
       }
 
       if (!apiRes.ok) {
@@ -229,11 +250,36 @@ router.post(
       }
 
       let azampayData: any;
-      try { azampayData = JSON.parse(apiRes.body); }
-      catch {
-        console.error(`[AzamPay/Bank] Non-JSON response HTTP ${apiRes.status} — body: ${apiRes.body.slice(0, 500) || "(empty)"}`);
-        return res.status(502).json({ error: "payment_failed", message: "Unexpected response from payment provider" });
-      }
+        try {
+          azampayData = JSON.parse(apiRes.body);
+          console.info("[AzamPay/Bank] Raw Bank Response", azampayData);
+
+          if (azampayData.success === false) {
+            console.error("[AzamPay/Bank] Bank checkout rejected by AzamPay", {
+              invoiceId: invoice.id,
+              paymentRef,
+              bankCode,
+              amount: Math.round(amount),
+              currency,
+              accountNumber,
+              merchantMobileNumber: maskAzamPayPhone(normalizedBankMobile),
+              apiHost: AZAMPAY_MNO_API_URL,
+              endpoint: `${AZAMPAY_MNO_API_URL}/azampay/bank/checkout`,
+              httpStatus: apiRes.status,
+              message: azampayData.message,
+              messageCode: azampayData.messageCode,
+              transactionId: azampayData.transactionId ?? null,
+            });
+
+            return res.status(502).json({
+              error: "payment_failed",
+              message: azampayData.message || "Bank payment could not be initiated. Please verify the bank details and try again.",
+            });
+          }
+        } catch {
+          console.error(`[AzamPay/Bank] Non-JSON response HTTP ${apiRes.status} — body: ${apiRes.body.slice(0, 500) || "(empty)"}`);
+          return res.status(502).json({ error: "payment_failed", message: "Unexpected response from payment provider" });
+        }
 
       // 11. Update invoice
       await prisma.invoice.update({

@@ -24,6 +24,10 @@ docker-data/
 apps/api/reports/load-*.json
 apps/api/reports/capacity-*.json
 
+# Local diagnostic reports (transaction tests, card-progress notes)
+/.local-reports/
+/reports/
+
 # Security: Never commit secrets
 *.pem
 *.key
@@ -59,6 +63,9 @@ Thumbs.db
 # AWS / Deployment guides with credentials
 API_DEPLOYMENT_GUIDE.md
 *DEPLOYMENT_GUIDE*.md
+
+# Local payment-provider integration notes
+docs/CORAL_COMMERCE_HOSTED_CHECKOUT_JSON.md
 
 # AWS scripts (contain RDS endpoints / sensitive params)
 scripts/create-rds-database.ps1

@@ -249,14 +249,22 @@ export const limitOtpSend = rateLimit({
   limit: 3, // 3 OTP requests per phone number per 15 minutes
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: "Too many OTP requests. Please wait 15 minutes before requesting another code." },
+  message: (req: any) => {
+    const resetTime: Date | undefined = req.rateLimit?.resetTime;
+    const retryAfterMs = resetTime ? Math.max(0, resetTime.getTime() - Date.now()) : 15 * 60_000;
+    return {
+      error: "Too many OTP requests. Please wait before requesting another code.",
+      retryAfterMs,
+      cooldownUntil: Date.now() + retryAfterMs,
+    };
+  },
   keyGenerator: (req) => {
-    // Rate limit by phone number to prevent SMS spam
-    const phone = req.body?.phone;
-    if (phone) {
-      return `otp:${String(phone)}`;
+    // Rate limit by destination (phone or email) to prevent SMS/email spam
+    const destination = req.body?.phone || req.body?.email;
+    if (destination) {
+      return `otp:${String(destination).trim().toLowerCase()}`;
     }
-    // Fallback to IP if no phone provided
+    // Fallback to IP if no destination provided
     return req.ip || req.socket.remoteAddress || "unknown";
   },
 });
@@ -267,13 +275,44 @@ export const limitOtpVerify = rateLimit({
   limit: 10, // 10 verification attempts per phone number per 15 minutes
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: "Too many verification attempts. Please wait 15 minutes before trying again." },
+  message: (req: any) => {
+    const resetTime: Date | undefined = req.rateLimit?.resetTime;
+    const retryAfterMs = resetTime ? Math.max(0, resetTime.getTime() - Date.now()) : 15 * 60_000;
+    return {
+      error: "Too many verification attempts. Please wait before trying again.",
+      retryAfterMs,
+      cooldownUntil: Date.now() + retryAfterMs,
+    };
+  },
   keyGenerator: (req) => {
-    const phone = req.body?.phone;
-    if (phone) {
-      return `otp-verify:${String(phone)}`;
+    const destination = req.body?.phone || req.body?.email;
+    if (destination) {
+      return `otp-verify:${String(destination).trim().toLowerCase()}`;
     }
     return req.ip || req.socket.remoteAddress || "unknown";
+  },
+});
+
+// Rate limiter for authenticated contact (phone/email) change requests.
+// Prevents abuse of the OTP-based change flow on /api/account/contact/*.
+export const limitContactChangeOtp = rateLimit({
+  windowMs: 15 * 60_000, // 15 minutes
+  limit: 3, // 3 change requests per field per 15 minutes
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: (req: any) => {
+    const resetTime: Date | undefined = req.rateLimit?.resetTime;
+    const retryAfterMs = resetTime ? Math.max(0, resetTime.getTime() - Date.now()) : 15 * 60_000;
+    return {
+      error: "Too many requests. Please wait before requesting another code.",
+      retryAfterMs,
+      cooldownUntil: Date.now() + retryAfterMs,
+    };
+  },
+  keyGenerator: (req: any) => {
+    const userId = req.user?.id;
+    const field = req.body?.field || "unknown";
+    return `contact-change:${userId ?? req.ip ?? "unknown"}:${field}`;
   },
 });
 

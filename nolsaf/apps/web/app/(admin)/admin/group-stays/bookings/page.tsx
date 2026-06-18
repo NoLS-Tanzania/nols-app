@@ -321,7 +321,7 @@ export default function AdminGroupStaysBookingsPage() {
 
   // Message templates
   const messageTemplates = {
-    reviewing: "Thank you for your interest in using NoLSaf for your group stay! We have received your booking request and our team is currently reviewing it. We will get back to you soon with accommodation options and pricing tailored to your group's needs. We appreciate your patience!",
+    reviewing: "Thanks for posting your group stay request on NoLSAF! It is now open for verified property owners in your destination area to bid with their best offers. Our team is reviewing the responses and will share the top picks here so you can pick the one that suits your group best. We appreciate your patience!",
     processing: "Great news! We're now processing your group stay booking. Our team is working on finding the best accommodation options for your group. We'll contact you shortly with recommendations and pricing details.",
     confirmed: "Excellent! Your group stay booking has been confirmed. We've found suitable accommodation options for your group. Please review the recommendations we've sent and let us know if you'd like to proceed.",
     propertiesRecommended: "We've found some great accommodation options that match your requirements! Please review the recommended properties and let us know which one you prefer. We're here to help make your group stay memorable.",

@@ -73,6 +73,42 @@ export default function PasskeysManager({
     }
   }
 
+  const getCurrentHostname = () => {
+    try {
+      return window.location.hostname.toLowerCase()
+    } catch {
+      return ""
+    }
+  }
+
+  const rpIdMatchesCurrentHost = (rpId: unknown) => {
+    const rp = String(rpId || "").trim().toLowerCase()
+    const host = getCurrentHostname()
+    if (!rp || !host) return true
+    return host === rp || host.endsWith(`.${rp}`)
+  }
+
+  const formatRpIdMismatch = (rpId: unknown) => {
+    const rp = String(rpId || "").trim().toLowerCase()
+    const host = getCurrentHostname()
+    if (!rp || !host || rpIdMatchesCurrentHost(rp)) return null
+
+    const canonicalUrl = window.location.href.replace(window.location.host, rp)
+    return (
+      `Passkeys are configured for ${rp}, but this page is opened on ${host}. ` +
+      `Open ${canonicalUrl} directly in Chrome or Safari, or update the app passkey settings to use a parent RP ID such as nolsaf.com.`
+    )
+  }
+
+  const isLikelyEmbeddedMobileBrowser = () => {
+    try {
+      const ua = navigator.userAgent || ""
+      return /(FBAN|FBAV|FB_IAB|Instagram|Line\/|MicroMessenger|WhatsApp)/i.test(ua)
+    } catch {
+      return false
+    }
+  }
+
   const getWebAuthnNotReadyReason = () => {
     if (typeof window === "undefined") return ""
     if (typeof PublicKeyCredential === "undefined") {
@@ -87,6 +123,9 @@ export default function PasskeysManager({
       }
     } catch {
       return "Passkeys can be blocked in embedded views. Open this page directly in the browser."
+    }
+    if (isLikelyEmbeddedMobileBrowser()) {
+      return "Passkeys are often blocked inside app browsers such as WhatsApp, Facebook, or Instagram. Open this page directly in Chrome or Safari, then try again."
     }
     if (!navigator?.credentials?.create) {
       return "Passkey registration isn’t available in this browser context. Try a modern browser and reload."
@@ -149,6 +188,11 @@ export default function PasskeysManager({
       }
       const body = await optRes.json()
       const publicKey = body.publicKey as any
+      const rpMismatch = formatRpIdMismatch(publicKey?.rp?.id || publicKey?.rpId)
+      if (rpMismatch) {
+        setError(rpMismatch)
+        return
+      }
 
       if (publicKey.challenge != null && typeof publicKey.challenge === "string") {
         const decoded = base64urlToUint8(publicKey.challenge)

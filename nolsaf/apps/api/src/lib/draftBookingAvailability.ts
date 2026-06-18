@@ -1,5 +1,6 @@
 import { prisma } from "@nolsaf/prisma";
 import { AVAILABILITY_BLOCKING_BOOKING_STATUSES } from "./bookingStatus.js";
+import { filterPayableAvailabilityBlocks } from "./groupStayAvailabilityBlocks.js";
 
 export type DraftBookingAvailability = {
   available: boolean;
@@ -159,7 +160,7 @@ export async function computeDraftBookingAvailability(
   const buckets = buildBuckets(booking.property, roomCode);
   const keys = Object.keys(buckets);
 
-  const [conflictingBookings, conflictingBlocks] = await Promise.all([
+  const [conflictingBookings, rawConflictingBlocks] = await Promise.all([
     db.booking.findMany({
       where: {
         propertyId,
@@ -174,9 +175,10 @@ export async function computeDraftBookingAvailability(
         propertyId,
         AND: [{ startDate: { lt: checkOut } }, { endDate: { gt: checkIn } }],
       },
-      select: { id: true, roomCode: true, bedsBlocked: true },
+      select: { id: true, roomCode: true, bedsBlocked: true, source: true, notes: true },
     }),
   ]);
+  const conflictingBlocks = await filterPayableAvailabilityBlocks(rawConflictingBlocks, db);
 
   const applyToBucket = (sourceRoomCode: string | null | undefined, count: number, kind: "bookedRooms" | "blockedRooms") => {
     if (roomCode && isSpecificRoom(roomCode) && sourceRoomCode !== roomCode) return;

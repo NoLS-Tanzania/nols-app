@@ -1,11 +1,27 @@
 import NolScopeEstimator from "@/components/NolScopeEstimator";
 import { Calculator, FileCheck, MapPin, Route, Sparkles, Telescope } from "lucide-react";
 import type { Metadata } from "next";
+import { SITE_URL, seoKeywords } from "@/lib/seo";
 
 export const metadata: Metadata = {
-  title: "Trip Cost Estimator | NoLScope",
+  title: "Tanzania Trip Cost Estimator | NoLScope",
   description:
-    "Instantly estimate your Tanzania safari, beach or cultural trip cost. Covers visa fees, park fees, transport, activities, and accommodation.",
+    "Estimate Tanzania safari, beach, cultural and local tourism trip costs. NoLScope covers visa fees, park fees, transport, activities and accommodation.",
+  keywords: [
+    "Tanzania trip cost estimator",
+    "Tanzania safari cost",
+    "Zanzibar trip cost",
+    "Tanzania park fees",
+    "East Africa travel budget",
+    "NoLScope",
+    ...seoKeywords,
+  ],
+  alternates: { canonical: `${SITE_URL}/public/nolscope` },
+  openGraph: {
+    title: "Tanzania Trip Cost Estimator | NoLScope",
+    description: "Estimate visa, park, transport, activity and accommodation costs before travelling in Tanzania.",
+    url: `${SITE_URL}/public/nolscope`,
+  },
 };
 
 const STATS = [

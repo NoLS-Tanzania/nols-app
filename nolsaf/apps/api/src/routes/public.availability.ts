@@ -6,11 +6,13 @@ import { z } from "zod";
 import { prisma } from "@nolsaf/prisma";
 import { rateLimitWithRedis as rateLimit } from "../lib/redisRateLimitStore.js";
 import { AVAILABILITY_BLOCKING_BOOKING_STATUSES } from "../lib/bookingStatus.js";
+import { filterPayableAvailabilityBlocks } from "../lib/groupStayAvailabilityBlocks.js";
+import { isCheckInBeforeToday } from "../lib/bookingDateRules.js";
 
 export const router = Router();
 
 const availabilityCache = new Map<string, { expiresAt: number; payload: any }>();
-const availabilityCacheTtlMs = 15_000;
+const availabilityCacheTtlMs = 0;
 const maxAvailabilityCacheEntries = 500;
 
 /** Derive room-type key from roomCode (e.g. "Suite-1" -> "Suite", "Suite" -> "Suite") */
@@ -26,6 +28,17 @@ function findBucketKey(roomCode: string | null | undefined, keys: string[]): str
   if (keys.includes(typeKey)) return typeKey;
   const rc = String(roomCode ?? "");
   return keys.find((k) => rc === k || (k && rc.startsWith(k + "-"))) || null;
+}
+
+function parseAvailabilityDate(value: string): Date {
+  const trimmed = String(value || "").trim();
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+  if (dateOnly) {
+    const [, year, month, day] = dateOnly;
+    return new Date(Number(year), Number(month) - 1, Number(day));
+  }
+
+  return new Date(trimmed);
 }
 
 // Rate limiter for availability checks
@@ -46,8 +59,8 @@ const availabilityLimiter = rateLimit({
 // Validation schema
 const checkAvailabilitySchema = z.object({
   propertyId: z.number().int().positive(),
-  checkIn: z.string().datetime(), // ISO 8601 format
-  checkOut: z.string().datetime(),
+  checkIn: z.string().min(1), // YYYY-MM-DD or ISO 8601 format
+  checkOut: z.string().min(1),
   roomCode: z.string().max(60).optional().nullable(), // Optional: check specific room
 });
 
@@ -73,8 +86,8 @@ router.post("/check", availabilityLimiter, (async (req: Request, res: Response) 
     const requestedTypeKey = requestedRoomCode ? roomCodeToTypeKey(requestedRoomCode) : null;
 
     // Validate dates
-    const checkIn = new Date(checkInStr);
-    const checkOut = new Date(checkOutStr);
+    const checkIn = parseAvailabilityDate(checkInStr);
+    const checkOut = parseAvailabilityDate(checkOutStr);
     const now = new Date();
 
     if (isNaN(checkIn.getTime()) || isNaN(checkOut.getTime())) {
@@ -82,7 +95,7 @@ router.post("/check", availabilityLimiter, (async (req: Request, res: Response) 
       return;
     }
 
-    if (checkIn < now) {
+    if (isCheckInBeforeToday(checkIn, now)) {
       res.status(400).json({ error: "Check-in date cannot be in the past" });
       return;
     }
@@ -158,7 +171,7 @@ router.post("/check", availabilityLimiter, (async (req: Request, res: Response) 
     });
 
     // Get all availability blocks that overlap with the requested dates
-    const availabilityBlocks = await prisma.propertyAvailabilityBlock.findMany({
+    const rawAvailabilityBlocks = await prisma.propertyAvailabilityBlock.findMany({
       where: {
         propertyId,
         AND: [
@@ -178,8 +191,10 @@ router.post("/check", availabilityLimiter, (async (req: Request, res: Response) 
         roomCode: true,
         bedsBlocked: true,
         source: true,
+        notes: true,
       },
     });
+    const availabilityBlocks = await filterPayableAvailabilityBlocks(rawAvailabilityBlocks);
 
     // Parse roomsSpec to get room types and their capacities.
     // Supports multiple shapes across the app: {code, rooms, beds} or {roomType, roomsCount, beds} etc.

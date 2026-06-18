@@ -146,34 +146,35 @@ export default function AdminImpactCenterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <div className="space-y-5 px-4 py-6 sm:px-6 lg:px-8">
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-col gap-5 px-5 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
+    <div className="min-h-screen bg-[#f6f8f8]">
+      <div className="space-y-4 px-4 py-5 sm:px-6 lg:px-8">
+        <div className="border border-[#02665e] bg-[#02665e] text-white shadow-sm">
+          <div className="flex flex-col gap-4 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0">
-              <Link href="/admin/observability" className="mb-3 inline-flex items-center gap-2 text-sm font-bold text-slate-500 no-underline transition-colors hover:text-slate-950">
+              <Link href="/admin/observability" className="inline-flex items-center gap-2 text-sm font-semibold text-white/65 no-underline transition-colors hover:text-white">
                 <ArrowLeft className="h-4 w-4" />
                 Observability
               </Link>
-              <div className="flex flex-wrap items-center gap-3">
-                <h1 className="text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Impact Center</h1>
-                <span className={`inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold ${summary.critical > 0 ? "border-red-200 bg-red-50 text-red-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
-                  <span className={`h-2 w-2 rounded-full ${summary.critical > 0 ? "bg-red-500" : "bg-emerald-500"}`} />
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <h1 className="text-2xl font-black tracking-tight text-white">Impact Center</h1>
+                <span className={`inline-flex w-fit items-center gap-2 border px-3 py-1 text-xs font-bold ${summary.critical > 0 ? "border-red-200 bg-white text-red-700" : "border-emerald-200 bg-white text-[#02665e]"}`}>
+                  <span className={`h-2 w-2 rounded-full ${summary.critical > 0 ? "bg-red-500" : "bg-[#02665e]"}`} />
                   {summary.critical > 0 ? "Needs review" : "Quiet"}
                 </span>
               </div>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 sm:text-base sm:leading-7">
-                People-first incident view for slow calls, server errors, and frontend crashes across known users and visitor sessions.
+              <p className="mt-2 max-w-4xl text-sm leading-6 text-white/65">
+                People-first incident triage for slow calls, server errors, and frontend crashes across known users and visitor sessions.
               </p>
             </div>
             <button
               type="button"
               onClick={() => load(true)}
               disabled={refreshing}
-              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 disabled:opacity-60 sm:w-fit"
+              className="inline-flex h-10 w-10 items-center justify-center border border-white/20 bg-white text-[#02665e] shadow-sm transition-colors hover:bg-emerald-50 disabled:opacity-60"
+              aria-label="Refresh impact center"
+              title="Refresh"
             >
               <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-              Refresh
             </button>
           </div>
         </div>
@@ -189,18 +190,29 @@ export default function AdminImpactCenterPage() {
           <SummaryCard icon={ShieldCheck} label="Visitors" value={summary.visitors} tone={summary.visitors > 0 ? "amber" : "slate"} />
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-          <div className="mx-auto flex max-w-5xl flex-col items-center gap-3">
-            <div className="relative w-full max-w-xs">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search user or route"
-                className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 pl-8 pr-3 text-sm font-semibold text-slate-800 outline-none transition-colors placeholder:text-slate-400 focus:border-[#02665e]/40 focus:bg-white focus:ring-2 focus:ring-[#02665e]/10"
-              />
+        <section className="overflow-hidden border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-100 px-5 py-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h2 className="text-sm font-black uppercase tracking-[0.14em] text-slate-900">Affected sessions</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Showing {filtered.length ? (safePage - 1) * pageSize + 1 : 0}-{Math.min(safePage * pageSize, filtered.length)} of {filtered.length}
+                </p>
+              </div>
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                <div className="relative w-full lg:w-72">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                  <input
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder="Search user or route"
+                    className="h-10 w-full border border-slate-200 bg-slate-50 pl-8 pr-3 text-sm font-semibold text-slate-800 outline-none transition-colors placeholder:text-slate-400 focus:border-[#02665e]/40 focus:bg-white focus:ring-2 focus:ring-[#02665e]/10"
+                  />
+                </div>
+                <PaginationControls page={safePage} totalPages={totalPages} onPageChange={setPage} align="end" />
+              </div>
             </div>
-            <div className="flex max-w-full flex-wrap justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 p-1">
+            <div className="mt-4 flex max-w-full flex-wrap gap-1.5 border border-slate-200 bg-slate-50 p-1">
               <FilterButton active={filter === "all"} onClick={() => setFilter("all")}>All</FilterButton>
               <FilterButton active={filter === "critical"} onClick={() => setFilter("critical")}>Critical</FilterButton>
               <FilterButton active={filter === "server"} onClick={() => setFilter("server")}>5xx</FilterButton>
@@ -210,18 +222,6 @@ export default function AdminImpactCenterPage() {
               <FilterButton active={filter === "visitors"} onClick={() => setFilter("visitors")}>Visitors</FilterButton>
               <FilterButton active={filter === "restored"} onClick={() => setFilter("restored")}>Restored</FilterButton>
             </div>
-          </div>
-        </div>
-
-        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-sm font-black uppercase tracking-wide text-slate-900">Affected sessions</h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Showing {filtered.length ? (safePage - 1) * pageSize + 1 : 0}-{Math.min(safePage * pageSize, filtered.length)} of {filtered.length}
-              </p>
-            </div>
-            <PaginationControls page={safePage} totalPages={totalPages} onPageChange={setPage} />
           </div>
           <div className="divide-y divide-slate-100">
             {paginated.map((item) => <ImpactPersonCard key={item.key} item={item} onRestore={() => setRestoreTarget(item)} />)}
@@ -310,26 +310,26 @@ function ImpactPersonCard({ item, onRestore }: { item: ImpactedUser; onRestore: 
 
   return (
     <div className="px-4 py-4 sm:px-5">
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px] xl:items-start">
-        <div className="flex min-w-0 gap-4">
-          <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl border ${iconClass}`}>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_390px] xl:items-start">
+        <div className="flex min-w-0 gap-3">
+          <div className={`grid h-10 w-10 shrink-0 place-items-center border ${iconClass}`}>
             {restored ? <CheckCircle2 className="h-5 w-5" /> : serverIssue ? <ServerCrash className="h-5 w-5" /> : clientIssue ? <Bug className="h-5 w-5" /> : <Clock3 className="h-5 w-5" />}
           </div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <h2 className="truncate text-lg font-black tracking-tight text-slate-950">{item.label}</h2>
-              <span className={`rounded-full border px-2 py-0.5 text-[11px] font-black uppercase ${restored ? "border-emerald-200 bg-emerald-50 text-emerald-700" : critical ? "border-red-200 bg-red-50 text-red-700" : item.slowCount > 0 ? "border-amber-200 bg-amber-50 text-amber-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
+              <h2 className="truncate text-[15px] font-bold leading-6 text-slate-950">{item.label}</h2>
+              <span className={`border px-2 py-0.5 text-[11px] font-bold uppercase ${restored ? "border-emerald-200 bg-emerald-50 text-emerald-700" : critical ? "border-red-200 bg-red-50 text-red-700" : item.slowCount > 0 ? "border-amber-200 bg-amber-50 text-amber-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
                 {severity}
               </span>
-              {item.role ? <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-bold uppercase text-slate-600">{item.role}</span> : null}
-              {!item.userId ? <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-bold uppercase text-sky-700">Visitor</span> : null}
+              {item.role ? <span className="border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-bold uppercase text-slate-600">{item.role}</span> : null}
+              {!item.userId ? <span className="border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-bold uppercase text-sky-700">Visitor</span> : null}
               {item.userId ? <span className="font-mono text-xs text-slate-400">#{item.userId}</span> : null}
             </div>
             {item.email ? <p className="mt-0.5 truncate text-xs text-slate-500">{item.email}</p> : null}
-            <p className="mt-4 max-w-4xl text-sm font-semibold leading-6 text-slate-800">{eventLabel}</p>
+            <p className="mt-3 max-w-4xl text-sm font-medium leading-6 text-slate-800">{eventLabel}</p>
             <div className="mt-3 flex flex-wrap gap-1.5">
               {item.routes.map((route) => (
-                <span key={route} className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 font-mono text-[11px] text-slate-600">
+                <span key={route} className="border border-slate-200 bg-slate-50 px-2 py-1 font-mono text-[11px] text-slate-600">
                   {route}
                 </span>
               ))}
@@ -343,7 +343,7 @@ function ImpactPersonCard({ item, onRestore }: { item: ImpactedUser; onRestore: 
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
+        <div className="border border-slate-100 bg-slate-50 p-3">
           <div className="grid grid-cols-4 gap-2 text-center">
             <ImpactCount label="Events" value={item.eventCount} />
             <ImpactCount label="Slow" value={item.slowCount} tone={item.slowCount > 0 ? "amber" : "slate"} />
@@ -351,7 +351,7 @@ function ImpactPersonCard({ item, onRestore }: { item: ImpactedUser; onRestore: 
             <ImpactCount label="Client" value={item.clientErrorCount} tone={item.clientErrorCount > 0 ? "red" : "slate"} />
           </div>
           {restored ? (
-            <div className="mt-3 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+            <div className="mt-3 border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
               <div className="flex flex-wrap items-center gap-2 font-black">
                 <CheckCircle2 className="h-4 w-4" />
                 Restored {item.resolution.restoredAt ? formatTime(item.resolution.restoredAt) : ""}
@@ -366,16 +366,16 @@ function ImpactPersonCard({ item, onRestore }: { item: ImpactedUser; onRestore: 
           ) : null}
           <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
             {item.userId ? (
-              <Link href={`/admin/users/list?search=${encodeURIComponent(String(item.userId))}`} className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 no-underline shadow-sm hover:bg-slate-50">
+              <Link href={`/admin/users/list?search=${encodeURIComponent(String(item.userId))}`} className="inline-flex h-9 items-center justify-center gap-2 border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 no-underline shadow-sm hover:bg-slate-50">
                 <UserRound className="h-3.5 w-3.5" />
                 View user
               </Link>
             ) : null}
-            <Link href="/admin/observability" className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 no-underline shadow-sm hover:bg-slate-50">
+            <Link href="/admin/observability" className="inline-flex h-9 items-center justify-center gap-2 border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 no-underline shadow-sm hover:bg-slate-50">
               <ShieldCheck className="h-3.5 w-3.5" />
               Open logs
             </Link>
-            <Link href="/admin/management/audit-log" className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 no-underline shadow-sm hover:bg-slate-50">
+            <Link href="/admin/management/audit-log" className="inline-flex h-9 items-center justify-center gap-2 border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 no-underline shadow-sm hover:bg-slate-50">
               <History className="h-3.5 w-3.5" />
               Audit
             </Link>
@@ -383,7 +383,7 @@ function ImpactPersonCard({ item, onRestore }: { item: ImpactedUser; onRestore: 
               <button
                 type="button"
                 onClick={onRestore}
-                className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-xs font-bold text-emerald-700 shadow-sm hover:bg-emerald-100 sm:col-span-3"
+                className="inline-flex h-9 items-center justify-center gap-2 border border-emerald-700 bg-emerald-700 px-3 text-xs font-bold text-white shadow-sm hover:bg-emerald-800 sm:col-span-3"
               >
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 Mark restored
@@ -424,13 +424,13 @@ function SummaryCard({ icon: Icon, label, value, tone }: { icon: typeof UserRoun
     },
   }[tone];
   return (
-    <div className={`group rounded-xl border p-4 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md ${classes.card}`}>
-      <div className="flex items-start justify-between gap-3">
+    <div className={`group border p-4 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md ${classes.card}`}>
+      <div className="flex items-center justify-between gap-3">
         <div>
-          <div className={`max-w-28 text-[11px] font-black uppercase leading-5 tracking-wide ${classes.label}`}>{label}</div>
-          <div className={`mt-4 text-3xl font-black tracking-tight ${classes.value}`}>{value}</div>
+          <div className={`text-[11px] font-bold uppercase leading-5 tracking-[0.14em] ${classes.label}`}>{label}</div>
+          <div className={`mt-2 text-2xl font-black tracking-tight ${classes.value}`}>{value}</div>
         </div>
-        <div className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl border shadow-sm transition-transform duration-300 group-hover:scale-105 ${classes.icon}`}>
+        <div className={`grid h-10 w-10 shrink-0 place-items-center border shadow-sm transition-transform duration-300 group-hover:scale-105 ${classes.icon}`}>
           <Icon className="h-5 w-5" />
         </div>
       </div>
@@ -443,7 +443,7 @@ function FilterButton({ active, onClick, children }: { active: boolean; onClick:
     <button
       type="button"
       onClick={onClick}
-      className={`h-8 rounded-lg border px-2.5 text-xs font-bold transition-all sm:px-3 sm:text-sm ${
+      className={`h-8 border px-2.5 text-xs font-bold transition-all sm:px-3 sm:text-sm ${
         active
           ? "border-emerald-200 bg-emerald-700 text-white shadow-sm shadow-emerald-900/10"
           : "border-transparent bg-transparent text-slate-600 hover:border-slate-200 hover:bg-white hover:text-slate-950"
@@ -471,19 +471,19 @@ function PaginationControls({
         type="button"
         onClick={() => onPageChange(Math.max(1, page - 1))}
         disabled={page <= 1}
-        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45"
+        className="inline-flex h-9 w-9 items-center justify-center border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45"
         aria-label="Previous page"
       >
         <ChevronLeft className="h-4 w-4" />
       </button>
-      <div className="min-w-24 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-center text-xs font-black uppercase tracking-wide text-slate-600">
+      <div className="min-w-24 border border-slate-200 bg-slate-50 px-3 py-2 text-center text-xs font-black uppercase tracking-wide text-slate-600">
         {page} / {totalPages}
       </div>
       <button
         type="button"
         onClick={() => onPageChange(Math.min(totalPages, page + 1))}
         disabled={page >= totalPages}
-        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45"
+        className="inline-flex h-9 w-9 items-center justify-center border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45"
         aria-label="Next page"
       >
         <ChevronRight className="h-4 w-4" />
@@ -495,7 +495,7 @@ function PaginationControls({
 function ImpactCount({ label, value, tone = "slate" }: { label: string; value: number; tone?: "slate" | "amber" | "red" }) {
   const valueClass = tone === "red" ? "text-red-700" : tone === "amber" ? "text-amber-700" : "text-slate-900";
   return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-2">
+    <div className="border border-slate-200 bg-white px-2 py-2">
       <div className={`text-base font-black ${valueClass}`}>{value}</div>
       <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</div>
     </div>

@@ -74,19 +74,29 @@ export interface MailAttachment {
   content: Buffer;
 }
 
+// ─── Sender addresses ─────────────────────────────────────────────────────────
+// Both addresses live on the verified `nolsaf.com` domain (Resend's free plan
+// allows only one sending domain). Security-sensitive emails (password
+// reset/changed, login alerts) use a separate sender so they are visually and
+// technically distinguishable from general notifications.
+export const DEFAULT_EMAIL_FROM = process.env.EMAIL_FROM || process.env.RESEND_FROM_DOMAIN || "notifications@nolsaf.com";
+export const SECURITY_EMAIL_FROM = process.env.EMAIL_FROM_SECURITY || "security@nolsaf.com";
+
 /**
  * Send email using Resend (preferred) or SMTP (fallback)
  * @param to          - Recipient email address
  * @param subject     - Email subject
  * @param html        - Email HTML content
  * @param attachments - Optional PDF/file attachments
+ * @param options.from    - Override sender address (defaults to EMAIL_FROM)
+ * @param options.replyTo - Reply-To address shown to the recipient
  */
 export async function sendMail(
   to: string,
   subject: string,
   html: string,
   attachments?: MailAttachment[],
-  options?: { bypassEligibilityCheck?: boolean }
+  options?: { bypassEligibilityCheck?: boolean; from?: string; replyTo?: string }
 ) {
   if (!options?.bypassEligibilityCheck) {
     const eligibility = await canReceiveNotifications({ email: to });
@@ -98,8 +108,9 @@ export async function sendMail(
   }
   }
 
-  const from = process.env.EMAIL_FROM || process.env.RESEND_FROM_DOMAIN || "no-reply@nolsaf.com";
-  
+  const from = options?.from || DEFAULT_EMAIL_FROM;
+  const replyTo = options?.replyTo;
+
   // Sanitize HTML content
   const clean = sanitizeHtml(html, {
     allowedTags: sanitizeHtml.defaults.allowedTags.concat(["img", "h1", "h2", "table", "thead", "tbody", "tfoot", "tr", "td", "th"]),
@@ -128,6 +139,7 @@ export async function sendMail(
       subject: subject,
       html: clean,
       text: plainText,
+      ...(replyTo ? { reply_to: replyTo } : {}),
       ...(attachments?.length ? {
         attachments: attachments.map(a => ({
           filename: a.filename,
@@ -155,6 +167,7 @@ export async function sendMail(
         subject,
         html: clean,
         text: plainText,
+        ...(replyTo ? { replyTo } : {}),
         ...(attachments?.length ? {
           attachments: attachments.map(a => ({
             filename: a.filename,

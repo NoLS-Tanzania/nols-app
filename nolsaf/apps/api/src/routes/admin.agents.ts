@@ -11,8 +11,9 @@ import { buildOperatorProfileSeed, mergeOperatorProfileSeed } from "../lib/opera
 import { rateLimitWithRedis as rateLimit } from "../lib/redisRateLimitStore.js";
 import { Prisma } from "@prisma/client";
 import { sendMail } from "../lib/mailer.js";
-import { getAgentSuspensionEmail, getAgentRestorationEmail } from "../lib/authEmailTemplates.js";
+import { getAgentSuspensionEmail, getAgentRestorationEmail, getOperatorProfileApprovedEmail, getOperatorProfileRejectedEmail } from "../lib/authEmailTemplates.js";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 
 // ============================================================
 // Constants
@@ -306,7 +307,19 @@ function normalizePhone(phone: unknown): string | null {
   return normalized ? normalized : null;
 }
 
+// The hired-application backfill below is a best-effort safety net — agents are
+// provisioned at hire time (admin.careers.applications.ts). Running it on every
+// admin list load multiplied DB write traffic (each write replaces the whole
+// operatorProfile JSON column, risking lost updates against concurrent operator
+// edits) and added seconds of latency on remote DBs. Throttle per instance.
+let lastEnsureAgentsRunAt = 0;
+const ENSURE_AGENTS_MIN_INTERVAL_MS = 5 * 60 * 1000;
+
 async function ensureAgentsFromHiredApplications(req: AuthedRequest): Promise<void> {
+  const now = Date.now();
+  if (now - lastEnsureAgentsRunAt < ENSURE_AGENTS_MIN_INTERVAL_MS) return;
+  lastEnsureAgentsRunAt = now;
+
   const normalizeLanguageStrings = (value: unknown): string[] => {
     if (!Array.isArray(value)) return [];
     const out: string[] = [];
@@ -402,6 +415,11 @@ async function ensureAgentsFromHiredApplications(req: AuthedRequest): Promise<vo
           educationLevel: true,
           yearsOfExperience: true,
           languages: true,
+          // operatorProfile MUST be loaded here: the backfill loop below merges the
+          // seed into it and writes the result back. Without it, the merge sees
+          // `undefined` and overwrites the operator's full profile with seed-only data
+          // on every admin agents list load.
+          operatorProfile: true,
           user: {
             select: {
               id: true,
@@ -583,7 +601,9 @@ async function ensureAgentsFromHiredApplications(req: AuthedRequest): Promise<vo
         if (e?.code === "P2002") {
           agent = await prisma.agent.findUnique({
             where: { userId: user.id },
-            select: { id: true },
+            // operatorProfile must be selected: the backfill below merges into it
+            // and writes the result back — without it the merge wipes the profile.
+            select: { id: true, areasOfOperation: true, specializations: true, educationLevel: true, yearsOfExperience: true, languages: true, operatorProfile: true },
           });
         } else {
           console.warn("[ensureAgentsFromHiredApplications] Failed to create agent", {
@@ -662,8 +682,14 @@ async function ensureAgentsFromHiredApplications(req: AuthedRequest): Promise<vo
           if (incomingLanguages.length > 0) agentUpdate.languages = incomingLanguages;
         }
 
-        if (Object.keys(operatorProfileSeed).length > 0) {
-          agentUpdate.operatorProfile = mergeOperatorProfileSeed((agent as any).operatorProfile, operatorProfileSeed) as any;
+        if (Object.keys(operatorProfileSeed).length > 0 && (agent as any).operatorProfile !== undefined) {
+          const mergedProfile = mergeOperatorProfileSeed((agent as any).operatorProfile, operatorProfileSeed) as any;
+          // Only write when the merge actually fills a previously-blank field —
+          // unconditional writes replace the whole JSON column and can destroy
+          // concurrent operator edits/submissions.
+          if (JSON.stringify(mergedProfile) !== JSON.stringify((agent as any).operatorProfile ?? {})) {
+            agentUpdate.operatorProfile = mergedProfile;
+          }
         }
 
         if (Object.keys(agentUpdate).length > 0) {
@@ -788,8 +814,14 @@ async function ensureAgentsFromHiredApplications(req: AuthedRequest): Promise<vo
         if (incomingLanguages.length > 0) agentUpdate.languages = incomingLanguages;
       }
 
-      if (Object.keys(operatorProfileSeed).length > 0) {
-        agentUpdate.operatorProfile = mergeOperatorProfileSeed(agent.operatorProfile, operatorProfileSeed) as any;
+      if (Object.keys(operatorProfileSeed).length > 0 && agent.operatorProfile !== undefined) {
+        const mergedProfile = mergeOperatorProfileSeed(agent.operatorProfile, operatorProfileSeed) as any;
+        // Only write when the merge actually fills a previously-blank field.
+        // Writing unconditionally replaces the whole JSON column on every admin
+        // list load, which destroys concurrent operator edits/submissions.
+        if (JSON.stringify(mergedProfile) !== JSON.stringify(agent.operatorProfile ?? {})) {
+          agentUpdate.operatorProfile = mergedProfile;
+        }
       }
 
       if (Object.keys(agentUpdate).length > 0) {
@@ -1471,7 +1503,12 @@ router.patch(
 
       const agent = await prisma.agent.findUnique({
         where: { id: Number(id) },
-        select: { id: true, userId: true, operatorProfile: true },
+        select: {
+          id: true,
+          userId: true,
+          operatorProfile: true,
+          user: { select: { id: true, email: true, name: true, fullName: true, passwordHash: true } },
+        },
       });
       if (!agent) return sendError(res, 404, "Agent not found");
 
@@ -1533,6 +1570,71 @@ router.patch(
           reason: cleanReason || null,
         },
       );
+
+      // Notify the operator by email — this is their only signal that the
+      // review happened, and (if they never finished onboarding) the only
+      // way they can get a working password-setup link.
+      const recipientEmail = agent.user?.email;
+      if (recipientEmail) {
+        try {
+          const recipientName = agent.user?.fullName || agent.user?.name || "Operator";
+          const companyName = typeof currentProfile.companyName === "string" ? currentProfile.companyName : undefined;
+          const origin = process.env.WEB_ORIGIN || process.env.APP_ORIGIN || "http://localhost:3000";
+          const portalUrl = `${origin}/account/agent`;
+          const loginUrl = `${origin}/account/login`;
+
+          let setupLink: string | undefined;
+          let setupLinkExpiresHours: number | undefined;
+
+          if (!agent.user?.passwordHash) {
+            const raw = crypto.randomBytes(24).toString("hex");
+            const hashed = crypto.createHash("sha256").update(raw).digest("hex");
+            const expiresAt = Date.now() + 1000 * 60 * 60 * 72; // 72 hours
+
+            await prisma.user.update({
+              where: { id: agent.userId },
+              data: {
+                resetPasswordToken: hashed as any,
+                resetPasswordExpires: new Date(expiresAt) as any,
+              } as any,
+            });
+
+            const next = encodeURIComponent("/account/agent");
+            const usernameParam = recipientEmail ? `&username=${encodeURIComponent(recipientEmail)}` : "";
+            setupLink = `${origin}/account/reset-password?token=${raw}&id=${agent.userId}&next=${next}&reason=onboarding${usernameParam}`;
+            setupLinkExpiresHours = 72;
+          }
+
+          const { subject, html } = status === "APPROVED"
+            ? getOperatorProfileApprovedEmail({
+                name: recipientName,
+                companyName,
+                portalUrl,
+                loginUrl,
+                setupLink,
+                setupLinkExpiresHours,
+                contactEmail: "partners@nolsaf.com",
+              })
+            : getOperatorProfileRejectedEmail({
+                name: recipientName,
+                companyName,
+                reason: cleanReason || undefined,
+                portalUrl,
+                loginUrl,
+                setupLink,
+                setupLinkExpiresHours,
+                contactEmail: "partners@nolsaf.com",
+              });
+
+          sendMail(recipientEmail, subject, html, undefined, { replyTo: "partners@nolsaf.com" }).catch((err: any) =>
+            console.warn("[PROFILE_REVIEW] Notification email failed:", err?.message)
+          );
+        } catch (notifyErr: any) {
+          console.warn("[PROFILE_REVIEW] Failed to prepare notification email:", notifyErr?.message);
+        }
+      } else {
+        console.warn("[PROFILE_REVIEW] Skipping notification: agent has no email on file", { agentId: agent.id });
+      }
 
       return sendSuccess(res, {
         review: (updated.operatorProfile as any)?.review || null,
@@ -1955,7 +2057,7 @@ router.post(
           suspendedAt: now.toLocaleString("en-GB", { dateStyle: "long", timeStyle: "short" }),
           contactEmail: "hr@nolsaf.com",
         });
-        sendMail(recipientEmail, subject, html).catch((err: any) =>
+        sendMail(recipientEmail, subject, html, undefined, { replyTo: "hr@nolsaf.com" }).catch((err: any) =>
           console.warn("[SUSPEND] Suspension email failed:", err?.message)
         );
       }
@@ -2034,7 +2136,7 @@ router.post(
           notes,
           contactEmail: "hr@nolsaf.com",
         });
-        sendMail(recipientEmail, subject, html).catch((err: any) =>
+        sendMail(recipientEmail, subject, html, undefined, { replyTo: "hr@nolsaf.com" }).catch((err: any) =>
           console.warn("[RESTORE] Restoration email failed:", err?.message)
         );
       }

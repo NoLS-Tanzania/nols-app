@@ -7,6 +7,7 @@ import { prisma } from "@nolsaf/prisma";
 import { AuthedRequest, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../middleware/errorHandler.js";
 import { audit } from "../lib/audit.js";
+import { notifyAdmins } from "../lib/notifications.js";
 import {
   limitAgentNotifyAdmin,
   limitAgentPortalRead,
@@ -890,17 +891,25 @@ router.get(
     }
 
     try {
-      const linkedApp = (agent as any).applications?.[0];
-      const operatorProfileSeed = buildOperatorProfileSeed(linkedApp?.agentApplicationData, {
-        fullName: linkedApp?.fullName,
-        email: linkedApp?.email,
-        phone: linkedApp?.phone,
-        region: linkedApp?.region,
-        district: linkedApp?.district,
-      });
-      if (Object.keys(operatorProfileSeed).length > 0) {
-        const mergedProfile = mergeOperatorProfileSeed((agent as any).operatorProfile, operatorProfileSeed);
-        if (JSON.stringify(mergedProfile) !== JSON.stringify((agent as any).operatorProfile ?? {})) {
+      // Only hydrate operatorProfile from the original application ONCE, when it has
+      // never been initialized. GET /me is polled/refreshed constantly, and this read
+      // of `agent.operatorProfile` can be seconds stale by the time we write it back
+      // (Aiven write latency observed at 4s+) — re-running this merge on every request
+      // risks racing with a concurrent PATCH/submit and clobbering it back to seed-only
+      // data, wiping out the operator's saved/submitted profile.
+      const existingProfile = (agent as any).operatorProfile;
+      const hasExistingProfile = existingProfile && typeof existingProfile === "object" && Object.keys(existingProfile).length > 0;
+      if (!hasExistingProfile) {
+        const linkedApp = (agent as any).applications?.[0];
+        const operatorProfileSeed = buildOperatorProfileSeed(linkedApp?.agentApplicationData, {
+          fullName: linkedApp?.fullName,
+          email: linkedApp?.email,
+          phone: linkedApp?.phone,
+          region: linkedApp?.region,
+          district: linkedApp?.district,
+        });
+        if (Object.keys(operatorProfileSeed).length > 0) {
+          const mergedProfile = mergeOperatorProfileSeed(existingProfile, operatorProfileSeed);
           await prisma.agent.update({
             where: { id: agent.id },
             data: { operatorProfile: mergedProfile as any },
@@ -1126,6 +1135,14 @@ router.post(
     const nowIso = new Date().toISOString();
     const updatedProfile = {
       ...profile,
+      // Reset top-level review fields left over from a prior admin decision
+      // (e.g. reviewStatus: "APPROVED"/"REJECTED") so they don't shadow the
+      // fresh `review.status: "PENDING"` below in admin UIs that read
+      // `reviewStatus || review.status`.
+      reviewStatus: "PENDING",
+      reviewReason: null,
+      reviewedAt: null,
+      reviewedByAdminId: null,
       review: {
         status: "PENDING",
         submittedAt: nowIso,
@@ -1876,6 +1893,16 @@ router.post(
       );
     } catch {
       // ignore audit failures for claim response path
+    }
+
+    try {
+      await notifyAdmins("payout_claim_submitted", {
+        tourBookingId: updated.id,
+        bookingCode: updated.bookingCode,
+        operatorName: (agent.operatorProfile as any)?.companyName || null,
+      });
+    } catch {
+      // non-fatal
     }
 
     return res.json({

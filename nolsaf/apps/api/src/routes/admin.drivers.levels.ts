@@ -5,6 +5,19 @@ import { requireAuth, requireRole } from "../middleware/auth.js";
 export const router = Router();
 router.use(requireAuth as unknown as RequestHandler, requireRole("ADMIN") as unknown as RequestHandler);
 
+const ACCOMPLISHED_TRIP_STATUSES = ["COMPLETED", "FINISHED"];
+const PAID_PAYOUT_STATUS = "PAID";
+
+const toNumber = (value: unknown) => {
+  const n = Number(value ?? 0);
+  return Number.isFinite(n) ? n : 0;
+};
+
+const parseRating = (value: unknown) => {
+  const n = Number(value ?? 0);
+  return Number.isFinite(n) && n > 0 ? n : null;
+};
+
 /**
  * Calculate driver level based on metrics
  */
@@ -12,10 +25,20 @@ async function calculateDriverLevel(driverId: number): Promise<{
   currentLevel: number;
   levelName: string;
   totalEarnings: number;
+  grossRevenue: number;
+  nolsafRevenue: number;
+  paidEarnings: number;
   totalTrips: number;
+  paidTrips: number;
+  invoiceCount: number;
+  pendingPayouts: number;
+  verifiedPayouts: number;
+  approvedPayouts: number;
   averageRating: number;
   totalReviews: number;
   goalsCompleted: number;
+  lastTripAt: string | null;
+  lastPaidAt: string | null;
   progress: {
     earnings: number;
     trips: number;
@@ -26,14 +49,92 @@ async function calculateDriverLevel(driverId: number): Promise<{
   levelBenefits: string[];
 }> {
   let totalEarnings = 0;
+  let grossRevenue = 0;
+  let nolsafRevenue = 0;
+  let paidEarnings = 0;
   let totalTrips = 0;
+  let paidTrips = 0;
+  let invoiceCount = 0;
+  let pendingPayouts = 0;
+  let verifiedPayouts = 0;
+  let approvedPayouts = 0;
   let averageRating = 0;
   let totalReviews = 0;
   let goalsCompleted = 0;
+  let lastTripAt: string | null = null;
+  let lastPaidAt: string | null = null;
 
   try {
-    // Calculate total earnings from completed bookings with invoices
-    if ((prisma as any).booking && (prisma as any).invoice) {
+    if ((prisma as any).transportPayout) {
+      const payouts = await (prisma as any).transportPayout.findMany({
+        where: {
+          driverId,
+          booking: {
+            status: { in: ACCOMPLISHED_TRIP_STATUSES },
+          },
+        },
+        include: {
+          booking: {
+            select: {
+              id: true,
+              status: true,
+              userRating: true,
+              rating: true,
+              driverRating: true,
+              scheduledDate: true,
+              dropoffTime: true,
+              updatedAt: true,
+            },
+          },
+        },
+      });
+
+      invoiceCount = payouts.length;
+      const tripIds = new Set<number>();
+      const ratings: number[] = [];
+      let newestTripTime = 0;
+      let newestPaidTime = 0;
+
+      for (const payout of payouts) {
+        const status = String(payout?.status ?? "").toUpperCase();
+        const booking = payout?.booking;
+        const bookingId = Number(payout?.transportBookingId ?? booking?.id);
+        if (Number.isFinite(bookingId)) tripIds.add(bookingId);
+
+        grossRevenue += toNumber(payout?.grossAmount);
+        nolsafRevenue += toNumber(payout?.commissionAmount);
+
+        if (status === PAID_PAYOUT_STATUS) {
+          paidTrips += 1;
+          paidEarnings += toNumber(payout?.netPaid);
+        } else if (status === "PENDING") {
+          pendingPayouts += 1;
+        } else if (status === "VERIFIED") {
+          verifiedPayouts += 1;
+        } else if (status === "APPROVED") {
+          approvedPayouts += 1;
+        }
+
+        const rating = parseRating(booking?.userRating ?? booking?.rating ?? booking?.driverRating);
+        if (rating != null) ratings.push(rating);
+
+        const tripDate = booking?.dropoffTime ?? booking?.updatedAt ?? booking?.scheduledDate ?? payout?.updatedAt ?? payout?.createdAt;
+        const tripTime = tripDate ? new Date(tripDate).getTime() : 0;
+        if (Number.isFinite(tripTime) && tripTime > newestTripTime) newestTripTime = tripTime;
+
+        const paidTime = payout?.paidAt ? new Date(payout.paidAt).getTime() : 0;
+        if (Number.isFinite(paidTime) && paidTime > newestPaidTime) newestPaidTime = paidTime;
+      }
+
+      totalTrips = tripIds.size;
+      totalEarnings = paidEarnings;
+      totalReviews = ratings.length;
+      averageRating = ratings.length
+        ? ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length
+        : 0;
+      lastTripAt = newestTripTime ? new Date(newestTripTime).toISOString() : null;
+      lastPaidAt = newestPaidTime ? new Date(newestPaidTime).toISOString() : null;
+    } else if ((prisma as any).booking && (prisma as any).invoice) {
       const where = {
         driverId,
         status: {
@@ -118,17 +219,16 @@ async function calculateDriverLevel(driverId: number): Promise<{
       where: { id: driverId },
       select: { rating: true } as any,
     });
-    if (driver && typeof (driver as any).rating === 'number') {
-      averageRating = (driver as any).rating;
+    const storedRating = parseRating((driver as any)?.rating);
+    if (!averageRating && storedRating != null) {
+      averageRating = storedRating;
     }
 
-    if ((prisma as any).review) {
+    if (!totalReviews && (prisma as any).review) {
       const reviewCount = await (prisma as any).review.count({
         where: { driverId },
       });
       totalReviews = reviewCount;
-    } else {
-      totalReviews = averageRating > 0 ? Math.round(averageRating * 25) : 0;
     }
   } catch (e) {
     console.warn('Failed to fetch rating/reviews for driver', driverId, e);
@@ -147,6 +247,17 @@ async function calculateDriverLevel(driverId: number): Promise<{
       });
       goalsCompleted = goalCompletions;
     }
+
+    const connectedAchievements = [
+      totalTrips >= 1,
+      totalTrips >= 25,
+      totalTrips >= 100,
+      paidTrips >= 1,
+      paidEarnings >= 100_000,
+      paidEarnings >= 500_000,
+      averageRating >= 4.5 && totalReviews >= 1,
+    ].filter(Boolean).length;
+    goalsCompleted += connectedAchievements;
   } catch (e) {
     console.warn('Failed to fetch goals for driver', driverId, e);
   }
@@ -200,10 +311,20 @@ async function calculateDriverLevel(driverId: number): Promise<{
     currentLevel,
     levelName,
     totalEarnings: Math.round(totalEarnings),
+    grossRevenue: Math.round(grossRevenue),
+    nolsafRevenue: Math.round(nolsafRevenue),
+    paidEarnings: Math.round(paidEarnings),
     totalTrips,
+    paidTrips,
+    invoiceCount,
+    pendingPayouts,
+    verifiedPayouts,
+    approvedPayouts,
     averageRating: parseFloat(averageRating.toFixed(1)),
     totalReviews,
     goalsCompleted,
+    lastTripAt,
+    lastPaidAt,
     progress: {
       earnings: Math.round(progress.earnings),
       trips: Math.round(progress.trips),
@@ -253,8 +374,11 @@ router.get("/", async (req, res) => {
           createdAt: true,
           region: true,
           district: true,
+          operationArea: true,
           vehicleType: true,
           plateNumber: true,
+          vehiclePlate: true,
+          kycStatus: true,
         },
         orderBy: { id: "desc" },
         skip,
@@ -310,7 +434,7 @@ router.get("/:id", async (req, res) => {
   try {
     const driverId = Number(req.params.id);
 
-    const driver = await prisma.user.findUnique({
+    const driver = await prisma.user.findFirst({
       where: { id: driverId, role: "DRIVER" },
       select: {
         id: true,
@@ -321,6 +445,11 @@ router.get("/:id", async (req, res) => {
         createdAt: true,
         region: true,
         district: true,
+        operationArea: true,
+        vehicleType: true,
+        plateNumber: true,
+        vehiclePlate: true,
+        kycStatus: true,
       },
     });
 

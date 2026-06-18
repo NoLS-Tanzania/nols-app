@@ -1,6 +1,21 @@
 "use client";
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
-import { FileText, Search, X, Calendar, DollarSign, Clock, BarChart3 } from "lucide-react";
+import Link from "next/link";
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  Eye,
+  FileText,
+  Search,
+  X,
+  Calendar,
+  DollarSign,
+  Clock,
+  BarChart3,
+  Percent,
+  Route,
+} from "lucide-react";
 import DatePicker from "@/components/ui/DatePicker";
 import apiClient from "@/lib/apiClient";
 import Chart from "@/components/Chart";
@@ -19,19 +34,45 @@ function isTripCodeLike(input: string) {
 
 type InvoiceRow = {
   id: number;
+  payoutId?: number;
+  invoiceId: number | null;
   invoiceNumber: string;
   receiptNumber: string | null;
+  trip: {
+    id: number;
+    code: string;
+    status: string;
+    scheduledAt: string | null;
+    pickup: string;
+    dropoff: string;
+    pickupCoordinate?: string | null;
+    dropoffCoordinate?: string | null;
+    vehicleType: string | null;
+  } | null;
   driver: { id: number; name: string; email: string; phone: string | null } | null;
   amount: number;
+  currency?: string;
+  gross: number;
+  commissionPercent: number;
+  commissionAmount: number;
   status: string;
+  paymentMethod?: string | null;
+  paymentRef?: string | null;
+  adminNotes?: string | null;
+  requestedAt: string;
   issuedAt: string;
   createdAt: string;
 };
+
+type SortKey = "trip" | "invoiceNumber" | "driver" | "route" | "amount" | "gross" | "commissionPercent" | "requestedAt" | "issuedAt" | "status";
+type SortDirection = "asc" | "desc";
 
 function badgeClasses(v: string) {
   switch (v) {
     case "PENDING":
       return "bg-gray-100 text-gray-700";
+    case "VERIFIED":
+      return "bg-teal-100 text-teal-700";
     case "APPROVED":
       return "bg-blue-100 text-blue-700";
     case "PROCESSING":
@@ -42,6 +83,22 @@ function badgeClasses(v: string) {
       return "bg-red-100 text-red-700";
     default:
       return "bg-gray-100 text-gray-700";
+  }
+}
+
+function payoutStatusLabel(status: string) {
+  switch (String(status || "").toUpperCase()) {
+    case "PENDING":
+      return "Requested";
+    case "VERIFIED":
+      return "Verified";
+    case "APPROVED":
+    case "PROCESSING":
+      return "Approved";
+    case "PAID":
+      return "Disbursed";
+    default:
+      return "Requested";
   }
 }
 
@@ -77,7 +134,7 @@ type TripLookupBooking = {
 type TripLookupResponse = { booking: TripLookupBooking };
 
 export default function AdminDriversInvoicesPage() {
-  const [status, setStatus] = useState<string>("");
+  const [status, setStatus] = useState<string>("PENDING");
   const [date, setDate] = useState<string | string[]>("");
   const [q, setQ] = useState("");
   const [list, setList] = useState<InvoiceRow[]>([]);
@@ -88,6 +145,7 @@ export default function AdminDriversInvoicesPage() {
   const searchRef = useRef<HTMLInputElement | null>(null);
   const [pickerAnim, setPickerAnim] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [sort, setSort] = useState<{ key: SortKey; direction: SortDirection }>({ key: "requestedAt", direction: "desc" });
 
   const [tripLookupLoading, setTripLookupLoading] = useState(false);
   const [tripLookupError, setTripLookupError] = useState<string | null>(null);
@@ -128,6 +186,13 @@ export default function AdminDriversInvoicesPage() {
       setLoading(false);
     }
   }, [page, pageSize, status, date, q]);
+
+  const toggleSort = useCallback((key: SortKey) => {
+    setSort((current) => ({
+      key,
+      direction: current.key === key && current.direction === "asc" ? "desc" : "asc",
+    }));
+  }, []);
 
   const lookupTripCode = useCallback(
     async (code: string) => {
@@ -218,6 +283,97 @@ export default function AdminDriversInvoicesPage() {
 
   const pages = Math.max(1, Math.ceil(total / pageSize));
 
+  const sortedList = useMemo(() => {
+    const valueFor = (invoice: InvoiceRow) => {
+      switch (sort.key) {
+        case "trip":
+          return invoice.trip?.code || invoice.trip?.id || "";
+        case "invoiceNumber":
+          return invoice.invoiceNumber || `INV-${invoice.id}`;
+        case "driver":
+          return invoice.driver?.name || invoice.driver?.email || "";
+        case "route":
+          return `${invoice.trip?.pickup || ""} ${invoice.trip?.dropoff || ""}`;
+        case "amount":
+          return Number(invoice.amount ?? 0);
+        case "gross":
+          return Number(invoice.gross ?? 0);
+        case "commissionPercent":
+          return Number(invoice.commissionPercent ?? 0);
+        case "requestedAt":
+          return new Date(invoice.requestedAt).getTime() || 0;
+        case "issuedAt":
+          return new Date(invoice.issuedAt).getTime() || 0;
+        case "status":
+          return invoice.status || "";
+        default:
+          return "";
+      }
+    };
+
+    return [...list].sort((a, b) => {
+      const av = valueFor(a);
+      const bv = valueFor(b);
+      if (typeof av === "number" && typeof bv === "number") {
+        return sort.direction === "asc" ? av - bv : bv - av;
+      }
+      return sort.direction === "asc"
+        ? String(av).localeCompare(String(bv))
+        : String(bv).localeCompare(String(av));
+    });
+  }, [list, sort]);
+
+  const SortIcon = ({ column }: { column: SortKey }) => {
+    if (sort.key !== column) return <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />;
+    return sort.direction === "asc" ? (
+      <ArrowUp className="h-3.5 w-3.5 text-blue-600" />
+    ) : (
+      <ArrowDown className="h-3.5 w-3.5 text-blue-600" />
+    );
+  };
+
+  const SortHeader = ({ column, label }: { column: SortKey; label: string }) => (
+    <button
+      type="button"
+      onClick={() => toggleSort(column)}
+      className="inline-flex appearance-none items-center gap-1.5 whitespace-nowrap border-0 bg-transparent p-0 text-left text-xs font-medium uppercase tracking-wider text-gray-500 shadow-none outline-none transition-colors hover:text-gray-800 focus:text-gray-800 focus:ring-0"
+    >
+      <span>{label}</span>
+      <SortIcon column={column} />
+    </button>
+  );
+
+  const formatDate = (value: string | null | undefined) => {
+    if (!value) return "N/A";
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return "N/A";
+    return d.toLocaleDateString("en-GB");
+  };
+
+  const formatDateTime = (value: string | null | undefined) => {
+    if (!value) return "N/A";
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return "N/A";
+    return d.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" });
+  };
+
+  const formatMoney = (value: number | null | undefined, currency = "TZS") =>
+    `${Number(value ?? 0).toLocaleString()} ${currency || "TZS"}`;
+
+  const tripLabel = (invoice: InvoiceRow) => invoice.trip?.code || `TRIP-${invoice.trip?.id || invoice.id}`;
+
+  const routeLine = (label: string, address?: string | null, coordinate?: string | null) => {
+    const primary = address && address !== "N/A" ? address : coordinate || "N/A";
+    return (
+      <div className="flex min-w-0 items-start gap-1.5">
+        <span className="mt-px flex-shrink-0 text-[10px] font-semibold uppercase tracking-wide text-gray-400">{label}</span>
+        <span className="min-w-0 truncate text-gray-700">{primary}</span>
+      </div>
+    );
+  };
+
+  const showingPendingReview = status === "PENDING" || status === "VERIFIED";
+
   // Prepare histogram chart data
   const histogramChartData = useMemo<ChartData<"bar">>(() => {
     if (!histogramData || histogramData.stats.length === 0) {
@@ -245,7 +401,7 @@ export default function AdminDriversInvoicesPage() {
           borderWidth: 1,
         },
         {
-          label: "Paid",
+          label: "Disbursed",
           data: histogramData.stats.map((s) => s.paid),
           backgroundColor: "rgba(16, 185, 129, 0.6)",
           borderColor: "rgba(16, 185, 129, 1)",
@@ -307,18 +463,17 @@ export default function AdminDriversInvoicesPage() {
           <div className="grid grid-cols-3 lg:grid-cols-6 gap-2.5">
             {([
               { label: "All",        val: "",           color: "#e2e8f0", bg: "rgba(255,255,255,0.14)",  border: "rgba(255,255,255,0.24)"  },
-              { label: "Pending",    val: "PENDING",    color: "#94a3b8", bg: "rgba(148,163,184,0.15)", border: "rgba(148,163,184,0.28)" },
+              { label: "Requested",  val: "PENDING",    color: "#94a3b8", bg: "rgba(148,163,184,0.15)", border: "rgba(148,163,184,0.28)" },
+              { label: "Verified",   val: "VERIFIED",   color: "#5eead4", bg: "rgba(20,184,166,0.18)",  border: "rgba(20,184,166,0.32)"  },
               { label: "Approved",   val: "APPROVED",   color: "#93c5fd", bg: "rgba(59,130,246,0.18)",  border: "rgba(59,130,246,0.32)"  },
-              { label: "Processing", val: "PROCESSING", color: "#fcd34d", bg: "rgba(245,158,11,0.18)",  border: "rgba(245,158,11,0.32)"  },
-              { label: "Paid",       val: "PAID",       color: "#6ee7b7", bg: "rgba(16,185,129,0.18)",  border: "rgba(16,185,129,0.32)"  },
-              { label: "Rejected",   val: "REJECTED",   color: "#fca5a5", bg: "rgba(239,68,68,0.18)",   border: "rgba(239,68,68,0.32)"   },
+              { label: "Disbursed",  val: "PAID",       color: "#6ee7b7", bg: "rgba(16,185,129,0.18)",  border: "rgba(16,185,129,0.32)"  },
             ] as const).map((chip) => {
               const count = list.filter((r) => chip.val === "" || r.status === chip.val).length;
               return (
                 <button
                   key={chip.val}
                   type="button"
-                  onClick={() => { setStatus(chip.val); setPage(1); setTimeout(() => load(), 0); }}
+                  onClick={() => { setStatus(chip.val); setPage(1); }}
                   className="rounded-xl px-3 py-2.5 text-left transition-all duration-200"
                   style={{
                     background: status === chip.val ? chip.bg.replace(/0\.1[0-9]/, "0.30") : chip.bg,
@@ -396,18 +551,17 @@ export default function AdminDriversInvoicesPage() {
             <div className="flex gap-2 items-center flex-wrap">
               {([
                 { label: "All",        value: "",           activeBg: "rgba(255,255,255,0.18)",  activeBorder: "rgba(255,255,255,0.38)",  activeColor: "#ffffff",  inBg: "rgba(255,255,255,0.06)",  inBorder: "rgba(255,255,255,0.12)" },
-                { label: "Pending",    value: "PENDING",    activeBg: "rgba(148,163,184,0.25)",  activeBorder: "rgba(148,163,184,0.55)",  activeColor: "#e2e8f0",  inBg: "rgba(148,163,184,0.07)",  inBorder: "rgba(148,163,184,0.18)" },
+                { label: "Requested",  value: "PENDING",    activeBg: "rgba(148,163,184,0.25)",  activeBorder: "rgba(148,163,184,0.55)",  activeColor: "#e2e8f0",  inBg: "rgba(148,163,184,0.07)",  inBorder: "rgba(148,163,184,0.18)" },
+                { label: "Verified",   value: "VERIFIED",   activeBg: "rgba(20,184,166,0.25)",   activeBorder: "rgba(20,184,166,0.55)",   activeColor: "#5eead4",  inBg: "rgba(20,184,166,0.08)",   inBorder: "rgba(20,184,166,0.20)"  },
                 { label: "Approved",   value: "APPROVED",   activeBg: "rgba(59,130,246,0.25)",   activeBorder: "rgba(59,130,246,0.55)",   activeColor: "#93c5fd",  inBg: "rgba(59,130,246,0.08)",   inBorder: "rgba(59,130,246,0.20)"  },
-                { label: "Processing", value: "PROCESSING", activeBg: "rgba(245,158,11,0.25)",   activeBorder: "rgba(245,158,11,0.55)",   activeColor: "#fcd34d",  inBg: "rgba(245,158,11,0.08)",   inBorder: "rgba(245,158,11,0.20)"  },
-                { label: "Paid",       value: "PAID",       activeBg: "rgba(16,185,129,0.25)",   activeBorder: "rgba(16,185,129,0.55)",   activeColor: "#6ee7b7",  inBg: "rgba(16,185,129,0.08)",   inBorder: "rgba(16,185,129,0.20)"  },
-                { label: "Rejected",   value: "REJECTED",   activeBg: "rgba(239,68,68,0.25)",    activeBorder: "rgba(239,68,68,0.55)",    activeColor: "#fca5a5",  inBg: "rgba(239,68,68,0.08)",    inBorder: "rgba(239,68,68,0.20)"   },
+                { label: "Disbursed",  value: "PAID",       activeBg: "rgba(16,185,129,0.25)",   activeBorder: "rgba(16,185,129,0.55)",   activeColor: "#6ee7b7",  inBg: "rgba(16,185,129,0.08)",   inBorder: "rgba(16,185,129,0.20)"  },
               ] as const).map((s) => {
                 const isActive = status === s.value;
                 return (
                   <button
                     key={s.value}
                     type="button"
-                    onClick={() => { setStatus(s.value); setPage(1); setTimeout(() => load(), 0); }}
+                    onClick={() => { setStatus(s.value); setPage(1); }}
                     className="px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 whitespace-nowrap flex-shrink-0"
                     style={isActive ? { background: s.activeBg, border: `1.5px solid ${s.activeBorder}`, color: s.activeColor } : { background: s.inBg, border: `1.5px solid ${s.inBorder}`, color: 'rgba(255,255,255,0.60)' }}
                   >
@@ -675,47 +829,117 @@ export default function AdminDriversInvoicesPage() {
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoice #</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Driver</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Issued At</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  </tr>
+                  {showingPendingReview ? (
+                    <tr>
+                      <th className="px-6 py-3 text-left"><SortHeader column="trip" label="Trip ID" /></th>
+                      <th className="px-6 py-3 text-left"><SortHeader column="invoiceNumber" label="Invoice No" /></th>
+                      <th className="px-6 py-3 text-left"><SortHeader column="driver" label="Driver Name" /></th>
+                      <th className="px-6 py-3 text-left"><SortHeader column="route" label="Route" /></th>
+                      <th className="px-6 py-3 text-left"><SortHeader column="amount" label="Amount" /></th>
+                      <th className="px-6 py-3 text-left"><SortHeader column="commissionPercent" label="NoLSAF %" /></th>
+                      <th className="px-6 py-3 text-left"><SortHeader column="gross" label="Trip Rate" /></th>
+                      <th className="px-6 py-3 text-left"><SortHeader column="requestedAt" label="Requested At" /></th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                    </tr>
+                  ) : (
+                    <tr>
+                      <th className="px-6 py-3 text-left"><SortHeader column="invoiceNumber" label="Invoice #" /></th>
+                      <th className="px-6 py-3 text-left"><SortHeader column="trip" label="Trip" /></th>
+                      <th className="px-6 py-3 text-left"><SortHeader column="driver" label="Driver" /></th>
+                      <th className="px-6 py-3 text-left"><SortHeader column="amount" label="Amount" /></th>
+                      <th className="px-6 py-3 text-left"><SortHeader column="issuedAt" label="Issued At" /></th>
+                      <th className="px-6 py-3 text-left"><SortHeader column="status" label="Status" /></th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                    </tr>
+                  )}
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {list.map((invoice) => (
+                  {sortedList.map((invoice) => (
                     <tr key={invoice.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {invoice.invoiceNumber || `INV-${invoice.id}`}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {invoice.driver ? (
-                          <div>
-                            <div className="font-medium">{invoice.driver.name}</div>
-                            <div className="text-xs text-gray-500">{invoice.driver.email}</div>
-                          </div>
-                        ) : (
-                          <span className="text-gray-400">Unassigned</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <div className="flex items-center gap-2">
-                          <DollarSign className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                          <span>{invoice.amount.toLocaleString()} TZS</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                          <span>{new Date(invoice.issuedAt).toLocaleDateString()}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${badgeClasses(invoice.status)}`}>
-                          {invoice.status}
-                        </span>
-                      </td>
+                      {showingPendingReview ? (
+                        <>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 min-w-[220px]">
+                            <div className="flex items-center gap-2">
+                              <span className="inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-sky-100 bg-sky-50 text-sky-700">
+                                <Route className="h-4 w-4" />
+                              </span>
+                              <span
+                                title={tripLabel(invoice)}
+                                className="inline-block max-w-[165px] truncate rounded-md bg-slate-50 px-2.5 py-1 font-mono text-xs font-semibold tracking-tight text-slate-800 ring-1 ring-slate-200"
+                              >
+                                {tripLabel(invoice)}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{invoice.invoiceNumber || `DP-${invoice.id}`}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <div className="font-medium">{invoice.driver?.name || "Unassigned"}</div>
+                            <div className="text-xs text-gray-500">{invoice.driver?.email || "No driver email"}</div>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-700 min-w-[280px] max-w-[360px]">
+                            <div className="space-y-1">
+                              {routeLine("PU", invoice.trip?.pickup, invoice.trip?.pickupCoordinate)}
+                              {routeLine("DO", invoice.trip?.dropoff, invoice.trip?.dropoffCoordinate)}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-emerald-700">{formatMoney(invoice.amount, invoice.currency)}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <span className="inline-flex items-center gap-1">
+                              <Percent className="h-3.5 w-3.5 text-gray-400" />
+                              {Number(invoice.commissionPercent ?? 0).toLocaleString()}%
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatMoney(invoice.gross, invoice.currency)}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatDateTime(invoice.requestedAt)}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right">
+                            <Link
+                              href={`/admin/drivers/invoices/review?id=${invoice.id}`}
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:border-gray-400"
+                              aria-label={`Open ${invoice.invoiceNumber || `DP-${invoice.id}`}`}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Link>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{invoice.invoiceNumber || `DP-${invoice.id}`}</td>
+                          <td className="px-6 py-4 text-sm text-gray-900 min-w-[180px]">
+                            <div className="font-mono text-xs font-semibold text-gray-900">{tripLabel(invoice)}</div>
+                            <div className="text-xs text-gray-500">{invoice.trip?.vehicleType || "Transport trip"}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <div className="font-medium">{invoice.driver?.name || "Unassigned"}</div>
+                            <div className="text-xs text-gray-500">{invoice.driver?.email || "No driver email"}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <div className="flex items-center gap-2">
+                              <DollarSign className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                              <span>{formatMoney(invoice.amount, invoice.currency)}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <div className="flex items-center gap-2">
+                              <Clock className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                              <span>{formatDate(invoice.issuedAt)}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${badgeClasses(invoice.status)}`}>
+                              {payoutStatusLabel(invoice.status)}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right">
+                            <Link
+                              href={`/admin/drivers/invoices/review?id=${invoice.id}`}
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:border-gray-400"
+                              aria-label={`Open ${invoice.invoiceNumber || `DP-${invoice.id}`}`}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Link>
+                          </td>
+                        </>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -724,27 +948,45 @@ export default function AdminDriversInvoicesPage() {
 
             {/* Mobile Cards */}
             <div className="md:hidden space-y-2 p-4">
-              {list.map((invoice) => (
+              {sortedList.map((invoice) => (
                 <div key={invoice.id} className="border rounded-lg p-3 bg-white">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1">
                       <div className="font-medium text-gray-900">{invoice.invoiceNumber || `INV-${invoice.id}`}</div>
                       <div className="text-sm text-gray-500 mt-1">
-                        {invoice.driver?.name || "Unassigned"}
+                        {tripLabel(invoice)} / {invoice.driver?.name || "Unassigned"}
                       </div>
+                      {showingPendingReview && (
+                        <div className="mt-2 text-xs text-gray-500">
+                          <div>PU: {invoice.trip?.pickup && invoice.trip.pickup !== "N/A" ? invoice.trip.pickup : invoice.trip?.pickupCoordinate || "N/A"}</div>
+                          <div>DO: {invoice.trip?.dropoff && invoice.trip.dropoff !== "N/A" ? invoice.trip.dropoff : invoice.trip?.dropoffCoordinate || "N/A"}</div>
+                        </div>
+                      )}
                       <div className="text-xs text-gray-400 mt-1">
-                        {new Date(invoice.issuedAt).toLocaleDateString()}
+                        {showingPendingReview ? formatDateTime(invoice.requestedAt) : formatDate(invoice.issuedAt)}
                       </div>
                     </div>
                     <div className="flex flex-col items-end">
                       <span className={`px-2 py-1 text-xs font-medium rounded-full ${badgeClasses(invoice.status)}`}>
-                        {invoice.status}
+                        {payoutStatusLabel(invoice.status)}
                       </span>
                       <div className="text-sm font-semibold text-gray-900 mt-1">
-                        {invoice.amount.toLocaleString()} TZS
+                        {formatMoney(invoice.amount, invoice.currency)}
                       </div>
+                      {showingPendingReview && (
+                        <div className="mt-1 text-xs text-gray-500">
+                          {Number(invoice.commissionPercent ?? 0).toLocaleString()}% / {formatMoney(invoice.gross, invoice.currency)}
+                        </div>
+                      )}
                     </div>
                   </div>
+                  <Link
+                    href={`/admin/drivers/invoices/review?id=${invoice.id}`}
+                    className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 active:scale-[0.99]"
+                    aria-label={`Open ${invoice.invoiceNumber || `DP-${invoice.id}`}`}
+                  >
+                    <Eye className="h-4 w-4" />
+                  </Link>
                 </div>
               ))}
             </div>
@@ -778,6 +1020,7 @@ export default function AdminDriversInvoicesPage() {
           </>
         )}
       </div>
+
     </div>
   );
 }

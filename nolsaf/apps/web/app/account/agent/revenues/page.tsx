@@ -346,11 +346,17 @@ export default function AgentRevenuesPage() {
     if (payment === "REJECTED" || payout === "REJECTED" || invoice === "REJECTED") return "REJECTED";
     if (item.payoutPaidAt || payment === "DISBURSED" || payout === "DISBURSED" || payout === "PAID") return "DISBURSED";
     if (item.payoutApprovedAt || payment === "APPROVED" || payout === "APPROVED" || invoice === "APPROVED") return "APPROVED";
-    if (payment === "PAID" || payment === "VERIFIED" || payout === "VERIFIED" || invoice === "VERIFIED") return "VERIFIED";
+    // VERIFIED is an explicit admin action on a submitted claim. A customer
+    // payment of PAID does NOT verify the payout — the record stays NEW until
+    // the operator sends a claim, then CLAIMED until NoLSAF verifies it.
+    if (payout === "VERIFIED" || invoice === "VERIFIED" || payment === "VERIFIED") return "VERIFIED";
     return "NEW";
   }, []);
 
-  const hasClaimStarted = useCallback((item: RevenueItem) => Boolean(item.invoiceNumber || item.invoiceStatus || item.payoutRequestedAt), []);
+  const hasClaimStarted = useCallback((item: RevenueItem) => {
+    const payout = String(item.payoutStatus || "").toUpperCase();
+    return Boolean(item.invoiceNumber || item.invoiceStatus || item.payoutRequestedAt || payout === "CLAIMED" || payout === "REQUESTED");
+  }, []);
 
   const trackerStage = useCallback((item: RevenueItem): Exclude<TrackerFilter, "ALL"> => {
     const stage = normalizedStage(item);
@@ -696,50 +702,70 @@ export default function AgentRevenuesPage() {
               </div>
 
               {claimLookupMatch && (
-                <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-white p-3">
-                  <div className="grid grid-cols-1 gap-2 text-sm text-slate-700 sm:grid-cols-2">
-                    <div className="break-words"><span className="font-bold">Operation:</span> {claimLookupMatch.title}</div>
-                    <div className="break-words"><span className="font-bold">Client:</span> {claimLookupMatch.client || "-"}</div>
-                    <div className="break-words"><span className="font-bold">Nationality:</span> {claimLookupMatch.nationality || "-"}</div>
-                    <div className="break-words"><span className="font-bold">Total Paid:</span> {claimLookupMatch.currency} {Number(claimLookupMatch.budget || 0).toLocaleString()}</div>
-                    <div className="break-words"><span className="font-bold">Agent Revenue:</span> {claimLookupMatch.currency} {Number(claimLookupMatch.agentEarning || 0).toLocaleString()}</div>
-                    <div className="break-words"><span className="font-bold">NoLSAF Commission:</span> {claimLookupMatch.currency} {Number(claimLookupMatch.commissionAmount || 0).toLocaleString()} ({Number(claimLookupMatch.commissionPercent || 0)}%)</div>
+                <div className="mt-4 min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/70 px-4 py-2.5">
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-slate-600">Claim summary</p>
+                    <span className="max-w-full truncate rounded-full border border-teal-200 bg-teal-50 px-2.5 py-0.5 text-[11px] font-bold text-teal-700">
+                      {claimLookupMatch.bookingCode || claimLookupCode}
+                    </span>
                   </div>
 
-                  <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700 break-words">
-                    <div className="font-bold uppercase tracking-wide text-slate-600">Preferred Payments</div>
-                    {String(payoutProfile?.payoutPreferred || "").toUpperCase() === "BANK" ? (
-                      <div className="mt-1 space-y-1">
-                        <div><span className="font-semibold">Method:</span> Bank Account</div>
-                        <div><span className="font-semibold">Bank:</span> {payoutProfile?.bankName || "Not provided"}</div>
-                        <div><span className="font-semibold">Account Name:</span> {payoutProfile?.bankAccountName || "Not provided"}</div>
-                        <div><span className="font-semibold">Account Number:</span> {payoutProfile?.bankAccountNumber || "Not provided"}</div>
-                        <div><span className="font-semibold">Branch:</span> {payoutProfile?.bankBranch || "Not provided"}</div>
+                  <dl className="grid grid-cols-1 gap-x-6 gap-y-3 px-4 py-4 sm:grid-cols-2">
+                    {([
+                      ["Operation", claimLookupMatch.title || "-"],
+                      ["Client", claimLookupMatch.client || "-"],
+                      ["Nationality", claimLookupMatch.nationality || "-"],
+                      ["Total Paid", `${claimLookupMatch.currency} ${Number(claimLookupMatch.budget || 0).toLocaleString()}`],
+                      ["Agent Revenue", `${claimLookupMatch.currency} ${Number(claimLookupMatch.agentEarning || 0).toLocaleString()}`],
+                      ["NoLSAF Commission", `${claimLookupMatch.currency} ${Number(claimLookupMatch.commissionAmount || 0).toLocaleString()} (${Number(claimLookupMatch.commissionPercent || 0)}%)`],
+                    ] as const).map(([label, value]) => (
+                      <div key={label} className="min-w-0">
+                        <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</dt>
+                        <dd className="mt-0.5 break-words text-sm font-semibold text-slate-800">{value}</dd>
                       </div>
-                    ) : (
-                      <div className="mt-1 space-y-1">
-                        <div><span className="font-semibold">Method:</span> Mobile Money</div>
-                        <div><span className="font-semibold">Provider:</span> {payoutProfile?.mobileMoneyProvider || "Not provided"}</div>
-                        <div><span className="font-semibold">Phone:</span> {payoutProfile?.mobileMoneyNumber || "Not provided"}</div>
-                      </div>
-                    )}
+                    ))}
+                  </dl>
+
+                  <div className="mx-4 mb-4 min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                    <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Preferred payout destination</div>
+                    <dl className="mt-2 grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
+                      {(String(payoutProfile?.payoutPreferred || "").toUpperCase() === "BANK"
+                        ? ([
+                            ["Method", "Bank Account"],
+                            ["Bank", payoutProfile?.bankName || "Not provided"],
+                            ["Account Name", payoutProfile?.bankAccountName || "Not provided"],
+                            ["Account Number", payoutProfile?.bankAccountNumber || "Not provided"],
+                            ["Branch", payoutProfile?.bankBranch || "Not provided"],
+                          ] as const)
+                        : ([
+                            ["Method", "Mobile Money"],
+                            ["Provider", payoutProfile?.mobileMoneyProvider || "Not provided"],
+                            ["Phone", payoutProfile?.mobileMoneyNumber || "Not provided"],
+                          ] as const)
+                      ).map(([label, value]) => (
+                        <div key={label} className="min-w-0">
+                          <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</dt>
+                          <dd className={`mt-0.5 break-words text-xs font-semibold ${String(value) === "Not provided" ? "text-slate-400" : "text-slate-700"}`}>{value}</dd>
+                        </div>
+                      ))}
+                    </dl>
                   </div>
 
-                  <label className="mt-3 flex items-start gap-2 text-xs text-slate-700">
+                  <label className="mx-4 flex items-start gap-2 text-xs text-slate-700">
                     <input
                       type="checkbox"
                       checked={claimConsent}
                       onChange={(e) => setClaimConsent(e.target.checked)}
-                      className="mt-0.5 h-4 w-4 rounded border-slate-300"
+                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300"
                     />
                     <span>I agree with NoLSAF Disbursement Policy and confirm the payout destination details are correct.</span>
                   </label>
 
                   {showClaimConfirm ? (
-                    <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                    <div className="mx-4 mb-4 mt-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
                       <p className="text-sm font-semibold text-slate-800">Are you sure you want to claim this payout?</p>
                       <p className="mt-1 text-xs text-slate-500">This will submit a payout request to NoLSAF for the selected tour. This action cannot be undone.</p>
-                      <div className="mt-3 flex gap-2">
+                      <div className="mt-3 flex flex-wrap gap-2">
                         <button
                           type="button"
                           onClick={confirmClaimSubmit}
@@ -759,12 +785,12 @@ export default function AgentRevenuesPage() {
                       </div>
                     </div>
                   ) : (
-                    <div className="mt-3">
+                    <div className="mx-4 mb-4 mt-3">
                       <button
                         type="button"
                         onClick={handleSubmitClaimInitiator}
                         disabled={claimSubmitting}
-                        className="rounded-lg border border-[#02665e] bg-[#02665e] px-4 py-2 text-sm font-bold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="w-full rounded-lg border border-[#02665e] bg-[#02665e] px-4 py-2.5 text-sm font-bold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                       >
                         {claimSubmitting ? "Submitting..." : "Send claim to NoLSAF"}
                       </button>
@@ -785,8 +811,8 @@ export default function AgentRevenuesPage() {
         {/* Payout tracker */}
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
           <div className="border-b border-slate-100 px-4 py-3">
-            <p className="text-xs font-extrabold uppercase tracking-widest text-slate-500">Payments tracker</p>
-            <p className="mt-1 text-xs text-slate-400">Invoice and payout workflow per trip: NEW, VERIFIED, APPROVED, DISBURSED.</p>
+            <p className="text-xs font-extrabold uppercase tracking-widest text-slate-500">Payout operations</p>
+            <p className="mt-1 text-xs text-slate-400">Invoice and payout workflow per trip: NEW, CLAIMED, VERIFIED, APPROVED, DISBURSED.</p>
           </div>
 
           {operationRows.length === 0 ? (

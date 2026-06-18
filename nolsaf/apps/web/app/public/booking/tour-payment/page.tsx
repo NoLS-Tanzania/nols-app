@@ -17,6 +17,10 @@ import {
   MapPin,
   Building2,
   CreditCard,
+  Ticket,
+  ArrowRight,
+  Home,
+  Users,
 } from "lucide-react";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -26,8 +30,10 @@ const PAYMENT_POLL_FAST_DELAY_MS = 3000;
 const PAYMENT_POLL_SLOW_DELAY_MS = 10000;
 const PAYMENT_RETRY_LIMIT = 3;
 const PAYMENT_RETRY_WINDOW_SECONDS = 5 * 60;
+const CARD_VERIFICATION_FAILED_MESSAGE =
+  "Card verification failed. No payment was taken. Please try again or choose another payment method.";
 
-type MnoMethod = "Airtel" | "Mixx" | "MPESA" | "Halopesa";
+type MnoMethod = "Airtel" | "Tigo" | "Mpesa" | "Halopesa";
 
 type PaymentMethod = {
   id: MnoMethod;
@@ -38,28 +44,46 @@ type PaymentMethod = {
 
 const PAYMENT_METHODS: PaymentMethod[] = [
   { id: "Airtel",   name: "Airtel Money", icon: "/assets/airtel_money.png",   description: "Pay with Airtel Money" },
-  { id: "MPESA",    name: "M-Pesa",       icon: "/assets/M-pesa.png",         description: "Pay with M-Pesa" },
-  { id: "Mixx",     name: "Mixx by Yas",  icon: "/assets/mix%20by%20yas.png", description: "Pay with Mixx by Yas" },
+  { id: "Mpesa",    name: "MPesa",       icon: "/assets/M-pesa.png",         description: "Pay with Mpesa" },
+  { id: "Tigo",     name: "Tigo",  icon: "/assets/mix%20by%20yas.png", description: "Pay with Tigo" },
   { id: "Halopesa", name: "HaloPesa",     icon: "/assets/halopesa.png",       description: "Pay with HaloPesa" },
 ];
 
 const BANK_PROVIDERS = [
-  { code: "CRDB",    name: "CRDB Bank" },
-  { code: "NMB",     name: "NMB Bank" },
-  { code: "NBC",     name: "NBC Bank" },
-  { code: "STANBIC", name: "Stanbic Bank" },
-  { code: "EQUITY",  name: "Equity Bank" },
-  { code: "IM",      name: "I&M Bank" },
-  { code: "ABSA",    name: "ABSA Bank" },
-  { code: "TCB",     name: "TCB Bank" },
-  { code: "BOA",     name: "Bank of Africa" },
-  { code: "DTB",     name: "Diamond Trust" },
-  { code: "UBA",     name: "UBA Bank" },
-  { code: "AZANIA",  name: "Bank of Azania" },
-  { code: "KCB",     name: "KCB Bank" },
-  { code: "NCBA",    name: "NCBA Bank" },
-  { code: "YETU",    name: "Yetu Microfinance" },
+  {
+    code: "CRDB",
+    name: "CRDB Bank",
+    logo: "/assets/NoLSAF_CRDB.png",
+    activeClass: "border-[#0f8b3d] bg-[#f0fff5] text-[#07502a] shadow-sm ring-2 ring-[#0f8b3d]/15",
+    dotClass: "border-[#0f8b3d] bg-[#0f8b3d]",
+  },
+  {
+    code: "NMB",
+    name: "NMB Bank",
+    logo: "/assets/NoLSAF_NMB.png",
+    activeClass: "border-[#0069b4] bg-[#eff8ff] text-[#00477a] shadow-sm ring-2 ring-[#0069b4]/15",
+    dotClass: "border-[#0069b4] bg-[#0069b4]",
+  },
 ] as const;
+
+const BANK_OTP_INSTRUCTIONS: Record<string, { title: string; steps: string[] }> = {
+  CRDB: {
+    title: "Generate CRDB OTP",
+    steps: [
+      "Dial *150*03# and enter your SIM Banking PIN.",
+      "Choose 7 Other services, then 5 AzamPay.",
+      "Select Link AzamPay Account to generate the OTP.",
+    ],
+  },
+  NMB: {
+    title: "Generate NMB OTP",
+    steps: [
+      "Dial *150*66#.",
+      "Choose 8 More, then 5 Register Sarafu.",
+      "Choose 1 Select Account No. to generate the OTP.",
+    ],
+  },
+};
 
 function formatCountdown(totalSeconds: number) {
   const s = Math.max(0, Math.floor(totalSeconds));
@@ -100,6 +124,8 @@ export default function TourPaymentPage() {
   // Bank state
   const [selectedBankCode, setSelectedBankCode]   = useState("");
   const [bankAccountNumber, setBankAccountNumber] = useState("");
+  const [bankMobileNumber, setBankMobileNumber] = useState("");
+  const [bankOtp, setBankOtp] = useState("");
 
   // Payment channel accordion (null = all collapsed)
   const [paymentChannel, setPaymentChannel] = useState<"MNO" | "BANK" | "CARD" | null>(null);
@@ -162,6 +188,12 @@ export default function TourPaymentPage() {
         setPaymentStatus("pending");
         setPaymentChannel("CARD");
         // Poll will start after booking loads (startPolling reads booking state)
+      } else if (cardReturn === "failed") {
+        setPaymentRef(cardRef);
+        setSubmitting(false);
+        setPaymentStatus("failed");
+        setPaymentChannel("CARD");
+        setError(CARD_VERIFICATION_FAILED_MESSAGE);
       }
     }
 
@@ -341,6 +373,20 @@ export default function TourPaymentPage() {
       setError("Please select a bank.");
       return;
     }
+    const cleanedBankMobile = bankMobileNumber.replace(/\s+/g, "");
+    const phoneRegex = /^(\+255|255|0)?[0-9]{9}$/;
+    if (!bankAccountNumber.trim()) {
+      setError("Please enter the bank account number selected while generating the OTP.");
+      return;
+    }
+    if (!phoneRegex.test(cleanedBankMobile)) {
+      setError("Please enter the mobile number registered with your bank account.");
+      return;
+    }
+    if (!bankOtp.trim()) {
+      setError("Please enter the OTP generated from your bank menu.");
+      return;
+    }
 
     setError(null);
     setSubmitting(true);
@@ -353,7 +399,9 @@ export default function TourPaymentPage() {
         headers:     { "Content-Type": "application/json" },
         body:        JSON.stringify({
           bankCode:      selectedBankCode,
-          accountNumber: bankAccountNumber.trim() || undefined,
+          accountNumber: bankAccountNumber.trim(),
+          merchantMobileNumber: cleanedBankMobile,
+          otp:           bankOtp.trim(),
           accessToken,
         }),
       });
@@ -407,7 +455,7 @@ export default function TourPaymentPage() {
       }
 
       if (result.checkoutUrl) {
-        // Browser navigates to AzamPay hosted checkout; callback returns with ?cardReturn=
+        // Browser navigates to hosted checkout; callback returns with ?cardReturn=
         window.location.href = result.checkoutUrl;
         return; // keep submitting=true — page is navigating away
       }
@@ -431,53 +479,85 @@ export default function TourPaymentPage() {
             </div>
           </div>
         </div>
-        <div className="flex-1 flex flex-col items-center justify-center px-4 py-12 text-center">
-          <div
-            className="w-20 h-20 rounded-full flex items-center justify-center mb-6"
-            style={{ background: "linear-gradient(135deg, #02665e, #4ecdc4)" }}
-          >
-            <CheckCircle2 className="w-10 h-10 text-white" />
+        <div className="flex-1 flex flex-col items-center justify-center px-4 py-12">
+          <div className="w-full max-w-md flex flex-col items-center text-center">
+            <div
+              className="w-20 h-20 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-teal-900/20"
+              style={{ background: "linear-gradient(135deg, #02665e, #4ecdc4)" }}
+            >
+              <CheckCircle2 className="w-10 h-10 text-white" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">Booking Confirmed!</h1>
+            <p className="text-gray-500 text-sm mb-6 max-w-sm">
+              Your tour package booking has been paid and confirmed. The operator will be in touch with you.
+            </p>
+
+            {booking?.bookingCode && (
+              <div className="w-full bg-white rounded-2xl border border-[#02665e]/20 px-6 py-4 mb-4 shadow-sm">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400 mb-1">Booking Reference</p>
+                <p className="text-xl font-bold text-[#02665e] tracking-widest">{booking.bookingCode}</p>
+              </div>
+            )}
+
+            {booking && (
+              <div className="w-full bg-white rounded-2xl border border-gray-200 shadow-sm text-left mb-6 overflow-hidden">
+                <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 bg-gray-50/60">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Building2 className="w-4 h-4 text-[#02665e] shrink-0" />
+                    <span className="text-sm font-semibold text-gray-900 truncate">
+                      {(booking.operatorSnapshot as any)?.companyName || "Tour Operator"}
+                    </span>
+                  </div>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                    <CheckCircle2 className="w-3 h-3" /> PAID
+                  </span>
+                </div>
+                <div className="px-5 py-4 space-y-2.5">
+                  {booking.title && (
+                    <div className="flex justify-between gap-4 text-sm">
+                      <span className="text-gray-500 inline-flex items-center gap-1.5"><Ticket className="w-3.5 h-3.5" /> Package</span>
+                      <span className="font-medium text-gray-900 text-right">{booking.title}</span>
+                    </div>
+                  )}
+                  {booking.destination && (
+                    <div className="flex justify-between gap-4 text-sm">
+                      <span className="text-gray-500 inline-flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" /> Destination</span>
+                      <span className="font-medium text-gray-900 text-right">{booking.destination}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between gap-4 text-sm">
+                    <span className="text-gray-500 inline-flex items-center gap-1.5"><Users className="w-3.5 h-3.5" /> Travelers</span>
+                    <span className="font-medium text-gray-900">{booking.travelerCount}</span>
+                  </div>
+                  <div className="flex justify-between gap-4 text-sm pt-2.5 border-t border-gray-100">
+                    <span className="text-gray-500">Amount Paid</span>
+                    <span className="font-bold text-[#02665e]">{fmt(Number(booking.amountDue ?? booking.grossAmount), booking.currency)}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <Link
+              href={tourBookingId ? `/account/tour-packages/${encodeURIComponent(String(tourBookingId))}` : "/account/tour-packages"}
+              className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3.5 text-sm font-semibold text-white shadow-md shadow-teal-900/20 transition-transform hover:scale-[1.01] active:scale-[0.99]"
+              style={{ background: "linear-gradient(135deg, #02665e, #038a7f)" }}
+            >
+              <Ticket className="w-4 h-4" />
+              View Receipt &amp; Voucher
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+            <p className="text-xs text-gray-400 mt-2 mb-4">
+              Available anytime under <span className="font-medium text-gray-500">My Tour Packages</span> in your account.
+            </p>
+
+            <Link
+              href="/"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:border-gray-300 hover:text-gray-900"
+            >
+              <Home className="w-3.5 h-3.5" />
+              Return to home
+            </Link>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Booking Confirmed!</h1>
-          <p className="text-gray-500 text-sm mb-6 max-w-xs">
-            Your tour package booking has been paid and confirmed. The operator will be in touch with you.
-          </p>
-          {booking?.bookingCode && (
-            <div className="bg-white rounded-2xl border border-[#02665e]/20 px-6 py-4 mb-6">
-              <p className="text-xs text-gray-400 mb-1">Booking Reference</p>
-              <p className="text-xl font-bold text-[#02665e] tracking-widest">{booking.bookingCode}</p>
-            </div>
-          )}
-          {booking && (
-            <div className="bg-white rounded-2xl border border-gray-200 p-4 w-full max-w-sm text-left space-y-2 mb-6">
-              {booking.title && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Package</span>
-                  <span className="font-medium text-gray-900 text-right max-w-[60%]">{booking.title}</span>
-                </div>
-              )}
-              {booking.destination && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Destination</span>
-                  <span className="font-medium text-gray-900">{booking.destination}</span>
-                </div>
-              )}
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Travelers</span>
-                <span className="font-medium text-gray-900">{booking.travelerCount}</span>
-              </div>
-              <div className="flex justify-between text-sm pt-1 border-t border-gray-100">
-                <span className="text-gray-500">Amount Paid</span>
-                <span className="font-bold text-[#02665e]">{fmt(Number(booking.amountDue ?? booking.grossAmount), booking.currency)}</span>
-              </div>
-            </div>
-          )}
-          <Link
-            href="/"
-            className="text-sm text-[#02665e] underline underline-offset-2"
-          >
-            Return to home
-          </Link>
         </div>
       </div>
     );
@@ -505,6 +585,7 @@ export default function TourPaymentPage() {
   const operatorName = (booking?.operatorSnapshot as any)?.companyName || "Tour Operator";
   const amount       = Number(booking?.amountDue ?? booking?.grossAmount ?? 0);
   const currency     = booking?.currency || "TZS";
+  const isTZS        = currency === "TZS";
 
   const bookingSummaryCard = booking ? (
     <div className="rounded-2xl overflow-hidden shadow-sm border border-[#02665e]/10">
@@ -553,6 +634,8 @@ export default function TourPaymentPage() {
   ) : null;
 
   const isDisabled = submitting || paymentCooldownSeconds > 0;
+  const bankInstruction = selectedBankCode ? BANK_OTP_INSTRUCTIONS[selectedBankCode] : null;
+  const bankReady = Boolean(selectedBankCode && bankAccountNumber.trim() && bankMobileNumber.trim() && bankOtp.trim());
 
   return (
     <div className="min-h-screen bg-[#f5faf9] overflow-x-hidden">
@@ -598,7 +681,7 @@ export default function TourPaymentPage() {
                     {paymentChannel === "CARD"
                       ? "Verifying your card payment..."
                       : paymentChannel === "BANK"
-                      ? "Please authorize in your bank app"
+                      ? "Confirming bank checkout"
                       : `Check your phone for a payment prompt`}
                   </p>
                 </div>
@@ -606,7 +689,7 @@ export default function TourPaymentPage() {
                   {paymentChannel === "CARD"
                     ? "Please wait while we confirm your card payment."
                     : paymentChannel === "BANK"
-                    ? `Approve the authorization request in your ${BANK_PROVIDERS.find((b) => b.code === selectedBankCode)?.name || "bank"} app or via SMS.`
+                    ? `We are confirming the ${BANK_PROVIDERS.find((b) => b.code === selectedBankCode)?.name || "bank"} checkout using the OTP you generated.`
                     : `Approve the payment on your ${selectedMethod} app or dial the USSD code to confirm.`}
                 </p>
                 <div className="flex items-center justify-center gap-2 text-amber-700">
@@ -664,11 +747,21 @@ export default function TourPaymentPage() {
                   )}
                 </div>
 
+                {/* USD-only notice */}
+                {!isTZS && !paymentChannel && (
+                  <div className="flex items-start gap-2.5 rounded-xl bg-blue-50 border border-blue-100 px-4 py-3 text-xs text-blue-700">
+                    <ShieldCheck className="w-4 h-4 flex-shrink-0 mt-0.5 text-blue-500" />
+                    <span>
+                      This booking is priced in <strong>USD</strong>. Please pay by card below. Any Visa or Mastercard works, and your bank will convert the amount automatically.
+                    </span>
+                  </div>
+                )}
+
                 {/* ── Method selector: 3 standalone cards ── */}
                 <div className="space-y-2.5">
 
-                  {/* Mobile Money */}
-                  {(!paymentChannel || paymentChannel === "MNO") && (
+                  {/* Mobile Money — TZS only */}
+                  {isTZS && (!paymentChannel || paymentChannel === "MNO") && (
                     <button
                       type="button"
                       onClick={() => toggleChannel("MNO")}
@@ -697,8 +790,8 @@ export default function TourPaymentPage() {
                     </button>
                   )}
 
-                  {/* Bank Transfer */}
-                  {(!paymentChannel || paymentChannel === "BANK") && (
+                  {/* Bank Transfer — TZS only */}
+                  {isTZS && (!paymentChannel || paymentChannel === "BANK") && (
                     <button
                       type="button"
                       onClick={() => toggleChannel("BANK")}
@@ -717,7 +810,7 @@ export default function TourPaymentPage() {
                         <div className={`font-bold text-[15px] transition-colors ${paymentChannel === "BANK" ? "text-green-900" : "text-gray-900"}`}>
                           Bank Transfer
                         </div>
-                        <div className="text-xs text-slate-400 mt-0.5 font-medium">CRDB · NMB · NBC · 12 more</div>
+                        <div className="text-xs text-slate-400 mt-0.5 font-medium">CRDB · NMB OTP checkout</div>
                       </div>
                       <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
                         paymentChannel === "BANK" ? "border-green-600 bg-green-600" : "border-gray-300"
@@ -870,43 +963,119 @@ export default function TourPaymentPage() {
                       {/* ── Bank form ── */}
                       {paymentChannel === "BANK" && (
                         <>
-                          <div>
+                          <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-4">
+                            <div className="flex items-start gap-3">
+                              <div className="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-[#02665e] text-white">
+                                <Building2 className="h-4 w-4" />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="text-sm font-bold text-slate-950">Bank OTP checkout</div>
+                                <p className="mt-1 text-xs leading-5 text-slate-600">
+                                  Generate the OTP from your bank SIM menu first, then enter the same account number, registered mobile number, and OTP below.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="min-w-0 max-w-full overflow-hidden">
                             <label className="block text-sm font-semibold text-gray-700 mb-2">
                               Select Bank <span className="text-red-500">*</span>
                             </label>
-                            <select
-                              value={selectedBankCode}
-                              onChange={(e) => setSelectedBankCode(e.target.value)}
-                              className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#02665e]/25 focus:border-[#02665e] bg-slate-50 focus:bg-white text-sm text-gray-900 transition-all"
-                            >
-                              <option value="">Choose your bank</option>
-                              {BANK_PROVIDERS.map((bank) => (
-                                <option key={bank.code} value={bank.code}>
-                                  {bank.name}
-                                </option>
-                              ))}
-                            </select>
+                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                              {BANK_PROVIDERS.map((bank) => {
+                                const active = selectedBankCode === bank.code;
+                                return (
+                                  <button
+                                    key={bank.code}
+                                    type="button"
+                                    onClick={() => setSelectedBankCode(bank.code)}
+                                    className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-all ${
+                                      active
+                                        ? bank.activeClass
+                                        : "border-slate-200 bg-white text-slate-800 hover:border-emerald-200 hover:bg-emerald-50/40"
+                                    }`}
+                                  >
+                                    <span className="relative flex h-11 w-14 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg">
+                                      <Image src={bank.logo} alt={`${bank.name} logo`} fill sizes="56px" className="object-contain" />
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                      <span className="block text-sm font-bold">{bank.name}</span>
+                                      <span className="mt-0.5 block text-xs text-slate-500">{bank.code} SIM banking OTP</span>
+                                    </span>
+                                    <span className={`h-4 w-4 rounded-full border-2 ${active ? bank.dotClass : "border-slate-300"}`} />
+                                  </button>
+                                );
+                              })}
+                            </div>
                           </div>
+
+                          {bankInstruction && (
+                            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
+                              <div className="text-sm font-bold text-emerald-950">{bankInstruction.title}</div>
+                              <p className="mt-1 text-xs leading-5 text-emerald-800">
+                                Complete these steps on your phone before pressing the payment button.
+                              </p>
+                              <ol className="mt-3 space-y-2 text-xs leading-5 text-emerald-900">
+                                {bankInstruction.steps.map((step, index) => (
+                                  <li key={step} className="flex gap-2">
+                                    <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-white text-[11px] font-bold text-[#02665e] ring-1 ring-emerald-100">
+                                      {index + 1}
+                                    </span>
+                                    <span>{step}</span>
+                                  </li>
+                                ))}
+                              </ol>
+                            </div>
+                          )}
 
                           <div>
                             <label className="block text-sm font-semibold text-gray-700 mb-2">
-                              Account Number <span className="text-gray-400 font-normal">(optional)</span>
+                              Account Number <span className="text-red-500">*</span>
                             </label>
                             <input
                               type="text"
                               value={bankAccountNumber}
                               onChange={(e) => setBankAccountNumber(e.target.value)}
-                              placeholder="Account number"
-                              maxLength={25}
-                              className="w-full max-w-[280px] px-3 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#02665e]/25 focus:border-[#02665e] bg-slate-50 focus:bg-white text-sm text-gray-900 font-mono tracking-wide transition-all block"
+                              placeholder="Account number selected for OTP"
+                              maxLength={30}
+                              className="block box-border w-full max-w-full min-w-0 px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#02665e]/25 focus:border-[#02665e] bg-slate-50 focus:bg-white text-sm text-gray-900 font-mono tracking-wide transition-all"
                             />
-                            <p className="text-xs text-slate-400 mt-1.5">Leave blank if not required by your bank</p>
+                            <p className="mt-1.5 max-w-full break-words text-xs leading-5 text-slate-500">Use the same account you selected while generating the OTP.</p>
+                          </div>
+
+                          <div className="min-w-0 max-w-full overflow-hidden">
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">
+                              Bank Registered Mobile Number <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              type="tel"
+                              value={bankMobileNumber}
+                              onChange={(e) => setBankMobileNumber(e.target.value)}
+                              placeholder="+255 XXX XXX XXX"
+                              maxLength={15}
+                              className="block box-border w-full max-w-full min-w-0 px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#02665e]/25 focus:border-[#02665e] bg-slate-50 focus:bg-white text-sm text-gray-900 transition-all"
+                            />
+                            <p className="mt-1.5 max-w-full break-words text-xs leading-5 text-slate-500">This is the number registered for SIM banking on that bank account.</p>
+                          </div>
+
+                          <div className="min-w-0 max-w-full overflow-hidden">
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">
+                              Bank OTP <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={bankOtp}
+                              onChange={(e) => setBankOtp(e.target.value)}
+                              placeholder="Enter OTP from bank menu"
+                              maxLength={50}
+                              className="block box-border w-full max-w-full min-w-0 px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#02665e]/25 focus:border-[#02665e] bg-slate-50 focus:bg-white text-sm text-gray-900 font-mono tracking-wide transition-all"
+                            />
+                            <p className="mt-1.5 max-w-full break-words text-xs leading-5 text-slate-500">The OTP comes from the bank menu, not from NoLSAF.</p>
                           </div>
 
                           <button
                             type="button"
                             onClick={handleBankPayment}
-                            disabled={isDisabled || !selectedBankCode}
+                            disabled={isDisabled || !bankReady}
                             className="w-full py-4 rounded-2xl text-white font-semibold text-base disabled:opacity-60 active:scale-[0.98] transition-all duration-150 flex items-center justify-center gap-2"
                             style={{ background: submitting ? "#606363" : "linear-gradient(135deg, #02665e, #4ecdc4)" }}
                           >
@@ -936,7 +1105,7 @@ export default function TourPaymentPage() {
                           <div className="flex items-start gap-3 p-3.5 bg-violet-50 rounded-xl border border-violet-100">
                             <ShieldCheck className="w-4 h-4 text-violet-600 flex-shrink-0 mt-0.5" />
                             <div className="text-xs text-gray-600 leading-relaxed">
-                              You will be redirected to AzamPay&apos;s secure card payment page. After completing payment you will return here automatically.
+                              You will be redirected to a secure hosted card checkout page. After completing payment you will return here automatically.
                             </div>
                           </div>
 
@@ -955,7 +1124,9 @@ export default function TourPaymentPage() {
                             ) : (
                               <>
                                 <CreditCard className="w-4 h-4" />
-                                Pay with Card {fmt(amount, currency)}
+                                {paymentStatus === "failed" || paymentStatus === "timeout"
+                                  ? `Try Card Again ${fmt(amount, currency)}`
+                                  : `Pay with Card ${fmt(amount, currency)}`}
                               </>
                             )}
                           </button>

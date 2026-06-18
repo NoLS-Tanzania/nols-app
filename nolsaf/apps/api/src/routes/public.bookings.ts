@@ -13,6 +13,8 @@ import { maybeAuth } from "../middleware/auth.js";
 import { AUTO_DISPATCH_LOOKAHEAD_MS, MIN_TRANSPORT_LEAD_MS } from "../lib/transportPolicy.js";
 import { generateTransportTripCode } from "../lib/tripCode.js";
 import { AVAILABILITY_BLOCKING_BOOKING_STATUSES } from "../lib/bookingStatus.js";
+import { filterPayableAvailabilityBlocks } from "../lib/groupStayAvailabilityBlocks.js";
+import { isCheckInBeforeToday } from "../lib/bookingDateRules.js";
 
 /** Sign a short-lived token proving the caller created this booking. */
 function signBookingAccessToken(bookingId: number): string {
@@ -58,9 +60,36 @@ async function getEffectiveCommissionPercent(params: { propertyServices: unknown
   }
 }
 
+function formatBlockSourceSummary(blocks: Array<{ source?: string | null }>): string | null {
+  const labels = new Map<string, string>();
+  for (const block of blocks) {
+    const source = String(block.source || "OTHER").toUpperCase();
+    if (source === "GROUP_STAY") labels.set(source, "confirmed group-stay reservations");
+    else if (source === "AIRBNB") labels.set(source, "Airbnb reservations");
+    else if (source === "BOOKING_COM") labels.set(source, "Booking.com reservations");
+    else if (source === "WALK_IN") labels.set(source, "walk-in reservations");
+    else labels.set(source, "external reservations");
+  }
+  const unique = Array.from(labels.values());
+  if (!unique.length) return null;
+  if (unique.length === 1) return `Availability is held by ${unique[0]}`;
+  return `Availability is held by ${unique.slice(0, -1).join(", ")} and ${unique[unique.length - 1]}`;
+}
+
 function roundMoney(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.round(value * 100) / 100;
+}
+
+function parseBookingDate(value: string): Date {
+  const trimmed = String(value || "").trim();
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+  if (dateOnly) {
+    const [, year, month, day] = dateOnly;
+    return new Date(Number(year), Number(month) - 1, Number(day));
+  }
+
+  return new Date(trimmed);
 }
 
 type CreatedTransportBooking = {
@@ -143,6 +172,24 @@ function calculateSurgeMultiplier(hourOfDay: number, dayOfWeek: number): number 
   if (isWeekday && (isMorningRush || isEveningRush)) return 1.2;
   if (!isWeekday && hourOfDay >= 18 && hourOfDay < 22) return 1.15;
   return 1.0;
+}
+
+function getPricingTimeParts(date: Date, timeZone = "Africa/Dar_es_Salaam"): { hour: number; dayOfWeek: number } {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    weekday: "short",
+    hour: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+
+  const rawHour = Number(parts.find((part) => part.type === "hour")?.value ?? "0");
+  const weekday = parts.find((part) => part.type === "weekday")?.value ?? "Sun";
+  const dayOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(weekday);
+
+  return {
+    hour: Number.isFinite(rawHour) ? rawHour % 24 : 0,
+    dayOfWeek: dayOfWeek >= 0 ? dayOfWeek : 0,
+  };
 }
 
 /** Derive room-type key from roomCode (e.g. "Suite-1" -> "Suite", "Suite" -> "Suite") for capacity by type */
@@ -243,8 +290,8 @@ const bookingLimiter = rateLimit({
 // Validation schema for booking creation
 const createBookingSchema = z.object({
   propertyId: z.number().int().positive(),
-  checkIn: z.string().datetime(), // ISO 8601 format
-  checkOut: z.string().datetime(),
+  checkIn: z.string().min(1), // YYYY-MM-DD or ISO 8601 format
+  checkOut: z.string().min(1),
   guestName: z.string().min(2).max(160),
   guestPhone: z.string().min(10).max(40),
   guestEmail: z.string().email().optional().nullable(),
@@ -375,15 +422,15 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
   const transportPickupMode = String(data.transportPickupMode ?? "").trim().toLowerCase();
 
     // Validate dates
-    const checkIn = new Date(data.checkIn);
-    const checkOut = new Date(data.checkOut);
+    const checkIn = parseBookingDate(data.checkIn);
+    const checkOut = parseBookingDate(data.checkOut);
     const now = new Date();
 
     if (isNaN(checkIn.getTime()) || isNaN(checkOut.getTime())) {
       return res.status(400).json({ error: "Invalid date format", requestId });
     }
 
-    if (checkIn < now) {
+    if (isCheckInBeforeToday(checkIn, now)) {
       return res.status(400).json({ error: "Check-in date cannot be in the past", requestId });
     }
 
@@ -498,7 +545,7 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
       });
 
       // Check availability blocks (external bookings); fetch all overlapping to count by room TYPE
-      const conflictingBlocks = await tx.propertyAvailabilityBlock.findMany({
+      const rawConflictingBlocks = await tx.propertyAvailabilityBlock.findMany({
         where: {
           propertyId: data.propertyId,
           AND: [
@@ -513,8 +560,10 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
           roomCode: true,
           source: true,
           bedsBlocked: true,
+          notes: true,
         },
       });
+      const conflictingBlocks = await filterPayableAvailabilityBlocks(rawConflictingBlocks, tx as any);
 
       // Parse roomsSpec to get room types and their capacities
       let roomTypes: Array<{ code?: string; roomCode?: string; name?: string; beds?: number; rooms?: number; roomsCount?: number }> = [];
@@ -705,8 +754,8 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
         conflictReasons.push(`${availabilityCheck.conflictingBookings.length} existing booking(s)`);
       }
       if (availabilityCheck.conflictingBlocks && availabilityCheck.conflictingBlocks.length > 0) {
-        const sources = availabilityCheck.conflictingBlocks.map((b: any) => b.source || "external").join(", ");
-        conflictReasons.push(`Blocked by external booking(s) from: ${sources}`);
+        const blockSummary = formatBlockSourceSummary(availabilityCheck.conflictingBlocks);
+        if (blockSummary) conflictReasons.push(blockSummary);
       }
 
       const availableRooms = Number.isFinite(availabilityCheck.totalAvailableRooms as any) ? (availabilityCheck.totalAvailableRooms as any) : 0;
@@ -730,7 +779,7 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
       })();
       return res.status(409).json({
         error: "Property not available for selected dates",
-        message: `${leading}${typeMsg} ${conflictReasons.join(". ")}. Available: ${availableRooms} rooms, ${availableBeds} beds.`,
+        message: [leading + typeMsg, ...conflictReasons, `Available: ${availableRooms} rooms, ${availableBeds} beds.`].filter(Boolean).join(" "),
         selectedRoomType: selType,
         availableForSelectedType: selAvail,
         requestId,
@@ -853,7 +902,8 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
           return isNaN(d.getTime()) ? new Date() : d;
         })();
 
-        const surgeMultiplier = calculateSurgeMultiplier(pricingTime.getHours(), pricingTime.getDay());
+        const { hour, dayOfWeek } = getPricingTimeParts(pricingTime);
+        const surgeMultiplier = calculateSurgeMultiplier(hour, dayOfWeek);
 
         const baseFare = cfg.baseFare;
         const distanceFare = distance * cfg.perKmRate;
@@ -869,7 +919,7 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
         transportFare = cfg.baseFare;
       }
     }
-    
+
     const totalAmount = roundMoney(accommodationGross + transportFare);
 
     // Ownership linking:
@@ -921,12 +971,13 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
         },
       });
 
-      const finalConflictingBlocks = await tx.propertyAvailabilityBlock.findMany({
+      const rawFinalConflictingBlocks = await tx.propertyAvailabilityBlock.findMany({
         where: {
           propertyId: data.propertyId,
           AND: [{ startDate: { lt: checkOut } }, { endDate: { gt: checkIn } }],
         },
       });
+      const finalConflictingBlocks = await filterPayableAvailabilityBlocks(rawFinalConflictingBlocks, tx as any);
 
       // Fetch property to check capacity (matching availability checker logic)
       const propertyForFinalCheck = await tx.property.findUnique({

@@ -21,6 +21,20 @@ import {
 const api = apiClient;
 function authify() {}
 
+const formatMoney = (value: number | null | undefined) => `${Math.round(Number(value ?? 0)).toLocaleString()} TZS`;
+const formatDateTime = (value: string | null | undefined) => {
+  if (!value) return "N/A";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "N/A";
+  return date.toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
 type DriverWithLevel = {
   id: number;
   name: string;
@@ -30,15 +44,28 @@ type DriverWithLevel = {
   createdAt: string;
   region: string | null;
   district: string | null;
+  operationArea?: string | null;
   vehicleType: string; // "Tuktuk" | "MotorCycle" | "Car"
   plateNumber: string;
+  vehiclePlate?: string | null;
+  kycStatus?: string | null;
   currentLevel: number;
   levelName: string;
   totalEarnings: number;
+  grossRevenue: number;
+  nolsafRevenue: number;
+  paidEarnings: number;
   totalTrips: number;
+  paidTrips: number;
+  invoiceCount: number;
+  pendingPayouts: number;
+  verifiedPayouts: number;
+  approvedPayouts: number;
   averageRating: number;
   totalReviews: number;
   goalsCompleted: number;
+  lastTripAt: string | null;
+  lastPaidAt: string | null;
   progress: {
     earnings: number;
     trips: number;
@@ -345,7 +372,7 @@ export default function AdminDriversLevelsPage() {
         case "progress":
           return overallProgress(driver);
         case "metrics":
-          return (driver.totalEarnings || 0) + ((driver.totalTrips || 0) * 1000) + ((driver.goalsCompleted || 0) * 5000);
+          return (driver.paidEarnings || driver.totalEarnings || 0) + ((driver.totalTrips || 0) * 1000) + ((driver.paidTrips || 0) * 5000);
         case "rating":
           return driver.averageRating || 0;
         default:
@@ -496,7 +523,7 @@ export default function AdminDriversLevelsPage() {
           </div>
           <div>
             <h1 style={{ fontSize: "1.35rem", fontWeight: 800, color: "white", margin: 0, letterSpacing: "-0.01em" }}>Driver Levels</h1>
-            <p style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.62)", margin: "2px 0 0" }}>Progress, characteristics &amp; achievements per level</p>
+            <p style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.62)", margin: "2px 0 0" }}>Connected to paid payouts, accomplished trips, ratings &amp; NoLSAF revenue</p>
           </div>
         </div>
         <div style={{ position: "relative", zIndex: 1, display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
@@ -666,14 +693,14 @@ export default function AdminDriversLevelsPage() {
                 <YAxis />
                 <Tooltip 
                   formatter={(value: any, name: string) => {
-                    if (name === 'Earnings (TZS)') {
+                    if (name === 'Paid Earnings (TZS)') {
                       return [`${(value / 1000).toFixed(0)}K TZS`, name];
                     }
                     return [value, name];
                   }}
                 />
                 <Legend />
-                <Bar dataKey="earnings" fill="#10b981" name="Earnings (TZS)" />
+                <Bar dataKey="earnings" fill="#10b981" name="Paid Earnings (TZS)" />
                 <Bar dataKey="trips" fill="#3b82f6" name="Trips" />
                 <Bar dataKey="reviews" fill="#8b5cf6" name="Reviews" />
               </BarChart>
@@ -892,15 +919,15 @@ export default function AdminDriversLevelsPage() {
                         <div className="space-y-1 text-xs min-w-[120px]">
                           <div className="flex items-center gap-2">
                             <TrendingUp className="h-3 w-3 text-gray-400 flex-shrink-0" />
-                            <span className="text-gray-600 truncate">{(driver.totalEarnings / 1000).toFixed(0)}K TZS</span>
+                            <span className="text-gray-600 truncate">{formatMoney(driver.paidEarnings || driver.totalEarnings)}</span>
                           </div>
                           <div className="flex items-center gap-2">
                             <Users className="h-3 w-3 text-gray-400 flex-shrink-0" />
-                            <span className="text-gray-600 truncate">{driver.totalTrips} trips</span>
+                            <span className="text-gray-600 truncate">{driver.totalTrips} accomplished</span>
                           </div>
                           <div className="flex items-center gap-2">
-                            <Target className="h-3 w-3 text-gray-400 flex-shrink-0" />
-                            <span className="text-gray-600 truncate">{driver.goalsCompleted} goals</span>
+                            <CheckCircle className="h-3 w-3 text-gray-400 flex-shrink-0" />
+                            <span className="text-gray-600 truncate">{driver.paidTrips} paid payouts</span>
                           </div>
                         </div>
                       </td>
@@ -1010,10 +1037,10 @@ export default function AdminDriversLevelsPage() {
               <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
                 <div className="flex items-center gap-2 mb-3">
                   <TrendingUp className="h-5 w-5 text-emerald-600" />
-                  <h3 className="font-semibold text-gray-900">Total Earnings</h3>
+                  <h3 className="font-semibold text-gray-900">Paid Earnings</h3>
                   </div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-2xl font-bold text-gray-900">{selectedDriver.totalEarnings.toLocaleString()} TZS</span>
+                  <span className="text-2xl font-bold text-gray-900">{formatMoney(selectedDriver.paidEarnings || selectedDriver.totalEarnings)}</span>
                   <span className="text-sm text-gray-500">{selectedDriver.progress.earnings}%</span>
                 </div>
                 <div className="w-full bg-slate-200 rounded-full h-2">
@@ -1027,7 +1054,7 @@ export default function AdminDriversLevelsPage() {
               <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
                 <div className="flex items-center gap-2 mb-3">
                   <Users className="h-5 w-5 text-blue-600" />
-                  <h3 className="font-semibold text-gray-900">Total Trips</h3>
+                  <h3 className="font-semibold text-gray-900">Accomplished Trips</h3>
                   </div>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-2xl font-bold text-gray-900">{selectedDriver.totalTrips}</span>
@@ -1062,7 +1089,7 @@ export default function AdminDriversLevelsPage() {
               <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
                 <div className="flex items-center gap-2 mb-3">
                   <Target className="h-5 w-5 text-purple-600" />
-                  <h3 className="font-semibold text-gray-900">Goals Completed</h3>
+                  <h3 className="font-semibold text-gray-900">Connected Achievements</h3>
                 </div>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-2xl font-bold text-gray-900">{selectedDriver.goalsCompleted}</span>
@@ -1076,6 +1103,25 @@ export default function AdminDriversLevelsPage() {
                   </div>
                 </div>
               </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+              <div className="p-4 rounded-lg border border-emerald-200 bg-emerald-50">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-emerald-700 mb-2">Gross</p>
+                <p className="text-lg font-bold text-gray-950">{formatMoney(selectedDriver.grossRevenue)}</p>
+              </div>
+              <div className="p-4 rounded-lg border border-orange-200 bg-orange-50">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-orange-700 mb-2">NoLSAF</p>
+                <p className="text-lg font-bold text-orange-700">{formatMoney(selectedDriver.nolsafRevenue)}</p>
+              </div>
+              <div className="p-4 rounded-lg border border-slate-200 bg-slate-50">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-600 mb-2">Payouts</p>
+                <p className="text-lg font-bold text-gray-950">{selectedDriver.paidTrips} paid / {selectedDriver.invoiceCount} total</p>
+              </div>
+              <div className="p-4 rounded-lg border border-blue-200 bg-blue-50">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-blue-700 mb-2">Last Paid</p>
+                <p className="text-sm font-semibold text-gray-950 leading-snug">{formatDateTime(selectedDriver.lastPaidAt)}</p>
+              </div>
+            </div>
 
             {/* Level Benefits */}
             <div className={`p-6 rounded-lg border-2 ${getLevelColor(selectedDriver.currentLevel).bg} ${getLevelColor(selectedDriver.currentLevel).border}`}>

@@ -21,11 +21,15 @@ import { requireAuth } from "../middleware/auth.js";
 import { computeDraftBookingAvailability, unavailableDraftPaymentResponse } from "../lib/draftBookingAvailability.js";
 import {
   AZAMPAY_API_URL,
+  AZAMPAY_MNO_API_URL,
   FETCH_TIMEOUT_MS,
   IDEM_TTL_SEC,
   TZ_PHONE_RE,
   normalizePhone,
+  maskAzamPayPhone,
+  describeAzamPayResponseBody,
   azampayPost,
+  azampayMnoPost,
   makePaymentRateLimiter,
 } from "../lib/azampay.helpers.js";
 
@@ -75,7 +79,7 @@ function verifyPublicInvoiceAccessToken(token: string | undefined, invoiceId: nu
   }
 }
 
-// ── Rate limiters (built from shared factory) ─────────────────────────────────
+// ── Rate limiters (built from shared factory) ─────
 
 const paymentUserLimiter = makePaymentRateLimiter({
   windowMs: PAYMENT_USER_WINDOW_MS,
@@ -94,7 +98,7 @@ const paymentTargetLimiter = makePaymentRateLimiter({
   },
 });
 
-// ── Input schema ──────────────────────────────────────────────────────────────
+// ── Input schema ──
 
 // TZ_PHONE_RE imported from azampay.helpers
 
@@ -104,14 +108,14 @@ const initiateSchema = z.object({
     /^[\d+]+$/,
     "Phone number must contain only digits and an optional leading +"
   ),
-  provider:       z.enum(["Airtel", "Mixx", "MPESA", "Halopesa"]).default("Airtel"),
-  idempotencyKey: z.string().min(8).max(128).optional(),
+
+provider:       z.enum(["Airtel", "Tigo", "Halopesa", "Azampesa", "Mpesa"]).default("Airtel"),  idempotencyKey: z.string().min(8).max(128).optional(),
   accessToken:    z.string().min(20).max(1024).optional(),
 });
 
 // normalizePhone, azampayPost, idemGet, idemSet, localIdem all imported from azampay.helpers
 
-// ── POST /api/payments/azampay/initiate ───────────────────────────────────────
+// ── POST /api/payments/azampay/initiate ────
 
 router.post("/initiate", requireAuth, paymentUserLimiter, paymentTargetLimiter, async (req, res) => {
   try {
@@ -124,6 +128,7 @@ router.post("/initiate", requireAuth, paymentUserLimiter, paymentTargetLimiter, 
       });
     }
     const { invoiceId, phoneNumber, provider, idempotencyKey, accessToken } = parsed.data;
+    
 
     // Normalise & validate phone before anything else (fast-fail)
     const normalizedPhone = normalizePhone(phoneNumber);
@@ -204,22 +209,20 @@ router.post("/initiate", requireAuth, paymentUserLimiter, paymentTargetLimiter, 
       return res.status(400).json({ error: "invalid_amount", message: "Invoice has no payable amount" });
 
     // 5. Payment ref (normalizedPhone already computed and validated above)
-    const paymentRef = invoice.paymentRef ?? `INV-${invoice.id}-${Date.now()}`;
+    const paymentRef = `INV-${invoice.id}-${Date.now()}`;
 
     // 6. Build checkout payload (no secret material inside)
     // TZS has no fractional cents — always send as a rounded integer string.
+    const azamAccountNumber = normalizedPhone.replace(/^\+/, "");
+
     const azampayBody = {
-      accountNumber: normalizedPhone,
-      amount: Math.round(amount).toString(),
-      currency,
-      externalId: paymentRef,
-      language: "SW",
-      provider,
-      additionalProperties: {
-        invoiceId: invoice.id.toString(),
-        bookingId: invoice.bookingId?.toString() ?? "",
-      },
-    };
+  accountNumber: azamAccountNumber,
+  amount: Math.round(amount),
+  currency,
+  externalId: paymentRef,
+  provider,
+  additionalProperties: {},
+};
 
     // 7. Acquire Bearer token — fail fast with opaque 503 on error
     let token: string;
@@ -230,12 +233,14 @@ router.post("/initiate", requireAuth, paymentUserLimiter, paymentTargetLimiter, 
       return res.status(503).json({ error: "payment_unavailable", message: "Payment service temporarily unavailable" });
     }
 
-    // 8. Call AzamPay; retry once on 401 (stale token)
-    let apiRes = await azampayPost("/api/v1/Partner/PostCheckout", azampayBody, token);
+    // 8. Call AzamPay MNO direct push endpoint; retry once on 401 (stale token)
+    // The /azampay/mno/checkout endpoint (not /api/v1/Partner/PostCheckout) triggers
+    // USSD handset prompt directly instead of returning a hosted checkout URL.
+    let apiRes = await azampayMnoPost("/azampay/mno/checkout", azampayBody, token);
     if (apiRes.status === 401) {
       await invalidateAzamPayToken();
       try { token = await getAzamPayToken(); } catch { /* let next block handle */ }
-      apiRes = await azampayPost("/api/v1/Partner/PostCheckout", azampayBody, token!);
+      apiRes = await azampayMnoPost("/azampay/mno/checkout", azampayBody, token!);
     }
 
     if (!apiRes.ok) {
@@ -247,7 +252,9 @@ router.post("/initiate", requireAuth, paymentUserLimiter, paymentTargetLimiter, 
     // handset, NOT a browser checkout page. We deliberately discard any checkoutUrl
     // the sandbox returns (debug-only) so the frontend stays on the "check your phone"
     // prompt and polls /status. The webhook is the source of truth for completion.
-    let azampayData: any = { transactionId: null };
+    const responseSummary = describeAzamPayResponseBody(apiRes.body);
+    const mnoEndpoint = `${AZAMPAY_MNO_API_URL}/azampay/mno/checkout`;
+    let azampayData: any = { transactionId: responseSummary.transactionId };
     {
       const trimmed = apiRes.body.trim();
       if (!trimmed || trimmed.startsWith("https://") || trimmed.startsWith("http://")) {
@@ -256,6 +263,29 @@ router.post("/initiate", requireAuth, paymentUserLimiter, paymentTargetLimiter, 
       } else {
         try {
           const parsed = JSON.parse(trimmed);
+if (parsed.success === false) {
+  console.error("[AzamPay] MNO push rejected by AzamPay", {
+    invoiceId: invoice.id,
+    paymentRef,
+    provider,
+    selectedProvider: provider,
+    amount: Math.round(amount),
+    currency,
+    accountNumber: maskAzamPayPhone(normalizedPhone),
+    apiHost: AZAMPAY_MNO_API_URL,
+    endpoint: mnoEndpoint,
+    httpStatus: apiRes.status,
+    message: parsed.message,
+    messageCode: parsed.messageCode,
+    referenceId: String(parsed.message || "").match(/Reference Id:\s*([a-zA-Z0-9]+)/)?.[1] ?? null,
+  });
+
+  return res.status(502).json({
+    error: "payment_failed",
+    message: parsed.message || "Payment push could not be initiated. Please verify the payment details and try again.",
+  });
+}
+
           azampayData = { transactionId: parsed.transactionId ?? null };
         } catch {
           console.error(`[AzamPay] Non-JSON response HTTP ${apiRes.status} — body: ${trimmed.slice(0, 500)}`);
@@ -265,6 +295,19 @@ router.post("/initiate", requireAuth, paymentUserLimiter, paymentTargetLimiter, 
     }
 
     // 9. AzamPay accepted the checkout request — only now move invoice forward.
+    console.info("[AzamPay] MNO checkout accepted", {
+      invoiceId: invoice.id,
+      paymentRef,
+      provider,
+      amount: Math.round(amount),
+      currency,
+      accountNumber: maskAzamPayPhone(normalizedPhone),
+      apiHost: AZAMPAY_MNO_API_URL,
+      endpoint: mnoEndpoint,
+      httpStatus: apiRes.status,
+      response: responseSummary,
+    });
+
     await prisma.invoice.update({
       where: { id: invoice.id },
       data: {
@@ -295,6 +338,8 @@ router.post("/initiate", requireAuth, paymentUserLimiter, paymentTargetLimiter, 
             paymentRef,
             phoneNumber: normalizedPhone,
             provider,
+            azampayResponse: responseSummary,
+            apiHost: AZAMPAY_MNO_API_URL,
           },
         },
       });

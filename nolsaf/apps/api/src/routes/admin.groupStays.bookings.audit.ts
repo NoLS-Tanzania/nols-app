@@ -164,7 +164,7 @@ router.post("/:id/message", async (req: any, res) => {
         newStatus = "REVIEWING";
         statusChangeAction = "STATUS_CHANGED_TO_REVIEWING";
         notificationTitle = "Your Group Stay is Under Review";
-        notificationBody = "Thank you for your interest in using NoLSaf! We have received your booking request and our team is currently reviewing it. We will get back to you soon with accommodation options and pricing tailored to your group's needs.";
+        notificationBody = "Thanks for posting your group stay request on NoLSaf! It is now open for verified property owners in your destination area to bid with their best offers. Our team is reviewing the responses and will share the top picks here so you can pick the one that suits your group best.";
       }
     } else if (messageText.includes("processing") || messageText.includes("now processing") || messageText.includes("working on finding")) {
       // Processing message - change to PROCESSING

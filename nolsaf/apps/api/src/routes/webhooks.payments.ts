@@ -22,11 +22,13 @@ import { sendSms } from "../lib/sms.js";
 import { sendMail } from "../lib/mailer.js";
 import { getBookingReceivedEmail } from "../lib/bookingEmailTemplates.js";
 import { generateBookingReservationPdf } from "../lib/bookingPdfGen.js";
+import { notifyUser } from "../lib/notifications.js";
 import crypto from "crypto";
 import { generateBookingCodeForBooking } from "../lib/bookingCodeService.js";
 import { rateLimitWithRedis as rateLimit } from "../lib/redisRateLimitStore.js";
 import { safeEq } from "../lib/signature.js";
 import { normalizePhone } from "../lib/azampay.helpers.js";
+import { ensurePaidGroupStayAvailabilityBlock } from "../lib/groupStayAvailabilityBlocks.js";
 
 const router = Router();
 
@@ -201,15 +203,115 @@ function nextReceiptNumber(prefix = "RCPT", seq: number) {
   return `${prefix}/${y}/${String(seq).padStart(5, "0")}`;
 }
 
-async function markInvoicePaid(invId: number, method: string, paymentRef: string, phoneNumber?: string, provider?: string, transactionId?: string) {
+async function ensurePaidBookingReady(bookingId: number) {
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    select: { id: true, status: true },
+  });
+  if (!booking || booking.status === "CANCELED") return;
+
+  if (booking.status === "NEW") {
+    await prisma.booking.update({
+      where: { id: bookingId },
+      data: { status: "CONFIRMED" },
+    });
+  }
+
+  if (["NEW", "CONFIRMED", "CHECKED_IN", "CHECKED_OUT"].includes(booking.status)) {
+    await generateBookingCodeForBooking(bookingId);
+  }
+}
+
+async function notifyTravellerInvoicePaid(updatedInvoice: any, sourceInvoice: any, confirmedAmount?: number) {
+  let context = { refCode: "?", guestEmail: false, guestPhone: false };
+  try {
+    const booking = sourceInvoice.booking;
+    const bookingId = Number(updatedInvoice.bookingId ?? booking?.id);
+    if (!Number.isFinite(bookingId) || bookingId <= 0 || !booking) return;
+
+    const guestEmail = booking.guestEmail || booking.user?.email || null;
+    const guestPhone = booking.guestPhone || booking.user?.phone || null;
+    if (!guestEmail && !guestPhone) return;
+
+    const currency = booking.property?.currency || "TZS";
+    const totalPaid = Number.isFinite(Number(confirmedAmount))
+      ? Number(confirmedAmount)
+      : Number(updatedInvoice.total ?? updatedInvoice.netPayable ?? booking.totalAmount ?? 0);
+    const guestName = booking.guestName || booking.user?.name || "Guest";
+    const roomsQty = Math.max(1, Number((booking as any).roomsQty ?? 1));
+    const code = await generateBookingCodeForBooking(bookingId);
+    const bookingCode = code.code;
+    const refCode = bookingCode ?? `BK-${bookingId}`;
+    context = { refCode, guestEmail: !!guestEmail, guestPhone: !!guestPhone };
+
+    const pdfData = {
+      guestName,
+      propertyName: String(booking.property?.title || "your property"),
+      bookingId,
+      bookingCode,
+      checkIn: booking.checkIn,
+      checkOut: booking.checkOut,
+      totalAmount: totalPaid,
+      roomsQty,
+      currency,
+      paidAt: updatedInvoice.paidAt ?? new Date(),
+    };
+
+    const [{ subject, html }, reservationPdf] = await Promise.all([
+      Promise.resolve(getBookingReceivedEmail({
+        guestName: pdfData.guestName,
+        propertyName: pdfData.propertyName,
+        bookingId: pdfData.bookingId,
+        bookingCode: pdfData.bookingCode,
+        checkIn: pdfData.checkIn,
+        checkOut: pdfData.checkOut,
+        totalAmount: pdfData.totalAmount,
+        roomsQty: pdfData.roomsQty,
+      })),
+      generateBookingReservationPdf(pdfData),
+    ]);
+
+    if (guestEmail) {
+      await sendMail(guestEmail, subject, html, [
+        { filename: `NolSAF-Booking-${refCode}.pdf`, content: reservationPdf },
+      ]);
+    }
+
+    if (guestPhone) {
+      const ci = new Date(booking.checkIn).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+      const co = new Date(booking.checkOut).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+      const smsText =
+        `NoLSAF: Payment Confirmed!\n` +
+        `Ref: ${refCode}\n` +
+        `Property: ${String(booking.property?.title || "").slice(0, 40)}\n` +
+        `Check-in: ${ci}\n` +
+        `Check-out: ${co}\n` +
+        `Paid: ${currency} ${totalPaid.toLocaleString("en-US")}\n` +
+        `Show your ref code on arrival. support@nolsaf.com`;
+      await sendSms(guestPhone, smsText);
+    }
+  } catch (confirmErr) {
+    console.error(
+      `[PAYMENT_CONFIRMED] Guest notification FAILED for booking ${sourceInvoice.booking?.id ?? "?"} ` +
+      `(invoiceId=${sourceInvoice.id}, refCode=${context.refCode}). ` +
+      `guestEmail=${context.guestEmail ? "set" : "none"}, guestPhone=${context.guestPhone ? "set" : "none"}. ` +
+      `Error: ${(confirmErr as any)?.message ?? String(confirmErr)}`
+    );
+  }
+}
+
+export async function markInvoicePaid(invId: number, method: string, paymentRef: string, phoneNumber?: string, provider?: string, transactionId?: string, confirmedAmount?: number) {
   const inv = await prisma.invoice.findUnique({
     where: { id: invId },
-    include: { booking: { include: { property: true } } },
+    include: { booking: { include: { property: true, user: true } } },
   });
   if (!inv) throw new Error("invoice not found");
-  if (inv.status === "PAID") return inv;
+  if (inv.status === "PAID") {
+    await ensurePaidBookingReady(inv.bookingId);
+    return inv;
+  }
 
-  const seq = await prisma.invoice.count({ status: "PAID" });
+  const seq = await prisma.invoice.count({ where: { status: "PAID" } });
   const receiptNumber = inv.receiptNumber ?? nextReceiptNumber("RCPT", seq + 1);
 
   const payload = JSON.stringify({
@@ -246,12 +348,10 @@ async function markInvoicePaid(invId: number, method: string, paymentRef: string
     include: { booking: true },
   });
 
-  // A public booking is only confirmed after payment succeeds.
-  // Do not revive cancelled/expired bookings; only promote fresh NEW holds.
-  await prisma.booking.updateMany({
-    where: { id: updated.bookingId, status: "NEW" },
-    data: { status: "CONFIRMED" },
-  });
+  // A public booking is only confirmed after payment succeeds, and the check-in
+  // code must exist before it appears in My Bookings.
+  await ensurePaidBookingReady(updated.bookingId);
+  await notifyTravellerInvoicePaid(updated, inv, confirmedAmount);
 
   // If the booking included scheduled transport, publish it to drivers now.
   try {
@@ -429,6 +529,86 @@ function near(a: number, b: number): boolean {
   return Math.abs(a - b) <= absTolerance;
 }
 
+type GroupBookingDepositTarget = {
+  id: number;
+  userId: number;
+  depositAmount: any;
+  depositPaid: boolean;
+  currency: string;
+  assignedOwnerId: number | null;
+  confirmedPropertyId?: number | null;
+  checkIn?: Date | string | null;
+  checkOut?: Date | string | null;
+  roomsNeeded?: number | null;
+  toRegion: string | null;
+  toDistrict: string | null;
+};
+
+/** Mark a group booking's deposit as paid (idempotent), notify the customer/owner, and send an SMS receipt. */
+export async function markGroupBookingDepositPaid(
+  groupBooking: GroupBookingDepositTarget,
+  amount: number,
+  provider: string
+): Promise<{ ok: boolean; reason?: "already_paid" | "amount_mismatch" }> {
+  if (groupBooking.depositPaid) return { ok: false, reason: "already_paid" };
+  const want = Math.round(Number(groupBooking.depositAmount || 0));
+  if (!(want > 0 && near(amount, want))) return { ok: false, reason: "amount_mismatch" };
+
+  await prisma.groupBooking.update({
+    where: { id: groupBooking.id },
+    data: {
+      depositPaid: true,
+      depositPaidAt: new Date(),
+      status: "CONFIRMED",
+      paymentProvider: provider,
+    },
+  });
+
+  try {
+    await ensurePaidGroupStayAvailabilityBlock(groupBooking);
+  } catch (err: any) {
+    console.error(`[GroupStay] Failed to create paid availability hold for booking #${groupBooking.id}:`, err?.message ?? err);
+  }
+
+  const destination = [groupBooking.toDistrict, groupBooking.toRegion].filter(Boolean).join(", ");
+
+  // Notify customer
+  try {
+    await notifyUser(groupBooking.userId, "group_stay_update", {
+      title: "Deposit received — booking confirmed",
+      body: `We received your deposit of ${groupBooking.currency} ${want.toLocaleString("en-US")} for your group stay${destination ? ` to ${destination}` : ""}. Your booking is now confirmed.`,
+      groupBookingId: groupBooking.id,
+    });
+  } catch { /* non-fatal */ }
+
+  // Notify assigned owner
+  if (groupBooking.assignedOwnerId) {
+    try {
+      await notifyUser(groupBooking.assignedOwnerId, "group_stay_update", {
+        title: "Group stay deposit paid",
+        body: `The customer paid the deposit for group stay #${groupBooking.id}${destination ? ` (${destination})` : ""}. The booking is now confirmed.`,
+        groupBookingId: groupBooking.id,
+      });
+    } catch { /* non-fatal */ }
+  }
+
+  // SMS to customer
+  try {
+    const user = await prisma.user.findUnique({ where: { id: groupBooking.userId }, select: { phone: true } });
+    if (user?.phone) {
+      const smsText =
+        `NoLSAF: Group Stay Confirmed!\n` +
+        `Ref: #${groupBooking.id}\n` +
+        (destination ? `Destination: ${destination.slice(0, 30)}\n` : "") +
+        `Deposit paid: ${groupBooking.currency} ${want.toLocaleString("en-US")}\n` +
+        `support@nolsaf.com`;
+      await sendSms(user.phone, smsText);
+    }
+  } catch { /* non-fatal */ }
+
+  return { ok: true };
+}
+
 // ── Webhook security helpers (exported for unit tests) ─────────
 
 /**
@@ -448,7 +628,7 @@ export function isWebhookIpAllowed(clientIp: string, allowedIps: string[]): bool
  */
 export function detectPaymentChannel(payload: any): "MNO" | "BANK" | "CARD" | null {
   const p = String(payload.provider || payload.paymentMethod || "").toLowerCase();
-  if (["airtel", "m-pesa", "mixx", "halopesa", "vodacom", "tigo"].some((x) => p.includes(x)))
+  if (["airtel", "mpesa", "mixx", "halopesa", "vodacom", "tigo"].some((x) => p.includes(x)))
     return "MNO";
   if (p === "card" || payload.cardType || payload.maskedPan)
     return "CARD";
@@ -608,6 +788,29 @@ router.post("/azampay", webhookLimiter, async (req: any, res) => {
       });
     }
 
+    // Also find a group booking deposit by paymentRef (when no invoice/tour booking found)
+    let groupBooking = null as any;
+    if (!invoice && !tourBooking && paymentRef) {
+      groupBooking = await prisma.groupBooking.findFirst({
+        where: { paymentRef: paymentRef.toString() },
+        select: {
+          id: true,
+          userId: true,
+          depositAmount: true,
+          depositPaid: true,
+          currency: true,
+          status: true,
+          assignedOwnerId: true,
+          confirmedPropertyId: true,
+          checkIn: true,
+          checkOut: true,
+          roomsNeeded: true,
+          toRegion: true,
+          toDistrict: true,
+        },
+      });
+    }
+
     // Record the payment event (only if not already existing)
     const recorded = existing ?? await prisma.paymentEvent.create({
       data: {
@@ -615,6 +818,7 @@ router.post("/azampay", webhookLimiter, async (req: any, res) => {
         eventId:        eventId.toString(),
         invoiceId:      invoice?.id ?? null,
         tourBookingId:  tourBooking?.id ?? null,
+        groupBookingId: groupBooking?.id ?? null,
         amount,
         currency:       payload.currency || "TZS",
         status:         normalizedStatus,
@@ -644,105 +848,15 @@ router.post("/azampay", webhookLimiter, async (req: any, res) => {
       
       // Verify amount matches within tolerance
       if (near(amount, want)) {
-        const updatedInvoice = await markInvoicePaid(
+        await markInvoicePaid(
           invoice.id,
           "AZAMPAY",
           paymentRef || eventId.toString(),
           phoneNumber || undefined,
           provider || undefined,
-          eventId.toString()
+          eventId.toString(),
+          amount
         );
-
-        // Generate booking code (idempotent — safe to call even if code already exists)
-        if (updatedInvoice.booking?.id) {
-          try {
-            await generateBookingCodeForBooking(updatedInvoice.booking.id);
-          } catch (codeError) {
-            console.error("Failed to generate booking code:", codeError);
-            // Don't fail the webhook if code generation fails
-          }
-        }
-
-        // Send guest payment confirmation: email with PDF receipts + SMS.
-        // Uses the AzamPay-confirmed `amount` — the exact value the guest paid via M-Pesa.
-        // This fires ONLY here (after payment success) — never at booking creation.
-        let _notifContext = { refCode: "?", guestEmail: false, guestPhone: false };
-        try {
-          const bookingId = invoice.booking.id;
-          // Email from linked account; phone from booking record or linked account.
-          const guestEmail = invoice.booking.user?.email || null;
-          const guestPhone = invoice.booking.guestPhone || invoice.booking.user?.phone || null;
-          const currency   = invoice.booking.property?.currency || "TZS";
-          // Use the AzamPay-confirmed payment amount — this is the source of truth.
-          const totalPaid  = amount;
-          const guestName  = invoice.booking.guestName || invoice.booking.user?.name || "Guest";
-          const roomsQty   = Math.max(1, Number((invoice.booking as any).roomsQty ?? 1));
-
-          // Fetch the active booking code (just generated above)
-          const checkinCode = await prisma.checkinCode.findFirst({
-            where: { bookingId, status: "ACTIVE" },
-            select: { code: true },
-          });
-          const bookingCode = checkinCode?.code;
-          const refCode = bookingCode ?? `BK-${bookingId}`;
-          _notifContext = { refCode, guestEmail: !!guestEmail, guestPhone: !!guestPhone };
-
-          const pdfData = {
-            guestName,
-            propertyName: String(invoice.booking.property?.title || "your property"),
-            bookingId,
-            bookingCode,
-            checkIn:     invoice.booking.checkIn,
-            checkOut:    invoice.booking.checkOut,
-            totalAmount: totalPaid,
-            roomsQty,
-            currency,
-            paidAt:      updatedInvoice.paidAt ?? new Date(),
-          };
-
-          const [{ subject, html }, reservationPdf] = await Promise.all([
-            Promise.resolve(getBookingReceivedEmail({
-              guestName:    pdfData.guestName,
-              propertyName: pdfData.propertyName,
-              bookingId:    pdfData.bookingId,
-              bookingCode:  pdfData.bookingCode,
-              checkIn:      pdfData.checkIn,
-              checkOut:     pdfData.checkOut,
-              totalAmount:  pdfData.totalAmount,
-              roomsQty:     pdfData.roomsQty,
-            })),
-            generateBookingReservationPdf(pdfData),
-          ]);
-
-          if (guestEmail) {
-            await sendMail(guestEmail, subject, html, [
-              { filename: `NolSAF-Booking-${refCode}.pdf`, content: reservationPdf },
-            ]);
-          }
-
-          if (guestPhone) {
-            const ci = new Date(invoice.booking.checkIn).toLocaleDateString("en-GB",  { day: "numeric", month: "short", year: "numeric" });
-            const co = new Date(invoice.booking.checkOut).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
-            const smsText =
-              `NoLSAF: Payment Confirmed!\n` +
-              `Ref: ${refCode}\n` +
-              `Property: ${String(invoice.booking.property?.title || "").slice(0, 40)}\n` +
-              `Check-in: ${ci}\n` +
-              `Check-out: ${co}\n` +
-              `Paid: ${currency} ${totalPaid.toLocaleString("en-US")}\n` +
-              `Show your ref code on arrival. support@nolsaf.com`;
-            await sendSms(guestPhone, smsText);
-          }
-        } catch (confirmErr) {
-          // Log with enough detail for ops to investigate and manually resend if needed.
-          // We intentionally do NOT block the webhook response — payment is confirmed regardless.
-          console.error(
-            `[PAYMENT_CONFIRMED] Guest notification FAILED for booking ${invoice.booking?.id ?? "?"} ` +
-            `(invoiceId=${invoice.id}, refCode=${_notifContext.refCode}). ` +
-            `guestEmail=${_notifContext.guestEmail ? "set" : "none"}, guestPhone=${_notifContext.guestPhone ? "set" : "none"}. ` +
-            `Error: ${(confirmErr as any)?.message ?? String(confirmErr)}`
-          );
-        }
       } else {
         // Suspicious underpayment — log with enough detail for admin investigation.
         console.warn(
@@ -775,17 +889,13 @@ router.post("/azampay", webhookLimiter, async (req: any, res) => {
           });
           if (agent?.userId) {
             try {
-              await prisma.notification.create({
-                data: {
-                  userId: agent.userId,
-                  title: "New paid tour booking",
-                  body:
-                    `Tour booking ${tourBooking.bookingCode} has been paid. ` +
-                    `Guest: ${tourBooking.guestName || "Unknown"}. ` +
-                    `Amount: ${tourBooking.currency} ${want.toLocaleString("en-US")}.`,
-                  type: "tour_booking",
-                  meta: { kind: "tour_booking_paid", tourBookingId: tourBooking.id, bookingCode: tourBooking.bookingCode },
-                },
+              await notifyUser(agent.userId, "agent_tour_booking_paid", {
+                kind: "tour_booking_paid",
+                tourBookingId: tourBooking.id,
+                bookingCode: tourBooking.bookingCode,
+                guestName: tourBooking.guestName,
+                amount: want,
+                currency: tourBooking.currency,
               });
             } catch { /* non-fatal */ }
           }
@@ -812,6 +922,21 @@ router.post("/azampay", webhookLimiter, async (req: any, res) => {
           `[WEBHOOK] Amount mismatch on tour booking ${tourBooking.id}: ` +
           `expected ${want} TZS, received ${amount} TZS.`
         );
+      }
+    }
+
+    // ── Group stay deposit payment success ─────────────────────────────────────
+    if (groupBooking && normalizedStatus === "SUCCESS" && !groupBooking.depositPaid) {
+      try {
+        const result = await markGroupBookingDepositPaid(groupBooking, amount, "AZAMPAY");
+        if (!result.ok && result.reason === "amount_mismatch") {
+          console.warn(
+            `[WEBHOOK] Amount mismatch on group booking deposit ${groupBooking.id}: ` +
+            `expected ${Math.round(Number(groupBooking.depositAmount || 0))} TZS, received ${amount} TZS.`
+          );
+        }
+      } catch (groupErr) {
+        console.error(`[WEBHOOK] Failed to mark group booking ${groupBooking.id} deposit as paid:`, (groupErr as any)?.message ?? groupErr);
       }
     }
 

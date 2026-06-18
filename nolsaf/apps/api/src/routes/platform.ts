@@ -5,6 +5,7 @@ import authRoutes from "./auth";
 import azampayPaymentsRouter from "./payments.azampay.js";
 import azampayBankRouter     from "./payments.azampay.bank.js";
 import azampayCardRouter     from "./payments.azampay.card.js";
+import coralCommerceCardRouter from "./payments.coralcommerce.card.js";
 import bookingsRoutes from "./bookings";
 import chatbotRouter from "./chatbot";
 import conversationsRoutes from "./conversations";
@@ -36,10 +37,12 @@ export function registerConversationBookingRoutes(app: Express): void {
 }
 
 export function registerPaymentRoutes(app: Express): void {
+  app.use("/webhooks/coralcommerce/card", coralCommerceCardRouter); // Coral callback/postback aliases
   app.use("/webhooks", paymentWebhooksRouter);
   app.use("/api/payments/azampay", azampayPaymentsRouter);       // MNO: Airtel, M-Pesa, Mixx, HaloPesa
   app.use("/api/payments/azampay/bank", azampayBankRouter);      // Bank: CRDB, NMB, NBC, etc.
   app.use("/api/payments/azampay/card", azampayCardRouter);      // Card: Visa / Mastercard
+  app.use("/api/payments/coralcommerce/card", coralCommerceCardRouter); // Card: CoralCommerce hosted checkout
 }
 
 export function registerGeocodingRoute(app: Express): void {

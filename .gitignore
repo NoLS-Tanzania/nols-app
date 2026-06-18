@@ -39,3 +39,7 @@ SECURITY_FIXES_SUMMARY.md
 *_PENTEST.md
 .vercel
 .env*.local
+
+# Local diagnostic copies / SDKs — never commit these
+.codex-staging-paydiag/
+/Android/

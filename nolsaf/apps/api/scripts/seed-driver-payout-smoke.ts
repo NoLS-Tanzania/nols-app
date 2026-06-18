@@ -15,10 +15,12 @@ type SmokeCase = {
   vehicleType: string;
   vehiclePlate: string;
   amount: number;
-  status: "PENDING" | "APPROVED" | "PAID";
+  status: "PENDING" | "PAID";
+  dispatchMode: "AUTO_DISPATCH" | "SCHEDULED";
   fromAddress: string;
   toAddress: string;
   paymentMethod: string;
+  paymentDestination: string;
 };
 
 const smokeCases: SmokeCase[] = [
@@ -31,35 +33,71 @@ const smokeCases: SmokeCase[] = [
     vehiclePlate: "SMK 101",
     amount: 85_000,
     status: "PENDING",
+    dispatchMode: "AUTO_DISPATCH",
     fromAddress: "Julius Nyerere International Airport, Dar es Salaam",
     toAddress: "Masaki, Dar es Salaam",
     paymentMethod: "M-Pesa",
+    paymentDestination: "+255710900001",
   },
   {
     index: 2,
-    driverName: "Smoke Payout Driver Two",
+    driverName: "Smoke Auto Dispatch Driver Two",
     driverEmail: "smoke.driver.payout.2@nolsaf.test",
     driverPhone: "+255710900002",
     vehicleType: "XL",
     vehiclePlate: "SMK 202",
     amount: 125_000,
-    status: "APPROVED",
+    status: "PENDING",
+    dispatchMode: "AUTO_DISPATCH",
     fromAddress: "Kivukoni Ferry, Dar es Salaam",
     toAddress: "Mbezi Beach, Dar es Salaam",
     paymentMethod: "Airtel Money",
+    paymentDestination: "+255710900002",
   },
   {
     index: 3,
-    driverName: "Smoke Payout Driver Three",
+    driverName: "Smoke Scheduled Driver Three",
     driverEmail: "smoke.driver.payout.3@nolsaf.test",
     driverPhone: "+255710900003",
     vehicleType: "PREMIUM",
     vehiclePlate: "SMK 303",
     amount: 180_000,
-    status: "PAID",
+    status: "PENDING",
+    dispatchMode: "SCHEDULED",
     fromAddress: "Arusha Airport",
     toAddress: "Njiro, Arusha",
     paymentMethod: "Bank Transfer",
+    paymentDestination: "NMB / 1234567890",
+  },
+  {
+    index: 4,
+    driverName: "Smoke Scheduled Driver Four",
+    driverEmail: "smoke.driver.payout.4@nolsaf.test",
+    driverPhone: "+255710900004",
+    vehicleType: "CAR",
+    vehiclePlate: "SMK 404",
+    amount: 95_000,
+    status: "PENDING",
+    dispatchMode: "SCHEDULED",
+    fromAddress: "Moshi Bus Stand",
+    toAddress: "Kilimanjaro International Airport",
+    paymentMethod: "Tigo Pesa",
+    paymentDestination: "+255710900004",
+  },
+  {
+    index: 5,
+    driverName: "Smoke Paid Driver Five",
+    driverEmail: "smoke.driver.payout.5@nolsaf.test",
+    driverPhone: "+255710900005",
+    vehicleType: "CAR",
+    vehiclePlate: "SMK 505",
+    amount: 140_000,
+    status: "PAID",
+    dispatchMode: "AUTO_DISPATCH",
+    fromAddress: "Ubungo Bus Terminal, Dar es Salaam",
+    toAddress: "Slipway, Dar es Salaam",
+    paymentMethod: "M-Pesa",
+    paymentDestination: "+255710900005",
   },
 ];
 
@@ -134,8 +172,21 @@ async function upsertSmokeDriver(item: SmokeCase) {
       plateNumber: item.vehiclePlate,
       paymentPhone: item.driverPhone,
       paymentVerified: true,
-      region: item.index === 3 ? "Arusha" : "Dar es Salaam",
-      operationArea: item.index === 3 ? "Arusha" : "Dar es Salaam",
+      payout:
+        item.paymentMethod === "Bank Transfer"
+          ? {
+              payoutPreferred: "BANK",
+              bankAccountName: item.driverName,
+              bankName: item.paymentDestination.split("/")[0]?.trim() || "Bank",
+              bankAccountNumber: item.paymentDestination.split("/")[1]?.trim() || "1234567890",
+            }
+          : {
+              payoutPreferred: "MOBILE_MONEY",
+              mobileMoneyProvider: item.paymentMethod,
+              mobileMoneyNumber: item.paymentDestination,
+            },
+      region: item.index >= 3 ? "Arusha" : "Dar es Salaam",
+      operationArea: item.index >= 3 ? "Arusha" : "Dar es Salaam",
     },
     create: {
       name: item.driverName,
@@ -153,8 +204,21 @@ async function upsertSmokeDriver(item: SmokeCase) {
       paymentVerified: true,
       emailVerifiedAt: new Date(),
       phoneVerifiedAt: new Date(),
-      region: item.index === 3 ? "Arusha" : "Dar es Salaam",
-      operationArea: item.index === 3 ? "Arusha" : "Dar es Salaam",
+      payout:
+        item.paymentMethod === "Bank Transfer"
+          ? {
+              payoutPreferred: "BANK",
+              bankAccountName: item.driverName,
+              bankName: item.paymentDestination.split("/")[0]?.trim() || "Bank",
+              bankAccountNumber: item.paymentDestination.split("/")[1]?.trim() || "1234567890",
+            }
+          : {
+              payoutPreferred: "MOBILE_MONEY",
+              mobileMoneyProvider: item.paymentMethod,
+              mobileMoneyNumber: item.paymentDestination,
+            },
+      region: item.index >= 3 ? "Arusha" : "Dar es Salaam",
+      operationArea: item.index >= 3 ? "Arusha" : "Dar es Salaam",
       rating: "4.80",
     },
   });
@@ -189,21 +253,21 @@ async function upsertCompletedTrip(item: SmokeCase, customerId: number, driverId
     scheduledDate,
     pickupTime,
     dropoffTime,
-    fromRegion: item.index === 3 ? "Arusha" : "Dar es Salaam",
-    fromDistrict: item.index === 3 ? "Arusha Urban" : "Ilala",
+    fromRegion: item.index >= 3 ? "Arusha" : "Dar es Salaam",
+    fromDistrict: item.index >= 3 ? "Arusha Urban" : "Ilala",
     fromAddress: item.fromAddress,
-    fromLatitude: item.index === 3 ? "-3.386900" : "-6.878100",
-    fromLongitude: item.index === 3 ? "36.682900" : "39.202600",
-    toRegion: item.index === 3 ? "Arusha" : "Dar es Salaam",
-    toDistrict: item.index === 3 ? "Arusha Urban" : "Kinondoni",
+    fromLatitude: item.index >= 3 ? "-3.386900" : "-6.878100",
+    fromLongitude: item.index >= 3 ? "36.682900" : "39.202600",
+    toRegion: item.index >= 3 ? "Arusha" : "Dar es Salaam",
+    toDistrict: item.index >= 3 ? "Arusha Urban" : "Kinondoni",
     toAddress: item.toAddress,
-    toLatitude: item.index === 3 ? "-3.399300" : "-6.746700",
-    toLongitude: item.index === 3 ? "36.731400" : "39.262400",
+    toLatitude: item.index >= 3 ? "-3.399300" : "-6.746700",
+    toLongitude: item.index >= 3 ? "36.731400" : "39.262400",
     vehicleType: item.vehicleType,
     amount: money(item.amount),
     currency: "TZS",
     numberOfPassengers: item.index + 1,
-    notes: `${marker}\nCompleted smoke trip used to verify admin driver payout and invoice claim screens.`,
+    notes: `${marker}\n${item.dispatchMode} smoke trip used to verify requested driver payout invoice flow.`,
     userRating: "5.00",
     userReview: "Smoke passenger confirmed the trip was completed.",
     driverRating: "5.00",
@@ -234,7 +298,7 @@ async function upsertTransportPayout(item: SmokeCase, bookingId: number, driverI
   const commissionAmount = roundMoney(grossAmount * (COMMISSION_PERCENT / 100));
   const netPaid = grossAmount - commissionAmount;
   const now = new Date();
-  const approvedAt = item.status === "APPROVED" || item.status === "PAID" ? now : null;
+  const approvedAt = item.status === "PAID" ? now : null;
   const paidAt = item.status === "PAID" ? now : null;
 
   return (prisma as any).transportPayout.upsert({
@@ -252,7 +316,7 @@ async function upsertTransportPayout(item: SmokeCase, bookingId: number, driverI
       paidAt,
       paidBy: paidAt ? adminId : null,
       paymentMethod: item.paymentMethod,
-      paymentRef: item.status === "PAID" ? `${SMOKE_PREFIX}-PAID-${item.index}` : `${SMOKE_PREFIX}-CLAIM-${item.index}`,
+      paymentRef: `${SMOKE_PREFIX}-${item.dispatchMode}-CLAIM-${item.index}`,
     },
     create: {
       transportBookingId: bookingId,
@@ -268,21 +332,22 @@ async function upsertTransportPayout(item: SmokeCase, bookingId: number, driverI
       paidAt,
       paidBy: paidAt ? adminId : null,
       paymentMethod: item.paymentMethod,
-      paymentRef: item.status === "PAID" ? `${SMOKE_PREFIX}-PAID-${item.index}` : `${SMOKE_PREFIX}-CLAIM-${item.index}`,
+      paymentRef: `${SMOKE_PREFIX}-${item.dispatchMode}-CLAIM-${item.index}`,
     },
   });
 }
 
 async function upsertInvoiceClaim(item: SmokeCase, driverId: number, adminId: number | null, netPaid: number) {
-  const paymentRef = `${SMOKE_PREFIX}-INVOICE-${item.index}`;
+  const paymentRef = `${SMOKE_PREFIX}-${item.dispatchMode}-INVOICE-${item.index}`;
   const existing = await (prisma as any).referralWithdrawal.findFirst({
     where: { paymentRef },
     select: { id: true },
     orderBy: { id: "asc" },
   });
 
-  const approvedAt = item.status === "APPROVED" || item.status === "PAID" ? new Date() : null;
-  const paidAt = item.status === "PAID" ? new Date() : null;
+  const now = new Date();
+  const approvedAt = item.status === "PAID" ? now : null;
+  const paidAt = item.status === "PAID" ? now : null;
   const data = {
     driverId,
     totalAmount: money(netPaid),
@@ -291,7 +356,7 @@ async function upsertInvoiceClaim(item: SmokeCase, driverId: number, adminId: nu
     paymentMethod: item.paymentMethod,
     paymentRef,
     processedBy: approvedAt || paidAt ? adminId : null,
-    adminNotes: `${SMOKE_PREFIX}: invoice claim for completed trip ${item.index}`,
+    adminNotes: `${SMOKE_PREFIX}: ${item.dispatchMode} requested invoice claim for completed trip ${item.index}`,
     approvedAt,
     rejectedAt: null,
     paidAt,
@@ -322,6 +387,7 @@ async function main() {
 
     results.push({
       status: item.status,
+      dispatchMode: item.dispatchMode,
       driver: driver.name,
       driverEmail: driver.email,
       tripId: Number(booking.id),
@@ -337,10 +403,10 @@ async function main() {
   console.log("Driver payout smoke data is ready.");
   console.table(results);
   console.log("");
-  console.log("Open these admin screens and search for SMOKE-DRIVER-PAYOUT:");
+  console.log("Open this admin screen and search for SMOKE-DRIVER-PAYOUT:");
   console.log("  /admin/drivers/trips?status=COMPLETED");
   console.log("  /admin/drivers/invoices");
-  console.log("  /admin/drivers/paid");
+  console.log("Expected payout stages: four Requested rows and one Disbursed row.");
 }
 
 main()
