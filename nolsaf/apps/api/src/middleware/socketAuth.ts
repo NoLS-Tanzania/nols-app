@@ -41,7 +41,7 @@ function parseCookies(cookieHeader: string | undefined): Record<string, string> 
   return out;
 }
 
-async function verifyToken(token: string): Promise<{ id: number; role: string; email?: string | null } | null> {
+export async function verifyToken(token: string): Promise<{ id: number; role: string; email?: string | null } | null> {
   try {
     const secret =
       process.env.JWT_SECRET ||

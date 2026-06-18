@@ -1,7 +1,7 @@
 "use client";
 import { Fragment, useCallback, useEffect, useState } from "react";
 import apiClient from "@/lib/apiClient";
-import { Users, Calendar, CheckCircle, XCircle, User, Phone, Globe, ArrowRight, Building2, Clock, ChevronDown, MessageSquare, DollarSign, Tag, FileText, Sparkles, Gift, Send } from "lucide-react";
+import { Users, Calendar, CheckCircle, XCircle, User, Phone, Globe, ArrowRight, Building2, Clock, ChevronDown, MessageSquare, DollarSign, Tag, FileText, Sparkles, Gift, Send, MapPin, CreditCard, Smartphone } from "lucide-react";
 import Link from "next/link";
 import { io } from "socket.io-client";
 import LogoSpinner from "@/components/LogoSpinner";
@@ -30,6 +30,11 @@ type GroupStay = {
   checkOut: string;
   status: string;
   totalAmount: number;
+  currency?: string | null;
+  depositAmount?: number | null;
+  depositPaid?: boolean | null;
+  depositPaidAt?: string | null;
+  depositDueAt?: string | null;
   numberOfGuests: number;
   passengers?: Array<{
     id: number;
@@ -106,6 +111,9 @@ export default function MyGroupStaysPage() {
   const [auctionExpanded, setAuctionExpanded] = useState<Set<number>>(new Set());
   const [auctionLoading, setAuctionLoading] = useState<Set<number>>(new Set());
   const [auctionConfirming, setAuctionConfirming] = useState<Set<number>>(new Set());
+  const [depositPaying, setDepositPaying] = useState<Set<number>>(new Set());
+  const [depositPhones, setDepositPhones] = useState<Record<number, string>>({});
+  const [depositProviders, setDepositProviders] = useState<Record<number, string>>({});
 
   useEffect(() => {
     loadGroupStays();
@@ -203,40 +211,112 @@ export default function MyGroupStaysPage() {
     }
   };
 
+  const withDepositBusy = async (bookingId: number, action: () => Promise<void>) => {
+    setDepositPaying((prev) => new Set(prev).add(bookingId));
+    try {
+      await action();
+    } finally {
+      setDepositPaying((prev) => {
+        const next = new Set(prev);
+        next.delete(bookingId);
+        return next;
+      });
+    }
+  };
+
+  const initiateDepositCard = async (bookingId: number) => {
+    await withDepositBusy(bookingId, async () => {
+      try {
+        const response = await api.post(`/api/customer/group-stays/${bookingId}/deposit/initiate-card`);
+        const checkoutUrl = response.data?.checkoutUrl;
+        if (checkoutUrl) {
+          window.location.href = checkoutUrl;
+          return;
+        }
+        throw new Error(response.data?.message || "Card checkout was not returned");
+      } catch (err: any) {
+        const msg = err?.response?.data?.message || err?.response?.data?.error || err?.message || "Failed to start card payment";
+        window.dispatchEvent(
+          new CustomEvent("nols:toast", {
+            detail: { type: "error", title: "Deposit Payment", message: msg, duration: 5000 },
+          })
+        );
+      }
+    });
+  };
+
+  const initiateDepositMobileMoney = async (bookingId: number) => {
+    const phoneNumber = String(depositPhones[bookingId] || "").trim();
+    const provider = String(depositProviders[bookingId] || "Airtel").trim();
+    if (!phoneNumber) {
+      window.dispatchEvent(
+        new CustomEvent("nols:toast", {
+          detail: { type: "error", title: "Deposit Payment", message: "Enter the mobile money phone number first.", duration: 3500 },
+        })
+      );
+      return;
+    }
+
+    await withDepositBusy(bookingId, async () => {
+      try {
+        await api.post(`/api/customer/group-stays/${bookingId}/deposit/initiate-mno`, { phoneNumber, provider });
+        window.dispatchEvent(
+          new CustomEvent("nols:toast", {
+            detail: { type: "success", title: "Payment Sent", message: "Check your phone and approve the deposit payment prompt.", duration: 5000 },
+          })
+        );
+        await loadGroupStays();
+      } catch (err: any) {
+        const msg = err?.response?.data?.message || err?.response?.data?.error || "Failed to start mobile money payment";
+        window.dispatchEvent(
+          new CustomEvent("nols:toast", {
+            detail: { type: "error", title: "Deposit Payment", message: msg, duration: 5000 },
+          })
+        );
+      }
+    });
+  };
+
+  const normalizeStatus = (status: string) => String(status || "").trim().toUpperCase();
+  const isPendingStatus = (stay: GroupStay) => ["PENDING", "REVIEWING"].includes(normalizeStatus(stay.status));
+  const isReviewedStatus = (stay: GroupStay) => normalizeStatus(stay.status) === "PROCESSING";
+  const isConfirmedStatus = (stay: GroupStay) => normalizeStatus(stay.status) === "CONFIRMED";
+  const isCanceledStatus = (stay: GroupStay) => ["CANCELED", "CANCELLED"].includes(normalizeStatus(stay.status));
+
   const filteredGroupStays = groupStays.filter((stay) => {
-    if (filter === "pending") return stay.status === "PENDING" || stay.status === "REVIEWING";
-    if (filter === "reviewed") return stay.status === "PROCESSING";
+    if (filter === "pending") return isPendingStatus(stay);
+    if (filter === "reviewed") return isReviewedStatus(stay);
     if (filter === "active") {
       return (
         stay.isValid &&
-        stay.status !== "PENDING" &&
-        stay.status !== "REVIEWING" &&
-        stay.status !== "PROCESSING"
+        !isPendingStatus(stay) &&
+        !isReviewedStatus(stay) &&
+        !isCanceledStatus(stay)
       );
     }
-    if (filter === "completed") return !stay.isValid && stay.status === "COMPLETED";
-    if (filter === "expired") return !stay.isValid && stay.status !== "COMPLETED" && stay.status !== "CANCELED";
+    if (filter === "completed") return !stay.isValid && normalizeStatus(stay.status) === "COMPLETED";
+    if (filter === "expired") return !stay.isValid && normalizeStatus(stay.status) !== "COMPLETED" && !isCanceledStatus(stay);
     return false;
   });
 
-  const pendingCount = groupStays.filter((s) => s.status === "PENDING" || s.status === "REVIEWING").length;
-  const pendingOnlyCount = groupStays.filter((s) => s.status === "PENDING").length;
-  const reviewingOnlyCount = groupStays.filter((s) => s.status === "REVIEWING").length;
-  const reviewedCount = groupStays.filter((s) => s.status === "PROCESSING").length;
+  const pendingCount = groupStays.filter((s) => isPendingStatus(s)).length;
+  const pendingOnlyCount = groupStays.filter((s) => normalizeStatus(s.status) === "PENDING").length;
+  const reviewingOnlyCount = groupStays.filter((s) => normalizeStatus(s.status) === "REVIEWING").length;
+  const reviewedCount = groupStays.filter((s) => isReviewedStatus(s)).length;
   const activeCount = groupStays.filter(
     (s) =>
       s.isValid &&
-      s.status !== "PENDING" &&
-      s.status !== "REVIEWING" &&
-      s.status !== "PROCESSING"
+      !isPendingStatus(s) &&
+      !isReviewedStatus(s) &&
+      !isCanceledStatus(s)
   ).length;
-  const completedCount = groupStays.filter((s) => !s.isValid && s.status === "COMPLETED").length;
-  const expiredCount = groupStays.filter((s) => !s.isValid && s.status !== "COMPLETED" && s.status !== "CANCELED").length;
+  const completedCount = groupStays.filter((s) => !s.isValid && normalizeStatus(s.status) === "COMPLETED").length;
+  const expiredCount = groupStays.filter((s) => !s.isValid && normalizeStatus(s.status) !== "COMPLETED" && !isCanceledStatus(s)).length;
 
   const displayGroupStays =
     filter === "pending"
       ? [...filteredGroupStays].sort((a, b) => {
-          const rank = (s: GroupStay) => (s.status === "REVIEWING" ? 0 : 1);
+          const rank = (s: GroupStay) => (normalizeStatus(s.status) === "REVIEWING" ? 0 : 1);
           const byStatus = rank(a) - rank(b);
           if (byStatus !== 0) return byStatus;
           return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
@@ -251,27 +331,41 @@ export default function MyGroupStaysPage() {
     });
   };
 
+  const formatDateTime = (dateString?: string | null) => {
+    if (!dateString) return "Pending";
+    const d = new Date(dateString);
+    if (Number.isNaN(d.getTime())) return "Pending";
+    return d.toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
   const getStatusLabel = (stay: GroupStay) => {
-    if (stay.status === "PENDING") return "Pending";
-    if (stay.status === "REVIEWING") return "Under Review";
-    if (stay.status === "PROCESSING") return "Processing";
-    if (stay.isValid) {
-      return stay.status === "CONFIRMED" ? "Confirmed" : "Active";
-    }
-    if (stay.status === "COMPLETED") return "Completed";
-    if (stay.status === "CANCELED") return "Canceled";
+    const status = normalizeStatus(stay.status);
+    if (status === "PENDING") return "Pending";
+    if (status === "REVIEWING") return "Under Review";
+    if (status === "PROCESSING") return "Reviewed";
+    if (status === "AWAITING_DEPOSIT") return "Awaiting Deposit";
+    if (isConfirmedStatus(stay)) return "Confirmed";
+    if (stay.isValid) return "Active";
+    if (status === "COMPLETED") return "Completed";
+    if (isCanceledStatus(stay)) return "Canceled";
     return "Expired";
   };
 
   const getStatusColor = (stay: GroupStay) => {
-    if (stay.status === "PENDING") return "bg-amber-50 text-amber-700 border-amber-200";
-    if (stay.status === "REVIEWING") return "bg-emerald-50 text-emerald-700 border-emerald-200";
-    if (stay.status === "PROCESSING") return "bg-sky-50 text-sky-700 border-sky-200";
-    if (stay.isValid) {
-      return stay.status === "CONFIRMED" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-emerald-50 text-emerald-700 border-emerald-200";
-    }
-    if (stay.status === "COMPLETED") return "bg-green-50 text-green-700 border-green-200";
-    if (stay.status === "CANCELED") return "bg-red-50 text-red-700 border-red-200";
+    const status = normalizeStatus(stay.status);
+    if (status === "PENDING") return "bg-amber-50 text-amber-700 border-amber-200";
+    if (status === "REVIEWING") return "bg-emerald-50 text-emerald-700 border-emerald-200";
+    if (status === "PROCESSING") return "bg-sky-50 text-sky-700 border-sky-200";
+    if (status === "AWAITING_DEPOSIT") return "bg-amber-50 text-amber-700 border-amber-200";
+    if (isConfirmedStatus(stay) || stay.isValid) return "bg-emerald-50 text-emerald-700 border-emerald-200";
+    if (status === "COMPLETED") return "bg-green-50 text-green-700 border-green-200";
+    if (isCanceledStatus(stay)) return "bg-red-50 text-red-700 border-red-200";
     return "bg-slate-100 text-slate-500 border-slate-200";
   };
 
@@ -332,7 +426,7 @@ export default function MyGroupStaysPage() {
 
   if (loading) {
     return (
-      <div className="mx-auto w-full max-w-5xl space-y-6">
+      <div className="mx-auto w-full max-w-6xl space-y-6">
         <div
           className="relative overflow-hidden rounded-3xl p-8 sm:p-10 animate-pulse"
           style={{ background: "linear-gradient(135deg, #091e2e 0%, #0e3f5e 42%, #02665e 100%)" }}
@@ -366,7 +460,7 @@ export default function MyGroupStaysPage() {
   return (
     <div
       className={[
-        "mx-auto w-full max-w-5xl space-y-6 transition-all duration-300 ease-out",
+        "mx-auto w-full max-w-6xl space-y-6 transition-all duration-300 ease-out",
         entered ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1",
       ].join(" ")}
     >
@@ -593,13 +687,16 @@ export default function MyGroupStaysPage() {
       ) : (
         <div className="space-y-4">
           {displayGroupStays.map((stay, idx) => {
-            const section = stay.status === "REVIEWING" ? "reviewing" : stay.status === "PENDING" ? "pending" : "other";
+            const status = normalizeStatus(stay.status);
+            const section = status === "REVIEWING" ? "reviewing" : status === "PENDING" ? "pending" : "other";
             const prev = idx > 0 ? displayGroupStays[idx - 1] : null;
             const next = idx + 1 < displayGroupStays.length ? displayGroupStays[idx + 1] : null;
+            const prevStatus = prev ? normalizeStatus(prev.status) : "";
+            const nextStatus = next ? normalizeStatus(next.status) : "";
             const prevSection =
-              prev?.status === "REVIEWING" ? "reviewing" : prev?.status === "PENDING" ? "pending" : "other";
+              prevStatus === "REVIEWING" ? "reviewing" : prevStatus === "PENDING" ? "pending" : "other";
             const nextSection =
-              next?.status === "REVIEWING" ? "reviewing" : next?.status === "PENDING" ? "pending" : "other";
+              nextStatus === "REVIEWING" ? "reviewing" : nextStatus === "PENDING" ? "pending" : "other";
 
             const showSectionHeader = filter === "pending" && section !== "other" && (idx === 0 || section !== prevSection);
             const showSectionDivider =
@@ -632,46 +729,47 @@ export default function MyGroupStaysPage() {
                 )}
 
                 <div className="group">
-                  <div className="relative overflow-hidden bg-white rounded-3xl border border-slate-100 shadow-[0_2px_16px_rgba(0,0,0,0.05)] transition-all duration-200 hover:shadow-[0_6px_32px_rgba(5,150,105,0.12)] hover:-translate-y-[2px]">
-                    <div className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-3xl"
-                      style={{ background: stay.status === "PENDING" ? "linear-gradient(180deg, #fde68a 0%, #f59e0b 100%)" : stay.status === "REVIEWING" ? "linear-gradient(180deg, #6ee7b7 0%, #059669 100%)" : stay.isValid ? "linear-gradient(180deg, #6ee7b7 0%, #059669 100%)" : stay.status === "COMPLETED" ? "linear-gradient(180deg, #86efac 0%, #16a34a 100%)" : "linear-gradient(180deg, #fca5a5 0%, #dc2626 100%)" }} />
-              <div className="flex flex-col gap-4 pl-5 pr-5 pt-5 pb-5 sm:pl-6 sm:pr-6 sm:pt-6 sm:pb-5">
+                  <div className="relative overflow-hidden bg-white rounded-[32px] border border-slate-100 shadow-[0_14px_40px_rgba(15,23,42,0.08)] transition-all duration-200 hover:shadow-[0_18px_48px_rgba(5,150,105,0.14)]">
+                    <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-[32px]"
+                      style={{ background: status === "PENDING" ? "linear-gradient(180deg, #fde68a 0%, #f59e0b 100%)" : status === "REVIEWING" ? "linear-gradient(180deg, #6ee7b7 0%, #059669 100%)" : stay.isValid ? "linear-gradient(180deg, #6ee7b7 0%, #059669 100%)" : status === "COMPLETED" ? "linear-gradient(180deg, #86efac 0%, #16a34a 100%)" : "linear-gradient(180deg, #fca5a5 0%, #dc2626 100%)" }} />
+              <div className="flex flex-col gap-5 px-5 py-6 sm:px-8 sm:py-8">
                 <div className="min-w-0 flex-1">
                   {/* Header with property title and status */}
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="flex items-center gap-3">
-                      <div className="h-11 w-11 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm"
-                        style={{ background: stay.status === "PENDING" ? "linear-gradient(135deg, #fef9c3, #fef08a)" : "linear-gradient(135deg, #d1fae5, #a7f3d0)" }}>
-                        <Users className={`h-5 w-5 ${stay.status === "PENDING" ? "text-amber-600" : "text-emerald-700"}`} />
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex min-w-0 items-start gap-4">
+                      <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-[22px] shadow-sm"
+                        style={{ background: status === "PENDING" ? "linear-gradient(135deg, #fef9c3, #fef08a)" : "linear-gradient(135deg, #d1fae5, #a7f3d0)" }}>
+                        <Users className={`h-8 w-8 ${status === "PENDING" ? "text-amber-600" : "text-emerald-700"}`} />
                       </div>
-                      <div>
-                        <h3 className="text-lg font-bold text-slate-900">
-                          {stay.arrangement.property.title}
-                        </h3>
-                        <div className="mt-1 text-sm text-slate-600">
+                      <div className="min-w-0 pt-1">
+                        <div className="flex flex-wrap items-center gap-3">
+                          <h3 className="text-2xl font-black uppercase tracking-normal text-slate-950">
+                            {stay.arrangement.property.title}
+                          </h3>
+                          <span
+                            className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold border ${getStatusColor(stay)}`}
+                          >
+                            {status === "PENDING" || status === "REVIEWING" || status === "PROCESSING" ? (
+                              <Clock className="h-5 w-5" />
+                            ) : stay.isValid ? (
+                              <CheckCircle className="h-5 w-5" />
+                            ) : (
+                              <Calendar className="h-5 w-5" />
+                            )}
+                            {getStatusLabel(stay)}
+                          </span>
+                        </div>
+                        <div className="mt-4 text-lg text-slate-600">
                           {stay.arrangement.property.type}
                         </div>
                       </div>
                     </div>
-                    <span
-                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold border ${getStatusColor(stay)}`}
-                    >
-                      {stay.status === "PENDING" || stay.status === "REVIEWING" ? (
-                        <Clock className="h-4 w-4" />
-                      ) : stay.status === "PROCESSING" ? (
-                        <Clock className="h-4 w-4" />
-                      ) : stay.isValid ? (
-                        <CheckCircle className="h-4 w-4" />
-                      ) : (
-                        <Calendar className="h-4 w-4" />
-                      )}
-                      {getStatusLabel(stay)}
-                    </span>
                   </div>
 
                   {/* Location */}
                   {stay.arrangement.property.regionName && (
-                    <div className="mt-2 text-sm text-slate-600">
+                    <div className="mt-5 flex items-center gap-2 text-xl text-slate-600">
+                      <MapPin className="h-5 w-5 flex-shrink-0 text-slate-400" />
                       {[
                         stay.arrangement.property.regionName,
                         stay.arrangement.property.city,
@@ -683,46 +781,46 @@ export default function MyGroupStaysPage() {
                   )}
 
                   {/* Booking Information Grid */}
-                  <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                  <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2">
                     {/* Check-in */}
-                    <div className="rounded-2xl bg-emerald-50/60 border border-emerald-100 p-3">
-                      <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-emerald-600 mb-0.5">
-                        <Calendar className="h-3 w-3" />
+                    <div className="rounded-[22px] bg-emerald-50/70 p-5">
+                      <div className="flex items-center gap-2 text-sm font-black uppercase text-emerald-600">
+                        <Calendar className="h-5 w-5" />
                         Check-in
                       </div>
-                      <div className="font-bold text-slate-800 text-sm">{formatDate(stay.checkIn)}</div>
+                      <div className="mt-3 text-2xl font-black text-slate-800">{formatDate(stay.checkIn)}</div>
                     </div>
 
                     {/* Check-out */}
-                    <div className="rounded-2xl bg-indigo-50/60 border border-indigo-100 p-3">
-                      <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-indigo-500 mb-0.5">
-                        <Calendar className="h-3 w-3" />
+                    <div className="rounded-[22px] bg-indigo-50/70 p-5">
+                      <div className="flex items-center gap-2 text-sm font-black uppercase text-indigo-500">
+                        <Calendar className="h-5 w-5" />
                         Check-out
                       </div>
-                      <div className="font-bold text-slate-800 text-sm">{formatDate(stay.checkOut)}</div>
+                      <div className="mt-3 text-2xl font-black text-slate-800">{formatDate(stay.checkOut)}</div>
                     </div>
 
                     {/* Number of Guests */}
-                    <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3">
-                      <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-0.5">
-                        <Users className="h-3 w-3" />
+                    <div className="rounded-[22px] bg-slate-50 p-5">
+                      <div className="flex items-center gap-2 text-sm font-black uppercase text-slate-400">
+                        <Users className="h-5 w-5" />
                         Guests
                       </div>
-                      <div className="font-bold text-slate-800 text-sm">{stay.numberOfGuests} {stay.numberOfGuests === 1 ? "guest" : "guests"}</div>
+                      <div className="mt-3 text-2xl font-black text-slate-800">{stay.numberOfGuests} {stay.numberOfGuests === 1 ? "guest" : "guests"}</div>
                     </div>
 
                     {/* Total Amount */}
-                    <div className="rounded-2xl bg-amber-50/60 border border-amber-100 p-3">
-                      <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-amber-500 mb-0.5">
-                        <Building2 className="h-3 w-3" />
+                    <div className="rounded-[22px] bg-amber-50/60 p-5">
+                      <div className="flex items-center gap-2 text-sm font-black uppercase text-amber-500">
+                        <Building2 className="h-5 w-5" />
                         Total Amount
                       </div>
-                      <div className="font-bold text-slate-800 text-sm">{Number(stay.totalAmount).toLocaleString("en-US")} TZS</div>
+                      <div className="mt-3 text-2xl font-black text-slate-800">{Number(stay.totalAmount).toLocaleString("en-US")} TZS</div>
                     </div>
                   </div>
 
                   {/* Admin Messages & Recommendations */}
-                  {stay.adminSuggestions && (stay.status !== "PENDING" && stay.status !== "REVIEWING") && (
+                  {stay.adminSuggestions && (status !== "PENDING" && status !== "REVIEWING") && (
                     <div className="mt-4 sm:mt-5 rounded-2xl border border-gray-200 bg-white shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden">
                       <div className="p-4 sm:p-5 lg:p-6">
                         <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-5 sm:mb-6 pb-4 border-b border-gray-200">
@@ -918,16 +1016,16 @@ export default function MyGroupStaysPage() {
 
                   {/* Auction Offers (separate from normal recommendations) */}
                   {((stay.auction?.recommendedPropertyCount || 0) > 0) && !stay.auction?.confirmedPropertyId && (
-                    <div className="mt-4 sm:mt-5 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-                      <div className="p-4 sm:p-5">
+                    <div className="mt-6 overflow-hidden rounded-[30px] border border-slate-100 bg-white shadow-[0_14px_38px_rgba(15,23,42,0.08)]">
+                      <div className="p-5 sm:p-7">
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                           <div className="flex items-start gap-3">
-                            <div className="h-12 w-12 rounded-2xl flex items-center justify-center flex-shrink-0 bg-slate-50 border border-slate-200">
-                              <Clock className="h-6 w-6 text-[#02665e]" />
+                            <div className="h-14 w-14 rounded-[20px] flex items-center justify-center flex-shrink-0 bg-emerald-50 shadow-sm">
+                              <Clock className="h-7 w-7 text-[#02665e]" />
                             </div>
                             <div className="flex-1">
-                              <h4 className="text-base sm:text-lg font-bold text-slate-900">Auction Offers</h4>
-                              <p className="text-xs sm:text-sm text-slate-600 mt-1">
+                              <h4 className="text-xl sm:text-2xl font-black text-slate-950">Auction Offers</h4>
+                              <p className="text-sm sm:text-base text-slate-600 mt-2">
                                 {stay.auction?.recommendedPropertyCount} shortlisted offers are ready. Choose one to confirm.
                               </p>
                             </div>
@@ -935,7 +1033,7 @@ export default function MyGroupStaysPage() {
 
                           <button
                             onClick={() => toggleAuction(stay.id)}
-                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50 transition-colors"
+                            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-black text-slate-900 shadow-sm transition-colors hover:bg-slate-50"
                           >
                             {auctionExpanded.has(stay.id) ? "Hide offers" : "View offers"}
                             <ChevronDown
@@ -947,10 +1045,10 @@ export default function MyGroupStaysPage() {
 
                         <div
                           className={`overflow-hidden transition-all duration-300 ease-in-out ${
-                            auctionExpanded.has(stay.id) ? "max-h-[2000px] opacity-100 mt-4" : "max-h-0 opacity-0"
+                            auctionExpanded.has(stay.id) ? "max-h-[2600px] opacity-100 mt-6" : "max-h-0 opacity-0"
                           }`}
                         >
-                          <div className="space-y-3">
+                          <div className="space-y-4">
                             {auctionLoading.has(stay.id) && (
                               <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 flex items-center gap-3 text-sm text-slate-700">
                                 <LogoSpinner size="xs" ariaLabel="Loading offers" />
@@ -967,52 +1065,53 @@ export default function MyGroupStaysPage() {
                             {(auctionOffersByBooking[stay.id] || []).map((offer) => (
                               <div
                                 key={offer.claimId}
-                                className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm"
+                                className="overflow-hidden rounded-[26px] border border-slate-100 bg-white shadow-[0_12px_30px_rgba(15,23,42,0.07)]"
                               >
-                                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                <div className="flex flex-col gap-5 p-5 sm:flex-row sm:items-start sm:justify-between sm:p-6">
                                   <div className="min-w-0 flex-1">
-                                    <div className="flex items-start gap-3">
+                                    <div className="flex items-start gap-4">
                                       {offer.property.imageUrl ? (
                                         // eslint-disable-next-line @next/next/no-img-element
                                         <img
                                           src={offer.property.imageUrl}
                                           alt={offer.property.title}
-                                          className="h-14 w-14 rounded-xl object-cover border border-slate-200 bg-slate-50 flex-shrink-0"
+                                          className="h-24 w-24 rounded-[20px] object-cover border border-slate-100 bg-slate-50 flex-shrink-0 shadow-sm"
                                         />
                                       ) : (
-                                        <div className="h-14 w-14 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-center flex-shrink-0">
-                                          <Building2 className="h-6 w-6 text-[#02665e]" />
+                                        <div className="h-24 w-24 rounded-[20px] border border-slate-100 bg-emerald-50 flex items-center justify-center flex-shrink-0 shadow-sm">
+                                          <Building2 className="h-9 w-9 text-[#02665e]" />
                                         </div>
                                       )}
                                       <div className="min-w-0">
-                                        <div className="text-sm sm:text-base font-bold text-slate-900 truncate">
+                                        <div className="text-xl sm:text-2xl font-black text-slate-950 truncate">
                                           {offer.property.title}
                                         </div>
-                                        <div className="text-xs sm:text-sm text-slate-600 mt-1">
+                                        <div className="mt-3 flex items-center gap-2 text-base text-slate-600">
+                                          <MapPin className="h-4 w-4 flex-shrink-0 text-slate-400" />
                                           {[offer.property.regionName, offer.property.district, offer.property.ward || offer.property.city]
                                             .filter(Boolean)
-                                            .join(", ")}
+                                            .join(" • ")}
                                         </div>
                                       </div>
                                     </div>
 
-                                    <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                                      <div className="rounded-xl bg-slate-50/70 border border-slate-200 p-3">
-                                        <div className="text-xs font-medium text-slate-500 mb-1">Price / night</div>
-                                        <div className="font-semibold text-slate-900">
+                                    <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                      <div className="rounded-[20px] bg-slate-50 p-5">
+                                        <div className="text-sm font-bold text-slate-500 mb-3">Price / night</div>
+                                        <div className="text-xl font-black text-slate-900">
                                           {Number(offer.offer.offeredPricePerNight).toLocaleString("en-US")} {offer.offer.currency}
                                         </div>
                                       </div>
-                                      <div className="rounded-xl bg-slate-50/70 border border-slate-200 p-3">
-                                        <div className="text-xs font-medium text-slate-500 mb-1">Total</div>
-                                        <div className="font-semibold text-slate-900">
+                                      <div className="rounded-[20px] bg-amber-50/70 p-5">
+                                        <div className="text-sm font-bold text-amber-600 mb-3">Total</div>
+                                        <div className="text-xl font-black text-slate-900">
                                           {Number(offer.offer.totalAmount).toLocaleString("en-US")} {offer.offer.currency}
                                         </div>
                                       </div>
                                     </div>
 
                                     {(offer.offer.specialOffers || offer.offer.notes) && (
-                                      <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700">
+                                      <div className="mt-4 rounded-[20px] border border-emerald-100 bg-emerald-50/50 p-4 text-base text-slate-700">
                                         {offer.offer.specialOffers && (
                                           <div className="whitespace-pre-wrap leading-relaxed">{offer.offer.specialOffers}</div>
                                         )}
@@ -1029,7 +1128,7 @@ export default function MyGroupStaysPage() {
                                       disabled={auctionConfirming.has(stay.id)}
                                       onClick={() => confirmAuctionOffer(stay.id, offer.property.id)}
                                       className={[
-                                        "w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors",
+                                        "w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-2xl px-6 py-4 text-base font-black transition-colors shadow-[0_10px_22px_rgba(2,102,94,0.18)]",
                                         auctionConfirming.has(stay.id)
                                           ? "bg-slate-100 text-slate-500 cursor-not-allowed"
                                           : "bg-[#02665e] text-white hover:bg-[#025b54]",
@@ -1051,6 +1150,91 @@ export default function MyGroupStaysPage() {
                                 </div>
                               </div>
                             ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {status === "AWAITING_DEPOSIT" && !stay.depositPaid && (
+                    <div className="mt-6 overflow-hidden rounded-[28px] border border-amber-200 bg-white shadow-[0_12px_34px_rgba(245,158,11,0.14)]">
+                      <div className="bg-gradient-to-r from-[#0a2e19] to-[#059669] px-5 py-5 text-white sm:px-7">
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="flex items-center gap-4">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/18">
+                              <DollarSign className="h-6 w-6" />
+                            </div>
+                            <div>
+                              <div className="text-xl font-black">Offer selected</div>
+                              <div className="mt-1 text-sm text-emerald-100">Complete the deposit payment to lock this group stay.</div>
+                            </div>
+                          </div>
+                          <span className="inline-flex items-center justify-center rounded-full bg-white/18 px-4 py-2 text-sm font-bold">
+                            Due {formatDateTime(stay.depositDueAt)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-4 p-5 sm:grid-cols-[1fr_1.3fr] sm:p-7">
+                        <div className="rounded-[22px] bg-amber-50/70 p-5">
+                          <div className="text-sm font-black uppercase text-amber-600">Deposit due</div>
+                          <div className="mt-3 text-3xl font-black text-slate-900">
+                            {Number(stay.depositAmount || 0).toLocaleString("en-US")} {stay.currency || "TZS"}
+                          </div>
+                          <div className="mt-5 border-t border-amber-200/70 pt-4">
+                            <div className="text-xs font-bold uppercase text-slate-400">Booking total</div>
+                            <div className="mt-1 text-lg font-black text-slate-800">
+                              {Number(stay.totalAmount || 0).toLocaleString("en-US")} {stay.currency || "TZS"}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-4">
+                          <button
+                            type="button"
+                            disabled={depositPaying.has(stay.id)}
+                            onClick={() => initiateDepositCard(stay.id)}
+                            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#02665e] px-5 py-4 text-base font-black text-white shadow-[0_10px_24px_rgba(2,102,94,0.24)] transition hover:bg-[#025b54] disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {depositPaying.has(stay.id) ? (
+                              <LogoSpinner size="xs" ariaLabel="Starting payment" />
+                            ) : (
+                              <CreditCard className="h-5 w-5" />
+                            )}
+                            Pay deposit by card
+                          </button>
+
+                          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                            <div className="mb-3 flex items-center gap-2 text-sm font-black text-slate-900">
+                              <Smartphone className="h-4 w-4 text-[#02665e]" />
+                              Mobile money push
+                            </div>
+                            <div className="grid gap-3 sm:grid-cols-[1fr_150px]">
+                              <input
+                                value={depositPhones[stay.id] || ""}
+                                onChange={(e) => setDepositPhones((prev) => ({ ...prev, [stay.id]: e.target.value }))}
+                                placeholder="07XXXXXXXX or +255..."
+                                className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-900 outline-none transition focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/15"
+                              />
+                              <select
+                                value={depositProviders[stay.id] || "Airtel"}
+                                onChange={(e) => setDepositProviders((prev) => ({ ...prev, [stay.id]: e.target.value }))}
+                                className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/15"
+                              >
+                                <option value="Airtel">Airtel</option>
+                                <option value="Tigo">Mixx by Yas</option>
+                                <option value="Halopesa">HaloPesa</option>
+                                <option value="Azampesa">AzamPesa</option>
+                              </select>
+                            </div>
+                            <button
+                              type="button"
+                              disabled={depositPaying.has(stay.id)}
+                              onClick={() => initiateDepositMobileMoney(stay.id)}
+                              className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-[#02665e]/20 bg-white px-4 py-3 text-sm font-black text-[#02665e] transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {depositPaying.has(stay.id) ? "Sending prompt..." : "Send payment prompt"}
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -1352,13 +1536,13 @@ function GroupStayMessaging({ bookingId }: { bookingId: number }) {
   // Show conversation history if messages exist, or just the button if no messages
   if (!isOpen && conversationMessages.length === 0) {
     return (
-      <div className="mt-4">
+      <div className="mt-6">
         <button
           onClick={() => {
             setIsOpen(true);
             setMessage(getMessageTemplate(messageType));
           }}
-          className="w-full flex items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-700 font-semibold px-4 py-3 text-sm hover:bg-emerald-100 transition-all duration-200 active:scale-[0.98]"
+          className="w-full flex items-center justify-center gap-2 rounded-[28px] border border-emerald-200 bg-gradient-to-r from-[#0a2e19] to-[#059669] px-5 py-5 text-base font-bold text-white shadow-[0_10px_28px_rgba(5,150,105,0.20)] transition-all duration-200 hover:shadow-[0_14px_36px_rgba(5,150,105,0.26)] active:scale-[0.99]"
         >
           <MessageSquare className="h-4 w-4" />
           Contact Admin
@@ -1369,22 +1553,22 @@ function GroupStayMessaging({ bookingId }: { bookingId: number }) {
 
   if (!isOpen && conversationMessages.length > 0) {
     return (
-      <div className="mt-4">
+      <div className="mt-6">
         {/* Chat panel */}
-        <div className="overflow-hidden rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
+        <div className="overflow-hidden rounded-[28px] border border-slate-200/70 shadow-[0_12px_32px_rgba(15,23,42,0.12)]">
           {/* Panel header — click to expand/collapse */}
           <button
             type="button"
             onClick={() => setIsExpanded((v) => !v)}
-            className="w-full flex items-center justify-between px-4 py-3 bg-gradient-to-r from-[#0a2e19] to-[#059669] cursor-pointer"
+            className="w-full flex items-center justify-between px-5 py-5 sm:px-7 bg-gradient-to-r from-[#0a2e19] to-[#059669] cursor-pointer"
           >
-            <div className="flex items-center gap-2">
-              <div className="h-7 w-7 rounded-full bg-white/20 flex items-center justify-center">
-                <MessageSquare className="h-3.5 w-3.5 text-white" />
+            <div className="flex items-center gap-4">
+              <div className="h-11 w-11 rounded-full bg-white/20 flex items-center justify-center">
+                <MessageSquare className="h-5 w-5 text-white" />
               </div>
               <div className="text-left">
-                <p className="text-xs font-semibold text-white leading-none">Conversation History</p>
-                <p className="text-[10px] text-emerald-200 mt-0.5">{conversationMessages.length} message{conversationMessages.length !== 1 ? 's' : ''} · tap to {isExpanded ? 'hide' : 'view'}</p>
+                <p className="text-lg font-bold text-white leading-none">Conversation History</p>
+                <p className="mt-2 text-sm text-emerald-100">{conversationMessages.length} message{conversationMessages.length !== 1 ? 's' : ''} · tap to {isExpanded ? 'hide' : 'view'}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -1394,12 +1578,12 @@ function GroupStayMessaging({ bookingId }: { bookingId: number }) {
                   setIsOpen(true);
                   setMessage(getMessageTemplate(messageType));
                 }}
-                className="flex items-center gap-1.5 rounded-full bg-white/20 hover:bg-white/30 px-3 py-1.5 text-[11px] font-semibold text-white transition-all"
+                className="flex items-center gap-2 rounded-full bg-white/20 hover:bg-white/30 px-5 py-2 text-sm font-bold text-white transition-all"
               >
-                <MessageSquare className="h-3 w-3" />
+                <MessageSquare className="h-4 w-4" />
                 Reply
               </span>
-              <ChevronDown className={`h-4 w-4 text-white/80 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`h-5 w-5 text-white/90 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
             </div>
           </button>
 
@@ -1456,7 +1640,7 @@ function GroupStayMessaging({ bookingId }: { bookingId: number }) {
 
   // Message form (when isOpen is true)
   return (
-    <div className="mt-4 overflow-hidden rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
+    <div className="mt-6 overflow-hidden rounded-[28px] border border-slate-100 shadow-[0_10px_28px_rgba(15,23,42,0.10)]">
       {/* Form header */}
       <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-[#0a2e19] to-[#059669]">
         <div className="flex items-center gap-2">

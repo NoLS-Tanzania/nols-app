@@ -52,9 +52,10 @@ type SavedPropertyWithRelations = {
     ward: string | null;
     basePrice: any;
     currency: string | null;
+    services: any;
     photos: any;
     images?: Array<{ url: string | null }>;
-  };
+  } | null;
   savedAt: Date;
   sharedAt: Date | null;
 };
@@ -67,6 +68,7 @@ type PropertyItem = {
   primaryImage: string | null;
   basePrice: number | null;
   currency: string | null;
+  services: unknown;
   savedAt: string;
   sharedAt: string | null;
 };
@@ -83,12 +85,13 @@ function getUserId(req: AuthedRequest): number | null {
 // Helper function to transform saved property to response item
 function transformSavedPropertyToItem(
   sp: SavedPropertyWithRelations
-): PropertyItem {
-  if (!sp || !sp.property) {
-    throw new Error("Invalid saved property data");
+): PropertyItem | null {
+  if (!sp?.property?.id) {
+    return null;
   }
 
-  const slug = buildPropertySlug(sp.property.title, sp.property.id);
+  const title = sp.property.title || "Untitled property";
+  const slug = buildPropertySlug(title, sp.property.id);
   
   // Extract primary image - use the first image URL if available, otherwise use photos
   let primaryImage: string | null = null;
@@ -114,14 +117,30 @@ function transformSavedPropertyToItem(
   return {
     id: sp.property.id,
     slug,
-    title: sp.property.title,
+    title,
     location,
     primaryImage,
     basePrice: sp.property.basePrice ? Number(sp.property.basePrice) : null,
     currency: sp.property.currency,
+    services: sp.property.services ?? null,
     savedAt: sp.savedAt.toISOString(),
     sharedAt: sp.sharedAt?.toISOString() || null,
   };
+}
+
+function transformSavedPropertiesToItems(
+  properties: SavedPropertyWithRelations[]
+): PropertyItem[] {
+  const items: PropertyItem[] = [];
+
+  for (const sp of properties) {
+    const item = transformSavedPropertyToItem(sp);
+    if (item) {
+      items.push(item);
+    }
+  }
+
+  return items;
 }
 
 // Helper function to fetch saved properties with pagination
@@ -153,6 +172,7 @@ async function fetchSavedProperties(
             ward: true,
             basePrice: true,
             currency: true,
+            services: true,
             photos: true,
             images: {
               where: { status: "READY" },
@@ -219,9 +239,7 @@ router.get(
         queryParams.pageSize
       );
 
-      const items: PropertyItem[] = properties.map((sp) =>
-        transformSavedPropertyToItem(sp)
-      );
+      const items = transformSavedPropertiesToItems(properties);
 
       res.json({
         ok: true,
@@ -479,9 +497,7 @@ router.get(
         queryParams.pageSize
       );
 
-      const items: PropertyItem[] = properties.map((sp) =>
-        transformSavedPropertyToItem(sp)
-      );
+      const items = transformSavedPropertiesToItems(properties);
 
       res.json({
         ok: true,

@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import Image from "next/image";
 import { Bell, LifeBuoy, Settings as SettingsIcon, RefreshCw, Download, Sliders, Plus, FileText, Shield, Lock, Truck, User, Gift, Calendar, LogOut, ChevronDown, Trophy, Share2, Building2, CheckCircle, Home, DollarSign, LayoutDashboard, Clock } from "lucide-react";
 import dynamic from 'next/dynamic';
@@ -147,6 +147,22 @@ export default function SiteHeader({
 
   const [sessionExpiresAt, setSessionExpiresAt] = useState<string | null>(null);
   const [sessionRemainingSec, setSessionRemainingSec] = useState<number | null>(null);
+  const logoutInProgressRef = useRef(false);
+
+  const logoutAndRedirect = useCallback(async () => {
+    if (logoutInProgressRef.current) return;
+    logoutInProgressRef.current = true;
+    setOpen(false);
+    setProfileDropdownOpen(false);
+    try {
+      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    } catch {
+      // Redirect anyway; the server already considers the session expired.
+    } finally {
+      clearAuthToken();
+      window.location.replace(logoutRedirect);
+    }
+  }, [logoutRedirect]);
 
   const handleTouch = (id: string) => {
     setTouchedIcon(id);
@@ -253,7 +269,10 @@ export default function SiteHeader({
       const t = window.setTimeout(() => ac.abort(), 8_000);
       try {
         const resp = await fetch("/api/auth/session", { method: "GET", credentials: "include", signal: ac.signal });
-        if (!resp.ok) return;
+        if (!resp.ok) {
+          if (resp.status === 401 || resp.status === 403) void logoutAndRedirect();
+          return;
+        }
         const json = await resp.json();
         if (cancelled) return;
         const expiresAt = typeof json?.expiresAt === "string" ? json.expiresAt : null;
@@ -273,7 +292,7 @@ export default function SiteHeader({
       cancelled = true;
       window.clearInterval(refreshId);
     };
-  }, [isAdmin]);
+  }, [isAdmin, logoutAndRedirect]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -291,6 +310,12 @@ export default function SiteHeader({
     const id = window.setInterval(tick, 1000);
     return () => window.clearInterval(id);
   }, [isAdmin, sessionExpiresAt]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    if (typeof sessionRemainingSec !== "number") return;
+    if (sessionRemainingSec <= 0) void logoutAndRedirect();
+  }, [isAdmin, logoutAndRedirect, sessionRemainingSec]);
 
   const sessionCountdownLabel = useMemo(() => {
     if (!isAdmin) return null;
@@ -655,13 +680,7 @@ export default function SiteHeader({
                       <div className="my-2 mx-3 h-px bg-white/10" />
 
                       <button
-                        onClick={async () => {
-                          try {
-                            await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-                            clearAuthToken();
-                          } catch {}  
-                          window.location.href = logoutRedirect;
-                        }}
+                        onClick={logoutAndRedirect}
                         className="group w-[calc(100%-1rem)] mx-2 flex items-center gap-3 rounded-xl px-3 py-2 text-sm text-rose-200 bg-transparent hover:bg-rose-500/10 active:bg-rose-500/10 transition-all duration-200 ease-out active:scale-[0.99] appearance-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/30"
                       >
                         <span className="grid place-items-center h-9 w-9 rounded-xl bg-white/5 border border-white/10 transition-all duration-200 ease-out group-hover:bg-rose-500/10 group-hover:border-rose-200/30">
@@ -901,13 +920,7 @@ export default function SiteHeader({
                     <div className="my-1 mx-2 h-px bg-gray-200" />
 
                     <button
-                      onClick={async () => {
-                        try {
-                          await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-                          clearAuthToken();
-                        } catch {}
-                        window.location.href = logoutRedirect;
-                      }}
+                      onClick={logoutAndRedirect}
                       className="group w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50/50 transition-all duration-200 no-underline"
                     >
                       <LogOut className="h-4 w-4 group-hover:scale-110 transition-all duration-200" />
@@ -1075,13 +1088,7 @@ export default function SiteHeader({
                     <div className="my-2 mx-3 h-px bg-gray-200" />
 
                     <button
-                      onClick={async () => {
-                        try {
-                          await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-                          clearAuthToken();
-                        } catch {}
-                        window.location.href = logoutRedirect;
-                      }}
+                      onClick={logoutAndRedirect}
                       className="group w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-all duration-200 no-underline rounded-lg mx-1"
                     >
                       <LogOut className="h-4 w-4 group-hover:scale-110 transition-all duration-200" />
@@ -1316,14 +1323,7 @@ export default function SiteHeader({
                 </Link>
                 <div className="my-2 h-px w-full bg-gradient-to-r from-transparent via-white/20 to-transparent" />
                 <button
-                  onClick={async () => {
-                    setOpen(false);
-                    try {
-                      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-                      clearAuthToken();
-                    } catch {}
-                    window.location.href = logoutRedirect;
-                  }}
+                  onClick={logoutAndRedirect}
                   className="mobile-menu-item group relative px-4 py-3 rounded-xl text-sm font-semibold text-red-300 hover:text-red-100 active:scale-[0.98] transition-all duration-300 ease-out animate-fade-in-stagger overflow-hidden"
                   style={{ '--delay': 10 } as React.CSSProperties}
                 >

@@ -407,7 +407,7 @@ export default function TwoFactorSettings({
               </div>
 
               {status && status.totpEnabled && showDisableInput ? (
-                <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                <div className="mt-4 w-full max-w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50/70 p-3 sm:p-4">
                   <div className="w-full">
                     <label className="block text-xs font-semibold text-slate-700 mb-1.5">Enter TOTP code or backup code to disable</label>
                     <input
@@ -442,8 +442,8 @@ export default function TwoFactorSettings({
               {(totpFlow === "provision" || totpFlow === "verifying") && (
                 <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
                   <p className="text-sm text-slate-600 mb-3">Scan this QR code in your authenticator app or enter the secret manually.</p>
-                  <div className="flex items-start gap-4">
-                    <div className="w-32 h-32 bg-white border border-slate-200 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm">
+                  <div className="flex w-full max-w-full flex-col items-stretch gap-4 sm:flex-row sm:items-start">
+                    <div className="mx-auto flex h-40 w-40 max-w-full flex-shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-sm sm:mx-0 sm:h-32 sm:w-32">
                       {provision?.qr ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={provision.qr} alt="TOTP QR code" className="w-full h-full object-contain p-2" />
@@ -457,13 +457,13 @@ export default function TwoFactorSettings({
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-xs font-mono bg-white p-2.5 rounded-xl border border-slate-200 break-all shadow-sm">{provision?.secret ?? "—"}</div>
-                      <div className="mt-3 flex items-center gap-2 flex-wrap">
+                      <div className="max-w-full rounded-xl border border-slate-200 bg-white p-2.5 font-mono text-xs leading-5 text-slate-700 shadow-sm [overflow-wrap:anywhere]">{provision?.secret ?? "-"}</div>
+                      <div className="mt-3 grid w-full min-w-0 gap-2 sm:flex sm:flex-wrap sm:items-center">
                         <input
                           value={otp}
                           onChange={(e) => setOtp(e.target.value)}
                           placeholder="Enter 6-digit code"
-                          className="h-11 w-44 px-4 border border-slate-200 rounded-xl bg-white text-sm font-mono tabular-nums shadow-sm focus:border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-200 transition"
+                          className="h-11 min-h-[44px] max-h-[44px] w-full min-w-0 rounded-xl border border-slate-200 bg-white px-4 py-0 text-sm font-mono leading-none tabular-nums shadow-sm transition focus:border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-200 sm:w-44"
                         />
                         {(() => {
                           const isVerifying = totpFlow === "verifying"
@@ -472,7 +472,7 @@ export default function TwoFactorSettings({
                             <button
                               onClick={handleTotpVerify}
                               disabled={disabled}
-                              className={`h-11 inline-flex items-center justify-center gap-2 px-4 text-sm font-semibold rounded-xl transition-colors border shadow-sm ${
+                              className={`h-11 min-h-[44px] max-h-[44px] inline-flex w-full items-center justify-center gap-2 rounded-xl border px-4 text-sm font-semibold shadow-sm transition-colors sm:w-auto ${
                                 disabled
                                   ? "text-slate-400 bg-white border-slate-200 opacity-60 cursor-not-allowed"
                                   : "text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 border-emerald-200 hover:border-emerald-300"
@@ -492,7 +492,7 @@ export default function TwoFactorSettings({
                             setTotpFlow("idle")
                             setProvision(null)
                           }}
-                          className="h-11 inline-flex items-center justify-center px-4 text-sm font-semibold text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-xl transition-colors border border-slate-200 hover:border-slate-300 shadow-sm"
+                          className="h-11 min-h-[44px] max-h-[44px] inline-flex w-full items-center justify-center rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 sm:w-auto"
                         >
                           Cancel
                         </button>

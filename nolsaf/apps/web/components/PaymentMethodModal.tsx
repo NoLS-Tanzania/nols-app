@@ -329,7 +329,7 @@ export default function PaymentMethodModal({
               <div>
                 <p className="text-sm font-medium text-slate-800">Secure hosted checkout</p>
                 <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
-                  You&apos;ll be redirected to AzamPay&apos;s secure page. We never see your card details.
+                  You&apos;ll be redirected to a secure hosted checkout page. We never see your card details.
                 </p>
               </div>
             </div>

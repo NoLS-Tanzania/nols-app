@@ -401,7 +401,7 @@ router.patch("/:id", async (req: any, res) => {
         case "REVIEWING":
           statusChangeNotification = {
             title: "Your Group Stay is Under Review",
-            body: "Thank you for your interest in using NoLSaf! We have received your booking request and our team is currently reviewing it. We will get back to you soon with accommodation options and pricing tailored to your group's needs.",
+            body: "Thanks for posting your group stay request on NoLSAF! It is now open for verified property owners in your destination area to bid with their best offers. Our team is reviewing the responses and will share the top picks here so you can pick the one that suits your group best.",
           };
           break;
         case "PROCESSING":

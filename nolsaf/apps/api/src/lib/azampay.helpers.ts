@@ -26,10 +26,17 @@ export const AZAMPAY_CARD_API_URL = (
   process.env.AZAMPAY_CARD_API_URL || AZAMPAY_API_URL
 ).replace(/\/$/, "");
 
+// MNO direct push (USSD handset prompt) uses the checkout domain, not the API domain.
+// This triggers immediate USSD prompt on customer phone, not a hosted checkout page.
+// Set AZAMPAY_MNO_API_URL in .env.local to override.
+export const AZAMPAY_MNO_API_URL = (
+  process.env.AZAMPAY_MNO_API_URL || "https://checkout.azampay.co.tz"
+).replace(/\/$/, "");
+
 export const FETCH_TIMEOUT_MS = 10_000;
 export const IDEM_TTL_SEC     = 10 * 60; // 10 minutes
 
-/** Tanzania phone: +255 or 0, then network digit (6=Airtel, 7=Vodacom/Mixx/Halo, 2=TTCL), then 8 digits */
+/** Tanzania phone: +255 or 0, then network digit (6=Airtel, 7=Vodacom/Tigo/Halo, 2=TTCL), then 8 digits */
 export const TZ_PHONE_RE = /^(\+255|0)(6|7|2)\d{8}$/;
 
 // ── Supported bank codes ───────────────────────────────────────────────────────
@@ -80,6 +87,44 @@ export function normalizePhone(raw: string): string | null {
 
   if (!TZ_PHONE_RE.test(n)) return null;
   return n;
+}
+
+export function maskAzamPayPhone(phone: string | null | undefined): string | null {
+  if (!phone) return null;
+  const normalized = normalizePhone(phone) ?? phone;
+  const digits = normalized.replace(/\D/g, "");
+  if (digits.length < 4) return "***";
+  return `${normalized.startsWith("+") ? "+" : ""}${digits.slice(0, 3)}***${digits.slice(-4)}`;
+}
+
+export function describeAzamPayResponseBody(body: string): {
+  bodyKind: "empty" | "url" | "json" | "text";
+  bodyLength: number;
+  transactionId: string | null;
+  jsonKeys: string[];
+} {
+  const trimmed = body.trim();
+  if (!trimmed) {
+    return { bodyKind: "empty", bodyLength: 0, transactionId: null, jsonKeys: [] };
+  }
+
+  if (trimmed.startsWith("https://") || trimmed.startsWith("http://")) {
+    return { bodyKind: "url", bodyLength: trimmed.length, transactionId: null, jsonKeys: [] };
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    const record = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
+    const transactionId = record.transactionId ?? record.TransactionId ?? record.transId ?? null;
+    return {
+      bodyKind: "json",
+      bodyLength: trimmed.length,
+      transactionId: transactionId == null ? null : String(transactionId),
+      jsonKeys: Object.keys(record).slice(0, 20),
+    };
+  } catch {
+    return { bodyKind: "text", bodyLength: trimmed.length, transactionId: null, jsonKeys: [] };
+  }
 }
 
 // ── Outbound fetch wrapper ──────
@@ -173,6 +218,15 @@ export async function azampayCardPost(
   token: string
 ): Promise<AzamPayResponse> {
   return postWithRetries(`${AZAMPAY_CARD_API_URL}${path}`, body, token, "AzamPay/Card");
+}
+
+/** Same as azampayPost but targets AZAMPAY_MNO_API_URL (direct MNO USSD push endpoint). */
+export async function azampayMnoPost(
+  path: string,
+  body: object,
+  token: string
+): Promise<AzamPayResponse> {
+  return postWithRetries(`${AZAMPAY_MNO_API_URL}${path}`, body, token, "AzamPay/MNO");
 }
 
 // ── Idempotency helpers (Redis → in-process LRU fallback) ─────────────────────

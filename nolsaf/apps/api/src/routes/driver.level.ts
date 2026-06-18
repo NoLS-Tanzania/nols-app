@@ -175,6 +175,12 @@ const getDriverLevel: RequestHandler = async (req, res) => {
       return benefits[level] || benefits[1];
     };
 
+    const allLevels = [1, 2, 3].map((lvl) => ({
+      level: lvl,
+      levelName: lvl === 1 ? "Silver" : lvl === 2 ? "Gold" : "Diamond",
+      benefits: getLevelBenefits(lvl),
+    }));
+
     return res.json({
       currentLevel,
       levelName,
@@ -199,6 +205,7 @@ const getDriverLevel: RequestHandler = async (req, res) => {
       },
       levelBenefits: getLevelBenefits(currentLevel),
       nextLevelBenefits: getLevelBenefits(nextLevel),
+      allLevels,
     });
   } catch (err: any) {
     console.error('Failed to fetch driver level', err);
@@ -228,6 +235,7 @@ const sendLevelMessage: RequestHandler = async (req, res) => {
       if ((prisma as any).adminAudit) {
         await (prisma as any).adminAudit.create({
           data: {
+            adminId: driverId,
             action: 'DRIVER_LEVEL_MESSAGE',
             performedBy: driverId,
             targetUserId: driverId,

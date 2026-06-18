@@ -57,6 +57,8 @@ const updateDriverProfileSchema = z.object({
   vehicleMake:   z.string().max(100).nullish(),
   operationArea: z.string().max(200).nullish(),
   paymentPhone:  z.string().max(30).nullish(),
+  // Spoken languages, e.g. ["sw", "en"]
+  languages:     z.array(z.string().min(1).max(40)).max(10).nullish(),
 });
 
 /** Helper: strip one unknown Prisma field from an error message */
@@ -95,6 +97,7 @@ const updateDriverProfile: RequestHandler = async (req, res) => {
           nationality: true, gender: true, region: true, district: true,
           nin: true, licenseNumber: true, plateNumber: true, vehiclePlate: true,
           vehicleType: true, vehicleMake: true, operationArea: true, paymentPhone: true,
+          languages: true,
         },
       });
     } catch { /* best-effort */ }
@@ -125,6 +128,7 @@ const updateDriverProfile: RequestHandler = async (req, res) => {
     if (data.vehicleMake   !== undefined) updateData.vehicleMake   = str(data.vehicleMake);
     if (data.operationArea !== undefined) updateData.operationArea = str(data.operationArea);
     if (data.paymentPhone  !== undefined) updateData.paymentPhone  = str(data.paymentPhone);
+    if (data.languages     !== undefined) updateData.languages     = data.languages == null ? null : data.languages;
 
     // Handle dateOfBirth: accept ISO string, date-only (YYYY-MM-DD), or empty/null (clear)
     if (data.dateOfBirth !== undefined) {

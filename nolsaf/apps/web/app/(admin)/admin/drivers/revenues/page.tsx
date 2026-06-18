@@ -1,9 +1,10 @@
 "use client";
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
-import { TrendingUp, Search, X, Calendar, Clock, PieChart, BarChart3, } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, BadgeCheck, Car, CreditCard, Eye, MapPinned, Star, TrendingUp, Search, X, Calendar, Clock, PieChart, BarChart3, } from "lucide-react";
 import DatePicker from "@/components/ui/DatePicker";
 import apiClient from "@/lib/apiClient";
 import Chart from "@/components/Chart";
+import TableRow from "@/components/TableRow";
 import type { ChartData } from "chart.js";
 
 // Use same-origin for HTTP calls so Next.js rewrites proxy to the API
@@ -13,6 +14,9 @@ function authify() {}
 type RevenueRow = {
   id: number;
   driver: { id: number; name: string; email: string; phone: string | null } | null;
+  areaRegistered: string | null;
+  vehicleType: string | null;
+  registrationNumber: string | null;
   grossRevenue: number;
   commissionAmount: number;
   netRevenue: number;
@@ -51,12 +55,135 @@ type RevenueStatsResponse = {
   endDate: string;
 };
 
+type RevenueDriverDetails = {
+  driver: {
+    id: number;
+    name: string;
+    email: string;
+    phone: string | null;
+    vehicleType: string | null;
+    registrationNumber: string | null;
+    payout: string | { payoutPreferred?: string | null; mobileMoneyNumber?: string | null; mobileMoneyProvider?: string | null } | null;
+    paymentPhone: string | null;
+    kycStatus: string | null;
+  } | null;
+  summary: {
+    grossRevenue: number;
+    commissionAmount: number;
+    netRevenue: number;
+    tripCount: number;
+    invoiceCount: number;
+    averageCustomerRating: number | null;
+    averageDriverRating: number | null;
+    lastPaymentDate: string | null;
+  };
+  trips: Array<{
+    payoutId: number;
+    tripId: number | null;
+    tripCode: string;
+    status: string;
+    areaRegistered: string | null;
+    pickup: string;
+    dropoff: string;
+    vehicleType: string | null;
+    registrationNumber: string | null;
+    passengerCount: number | null;
+    grossRevenue: number;
+    commissionAmount: number;
+    netRevenue: number;
+    customerRating: number | null;
+    driverRating: number | null;
+    scheduledAt: string | null;
+    pickupTime: string | null;
+    dropoffTime: string | null;
+    paidAt: string | null;
+    paymentMethod: string | null;
+    paymentRef: string | null;
+    customer: { id: number; name: string | null; email: string | null; phone: string | null } | null;
+  }>;
+};
+
+type RevenueSortKey = "driver" | "areaRegistered" | "vehicleType" | "registrationNumber" | "grossRevenue" | "commissionAmount" | "netRevenue" | "tripCount" | "invoiceCount" | "lastPaymentDate";
+type TripDetailSortKey = "tripCode" | "route" | "areaRegistered" | "vehicleType" | "grossRevenue" | "commissionAmount" | "netRevenue" | "customerRating" | "paidAt";
+type SortDir = "asc" | "desc";
+
+const revenueDateFormatter = new Intl.DateTimeFormat("en-GB", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+});
+
+const revenueTimeFormatter = new Intl.DateTimeFormat("en-US", {
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+function formatRevenueDateTime(value: string | null | undefined) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return {
+    date: revenueDateFormatter.format(parsed),
+    time: revenueTimeFormatter.format(parsed),
+  };
+}
+
+function formatRevenueMoney(value: number | null | undefined) {
+  return `${Math.round(Number(value || 0)).toLocaleString()} TZS`;
+}
+
+function formatRevenueRating(value: number | null | undefined) {
+  return value == null ? "N/A" : `${Number(value).toFixed(1)}/5`;
+}
+
+function formatDriverPayout(value: RevenueDriverDetails["driver"] extends null ? never : NonNullable<RevenueDriverDetails["driver"]>["payout"]) {
+  if (!value) return "N/A";
+  if (typeof value === "string") return value;
+  return [value.payoutPreferred, value.mobileMoneyProvider, value.mobileMoneyNumber].filter(Boolean).join(" · ") || "N/A";
+}
+
+function profileFact(label: string, value: string | null | undefined) {
+  return (
+    <div className="border-b border-slate-100 py-3 last:border-b-0">
+      <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</div>
+      <div className="mt-1 text-[15px] leading-6 text-slate-950">{value || "N/A"}</div>
+    </div>
+  );
+}
+
+function profileMetric(
+  label: string,
+  value: string | number,
+  tone: "black" | "emerald" | "amber" | "white",
+  icon?: React.ReactNode,
+) {
+  const toneClass = {
+    black: "bg-black text-white border-black",
+    emerald: "bg-emerald-50 text-emerald-800 border-emerald-100",
+    amber: "bg-amber-50 text-amber-800 border-amber-100",
+    white: "bg-white text-slate-950 border-slate-200",
+  }[tone];
+  const labelClass = tone === "black" ? "text-white/60" : "text-slate-500";
+
+  return (
+    <div className={`border p-4 shadow-sm ${toneClass}`}>
+      <div className={`flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] ${labelClass}`}>
+        {icon}
+        {label}
+      </div>
+      <div className="mt-3 text-lg font-semibold leading-7">{value}</div>
+    </div>
+  );
+}
+
 export default function AdminDriversRevenuesPage() {
   const [date, setDate] = useState<string | string[]>("");
   const [q, setQ] = useState("");
   const [list, setList] = useState<RevenueRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const [sortKey, setSortKey] = useState<RevenueSortKey>("netRevenue");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [total, setTotal] = useState(0);
   const pageSize = 30;
   const searchRef = useRef<HTMLInputElement | null>(null);
@@ -67,6 +194,14 @@ export default function AdminDriversRevenuesPage() {
   const [statsPeriod, setStatsPeriod] = useState<string>("30d");
   const [statsData, setStatsData] = useState<RevenueStatsResponse | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [detailsError, setDetailsError] = useState<string | null>(null);
+  const [detailsData, setDetailsData] = useState<RevenueDriverDetails | null>(null);
+  const [tripDetailSortKey, setTripDetailSortKey] = useState<TripDetailSortKey>("paidAt");
+  const [tripDetailSortDir, setTripDetailSortDir] = useState<SortDir>("desc");
+  const [tripDetailPage, setTripDetailPage] = useState(1);
+  const tripDetailPageSize = 8;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -123,6 +258,185 @@ export default function AdminDriversRevenuesPage() {
   }, [loadStats]);
 
   const pages = Math.max(1, Math.ceil(total / pageSize));
+
+  const openDriverDetails = useCallback(async (row: RevenueRow) => {
+    if (!row.driver?.id) return;
+    setDetailsOpen(true);
+    setDetailsLoading(true);
+    setDetailsError(null);
+    setDetailsData(null);
+    setTripDetailPage(1);
+    try {
+      const params: any = {};
+      if (date) {
+        if (Array.isArray(date)) {
+          params.start = date[0];
+          params.end = date[1];
+        } else {
+          params.date = date;
+        }
+      }
+      const response = await api.get<RevenueDriverDetails>(`/api/admin/drivers/revenues/${row.driver.id}/details`, { params });
+      setDetailsData(response.data);
+    } catch (err) {
+      console.error("Failed to load driver revenue details", err);
+      setDetailsError("Unable to load driver revenue details right now.");
+    } finally {
+      setDetailsLoading(false);
+    }
+  }, [date]);
+
+  const closeDriverDetails = useCallback(() => {
+    setDetailsOpen(false);
+    setDetailsLoading(false);
+    setDetailsError(null);
+    setDetailsData(null);
+    setTripDetailPage(1);
+  }, []);
+
+  const sortedDetailTrips = useMemo(() => {
+    if (!detailsData?.trips) return [];
+    const valueFor = (trip: RevenueDriverDetails["trips"][number]): string | number => {
+      switch (tripDetailSortKey) {
+        case "tripCode":
+          return trip.tripCode || "";
+        case "route":
+          return `${trip.pickup || ""} ${trip.dropoff || ""}`;
+        case "areaRegistered":
+          return trip.areaRegistered || "";
+        case "vehicleType":
+          return trip.vehicleType || "";
+        case "grossRevenue":
+          return trip.grossRevenue;
+        case "commissionAmount":
+          return trip.commissionAmount;
+        case "netRevenue":
+          return trip.netRevenue;
+        case "customerRating":
+          return trip.customerRating ?? 0;
+        case "paidAt":
+        default:
+          return new Date(trip.paidAt || "").getTime() || 0;
+      }
+    };
+
+    return [...detailsData.trips].sort((a, b) => {
+      const aValue = valueFor(a);
+      const bValue = valueFor(b);
+      const result =
+        typeof aValue === "number" && typeof bValue === "number"
+          ? aValue - bValue
+          : String(aValue).localeCompare(String(bValue), undefined, { numeric: true, sensitivity: "base" });
+      return tripDetailSortDir === "asc" ? result : -result;
+    });
+  }, [detailsData?.trips, tripDetailSortDir, tripDetailSortKey]);
+
+  const handleTripDetailSort = useCallback((key: TripDetailSortKey) => {
+    setTripDetailPage(1);
+    setTripDetailSortKey((current) => {
+      if (current === key) {
+        setTripDetailSortDir((direction) => (direction === "asc" ? "desc" : "asc"));
+        return current;
+      }
+      setTripDetailSortDir(["grossRevenue", "commissionAmount", "netRevenue", "customerRating", "paidAt"].includes(key) ? "desc" : "asc");
+      return key;
+    });
+  }, []);
+
+  const renderTripDetailSortIcon = (key: TripDetailSortKey) => {
+    if (tripDetailSortKey !== key) return <ArrowUpDown className="h-3.5 w-3.5 text-slate-400" />;
+    return tripDetailSortDir === "asc" ? (
+      <ArrowUp className="h-3.5 w-3.5 text-emerald-600" />
+    ) : (
+      <ArrowDown className="h-3.5 w-3.5 text-emerald-600" />
+    );
+  };
+
+  const renderTripDetailSortHeader = (key: TripDetailSortKey, label: string) => (
+    <button
+      type="button"
+      onClick={() => handleTripDetailSort(key)}
+      className="inline-flex appearance-none items-center gap-2 whitespace-nowrap border-0 bg-transparent p-0 text-xs font-bold uppercase tracking-wide text-slate-500 transition hover:text-slate-950"
+    >
+      <span>{label}</span>
+      {renderTripDetailSortIcon(key)}
+    </button>
+  );
+
+  const tripDetailPages = Math.max(1, Math.ceil(sortedDetailTrips.length / tripDetailPageSize));
+  const pagedDetailTrips = useMemo(
+    () => sortedDetailTrips.slice((tripDetailPage - 1) * tripDetailPageSize, tripDetailPage * tripDetailPageSize),
+    [sortedDetailTrips, tripDetailPage, tripDetailPageSize],
+  );
+
+  const sortedRevenues = useMemo(() => {
+    const valueFor = (row: RevenueRow): string | number => {
+      switch (sortKey) {
+        case "driver":
+          return row.driver?.name || "";
+        case "areaRegistered":
+          return row.areaRegistered || "";
+        case "vehicleType":
+          return row.vehicleType || "";
+        case "registrationNumber":
+          return row.registrationNumber || "";
+        case "grossRevenue":
+          return row.grossRevenue;
+        case "commissionAmount":
+          return row.commissionAmount;
+        case "netRevenue":
+          return row.netRevenue;
+        case "tripCount":
+          return row.tripCount;
+        case "invoiceCount":
+          return row.invoiceCount;
+        case "lastPaymentDate":
+        default:
+          return new Date(row.lastPaymentDate || "").getTime() || 0;
+      }
+    };
+
+    return [...list].sort((a, b) => {
+      const aValue = valueFor(a);
+      const bValue = valueFor(b);
+      const result =
+        typeof aValue === "number" && typeof bValue === "number"
+          ? aValue - bValue
+          : String(aValue).localeCompare(String(bValue), undefined, { numeric: true, sensitivity: "base" });
+      return sortDir === "asc" ? result : -result;
+    });
+  }, [list, sortDir, sortKey]);
+
+  const handleSort = useCallback((key: RevenueSortKey) => {
+    setSortKey((current) => {
+      if (current === key) {
+        setSortDir((direction) => (direction === "asc" ? "desc" : "asc"));
+        return current;
+      }
+      setSortDir(key === "driver" ? "asc" : "desc");
+      return key;
+    });
+  }, []);
+
+  const renderSortIcon = (key: RevenueSortKey) => {
+    if (sortKey !== key) return <ArrowUpDown className="h-3.5 w-3.5 text-slate-400" />;
+    return sortDir === "asc" ? (
+      <ArrowUp className="h-3.5 w-3.5 text-sky-600" />
+    ) : (
+      <ArrowDown className="h-3.5 w-3.5 text-sky-600" />
+    );
+  };
+
+  const renderSortHeader = (key: RevenueSortKey, label: string) => (
+    <button
+      type="button"
+      onClick={() => handleSort(key)}
+      className="inline-flex appearance-none items-center gap-2 whitespace-nowrap border-0 bg-transparent p-0 text-xs font-medium uppercase tracking-wider text-gray-500 transition hover:text-slate-900"
+    >
+      <span>{label}</span>
+      {renderSortIcon(key)}
+    </button>
+  );
 
   // Prepare area chart data for revenue trends
   const revenueChartData = useMemo<ChartData<"line">>(() => {
@@ -187,7 +501,10 @@ export default function AdminDriversRevenuesPage() {
     }
 
     const top5 = statsData.topDrivers.slice(0, 5);
-    const labels = top5.map((d) => d.driverName.split(" ")[0] || "Driver");
+    const labels = top5.map((d) => {
+      const cleaned = d.driverName.replace(/^Smoke\s+/i, "").trim();
+      return cleaned || d.driverName || "Driver";
+    });
     const colors = [
       "rgba(59, 130, 246, 0.8)",
       "rgba(16, 185, 129, 0.8)",
@@ -553,7 +870,7 @@ export default function AdminDriversRevenuesPage() {
                     callbacks: {
                       label: (context: any) => {
                         const value = context.parsed.x || 0;
-                        const driver = statsData.topDrivers[context.dataIndex];
+                        const driver = statsData.topDrivers.slice(0, 5)[context.dataIndex];
                         return `${driver.driverName}: ${value.toLocaleString()} TZS (${driver.tripCount} trips)`;
                       },
                     },
@@ -697,18 +1014,26 @@ export default function AdminDriversRevenuesPage() {
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Driver</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gross Revenue</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Commission</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Net Revenue</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trips</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoices</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Payment</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 whitespace-nowrap">S/N</th>
+                    <th className="px-6 py-3 text-left">{renderSortHeader("driver", "Driver")}</th>
+                    <th className="px-6 py-3 text-left">{renderSortHeader("areaRegistered", "Area Registered")}</th>
+                    <th className="px-6 py-3 text-left">{renderSortHeader("vehicleType", "Vehicle Type")}</th>
+                    <th className="px-6 py-3 text-left">{renderSortHeader("registrationNumber", "Reg No")}</th>
+                    <th className="px-6 py-3 text-left">{renderSortHeader("grossRevenue", "Gross Revenue")}</th>
+                    <th className="px-6 py-3 text-left">{renderSortHeader("commissionAmount", "Commission")}</th>
+                    <th className="px-6 py-3 text-left">{renderSortHeader("netRevenue", "Net Revenue")}</th>
+                    <th className="px-6 py-3 text-left">{renderSortHeader("tripCount", "Trips")}</th>
+                    <th className="px-6 py-3 text-left">{renderSortHeader("invoiceCount", "Invoices")}</th>
+                    <th className="px-6 py-3 text-left">{renderSortHeader("lastPaymentDate", "Last Payment")}</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Action</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {list.map((revenue) => (
-                    <tr key={revenue.id} className="hover:bg-gray-50 transition-colors">
+                  {sortedRevenues.map((revenue, index) => (
+                    <TableRow key={revenue.id} className="transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-500">
+                        {(page - 1) * pageSize + index + 1}
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {revenue.driver ? (
                           <div>
@@ -718,6 +1043,15 @@ export default function AdminDriversRevenuesPage() {
                         ) : (
                           <span className="text-gray-400">Unassigned</span>
                         )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {revenue.areaRegistered || <span className="text-gray-400">N/A</span>}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {revenue.vehicleType || <span className="text-gray-400">N/A</span>}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {revenue.registrationNumber || <span className="font-normal text-gray-400">N/A</span>}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
                         {revenue.grossRevenue.toLocaleString()} TZS
@@ -738,13 +1072,27 @@ export default function AdminDriversRevenuesPage() {
                         {revenue.lastPaymentDate ? (
                           <div className="flex items-center gap-2">
                             <Clock className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                            <span>{new Date(revenue.lastPaymentDate).toLocaleDateString()}</span>
+                            <div className="leading-5">
+                              <div>{formatRevenueDateTime(revenue.lastPaymentDate)?.date}</div>
+                              <div className="text-xs text-gray-500">{formatRevenueDateTime(revenue.lastPaymentDate)?.time}</div>
+                            </div>
                           </div>
                         ) : (
                           <span className="text-gray-400">N/A</span>
                         )}
                       </td>
-                    </tr>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <button
+                          type="button"
+                          onClick={() => openDriverDetails(revenue)}
+                          disabled={!revenue.driver?.id}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-950 text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
+                          aria-label={`View revenue details for ${revenue.driver?.name || "driver"}`}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </button>
+                      </td>
+                    </TableRow>
                   ))}
                 </tbody>
               </table>
@@ -752,7 +1100,7 @@ export default function AdminDriversRevenuesPage() {
 
             {/* Mobile Cards */}
             <div className="md:hidden space-y-2 p-4">
-              {list.map((revenue) => (
+              {sortedRevenues.map((revenue) => (
                 <div key={revenue.id} className="border rounded-lg p-3 bg-white">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1">
@@ -776,44 +1124,226 @@ export default function AdminDriversRevenuesPage() {
                     <span className="text-gray-500">Gross: {revenue.grossRevenue.toLocaleString()} TZS</span>
                     <span className="text-amber-600">Commission: -{revenue.commissionAmount.toLocaleString()} TZS</span>
                   </div>
+                  <div className="mt-2 grid grid-cols-3 gap-2 border-t border-gray-100 pt-2 text-xs">
+                    <div>
+                      <div className="text-gray-400">Area</div>
+                      <div className="mt-0.5 font-medium text-gray-700">{revenue.areaRegistered || "N/A"}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-400">Vehicle</div>
+                      <div className="mt-0.5 font-medium text-gray-700">{revenue.vehicleType || "N/A"}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-400">Reg No</div>
+                      <div className="mt-0.5 font-medium text-gray-700">{revenue.registrationNumber || "N/A"}</div>
+                    </div>
+                  </div>
                   {revenue.lastPaymentDate && (
                     <div className="mt-2 text-xs text-gray-400">
-                      Last payment: {new Date(revenue.lastPaymentDate).toLocaleDateString()}
+                      Last payment: {formatRevenueDateTime(revenue.lastPaymentDate)?.date} {formatRevenueDateTime(revenue.lastPaymentDate)?.time}
                     </div>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => openDriverDetails(revenue)}
+                    disabled={!revenue.driver?.id}
+                    className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-slate-950 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <Eye className="h-4 w-4" />
+                    View Details
+                  </button>
                 </div>
               ))}
             </div>
 
             {/* Pagination */}
-            {pages > 1 && (
-              <div className="px-4 sm:px-6 py-4 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-3">
-                <div className="text-sm text-gray-500 text-center sm:text-left">
-                  Showing {(page - 1) * pageSize + 1} to {Math.min(page * pageSize, total)} of {total} drivers
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    disabled={page === 1}
-                    className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    Previous
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPage((p) => Math.min(pages, p + 1))}
-                    disabled={page === pages}
-                    className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    Next
-                  </button>
-                </div>
+            <div className="px-4 sm:px-6 py-4 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-end gap-3">
+              <div className="text-sm text-gray-500 text-center sm:text-right">
+                Showing {(page - 1) * pageSize + 1} to {Math.min(page * pageSize, total)} of {total} drivers
               </div>
-            )}
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-gray-400">Page {page} of {pages}</span>
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.min(pages, p + 1))}
+                  disabled={page === pages}
+                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
           </>
         )}
       </div>
+
+      {detailsOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-3 sm:p-5">
+          <button type="button" className="absolute inset-0 cursor-default" onClick={closeDriverDetails} aria-label="Close driver revenue details" />
+          <div className="relative z-10 flex max-h-[calc(100dvh-1.5rem)] w-full max-w-6xl flex-col overflow-hidden bg-white shadow-2xl">
+            <div className="flex flex-shrink-0 items-start justify-between gap-4 bg-gradient-to-r from-black via-slate-950 to-emerald-900 px-5 py-4 text-white">
+              <div className="min-w-0">
+                <div className="text-xs font-bold uppercase tracking-[0.28em] text-emerald-300">Driver Revenue Profile</div>
+                <h2 className="mt-1 truncate text-xl font-black">{detailsData?.driver?.name || "Driver Details"}</h2>
+                <p className="mt-1 text-sm text-white/65">{detailsData?.driver?.email || "Revenue, trips, ratings, and payout profile"}</p>
+              </div>
+              <button
+                type="button"
+                onClick={closeDriverDetails}
+                className="border border-white/15 bg-white/10 p-2 text-white transition hover:bg-white/20"
+                aria-label="Close driver revenue details"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto bg-slate-50 p-4 sm:p-6">
+              {detailsLoading ? (
+                <div className="flex min-h-[340px] items-center justify-center">
+                  <div className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-emerald-600" />
+                </div>
+              ) : detailsError ? (
+                <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-5 text-sm text-rose-700">{detailsError}</div>
+              ) : detailsData ? (
+                <div className="space-y-5">
+                  <div className="grid gap-4 lg:grid-cols-[1.05fr_1.2fr]">
+                    <div className="border border-slate-200 bg-white p-5 shadow-sm">
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-black text-base font-semibold text-white">
+                          {(detailsData.driver?.name || "D").slice(0, 1).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="truncate text-[17px] font-semibold leading-6 text-slate-950">{detailsData.driver?.name || "Unknown Driver"}</div>
+                          <div className="mt-1 truncate text-[15px] leading-6 text-slate-500">{detailsData.driver?.phone || detailsData.driver?.email || "No contact recorded"}</div>
+                        </div>
+                      </div>
+                      <div className="mt-5 grid gap-x-8 gap-y-0 sm:grid-cols-2">
+                        {profileFact("Vehicle", detailsData.driver?.vehicleType || "N/A")}
+                        {profileFact("Reg No", detailsData.driver?.registrationNumber || "N/A")}
+                        {profileFact("Payout Method", formatDriverPayout(detailsData.driver?.payout ?? null))}
+                        {profileFact("KYC", detailsData.driver?.kycStatus || "N/A")}
+                      </div>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      {profileMetric("Gross", formatRevenueMoney(detailsData.summary.grossRevenue), "black", <TrendingUp className="h-4 w-4 text-emerald-300" />)}
+                      {profileMetric("Driver Net", formatRevenueMoney(detailsData.summary.netRevenue), "emerald", <CreditCard className="h-4 w-4" />)}
+                      {profileMetric("NoLSAF Revenue", formatRevenueMoney(detailsData.summary.commissionAmount), "amber", <BadgeCheck className="h-4 w-4" />)}
+                      {profileMetric("Trips", detailsData.summary.tripCount, "white")}
+                      {profileMetric("Rating", formatRevenueRating(detailsData.summary.averageCustomerRating), "white", <Star className="h-4 w-4 text-amber-500" />)}
+                      {profileMetric(
+                        "Last Payment",
+                        `${formatRevenueDateTime(detailsData.summary.lastPaymentDate)?.date || "N/A"}${formatRevenueDateTime(detailsData.summary.lastPaymentDate)?.time ? ` · ${formatRevenueDateTime(detailsData.summary.lastPaymentDate)?.time}` : ""}`,
+                        "white",
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                    <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+                      <div>
+                        <h3 className="text-base font-black text-slate-950">Accomplished Trips</h3>
+                        <p className="text-sm text-slate-500">Completed payout trips connected to this driver revenue record.</p>
+                      </div>
+                      <div className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+                        {detailsData.trips.length} trips
+                      </div>
+                    </div>
+                    <div className="max-h-[360px] overflow-y-auto">
+                      <table className="w-full min-w-[1080px]">
+                        <thead className="bg-slate-50">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500 whitespace-nowrap">S/N</th>
+                            <th className="px-4 py-3 text-left">{renderTripDetailSortHeader("tripCode", "Trip")}</th>
+                            <th className="px-4 py-3 text-left">{renderTripDetailSortHeader("route", "Route")}</th>
+                            <th className="px-4 py-3 text-left">{renderTripDetailSortHeader("areaRegistered", "Area")}</th>
+                            <th className="px-4 py-3 text-left">{renderTripDetailSortHeader("vehicleType", "Vehicle")}</th>
+                            <th className="px-4 py-3 text-left">{renderTripDetailSortHeader("grossRevenue", "Gross")}</th>
+                            <th className="px-4 py-3 text-left">{renderTripDetailSortHeader("commissionAmount", "NoLSAF")}</th>
+                            <th className="px-4 py-3 text-left">{renderTripDetailSortHeader("netRevenue", "Driver Net")}</th>
+                            <th className="px-4 py-3 text-left">{renderTripDetailSortHeader("customerRating", "Rating")}</th>
+                            <th className="px-4 py-3 text-left">{renderTripDetailSortHeader("paidAt", "Paid")}</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {pagedDetailTrips.map((trip, index) => (
+                            <TableRow key={trip.payoutId} className="align-top">
+                              <td className="px-4 py-3 text-sm font-bold text-slate-500">{(tripDetailPage - 1) * tripDetailPageSize + index + 1}</td>
+                              <td className="px-4 py-3 text-sm">
+                                <div className="line-clamp-2 max-w-[150px] break-all font-bold leading-5 text-slate-950">{trip.tripCode}</div>
+                                <div className="text-xs text-slate-500">{trip.status}</div>
+                              </td>
+                              <td className="px-4 py-3 text-sm text-slate-700">
+                                <div className="flex gap-2">
+                                  <MapPinned className="mt-0.5 h-4 w-4 flex-shrink-0 text-sky-600" />
+                                  <div>
+                                    <div className="line-clamp-1">{trip.pickup}</div>
+                                    <div className="line-clamp-1 text-slate-500">{trip.dropoff}</div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-sm text-slate-700">{trip.areaRegistered || "N/A"}</td>
+                              <td className="px-4 py-3 text-sm text-slate-700">
+                                <div className="flex items-center gap-2">
+                                  <Car className="h-4 w-4 text-slate-400" />
+                                  <span>{trip.vehicleType || "N/A"}</span>
+                                </div>
+                                <div className="text-xs text-slate-500">{trip.registrationNumber || "No reg"}</div>
+                              </td>
+                              <td className="px-4 py-3 text-sm font-semibold text-slate-950">{formatRevenueMoney(trip.grossRevenue)}</td>
+                              <td className="px-4 py-3 text-sm font-semibold text-amber-600">-{formatRevenueMoney(trip.commissionAmount)}</td>
+                              <td className="px-4 py-3 text-sm font-semibold text-emerald-700">{formatRevenueMoney(trip.netRevenue)}</td>
+                              <td className="px-4 py-3 text-sm text-slate-700">{formatRevenueRating(trip.customerRating)}</td>
+                              <td className="px-4 py-3 text-sm text-slate-700">
+                                <div>{formatRevenueDateTime(trip.paidAt)?.date || "N/A"}</div>
+                                <div className="text-xs text-slate-500">{formatRevenueDateTime(trip.paidAt)?.time || trip.paymentMethod || ""}</div>
+                              </td>
+                            </TableRow>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="flex flex-col items-center justify-end gap-3 border-t border-slate-100 px-4 py-3 text-sm sm:flex-row">
+                      <div className="text-slate-500">
+                        Showing {(tripDetailPage - 1) * tripDetailPageSize + 1} to {Math.min(tripDetailPage * tripDetailPageSize, sortedDetailTrips.length)} of {sortedDetailTrips.length} trips
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-slate-400">Page {tripDetailPage} of {tripDetailPages}</span>
+                        <button
+                          type="button"
+                          onClick={() => setTripDetailPage((current) => Math.max(1, current - 1))}
+                          disabled={tripDetailPage === 1}
+                          className="border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          Previous
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTripDetailPage((current) => Math.min(tripDetailPages, current + 1))}
+                          disabled={tripDetailPage === tripDetailPages}
+                          className="border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-slate-200 bg-white px-4 py-5 text-sm text-slate-600">No driver revenue details available.</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

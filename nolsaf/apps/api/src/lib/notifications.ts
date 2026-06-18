@@ -39,6 +39,16 @@ export async function notifyAdmins(template: string, data: any) {
         body: `A new booking${data.bookingId ? ` #${data.bookingId}` : ""} has been created${data.propertyTitle ? ` for "${data.propertyTitle}"` : ""}${data.checkIn ? ` (check-in: ${data.checkIn})` : ""}.`
       },
 
+      group_stay_message: {
+        title: "Group Stay Follow-up",
+        body: `${data.customerName || "A customer"} sent a message on group stay #${data.groupBookingId}${data.messageType && data.messageType !== "General" ? ` (${data.messageType})` : ""}: "${data.message}"`
+      },
+
+      payout_claim_submitted: {
+        title: "Tour Payout Claim Submitted",
+        body: `${data.operatorName ? `${data.operatorName} ` : "An operator "}submitted a payout claim for booking ${data.bookingCode || `#${data.tourBookingId}`}. Review it in the tour revenue dashboard.`
+      },
+
       // Transport (driver allocation) escalations
       transport_auto_dispatch_no_drivers_2m: {
         title: "No Driver Acceptance Yet (2 min)",
@@ -51,6 +61,10 @@ export async function notifyAdmins(template: string, data: any) {
       transport_auto_dispatch_takeover: {
         title: "Manual Assignment Required (10 min)",
         body: `A transport trip${data.transportBookingId ? ` #${data.transportBookingId}` : ""} was not assigned within 10 minutes. Admin manual assignment is now required.`
+      },
+      transport_payout_claim_submitted: {
+        title: "Driver Payout Claim Submitted",
+        body: `${data.driverName ? `${data.driverName} ` : "A driver "}submitted a payout claim for trip${data.transportBookingId ? ` #${data.transportBookingId}` : ""}. Review and approve it in the driver payouts dashboard.`
       },
     };
 
@@ -75,6 +89,8 @@ export async function notifyAdmins(template: string, data: any) {
               ? "careers"
             : template.startsWith("cancellation")
               ? "cancellation"
+              : template.startsWith("group_stay")
+                ? "booking"
               : template.startsWith("booking")
                 ? "booking"
                 : "property"
@@ -207,6 +223,26 @@ export async function notifyUser(userId: number, template: string, data: any) {
       agent_assignment_completed: {
         title: "Assignment marked completed",
         body: `Assignment${data.requestId ? ` #${data.requestId}` : ""} was marked COMPLETED. Check the assignment for the final response and outputs.`
+      },
+      agent_tour_booking_paid: {
+        title: "New Paid Tour Booking",
+        body: `Tour booking ${data.bookingCode || ""} has been paid. Guest: ${data.guestName || "Unknown"}. Amount: ${data.currency || ""} ${Number(data.amount || 0).toLocaleString("en-US")}.`
+      },
+      agent_payout_verified: {
+        title: "Payout Claim Verified",
+        body: `Your payout claim for booking ${data.bookingCode || `#${data.tourBookingId}`} has been verified by NoLSAF. ${data.reason ? `Note: ${data.reason}` : "It is now awaiting approval."}`
+      },
+      agent_payout_approved: {
+        title: "Payout Approved",
+        body: `Your payout for booking ${data.bookingCode || `#${data.tourBookingId}`} has been approved and is queued for disbursement.`
+      },
+      agent_payout_disbursed: {
+        title: "Payout Disbursed",
+        body: `Your payout for booking ${data.bookingCode || `#${data.tourBookingId}`} has been disbursed${data.paymentRef ? ` (ref: ${data.paymentRef})` : ""}. Check your revenues page for details.`
+      },
+      agent_payout_rejected: {
+        title: "Payout Claim Rejected",
+        body: `Your payout claim for booking ${data.bookingCode || `#${data.tourBookingId}`} was rejected. ${data.reason ? `Reason: ${data.reason}` : "Contact NoLSAF support for details."}`
       },
       cancellation_status_update: {
         title: "Cancellation Claim Update",

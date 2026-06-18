@@ -322,8 +322,8 @@ export default function OwnerBookingsPage() {
 
       {/* ══ FILTER TABS — underline style ═════════════════════════════ */}
       <div className="px-4 sm:px-8 pt-6">
-        <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-sm border border-slate-200/70 overflow-x-auto">
-          <div className="flex items-center min-w-max border-b border-slate-100">
+        <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-sm border border-slate-200/70 overflow-hidden">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 border-b border-slate-100">
             {filterTabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.key;
@@ -339,14 +339,14 @@ export default function OwnerBookingsPage() {
                       router.replace(`/owner/bookings${next.toString() ? `?${next.toString()}` : ''}`);
                     } catch {}
                   }}
-                  className={`relative flex items-center gap-2 px-4 py-3.5 text-[13px] font-semibold whitespace-nowrap transition-colors duration-150 border-b-2 -mb-px ${
+                  className={`relative flex min-w-0 items-center justify-center gap-1.5 px-2.5 py-3 text-center text-[12px] font-semibold leading-tight transition-colors duration-150 border-b-2 -mb-px sm:gap-2 sm:px-3 sm:py-3.5 sm:text-[13px] ${
                     isActive
                       ? 'text-[#02665e] border-[#02665e]'
                       : 'text-slate-400 border-transparent hover:text-slate-700 hover:border-slate-200'
                   }`}
                 >
                   <Icon className={`h-3.5 w-3.5 flex-shrink-0 ${isActive ? 'text-[#02665e]' : 'text-slate-300'}`} />
-                  <span>{tab.label}</span>
+                  <span className="min-w-0 truncate">{tab.label}</span>
                   {tab.count > 0 && (
                     <span className={`inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[9px] font-black ${
                       isActive ? 'bg-[#02665e] text-white' : 'bg-slate-100 text-slate-500'

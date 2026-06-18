@@ -4,12 +4,51 @@ import { Server as SocketServer } from "socket.io";
 import { createAdapter } from "@socket.io/redis-adapter";
 import Redis from "ioredis";
 import { prisma } from "@nolsaf/prisma";
-import { socketAuthMiddleware, type AuthenticatedSocket } from "../middleware/socketAuth.js";
+import { socketAuthMiddleware, verifyToken, type AuthenticatedSocket } from "../middleware/socketAuth.js";
+import { touchActiveUser } from "../lib/activePresence.js";
 import {
   getProtectedDriverAccessDenial,
   getProtectedDriverState,
   isDriverApprovedForProtectedAccess,
 } from "../lib/driverAccess.js";
+
+type SocketUser = NonNullable<AuthenticatedSocket["data"]["user"]>;
+
+/**
+ * Joins the rooms an authenticated socket needs so server-side emits reach it:
+ * the per-user room (notifications/inbox) and, for drivers, the driver room and
+ * the available-drivers room (derived from persisted availability). Safe to call
+ * more than once — Socket.IO room joins are idempotent.
+ */
+async function joinAuthenticatedRooms(socket: AuthenticatedSocket, user: SocketUser): Promise<void> {
+  try { socket.join(`user:${user.id}`); } catch {}
+  if (user.role !== "DRIVER") return;
+
+  try { socket.join(`driver:${user.id}`); } catch {}
+  // Best-effort: join/leave the available-drivers room from DB state on connect.
+  try {
+    const driverState = await getProtectedDriverState(user.id);
+    let isAvailable = false;
+    try {
+      if ((prisma as any).driverAvailability) {
+        const row = await (prisma as any).driverAvailability.findUnique({
+          where: { driverId: user.id },
+          select: { available: true },
+        });
+        isAvailable = Boolean(row?.available);
+      } else {
+        const row = await prisma.user.findUnique({ where: { id: user.id }, select: { available: true } });
+        isAvailable = Boolean(row?.available ?? false);
+      }
+    } catch {
+      isAvailable = false;
+    }
+    if (isAvailable && isDriverApprovedForProtectedAccess(driverState)) socket.join("drivers:available");
+    else socket.leave("drivers:available");
+  } catch {
+    // ignore
+  }
+}
 
 let ioRef: SocketServer | null = null;
 let warnedAboutMissingIo = false;
@@ -109,42 +148,45 @@ export function createSocketServer(server: HttpServer, app: Express): SocketServ
 
 function registerSocketHandlers(io: SocketServer): void {
   io.on("connection", (socket: AuthenticatedSocket) => {
-    const user = socket.data.user;
+    // `user` is reassigned by the `authenticate` recovery handler below, so every
+    // event handler in this closure reads the latest value (not a connect-time snapshot).
+    let user = socket.data.user;
     console.log("Socket connected", socket.id, user ? `(user: ${user.id}, role: ${user.role})` : "(unauthenticated)");
 
     // Auto-join basic rooms for authenticated users so server-side emits can be scoped safely.
     // This avoids relying on every client to explicitly call join events.
     if (user?.id) {
-      try { socket.join(`user:${user.id}`); } catch {}
-      if (user.role === "DRIVER") {
-        try { socket.join(`driver:${user.id}`); } catch {}
-        // Best-effort: join/leave the available-drivers room from DB state on connect.
-        (async () => {
-          try {
-            const driverState = await getProtectedDriverState(user.id);
-            let isAvailable = false;
-            try {
-              if ((prisma as any).driverAvailability) {
-                const row = await (prisma as any).driverAvailability.findUnique({
-                  where: { driverId: user.id },
-                  select: { available: true },
-                });
-                isAvailable = Boolean(row?.available);
-              } else {
-                const row = await prisma.user.findUnique({ where: { id: user.id }, select: { available: true } });
-                isAvailable = Boolean(row?.available ?? false);
-              }
-            } catch {
-              isAvailable = false;
-            }
-            if (isAvailable && isDriverApprovedForProtectedAccess(driverState)) socket.join("drivers:available");
-            else socket.leave("drivers:available");
-          } catch {
-            // ignore
-          }
-        })();
-      }
+      void joinAuthenticatedRooms(socket, user);
     }
+
+    // Late authentication recovery.
+    //
+    // Clients that read their token asynchronously (e.g. the native app reading
+    // SecureStore) may connect before the token is available, so the handshake
+    // arrives without it and the socket is unauthenticated. Such a client can emit
+    // `authenticate` once the token is ready to upgrade this same connection and
+    // join its rooms — no reconnect needed.
+    socket.on("authenticate", async (data: string | { token?: string } | undefined, callback?: (response: any) => void) => {
+      try {
+        const token = typeof data === "string" ? data : data?.token;
+        if (!token) {
+          if (callback) callback({ error: "token_required" });
+          return;
+        }
+        const verified = await verifyToken(token);
+        if (!verified) {
+          if (callback) callback({ error: "invalid_token" });
+          return;
+        }
+        socket.data.user = verified;
+        user = verified;
+        try { touchActiveUser(verified.id, verified.role); } catch {}
+        await joinAuthenticatedRooms(socket, verified);
+        if (callback) callback({ status: "ok", userId: verified.id, role: verified.role });
+      } catch {
+        if (callback) callback({ error: "failed" });
+      }
+    });
 
     // Driver availability (socket): persists + updates room membership for offer broadcasts.
     // Payload: { available: boolean }

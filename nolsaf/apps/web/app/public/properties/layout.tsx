@@ -1,13 +1,25 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { SITE_URL, seoKeywords } from "@/lib/seo";
 
 export const metadata: Metadata = {
-  title: "Browse Properties",
+  title: "Verified Accommodation in Tanzania & East Africa",
   description:
-    "Search and filter verified hotels, apartments, and guesthouses across Tanzania and East Africa. Book with confidence on NoLSAF.",
+    "Search verified hotels, lodges, apartments, villas and guest houses across Tanzania and East Africa. Compare location, amenities, price and transport options on NoLSAF.",
+  keywords: [
+    "verified accommodation Tanzania",
+    "hotel booking Tanzania",
+    "Zanzibar accommodation",
+    "Dar es Salaam hotels",
+    "Arusha lodges",
+    "East Africa accommodation",
+    ...seoKeywords,
+  ],
+  alternates: { canonical: `${SITE_URL}/public/properties` },
   openGraph: {
-    title: "Browse Properties | NoLSAF",
-    description: "Find and book verified accommodation across Tanzania — filter by location, price, amenities, and property type.",
+    title: "Verified Accommodation in Tanzania & East Africa | NoLSAF",
+    description: "Find and book verified hotels, lodges, apartments and guest houses across Tanzania.",
+    url: `${SITE_URL}/public/properties`,
   },
 };
 

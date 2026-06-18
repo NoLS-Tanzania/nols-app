@@ -1,7 +1,9 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { ChevronRight } from "lucide-react";
 import CountryTourismSiteList, { type TourismSite } from "@/components/CountryTourismSiteList";
 import CountryFiltersRow from "@/components/CountryFiltersRow";
+import { SITE_URL, seoKeywords } from "@/lib/seo";
 
 type CountryTourism = {
   id: string;
@@ -140,6 +142,43 @@ const COUNTRY_TOURISM: Record<string, CountryTourism> = {
     ],
   },
 };
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ country: string }>;
+}): Promise<Metadata> {
+  const resolvedParams = await params;
+  const countryKey = String(resolvedParams?.country || "").toLowerCase().trim();
+  const data = COUNTRY_TOURISM[countryKey];
+  const countryName = data?.name || "East Africa";
+  const title =
+    countryKey === "tanzania"
+      ? "Tanzania Tourism Guide: Safaris, Parks, Beaches, Stays & Transport"
+      : `${countryName} Tourism Guide: Stays, Tours & Transport`;
+  const description = data
+    ? `${data.name} travel planning with verified stays, tourism sites, transport, tour packages and booking support on NoLSAF. ${data.subtitle}.`
+    : "Explore tourism in Africa and East Africa with verified stays, transport, tour packages and travel planning on NoLSAF.";
+
+  return {
+    title,
+    description,
+    keywords: [
+      `${countryName} tourism`,
+      `${countryName} travel`,
+      `${countryName} accommodation`,
+      `${countryName} tours`,
+      `${countryName} transport`,
+      ...seoKeywords,
+    ],
+    alternates: { canonical: `${SITE_URL}/public/countries/${countryKey || "tanzania"}` },
+    openGraph: {
+      title: `${title} | NoLSAF`,
+      description,
+      url: `${SITE_URL}/public/countries/${countryKey || "tanzania"}`,
+    },
+  };
+}
 
 export default async function CountryTourismPage({
   params,

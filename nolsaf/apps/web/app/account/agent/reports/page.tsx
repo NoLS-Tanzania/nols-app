@@ -112,8 +112,11 @@ function normalizedInvoiceStage(item: RevenueItem): InvoiceWorkflowStage {
   if (payment === "REJECTED" || payout === "REJECTED" || invoice === "REJECTED") return "REJECTED";
   if (item.payoutPaidAt || payment === "DISBURSED" || payout === "DISBURSED" || payout === "PAID") return "DISBURSED";
   if (item.payoutApprovedAt || payment === "APPROVED" || payout === "APPROVED" || invoice === "APPROVED") return "APPROVED";
-  if (payment === "PAID" || payment === "VERIFIED" || payout === "VERIFIED" || invoice === "VERIFIED") return "VERIFIED";
-  if (item.payoutRequestedAt || !!item.invoiceNumber || !!item.invoiceStatus) return "CLAIMED";
+  // VERIFIED is an explicit admin action on a submitted claim. A customer
+  // payment of PAID does NOT verify the payout — the record stays NEW until
+  // the operator sends a claim, then CLAIMED until NoLSAF verifies it.
+  if (payout === "VERIFIED" || invoice === "VERIFIED" || payment === "VERIFIED") return "VERIFIED";
+  if (item.payoutRequestedAt || !!item.invoiceNumber || !!item.invoiceStatus || payout === "CLAIMED" || payout === "REQUESTED") return "CLAIMED";
   return "NEW";
 }
 

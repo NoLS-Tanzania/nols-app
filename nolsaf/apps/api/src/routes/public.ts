@@ -6,10 +6,13 @@ import publicBookingRouter from "./public.booking";
 import publicBookingsRouter from "./public.bookings";
 import publicCareersApplyRouter from "./public.careers.apply";
 import publicCareersRouter from "./public.careers";
+import publicDriverVerificationRouter from "./public.driverVerification";
 import { router as publicEmailVerify } from "./public.email.verify";
+import publicGroupStayReceiptRouter from "./public.groupStayReceipt";
 import publicInvoicesRouter from "./public.invoices";
 import publicNolScopeRouter from "./public.nolscope";
 import publicAgentsRouter from "./public.agents";
+import publicPickupPointsRouter from "./public.pickupPoints";
 import publicPlanRequestRouter from "./public.planRequest";
 import publicPodcastsRouter from "./public.podcasts";
 import publicPropertiesRouter from "./public.properties";
@@ -38,11 +41,14 @@ export function registerPublicContentRoutes(app: Express): void {
   app.use("/api/public/bookings", publicBookingsRouter);
   app.use("/api/public/invoices", publicInvoicesRouter);
   app.use("/api/public/reports", publicReportsRouter);
+  app.use("/api/public/group-stays/receipt", publicGroupStayReceiptRouter);
+  app.use("/api/public/pickup-points", publicPickupPointsRouter);
   app.use("/api/public/properties", publicPropertiesRouter);
   app.use("/api/public/tourism-sites", publicTourismSitesRouter);
   app.use("/api/public/nolscope", publicNolScopeRouter);
   app.use("/api/public/agents", publicAgentsRouter);
   app.use("/api/public/tour-bookings", publicTourBookingsRouter);
+  app.use("/api/public/driver-verification", publicDriverVerificationRouter);
 }
 
 export function registerPublicPlanRequestRoute(app: Express): void {

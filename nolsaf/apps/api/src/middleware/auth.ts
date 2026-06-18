@@ -50,26 +50,6 @@ function markPrivateNoStore(res: Response): void {
   res.set("Vary", "Cookie, Authorization");
 }
 
-function isLocalDevBypassAllowed(req: Request): boolean {
-  if (process.env.NODE_ENV === "production" || process.env.NODE_ENV === "test") return false;
-  // Fail-closed: bypass only activates when explicitly opted in.
-  // Add ENABLE_DEV_BYPASS=true to .env.local to enable in local development.
-  if (process.env.ENABLE_DEV_BYPASS !== "true") return false;
-
-  // SECURITY: Only trust the socket-level IP (req.ip) which Express sets from the actual
-  // TCP connection. Do NOT trust X-Forwarded-For or X-Real-IP here — those headers can be
-  // spoofed by any client. The socket IP is unforgeable.
-  const ip = String((req as any).ip ?? "");
-  const isLoopback = ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1";
-
-  // Additionally check the Host header as a secondary guard (no proxy can change this
-  // while the socket is genuinely local).
-  const host = String(req.headers.host || "").trim().toLowerCase();
-  const isLocalHost = host.startsWith("localhost:") || host.startsWith("127.0.0.1:") || host === "localhost" || host === "127.0.0.1";
-
-  return isLoopback || isLocalHost;
-}
-
 function parseCookies(cookieHeader: string | undefined): Record<string, string> {
   if (!cookieHeader) return {};
   const out: Record<string, string> = {};
@@ -244,18 +224,6 @@ export const requireAuth: RequestHandler = async (req, res, next) => {
     }
   }
 
-  // DEV behavior: keep current dev-bypass so the app keeps working locally.
-  // Production is strict: no token -> 401.
-  if (isLocalDevBypassAllowed(req)) {
-    console.warn(`[DEV_BYPASS] No token on ${req.method} ${req.path} — injecting dev admin stub. Remove ENABLE_DEV_BYPASS=true from .env.local to disable.`);
-    (req as AuthedRequest).user = { id: 1, role: "ADMIN" };
-    markPrivateNoStore(res);
-    try {
-      touchActiveUser(1, "ADMIN");
-    } catch {}
-    return next();
-  }
-
   return res.status(401).json({ error: "Unauthorized" });
 };
 
@@ -290,19 +258,6 @@ export function requireRole(required?: Role) {
           }
         }
       }
-    }
-
-    // Dev bypass: keep local development productive.
-    if (isLocalDevBypassAllowed(req)) {
-      if (!(req as AuthedRequest).user) {
-        console.warn(`[DEV_BYPASS] No user on ${req.method} ${req.path} — injecting dev admin stub. Remove ENABLE_DEV_BYPASS=true from .env.local to disable.`);
-        (req as AuthedRequest).user = { id: 1, role: "ADMIN" };
-      }
-      markPrivateNoStore(res);
-      try {
-        touchActiveUser((req as AuthedRequest).user!.id, (req as AuthedRequest).user!.role);
-      } catch {}
-      return next();
     }
 
     // Production: strict — no user means no access.

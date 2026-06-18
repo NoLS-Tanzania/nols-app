@@ -363,6 +363,7 @@ export default function AdminTourRevenueDetailPage() {
   const historyItems: Array<{ key: string; title: string; at: string | null; color: string; icon: any; note?: string; by?: string | null; tourCode?: string | null }> = (() => {
     const base: Array<{ key: string; title: string; at: string | null; color: string; icon: any; note?: string; by?: string | null; tourCode?: string | null }> = [
       { key: "created", title: "Booking Created", at: revenue.createdAt, color: "border-gray-400 bg-gray-50", icon: FileText, tourCode: revenue.bookingCode },
+      { key: "paid", title: "Payment Received", at: revenue.paymentStatus === "PAID" || revenue.paidAt ? (revenue.paidAt || null) : null, color: "border-teal-400 bg-teal-50", icon: CreditCard, tourCode: revenue.bookingCode },
       { key: "requested", title: "Payout Claimed", at: revenue.payoutRequestedAt, color: "border-amber-400 bg-amber-50", icon: Clock, by: revenue.operator.name, tourCode: revenue.bookingCode },
     ];
 
@@ -390,7 +391,9 @@ export default function AdminTourRevenueDetailPage() {
       {
         key: "verified",
         title: "Verified",
-        at: revenue.verifiedAt || (revenue.paymentStatus === "PAID" ? (revenue.paidAt || revenue.updatedAt) : null),
+        // Only an explicit admin verification counts — a PAID customer payment
+        // must not fabricate a "Verified" step (payout stays NEW until claimed).
+        at: revenue.verifiedAt || null,
         color: "border-blue-400 bg-blue-50",
         icon: CheckCircle2,
         note: revenue.verifiedReason || undefined,

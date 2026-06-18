@@ -5,10 +5,10 @@ import { hashPassword, verifyPassword } from '../lib/crypto.js';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { generateAuthenticationOptions, verifyAuthenticationResponse } from '@simplewebauthn/server';
-import { sendMail } from '../lib/mailer.js';
+import { sendMail, SECURITY_EMAIL_FROM } from '../lib/mailer.js';
 import { getPasswordResetEmail, getLoginAlertEmail, getPasswordChangedConfirmationEmail } from '../lib/authEmailTemplates.js';
 import { sendSms } from '../lib/sms.js';
-import { addPasswordToHistory, isPasswordReused } from '../lib/security.js';
+import { addPasswordToHistory, getPasswordChangeCooldownRemaining, isPasswordReused, recordPasswordChangeSuccess } from '../lib/security.js';
 import { validatePasswordWithSettings } from '../lib/securitySettings.js';
 import { getRoleSessionMaxMinutes } from '../lib/securitySettings.js';
 import { signUserJwt, setAuthCookie, clearAuthCookie } from '../lib/sessionManager.js';
@@ -16,7 +16,7 @@ import { audit } from '../lib/audit.js';
 import { hashCode } from '../lib/otp.js';
 import { maybeAuth, requireAuth } from '../middleware/auth.js';
 import { limitOtpSend, limitOtpVerify, limitLoginAttempts, limitRegisterAttempts } from '../middleware/rateLimit.js';
-import { isEmailLocked, recordFailedAttempt, clearFailedAttempts, getRemainingAttempts, getLockoutStatus } from '../lib/loginAttemptTracker.js';
+import { isEmailLocked, recordFailedAttempt, clearFailedAttempts } from '../lib/loginAttemptTracker.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { buildDriverCaseRef } from '../lib/driverCaseRef.js';
 import { getRedis } from '../lib/redis.js';
@@ -35,12 +35,16 @@ const upload = multer({
   },
 });
 
-// OTP TTL: 5 minutes (reduced from 2 min for better UX, still short enough to be secure)
-const OTP_TTL_SEC = 5 * 60;
+// OTP TTL: 3 minutes, shared by signup, login, and reset verification.
+const OTP_TTL_SEC = 3 * 60;
 const OTP_TTL_MS  = OTP_TTL_SEC * 1000;
 
-// Redis key prefix for OTP store
-const REDIS_OTP_PREFIX = 'otp:phone:';
+// Redis key prefixes for OTP store — one namespace per delivery channel.
+type OtpChannel = 'PHONE' | 'EMAIL';
+
+function otpStoreKey(channel: OtpChannel, destination: string): string {
+  return channel === 'EMAIL' ? `otp:email:${destination}` : `otp:phone:${destination}`;
+}
 
 // ── In-memory OTP fallback (used when Redis is unavailable) ──────────────────
 // Stores ONLY the SHA-256 hash of the code, never the plain text.
@@ -51,46 +55,49 @@ const resetTokenStore: Record<string, { userId: string; expiresAt: number }> = {
 
 // ── OTP store helpers ─────────────────────────────────────────────────────────
 
-async function storeOtp(phone: string, code: string, role: string | null | undefined): Promise<void> {
+async function storeOtp(channel: OtpChannel, destination: string, code: string, role: string | null | undefined): Promise<void> {
   const codeHash = hashCode(code); // SHA-256 hash — never store plain text
   const payload  = JSON.stringify({ codeHash, role: role ?? null });
+  const key = otpStoreKey(channel, destination);
   try {
     const r = getRedis();
     if (r) {
-      await r.set(`${REDIS_OTP_PREFIX}${phone}`, payload, 'EX', OTP_TTL_SEC);
+      await r.set(key, payload, 'EX', OTP_TTL_SEC);
       return;
     }
   } catch (err) {
     console.error('[storeOtp] Redis error, using fallback:', err);
   }
-  otpStoreFallback[phone] = { codeHash, expiresAt: Date.now() + OTP_TTL_MS, role: role ?? undefined };
+  otpStoreFallback[key] = { codeHash, expiresAt: Date.now() + OTP_TTL_MS, role: role ?? undefined };
 }
 
-async function getOtpEntry(phone: string): Promise<{ codeHash: string; role?: string | null } | null> {
+async function getOtpEntry(channel: OtpChannel, destination: string): Promise<{ codeHash: string; role?: string | null } | null> {
+  const key = otpStoreKey(channel, destination);
   try {
     const r = getRedis();
     if (r) {
-      const raw = await r.get(`${REDIS_OTP_PREFIX}${phone}`);
+      const raw = await r.get(key);
       if (!raw) return null;
       return JSON.parse(raw) as { codeHash: string; role?: string | null };
     }
   } catch (err) {
     console.error('[getOtpEntry] Redis error, using fallback:', err);
   }
-  const entry = otpStoreFallback[phone];
+  const entry = otpStoreFallback[key];
   if (!entry) return null;
-  if (Date.now() > entry.expiresAt) { delete otpStoreFallback[phone]; return null; }
+  if (Date.now() > entry.expiresAt) { delete otpStoreFallback[key]; return null; }
   return { codeHash: entry.codeHash, role: entry.role };
 }
 
-async function deleteOtp(phone: string): Promise<void> {
+async function deleteOtp(channel: OtpChannel, destination: string): Promise<void> {
+  const key = otpStoreKey(channel, destination);
   try {
     const r = getRedis();
-    if (r) { await r.del(`${REDIS_OTP_PREFIX}${phone}`); return; }
+    if (r) { await r.del(key); return; }
   } catch (err) {
     console.error('[deleteOtp] Redis error:', err);
   }
-  delete otpStoreFallback[phone];
+  delete otpStoreFallback[key];
 }
 
 function verifyOtpCode(code: string, codeHash: string): boolean {
@@ -183,11 +190,59 @@ const PHONE_RULES: Record<string, { min: number; max: number }> = {
   '+233': { min: 9, max: 9 },
   '+212': { min: 9, max: 9 },
   '+20': { min: 10, max: 10 },
-  '+1': { min: 10, max: 10 },
+  '+269': { min: 7, max: 7 },
+  '+248': { min: 7, max: 7 },
+  '+230': { min: 8, max: 8 },
+  '+267': { min: 8, max: 8 },
+  '+264': { min: 9, max: 9 },
+  '+244': { min: 9, max: 9 },
+  '+221': { min: 9, max: 9 },
+  '+237': { min: 9, max: 9 },
+  '+225': { min: 10, max: 10 },
+  '+249': { min: 9, max: 9 },
+  '+213': { min: 9, max: 9 },
+  '+216': { min: 8, max: 8 },
   '+44': { min: 10, max: 10 },
+  '+49': { min: 10, max: 11 },
+  '+33': { min: 9, max: 9 },
+  '+39': { min: 9, max: 10 },
+  '+31': { min: 9, max: 9 },
+  '+34': { min: 9, max: 9 },
+  '+351': { min: 9, max: 9 },
+  '+32': { min: 8, max: 9 },
+  '+41': { min: 9, max: 9 },
+  '+43': { min: 10, max: 11 },
+  '+48': { min: 9, max: 9 },
+  '+420': { min: 9, max: 9 },
+  '+353': { min: 9, max: 9 },
+  '+46': { min: 9, max: 9 },
+  '+47': { min: 8, max: 8 },
+  '+45': { min: 8, max: 8 },
+  '+7': { min: 10, max: 10 },
+  '+380': { min: 9, max: 9 },
+  '+90': { min: 10, max: 10 },
   '+971': { min: 9, max: 9 },
+  '+972': { min: 9, max: 9 },
+  '+966': { min: 9, max: 9 },
+  '+974': { min: 8, max: 8 },
+  '+968': { min: 8, max: 8 },
+  '+965': { min: 8, max: 8 },
   '+91': { min: 10, max: 10 },
   '+86': { min: 11, max: 11 },
+  '+81': { min: 10, max: 10 },
+  '+82': { min: 9, max: 10 },
+  '+65': { min: 8, max: 8 },
+  '+60': { min: 9, max: 10 },
+  '+62': { min: 9, max: 12 },
+  '+66': { min: 9, max: 9 },
+  '+63': { min: 10, max: 10 },
+  '+92': { min: 10, max: 10 },
+  '+61': { min: 9, max: 9 },
+  '+64': { min: 8, max: 10 },
+  '+1': { min: 10, max: 10 },
+  '+52': { min: 10, max: 10 },
+  '+55': { min: 10, max: 11 },
+  '+54': { min: 10, max: 11 },
 };
 
 function normalizePhoneForAuth(input: string): string {
@@ -224,6 +279,30 @@ function getPhoneValidationMessage(phone: string): string {
   const normalized = normalizePhoneForAuth(phone);
   const { min, max } = getPhoneRuleForNumber(normalized);
   return min === max ? `Phone number must be exactly ${min} digits for that country code.` : `Phone number must be ${min}-${max} digits for that country code.`;
+}
+
+function normalizeEmailForAuth(input: any): string | null {
+  const v = String(input ?? '').trim().toLowerCase();
+  if (!v || v.length > 190) return null;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)) return null;
+  return v;
+}
+
+function maskEmailForAudit(email: string): string {
+  const [local, domain] = String(email || '').split('@');
+  if (!domain) return '******';
+  return `${local.slice(0, 2)}****@${domain}`;
+}
+
+function otpEmailHtml(otp: string): string {
+  return [
+    '<div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:0 auto;padding:24px;">',
+    '<h2 style="color:#02665e;margin:0 0 12px;">NoLSAF verification code</h2>',
+    '<p style="color:#334155;font-size:14px;">Use this code to continue. It expires in 5 minutes.</p>',
+    `<p style="font-size:32px;font-weight:bold;letter-spacing:8px;color:#0f172a;background:#f1f5f9;border-radius:12px;padding:16px;text-align:center;">${otp}</p>`,
+    '<p style="color:#64748b;font-size:12px;">If you did not request this code, you can safely ignore this email. Never share this code with anyone — NoLSAF staff will never ask for it.</p>',
+    '</div>',
+  ].join('');
 }
 
 function normalizeSignupRole(input: any): 'CUSTOMER' | 'OWNER' | 'DRIVER' | 'RESET' | null {
@@ -299,32 +378,51 @@ router.get(
   })
 );
 
-// POST /api/auth/send-otp
-// Rate limited: 3 requests per phone number per 15 minutes
-router.post('/send-otp', limitOtpSend, async (req, res) => {
-  const { phone, role } = req.body || {};
-  if (!phone) return res.status(400).json({ message: 'phone required' });
+// Resolves the OTP destination from a request body that carries either
+// `phone` or `email`. Phone keeps priority for backward compatibility.
+function resolveOtpDestination(body: any):
+  | { channel: OtpChannel; destination: string }
+  | { error: string } {
+  const rawPhone = body?.phone;
+  const rawEmail = body?.email;
+  if (rawPhone) {
+    const normalizedPhone = normalizePhoneForAuth(String(rawPhone));
+    if (!normalizedPhone) return { error: 'phone required' };
+    if (!isPhoneValidForAuth(normalizedPhone)) return { error: getPhoneValidationMessage(normalizedPhone) };
+    return { channel: 'PHONE', destination: normalizedPhone };
+  }
+  if (rawEmail) {
+    const normalizedEmail = normalizeEmailForAuth(rawEmail);
+    if (!normalizedEmail) return { error: 'A valid email address is required.' };
+    return { channel: 'EMAIL', destination: normalizedEmail };
+  }
+  return { error: 'phone or email required' };
+}
 
-  const normalizedPhone = normalizePhoneForAuth(String(phone));
-  if (!normalizedPhone) return res.status(400).json({ message: 'phone required' });
-  if (!isPhoneValidForAuth(normalizedPhone)) return res.status(400).json({ message: getPhoneValidationMessage(normalizedPhone) });
+// POST /api/auth/send-otp
+// Accepts { phone } OR { email } as the OTP destination, plus optional { role }.
+// Rate limited: 3 requests per destination per 15 minutes
+router.post('/send-otp', limitOtpSend, async (req, res) => {
+  const { role } = req.body || {};
+  const resolved = resolveOtpDestination(req.body);
+  if ('error' in resolved) return res.status(400).json({ message: resolved.error });
+  const { channel, destination } = resolved;
+  const destinationWhere = channel === 'PHONE' ? { phone: destination } : { email: destination };
+  const destinationLabel = channel === 'PHONE' ? 'phone number' : 'email address';
+  const genericOtpResponse = { ok: true, message: 'If this destination can receive a code, one has been sent.', channel };
 
   const normalizedRole = normalizeSignupRole(role);
 
   // If no role is provided, treat this as a LOGIN OTP request.
-  // In this flow, the phone number must already belong to an existing account.
+  // In this flow, the destination must already belong to an existing account.
   if (!normalizedRole) {
     try {
       const existing = await prisma.user.findFirst({
-        where: { phone: normalizedPhone },
+        where: destinationWhere,
         select: { id: true },
       });
       if (!existing) {
-        return res.status(404).json({
-          error: 'account_not_found',
-          message: 'No account found for this phone number. Please register first.',
-          action: 'register',
-        });
+        return res.json(genericOtpResponse);
       }
     } catch {
       return res.status(503).json({
@@ -334,18 +432,18 @@ router.post('/send-otp', limitOtpSend, async (req, res) => {
     }
   }
 
-  // Policy: once a phone is verified during registration, do not allow a new registration.
-  // Allow OTP for RESET flow (forgot password).
+  // Policy: a phone/email already tied to any account (verified or not) cannot be used to
+  // register a new account. Allow OTP for RESET flow (forgot password).
   if (normalizedRole && normalizedRole !== 'RESET') {
     try {
       const existing = await prisma.user.findFirst({
-        where: { phone: normalizedPhone },
-        select: { id: true, phoneVerifiedAt: true },
+        where: destinationWhere,
+        select: { id: true },
       });
-      if (existing?.phoneVerifiedAt) {
+      if (existing) {
         return res.status(409).json({
-          error: 'phone_already_registered',
-          message: 'This phone number already has an account. Please login or use forgot password to access it.',
+          error: channel === 'PHONE' ? 'phone_already_registered' : 'email_already_registered',
+          message: `This ${destinationLabel} already has an account. Please login or use forgot password to access it.`,
           action: 'login_or_forgot_password',
         });
       }
@@ -354,36 +452,69 @@ router.post('/send-otp', limitOtpSend, async (req, res) => {
     }
   }
 
-  const otp = generateOtp();
-  await storeOtp(normalizedPhone, otp, normalizedRole);
-  const expiresAt = new Date(Date.now() + OTP_TTL_MS);
-  const codeHash = hashCode(String(otp));
-  const entity = otpEntityKey("PHONE", normalizedPhone, codeHash);
-
-  // Log OTP only in development mode (not in production)
-  if (process.env.NODE_ENV !== 'production') {
-    console.log(`[DEV] OTP for ${normalizedPhone}${normalizedRole ? ` (role=${normalizedRole})` : ''}: ${otp}`);
+  // RESET flow: only send a reset OTP if an account actually exists for this destination.
+  // Tell the user clearly so they aren't left staring at a "code sent" screen that can
+  // never be verified.
+  if (normalizedRole === 'RESET') {
+    try {
+      const existing = await prisma.user.findFirst({
+        where: destinationWhere,
+        select: { id: true },
+      });
+      if (!existing) {
+        return res.json(genericOtpResponse);
+      }
+    } catch {
+      // If the DB is temporarily unavailable, fall through and attempt the send.
+    }
   }
 
-  const smsText = `Your NoLSAF verification code is ${otp}`;
-  const smsResult = await sendSms(normalizedPhone, smsText);
-  if (process.env.NODE_ENV === 'production' && !smsResult?.success) {
+  const otp = generateOtp();
+  await storeOtp(channel, destination, otp, normalizedRole);
+  const expiresAt = new Date(Date.now() + OTP_TTL_MS);
+  const codeHash = hashCode(String(otp));
+  const entity = otpEntityKey(channel, destination, codeHash);
+  const destinationMasked = channel === 'PHONE' ? maskPhoneForAudit(destination) : maskEmailForAudit(destination);
+
+  let provider: string | null = null;
+  let sendFailureReason: string | null = null;
+  if (channel === 'PHONE') {
+    const smsResult = await sendSms(destination, `Your NoLSAF verification code is ${otp}`);
+    provider = smsResult?.provider ?? null;
+    if (!smsResult?.success) sendFailureReason = smsResult?.error ?? 'sms_failed';
+  } else {
     try {
-      await audit(req, "NO4P_OTP_SEND_FAILED", `OTP:PHONE:${hashCode(normalizedPhone)}:${codeHash}`, null, {
-        destinationType: "PHONE",
-        destinationMasked: maskPhoneForAudit(normalizedPhone),
-        destinationHash: hashCode(normalizedPhone),
+      // OTP emails are transactional auth messages — always deliverable.
+      await sendMail(destination, 'Your NoLSAF verification code', otpEmailHtml(otp), undefined, {
+        bypassEligibilityCheck: true,
+        from: SECURITY_EMAIL_FROM,
+      });
+      provider = 'email';
+    } catch (e: any) {
+      sendFailureReason = e?.message ?? 'email_failed';
+    }
+  }
+
+  if (process.env.NODE_ENV === 'production' && sendFailureReason) {
+    try {
+      await audit(req, "NO4P_OTP_SEND_FAILED", `OTP:${channel}:${hashCode(destination)}:${codeHash}`, null, {
+        destinationType: channel,
+        destinationMasked,
+        destinationHash: hashCode(destination),
         codeHash,
         usedFor: authOtpUse(normalizedRole),
-        provider: smsResult?.provider ?? null,
-        reason: smsResult?.error ?? "sms_failed",
+        provider,
+        reason: sendFailureReason,
         requestId: String((req as any).requestId || ""),
         policyCompliant: true,
       });
     } catch {
       // Never let failure auditing block the user-facing response.
     }
-    return res.status(502).json({ error: 'sms_failed', message: 'Failed to send OTP. Please try again.' });
+    return res.status(502).json({
+      error: channel === 'PHONE' ? 'sms_failed' : 'email_failed',
+      message: 'Failed to send OTP. Please try again.',
+    });
   }
 
   // Audit for Management/No4P OTP tracking.
@@ -393,7 +524,7 @@ router.post('/send-otp', limitOtpSend, async (req, res) => {
     let userRole: string | null = null;
     try {
       const existing = await prisma.user.findFirst({
-        where: { phone: normalizedPhone },
+        where: destinationWhere,
         select: { name: true, role: true },
       });
       userName = existing?.name ?? null;
@@ -402,13 +533,13 @@ router.post('/send-otp', limitOtpSend, async (req, res) => {
       // ignore lookup failures
     }
     await audit(req, "NO4P_OTP_SENT", entity, null, {
-      destinationType: "PHONE",
-      destination: normalizedPhone,
+      destinationType: channel,
+      destination,
       codeHash,
       codeMasked: maskOtp(otp),
       expiresAt: expiresAt.toISOString(),
       usedFor: authOtpUse(normalizedRole),
-      provider: smsResult?.provider ?? null,
+      provider,
       userRole,
       userName,
       policyCompliant: true,
@@ -417,90 +548,33 @@ router.post('/send-otp', limitOtpSend, async (req, res) => {
     // swallow
   }
 
-  // In development it's useful to return the OTP; remove in production
-  const payload: any = { ok: true, message: 'OTP sent' };
-  if (process.env.NODE_ENV !== 'production') payload.otp = otp;
-  return res.json(payload);
+  return res.json({ ok: true, message: 'OTP sent', channel, otpExpiresInSeconds: OTP_TTL_SEC });
 });
 
 // POST /api/auth/verify-otp
-// Rate limited: 10 verification attempts per phone number per 15 minutes
+// Accepts { phone } OR { email } as the OTP destination, plus { otp } and optional { role }.
+// Rate limited: 10 verification attempts per destination per 15 minutes
 router.post('/verify-otp', limitOtpVerify, async (req, res) => {
-  const { phone, otp, role } = req.body || {};
-  if (!phone || !otp) return res.status(400).json({ message: 'phone and otp required' });
+  const { otp, role } = req.body || {};
+  if (!otp) return res.status(400).json({ message: 'otp required' });
 
-  const normalizedPhone = normalizePhoneForAuth(String(phone));
-  if (!normalizedPhone) return res.status(400).json({ message: 'phone and otp required' });
-  if (!isPhoneValidForAuth(normalizedPhone)) return res.status(400).json({ message: getPhoneValidationMessage(normalizedPhone) });
+  const resolved = resolveOtpDestination(req.body);
+  if ('error' in resolved) return res.status(400).json({ message: resolved.error });
+  const { channel, destination } = resolved;
+  const destinationWhere = channel === 'PHONE' ? { phone: destination } : { email: destination };
+  const destinationLabel = channel === 'PHONE' ? 'phone number' : 'email address';
+  const verifiedAtField = channel === 'PHONE' ? 'phoneVerifiedAt' : 'emailVerifiedAt';
 
   const requestedRole = normalizeSignupRole(role);
 
-  // Development master OTP override — accepts this code regardless of stored value.
-  // DISABLED in production for security
-  const isProduction = process.env.NODE_ENV === 'production';
-  const MASTER_OTP = isProduction ? null : (process.env.DEV_MASTER_OTP || '123456');
-  if (!isProduction && MASTER_OTP && String(otp) === MASTER_OTP) {
-    // allow even if there's no stored OTP (dev convenience)
-    const entry = await getOtpEntry(normalizedPhone) || { role: requestedRole || null };
-    await deleteOtp(normalizedPhone);
-
-    const storedRole = normalizeSignupRole(entry.role);
-    const effectiveRole = storedRole || requestedRole;
-
-    // If the caller requested a password reset flow, generate a reset token
-    if (effectiveRole === 'RESET') {
-      try {
-        const raw = crypto.randomBytes(24).toString('hex');
-        const hashed = crypto.createHash('sha256').update(raw).digest('hex');
-        const expiresAt = Date.now() + 1000 * 60 * 60; // 1 hour
-        // try to persist
-        let u: any = null;
-        try {
-          u = await prisma.user.findFirst({ where: { phone: normalizedPhone } });
-          if (u) {
-            await prisma.user.update({ where: { id: u.id }, data: { resetPasswordToken: hashed as any, resetPasswordExpires: new Date(expiresAt) as any } as any });
-          } else {
-            resetTokenStore[hashed] = { userId: `u_${Date.now()}`, expiresAt };
-          }
-        } catch (e) {
-          resetTokenStore[hashed] = { userId: `u_${Date.now()}`, expiresAt };
-        }
-        const origin = process.env.WEB_ORIGIN || process.env.APP_ORIGIN || 'http://localhost:3000';
-        const resetLink = `${origin}/account/reset-password?token=${raw}&id=${u ? u.id : `u_${Date.now()}`}`;
-        const out: any = { ok: true, message: 'verified (master otp)', resetToken: raw, link: resetLink };
-        if (process.env.NODE_ENV !== 'production') out.debug = { token: raw, link: resetLink };
-        return res.json(out);
-      } catch (e) {
-        console.warn('failed to generate reset token for master otp', e);
-      }
-    }
-
-    // In dev, still issue a real JWT if possible (so production behavior can be tested locally).
-    try {
-      const safeRole = (effectiveRole || 'CUSTOMER') as 'CUSTOMER' | 'OWNER' | 'DRIVER';
-      const user = await prisma.user.upsert({
-        where: { phone: normalizedPhone },
-        update: { phoneVerifiedAt: new Date() },
-        create: { phone: normalizedPhone, role: safeRole, phoneVerifiedAt: new Date() } as any,
-        select: { id: true, role: true, email: true, phone: true },
-      });
-      const token = await signUserJwt({ id: user.id, role: user.role, email: user.email });
-      await setAuthCookie(res, token, user.role);
-      return res.json({ ok: true, message: "verified (master otp)", token, user: { id: user.id, phone: user.phone, role: user.role } });
-    } catch (e: any) {
-      console.error("verify-otp (master otp) failed to issue JWT", e);
-      return res.status(503).json({ error: 'database_unavailable', message: 'Unable to create account right now.' });
-    }
-  }
-
-  const entry = await getOtpEntry(normalizedPhone);
+  const entry = await getOtpEntry(channel, destination);
   if (!entry) {
     try {
       const codeHash = hashCode(String(otp));
-      const entity = otpEntityKey("PHONE", normalizedPhone, codeHash);
+      const entity = otpEntityKey(channel, destination, codeHash);
       await audit(req, "NO4P_OTP_VERIFY_FAILED", entity, null, {
-        destinationType: "PHONE",
-        destination: normalizedPhone,
+        destinationType: channel,
+        destination,
         codeHash,
         usedFor: requestedRole === "RESET" ? "AUTH_RESET" : requestedRole ? "AUTH_SIGNUP" : "AUTH_LOGIN",
         reason: "no_otp",
@@ -508,16 +582,16 @@ router.post('/verify-otp', limitOtpVerify, async (req, res) => {
     } catch {
       // swallow
     }
-    return res.status(400).json({ message: 'no OTP found for this phone' });
+    return res.status(400).json({ message: `no OTP found for this ${destinationLabel}` });
   }
   // OTP expiry is enforced by Redis TTL / fallback expiresAt — entry being present means it's valid.
   if (!verifyOtpCode(String(otp), entry.codeHash)) {
     try {
       const codeHash = hashCode(String(otp));
-      const entity = otpEntityKey("PHONE", normalizedPhone, codeHash);
+      const entity = otpEntityKey(channel, destination, codeHash);
       await audit(req, "NO4P_OTP_VERIFY_FAILED", entity, null, {
-        destinationType: "PHONE",
-        destination: normalizedPhone,
+        destinationType: channel,
+        destination,
         codeHash,
         usedFor: requestedRole === "RESET" ? "AUTH_RESET" : requestedRole ? "AUTH_SIGNUP" : "AUTH_LOGIN",
         reason: "invalid",
@@ -534,7 +608,7 @@ router.post('/verify-otp', limitOtpVerify, async (req, res) => {
   }
 
   // success — delete OTP immediately (single-use)
-  await deleteOtp(normalizedPhone);
+  await deleteOtp(channel, destination);
 
   const effectiveRole = storedRole || requestedRole;
 
@@ -543,13 +617,13 @@ router.post('/verify-otp', limitOtpVerify, async (req, res) => {
   if (!effectiveRole) {
     try {
       const existing = await prisma.user.findFirst({
-        where: { phone: normalizedPhone },
+        where: destinationWhere,
         select: { id: true, role: true, email: true, phone: true, name: true, suspendedAt: true, isDisabled: true, kycStatus: true, kycNote: true },
       });
       if (!existing) {
         return res.status(404).json({
           error: 'account_not_found',
-          message: 'No account found for this phone number. Please register first.',
+          message: `No account found for this ${destinationLabel}. Please register first.`,
           action: 'register',
         });
       }
@@ -563,11 +637,11 @@ router.post('/verify-otp', limitOtpVerify, async (req, res) => {
         });
       }
 
-      // Mark phone as verified on successful login OTP.
+      // Mark the destination as verified on successful login OTP.
       try {
         await prisma.user.update({
           where: { id: existing.id },
-          data: { phoneVerifiedAt: new Date() },
+          data: { [verifiedAtField]: new Date() },
         });
       } catch {
         // ignore update failures; login can still proceed
@@ -579,7 +653,7 @@ router.post('/verify-otp', limitOtpVerify, async (req, res) => {
         ok: true,
         message: 'verified',
         token,
-        user: { id: existing.id, phone: existing.phone, role: existing.role },
+        user: { id: existing.id, phone: existing.phone, email: existing.email, role: existing.role },
       });
     } catch (e) {
       console.error('verify-otp login flow failed', e);
@@ -589,10 +663,10 @@ router.post('/verify-otp', limitOtpVerify, async (req, res) => {
 
   try {
     const codeHash = hashCode(String(otp));
-    const entity = otpEntityKey("PHONE", normalizedPhone, codeHash);
+    const entity = otpEntityKey(channel, destination, codeHash);
     await audit(req, "NO4P_OTP_USED", entity, null, {
-      destinationType: "PHONE",
-      destination: normalizedPhone,
+      destinationType: channel,
+      destination,
       codeHash,
       usedAt: new Date().toISOString(),
       usedFor: effectiveRole === "RESET" ? "AUTH_RESET" : "AUTH_SIGNUP",
@@ -605,23 +679,21 @@ router.post('/verify-otp', limitOtpVerify, async (req, res) => {
   // If this OTP was requested for reset flow, issue a reset token and return it
   if (effectiveRole === 'RESET') {
     try {
-      const user = await prisma.user.findFirst({ where: { phone: normalizedPhone } });
+      const user = await prisma.user.findFirst({ where: destinationWhere });
+      if (!user) {
+        return res.status(400).json({ message: 'Unable to reset password with this verification code.' });
+      }
       const raw = crypto.randomBytes(24).toString('hex');
       const hashed = crypto.createHash('sha256').update(raw).digest('hex');
       const expiresAt = Date.now() + 1000 * 60 * 60; // 1 hour
       try {
-        if (user) {
-          await prisma.user.update({ where: { id: user.id }, data: { resetPasswordToken: hashed as any, resetPasswordExpires: new Date(expiresAt) as any } as any });
-        } else {
-          resetTokenStore[hashed] = { userId: `u_${Date.now()}`, expiresAt };
-        }
+        await prisma.user.update({ where: { id: user.id }, data: { resetPasswordToken: hashed as any, resetPasswordExpires: new Date(expiresAt) as any } as any });
       } catch (e) {
-        resetTokenStore[hashed] = { userId: user ? String(user.id) : `u_${Date.now()}`, expiresAt };
+        resetTokenStore[hashed] = { userId: String(user.id), expiresAt };
       }
       const origin = process.env.WEB_ORIGIN || process.env.APP_ORIGIN || 'http://localhost:3000';
-      const resetLink = `${origin}/account/reset-password?token=${raw}&id=${user ? user.id : `u_${Date.now()}`}`;
-      const out: any = { ok: true, message: 'verified', resetToken: raw, link: resetLink, user: user ? { id: user.id, phone: user.phone } : { id: `u_${Date.now()}`, phone } };
-      if (process.env.NODE_ENV !== 'production') out.debug = { token: raw, link: resetLink };
+      const resetLink = `${origin}/account/reset-password?token=${raw}&id=${user.id}`;
+      const out: any = { ok: true, message: 'verified', resetToken: raw, link: resetLink, user: { id: user.id, phone: user.phone, email: user.email } };
       return res.json(out);
     } catch (e) {
       console.error('failed to create reset token after otp verify', e);
@@ -629,18 +701,33 @@ router.post('/verify-otp', limitOtpVerify, async (req, res) => {
     }
   }
 
-  // Normal auth flow: verify OTP and issue JWT + httpOnly cookie.
+  // Normal auth flow (signup): a phone/email already tied to any account (verified or not)
+  // cannot be used to create a new account — reject instead of silently attaching to it.
+  try {
+    const existing = await prisma.user.findFirst({ where: destinationWhere, select: { id: true } });
+    if (existing) {
+      return res.status(409).json({
+        error: channel === 'PHONE' ? 'phone_already_registered' : 'email_already_registered',
+        message: `This ${destinationLabel} already has an account. Please login or use forgot password to access it.`,
+        action: 'login_or_forgot_password',
+      });
+    }
+  } catch {
+    // If the DB is temporarily unavailable, continue and let the upsert below surface errors.
+  }
+
+  // Verify OTP and issue JWT + httpOnly cookie.
   try {
     const safeRole = (effectiveRole || 'CUSTOMER') as 'CUSTOMER' | 'OWNER' | 'DRIVER';
     const user = await prisma.user.upsert({
-      where: { phone: normalizedPhone },
-      update: { phoneVerifiedAt: new Date() },
-      create: { phone: normalizedPhone, role: safeRole, phoneVerifiedAt: new Date() } as any,
+      where: destinationWhere as any,
+      update: { [verifiedAtField]: new Date() },
+      create: { ...destinationWhere, role: safeRole, [verifiedAtField]: new Date() } as any,
       select: { id: true, role: true, email: true, phone: true },
     });
     const token = await signUserJwt({ id: user.id, role: user.role, email: user.email });
     await setAuthCookie(res, token, user.role);
-    return res.json({ ok: true, message: "verified", token, user: { id: user.id, phone: user.phone, role: user.role } });
+    return res.json({ ok: true, message: "verified", token, user: { id: user.id, phone: user.phone, email: user.email, role: user.role } });
   } catch (e) {
     console.error("verify-otp failed to issue JWT", e);
     return res.status(503).json({ error: 'database_unavailable', message: "Unable to create account right now." });
@@ -771,16 +858,9 @@ router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res,
       } catch (err) {
         console.error('[LOGIN] Failed to record failed attempt:', err);
       }
-      let remaining = 5; // Default
-      try {
-        remaining = await getRemainingAttempts(identifier);
-      } catch (err) {
-        console.error('[LOGIN] Failed to get remaining attempts:', err);
-      }
       return res.status(401).json({ 
         error: "invalid_credentials",
-        message: "Incorrect email or password.",
-        remainingAttempts: remaining
+        message: "Incorrect email or password."
       });
     }
     
@@ -811,16 +891,9 @@ router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res,
         /* ignore */
       }
 
-      let remaining = 5; // Default
-      try {
-        remaining = await getRemainingAttempts(identifier);
-      } catch (err) {
-        console.error('[LOGIN] Failed to get remaining attempts:', err);
-      }
       return res.status(401).json({ 
         error: "invalid_credentials",
-        message: "Incorrect email or password.",
-        remainingAttempts: remaining
+        message: "Incorrect email or password."
       });
     }
     
@@ -847,13 +920,6 @@ router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res,
         /* ignore */
       }
 
-      let remaining = 5; // Default
-      try {
-        remaining = await getRemainingAttempts(identifier);
-      } catch (err) {
-        console.error('[LOGIN] Failed to get remaining attempts:', err);
-      }
-      
       // Check if account is now locked
       let newLockoutStatus;
       try {
@@ -874,8 +940,7 @@ router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res,
       
       return res.status(401).json({ 
         error: "invalid_credentials",
-        message: "Incorrect email or password.",
-        remainingAttempts: remaining
+        message: "Incorrect email or password."
       });
     }
 
@@ -971,7 +1036,7 @@ router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res,
             country,
             resetPasswordUrl: `${appUrl}/account/forgot-password`,
           });
-          await sendMail(user.email, subject, html);
+          await sendMail(user.email, subject, html, undefined, { from: SECURITY_EMAIL_FROM, replyTo: "security@nolsaf.com" });
         }
       } catch (e) {
         console.warn('[LOGIN] Sign-in alert email failed:', e);
@@ -1137,18 +1202,28 @@ router.post('/register', limitRegisterAttempts, async (req, res) => {
       });
     }
 
-    // Check for referral code and find referring driver
+    // Check for referral code and find referring driver or customer
     let referredBy: string | number | null = null;
+    let referrerKind: 'DRIVER' | 'CUSTOMER' | null = null;
     if (referralCode) {
       try {
-        // Extract driver ID from referral code (format: DRIVER-XXXXXX)
-        const match = String(referralCode).match(/^DRIVER-(\d+)$/i);
-        if (match) {
-          referredBy = parseInt(match[1], 10);
-          // Verify the driver exists
-          const driver = await prisma.user.findUnique({ where: { id: referredBy, role: 'DRIVER' } as any });
-          if (!driver) {
-            referredBy = null; // Invalid referral code
+        // Driver referral code format: DRIVER-XXXXXX
+        const driverMatch = String(referralCode).match(/^DRIVER-(\d+)$/i);
+        // Customer (invite friends) referral code format: CUSTOMER-XXXXXX
+        const customerMatch = String(referralCode).match(/^CUSTOMER-(\d+)$/i);
+        if (driverMatch) {
+          const candidateId = parseInt(driverMatch[1], 10);
+          const driver = await prisma.user.findUnique({ where: { id: candidateId, role: 'DRIVER' } as any });
+          if (driver) {
+            referredBy = candidateId;
+            referrerKind = 'DRIVER';
+          }
+        } else if (customerMatch) {
+          const candidateId = parseInt(customerMatch[1], 10);
+          const referrer = await prisma.user.findUnique({ where: { id: candidateId }, select: { id: true } });
+          if (referrer) {
+            referredBy = candidateId;
+            referrerKind = 'CUSTOMER';
           }
         }
       } catch (e) {
@@ -1217,7 +1292,7 @@ router.post('/register', limitRegisterAttempts, async (req, res) => {
     }
 
     // Emit Socket.IO notification to referring driver if applicable
-    if (referredBy && io) {
+    if (referredBy && referrerKind === 'DRIVER' && io) {
       try {
         // Emit notification to driver immediately
         io.to(`driver:${referredBy}`).emit('referral-notification', {
@@ -1240,6 +1315,22 @@ router.post('/register', limitRegisterAttempts, async (req, res) => {
         });
       } catch (e) {
         console.warn('Failed to emit referral notification', e);
+      }
+    }
+
+    // Notify the referring traveller that their invite link was used
+    if (referredBy && referrerKind === 'CUSTOMER') {
+      try {
+        await prisma.notification.create({
+          data: {
+            userId: referredBy,
+            title: 'Your friend joined NoLSAF!',
+            body: `${created.name || created.email || 'A friend'} signed up using your invite link.`,
+            type: 'referral',
+          },
+        });
+      } catch (e) {
+        console.warn('Failed to create referral notification', e);
       }
     }
 
@@ -1359,18 +1450,28 @@ router.post('/profile', upload.none(), async (req, res) => {
     // Get Socket.IO instance from app
     const io: any = (req as any).app?.get?.('io');
 
-    // Check for referral code and find referring driver
+    // Check for referral code and find referring driver or customer
     let referredBy: string | number | null = null;
+    let referrerKind: 'DRIVER' | 'CUSTOMER' | null = null;
     if (referralCode) {
       try {
-        // Extract driver ID from referral code (format: DRIVER-XXXXXX)
-        const match = String(referralCode).match(/^DRIVER-(\d+)$/i);
-        if (match) {
-          referredBy = parseInt(match[1], 10);
-          // Verify the driver exists
-          const driver = await prisma.user.findUnique({ where: { id: referredBy, role: 'DRIVER' } as any });
-          if (!driver) {
-            referredBy = null; // Invalid referral code
+        // Driver referral code format: DRIVER-XXXXXX
+        const driverMatch = String(referralCode).match(/^DRIVER-(\d+)$/i);
+        // Customer (invite friends) referral code format: CUSTOMER-XXXXXX
+        const customerMatch = String(referralCode).match(/^CUSTOMER-(\d+)$/i);
+        if (driverMatch) {
+          const candidateId = parseInt(driverMatch[1], 10);
+          const driver = await prisma.user.findUnique({ where: { id: candidateId, role: 'DRIVER' } as any });
+          if (driver) {
+            referredBy = candidateId;
+            referrerKind = 'DRIVER';
+          }
+        } else if (customerMatch) {
+          const candidateId = parseInt(customerMatch[1], 10);
+          const referrer = await prisma.user.findUnique({ where: { id: candidateId }, select: { id: true } });
+          if (referrer) {
+            referredBy = candidateId;
+            referrerKind = 'CUSTOMER';
           }
         }
       } catch (e) {
@@ -1594,7 +1695,7 @@ router.post('/profile', upload.none(), async (req, res) => {
     }
 
     // Emit Socket.IO notification to referring driver if applicable
-    if (referredBy && io && updatedUser) {
+    if (referredBy && referrerKind === 'DRIVER' && io && updatedUser) {
       try {
         // Emit notification to driver immediately
         io.to(`driver:${referredBy}`).emit('referral-notification', {
@@ -1617,6 +1718,22 @@ router.post('/profile', upload.none(), async (req, res) => {
         });
       } catch (e) {
         console.warn('Failed to emit referral notification', e);
+      }
+    }
+
+    // Notify the referring traveller that their invite link was used
+    if (referredBy && referrerKind === 'CUSTOMER' && updatedUser) {
+      try {
+        await prisma.notification.create({
+          data: {
+            userId: referredBy,
+            title: 'Your friend joined NoLSAF!',
+            body: `${updatedUser.name || updatedUser.email || 'A friend'} signed up using your invite link.`,
+            type: 'referral',
+          },
+        });
+      } catch (e) {
+        console.warn('Failed to create referral notification', e);
       }
     }
 
@@ -1835,14 +1952,9 @@ router.post('/forgot-password', async (req, res) => {
       where: email ? { email: String(email).trim().toLowerCase() } : { phone: normalizedPhone || String(phone) },
     });
     
-    // Security: Always respond with 200 to avoid user enumeration
-    // Only send reset link if user actually exists in database
     if (!user) {
-      console.log(`[forgot-password] User not found for ${email ? 'email' : 'phone'}: ${email || phone} - No reset link sent`);
       return res.json({ ok: true, message: 'If an account exists, an email/SMS has been sent.' });
     }
-    
-    console.log(`[forgot-password] User found (ID: ${user.id}) for ${email ? 'email' : 'phone'}: ${email || phone} - Generating reset link`);
 
     // generate raw token and a hashed token for storage
     const raw = crypto.randomBytes(24).toString('hex');
@@ -1865,7 +1977,7 @@ router.post('/forgot-password', async (req, res) => {
     if (user.email) {
       try {
         const { subject: resetSubject, html: resetHtml } = getPasswordResetEmail(user.name || user.email || 'there', resetLink);
-        await sendMail(user.email, resetSubject, resetHtml);
+        await sendMail(user.email, resetSubject, resetHtml, undefined, { from: SECURITY_EMAIL_FROM, replyTo: "security@nolsaf.com" });
       } catch (e) {
         console.warn('Failed to send reset email:', e);
       }
@@ -1877,9 +1989,7 @@ router.post('/forgot-password', async (req, res) => {
       }
     }
 
-    const out: any = { ok: true, message: 'If an account exists, an email/SMS has been sent.' };
-    if (process.env.NODE_ENV !== 'production') out.debug = { token: raw, link: resetLink };
-    return res.json(out);
+    return res.json({ ok: true, message: 'If an account exists, an email/SMS has been sent.' });
   } catch (err) {
     console.error('forgot-password error', err);
     return res.status(500).json({ message: 'failed' });
@@ -1931,9 +2041,26 @@ router.post('/reset-password', async (req, res) => {
       return res.status(400).json({ message: 'invalid token or user' });
     }
 
+    // DoS protection: shared with /account/password/change so the cooldown can't be
+    // bypassed by switching between the authenticated and forgot-password flows.
+    const cooldownRemaining = getPasswordChangeCooldownRemaining(user.id);
+    if (cooldownRemaining > 0) {
+      const remaining = Math.ceil(cooldownRemaining / 60000);
+      return res.status(429).json({
+        message: `Password was recently changed. Please wait ${remaining} minute(s) before changing it again.`,
+        reasons: [`Password change cooldown active. Try again in ${remaining} minute(s).`],
+        cooldownUntil: Date.now() + cooldownRemaining,
+      });
+    }
+
     // Validate password strength using SystemSetting configuration
     const strength = await validatePasswordWithSettings(String(password), user?.role);
     if (!strength.valid) return res.status(400).json({ message: 'weak_password', reasons: strength.reasons });
+
+    // Enforce policy: prevent resetting to the current active password
+    if (await verifyPassword(user.passwordHash, String(password))) {
+      return res.status(400).json({ message: 'password_reused', reasons: ['The new password must be different from your current password. Please choose a different password.'] });
+    }
 
     // Prevent reuse of recent passwords
     try {
@@ -1950,8 +2077,9 @@ router.post('/reset-password', async (req, res) => {
       console.warn('Failed to persist new password to DB', e);
     }
 
-    // Update in-memory history if applicable
-    try { await addPasswordToHistory(userId, pwHash); } catch (e) { /* ignore */ }
+    // Update in-memory history if applicable and start the change cooldown
+    try { await addPasswordToHistory(normalizedUserId, pwHash); } catch (e) { /* ignore */ }
+    recordPasswordChangeSuccess(user.id);
 
     // Remove in-memory token
     if (resetTokenStore[hashed]) delete resetTokenStore[hashed];
@@ -1969,7 +2097,7 @@ router.post('/reset-password', async (req, res) => {
           device: String(req.headers['user-agent'] || '').slice(0, 120) || undefined,
           securityUrl: `${appUrl}/account/forgot-password`,
         });
-        await sendMail(recipientEmail, cSubject, cHtml);
+        await sendMail(recipientEmail, cSubject, cHtml, undefined, { from: SECURITY_EMAIL_FROM, replyTo: "security@nolsaf.com" });
       }
     } catch (emailErr) {
       console.warn('[reset-password] Failed to send confirmation email:', emailErr);

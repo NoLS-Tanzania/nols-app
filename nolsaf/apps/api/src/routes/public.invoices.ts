@@ -8,6 +8,7 @@ import { makeQR } from "../lib/qr.js";
 import { signPublicInvoiceAccessToken, verifyPublicInvoiceAccessToken } from "../lib/publicInvoiceAccess.js";
 import { computeDraftBookingAvailability, unavailableDraftPaymentResponse } from "../lib/draftBookingAvailability.js";
 import { buildPropertySlug } from "../lib/publicPropertyDto.js";
+import { generateBookingCodeForBooking } from "../lib/bookingCodeService.js";
 
 async function getEffectiveCommissionPercent(params: {
   propertyServices: unknown;
@@ -645,7 +646,19 @@ router.get("/:id", publicInvoiceReadLimiter, async (req: Request, res: Response)
       return res.status(404).json({ error: "Invoice not found" });
     }
 
-    const draftAvailability = invoice.status === "PAID" || invoice.booking.code?.code
+    let bookingCode = invoice.booking.code?.code || null;
+    if (invoice.status === "PAID" && !bookingCode && invoice.booking.status !== "CANCELED") {
+      if (invoice.booking.status === "NEW") {
+        await prisma.booking.update({
+          where: { id: invoice.booking.id },
+          data: { status: "CONFIRMED" },
+        });
+      }
+      const generated = await generateBookingCodeForBooking(invoice.booking.id);
+      bookingCode = generated.code;
+    }
+
+    const draftAvailability = invoice.status === "PAID" || bookingCode
       ? null
       : await computeDraftBookingAvailability(invoice.booking, { excludeBookingId: invoice.booking.id });
 
@@ -719,7 +732,7 @@ router.get("/:id", publicInvoiceReadLimiter, async (req: Request, res: Response)
       currency: invoice.booking.property.currency || "TZS",
       booking: {
         id: invoice.booking.id,
-        bookingCode: invoice.booking.code?.code || null,
+        bookingCode,
         checkIn: invoice.booking.checkIn,
         checkOut: invoice.booking.checkOut,
         nights: nights,

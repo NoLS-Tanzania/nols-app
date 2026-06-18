@@ -1,17 +1,19 @@
-﻿import type { Metadata } from "next";
+import type { Metadata } from "next";
+import { SITE_URL, seoKeywords } from "@/lib/seo";
 
 export const metadata: Metadata = {
-  title: "NoLSAF | Quality Stay for Every Wallet",
+  title: { absolute: "NoLSAF | Quality Stays, Tours & Transport" },
   description:
-    "Discover verified accommodation, book airport transfers, and plan end-to-end stays across Tanzania and East Africa. NoLSAF connects travellers, property owners and drivers.",
-  alternates: { canonical: "https://nolsaf.com/public" },
+    "Discover verified accommodation, Tanzania tour packages, airport transfers, group stays, travel planning and NoLScope cost estimates across Tanzania and East Africa.",
+  keywords: seoKeywords,
+  alternates: { canonical: `${SITE_URL}/public` },
   openGraph: {
     type: "website",
-    title: "NoLSAF | Quality Stay for Every Wallet",
+    title: "NoLSAF | Quality Stays, Tours & Transport",
     description:
-      "Verified stays, seamless transport and flexible payments — all in one platform built for Africa.",
-    url: "https://nolsaf.com/public",
-    images: [{ url: "https://nolsaf.com/og-default.jpg", width: 1200, height: 630, alt: "NoLSAF" }],
+      "Verified stays, tours, airport transfers, group accommodation and travel planning in one tourism platform built for Africa.",
+    url: `${SITE_URL}/public`,
+    images: [{ url: `${SITE_URL}/og-default.jpg`, width: 1200, height: 630, alt: "NoLSAF tourism services" }],
   },
 };
 

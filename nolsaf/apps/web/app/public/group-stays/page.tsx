@@ -1,14 +1,25 @@
 import type { Metadata } from "next";
-import React from 'react';
-import GroupStaysCard from '../../../components/GroupStaysCard';
+import React from "react";
+import GroupStaysCard from "../../../components/GroupStaysCard";
+import { SITE_URL, seoKeywords } from "@/lib/seo";
 
 export const metadata: Metadata = {
-  title: "Group Stays",
+  title: "Group Stays in Tanzania & East Africa",
   description:
-    "Book group accommodation across East Africa with NoLSAF — coordinated multi-room stays, driver assignment, and flexible payments for groups of any size.",
+    "Request verified group accommodation across Tanzania and East Africa with multi-room coordination, owner offers, transport support and flexible payments.",
+  keywords: [
+    "group stays Tanzania",
+    "group accommodation East Africa",
+    "family accommodation Tanzania",
+    "corporate stays Tanzania",
+    "multi room hotel booking Tanzania",
+    ...seoKeywords,
+  ],
+  alternates: { canonical: `${SITE_URL}/public/group-stays` },
   openGraph: {
-    title: "Group Stays | NoLSAF",
-    description: "Multi-room group bookings made simple — verified properties, coordinated transport, and group rates across Tanzania.",
+    title: "Group Stays in Tanzania & East Africa | NoLSAF",
+    description: "Travelers share their group stay needs, then eligible property owners can respond with suitable accommodation offers.",
+    url: `${SITE_URL}/public/group-stays`,
   },
 };
 

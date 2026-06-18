@@ -1,17 +1,20 @@
 import type { MetadataRoute } from "next";
-
-const SITE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://nolsaf.com";
+import { SITE_URL } from "@/lib/seo";
 
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: [
       {
-        // Full public access for all crawlers
         userAgent: "*",
         allow: [
           "/",
           "/public/",
+          "/tourism/",
+          "/services/",
           "/about/",
+          "/help/",
+          "/updates/",
+          "/careers",
           "/terms",
           "/privacy",
           "/cookies-policy",
@@ -20,26 +23,24 @@ export default function robots(): MetadataRoute.Robots {
           "/property-owner-disbursement-policy",
           "/driver-disbursement-policy",
           "/verification-policy",
-          "/help/",
+          "/stay-safe",
+          "/security",
         ],
         disallow: [
-          // Authenticated portals — never index
           "/admin/",
           "/owner/",
           "/driver/",
-          // Auth flows
           "/account/",
           "/login",
           "/register",
-          // Internal API
           "/api/",
-          // Version page
           "/version",
-          // Legal docs portal
           "/docs/",
+          "/maintenance",
         ],
       },
     ],
     sitemap: `${SITE_URL}/sitemap.xml`,
+    host: SITE_URL,
   };
 }

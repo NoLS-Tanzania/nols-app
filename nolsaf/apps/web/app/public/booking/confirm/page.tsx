@@ -96,24 +96,7 @@ export default function BookingConfirmPage() {
   const specialRequests = "";
   
   // Transportation
-  const [includeTransport, _setIncludeTransport] = useState(false);
-  const [showTransportNotice, setShowTransportNotice] = useState(false);
-  const [transportCountdown, setTransportCountdown] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
-  useEffect(() => {
-    function calcCountdown() {
-      const target = new Date("2026-06-30T00:00:00").getTime();
-      const diff = Math.max(0, target - Date.now());
-      setTransportCountdown({
-        days: Math.floor(diff / 86400000),
-        hours: Math.floor((diff % 86400000) / 3600000),
-        minutes: Math.floor((diff % 3600000) / 60000),
-        seconds: Math.floor((diff % 60000) / 1000),
-      });
-    }
-    calcCountdown();
-    const t = setInterval(calcCountdown, 1000);
-    return () => clearInterval(t);
-  }, []);
+  const [includeTransport, setIncludeTransport] = useState(false);
   const [transportVehicleType, setTransportVehicleType] = useState<TransportVehicleType>("CAR");
   const [pickupMode, setPickupMode] = useState<"current" | "arrival" | "manual">("current");
   const [pickupMethodChosen, setPickupMethodChosen] = useState(false);
@@ -330,8 +313,8 @@ export default function BookingConfirmPage() {
           signal: controller.signal,
           body: JSON.stringify({
             propertyId: bookingData.propertyId,
-            checkIn: checkInDate.toISOString(),
-            checkOut: checkOutDate.toISOString(),
+            checkIn: checkInRaw,
+            checkOut: checkOutRaw,
             roomCode: roomCode || null,
           }),
         });
@@ -498,6 +481,9 @@ export default function BookingConfirmPage() {
       return;
     }
 
+    const checkInRaw = bookingData.checkIn;
+    const checkOutRaw = bookingData.checkOut;
+
     // Validate form
     if (!guestName.trim()) {
       setError("Please enter your full name");
@@ -550,7 +536,7 @@ export default function BookingConfirmPage() {
         setSubmitting(false);
         return;
       }
-      if (transportFare === null || !Number.isFinite(transportFare) || transportFare <= 0) {
+      if (transportFare === null || !Number.isFinite(transportFare) || transportFare < 0) {
         setError("Transport fare is not ready yet. Please set a pickup location.");
         setSubmitting(false);
         return;
@@ -586,15 +572,11 @@ export default function BookingConfirmPage() {
     }
 
     try {
-      // Convert dates to ISO 8601 format (required by API)
-      const checkInISO = checkInDate.toISOString();
-      const checkOutISO = checkOutDate.toISOString();
-      
       // Prepare request body with proper formatting
       const requestBody = {
         propertyId: bookingData.propertyId,
-        checkIn: checkInISO,
-        checkOut: checkOutISO,
+        checkIn: checkInRaw,
+        checkOut: checkOutRaw,
         guestName: guestName.trim(),
         guestPhone: phoneForApi,
         guestEmail: emailForApi || null,
@@ -612,7 +594,7 @@ export default function BookingConfirmPage() {
         transportOriginLat: includeTransport && transportOriginLat !== null ? transportOriginLat : null,
         transportOriginLng: includeTransport && transportOriginLng !== null ? transportOriginLng : null,
         transportOriginAddress: includeTransport && transportOriginAddress.trim() ? transportOriginAddress.trim() : null,
-        transportFare: includeTransport && transportFare ? transportFare : null,
+        transportFare: includeTransport && transportFare !== null ? transportFare : null,
         transportVehicleType: includeTransport ? transportVehicleType : null,
         // Flexible arrival fields
         arrivalType: requiresArrivalInfo && arrivalType ? arrivalType : null,
@@ -897,7 +879,7 @@ export default function BookingConfirmPage() {
   const currency = property?.currency || "TZS"; // always TZS — settlement currency
 
   // Calculate total including transport
-  const finalTotal = totalAmount + (includeTransport && transportFare ? transportFare : 0);
+  const finalTotal = totalAmount + (includeTransport && transportFare !== null ? transportFare : 0);
 
   // ── Display-currency conversion (presentation only — never changes what is charged) ──
   // If viewer has selected a non-TZS display currency, convert TZS amounts for display.
@@ -1865,72 +1847,27 @@ export default function BookingConfirmPage() {
                         </p>
                       </div>
 
-                      {/* Toggle — disabled, shows coming-soon notice */}
+                      {/* Toggle */}
                       <button
                         type="button"
                         role="switch"
-                        aria-checked={false}
-                        onClick={() => setShowTransportNotice(true) }
+                        aria-checked={includeTransport}
+                        onClick={() => {
+                          setError(null);
+                          setIncludeTransport((value) => !value);
+                        }}
                         className="flex-shrink-0 focus:outline-none active:scale-95 transition-transform duration-150"
                       >
-                        <div className="relative w-14 h-7 rounded-full bg-black/30">
-                          <div className="absolute top-1 left-1 w-5 h-5 rounded-full bg-white/70 shadow" />
+                        <div className={`relative w-14 h-7 rounded-full transition-colors duration-200 ${includeTransport ? "bg-white/90" : "bg-black/30"}`}>
+                          <div
+                            className={`absolute top-1 w-5 h-5 rounded-full shadow transition-all duration-200 ${
+                              includeTransport ? "left-8 bg-[#02665e]" : "left-1 bg-white/70"
+                            }`}
+                          />
                         </div>
                       </button>
                     </div>
                   </div>
-
-                  {/* Coming-soon notice */}
-                  {showTransportNotice && (
-                    <div className="mb-4 rounded-2xl overflow-hidden shadow-md animate-in fade-in slide-in-from-top-2 duration-300" style={{ background: "linear-gradient(135deg, #02665e 0%, #028570 100%)" }}>
-                      <div className="px-5 pt-4 pb-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-[13px] font-bold text-white leading-snug">
-                              We&apos;re onboarding! 🎉 Transportation launches on <span className="text-[#4ecdc4]">30 June 2026</span>.
-                            </p>
-                            <p className="mt-1 text-[11px] text-white/65">
-                              Continue with other activated services for now.
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setShowTransportNotice(false)}
-                            className="flex-shrink-0 w-7 h-7 rounded-full bg-white/20 hover:bg-white/35 flex items-center justify-center transition-colors duration-150 mt-0.5"
-                            aria-label="Close"
-                          >
-                            <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                          </button>
-                        </div>
-                        {/* Countdown */}
-                        <div className="mt-3 grid grid-cols-4 gap-2">
-                          {([
-                            { label: "Days", value: transportCountdown.days },
-                            { label: "Hours", value: transportCountdown.hours },
-                            { label: "Mins", value: transportCountdown.minutes },
-                            { label: "Secs", value: transportCountdown.seconds },
-                          ] as { label: string; value: number }[]).map(({ label, value }) => (
-                            <div key={label} className="bg-white/15 rounded-xl py-2 text-center border border-white/10">
-                              <div className="text-xl font-extrabold text-white tabular-nums">{String(value).padStart(2, "0")}</div>
-                              <div className="text-[10px] font-semibold text-white/55 uppercase tracking-wider">{label}</div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      {/* Auto-close progress bar */}
-                      <div className="mt-4 flex flex-col items-center gap-1.5">
-                        <div className="w-48 h-1.5 bg-white/15 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-[#4ecdc4] rounded-full"
-                            style={{ animation: "drainBar 10s linear forwards" }}
-                            onAnimationEnd={() => setShowTransportNotice(false)}
-                          />
-                        </div>
-                        <p className="text-[10px] text-white/40 tracking-wide">closes automatically</p>
-                      </div>
-                      <style>{`@keyframes drainBar { from { width: 100%; } to { width: 0%; } }`}</style>
-                    </div>
-                  )}
 
                   {includeTransport && (
                     <div className="space-y-5 mt-4 p-5 bg-white rounded-2xl border border-slate-200/80 shadow-md animate-in fade-in slide-in-from-top-2 duration-300">
@@ -2512,7 +2449,7 @@ export default function BookingConfirmPage() {
                         </div>
                       )}
 
-                      {calculatingFare && !transportFare && (
+                      {calculatingFare && transportFare === null && (
                         <div className="animate-in fade-in duration-200 rounded-2xl overflow-hidden border border-slate-200/80 bg-white shadow-sm">
                           {/* skeleton header */}
                           <div className="px-5 pt-5 pb-4 border-b border-slate-100">
@@ -2564,7 +2501,7 @@ export default function BookingConfirmPage() {
                         </div>
                       )}
 
-                      {transportFare && (() => {
+                      {transportFare !== null && (() => {
                         const hasCoords =
                           transportOriginLat !== null &&
                           transportOriginLng !== null &&
@@ -2589,6 +2526,7 @@ export default function BookingConfirmPage() {
                           : null;
                         const distKm = fareDetail ? fareDetail.distance : null;
                         const etaMin = fareDetail ? fareDetail.estimatedTime : null;
+                        const surgeAmount = fareDetail ? Math.max(0, fareDetail.total - fareDetail.subtotal) : 0;
                         return (
                           <div className="animate-in fade-in slide-in-from-bottom-3 duration-400 rounded-2xl overflow-hidden border border-slate-200/80 bg-white shadow-lg">
                             {/* ── Route card header ── */}
@@ -2685,6 +2623,14 @@ export default function BookingConfirmPage() {
                                     <span>Base {fareDetail.baseFare.toLocaleString()}</span>
                                     <span>Distance {fareDetail.distanceFare.toLocaleString()}</span>
                                     <span>Time {fareDetail.timeFare.toLocaleString()}</span>
+                                    {surgeAmount > 0 && (
+                                      <span className="font-semibold text-orange-600">
+                                        Surge +{surgeAmount.toLocaleString()}
+                                      </span>
+                                    )}
+                                    <span className="mt-1 border-t border-slate-200 pt-1 font-bold text-slate-700">
+                                      Total {fareDetail.total.toLocaleString()}
+                                    </span>
                                   </div>
                                 )}
                               </div>
@@ -2694,7 +2640,7 @@ export default function BookingConfirmPage() {
                             <div className="px-5 py-3 bg-emerald-50/60 border-t border-emerald-100 flex items-center gap-2">
                               <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
                               <span className="text-xs text-emerald-800 font-medium">
-                                Fixed upfront fare - no surprises, included in your booking total.
+                                Fare is calculated from pickup distance, estimated time, and vehicle type.
                               </span>
                             </div>
                           </div>
@@ -2783,14 +2729,22 @@ export default function BookingConfirmPage() {
                   </span>
                 </div>
 
-                {includeTransport && transportFare && (
+                {includeTransport && transportFare !== null && (
                   <div className="flex justify-between items-start text-slate-600 text-sm pt-2 p-3 bg-blue-50/50 rounded-xl border border-blue-200/60">
                     <span className="flex items-center gap-2 font-medium">
                       <Car className="w-4 h-4 text-[#02665e]" />
                       Transportation ({getVehicleTypeLabel(transportVehicleType)})
                     </span>
                     <span className="font-bold text-[#02665e] text-right">
-                      {(() => { const d = fmtDisplay(transportFare); return (<><span>{d.primary}</span>{d.note && <span className="block text-xs font-normal text-[#02665e]/70 mt-0.5">{d.note}</span>}</>); })()}
+                      {(() => {
+                        const d = fmtDisplay(transportFare);
+                        return (
+                          <>
+                            <span>{d.primary}</span>
+                            {d.note && <span className="block text-xs font-normal text-slate-500 mt-0.5">{d.note}</span>}
+                          </>
+                        );
+                      })()}
                     </span>
                   </div>
                 )}

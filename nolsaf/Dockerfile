@@ -25,7 +25,7 @@ RUN set -eu; \
 	elif [ -f /app/nolsaf/package-lock.json ]; then ROOT=/app/nolsaf; \
 	else echo "package-lock.json not found in /app or /app/nolsaf"; ls -la /app; exit 1; fi; \
 	cd "$ROOT"; \
-	npm ci; \
+	npm ci --include-workspace-root --workspace=@nolsaf/api --workspace=@nolsaf/shared --workspace=@nolsaf/prisma; \
 	npm run prisma:generate; \
 	npm run --workspace=@nolsaf/shared build; \
 	npm run --workspace=@nolsaf/prisma build; \

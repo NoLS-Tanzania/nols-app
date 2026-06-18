@@ -7,6 +7,18 @@
  */
 
 import { z } from "zod";
+import { isCheckInBeforeToday } from "../lib/bookingDateRules.js";
+
+function parseGroupBookingDate(value: string): Date {
+  const trimmed = String(value || "").trim();
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+  if (dateOnly) {
+    const [, year, month, day] = dateOnly;
+    return new Date(Number(year), Number(month) - 1, Number(day));
+  }
+
+  return new Date(trimmed);
+}
 
 /**
  * Valid group types for group bookings
@@ -116,8 +128,8 @@ export const CreateGroupBookingInput = z.object({
   privateRoomCount: z.number().int().min(0).max(100).default(0),
   
   // ==================== Dates ====================
-  checkin: z.string().datetime().nullable().optional(),
-  checkout: z.string().datetime().nullable().optional(),
+  checkin: z.string().min(1).nullable().optional(),
+  checkout: z.string().min(1).nullable().optional(),
   useDates: z.boolean().default(true).optional(),
   
   // ==================== Arrangements ====================
@@ -153,8 +165,8 @@ export const CreateGroupBookingInput = z.object({
   .refine(
     (data) => {
       if (data.useDates && data.checkin && data.checkout) {
-        const checkInDate = new Date(data.checkin);
-        const checkOutDate = new Date(data.checkout);
+        const checkInDate = parseGroupBookingDate(data.checkin);
+        const checkOutDate = parseGroupBookingDate(data.checkout);
         return checkOutDate > checkInDate;
       }
       return true;
@@ -168,9 +180,8 @@ export const CreateGroupBookingInput = z.object({
   .refine(
     (data) => {
       if (data.useDates && data.checkin) {
-        const checkInDate = new Date(data.checkin);
-        const now = new Date();
-        return checkInDate >= now;
+        const checkInDate = parseGroupBookingDate(data.checkin);
+        return !isCheckInBeforeToday(checkInDate);
       }
       return true;
     },
@@ -224,8 +235,8 @@ export const UpdateGroupBookingInput = z.object({
   roomsNeeded: z.number().int().min(1).optional(),
   needsPrivateRoom: z.boolean().optional(),
   privateRoomCount: z.number().int().min(0).max(100).optional(),
-  checkin: z.string().datetime().nullable().optional(),
-  checkout: z.string().datetime().nullable().optional(),
+  checkin: z.string().min(1).nullable().optional(),
+  checkout: z.string().min(1).nullable().optional(),
   useDates: z.boolean().optional(),
   arrangements: ArrangementSchema.optional(),
 });
@@ -240,8 +251,8 @@ export const GroupBookingQueryInput = z.object({
   region: z.string().optional(),
   dateFrom: z.string().datetime().optional(),
   dateTo: z.string().datetime().optional(),
-  page: z.number().int().positive().default(1),
-  pageSize: z.number().int().min(1).max(100).default(20),
+  page: z.coerce.number().int().positive().default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
 });
 
 // ==================== Type Exports ====================
