@@ -31,6 +31,10 @@ const depositPaymentLimiter = makePaymentRateLimiter({
   limit: 4,
   keyFn: (req: any) => `group-stay-deposit:${req.user?.id || req.ip || "anon"}`,
 });
+const configuredDepositPercent = Number(process.env.GROUP_STAY_DEPOSIT_PERCENT);
+const GROUP_STAY_DEPOSIT_PERCENT = Number.isFinite(configuredDepositPercent)
+  ? Math.max(1, Math.min(100, configuredDepositPercent))
+  : 30;
 
 function coerceIdArray(value: unknown): number[] {
   if (!Array.isArray(value)) return [];
@@ -154,6 +158,11 @@ router.get("/", async (req, res) => {
         checkOut: gb.checkOut,
         status: gb.status,
         totalAmount: gb.totalAmount,
+        depositAmount: gb.depositAmount != null ? Number(gb.depositAmount) : null,
+        depositPaid: Boolean(gb.depositPaid),
+        depositPaidAt: gb.depositPaidAt ?? null,
+        depositDueAt: gb.depositDueAt ?? null,
+        currency: gb.currency,
         numberOfGuests,
         passengers: formattedPassengers,
         isValid,
@@ -349,16 +358,16 @@ router.post("/:id/auction-confirm", async (req, res) => {
     const commissionPercent = await getEffectiveCommissionPercent(claim.property?.services);
     const commissionAmount = roundMoney(ownerAmount * (commissionPercent / 100));
     const totalAmount = roundMoney(ownerAmount + commissionAmount);
-    // Temporarily free for testing: do not collect the upfront group-stay deposit.
-    const depositAmount = 0;
+    const depositAmount = Math.max(1, roundMoney(totalAmount * (GROUP_STAY_DEPOSIT_PERCENT / 100)));
+    const depositDueAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
     await (prisma as any).groupBooking.update({
       where: { id: bookingId },
       data: {
         confirmedPropertyId: propertyId,
         propertyConfirmedAt: now,
-        status: "CONFIRMED",
-        confirmedAt: now,
+        status: "AWAITING_DEPOSIT",
+        confirmedAt: null,
         assignedOwnerId: claim.ownerId,
         ownerAssignedAt: now,
         isOpenForClaims: false,
@@ -367,9 +376,9 @@ router.post("/:id/auction-confirm", async (req, res) => {
         commissionPercent,
         currency: claim.currency,
         depositAmount,
-        depositPaid: true,
-        depositPaidAt: now,
-        depositDueAt: null,
+        depositPaid: false,
+        depositPaidAt: null,
+        depositDueAt,
       },
     });
 
@@ -402,6 +411,7 @@ router.post("/:id/auction-confirm", async (req, res) => {
             propertyId,
             totalAmount,
             depositAmount,
+            depositDueAt,
           },
           createdAt: now,
         },
@@ -410,7 +420,7 @@ router.post("/:id/auction-confirm", async (req, res) => {
       // audit is best-effort
     }
 
-    return res.json({ ok: true, bookingId, propertyId, totalAmount, depositAmount });
+    return res.json({ ok: true, bookingId, propertyId, totalAmount, depositAmount, depositDueAt, status: "AWAITING_DEPOSIT" });
   } catch (error: any) {
     console.error("POST /customer/group-stays/:id/auction-confirm error:", error);
     return res.status(500).json({ error: "Failed to confirm auction offer" });
