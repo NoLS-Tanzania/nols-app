@@ -2480,7 +2480,7 @@ router.post("/trips/scheduled/:id/award", async (req, res) => {
       }
 
       return { updatedBooking, claimDriverId: claim.driverId, rejectedDriverIds: pendingRejectedClaims.map((c: any) => c.driverId), tripDateLabel, fromLabel, toLabel, amountLabel, vehicleLabel };
-    });
+    }, { timeout: 15000 });
 
     // ── Post-transaction: real-time socket events ─────────────────────────────
     try {
