@@ -14,6 +14,7 @@ import { AUTO_DISPATCH_LOOKAHEAD_MS, MIN_TRANSPORT_LEAD_MS } from "../lib/transp
 import { generateTransportTripCode } from "../lib/tripCode.js";
 import { AVAILABILITY_BLOCKING_BOOKING_STATUSES } from "../lib/bookingStatus.js";
 import { filterPayableAvailabilityBlocks } from "../lib/groupStayAvailabilityBlocks.js";
+import { isCheckInBeforeToday } from "../lib/bookingDateRules.js";
 
 /** Sign a short-lived token proving the caller created this booking. */
 function signBookingAccessToken(bookingId: number): string {
@@ -89,10 +90,6 @@ function parseBookingDate(value: string): Date {
   }
 
   return new Date(trimmed);
-}
-
-function toCalendarDate(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
 type CreatedTransportBooking = {
@@ -409,13 +406,13 @@ router.post("/", bookingLimiter, maybeAuth as any, async (req: Request, res: Res
     // Validate dates
     const checkIn = parseBookingDate(data.checkIn);
     const checkOut = parseBookingDate(data.checkOut);
-    const today = toCalendarDate(new Date());
+    const now = new Date();
 
     if (isNaN(checkIn.getTime()) || isNaN(checkOut.getTime())) {
       return res.status(400).json({ error: "Invalid date format", requestId });
     }
 
-    if (toCalendarDate(checkIn) < today) {
+    if (isCheckInBeforeToday(checkIn, now)) {
       return res.status(400).json({ error: "Check-in date cannot be in the past", requestId });
     }
 

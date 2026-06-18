@@ -7,6 +7,7 @@ import { prisma } from "@nolsaf/prisma";
 import { rateLimitWithRedis as rateLimit } from "../lib/redisRateLimitStore.js";
 import { AVAILABILITY_BLOCKING_BOOKING_STATUSES } from "../lib/bookingStatus.js";
 import { filterPayableAvailabilityBlocks } from "../lib/groupStayAvailabilityBlocks.js";
+import { isCheckInBeforeToday } from "../lib/bookingDateRules.js";
 
 export const router = Router();
 
@@ -38,10 +39,6 @@ function parseAvailabilityDate(value: string): Date {
   }
 
   return new Date(trimmed);
-}
-
-function toCalendarDate(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
 // Rate limiter for availability checks
@@ -91,14 +88,14 @@ router.post("/check", availabilityLimiter, (async (req: Request, res: Response) 
     // Validate dates
     const checkIn = parseAvailabilityDate(checkInStr);
     const checkOut = parseAvailabilityDate(checkOutStr);
-    const today = toCalendarDate(new Date());
+    const now = new Date();
 
     if (isNaN(checkIn.getTime()) || isNaN(checkOut.getTime())) {
       res.status(400).json({ error: "Invalid date format" });
       return;
     }
 
-    if (toCalendarDate(checkIn) < today) {
+    if (isCheckInBeforeToday(checkIn, now)) {
       res.status(400).json({ error: "Check-in date cannot be in the past" });
       return;
     }

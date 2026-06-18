@@ -7,6 +7,7 @@
  */
 
 import { z } from "zod";
+import { isCheckInBeforeToday } from "../lib/bookingDateRules.js";
 
 function parseGroupBookingDate(value: string): Date {
   const trimmed = String(value || "").trim();
@@ -17,10 +18,6 @@ function parseGroupBookingDate(value: string): Date {
   }
 
   return new Date(trimmed);
-}
-
-function toCalendarDate(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
 /**
@@ -184,8 +181,7 @@ export const CreateGroupBookingInput = z.object({
     (data) => {
       if (data.useDates && data.checkin) {
         const checkInDate = parseGroupBookingDate(data.checkin);
-        const today = toCalendarDate(new Date());
-        return toCalendarDate(checkInDate) >= today;
+        return !isCheckInBeforeToday(checkInDate);
       }
       return true;
     },

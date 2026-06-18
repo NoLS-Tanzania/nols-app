@@ -1852,11 +1852,18 @@ export default function BookingConfirmPage() {
                         type="button"
                         role="switch"
                         aria-checked={includeTransport}
-                        onClick={() => setIncludeTransport((v) => !v)}
+                        onClick={() => {
+                          setError(null);
+                          setIncludeTransport((value) => !value);
+                        }}
                         className="flex-shrink-0 focus:outline-none active:scale-95 transition-transform duration-150"
                       >
-                        <div className={`relative w-14 h-7 rounded-full transition-colors ${includeTransport ? "bg-white/90" : "bg-black/30"}`}>
-                          <div className={`absolute top-1 w-5 h-5 rounded-full shadow transition-all ${includeTransport ? "left-8 bg-[#02665e]" : "left-1 bg-white/70"}`} />
+                        <div className={`relative w-14 h-7 rounded-full transition-colors duration-200 ${includeTransport ? "bg-white/90" : "bg-black/30"}`}>
+                          <div
+                            className={`absolute top-1 w-5 h-5 rounded-full shadow transition-all duration-200 ${
+                              includeTransport ? "left-8 bg-[#02665e]" : "left-1 bg-white/70"
+                            }`}
+                          />
                         </div>
                       </button>
                     </div>
