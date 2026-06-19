@@ -564,6 +564,24 @@ export async function markGroupBookingDepositPaid(
     },
   });
 
+  // Now that the deposit is in, finalize the winning owner's claim as ACCEPTED.
+  // Before this point the claim sits in REVIEWING so the owner never sees a premature
+  // "accepted" status (the customer selecting the offer is not yet a confirmed deal).
+  if (groupBooking.confirmedPropertyId) {
+    try {
+      await prisma.groupBookingClaim.updateMany({
+        where: {
+          groupBookingId: groupBooking.id,
+          propertyId: groupBooking.confirmedPropertyId,
+          status: { notIn: ["WITHDRAWN", "REJECTED"] },
+        },
+        data: { status: "ACCEPTED", reviewedAt: new Date() },
+      });
+    } catch (err: any) {
+      console.error(`[GroupStay] Failed to accept winning claim for booking #${groupBooking.id}:`, err?.message ?? err);
+    }
+  }
+
   try {
     await ensurePaidGroupStayAvailabilityBlock(groupBooking);
   } catch (err: any) {
@@ -585,8 +603,8 @@ export async function markGroupBookingDepositPaid(
   if (groupBooking.assignedOwnerId) {
     try {
       await notifyUser(groupBooking.assignedOwnerId, "group_stay_update", {
-        title: "Group stay deposit paid",
-        body: `The customer paid the deposit for group stay #${groupBooking.id}${destination ? ` (${destination})` : ""}. The booking is now confirmed.`,
+        title: "Congratulations — your offer was accepted!",
+        body: `Great news! The guest paid the deposit for group stay #${groupBooking.id}${destination ? ` to ${destination}` : ""}, so your offer is now confirmed. Open the booking to view your guest's details and get in touch.`,
         groupBookingId: groupBooking.id,
       });
     } catch { /* non-fatal */ }

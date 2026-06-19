@@ -868,6 +868,19 @@ model GroupBooking {
   /// Payment provider used for the deposit (e.g. AZAMPAY)
   paymentProvider   String? @db.VarChar(40)
 
+  // ==================== Owner Payout (group stay) ====================
+  /// Timestamp when the assigned owner marked the group as checked in (triggers the payout obligation)
+  checkedInAt       DateTime?
+  /// Owner's payout owed by NoLSAF after check-in (deposit minus commission). The remaining balance is
+  /// collected by the owner directly from the guest at the property.
+  ownerPayoutAmount Decimal?  @db.Decimal(12, 2)
+  /// Owner payout lifecycle: NONE | PENDING | PAID
+  ownerPayoutStatus String    @default("NONE") @db.VarChar(20)
+  /// Timestamp when NoLSAF marked the owner payout as paid
+  ownerPayoutPaidAt DateTime?
+  /// Reference for the manual payout transfer (bank/mobile money ref) recorded by admin
+  ownerPayoutRef    String?   @db.VarChar(120)
+
   // ==================== Administrative Notes ====================
   /// Internal admin notes about this booking
   adminNotes   String?   @db.Text
@@ -911,6 +924,7 @@ model GroupBooking {
   @@index([createdAt])
   @@index([assignedOwnerId])
   @@index([confirmedPropertyId])
+  @@index([ownerPayoutStatus])
   @@map("group_bookings")
 }
 

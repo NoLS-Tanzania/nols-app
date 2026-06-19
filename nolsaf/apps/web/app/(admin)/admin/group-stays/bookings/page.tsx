@@ -42,6 +42,11 @@ type GroupBookingRow = {
   notes?: string | null;
   isOpenForClaims?: boolean; // Whether booking is open for owner claims/offers
   openedForClaimsAt?: string | null; // When booking was opened for claims
+  // Check-in milestone + earnings split (NoLSAF commission = deposit)
+  checkedInAt?: string | null;
+  totalAmount?: number | null;
+  depositAmount?: number | null;
+  currency?: string | null;
 };
 
 function badgeClasses(v: string) {
@@ -1648,6 +1653,53 @@ export default function AdminGroupStaysBookingsPage() {
                         </span>
                       </div>
                     </div>
+
+                    {/* Earnings split — NoLSAF commission is the deposit; owner collects the balance at the property */}
+                    {(() => {
+                      const isRelevant = !!bookingDetails.checkedInAt || ["CONFIRMED", "COMPLETED"].includes(String(bookingDetails.status).toUpperCase());
+                      if (!isRelevant) return null;
+
+                      const cur = bookingDetails.currency || "TZS";
+                      const total = Number(bookingDetails.totalAmount || 0);
+                      const deposit = Number(bookingDetails.depositAmount || 0);
+                      const ownerCollects = Math.max(0, Math.round(total - deposit));
+                      const money = (n: number) => `${cur} ${Math.round(n).toLocaleString("en-US")}`;
+
+                      return (
+                        <div className="bg-gradient-to-br from-emerald-50 to-green-50 rounded-xl p-5 border border-emerald-100 shadow-sm">
+                          <h4 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
+                            <div className="h-8 w-8 rounded-lg bg-emerald-500 flex items-center justify-center">
+                              <DollarSign className="h-4 w-4 text-white" />
+                            </div>
+                            Earnings Split
+                            {bookingDetails.checkedInAt && (
+                              <span className="ml-auto px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700 inline-flex items-center gap-1">
+                                <CheckCircle className="h-3.5 w-3.5" /> Checked in
+                              </span>
+                            )}
+                          </h4>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                            <div className="bg-white/70 rounded-lg p-3 border border-emerald-100/60">
+                              <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-1">Booking total</p>
+                              <p className="text-sm font-bold text-gray-900">{money(total)}</p>
+                            </div>
+                            <div className="bg-white/70 rounded-lg p-3 border border-emerald-100/60">
+                              <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-1">NoLSAF commission (deposit)</p>
+                              <p className="text-sm font-bold text-gray-900">{money(deposit)}</p>
+                            </div>
+                            <div className="bg-emerald-600/10 rounded-lg p-3 border border-emerald-200">
+                              <p className="text-[11px] font-medium text-emerald-700 uppercase tracking-wider mb-1">Owner collects at property</p>
+                              <p className="text-sm font-bold text-emerald-800">{money(ownerCollects)}</p>
+                            </div>
+                          </div>
+
+                          <p className="text-xs text-gray-600">
+                            NoLSAF&apos;s commission is the deposit the guest paid online. The owner collects the balance ({money(ownerCollects)}) directly from the guest at the property. NoLSAF does not disburse anything to the owner.
+                          </p>
+                        </div>
+                      );
+                    })()}
 
                     {/* Customer Information - Enhanced */}
                     {bookingDetails.user && (

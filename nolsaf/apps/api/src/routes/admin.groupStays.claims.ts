@@ -645,20 +645,22 @@ router.post("/:bookingId/start-review", asyncHandler(async (req: any, res: any) 
       data: { status: booking.status === "PENDING" ? "REVIEWING" : booking.status },
     });
 
-    await audit(
-      req as AuthedRequest,
-      "GROUP_BOOKING_CLAIMS_REVIEW_STARTED",
-      `groupBooking:${bookingId}`,
-      null,
-      { updatedClaims: updated.count }
-    );
-
     return { notFound: false, updatedClaims: updated.count } as const;
   });
 
   if (result.notFound) {
     return res.status(404).json({ error: "Group booking not found" });
   }
+
+  // Audit log (best-effort, outside the transaction — audit() uses the global
+  // prisma client and would contend for a second pool connection inside the tx).
+  await audit(
+    req as AuthedRequest,
+    "GROUP_BOOKING_CLAIMS_REVIEW_STARTED",
+    `groupBooking:${bookingId}`,
+    null,
+    { updatedClaims: result.updatedClaims }
+  );
 
   return res.json({ success: true, updatedClaims: result.updatedClaims });
 }));
@@ -769,35 +771,40 @@ router.post("/:bookingId/recommendations", asyncHandler(async (req: any, res: an
         },
       });
 
-      // Create audit log for this action
-      await audit(
-        req as AuthedRequest,
-        "GROUP_BOOKING_CLAIMS_RECOMMENDED",
-        `groupBooking:${bookingId}`,
-        null,
-        {
-          claimIds,
-          claimCount: claimIds.length,
-          notes: notes || null,
-          recommendedPropertyIds,
-          claims: claims.map((c: any) => ({
-            id: c.id,
-            owner: c.owner.name,
-            property: c.property.title,
-            totalAmount: Number(c.totalAmount),
-          })),
-        }
-      );
-
       return {
         success: true,
         recommendedPropertyIds,
         groupBookingId: bookingId,
         recommendedCount: claimIds.length,
+        // Audit payload, logged after commit (audit() uses the global prisma
+        // client, so running it inside the tx contends for a second pool
+        // connection and can stall the tx until it times out — see P2028).
+        auditClaims: claims.map((c: any) => ({
+          id: c.id,
+          owner: c.owner.name,
+          property: c.property.title,
+          totalAmount: Number(c.totalAmount),
+        })),
       };
     });
 
-    return res.json(result);
+    // Create audit log for this action (best-effort, outside the transaction)
+    await audit(
+      req as AuthedRequest,
+      "GROUP_BOOKING_CLAIMS_RECOMMENDED",
+      `groupBooking:${bookingId}`,
+      null,
+      {
+        claimIds,
+        claimCount: claimIds.length,
+        notes: notes || null,
+        recommendedPropertyIds: result.recommendedPropertyIds,
+        claims: result.auditClaims,
+      }
+    );
+
+    const { auditClaims, ...response } = result;
+    return res.json(response);
   } catch (err: any) {
     console.error("Error recommending claims:", err);
     if (err?.code === "CLAIMS_MISMATCH") {
@@ -881,28 +888,43 @@ router.patch("/:claimId/status", asyncHandler(async (req: any, res: any) => {
         },
       });
 
-      // Audit log
-      await audit(
-        req as AuthedRequest,
-        "GROUP_BOOKING_CLAIM_STATUS_UPDATED",
-        `groupBooking:${claim.groupBookingId}`,
-        null,
-        {
+      return {
+        updated,
+        // Audit payload, logged after commit (audit() uses the global prisma
+        // client; running it inside the tx contends for a second pool
+        // connection and can stall the tx until it times out — see P2028).
+        auditInfo: {
           claimId,
           oldStatus: claim.status,
           newStatus: status,
           owner: claim.owner.name,
           property: claim.property.title,
           notes: notes || null,
-        }
-      );
-
-      return updated;
+          groupBookingId: claim.groupBookingId,
+        },
+      };
     });
+
+    // Audit log (best-effort, outside the transaction)
+    const { updated, auditInfo } = updatedClaim;
+    await audit(
+      req as AuthedRequest,
+      "GROUP_BOOKING_CLAIM_STATUS_UPDATED",
+      `groupBooking:${auditInfo.groupBookingId}`,
+      null,
+      {
+        claimId: auditInfo.claimId,
+        oldStatus: auditInfo.oldStatus,
+        newStatus: auditInfo.newStatus,
+        owner: auditInfo.owner,
+        property: auditInfo.property,
+        notes: auditInfo.notes,
+      }
+    );
 
     return res.json({
       success: true,
-      claim: updatedClaim,
+      claim: updated,
     });
   } catch (err: any) {
     console.error("Error updating claim status:", err);

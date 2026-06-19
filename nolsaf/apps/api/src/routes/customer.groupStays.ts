@@ -5,7 +5,7 @@ import { prisma } from "@nolsaf/prisma";
 import { AuthedRequest, requireAuth } from "../middleware/auth.js";
 import { limitPlanRequestMessages } from "../middleware/rateLimit.js";
 import { sanitizeText } from "../lib/sanitize.js";
-import { notifyAdmins } from "../lib/notifications.js";
+import { notifyAdmins, notifyUser } from "../lib/notifications.js";
 import { getAzamPayToken, invalidateAzamPayToken } from "../lib/azampay.auth.js";
 import {
   normalizePhone,
@@ -334,6 +334,8 @@ router.post("/:id/auction-confirm", async (req, res) => {
         checkIn: true,
         checkOut: true,
         roomsNeeded: true,
+        toRegion: true,
+        toDistrict: true,
       },
     });
 
@@ -397,12 +399,34 @@ router.post("/:id/auction-confirm", async (req, res) => {
       },
     });
 
-    // Mark the chosen claim as accepted and reject the other shortlisted offers
+    // Keep the chosen claim in REVIEWING (NOT accepted yet) and reject the other
+    // shortlisted offers. The winning claim only becomes ACCEPTED once the customer
+    // actually pays the deposit (see markGroupBookingDepositPaid) — until then the
+    // owner must not see their offer as "100% accepted".
+    let rejectedOwnerIds: number[] = [];
     try {
       await (prisma as any).groupBookingClaim.update({
         where: { id: claim.id },
-        data: { status: "ACCEPTED", reviewedAt: now },
+        data: { status: "REVIEWING", reviewedAt: now },
       });
+
+      // Capture the owners we're about to turn down so we can notify them kindly.
+      const losingClaims = await (prisma as any).groupBookingClaim.findMany({
+        where: {
+          groupBookingId: bookingId,
+          propertyId: { in: recommendedIds.filter((id) => id !== propertyId) },
+          status: "PENDING",
+        },
+        select: { ownerId: true },
+      });
+      rejectedOwnerIds = Array.from(
+        new Set(
+          losingClaims
+            .map((c: any) => Number(c.ownerId))
+            .filter((v: number) => Number.isFinite(v))
+        )
+      );
+
       await (prisma as any).groupBookingClaim.updateMany({
         where: {
           groupBookingId: bookingId,
@@ -413,6 +437,28 @@ router.post("/:id/auction-confirm", async (req, res) => {
       });
     } catch {
       // claim status updates are best-effort
+    }
+
+    // Let the owners who weren't selected down gently — a respectful note rather
+    // than leaving them to discover a bare "Rejected" badge on their own.
+    if (rejectedOwnerIds.length > 0) {
+      const destination = [booking.toDistrict, booking.toRegion].filter(Boolean).join(", ");
+      await Promise.all(
+        rejectedOwnerIds.map((ownerId) =>
+          notifyUser(ownerId, "group_stay_update", {
+            title: "Thank you for your group stay offer",
+            body:
+              `Thank you for your offer on group stay #${bookingId}` +
+              `${destination ? ` to ${destination}` : ""}. ` +
+              `The guest has chosen another property this time, so your offer wasn't taken forward. ` +
+              `We really appreciate you taking part. More group stay requests come in regularly, ` +
+              `and we'd love to see your next offer.`,
+            groupBookingId: bookingId,
+          }).catch(() => {
+            /* notifications are best-effort */
+          })
+        )
+      );
     }
 
     try {

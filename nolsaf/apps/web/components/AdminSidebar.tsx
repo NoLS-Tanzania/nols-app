@@ -139,6 +139,7 @@ const groupStayDetails: Item[] = [
   { href: "/admin/group-stays/bookings", label: "Bookings", Icon: Calendar },
   { href: "/admin/group-stays/requests", label: "Requests", Icon: FileText },
   { href: "/admin/group-stays/claims", label: "Submitted Claims", Icon: Gift },
+  { href: "/admin/group-stays/payouts", label: "Owner Earnings", Icon: Wallet },
   { href: "/admin/group-stays/assignments", label: "Assignments", Icon: Users },
   { href: "/admin/group-stays/passengers", label: "Passengers", Icon: Users },
   { href: "/admin/group-stays/arrangements", label: "Arrangements", Icon: Settings },
