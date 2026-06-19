@@ -405,7 +405,7 @@ export default function GroupStayDetail() {
             </div>
 
             {/* Details grid */}
-            <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="mt-6 grid grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3">
               {groupStay.user?.name && (
                 <HeroStat icon={<User className="h-4 w-4" />} label="Guest" value={groupStay.user.name} />
               )}
@@ -1388,13 +1388,13 @@ function PolicyItem({ icon, tone, title, body }: { icon: React.ReactNode; tone: 
 
 function HeroStat({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-emerald-100 bg-white/70 backdrop-blur-sm px-4 py-3 transition-all duration-200 hover:bg-white hover:shadow-sm">
-      <div className="h-9 w-9 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0 text-emerald-700">
+    <div className="flex items-center gap-2.5 sm:gap-3 rounded-xl border border-emerald-100 bg-white/70 backdrop-blur-sm px-3 py-2.5 sm:px-4 sm:py-3 transition-all duration-200 hover:bg-white hover:shadow-sm">
+      <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0 text-emerald-700">
         {icon}
       </div>
       <div className="min-w-0">
-        <div className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700/70">{label}</div>
-        <div className="text-sm font-bold text-slate-900 truncate" title={value}>{value}</div>
+        <div className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wide text-emerald-700/70">{label}</div>
+        <div className="text-[13px] sm:text-sm font-bold text-slate-900 truncate" title={value}>{value}</div>
       </div>
     </div>
   );

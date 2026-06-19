@@ -76,8 +76,10 @@ const STATUS_TONE: Record<RevenueStatus, string> = {
 const STATUS_LABEL: Record<RevenueStatus, string> = {
   PENDING: "Pending",
   AWAITING_DEPOSIT: "Awaiting deposit",
-  DEPOSIT_PAID: "Deposit paid",
-  CONFIRMED: "Confirmed",
+  DEPOSIT_PAID: "Deposited",
+  // Booking flips to CONFIRMED once the deposit is paid; surface that as "Deposited"
+  // (only the deposit is collected by NoLSAF — the balance is paid to the owner at the property).
+  CONFIRMED: "Deposited",
   COMPLETED: "Completed",
   CANCELED: "Canceled",
 };
