@@ -256,21 +256,26 @@ export default function OwnerMyClaimsPage() {
               const specialOffersList = claim.specialOffers 
                 ? claim.specialOffers.split(',').map(s => s.trim()).filter(s => s.length > 0)
                 : [];
+              const status = claim.status.toUpperCase();
+              const cardStatusClass =
+                status === 'ACCEPTED' ? 'border-emerald-200 bg-gradient-to-br from-white via-white to-emerald-50/70 shadow-emerald-100/70' :
+                status === 'PENDING' ? 'border-amber-200 bg-gradient-to-br from-white via-white to-amber-50/70 shadow-amber-100/70' :
+                status === 'REJECTED' ? 'border-rose-200 bg-gradient-to-br from-white via-white to-rose-50/60 shadow-rose-100/60' :
+                'border-slate-200 bg-gradient-to-br from-white via-white to-slate-50 shadow-slate-200/60';
+              const cornerAccentClass =
+                status === 'ACCEPTED' ? 'bg-emerald-200/35' :
+                status === 'PENDING' ? 'bg-amber-200/35' :
+                status === 'REJECTED' ? 'bg-rose-200/30' :
+                'bg-slate-200/40';
               
               return (
                 <div 
                   key={claim.id} 
-                  className="group relative bg-white rounded-3xl overflow-hidden transition-all duration-500 hover:shadow-2xl hover:-translate-y-2 border border-slate-100 shadow-lg shadow-slate-200/50 animate-in fade-in slide-in-from-bottom-4"
+                  className={`group relative overflow-hidden rounded-3xl border shadow-lg transition-all duration-300 hover:-translate-y-1 hover:shadow-xl animate-in fade-in slide-in-from-bottom-4 ${cardStatusClass}`}
                 >
-                  {/* Left accent bar - color based on status */}
-                  <div className={`absolute left-0 top-0 bottom-0 w-2 bg-gradient-to-b ${
-                    claim.status.toUpperCase() === 'ACCEPTED' ? 'from-green-500 via-green-600 to-green-700' :
-                    claim.status.toUpperCase() === 'PENDING' ? 'from-amber-500 via-amber-600 to-amber-700' :
-                    claim.status.toUpperCase() === 'REJECTED' ? 'from-red-500 via-red-600 to-red-700' :
-                    'from-gray-400 via-gray-500 to-gray-600'
-                  } shadow-lg`}></div>
+                  <div className={`pointer-events-none absolute -right-14 -top-14 h-36 w-36 rounded-full ${cornerAccentClass}`} />
                   
-                  <div className="pl-6 pr-6 py-6">
+                  <div className="relative p-6">
                     {/* Header Section */}
                     <div className="flex items-start justify-between mb-6 pb-6 border-b border-slate-100">
                       <div className="flex-1 min-w-0">

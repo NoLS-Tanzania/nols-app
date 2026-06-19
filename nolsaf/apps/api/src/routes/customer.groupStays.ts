@@ -18,7 +18,7 @@ import {
   coralPostJson64,
   parseCoralInitiateResponse,
 } from "../lib/coralcommerce.helpers.js";
-import { loadGroupStayDepositReceipt } from "../lib/groupStayReceipts.js";
+import { loadGroupStayDepositReceipt, loadGroupStayDepositReceiptData } from "../lib/groupStayReceipts.js";
 import { signGroupStayReceiptToken } from "../lib/groupStayReceiptToken.js";
 import { getEffectiveCommissionPercent, roundMoney } from "../lib/accommodationPayout.js";
 
@@ -169,6 +169,21 @@ router.get("/", async (req, res) => {
         createdAt: gb.createdAt,
         updatedAt: gb.updatedAt,
         adminSuggestions, // Include admin suggestions/messages
+        deposit: {
+          amount: gb.depositAmount != null ? Number(gb.depositAmount) : null,
+          paid: gb.depositPaid === true,
+          paidAt: gb.depositPaidAt ?? null,
+          dueAt: gb.depositDueAt ?? null,
+          currency: gb.currency || "TZS",
+          commissionPercent: gb.commissionPercent != null ? Number(gb.commissionPercent) : null,
+          ownerAmount: gb.ownerAmount != null ? Number(gb.ownerAmount) : null,
+          // Deposit window lapsed without payment while awaiting it.
+          expired:
+            gb.status === "AWAITING_DEPOSIT" &&
+            !gb.depositPaid &&
+            !!gb.depositDueAt &&
+            new Date(gb.depositDueAt).getTime() < now.getTime(),
+        },
       };
     });
 
@@ -502,6 +517,15 @@ router.get("/:id/deposit-receipt", async (req, res) => {
     console.error("GET /customer/group-stays/:id/deposit-receipt error:", error);
     return res.status(500).json({ ok: false, error: "Failed to generate deposit receipt" });
   }
+});
+
+router.get("/:id/deposit-receipt-data", async (req, res) => {
+  const userId = (req as AuthedRequest).user!.id;
+  const bookingId = parseInt(String(req.params.id), 10);
+  if (!Number.isFinite(bookingId)) return res.status(400).json({ ok: false, error: "Invalid booking id" });
+  const result = await loadGroupStayDepositReceiptData(bookingId, userId);
+  if (!result.ok) return res.status(result.status).json({ ok: false, error: result.error, message: result.message });
+  return res.json({ ok: true, receipt: result.receipt });
 });
 
 /**
