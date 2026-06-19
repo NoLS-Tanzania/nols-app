@@ -122,6 +122,62 @@ export function baseEmail(
 </html>`;
 }
 
+// ─── Plain email wrapper (no coloured banner) ─────────────────────────────────
+/**
+ * Clean, header-less email shell. No gradient banner — just a quiet plain-text
+ * NoLSAF wordmark, a small status label, and the body in a white card.
+ * Use for statement-style / financial notices where a loud header feels off.
+ *
+ * @param badgeLabel - short status label shown at top-right (e.g. "Disbursement Processed")
+ * @param body       - inner HTML for the email body
+ */
+export function plainEmail(badgeLabel: string, body: string): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><![endif]-->
+</head>
+<body style="margin:0;padding:0;background-color:${BODY_BG};font-family:'Segoe UI',Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:${BODY_BG};">
+    <tr><td align="center" style="padding:32px 16px 24px;">
+
+      <!-- Card -->
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+        style="max-width:600px;background:${CARD_BG};border-radius:14px;overflow:hidden;border:1px solid ${BORDER};box-shadow:0 2px 10px rgba(0,0,0,0.05);">
+
+        <!-- Plain header: wordmark + status label, no banner -->
+        <tr>
+          <td style="padding:26px 40px 18px;border-bottom:1px solid ${BORDER};">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+              <tr>
+                <td style="font-size:18px;font-weight:800;letter-spacing:1.5px;color:${BRAND_TEAL};vertical-align:middle;">NoLSAF</td>
+                <td align="right" style="font-size:11px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;color:${TEXT_MUTED};vertical-align:middle;">${badgeLabel}</td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Body -->
+        <tr>
+          <td style="padding:30px 40px 28px;color:${TEXT_MAIN};font-size:15px;line-height:1.7;">
+            ${body}
+          </td>
+        </tr>
+
+        ${buildFooter()}
+
+      </table>
+      <!-- /Card -->
+
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
 // ─── Security footer (no social links — security emails only) ─────────────────
 function buildSecurityFooter(): string {
   const year = new Date().getFullYear();

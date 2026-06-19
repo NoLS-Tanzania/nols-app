@@ -13,6 +13,7 @@ import {
   TEXT_MAIN,
   BORDER,
   baseEmail,
+  plainEmail,
   infoCard,
   calloutBox,
   ctaButton,
@@ -269,6 +270,6 @@ export function getOwnerDisbursementEmail(data: OwnerDisbursementEmailData): { s
 
   return {
     subject: `Disbursement Processed ✓ — Booking #${data.bookingId} (${data.propertyName})`,
-    html: baseEmail(BRAND_TEAL, BRAND_DARK, "Disbursement Processed 💸", "💸", body),
+    html: plainEmail("Disbursement Processed", body),
   };
 }
