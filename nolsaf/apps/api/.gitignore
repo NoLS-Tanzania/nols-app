@@ -8,3 +8,7 @@
 .elasticbeanstalk/*
 !.elasticbeanstalk/*.cfg.yml
 !.elasticbeanstalk/*.global.yml
+
+# Prisma schema is copied in from <repo>/prisma at deploy time (scripts/deploy-eb.ps1).
+# Source of truth lives at the repo root; never commit the copy here.
+/prisma/

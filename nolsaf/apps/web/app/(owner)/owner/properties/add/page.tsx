@@ -759,6 +759,8 @@ export default function AddProperty() {
   
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [showSubmissionSuccess, setShowSubmissionSuccess] = useState(false);
+  // Actionable card for the server-side pin↔address mismatch returned by /submit.
+  const [submitMismatch, setSubmitMismatch] = useState<{ message: string; mismatches: string[]; detected: any } | null>(null);
 
   // Load existing property if ID is provided in query params
   useEffect(() => {
@@ -1693,6 +1695,7 @@ export default function AddProperty() {
     chosen.forEach((file, i) => {
       const blobUrl = localBlobs[i];
       uploadToCloudinary(file, "properties/rooms").then(url => {
+        const uploadedIndex = roomImagesRef.current.indexOf(blobUrl);
         setRoomImages(prev => {
           const idx = prev.indexOf(blobUrl);
           if (idx === -1) return prev;
@@ -1701,10 +1704,15 @@ export default function AddProperty() {
           return copy;
         });
         setRoomImageUploading(prev => {
-          const idxNow = roomImagesRef.current.indexOf(blobUrl);
-          if (idxNow === -1) return prev;
+          if (uploadedIndex === -1) return prev;
           const copy = [...prev];
-          copy[idxNow] = false;
+          copy[uploadedIndex] = false;
+          return copy;
+        });
+        setRoomImageSaved(prev => {
+          if (uploadedIndex === -1) return prev;
+          const copy = [...prev];
+          copy[uploadedIndex] = true;
           return copy;
         });
       }).catch(err => {
@@ -1966,12 +1974,9 @@ export default function AddProperty() {
       alert("Please complete: " + missing.join(", ") + ".");
       return;
     }
-    if (pinRegionMismatch && typeof latitude === "number" && typeof longitude === "number") {
-      setManualLat(String(latitude));
-      setManualLng(String(longitude));
-      setShowMismatchModal(true);
-      return;
-    }
+    // The owner-placed pin is authoritative — a region mismatch no longer blocks
+    // submission (Mapbox's TZ admin data is unreliable). The inline banner still
+    // surfaces the warning during editing, but it's advisory only.
     setShowSubmitConfirm(true);
   }
 
@@ -2009,6 +2014,16 @@ export default function AddProperty() {
       const url = e?.config?.url || "unknown";
       const method = e?.config?.method?.toUpperCase() || "unknown";
       const status = e?.response?.status;
+      // Structured location-mismatch from /submit → show an actionable card
+      // (which field is off + a jump to the location step) instead of an alert.
+      if (status === 400 && data && (Array.isArray(data.mismatches) || data.detectedLocation)) {
+        setSubmitMismatch({
+          message: typeof data.error === "string" ? data.error : "The property pin does not match the selected address fields.",
+          mismatches: Array.isArray(data.mismatches) ? data.mismatches : [],
+          detected: data.detectedLocation ?? null,
+        });
+        return;
+      }
       const err = data?.error ?? data ?? e?.message ?? "Submit failed";
       const errorMsg = typeof err === "string" ? err : JSON.stringify(err, null, 2);
       alert(`Submit failed (${status || "network error"}): ${errorMsg}\n\nURL: ${method} ${url}`);
@@ -2721,6 +2736,90 @@ export default function AddProperty() {
               >
                 Yes, submit
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Submit Location Mismatch Modal ── */}
+      {submitMismatch && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={(e) => { if (e.target === e.currentTarget) setSubmitMismatch(null); }}
+        >
+          <div
+            className="relative w-full max-w-md rounded-2xl bg-[#02665e] shadow-2xl overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 duration-300"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Location mismatch"
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 pt-5 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/20">
+                  <MapPin className="h-4 w-4 text-white" />
+                </div>
+                <h2 className="text-sm font-bold text-white">Location needs a quick fix</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSubmitMismatch(null)}
+                className="p-1 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="px-5 pb-5 space-y-3">
+              <p className="text-xs leading-relaxed text-white/80">
+                The map pin doesn&rsquo;t line up with the address you selected. Fix either the pin or the address fields, then submit again.
+              </p>
+
+              {/* Which fields are off */}
+              {submitMismatch.mismatches.length > 0 ? (
+                <div className="rounded-lg bg-white/10 border border-white/20 p-3 space-y-2">
+                  {submitMismatch.mismatches.map((m, i) => (
+                    <div key={i} className="flex items-start gap-2">
+                      <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-300" />
+                      <span className="text-[11px] leading-relaxed text-white/90">{m}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-lg bg-white/10 border border-white/20 p-3">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-300" />
+                    <span className="text-[11px] leading-relaxed text-white/90">{submitMismatch.message}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Reassurance: nothing is lost */}
+              <div className="flex items-start gap-2 rounded-lg bg-white/5 border border-white/10 p-2.5">
+                <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-300" />
+                <span className="text-[11px] leading-relaxed text-white/70">
+                  Everything you&rsquo;ve entered stays saved. You&rsquo;ll come straight back here to submit.
+                </span>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setSubmitMismatch(null)}
+                  className="flex-1 h-9 rounded-lg border border-white/30 bg-white/10 text-xs font-semibold text-white hover:bg-white/20 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setSubmitMismatch(null); scrollToStep(0, true); }}
+                  className="flex-1 h-9 rounded-lg bg-white text-xs font-bold text-[#02665e] shadow-sm hover:bg-white/90 transition"
+                >
+                  Edit location
+                </button>
+              </div>
             </div>
           </div>
         </div>

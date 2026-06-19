@@ -109,6 +109,7 @@ function Item({
 
 const adminDetails: Item[] = [
   { href: "/admin", label: "Dashboard", Icon: LayoutDashboard },
+  { href: "/admin/finance", label: "All Revenue", Icon: TrendingUp },
   { href: "/admin/owners", label: "Owners", Icon: Building2 },
   { href: "/admin/bookings", label: "Bookings", Icon: Calendar },
   { href: "/admin/properties/previews", label: "Previews", Icon: Eye },
@@ -134,6 +135,7 @@ const driverDetails: Item[] = [
 
 const groupStayDetails: Item[] = [
   { href: "/admin/group-stays", label: "Dashboard", Icon: LayoutDashboard },
+  { href: "/admin/group-stays/revenue", label: "Revenue", Icon: TrendingUp },
   { href: "/admin/group-stays/bookings", label: "Bookings", Icon: Calendar },
   { href: "/admin/group-stays/requests", label: "Requests", Icon: FileText },
   { href: "/admin/group-stays/claims", label: "Submitted Claims", Icon: Gift },

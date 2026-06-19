@@ -12,6 +12,12 @@ type PropertyLocationMapProps = {
   latitude: number;
   longitude: number;
   onLocationDetected?: (lat: number, lng: number, meta?: PropertyLocationDetectionMeta) => void;
+  /**
+   * Address text (e.g. "Kawe, Kinondoni, Dar es Salaam, Tanzania") used to seed an
+   * approximate starting pin via forward geocoding when no coordinates exist yet.
+   * The owner then fine-tunes the pin — this is purely a soft starting point.
+   */
+  addressQuery?: string;
 };
 
 const COORD_EPSILON = 0.000001;
@@ -40,6 +46,7 @@ export const PropertyLocationMap = memo(function PropertyLocationMap({
   latitude,
   longitude,
   onLocationDetected,
+  addressQuery,
 }: PropertyLocationMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any | null>(null);
@@ -48,9 +55,16 @@ export const PropertyLocationMap = memo(function PropertyLocationMap({
   const lastEmittedCoordsRef = useRef<{ lat: number; lng: number } | null>(null);
   const initLatRef = useRef(latitude);
   const initLngRef = useRef(longitude);
+  // Set true once the owner drags/zooms the map themselves, so a late
+  // high-accuracy GPS refinement never clobbers a manually-placed pin.
+  const userMovedRef = useRef(false);
+  // Guards the forward-geocode seed so it only ever fires once.
+  const seededRef = useRef(false);
 
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
+  // "error" = hard/red (blocked, unsupported); "info" = soft/calm (timeout, retry hint).
+  const [errorTone, setErrorTone] = useState<"error" | "info">("error");
   const [locationDenied, setLocationDenied] = useState(false);
   const [mapToken, setMapToken] = useState("");
   const [tokenResolved, setTokenResolved] = useState(false);
@@ -119,73 +133,143 @@ export const PropertyLocationMap = memo(function PropertyLocationMap({
     };
   }, []);
 
+  const setNotice = useCallback((text: string | null, tone: "error" | "info" = "error") => {
+    setLocationError(text);
+    setErrorTone(tone);
+  }, []);
+
+  const applyFix = useCallback(
+    (lat: number, lng: number, accuracy: number | null, zoom: number) => {
+      emitLocation(lat, lng, { source: "gps", accuracy });
+      if (mapRef.current) {
+        mapRef.current.easeTo({ center: [lng, lat], zoom, duration: 700, essential: true });
+      }
+      setLocationDetected({ accuracy });
+      if (successTimerRef.current) clearTimeout(successTimerRef.current);
+      successTimerRef.current = setTimeout(() => setLocationDetected(null), 10000);
+    },
+    [emitLocation]
+  );
+
+  // Phase 2: silently refine the coarse fix with a high-accuracy reading.
+  // Never overrides a pin the owner has dragged themselves.
+  const refineHighAccuracy = useCallback(() => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        if (userMovedRef.current) return; // owner took over — leave their pin alone
+        const acc = Number.isFinite(position.coords.accuracy) ? position.coords.accuracy : null;
+        const lat = Number(position.coords.latitude.toFixed(6));
+        const lng = Number(position.coords.longitude.toFixed(6));
+        applyFix(lat, lng, acc, 17);
+      },
+      () => {
+        /* refinement failed — the coarse fix already stands, stay quiet */
+      },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+    );
+  }, [applyFix]);
+
   const detectLocation = useCallback(() => {
     if (typeof navigator === "undefined" || !navigator.geolocation) {
-      setLocationError("Geolocation is not supported by your browser.");
+      setNotice("Geolocation isn't supported here. Use the map below to place the pin manually.", "error");
       return;
     }
 
     if (locationDenied) {
-      setLocationError("Location access is blocked. Please enable it in your browser settings, then try again.");
+      setNotice("Location access is blocked. Enable it in your browser settings, then try again — or place the pin manually below.", "error");
       return;
     }
 
+    userMovedRef.current = false;
     setIsDetectingLocation(true);
-    setLocationError(null);
+    setNotice(null);
 
+    // Phase 1: a fast, low-accuracy fix. High accuracy is slow (and on laptops
+    // without GPS, usually times out), so we get a quick coarse position first
+    // and refine afterwards.
     navigator.geolocation.getCurrentPosition(
       (position) => {
+        const acc = Number.isFinite(position.coords.accuracy) ? position.coords.accuracy : null;
         const lat = Number(position.coords.latitude.toFixed(6));
         const lng = Number(position.coords.longitude.toFixed(6));
 
-        emitLocation(lat, lng, {
-          source: "gps",
-          accuracy: Number.isFinite(position.coords.accuracy) ? position.coords.accuracy : null,
-        });
-
-        if (mapRef.current) {
-          mapRef.current.easeTo({
-            center: [lng, lat],
-            zoom: 17,
-            duration: 800,
-            essential: true,
-          });
-        }
-
         setLocationDenied(false);
         setIsDetectingLocation(false);
-        const acc = Number.isFinite(position.coords.accuracy) ? position.coords.accuracy : null;
-        setLocationDetected({ accuracy: acc });
-        if (successTimerRef.current) clearTimeout(successTimerRef.current);
-        successTimerRef.current = setTimeout(() => setLocationDetected(null), 10000);
+        setNotice(null);
+        applyFix(lat, lng, acc, 16);
+
+        // Refine in the background only if the coarse fix is loose.
+        if (acc === null || acc > 50) refineHighAccuracy();
       },
       (error) => {
-        if (hasValidCoordinates(latitude, longitude) && error.code !== error.PERMISSION_DENIED) {
-          setLocationError(null);
-          setLocationDetected((current) => current ?? { accuracy: null });
-          setIsDetectingLocation(false);
-          return;
-        }
+        setIsDetectingLocation(false);
 
         if (error.code === error.PERMISSION_DENIED) {
           setLocationDenied(true);
-          setLocationError("Location access was denied. Open your browser site settings and allow location, then tap the button again.");
-        } else if (error.code === error.POSITION_UNAVAILABLE) {
-          setLocationError("Your location is currently unavailable. Try moving to an open area.");
-        } else if (error.code === error.TIMEOUT) {
-          setLocationError("Location request timed out. Tap again to retry.");
-        } else {
-          setLocationError("Could not get your location. Please try again.");
+          setNotice("Location access was denied. Allow it in your browser site settings, or just place the pin manually on the map below.", "error");
+          return;
         }
-        setIsDetectingLocation(false);
+
+        // Fail soft: if we already have a coordinate (GPS earlier, an address
+        // seed, or a saved draft), don't alarm — nudge them to fine-tune the pin.
+        if (hasValidCoordinates(latitude, longitude)) {
+          setNotice("Couldn't auto-detect precisely. Open the map and drag the pin to your property entrance.", "info");
+          return;
+        }
+
+        if (error.code === error.TIMEOUT) {
+          setNotice("Detection is taking too long. Place the pin manually on the map below, or tap to retry.", "info");
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+          setNotice("Your location is currently unavailable. Place the pin manually on the map below.", "info");
+        } else {
+          setNotice("Couldn't get your location. Place the pin manually on the map below, or tap to retry.", "info");
+        }
       },
       {
-        enableHighAccuracy: true,
-        timeout: 8000,
-        maximumAge: 30000,
+        enableHighAccuracy: false,
+        timeout: 15000,
+        maximumAge: 60000,
       }
     );
-  }, [emitLocation, latitude, locationDenied, longitude]);
+  }, [applyFix, latitude, locationDenied, longitude, refineHighAccuracy, setNotice]);
+
+  // Forward-geocode the entered address into an approximate starting pin so a
+  // real coordinate always exists even when GPS is unavailable. Fires once and
+  // never overrides an existing coordinate.
+  const seedFromAddress = useCallback(
+    async (query: string, token: string) => {
+      if (seededRef.current) return;
+      if (!query || !token) return;
+      if (hasValidCoordinates(latitude, longitude)) return;
+      seededRef.current = true;
+      try {
+        const url =
+          "https://api.mapbox.com/geocoding/v5/mapbox.places/" +
+          encodeURIComponent(query) +
+          ".json?country=tz&limit=1&access_token=" +
+          token;
+        const resp = await fetch(url);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const center = data?.features?.[0]?.center;
+        if (!Array.isArray(center) || center.length < 2) return;
+        const lng = Number(center[0]);
+        const lat = Number(center[1]);
+        if (!hasValidCoordinates(lat, lng)) return;
+        if (hasValidCoordinates(latitude, longitude)) return; // coords arrived meanwhile
+        // Source "pin" + null accuracy => treated as approximate, not a GPS lock.
+        emitLocation(Number(lat.toFixed(6)), Number(lng.toFixed(6)), { source: "pin", accuracy: null });
+        if (mapRef.current) {
+          mapRef.current.easeTo({ center: [lng, lat], zoom: 13, duration: 600, essential: true });
+        }
+        setNotice("Approximate location set from your address. Open the map to drag the pin onto the exact spot.", "info");
+      } catch {
+        /* geocoding is best-effort — ignore failures */
+      }
+    },
+    [emitLocation, latitude, longitude, setNotice]
+  );
 
   const openMap = useCallback(() => {
     setHasInitialized(true);
@@ -202,20 +286,21 @@ export const PropertyLocationMap = memo(function PropertyLocationMap({
     import("mapbox-gl").catch(() => {});
   }, []);
 
-  // Auto-trigger GPS detection on first mount so the user doesn't have to
-  // tap anything — location pinpoints automatically.
+  // Resolve the map/geocoding token up front so the address seed can run even
+  // before the map panel is opened.
   useEffect(() => {
-    if (typeof navigator !== "undefined" && navigator.geolocation) {
-      detectLocation();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Fetch token as soon as the map panel is first opened.
-  useEffect(() => {
-    if (!hasInitialized) return;
     return requestRuntimeToken();
-  }, [hasInitialized, requestRuntimeToken]);
+  }, [requestRuntimeToken]);
+
+  // Seed an approximate pin from the entered address — once, and only if no
+  // coordinate exists yet. We deliberately do NOT auto-fire a GPS prompt on
+  // mount: that was what produced the unsolicited "timed out" error on laptops.
+  useEffect(() => {
+    if (!tokenResolved || !mapToken) return;
+    if (!addressQuery) return;
+    if (hasValidCoordinates(latitude, longitude)) return;
+    void seedFromAddress(addressQuery, mapToken);
+  }, [addressQuery, latitude, longitude, mapToken, seedFromAddress, tokenResolved]);
 
   // Map init — runs ONCE when hasInitialized becomes true and token is ready.
   // The map is NEVER removed on close; only the CSS display changes.
@@ -306,7 +391,14 @@ export const PropertyLocationMap = memo(function PropertyLocationMap({
           setMapInitError(event?.error?.message || "Unable to initialize the map.");
         };
 
+        const handleUserMove = (event: any) => {
+          // originalEvent is present only for user-driven gestures, not easeTo().
+          if (event && event.originalEvent) userMovedRef.current = true;
+        };
+
         map.once("render", handleLoad);
+        map.on("dragstart", handleUserMove);
+        map.on("zoomstart", handleUserMove);
         map.on("moveend", handleMoveEnd);
         map.on("error", handleError);
         mapRef.current = map;
@@ -379,10 +471,13 @@ export const PropertyLocationMap = memo(function PropertyLocationMap({
   const hasCoords = hasValidCoordinates(latitude, longitude);
 
   useEffect(() => {
-    if (hasCoords && locationError && !locationDenied) {
+    // Only dismiss hard errors once coords exist. Soft "info" hints (e.g. "drag
+    // the pin to the exact spot") stay visible because they apply even with a
+    // pin already set.
+    if (hasCoords && locationError && errorTone === "error" && !locationDenied) {
       setLocationError(null);
     }
-  }, [hasCoords, locationDenied, locationError]);
+  }, [errorTone, hasCoords, locationDenied, locationError]);
 
   return (
     <div className="w-full">
@@ -546,12 +641,23 @@ export const PropertyLocationMap = memo(function PropertyLocationMap({
               );
             })() : null}
 
-            {/* Location error */}
-            {locationError && !hasCoords ? (
-              <div className="flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-3">
-                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
-                <p className="text-[11px] leading-relaxed text-rose-700">{locationError}</p>
-              </div>
+            {/* Location notice — soft "info" hints stay visible even with a pin;
+                hard "error" notices only show when there's no coordinate yet. */}
+            {locationError && (errorTone === "info" || !hasCoords) ? (
+              errorTone === "info" ? (
+                <div
+                  className="flex items-start gap-2.5 rounded-xl border px-3.5 py-3"
+                  style={{ borderColor: "rgba(2,102,94,0.22)", background: "rgba(2,102,94,0.06)" }}
+                >
+                  <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-[#02665e]" />
+                  <p className="text-[11px] leading-relaxed text-[#02665e]">{locationError}</p>
+                </div>
+              ) : (
+                <div className="flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-3">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
+                  <p className="text-[11px] leading-relaxed text-rose-700">{locationError}</p>
+                </div>
+              )
             ) : null}
           </div>
         </div>
@@ -562,8 +668,8 @@ export const PropertyLocationMap = memo(function PropertyLocationMap({
       <div style={{ display: hasInitialized ? (isOpen ? "block" : "none") : "none" }}>
         <div className="space-y-2">
           <div className="flex items-center gap-2 px-1">
-            <LocateFixed className="h-4 w-4 shrink-0 text-emerald-600" />
-            <p className="text-[12px] font-medium text-slate-600">
+            <LocateFixed className="h-4 w-4 shrink-0 text-emerald-300" />
+            <p className="text-[12px] font-medium text-white/80">
               Move the map so the blue pin sits exactly on your property entrance, then close.
             </p>
           </div>

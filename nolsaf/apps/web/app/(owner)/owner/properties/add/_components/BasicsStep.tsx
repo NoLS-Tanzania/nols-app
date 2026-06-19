@@ -389,6 +389,15 @@ const handleSectionRef = useCallback(
     setLocationAccuracy(meta?.accuracy ?? null);
   }, [setLatitude, setLongitude]);
 
+  // Address text used to seed an approximate starting pin when no coordinate
+  // exists yet (the owner then drags it to the exact spot).
+  const locationAddressQuery = useMemo(() => {
+    const regionName = REGIONS.find((r) => r.id === regionId)?.name ?? "";
+    const parts = [ward, district, regionName].map((p) => (p || "").trim()).filter(Boolean);
+    if (parts.length === 0) return "";
+    return [...parts, "Tanzania"].join(", ");
+  }, [REGIONS, regionId, district, ward]);
+
   return (
     <AddPropertySection
       as="section"
@@ -1135,6 +1144,7 @@ const handleSectionRef = useCallback(
                       latitude={typeof latitude === "number" && Number.isFinite(latitude) ? latitude : NaN}
                       longitude={typeof longitude === "number" && Number.isFinite(longitude) ? longitude : NaN}
                       onLocationDetected={handleLocationDetected}
+                      addressQuery={locationAddressQuery}
                     />
 
                     {locationDetected ? (
@@ -1162,13 +1172,13 @@ const handleSectionRef = useCallback(
                       </div>
                     ) : (
                       <details className="mt-4 group">
-                        <summary className="cursor-pointer select-none list-none text-xs font-medium text-slate-500 hover:text-slate-700 flex items-center gap-1">
+                        <summary className="cursor-pointer select-none list-none text-xs font-semibold text-white/80 hover:text-white flex items-center gap-1">
                           <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
                           Edit coordinates manually
                         </summary>
                         <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="flex flex-col space-y-1.5">
-                            <label htmlFor="latitude" className="block text-xs font-medium text-slate-700">Latitude</label>
+                            <label htmlFor="latitude" className="block text-xs font-medium text-white/90">Latitude</label>
                             <input
                               id="latitude"
                               type="number"
@@ -1185,7 +1195,7 @@ const handleSectionRef = useCallback(
                             />
                           </div>
                           <div className="flex flex-col space-y-1.5">
-                            <label htmlFor="longitude" className="block text-xs font-medium text-slate-700">Longitude</label>
+                            <label htmlFor="longitude" className="block text-xs font-medium text-white/90">Longitude</label>
                             <input
                               id="longitude"
                               type="number"

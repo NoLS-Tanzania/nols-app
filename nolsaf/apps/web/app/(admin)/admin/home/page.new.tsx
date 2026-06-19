@@ -139,23 +139,30 @@ function MiniRing({
   className?: string;
 }) {
   const p = Math.max(0, Math.min(100, Number.isFinite(percent) ? percent : 0));
-  const r = 30;
+  // Derive stroke and radius from size so the ring never overflows its box.
+  const strokeWidth = Math.max(4, Math.round(size * 0.1));
+  const r = size / 2 - strokeWidth / 2 - 2;
   const cx = size / 2;
   const cy = size / 2;
   const c = 2 * Math.PI * r;
   const dash = (p / 100) * c;
   const gap = c - dash;
 
+  // Scale the label to fit the inner circle, accounting for digit count (e.g. "100%").
+  const label = `${Math.round(p)}%`;
+  const innerWidth = 2 * r - strokeWidth - 4;
+  const fontSize = Math.max(9, Math.min(size * 0.26, innerWidth / (label.length * 0.62)));
+
   return (
     <div className={"relative " + (className ?? "")} style={{ width: size, height: size }} aria-hidden>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        <circle cx={cx} cy={cy} r={r} stroke="rgba(255,255,255,0.22)" strokeWidth={8} fill="none" />
+        <circle cx={cx} cy={cy} r={r} stroke="rgba(255,255,255,0.22)" strokeWidth={strokeWidth} fill="none" />
         <circle
           cx={cx}
           cy={cy}
           r={r}
           stroke={color}
-          strokeWidth={8}
+          strokeWidth={strokeWidth}
           fill="none"
           strokeLinecap="round"
           strokeDasharray={`${dash} ${gap}`}
@@ -163,8 +170,11 @@ function MiniRing({
         />
       </svg>
       <div className="absolute inset-0 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-lg font-extrabold text-white tabular-nums">{Math.round(p)}%</div>
+        <div
+          className="font-extrabold text-white tabular-nums leading-none"
+          style={{ fontSize }}
+        >
+          {label}
         </div>
       </div>
     </div>
@@ -375,6 +385,48 @@ export default function AdminHomePage() {
 
     if (!label) return <span className="text-xs text-slate-400">&nbsp;</span>;
     return <span className="text-xs text-slate-400 whitespace-nowrap tabular-nums">{label}</span>;
+  }
+
+  function RelativeTime({ iso }: { iso?: string | null }) {
+    const [rel, setRel] = useState<string | null>(null);
+    const [abs, setAbs] = useState<string>("");
+    useEffect(() => {
+      if (!iso) return;
+      const compute = () => {
+        const d = new Date(iso);
+        if (!Number.isFinite(d.getTime())) {
+          setRel(iso || null);
+          return;
+        }
+        const date = d.toLocaleDateString(undefined, { year: "numeric", month: "2-digit", day: "2-digit" });
+        const time = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+        setAbs(`${date}, ${time}`);
+
+        const diffMs = Date.now() - d.getTime();
+        const sec = Math.round(diffMs / 1000);
+        if (sec < 45) {
+          setRel("just now");
+        } else if (sec < 3600) {
+          setRel(`${Math.round(sec / 60)}m ago`);
+        } else if (sec < 86400) {
+          setRel(`${Math.round(sec / 3600)}h ago`);
+        } else if (sec < 7 * 86400) {
+          setRel(`${Math.round(sec / 86400)}d ago`);
+        } else {
+          setRel(d.toLocaleDateString(undefined, { month: "short", day: "numeric" }));
+        }
+      };
+      compute();
+      const timer = setInterval(compute, 60_000);
+      return () => clearInterval(timer);
+    }, [iso]);
+
+    if (!rel) return <span className="text-xs text-slate-500 shrink-0">&nbsp;</span>;
+    return (
+      <time title={abs} className="text-xs text-slate-500 whitespace-nowrap shrink-0 tabular-nums">
+        {rel}
+      </time>
+    );
   }
 
   const formatAuditAction = (value: unknown) => {
@@ -1541,22 +1593,21 @@ export default function AdminHomePage() {
                           return (
                             <li
                               key={a.id ?? `${a.action}-${a.createdAt ?? ""}`}
-                              className="py-3 px-3 rounded-xl hover:bg-white/5 transition-colors duration-200"
+                              className="py-2.5 px-3 rounded-xl hover:bg-white/5 transition-colors duration-200"
                             >
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0 flex items-start gap-3">
-                                  <div className={"mt-1.5 h-2.5 w-2.5 rounded-full shrink-0 " + tone.dot} aria-hidden />
-                                  <div className="min-w-0">
-                                    <div className="min-w-0 flex flex-wrap items-center gap-2">
-                                      <span className={"inline-flex items-center rounded-lg border px-2 py-0.5 text-xs font-semibold " + tone.pill}>
-                                        {String(a.action ?? "Activity")}
-                                      </span>
-                                      <span className="text-sm font-semibold text-white truncate">{formatAuditAction(a.action)}</span>
-                                    </div>
-                                    <div className="text-xs text-slate-400 truncate mt-1">{detailsText || "--"}</div>
+                              <div className="flex items-start gap-3">
+                                <div className={"mt-1.5 h-2 w-2 rounded-full shrink-0 " + tone.dot} aria-hidden />
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-start justify-between gap-3">
+                                    <span className="text-sm font-semibold text-white leading-snug">
+                                      {formatAuditAction(a.action)}
+                                    </span>
+                                    <RelativeTime iso={a.createdAt} />
                                   </div>
+                                  {detailsText ? (
+                                    <div className="text-xs text-slate-400 mt-0.5 break-words">{detailsText}</div>
+                                  ) : null}
                                 </div>
-                                <ClientTime iso={a.createdAt} />
                               </div>
                             </li>
                           );

@@ -1,7 +1,7 @@
 import Image from "next/image";
 import PicturesUploader from "@/components/PicturesUploader";
 import type { Dispatch, SetStateAction } from "react";
-import { Minus, Plus, Lock, CheckCircle2, ChevronDown } from "lucide-react";
+import { Minus, Plus, CheckCircle2, ChevronDown, Bath, Camera, ArrowRight, Circle, Cigarette, CigaretteOff, Info } from "lucide-react";
 import { BATHROOM_ICONS, OTHER_AMENITIES_ICONS } from "@/lib/amenityIcons";
 import { useEffect, useMemo, useState } from "react";
 import { AddPropertySection } from "./AddPropertySection";
@@ -106,9 +106,13 @@ export function RoomsStep({
   const bedsPerRoom = useMemo(() => {
     return Object.values(beds || {}).reduce((sum, n) => sum + (Number(n) || 0), 0);
   }, [beds]);
-
   const roomCountNum = typeof roomsCount === "number" ? roomsCount : 0;
-  const totalBeds = bedsPerRoom * (roomCountNum || 0);
+  const selectedBedsSummary = ["twin", "full", "queen", "king"]
+    .filter((key) => Number(beds?.[key]) > 0)
+    .map((key) => `${beds[key]} ${key.charAt(0).toUpperCase() + key.slice(1)}`)
+    .join(" + ");
+  const selectedBedTypeCount = ["twin", "full", "queen", "king"].filter((key) => Number(beds?.[key]) > 0).length;
+  const shouldConfirmMixedBeds = roomCountNum > 1 && selectedBedTypeCount > 1;
 
   const roomTypeOk = String(roomType || "").trim().length > 0;
   const roomsCountOk = roomCountNum > 0;
@@ -140,6 +144,15 @@ export function RoomsStep({
 
   const floorsOk = !isMultiStorey || (roomFloors.length > 0 && roomsCountOk && floorDistSum === roomCountNum);
   const canAddRoomType = roomTypeOk && roomsCountOk && bedsOk && roomImagesOk && priceOk && floorsOk;
+  const roomSetupOk = roomTypeOk && roomsCountOk && bedsOk && floorsOk;
+  const requiredChecks = [
+    { label: "Room type", done: roomTypeOk },
+    { label: "Rooms & beds", done: roomsCountOk && bedsOk && floorsOk },
+    { label: "3 photos", done: roomImagesOk },
+    { label: "Nightly price", done: priceOk },
+  ];
+  const completedChecks = requiredChecks.filter((item) => item.done).length;
+  const savedRoomTypeNames = Array.from(new Set((definedRooms || []).map((room) => String(room?.roomType || "").trim()).filter(Boolean)));
 
   // Initialize + keep distribution consistent
   useEffect(() => {
@@ -221,429 +234,561 @@ export function RoomsStep({
     });
   };
 
+  const moveRoomToFloor = (targetFloor: number) => {
+    setRoomFloorDistribution((prev) => {
+      const next = { ...prev };
+      const assigned = roomFloors.reduce((sum, floor) => sum + Number(next[floor] || 0), 0);
+      if (assigned >= roomCountNum) {
+        const donor = roomFloors
+          .filter((floor) => floor !== targetFloor && Number(next[floor] || 0) > 0)
+          .sort((a, b) => Number(next[b] || 0) - Number(next[a] || 0))[0];
+        if (donor === undefined) return prev;
+        next[donor] = Number(next[donor] || 0) - 1;
+      }
+      next[targetFloor] = Number(next[targetFloor] || 0) + 1;
+      return next;
+    });
+  };
+
+  const moveRoomFromFloor = (sourceFloor: number) => {
+    setRoomFloorDistribution((prev) => {
+      if (Number(prev?.[sourceFloor] || 0) <= 0) return prev;
+      const receiver = roomFloors
+        .filter((floor) => floor !== sourceFloor)
+        .sort((a, b) => a - b)[0];
+      if (receiver === undefined) return prev;
+      return {
+        ...prev,
+        [sourceFloor]: Number(prev[sourceFloor] || 0) - 1,
+        [receiver]: Number(prev[receiver] || 0) + 1,
+      };
+    });
+  };
+
+  const inputClass =
+    "w-full h-12 rounded-xl border-2 border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder-gray-400 shadow-sm transition-all hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500";
+
   return (
     <AddPropertySection
       as="section"
       sectionRef={sectionRef}
       isVisible={isVisible}
-      className="add-property-section-premium"
+      className="bg-white rounded-xl border border-slate-200 p-4 sm:p-6 shadow-sm"
     >
       {isVisible && (
-        <div className="min-w-0 w-full">
-          <div className="flex items-start justify-between gap-4 border-b border-white/15 pb-4">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full border border-white/20 bg-white/15 text-xs font-semibold text-white">
-                  2
-                </span>
-                <h2 className="truncate text-base font-semibold text-white sm:text-lg">Room types</h2>
+        <div className="w-full">
+          <div className="flex flex-col gap-4 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="inline-flex h-9 min-w-9 items-center justify-center rounded-full bg-emerald-600 text-sm font-bold text-white">2</span>
+              <div className="min-w-0">
+                <h2 className="text-lg font-bold text-gray-900 sm:text-xl">Set up your rooms</h2>
+                <p className="mt-0.5 text-sm text-gray-500">Group identical rooms together, then add beds, photos, and price.</p>
               </div>
-              <p className="mt-1 text-sm text-white/60">
-                Define each room type, the beds per room, how many rooms you have, and upload room photos.
-              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2 rounded-lg bg-slate-100 px-3 py-2">
+              <CheckCircle2 className={`h-4 w-4 ${definedRooms.length > 0 ? "text-emerald-600" : "text-slate-400"}`} />
+              <span className="text-xs font-semibold text-slate-600">{definedRooms.length} saved</span>
             </div>
           </div>
-          <div className="space-y-5 pt-4">
 
-            {/* ── Status bar ──────────────────────────────────────────── */}
-            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#02665e] to-[#014e47] px-5 py-4 shadow-md">
-              <div
-                className="pointer-events-none absolute inset-0 opacity-10"
-                style={{ backgroundImage: "radial-gradient(circle, white 1px, transparent 1px)", backgroundSize: "20px 20px" }}
-              />
-              <div className="relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-3">
-                  <div className={`flex h-11 w-11 items-center justify-center rounded-xl text-lg font-bold transition-all ${
-                    definedRooms.length > 0 ? "bg-white/20 text-white" : "bg-white/10 text-white/60"
-                  }`}>
-                    {definedRooms.length}
-                  </div>
-                  <div>
-                    <div className="text-sm font-semibold text-white">
-                      {definedRooms.length === 0
-                        ? "No room types saved yet"
-                        : definedRooms.length === 1
-                        ? "1 room type saved"
-                        : `${definedRooms.length} room types saved`}
+          <div className="pt-4 space-y-6">
+
+            {/* Compact room-type flow */}
+            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+              <div className="flex min-w-max items-center">
+                {["Choose type", "Rooms & beds", "Photos", "Price"].map((label, index) => (
+                  <div key={label} className="flex items-center">
+                    <div className="flex items-center gap-2 px-2 sm:px-4">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white text-[11px] font-bold text-emerald-700 ring-1 ring-emerald-200">{index + 1}</span>
+                      <span className="text-xs font-semibold text-slate-600">{label}</span>
                     </div>
-                    <div className="mt-0.5 text-xs text-[#6ee7b7]">
-                      Need at least <span className="font-bold">1</span> to continue
-                    </div>
+                    {index < 3 && <ArrowRight className="h-3.5 w-3.5 shrink-0 text-slate-300" />}
                   </div>
-                </div>
-                <div className="self-start rounded-full border border-white/20 bg-white/10 px-3 py-1.5 sm:self-auto">
-                  <span className="text-xs text-white/80">Beds set are </span>
-                  <span className="text-xs font-bold text-[#6ee7b7]">per room</span>
-                </div>
+                ))}
               </div>
             </div>
 
-            {/* ── Room Setup Card ──────────────────────────────────────── */}
-            <div className="overflow-hidden rounded-2xl border border-white/15 bg-white/10 shadow-sm">
-              <div className="flex items-center gap-2 border-b border-white/15 px-5 py-3">
-                <div className="h-4 w-1 rounded-full bg-emerald-400" />
-                <span className="text-sm font-semibold text-white">Room setup</span>
-                <span className="ml-1 text-xs text-white/50">· Pick type, set beds &amp; room count</span>
+            {/* ── Room Setup Card ────────────────────────────────────── */}
+            <div className="rounded-xl border border-gray-200 bg-white p-5 sm:p-6 shadow-sm">
+              <div className="mb-6 border-b border-slate-200 pb-4">
+                <h3 className="text-xl font-bold text-gray-900">Room details</h3>
+                <p className="mt-1 text-sm text-gray-500">Describe one group of identical rooms.</p>
               </div>
-              <div className="min-w-0 space-y-6 p-5 sm:p-6">
+
+              <div className="flex flex-col gap-8">
 
                 {/* Room Type Selection */}
-                <div>
-                  <label className="mb-1 block text-sm font-semibold text-white">
-                    What type of room is this? <span className="text-red-300">*</span>
-                  </label>
-                  <p className="mb-4 text-xs text-white/50">Select the category that best fits.</p>
-                  <div
-                    role="radiogroup"
-                    aria-labelledby="roomTypeLabel"
-                    className="grid grid-cols-2 sm:grid-cols-3 gap-3"
-                  >
-                  {[
-                    { rt: "Single",  emoji: "🛏️", desc: "One guest",        idleGrad: "from-sky-50 to-blue-50/60",      selGrad: "from-sky-100 to-blue-100/70",      idleBorder: "border-sky-200",     selBorder: "border-sky-500",     iconBg: "bg-sky-100",    iconColor: "text-sky-700",    nameSel: "text-sky-800",   dot: "bg-sky-500",    shadow: "shadow-sky-300/40"   },
-                    { rt: "Double",  emoji: "🛌", desc: "Two guests",        idleGrad: "from-rose-50 to-pink-50/60",     selGrad: "from-rose-100 to-pink-100/70",     idleBorder: "border-rose-200",    selBorder: "border-rose-500",    iconBg: "bg-rose-100",   iconColor: "text-rose-700",   nameSel: "text-rose-800",  dot: "bg-rose-500",   shadow: "shadow-rose-300/40"  },
-                    { rt: "Studio",  emoji: "🏠", desc: "Open-plan space",   idleGrad: "from-violet-50 to-purple-50/60", selGrad: "from-violet-100 to-purple-100/70", idleBorder: "border-violet-200",  selBorder: "border-violet-500",  iconBg: "bg-violet-100", iconColor: "text-violet-700", nameSel: "text-violet-800",dot: "bg-violet-500", shadow: "shadow-violet-300/40"},
-                    { rt: "Suite",   emoji: "✨", desc: "Premium room",      idleGrad: "from-amber-50 to-yellow-50/60",  selGrad: "from-amber-100 to-yellow-100/70",  idleBorder: "border-amber-200",   selBorder: "border-amber-500",   iconBg: "bg-amber-100",  iconColor: "text-amber-300",  nameSel: "text-amber-300", dot: "bg-amber-500",  shadow: "shadow-amber-300/40" },
-                    { rt: "Family",  emoji: "👨‍👩‍👧", desc: "Multiple guests",  idleGrad: "from-emerald-50 to-teal-50/60",  selGrad: "from-emerald-100 to-teal-100/70",  idleBorder: "border-emerald-200", selBorder: "border-emerald-500", iconBg: "bg-emerald-100",iconColor: "text-emerald-700",nameSel: "text-emerald-800",dot: "bg-emerald-500",shadow: "shadow-emerald-300/40"},
-                    { rt: "Other",   emoji: "🏷️", desc: "Custom type",       idleGrad: "from-slate-50 to-gray-50/60",    selGrad: "from-slate-100 to-gray-100/70",    idleBorder: "border-slate-200",   selBorder: "border-slate-500",   iconBg: "bg-slate-100",  iconColor: "text-slate-700",  nameSel: "text-slate-800", dot: "bg-slate-500",  shadow: "shadow-slate-300/40" },
-                  ].map(({ rt, emoji, desc }) => {
-                    const selected = roomType === rt;
-                    const isCompleted = definedRooms.some((r) => r.roomType === rt);
-                    return (
-                      <label
-                        key={rt}
-                        onClick={() => setRoomType(rt)}
-                        className={`relative flex cursor-pointer flex-col gap-2 rounded-xl border-2 p-4 transition-all duration-200 hover:-translate-y-0.5 ${
-                          selected
-                            ? "border-[#02665e] bg-[#02665e] shadow-lg shadow-[#02665e]/20"
-                            : isCompleted
-                            ? "border-amber-400/50 bg-amber-500/15 hover:border-amber-400/70 hover:shadow-sm"
-                            : "border-white/15 bg-white/10 hover:border-white/25 hover:shadow-sm"
-                        }`}
-                      >
-                        <input type="radio" name="roomType" value={rt} checked={selected} onChange={(e) => setRoomType(e.target.value)} className="sr-only" />
-                        <div className="flex items-center gap-2">
-                          <span className="text-xl leading-none">{emoji}</span>
-                          <div>
-                            <div className={`text-sm font-bold leading-tight ${selected ? "text-white" : "text-white"}`}>{rt}</div>
-                            <div className={`mt-0.5 text-[11px] ${selected ? "text-[#6ee7b7]" : "text-white/50"}`}>{desc}</div>
-                          </div>
-                        </div>
-                        {selected && !isCompleted && (
-                          <div className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-[#6ee7b7]" />
-                        )}
-                        {isCompleted && !selected && (
-                          <div className="absolute right-2 top-2">
-                            <CheckCircle2 className="h-4 w-4 text-amber-500" />
-                          </div>
-                        )}
-                        {isCompleted && selected && (
-                          <div className="absolute right-2 top-2 rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                            Editing
-                          </div>
-                        )}
-                      </label>
-                    );
-                  })}
-                </div>
-                {definedRooms.length > 0 && (
-                  <p className="mt-3 flex items-center gap-1 text-xs text-white/50">
-                    <Lock className="h-3 w-3" />
-                    Completed types are marked. Click to edit an existing room type.
-                  </p>
-                )}
-              </div>
-
-              {/* Beds per room */}
-              <div>
-                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                  <div>
-                    <label className="mb-0.5 block text-sm font-semibold text-white">
-                      Beds per room <span className="text-white/50 font-normal">(each room has these beds)</span>
+                <div className="order-1 max-w-2xl">
+                  <div className="flex items-center justify-between gap-3">
+                    <label htmlFor="room-type" className="block text-base font-bold text-gray-900">
+                      What type of room is this? <span className="text-red-500">*</span>
                     </label>
-                    <p className="text-xs text-white/50">Use + / − to set beds inside each room.</p>
-                  </div>
-                  <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-2.5">
-                    <div className="text-xs font-bold text-white">{bedsPerRoom} beds / room</div>
-                    <div className="mt-0.5 text-xs text-white/50">
-                      {roomCountNum ? `${bedsPerRoom} × ${roomCountNum} = ${totalBeds} total` : "Set room count to see total"}
-                    </div>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {["twin", "full", "queen", "king"].map((k) => {
-                    const BedIcon = BED_ICONS[k];
-                    const bedCount = beds[k] ?? 0;
-                    return (
-                      <div
-                        key={k}
-                        className="flex items-center justify-between rounded-xl border border-white/15 bg-white/10 p-4 transition-all hover:border-white/25 hover:shadow-sm"
-                      >
-                        <div className="flex items-center gap-3">
-                          {BedIcon && (
-                            <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/15 bg-white/15">
-                              <BedIcon className="h-5 w-5 text-white" />
+                    <details className="group relative shrink-0">
+                      <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-50 [&::-webkit-details-marker]:hidden">
+                        <Info className="h-4 w-4" />
+                        Room type guide
+                      </summary>
+                      <div className="absolute right-0 z-20 mt-2 w-80 max-w-[calc(100vw-3rem)] rounded-xl border border-slate-200 bg-white p-4 shadow-xl">
+                        <p className="text-sm font-bold text-gray-900">Room type guide</p>
+                        <p className="mt-1 text-xs text-gray-500">Choose the description that best matches how guests use the room.</p>
+                        <dl className="mt-3 space-y-2.5 text-xs">
+                          {[
+                            ["Single", "A room mainly intended for one guest."],
+                            ["Double", "A room intended for two guests, usually with one larger bed."],
+                            ["Studio", "An open-plan unit where sleeping and living areas share one space."],
+                            ["Suite", "A larger premium unit with a separate or defined living area."],
+                            ["Family", "A room designed for a family or group, often with multiple beds."],
+                            ["Other", "Use when none of the listed room types accurately describe it."],
+                          ].map(([name, meaning]) => (
+                            <div key={name} className="grid grid-cols-[4.5rem_1fr] gap-2">
+                              <dt className="font-bold text-gray-900">{name}</dt>
+                              <dd className="leading-relaxed text-gray-600">{meaning}</dd>
                             </div>
-                          )}
-                          <div>
-                            <div className="text-sm font-semibold capitalize text-white">{k} bed</div>
-                            <div className="text-xs text-white/50">per room</div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            aria-label={`Remove one ${k} bed`}
-                            onClick={() => changeBed(k, -1)}
-                            disabled={bedCount === 0}
-                            className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/20 bg-white/10 text-white transition-all hover:border-white/30 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-40 active:scale-95"
-                          >
-                            <Minus className="h-4 w-4" />
-                          </button>
-                          <div className={`flex h-9 w-12 items-center justify-center rounded-lg text-sm font-bold transition-all ${
-                            bedCount > 0 ? "border border-white/25 bg-white/15 text-white" : "border border-white/10 bg-white/[0.06] text-white/40"
-                          }`}>
-                            {bedCount}
-                          </div>
-                          <button
-                            type="button"
-                            aria-label={`Add one ${k} bed`}
-                            onClick={() => changeBed(k, 1)}
-                            className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-400/80 text-white transition-all hover:bg-emerald-400 active:scale-95"
-                          >
-                            <Plus className="h-4 w-4" />
-                          </button>
-                        </div>
+                          ))}
+                        </dl>
                       </div>
-                    );
-                  })}
-                </div>
-                {roomCountNum > 0 && bedsPerRoom === 0 && (
-                  <div className="mt-3 flex items-center gap-2 rounded-lg border border-amber-400/30 bg-amber-500/15 p-3 text-xs text-amber-300">
-                    <span>⚠️</span>
-                    <span>Room count set but no beds — add at least 1 bed type.</span>
+                    </details>
                   </div>
-                )}
-                {roomCountNum === 0 && bedsPerRoom > 0 && (
-                  <div className="mt-3 flex items-center gap-2 rounded-lg border border-amber-400/30 bg-amber-500/15 p-3 text-xs text-amber-300">
-                    <span>⚠️</span>
-                    <span>Beds set but room count is empty — enter the number of rooms.</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Room Count and Smoking Section - Modern Grid Layout */}
-              {/* Room count + Smoking */}
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-white">
-                    Number of rooms <span className="text-red-300">*</span>
-                  </label>
-                  <input
-                    value={roomsCount as any}
-                    onChange={(e) => setRoomsCount(numOrEmpty(e.target.value))}
-                    type="number"
-                    min={1}
-                    placeholder="e.g. 3"
-                    className="h-12 w-full rounded-2xl border border-white/25 bg-white/95 px-4 text-slate-900 placeholder-slate-400 transition-all hover:border-slate-300 focus:border-[#02665e] focus:outline-none focus:ring-2 focus:ring-[#02665e]/15"
-                  />
-                </div>
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-white">Smoking allowed?</label>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={smoking === "yes"}
-                    onClick={() => setSmoking(smoking === "yes" ? "no" : "yes")}
-                    className="group flex h-12 items-center gap-3 rounded-2xl border border-white/20 bg-white/10 px-4 transition-all hover:bg-white/15"
+                  <select
+                    id="room-type"
+                    value={roomType}
+                    onChange={(e) => setRoomType(e.target.value)}
+                    className="mt-3 h-14 w-full rounded-lg border border-slate-400 bg-white px-4 text-base font-medium text-gray-900 outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
                   >
-                    <div className={`relative h-6 w-11 flex-shrink-0 rounded-full transition-colors duration-200 ${smoking === "yes" ? "bg-emerald-400" : "bg-white/20"}`}>
-                      <div className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${smoking === "yes" ? "translate-x-[22px]" : "translate-x-0.5"}`} />
-                    </div>
-                    <span className="text-sm font-semibold text-white">{smoking === "yes" ? "Yes" : "No"}</span>
-                  </button>
+                    <option value="">Select a room type</option>
+                    <option value="Single">Single</option>
+                    <option value="Double">Double</option>
+                    <option value="Studio">Studio</option>
+                    <option value="Suite">Suite</option>
+                    <option value="Family">Family</option>
+                    <option value="Other">Other</option>
+                  </select>
+                  <p className="mt-2 text-xs text-gray-500">Rooms with different beds or prices should be saved as separate options.</p>
                 </div>
-              </div>
 
-              {/* Floor distribution (multi-storey) */}
-              {isMultiStorey ? (
-                <div className="rounded-xl border border-white/15 bg-white/[0.06] p-4">
-                  <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <div className="text-sm font-semibold text-white">Room location</div>
-                      <p className="mt-0.5 text-xs text-white/50">Select floors and distribute rooms across them.</p>
-                    </div>
-                    {floorOptions.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!roomFloors?.length || !roomCountNum) return;
-                          const base = Math.floor(roomCountNum / roomFloors.length);
-                          const extra = roomCountNum % roomFloors.length;
-                          const next: Record<number, number> = {};
-                          roomFloors.forEach((f, idx) => { next[f] = base + (idx < extra ? 1 : 0); });
-                          setRoomFloorDistribution(next);
-                        }}
-                        disabled={!isMultiStorey || roomFloors.length === 0 || roomCountNum <= 0}
-                        className="rounded-lg border border-white/20 bg-white/10 px-4 py-2 text-xs font-semibold text-white transition-all hover:border-white/30 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        Auto distribute
-                      </button>
-                    )}
+                {/* Beds: inside ONE room of this type */}
+                <div className="order-3 border-t border-slate-200 pt-7">
+                  <div className="mb-5">
+                    <h4 className="text-base font-bold text-gray-900 sm:text-lg">What beds are available in one {roomTypeOk ? roomType : "room"}?</h4>
+                    <p className="mt-1 text-sm text-gray-500">Add only the beds physically inside one room. Mixed bed types are allowed when the room really contains them.</p>
                   </div>
-                  {floorOptions.length === 0 ? (
-                    <div className="rounded-lg border border-amber-400/30 bg-amber-500/15 p-3 text-xs text-amber-300">
-                      Please set <span className="font-semibold">Total floors</span> in Step 1 (Basics) to enable floor selection.
+
+                  <div className="grid max-w-3xl grid-cols-1 gap-2">
+                    {[
+                      { key: "twin", label: "Twin", size: "Approx. 99 × 191 cm", sleeps: "Usually sleeps 1" },
+                      { key: "full", label: "Full", size: "Approx. 137 × 191 cm", sleeps: "Usually sleeps 2" },
+                      { key: "queen", label: "Queen", size: "Approx. 152 × 203 cm", sleeps: "Usually sleeps 2" },
+                      { key: "king", label: "King", size: "Approx. 193 × 203 cm", sleeps: "Usually sleeps 2" },
+                    ].map(({ key: k, label, size, sleeps }) => {
+                      const BedIcon = BED_ICONS[k];
+                      const bedCount = beds[k] ?? 0;
+                      return (
+                        <div
+                          key={k}
+                          className={`flex flex-col gap-3 rounded-lg border bg-white p-3 transition-all sm:flex-row sm:items-center sm:justify-between ${bedCount > 0 ? "border-blue-400" : "border-slate-200 hover:border-blue-300"}`}
+                        >
+                          <div className="flex items-start gap-3">
+                            {BedIcon && (
+                              <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${bedCount > 0 ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
+                                <BedIcon className="h-5 w-5" />
+                              </span>
+                            )}
+                            <div className="min-w-0">
+                              <div className="text-sm font-bold text-gray-900">{label} bed</div>
+                              <div className="mt-0.5 text-[11px] text-gray-500">{size}</div>
+                              <div className="mt-0.5 text-[11px] font-medium text-gray-600">{sleeps}</div>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between border-t border-slate-100 pt-3 sm:justify-end sm:border-0 sm:pt-0">
+                            <span className="text-xs font-medium text-gray-500 sm:hidden">Number in this room</span>
+                            <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              aria-label={`Remove one ${k} bed`}
+                              onClick={() => changeBed(k, -1)}
+                              disabled={bedCount === 0}
+                              className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-600 transition-all hover:border-gray-400 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 active:scale-95"
+                            >
+                              <Minus className="h-4 w-4" />
+                            </button>
+                            <div className={`flex h-9 w-12 items-center justify-center rounded-lg text-sm font-bold transition-all ${
+                              bedCount > 0 ? "border-2 border-emerald-200 bg-emerald-50 text-emerald-700" : "border border-gray-200 bg-gray-50 text-gray-400"
+                            }`}>
+                              {bedCount}
+                            </div>
+                            <button
+                              type="button"
+                              aria-label={`Add one ${k} bed`}
+                              onClick={() => changeBed(k, 1)}
+                              className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-600 text-white transition-all hover:bg-emerald-700 active:scale-95"
+                            >
+                              <Plus className="h-4 w-4" />
+                            </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className={`mt-4 rounded-xl border px-4 py-3 ${
+                    shouldConfirmMixedBeds ? "border-amber-300 bg-amber-50" : bedsPerRoom > 0 ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-white"
+                  }`}>
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-xs font-medium text-gray-500">This setup will apply to every {roomTypeOk ? roomType : "room"}</p>
+                        <p className="mt-0.5 text-sm font-bold text-gray-900">{bedsPerRoom > 0 ? selectedBedsSummary : "No beds selected yet"}</p>
+                      </div>
+                      {roomCountNum > 0 && bedsPerRoom > 0 && <p className="text-xs font-semibold text-emerald-700">Bed setup selected</p>}
                     </div>
-                  ) : (
-                    <>
-                      <div className="flex flex-wrap gap-2">
-                        {floorOptions.map((f) => {
-                          const selected = roomFloors.includes(f);
+                  </div>
+                  {shouldConfirmMixedBeds && (
+                    <div className="mt-3 rounded-xl border border-amber-300 bg-white p-4 text-xs text-amber-950">
+                      <p className="font-bold">Are these bed types together inside every room?</p>
+                      <p className="mt-1.5 leading-relaxed">
+                        Your current setup means all {roomCountNum} {roomType || "rooms"} contain <strong>{selectedBedsSummary}</strong> each.
+                      </p>
+                      <p className="mt-2 leading-relaxed text-amber-800">
+                        If the beds belong to different rooms, save separate options instead—for example, <strong>3 Single rooms with 1 Queen</strong>, then <strong>2 Single rooms with 1 King</strong>. Each option can still be distributed across Ground and 1st floor.
+                      </p>
+                    </div>
+                  )}
+                  {roomCountNum > 0 && bedsPerRoom === 0 && (
+                    <div className="mt-3 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
+                      <span>⚠️</span>
+                      <span>Room count set but no beds — add at least 1 bed type.</span>
+                    </div>
+                  )}
+                  {roomCountNum === 0 && bedsPerRoom > 0 && (
+                    <div className="mt-3 flex items-center gap-2 rounded-lg border border-sky-200 bg-sky-50 p-3 text-xs text-sky-700">
+                      <ArrowRight className="h-4 w-4 shrink-0" />
+                      <span>Good. Next, enter how many rooms have this exact bed setup.</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Rooms: how many of this type + rules */}
+                <div className="order-2 border-t border-slate-200 pt-7">
+                  <div className="mb-5">
+                    <div className="text-base font-bold text-gray-900 sm:text-lg">
+                      How many {roomTypeOk ? `${roomType} rooms` : "rooms of this type"} are in this building?
+                    </div>
+                    <p className="mt-1 text-sm text-gray-500">Count only rooms with the same bed setup, photos, and nightly rate.</p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+                    <div className="rounded-xl border border-emerald-200 bg-white p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <label htmlFor="rooms-count" className="block text-sm font-bold text-gray-900">
+                            Number of {roomTypeOk ? roomType : "identical"} rooms <span className="text-red-500">*</span>
+                          </label>
+                          <p className="mt-1 text-xs text-gray-500">Enter the total available in this building.</p>
+                        </div>
+                        {roomsCountOk && <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />}
+                      </div>
+                      <div className="mt-4 flex items-stretch gap-2">
+                        <button
+                          type="button"
+                          aria-label="Remove one room"
+                          onClick={() => setRoomsCount(roomCountNum <= 1 ? "" : roomCountNum - 1)}
+                          disabled={roomCountNum === 0}
+                          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          <Minus className="h-4 w-4" />
+                        </button>
+                        <div className="relative min-w-0 flex-1">
+                          <input
+                            id="rooms-count"
+                            value={roomsCount as any}
+                            onChange={(e) => setRoomsCount(numOrEmpty(e.target.value))}
+                            type="number"
+                            min={1}
+                            placeholder="0"
+                            className="h-12 w-full rounded-xl border-2 border-slate-300 bg-white px-4 pr-20 text-center text-lg font-bold text-gray-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                          />
+                          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-400">rooms</span>
+                        </div>
+                        <button
+                          type="button"
+                          aria-label="Add one room"
+                          onClick={() => setRoomsCount(roomCountNum + 1)}
+                          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white transition hover:bg-emerald-700 active:scale-95"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-white p-4">
+                      <div>
+                        <p className="text-sm font-bold text-gray-900">Smoking policy</p>
+                        <p className="mt-1 text-xs text-gray-500">Is smoking allowed inside these rooms?</p>
+                      </div>
+                      <div className="mt-4 grid grid-cols-2 gap-2" role="radiogroup" aria-label="Smoking allowed">
+                        {[
+                          { value: "no" as const, label: "No", icon: CigaretteOff },
+                          { value: "yes" as const, label: "Yes", icon: Cigarette },
+                        ].map(({ value, label, icon: SmokingIcon }) => {
+                          const selected = smoking === value;
                           return (
                             <button
-                              key={f}
+                              key={value}
                               type="button"
-                              onClick={() => {
-                                setRoomFloors((prev) => {
-                                  const has = prev.includes(f);
-                                  const next = has ? prev.filter((x) => x !== f) : [...prev, f].sort((a, b) => a - b);
-                                  return next;
-                                });
-                                setRoomFloorDistribution((prev) => {
-                                  const next = { ...prev };
-                                  if (roomFloors.includes(f)) {
-                                    delete (next as any)[f];
-                                  } else {
-                                    next[f] = next[f] ?? 0;
-                                  }
-                                  return next;
-                                });
-                              }}
-                              aria-pressed={selected}
-                              className={`rounded-lg border px-4 py-2 text-sm font-semibold transition-all duration-200 ${
-                                selected
-                                  ? "border-emerald-400 bg-emerald-400/80 text-white shadow-sm"
-                                  : "border-white/15 bg-white/10 text-white/70 hover:border-white/25 hover:bg-white/15"
+                              role="radio"
+                              aria-checked={selected}
+                              onClick={() => setSmoking(value)}
+                              className={`flex h-12 items-center justify-center gap-2 rounded-xl border text-sm font-bold transition ${
+                                selected ? "border-emerald-500 bg-emerald-50 text-emerald-700 ring-1 ring-emerald-500" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
                               }`}
                             >
-                              {floorLabel(f)}
+                              <SmokingIcon className="h-4 w-4" />
+                              {label}
                             </button>
                           );
                         })}
                       </div>
-                      {roomFloors.length === 0 && (
-                        <div className="mt-3 flex items-center gap-2 rounded-lg border border-red-400/30 bg-red-500/15 p-3 text-xs text-red-300">
-                          <span>⚠️</span>
-                          <span>Select at least one floor for this room type.</span>
+                      <p className="mt-3 text-xs text-gray-500">Guests will see this rule before booking.</p>
+                    </div>
+                  </div>
+
+                  {/* Floor distribution (multi-storey) */}
+                  {isMultiStorey ? (
+                    <div className="mt-4 min-w-0 rounded-xl border border-gray-200 bg-white p-4">
+                      <div className="mb-4 flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-gray-900">Room location</div>
+                          <p className="mt-0.5 text-xs text-gray-500">Select floors and distribute rooms across them.</p>
                         </div>
-                      )}
-                      {roomFloors.length > 0 && (
-                        <div className="mt-4 rounded-xl border border-white/15 bg-white/[0.08] p-4">
-                          <div className="mb-4 flex items-center justify-between gap-3">
-                            <div className="text-xs text-white/60">
-                              Distribute <span className="font-bold text-white">{roomCountNum || 0}</span> rooms across{" "}
-                              <span className="font-bold text-white">{roomFloors.length}</span> floor{roomFloors.length !== 1 ? "s" : ""}
-                            </div>
-                            <div className={`rounded-lg border px-3 py-1 text-xs font-bold ${
-                              floorDistSum === (roomCountNum || 0)
-                                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                                : "border-amber-400/30 bg-amber-500/15 text-amber-300"
-                            }`}>
-                              {floorDistSum}/{roomCountNum || 0}
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                            {roomFloors.map((f) => (
-                              <div key={f} className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.06] p-3">
-                                <div className="flex items-center gap-2">
-                                  <div className="flex h-7 w-7 items-center justify-center rounded-md bg-white/15 text-xs font-bold text-white">
-                                    {f === 0 ? "G" : f}
-                                  </div>
-                                  <span className="text-sm font-medium text-white/70">{floorLabel(f)} floor</span>
-                                </div>
-                                <input
-                                  type="number"
-                                  min={0}
-                                  value={(roomFloorDistribution?.[f] ?? 0) as any}
-                                  onChange={(e) => {
-                                    const v = e.target.value ? parseInt(e.target.value, 10) : 0;
-                                    setRoomFloorDistribution((prev) => ({ ...prev, [f]: Number.isFinite(v) ? Math.max(0, v) : 0 }));
+                      </div>
+                      {floorOptions.length === 0 ? (
+                        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
+                          Please set <span className="font-semibold">Total floors</span> in Step 1 (Basics) to enable floor selection.
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                            {floorOptions.map((f) => {
+                              const selected = roomFloors.includes(f);
+                              return (
+                                <button
+                                  key={f}
+                                  type="button"
+                                  onClick={() => {
+                                    setRoomFloors((prev) => {
+                                      const has = prev.includes(f);
+                                      const next = has ? prev.filter((x) => x !== f) : [...prev, f].sort((a, b) => a - b);
+                                      return next;
+                                    });
+                                    setRoomFloorDistribution((prev) => {
+                                      const next = { ...prev };
+                                      if (roomFloors.includes(f)) {
+                                        delete (next as any)[f];
+                                      } else {
+                                        next[f] = next[f] ?? 0;
+                                      }
+                                      return next;
+                                    });
                                   }}
-                                  className="h-9 w-20 rounded-lg border border-white/20 bg-white/90 text-center text-sm font-semibold text-slate-900 focus:border-[#02665e] focus:outline-none focus:ring-1 focus:ring-[#02665e]/20"
-                                  aria-label={`Rooms on ${floorLabel(f)} floor`}
-                                />
-                              </div>
-                            ))}
+                                  aria-pressed={selected}
+                                  className={`shrink-0 snap-start rounded-lg border px-4 py-2 text-sm font-semibold transition-all duration-200 ${
+                                    selected
+                                      ? "border-emerald-600 bg-emerald-600 text-white shadow-sm"
+                                      : "border-gray-200 bg-white text-gray-700 hover:border-emerald-300 hover:bg-emerald-50/40"
+                                  }`}
+                                >
+                                  {floorLabel(f)}
+                                </button>
+                              );
+                            })}
                           </div>
-                          {roomCountNum > 0 && floorDistSum !== roomCountNum && (
-                            <div className="mt-3 flex items-center gap-2 rounded-lg border border-amber-400/30 bg-amber-500/15 p-3 text-xs text-amber-300">
+                          {floorOptions.length > 4 && (
+                            <p className="mt-1 text-[11px] text-gray-400 sm:hidden">Swipe sideways to see more floors</p>
+                          )}
+                          {roomFloors.length === 0 && (
+                            <div className="mt-3 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">
                               <span>⚠️</span>
-                              <span>Distribution ({floorDistSum}) does not match total rooms ({roomCountNum}).</span>
+                              <span>Select at least one floor for this room type.</span>
                             </div>
                           )}
-                        </div>
+                          {roomFloors.length > 0 && (
+                            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-bold text-gray-900">Room allocation</p>
+                                  <p className="mt-0.5 text-xs text-gray-500">Use + to move rooms between floors automatically.</p>
+                                </div>
+                                <div className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ${
+                                  floorDistSum === (roomCountNum || 0) ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
+                                }`}>
+                                  {floorDistSum} of {roomCountNum || 0} assigned
+                                </div>
+                              </div>
+                              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-200">
+                                <div
+                                  className={`h-full rounded-full transition-all ${floorDistSum === (roomCountNum || 0) ? "bg-emerald-500" : "bg-amber-400"}`}
+                                  style={{ width: `${Math.min(100, roomCountNum > 0 ? (floorDistSum / roomCountNum) * 100 : 0)}%` }}
+                                />
+                              </div>
+                              <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                {roomFloors.map((f) => (
+                                  <div key={f} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-3">
+                                    <div className="flex items-center gap-2">
+                                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-xs font-bold text-emerald-700">
+                                        {f === 0 ? "G" : f}
+                                      </div>
+                                      <div>
+                                        <span className="block text-sm font-semibold text-gray-800">{floorLabel(f)} floor</span>
+                                        <span className="block text-[11px] text-gray-400">Rooms on this floor</span>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                      <button
+                                        type="button"
+                                        aria-label={`Move one room away from ${floorLabel(f)} floor`}
+                                        onClick={() => moveRoomFromFloor(f)}
+                                        disabled={Number(roomFloorDistribution?.[f] || 0) === 0 || roomFloors.length < 2}
+                                        className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-35"
+                                      >
+                                        <Minus className="h-3.5 w-3.5" />
+                                      </button>
+                                      <span className="flex h-9 min-w-10 items-center justify-center rounded-lg bg-slate-100 px-2 text-sm font-bold text-gray-900">
+                                        {roomFloorDistribution?.[f] ?? 0}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        aria-label={`Move one room to ${floorLabel(f)} floor`}
+                                        onClick={() => moveRoomToFloor(f)}
+                                        disabled={roomCountNum <= 0 || Number(roomFloorDistribution?.[f] || 0) >= roomCountNum || (floorDistSum >= roomCountNum && !roomFloors.some((floor) => floor !== f && Number(roomFloorDistribution?.[floor] || 0) > 0))}
+                                        className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                                      >
+                                        <Plus className="h-3.5 w-3.5" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                              {roomCountNum > 0 && floorDistSum !== roomCountNum && (
+                                <div className="mt-3 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
+                                  <span>⚠️</span>
+                                  <span>Distribution ({floorDistSum}) does not match total rooms ({roomCountNum}).</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </>
                       )}
-                    </>
+                    </div>
+                  ) : (
+                    <div className="mt-4 flex items-start gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4 text-xs text-gray-500">
+                      <span className="mt-0.5 text-base">🏠</span>
+                      <span>
+                        {buildingType === "single_storey"
+                          ? "Single storey: all rooms will be placed on the ground floor."
+                          : buildingType === "separate_units"
+                          ? "Separate units: rooms are spread across different units (no floor levels)."
+                          : "All rooms will be on the ground floor."}
+                      </span>
+                    </div>
                   )}
+
                 </div>
-              ) : (
-                <div className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[0.06] p-4 text-xs text-white/50">
-                  <span className="mt-0.5 text-base">🏠</span>
-                  <span>
-                    {buildingType === "single_storey"
-                      ? "Single storey: all rooms will be placed on the ground floor."
-                      : buildingType === "separate_units"
-                      ? "Separate units: rooms are spread across different units (no floor levels)."
-                      : "All rooms will be on the ground floor."}
+
+                <div className={`order-4 flex flex-col gap-3 rounded-xl border p-3.5 sm:flex-row sm:items-center sm:justify-between ${
+                  roomSetupOk ? "border-emerald-200 bg-emerald-50/70" : "border-slate-200 bg-slate-50"
+                }`}>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${roomSetupOk ? "bg-emerald-600 text-white" : "bg-slate-200 text-slate-500"}`}>
+                      {roomSetupOk ? <CheckCircle2 className="h-5 w-5" /> : <Circle className="h-5 w-5" />}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-gray-900">{roomTypeOk ? `${roomType} room group` : "Room group"}</p>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-600">
+                        <span><strong className="text-gray-900">{roomCountNum || 0}</strong> room{roomCountNum === 1 ? "" : "s"}</span>
+                        <span><strong className="text-gray-900">{selectedBedTypeCount}</strong> bed type{selectedBedTypeCount === 1 ? "" : "s"}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <span className={`shrink-0 self-start rounded-full px-3 py-1.5 text-xs font-bold sm:self-auto ${
+                    roomSetupOk ? "bg-white text-emerald-700 ring-1 ring-emerald-200" : "bg-white text-slate-500 ring-1 ring-slate-200"
+                  }`}>
+                    {roomSetupOk ? "Ready" : "Incomplete"}
                   </span>
                 </div>
-              )}
+
+                <div className="order-5 border-t border-slate-200 pt-6">
+                  <label className="block text-base font-bold text-gray-900">
+                    {roomTypeOk ? `Describe this ${roomType} room` : "Describe this room"}
+                  </label>
+                  <p className="mt-1 text-xs text-gray-500">Share what guests should know about its space, comfort, or special features.</p>
+                  <textarea
+                    value={roomDescription}
+                    onChange={(e) => setRoomDescription(e.target.value)}
+                    rows={4}
+                    className="mt-3 block w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                    placeholder="e.g. Spacious rooms with natural light, a work desk, and garden views"
+                  />
+                </div>
 
               </div>
             </div>
 
-            {/* ── Bathroom & Amenities Card ────────────────────────────── */}
-            <div className="overflow-hidden rounded-2xl border border-white/15 bg-white/10 shadow-sm">
-              <div className="flex items-center gap-2 border-b border-white/15 px-5 py-3">
-                <div className="h-4 w-1 rounded-full bg-emerald-400" />
-                <span className="text-sm font-semibold text-white">Bathroom &amp; amenities</span>
-                <span className="ml-1 text-xs text-white/50">· Privacy, items &amp; extras</span>
+            {/* ── Bathroom & Amenities Card ──────────────────────────── */}
+            <div className="rounded-xl border border-gray-200 bg-white p-5 sm:p-6 shadow-sm">
+              <div className="mb-5 flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
+                  <Bath className="h-5 w-5 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-gray-900">Bathroom &amp; room amenities</h3>
+                  <p className="text-xs text-gray-500">Choose the bathroom type, then select everything guests will find in this room.</p>
+                </div>
               </div>
-              <div className="space-y-6 p-5 sm:p-6">
 
+              <div className="space-y-6">
                 <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                   {/* Left: bath privacy + towel */}
                   <div className="space-y-5">
                     <div>
-                      <label className="mb-2 block text-sm font-semibold text-white">Is the bathroom private?</label>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={bathPrivate === "yes"}
-                        onClick={() => setBathPrivate(bathPrivate === "yes" ? "no" : "yes")}
-                        className="group flex h-12 items-center gap-3 rounded-2xl border border-white/20 bg-white/10 px-4 transition-all hover:bg-white/15"
-                      >
-                        <div className={`relative h-6 w-11 flex-shrink-0 rounded-full transition-colors duration-200 ${bathPrivate === "yes" ? "bg-emerald-400" : "bg-white/20"}`}>
-                          <div className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${bathPrivate === "yes" ? "translate-x-[22px]" : "translate-x-0.5"}`} />
-                        </div>
-                        <span className="text-sm font-semibold text-white">{bathPrivate === "yes" ? "Private" : "Shared"}</span>
-                      </button>
+                      <label className="mb-1 block text-sm font-semibold text-gray-900">What kind of bathroom does this room have?</label>
+                      <p className="mb-3 text-xs text-gray-500">Private means only guests in this room use it.</p>
+                      <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Bathroom type">
+                        {[
+                          { value: "yes" as const, label: "Private", help: "For this room" },
+                          { value: "no" as const, label: "Shared", help: "Used by others" },
+                        ].map((option) => {
+                          const selected = bathPrivate === option.value;
+                          return (
+                            <button
+                              key={option.value}
+                              type="button"
+                              role="radio"
+                              aria-checked={selected}
+                              onClick={() => setBathPrivate(option.value)}
+                              className={`rounded-xl border px-3 py-3 text-left transition ${
+                                selected ? "border-emerald-500 bg-emerald-50 ring-1 ring-emerald-500" : "border-slate-200 bg-white hover:border-slate-300"
+                              }`}
+                            >
+                              <span className={`block text-sm font-bold ${selected ? "text-emerald-800" : "text-gray-900"}`}>{option.label}</span>
+                              <span className="mt-0.5 block text-[11px] text-gray-500">{option.help}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                     <div>
-                      <label className="mb-2 block text-sm font-semibold text-white">
-                        Towel color <span className="text-white/40 font-normal">(optional)</span>
+                      <label className="mb-2 block text-sm font-semibold text-gray-900">
+                        Towel color
                       </label>
                       <input
                         value={towelColor}
                         onChange={(e) => setTowelColor(e.target.value)}
-                        className="block h-12 min-w-0 w-full max-w-full box-border rounded-2xl border border-white/25 bg-white/95 px-4 text-slate-900 placeholder-slate-400 transition-all hover:border-slate-300 focus:border-[#02665e] focus:outline-none focus:ring-2 focus:ring-[#02665e]/15"
+                        className={inputClass}
                         placeholder="e.g. white"
                       />
                     </div>
                   </div>
                   {/* Right: bathroom items */}
                   <div>
-                    <label className="mb-3 block text-sm font-semibold text-white">Bathroom items</label>
+                    <label className="mb-1 block text-sm font-semibold text-gray-900">What is provided in the bathroom?</label>
+                    <p className="mb-3 text-xs text-gray-500">Select every item guests can expect to use.</p>
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                       {(() => {
                         const iconColors: Record<string, { bg: string; text: string }> = {
@@ -668,18 +813,18 @@ export function RoomsStep({
                           return (
                             <label
                               key={i}
-                              className={`relative flex cursor-pointer items-center gap-2 rounded-xl border p-2.5 transition-all ${
-                                isChecked ? "border-emerald-400/60 bg-emerald-400/15" : "border-white/15 bg-white/10 hover:border-white/25"
+                              className={`relative flex cursor-pointer items-center gap-2 rounded-xl border-2 p-2.5 transition-all ${
+                                isChecked ? "border-emerald-500 bg-emerald-50" : "border-gray-200 bg-white hover:border-emerald-300"
                               }`}
                             >
                               <input type="checkbox" className="sr-only" checked={isChecked} onChange={() => toggleStr(bathItems, setBathItems, i)} />
                               {Icon && (
-                                <div className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg ${isChecked ? "bg-emerald-400/20" : colors.bg}`}>
-                                  <Icon className={`h-3.5 w-3.5 ${isChecked ? "text-emerald-300" : colors.text}`} />
+                                <div className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg ${isChecked ? "bg-emerald-100" : colors.bg}`}>
+                                  <Icon className={`h-3.5 w-3.5 ${isChecked ? "text-emerald-600" : colors.text}`} />
                                 </div>
                               )}
-                              <span className={`text-xs font-medium leading-tight ${isChecked ? "text-emerald-300" : "text-white/70"}`}>{i}</span>
-                              {isChecked && <div className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-emerald-400" />}
+                              <span className={`text-xs font-medium leading-tight ${isChecked ? "text-emerald-700" : "text-gray-600"}`}>{i}</span>
+                              {isChecked && <div className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500" />}
                             </label>
                           );
                         });
@@ -690,7 +835,8 @@ export function RoomsStep({
 
                 {/* Other room amenities */}
                 <div>
-                  <label className="mb-3 block text-sm font-semibold text-white">Other room amenities</label>
+                  <label className="mb-1 block text-sm font-semibold text-gray-900">What else is available inside this room?</label>
+                  <p className="mb-3 text-xs text-gray-500">Select everything guests can use in this room group. Do not include shared property facilities here.</p>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
                     {(() => {
                       const iconColors: Record<string, { bg: string; text: string }> = {
@@ -722,56 +868,54 @@ export function RoomsStep({
                         return (
                           <label
                             key={i}
-                            className={`relative flex cursor-pointer items-center gap-2 rounded-xl border p-2.5 transition-all ${
-                              isChecked ? "border-emerald-400/60 bg-emerald-400/15" : "border-white/15 bg-white/10 hover:border-white/25"
+                            className={`relative flex cursor-pointer items-center gap-2 rounded-xl border-2 p-2.5 transition-all ${
+                              isChecked ? "border-emerald-500 bg-emerald-50" : "border-gray-200 bg-white hover:border-emerald-300"
                             }`}
                           >
                             <input type="checkbox" className="sr-only" checked={isChecked} onChange={() => toggleStr(otherAmenities, setOtherAmenities, i)} />
                             {Icon && (
-                              <div className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg ${isChecked ? "bg-emerald-400/20" : colors.bg}`}>
-                                <Icon className={`h-3.5 w-3.5 ${isChecked ? "text-emerald-300" : colors.text}`} />
+                              <div className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg ${isChecked ? "bg-emerald-100" : colors.bg}`}>
+                                <Icon className={`h-3.5 w-3.5 ${isChecked ? "text-emerald-600" : colors.text}`} />
                               </div>
                             )}
-                            <span className={`text-xs font-medium leading-tight ${isChecked ? "text-emerald-300" : "text-white/70"}`}>{i}</span>
-                            {isChecked && <div className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-emerald-400" />}
+                            <span className={`text-xs font-medium leading-tight ${isChecked ? "text-emerald-700" : "text-gray-600"}`}>{i}</span>
+                            {isChecked && <div className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500" />}
                           </label>
                         );
                       });
                     })()}
                   </div>
                   <div className="mt-4">
-                    <label className="mb-2 block text-sm font-semibold text-white">
-                      Additional amenities <span className="text-white/40 font-normal">(comma separated)</span>
-                    </label>
+                    <label className="mb-1 block text-sm font-semibold text-gray-900">Is something inside the room missing from the list?</label>
+                    <p className="mb-2 text-xs text-gray-500">Type any extra room amenities separated by commas.</p>
                     <input
                       value={otherAmenitiesText}
                       onChange={(e) => setOtherAmenitiesText(e.target.value)}
-                      className="block h-12 min-w-0 w-full max-w-full box-border rounded-2xl border border-white/25 bg-white/95 px-4 text-slate-900 placeholder-slate-400 transition-all hover:border-slate-300 focus:border-[#02665e] focus:outline-none focus:ring-2 focus:ring-[#02665e]/15"
-                      placeholder="e.g. minibar, balcony"
+                      className={inputClass}
+                      placeholder="e.g. minibar, balcony, mosquito net"
                     />
                   </div>
                 </div>
-
               </div>
             </div>
 
-            {/* ── Photos & Pricing Card ────────────────────────────────── */}
-            <div className="overflow-hidden rounded-2xl border border-white/15 bg-white/10 shadow-sm">
-              <div className="flex items-center gap-2 border-b border-white/15 px-5 py-3">
-                <div className="h-4 w-1 rounded-full bg-emerald-400" />
-                <span className="text-sm font-semibold text-white">Photos &amp; pricing</span>
-                <span className="ml-1 text-xs text-white/50">· Upload photos, describe &amp; set price</span>
+            {/* ── Photos & Pricing Card ──────────────────────────────── */}
+            <div className="rounded-xl border border-gray-200 bg-white p-5 sm:p-6 shadow-sm">
+              <div className="mb-5 flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100">
+                  <Camera className="h-5 w-5 text-emerald-600" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-gray-900">Finish this room type</h3>
+                  <p className="text-xs text-gray-500">Show guests the room, then set what it costs per night.</p>
+                </div>
               </div>
-              <div className="space-y-5 p-5 sm:p-6">
 
+              <div className="space-y-5">
                 {/* Room photos */}
-                <div className="rounded-xl border border-white/10 bg-white/[0.06] p-4">
-                  <label className="mb-3 block text-sm font-semibold text-white">
-                    Room photos <span className="text-red-300">*</span>
-                    <span className="ml-2 text-xs font-normal text-white/40">(min. 3 required)</span>
-                  </label>
+                <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-4">
                   <PicturesUploader
-                    title="Room images"
+                    title="Room photos"
                     minRequired={3}
                     images={roomImages}
                     onUpload={(files) => {
@@ -783,141 +927,112 @@ export function RoomsStep({
                       setRoomImageUploading((prev) => prev.filter((_, i) => i !== index));
                     }}
                     saved={roomImageSaved}
-                    onSave={(index) => setRoomImageSaved((prev) => prev.map((v, i) => (i === index ? true : v)))}
                     uploading={roomImageUploading}
                   />
-                  {!roomImagesOk && (
-                    <div className="mt-3 flex items-center gap-2 rounded-lg border border-amber-400/30 bg-amber-500/15 p-3 text-xs text-amber-300">
-                      <span>⚠️</span>
-                      <span>Upload at least 3 room photos.</span>
+                </div>
+
+                {/* Price per night */}
+                <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+                  <div>
+                    <label htmlFor="room-nightly-price" className="block text-base font-bold text-gray-900">
+                      Your nightly room rate <span className="text-red-500">*</span>
+                    </label>
+                    <p className="mt-1 text-xs text-gray-500">Enter your base rate for one {roomTypeOk ? roomType : "room"} for one night. NoLSAF commission is added later.</p>
+                  </div>
+                  <div className="mt-4 flex max-w-md items-stretch overflow-hidden rounded-xl border border-slate-300 bg-white shadow-sm transition-all focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20">
+                    <span className="pointer-events-none flex h-12 flex-shrink-0 items-center border-r border-slate-200 bg-slate-50 px-4 text-sm font-bold tracking-wide text-slate-700">TZS</span>
+                    <input
+                      id="room-nightly-price"
+                      value={pricePerNight === "" ? "" : Number(pricePerNight).toLocaleString("en-US")}
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/,/g, "");
+                        const val = numOrEmpty(raw);
+                        setPricePerNight(val);
+                      }}
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="50,000"
+                      className="block h-12 min-w-0 flex-1 appearance-none border-0 bg-transparent px-4 text-lg font-bold tracking-wide text-gray-900 placeholder-gray-300 outline-none ring-0 focus:outline-none focus:ring-0"
+                    />
+                    <span className="pointer-events-none flex h-12 shrink-0 items-center border-l border-slate-200 bg-slate-50 px-3 text-xs font-medium text-slate-500">/ night</span>
+                  </div>
+                  {!priceOk && pricePerNight !== "" && (
+                    <div className="mt-3 flex max-w-xl items-center gap-2 rounded-lg bg-amber-50 px-3 py-2.5 text-xs font-medium text-amber-800">
+                      <Circle className="h-3.5 w-3.5 shrink-0" />
+                      Minimum nightly price is TZS 5,000.
                     </div>
                   )}
                 </div>
 
-                  {/* Room Description */}
-                  <div className="rounded-xl border border-white/10 bg-white/[0.06] p-4">
-                    <label className="mb-2 block text-sm font-semibold text-white">
-                      Room description <span className="text-white/40 font-normal">(optional)</span>
-                    </label>
-                    <textarea
-                      value={roomDescription}
-                      onChange={(e) => setRoomDescription(e.target.value)}
-                      rows={4}
-                      className="block min-w-0 w-full max-w-full box-border resize-none rounded-2xl border border-white/25 bg-white/95 px-4 py-3 text-slate-900 placeholder-slate-400 transition-all hover:border-slate-300 focus:border-[#02665e] focus:outline-none focus:ring-2 focus:ring-[#02665e]/15"
-                      placeholder="Short description for this room type"
-                    />
-                  </div>
-
-                  {/* Price per night */}
-                  <div className="min-w-0 overflow-hidden rounded-xl border border-white/10 bg-white/[0.06] p-4">
-                    <label className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
-                      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-400/20 text-emerald-300 text-xs font-bold">₸</span>
-                      Price per night <span className="text-red-300">*</span>
-                    </label>
-                    <div className="relative flex min-w-0 max-w-full items-stretch overflow-hidden rounded-xl border-2 border-emerald-400/30 bg-gradient-to-r from-slate-900 to-slate-800 shadow-lg shadow-black/20 transition-all focus-within:border-emerald-400/60 focus-within:shadow-emerald-500/10">
-                      <span className="pointer-events-none flex h-14 flex-shrink-0 items-center border-r border-emerald-400/20 bg-emerald-400/10 px-4">
-                        <span className="text-sm font-bold tracking-wide text-emerald-300">TZS</span>
-                      </span>
-                      <input
-                        value={pricePerNight === "" ? "" : Number(pricePerNight).toLocaleString("en-US")}
-                        onChange={(e) => {
-                          const raw = e.target.value.replace(/,/g, "");
-                          const val = numOrEmpty(raw);
-                          setPricePerNight(val);
-                        }}
-                        type="text"
-                        inputMode="numeric"
-                        placeholder="50,000"
-                        className="block h-14 min-w-0 flex-1 appearance-none border-0 bg-transparent px-4 text-xl font-semibold tracking-wide text-white placeholder-white/20 outline-none ring-0 focus:outline-none focus:ring-0"
-                      />
-                      <span className="pointer-events-none flex h-14 flex-shrink-0 items-center whitespace-nowrap border-l border-white/10 bg-white/[0.04] px-4 text-[11px] font-medium text-white/40">
-                        per night
-                      </span>
+                {/* Clear save checklist */}
+                <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-bold text-gray-900">Ready to save?</p>
+                      <p className="mt-0.5 text-xs text-gray-500">{completedChecks} of {requiredChecks.length} required items complete</p>
                     </div>
-                    {pricePerNight !== "" && (
-                      <div className="mt-2 text-right text-xs text-white/30">
-                        {Number(pricePerNight) >= 5000
-                          ? `≈ USD ${(Number(pricePerNight) / 2650).toFixed(2)}`
-                          : ""}
-                      </div>
-                    )}
-                    {!priceOk && pricePerNight !== "" && (
-                      <div className="mt-2 flex items-center gap-2 rounded-lg border border-amber-400/30 bg-amber-500/15 p-3 text-xs text-amber-300">
-                        <span>⚠️</span>
-                        <span>Minimum price is 5,000 TZS per night.</span>
-                      </div>
-                    )}
-                    {priceOk && (
-                      <div className="mt-2 flex items-center gap-2 rounded-lg border border-emerald-400/20 bg-emerald-400/10 p-3 text-xs text-emerald-300">
-                        <span>✓</span>
-                        <span>Price looks good!</span>
-                      </div>
-                    )}
+                    <span className={`rounded-full px-3 py-1 text-xs font-bold ${canAddRoomType ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-600"}`}>
+                      {canAddRoomType ? "Ready" : `${requiredChecks.length - completedChecks} left`}
+                    </span>
                   </div>
-
-                {/* Validation warnings */}
-                {(!floorsOk || !bedsOk || !roomsCountOk) && (
-                  <div className="rounded-xl border border-amber-400/30 bg-amber-500/15 p-4">
-                    <p className="mb-2 flex items-center gap-2 text-xs font-semibold text-amber-200">
-                      <span>⚠️</span>
-                      <span>Complete these to save this room type:</span>
-                    </p>
-                    <ul className="space-y-1.5 text-xs text-amber-300">
-                      {!floorsOk && (
-                        <li className="flex items-center gap-2">
-                          <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                          Complete floor distribution to match rooms count
-                        </li>
-                      )}
-                      {!bedsOk && (
-                        <li className="flex items-center gap-2">
-                          <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                          Add at least 1 bed per room
-                        </li>
-                      )}
-                      {!roomsCountOk && (
-                        <li className="flex items-center gap-2">
-                          <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                          Set the number of rooms
-                        </li>
-                      )}
-                    </ul>
+                  <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {requiredChecks.map((item) => (
+                      <div key={item.label} className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-xs font-semibold ${
+                        item.done ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-gray-200 bg-gray-50 text-gray-500"
+                      }`}>
+                        {item.done ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <Circle className="h-4 w-4 shrink-0" />}
+                        {item.label}
+                      </div>
+                    ))}
                   </div>
-                )}
+                  {isMultiStorey && roomsCountOk && !floorsOk && (
+                    <p className="mt-3 text-xs font-medium text-amber-700">Room distribution must equal the total number of rooms.</p>
+                  )}
+                </div>
 
                 {/* Add room type button */}
-                <div className="flex justify-end pt-1">
+                <div className="flex flex-col gap-2 pt-1 sm:items-end">
                   <button
                     type="button"
                     onClick={addRoomType}
                     disabled={!canAddRoomType}
-                    className="rounded-xl bg-[#02665e] px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#014e47] hover:shadow-md disabled:cursor-not-allowed disabled:opacity-40 active:scale-[0.98]"
+                    className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-bold text-white shadow-sm transition-all hover:bg-emerald-700 hover:shadow-md disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 disabled:shadow-none active:scale-[0.98] sm:w-auto"
                   >
-                    Add room type
+                    Save {roomTypeOk ? `${roomType} ` : ""}room type
+                    <ArrowRight className="h-4 w-4" />
                   </button>
+                  {!canAddRoomType && <p className="text-xs text-gray-500">Complete the checklist above to enable saving.</p>}
                 </div>
-
               </div>
             </div>
 
-            {/* ── Saved Room Types Card ────────────────────────────────── */}
-            <div className="overflow-hidden rounded-2xl border border-white/15 bg-white/10 shadow-sm">
-              <div className="flex items-center justify-between gap-4 border-b border-white/15 px-5 py-3">
-                <div className="flex items-center gap-2">
-                  <div className="h-4 w-1 rounded-full bg-emerald-400" />
-                  <span className="text-sm font-semibold text-white">Saved room types</span>
+            {/* ── Saved Room Types Card ──────────────────────────────── */}
+            <div className="rounded-xl border border-gray-200 bg-white p-5 sm:p-6 shadow-sm">
+              <div className="mb-4 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100">
+                    <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900">
+                      {savedRoomTypeNames.length === 1 ? `Saved ${savedRoomTypeNames[0]} room` : "Saved room types"}
+                    </h3>
+                    <p className="text-xs text-gray-500">
+                      {savedRoomTypeNames.length > 1 ? `${savedRoomTypeNames.join(", ")} rooms have been added.` : savedRoomTypeNames.length === 1 ? `${savedRoomTypeNames[0]} room details have been added.` : "Saved rooms will appear here."}
+                    </p>
+                  </div>
                 </div>
                 {definedRooms.length > 0 && (
-                  <div className="rounded-full border border-white/20 bg-white/15 px-3 py-1 text-xs font-bold text-white">
+                  <div className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
                     {definedRooms.length} {definedRooms.length === 1 ? "type" : "types"}
                   </div>
                 )}
               </div>
-              <div className="space-y-3 p-4 sm:p-5">
+              <div className="space-y-3">
                 {definedRooms.length === 0 ? (
-                  <div className="rounded-xl border-2 border-dashed border-white/15 bg-white/[0.06] p-8 text-center">
-                    <div className="text-sm font-medium text-white/50">No room types saved yet</div>
-                    <div className="mt-1 text-xs text-white/30">Add your first room type above</div>
+                  <div className="rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 p-8 text-center">
+                    <div className="text-sm font-medium text-gray-500">No room types saved yet</div>
+                    <div className="mt-1 text-xs text-gray-400">Add your first room type above</div>
                   </div>
                 ) : (
                   definedRooms.map((r, idx) => {
@@ -931,100 +1046,121 @@ export function RoomsStep({
                           .map((f) => `${floorLabel(f)}:${dist[f] ?? 0}`)
                           .join(" · ")
                       : "";
+                    const bedLabel = [
+                      { key: "twin", label: "Twin" },
+                      { key: "full", label: "Full" },
+                      { key: "queen", label: "Queen" },
+                      { key: "king", label: "King" },
+                    ]
+                      .filter(({ key }) => Number(r.beds?.[key]) > 0)
+                      .map(({ key, label }) => `${r.beds[key]} ${label}`)
+                      .join(" · ") || "No beds";
                     return (
                       <div
                         key={idx}
                         className={`overflow-hidden rounded-xl border-2 transition-all duration-200 ${
-                          isCollapsed ? "border-white/15" : "border-emerald-400/30 shadow-sm"
+                          isCollapsed ? "border-gray-200" : "border-emerald-300 shadow-sm"
                         }`}
                       >
                         <button
                           type="button"
                           onClick={() => toggleCollapsed(idx)}
                           className={`w-full flex items-start justify-between gap-4 p-4 text-left transition-colors ${
-                            isCollapsed ? "bg-white/[0.06] hover:bg-white/10" : "bg-white/10 hover:bg-white/15"
+                            isCollapsed ? "bg-white hover:bg-gray-50" : "bg-emerald-50/50 hover:bg-emerald-50"
                           }`}
                           aria-expanded={!isCollapsed}
-                      >
-                        <div className="flex flex-1 min-w-0 items-start gap-3">
-                          <div className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl text-lg font-bold transition-all ${
-                            isCollapsed ? "bg-white/10 text-white/60" : "bg-emerald-400/20 text-emerald-300"
-                          }`}>
-                            {r.roomType.charAt(0)}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="mb-1.5 flex flex-wrap items-center gap-2">
-                              <span className="text-sm font-bold text-white">{r.roomType}</span>
-                              <span className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${
-                                isCollapsed ? "border-white/15 bg-white/10 text-white/60" : "border-emerald-400/30 bg-emerald-400/15 text-emerald-300"
-                              }`}>
-                                {r.roomsCount} {r.roomsCount === 1 ? "room" : "rooms"}
-                              </span>
+                        >
+                          <div className="flex flex-1 min-w-0 items-start gap-3">
+                            <div className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl text-lg font-bold transition-all ${
+                              isCollapsed ? "bg-gray-100 text-gray-500" : "bg-emerald-100 text-emerald-700"
+                            }`}>
+                              {r.roomType.charAt(0)}
                             </div>
-                            <div className="flex flex-wrap gap-2">
-                              <div className="rounded-md bg-white/10 px-2 py-1 text-xs text-white/60">
-                                <span className="font-medium">Beds:</span> T{r.beds?.twin ?? 0}/F{r.beds?.full ?? 0}/Q{r.beds?.queen ?? 0}/K{r.beds?.king ?? 0}
+                            <div className="flex-1 min-w-0">
+                              <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                                <span className="text-sm font-bold text-gray-900">{r.roomType}</span>
+                                <span className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${
+                                  isCollapsed ? "border-gray-200 bg-gray-100 text-gray-600" : "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                }`}>
+                                  {r.roomsCount} {r.roomsCount === 1 ? "room" : "rooms"}
+                                </span>
                               </div>
-                              <div className="rounded-md bg-white/10 px-2 py-1 text-xs text-white/60">
-                                <span className="font-medium">Smoke:</span> {r.smoking === "yes" ? "Yes" : "No"}
-                              </div>
-                              <div className="rounded-md bg-white/10 px-2 py-1 text-xs text-white/60">
-                                <span className="font-medium">Bath:</span> {r.bathPrivate === "yes" ? "Private" : "Shared"}
-                              </div>
-                              {distLabel && (
-                                <div className="rounded-md bg-white/10 px-2 py-1 text-xs text-white/60">
-                                  <span className="font-medium">Floors:</span> {distLabel}
+                              <div className="flex flex-wrap gap-2">
+                                <div className="rounded-md bg-gray-100 px-2 py-1 text-xs text-gray-600">
+                                  <span className="font-medium">Beds:</span> {bedLabel}
                                 </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex flex-shrink-0 items-center gap-1.5 pt-0.5">
-                          <span className={`text-xs font-medium ${isCollapsed ? "text-white/40" : "text-emerald-300"}`}>
-                            {isCollapsed ? "Show" : "Hide"}
-                          </span>
-                          <ChevronDown className={`h-4 w-4 transition-transform duration-300 ${isCollapsed ? "" : "rotate-180"} ${isCollapsed ? "text-white/40" : "text-emerald-300"}`} />
-                        </div>
-                      </button>
-
-                      {!isCollapsed && (
-                        <div className="border-t border-white/15 px-4 pb-4 pt-4 sm:px-5">
-                          {Array.isArray(r.roomImages) && r.roomImages.length > 0 ? (
-                            <div>
-                              <div className="mb-2 text-xs font-semibold text-white/60">Room Images</div>
-                              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                                {r.roomImages.slice(0, 3).map((u: string, i: number) => (
-                                  <div key={i} className="relative aspect-square overflow-hidden rounded-xl border border-white/15 shadow-sm">
-                                    {/^https?:\/\//i.test(u) ? (
-                                      <Image
-                                        src={u}
-                                        alt={`Room ${idx + 1} image ${i + 1}`}
-                                        width={200}
-                                        height={200}
-                                        className="h-full w-full object-cover"
-                                      />
-                                    ) : (
-                                      // eslint-disable-next-line @next/next/no-img-element
-                                      <img
-                                        src={u}
-                                        alt={`Room ${idx + 1} image ${i + 1}`}
-                                        className="h-full w-full object-cover"
-                                      />
-                                    )}
+                                <div className="rounded-md bg-gray-100 px-2 py-1 text-xs text-gray-600">
+                                  <span className="font-medium">Smoke:</span> {r.smoking === "yes" ? "Yes" : "No"}
+                                </div>
+                                <div className="rounded-md bg-gray-100 px-2 py-1 text-xs text-gray-600">
+                                  <span className="font-medium">Bath:</span> {r.bathPrivate === "yes" ? "Private" : "Shared"}
+                                </div>
+                                {distLabel && (
+                                  <div className="rounded-md bg-gray-100 px-2 py-1 text-xs text-gray-600">
+                                    <span className="font-medium">Floors:</span> {distLabel}
                                   </div>
-                                ))}
+                                )}
+                                {Number(r.pricePerNight) > 0 && (
+                                  <div className="rounded-md bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700">
+                                    TZS {Number(r.pricePerNight).toLocaleString("en-US")} / night
+                                  </div>
+                                )}
                               </div>
                             </div>
-                          ) : (
-                            <div className="rounded-xl border-2 border-dashed border-white/15 bg-white/[0.06] p-4 text-center">
-                              <div className="text-xs text-white/30">No images for this room type</div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })
+                          </div>
+                          <div className="flex flex-shrink-0 items-center gap-1.5 pt-0.5">
+                            <span className={`text-xs font-medium ${isCollapsed ? "text-gray-400" : "text-emerald-600"}`}>
+                              {isCollapsed ? "Show" : "Hide"}
+                            </span>
+                            <ChevronDown className={`h-4 w-4 transition-transform duration-300 ${isCollapsed ? "" : "rotate-180"} ${isCollapsed ? "text-gray-400" : "text-emerald-600"}`} />
+                          </div>
+                        </button>
+
+                        {!isCollapsed && (
+                          <div className="border-t border-gray-200 bg-white px-4 pb-4 pt-4 sm:px-5">
+                            {Array.isArray(r.roomImages) && r.roomImages.length > 0 ? (
+                              <div>
+                                <div className="mb-3 flex items-center justify-between gap-3">
+                                  <div>
+                                    <p className="text-sm font-semibold text-gray-900">Room photos</p>
+                                    <p className="mt-0.5 text-xs text-gray-500">Slide sideways to view every photo.</p>
+                                  </div>
+                                  <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-bold text-gray-600">{r.roomImages.length} photos</span>
+                                </div>
+                                <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                                  {r.roomImages.map((u: string, i: number) => (
+                                    <div key={i} className="relative aspect-[4/3] w-64 shrink-0 snap-start overflow-hidden rounded-xl border border-gray-200 bg-gray-100 shadow-sm sm:w-72">
+                                      {/^https?:\/\//i.test(u) ? (
+                                        <Image
+                                          src={u}
+                                          alt={`Room ${idx + 1} image ${i + 1}`}
+                                          width={288}
+                                          height={216}
+                                          className="h-full w-full object-cover"
+                                        />
+                                      ) : (
+                                        // eslint-disable-next-line @next/next/no-img-element
+                                        <img
+                                          src={u}
+                                          alt={`Room ${idx + 1} image ${i + 1}`}
+                                          className="h-full w-full object-cover"
+                                        />
+                                      )}
+                                      <span className="absolute bottom-2 left-2 rounded-full bg-black/65 px-2 py-0.5 text-[11px] font-semibold text-white">{i + 1} / {r.roomImages.length}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 p-4 text-center">
+                                <div className="text-xs text-gray-400">No images for this room type</div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
                 )}
               </div>
             </div>
@@ -1044,5 +1180,3 @@ export function RoomsStep({
     </AddPropertySection>
   );
 }
-
-

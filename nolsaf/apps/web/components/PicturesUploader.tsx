@@ -27,30 +27,45 @@ export default function PicturesUploader({
 	const inputRef = useRef<HTMLInputElement>(null);
 
 	const uploadedCount = images.length;
+	const requiredProgress = Math.min(100, (uploadedCount / Math.max(1, minRequired)) * 100);
 	return (
-		<div className="grid gap-2">
-			<label className="text-sm font-medium">
-				{title} <span className="text-red-600">*</span>{" "}
-				<span className="text-xs text-gray-500">(Min {minRequired} photos required)</span>
-			</label>
-			<div className="mt-1 text-xs text-gray-600 mb-2">
-				{uploadedCount === 0 ? (
-					<span className="text-gray-500 italic">No photos uploaded yet. Add at least {minRequired} photos.</span>
-				) : (
-					<span>
-						{uploadedCount} photo{uploadedCount !== 1 ? "s" : ""} uploaded{" "}
-						{uploadedCount < minRequired && (
-							<span className="text-red-600 font-medium">(Need {minRequired - uploadedCount} more)</span>
-						)}
+		<div className="grid gap-3">
+			<div>
+				<div className="flex items-center justify-between gap-3">
+					<label className="text-sm font-bold text-gray-900">{title} <span className="text-red-600">*</span></label>
+					<span className={`rounded-full px-2.5 py-1 text-xs font-bold ${uploadedCount >= minRequired ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-600"}`}>
+						{uploadedCount} / {minRequired} added
 					</span>
-				)}
+				</div>
+				<p className="mt-1 text-xs text-gray-500">
+					{uploadedCount >= minRequired ? "Minimum reached. You can add more photos." : "Add clear photos showing the bed, room space, and bathroom."}
+				</p>
+				<div className="mt-2 h-1.5 overflow-hidden rounded-full bg-gray-200">
+					<div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${requiredProgress}%` }} />
+				</div>
 			</div>
 
-			<div className="flex flex-wrap gap-3">
+			<div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+				<label className="h-48 w-48 shrink-0 snap-start border-2 border-dashed border-emerald-300 bg-emerald-50/40 rounded-xl flex flex-col items-center justify-center text-sm cursor-pointer hover:border-emerald-400 hover:bg-emerald-50 transition-all gap-2 shadow-inner">
+					<div className="w-10 h-10 rounded-full bg-white shadow flex items-center justify-center text-emerald-600 text-lg font-semibold">+</div>
+					<span className="text-gray-700 font-semibold">Browse & Upload</span>
+					<span className="text-[11px] text-gray-500">JPG, PNG, WEBP</span>
+					<input
+						id={inputId}
+						ref={inputRef}
+						type="file"
+						accept="image/*"
+						multiple
+						title={`Upload ${title}`}
+						aria-label={`Upload ${title}`}
+						className="hidden"
+						onChange={(e) => onUpload(e.target.files)}
+					/>
+				</label>
 				{images.map((u, i) => (
 					<div
 						key={i}
-						className={`w-48 h-48 border-2 rounded-lg relative overflow-hidden group transition-colors ${saved?.[i] ? "border-green-500" : "border-gray-200 hover:border-blue-400"}`}
+						className={`h-48 w-48 shrink-0 snap-start border-2 rounded-lg relative overflow-hidden group transition-colors ${saved?.[i] ? "border-green-500" : "border-gray-200 hover:border-blue-400"}`}
 					>
 						{uploading?.[i] && (
 							<div className="absolute inset-0 bg-black/30 flex items-center justify-center z-10">
@@ -85,25 +100,14 @@ export default function PicturesUploader({
 								{saved?.[i] ? "Saved" : "Save"}
 							</button>
 						)}
+						{!onSave && saved?.[i] && !uploading?.[i] && (
+							<span className="absolute bottom-1.5 right-1.5 rounded-md bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white shadow-sm">
+								Uploaded
+							</span>
+						)}
 						<div className="absolute bottom-1.5 left-1.5 bg-black/60 text-white text-[11px] px-2 py-0.5 rounded">{i + 1}</div>
 					</div>
 				))}
-				<label className="w-48 h-48 border-2 border-dashed border-emerald-300 bg-emerald-50/40 rounded-xl flex flex-col items-center justify-center text-sm cursor-pointer hover:border-emerald-400 hover:bg-emerald-50 transition-all gap-2 shadow-inner">
-					<div className="w-10 h-10 rounded-full bg-white shadow flex items-center justify-center text-emerald-600 text-lg font-semibold">+</div>
-					<span className="text-gray-700 font-semibold">Browse & Upload</span>
-					<span className="text-[11px] text-gray-500">JPG, PNG, WEBP</span>
-					<input
-						id={inputId}
-						ref={inputRef}
-						type="file"
-						accept="image/*"
-						multiple
-						title={`Upload ${title}`}
-						aria-label={`Upload ${title}`}
-						className="hidden"
-						onChange={(e) => onUpload(e.target.files)}
-					/>
-				</label>
 			</div>
 		</div>
 	);
