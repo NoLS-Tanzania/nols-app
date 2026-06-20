@@ -553,8 +553,12 @@ export default function OwnerProfile() {
       const fullName = String(form.fullName || form.name || '').trim();
       if (fullName) payload.fullName = fullName;
 
+      // Phone/email are only accepted by the API when they actually change
+      // (changing them goes through a separate verification flow). Sending an
+      // unchanged value makes the strict profile schema reject the whole request.
       const phone = normalizeE164Phone(form.phone);
-      if (phone) {
+      const currentPhone = normalizeE164Phone(me?.phone);
+      if (phone && phone !== currentPhone) {
         if (!isValidE164Phone(phone)) {
           setError('Phone number must be in international format (E.164), e.g. +2557XXXXXXXX');
           setSaving(false);
@@ -564,7 +568,8 @@ export default function OwnerProfile() {
       }
 
       const email = String(form.email || '').trim();
-      if (email) payload.email = email;
+      const currentEmail = String(me?.email || '').trim();
+      if (email && email !== currentEmail) payload.email = email;
 
       const avatarUrl = String(form.avatarUrl || '').trim();
       if (avatarUrl) {

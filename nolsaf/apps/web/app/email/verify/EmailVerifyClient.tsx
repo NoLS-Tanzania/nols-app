@@ -46,12 +46,17 @@ export default function EmailVerifyClient() {
 
     let cancelled = false;
 
+    // Guard against a hung/slow request so the page can't spin forever.
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 20000);
+
     async function verifyEmail() {
       try {
         const response = await fetch(`/api/public/email/verify?token=${encodeURIComponent(token)}&format=json`, {
           method: "GET",
           headers: { Accept: "application/json" },
           cache: "no-store",
+          signal: controller.signal,
         });
         const data = await response.json().catch(() => ({}));
 
@@ -75,13 +80,18 @@ export default function EmailVerifyClient() {
         window.setTimeout(() => {
           router.replace(redirectPath);
         }, 1200);
-      } catch {
+      } catch (err) {
         if (!cancelled) {
+          const timedOut = err instanceof DOMException && err.name === "AbortError";
           setState({
             status: "error",
-            message: "We could not verify your email right now. Please check your connection and try again.",
+            message: timedOut
+              ? "Verifying your email is taking longer than expected. Please try the link again in a moment."
+              : "We could not verify your email right now. Please check your connection and try again.",
           });
         }
+      } finally {
+        window.clearTimeout(timeoutId);
       }
     }
 
@@ -89,6 +99,8 @@ export default function EmailVerifyClient() {
 
     return () => {
       cancelled = true;
+      window.clearTimeout(timeoutId);
+      controller.abort();
     };
   }, [failedMessage, failedStatus, router, token]);
 
