@@ -24,7 +24,7 @@ import {
   parseCoralEncryptedJson,
   parseCoralInitiateResponse,
 } from "../lib/coralcommerce.helpers.js";
-import { markInvoicePaid, markGroupBookingDepositPaid } from "./webhooks.payments.js";
+import { markInvoicePaid, markGroupBookingDepositPaid, markTourBookingPaid } from "./webhooks.payments.js";
 
 const router = Router();
 const coralFormParser = multer().none();
@@ -531,15 +531,18 @@ async function handleCoralNotification(kind: "callback" | "postback", encryptedV
   }
 
   if (isSuccess && tourBooking && tourBooking.paymentStatus !== "PAID") {
-    await prisma.tourBooking.update({
-      where: { id: tourBooking.id },
-      data: {
-        paymentStatus: "PAID",
-        status: "CONFIRMED",
-        paidAt: new Date(),
-        paymentProvider: "CORALCOMMERCE",
-      },
-    });
+    // Shared helper marks paid AND sends the guest SMS + confirmation email and
+    // notifies the operator — same as the AzamPay webhook path.
+    try {
+      const result = await markTourBookingPaid(tourBooking.id, amount, "CORALCOMMERCE");
+      if (!result.ok && result.reason === "amount_mismatch") {
+        console.warn(
+          `[CoralCommerce/Card] Amount mismatch on tour booking ${tourBooking.id}: received ${amount}.`
+        );
+      }
+    } catch (err: any) {
+      console.error(`[CoralCommerce/Card] Failed to confirm tour booking ${tourBooking.id}:`, err?.message ?? err);
+    }
   } else if (isFailure && tourBooking && tourBooking.paymentStatus !== "PAID") {
     await prisma.tourBooking.update({
       where: { id: tourBooking.id },

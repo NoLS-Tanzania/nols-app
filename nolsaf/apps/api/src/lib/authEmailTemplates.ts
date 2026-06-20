@@ -45,7 +45,7 @@ export type VerificationPurpose = "signup" | "login" | "reset" | "contact";
 
 const VERIFICATION_COPY: Record<VerificationPurpose, { headline: string; subject: string; intro: string; ignore: string }> = {
   signup: {
-    headline: "Confirm your email",
+    headline: "Confirm your email to get started",
     subject: "Your NoLSAF account verification code",
     intro: "Use the code below to finish creating your NoLSAF account.",
     ignore: "If you did not try to create a NoLSAF account, you can safely ignore this email.",
