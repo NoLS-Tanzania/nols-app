@@ -595,7 +595,7 @@ router.post("/:id/confirm", async (req, res) => {
       } catch (pdfErr) {
         console.warn("[BOOKING_CONFIRM] PDF generation failed (email will still be sent):", pdfErr);
       }
-      await sendMail(bFull.user.email, subject, html, attachments);
+      await sendMail(bFull.user.email, subject, html, attachments, { replyTo: "bookings@nolsaf.com" });
     }
   } catch (e) {
     console.warn("[BOOKING_CONFIRM] Email send failed:", e);
@@ -785,7 +785,7 @@ router.post("/:id/cancel", async (req, res) => {
         totalAmount: before.totalAmount as any,
         cancelReason: reason,
       });
-      await sendMail((before.user as any).email, subject, html);
+      await sendMail((before.user as any).email, subject, html, undefined, { replyTo: "bookings@nolsaf.com" });
     }
   } catch (e) {
     console.warn("[BOOKING_CANCEL] Email send failed:", e);

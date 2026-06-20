@@ -14,6 +14,7 @@ import { rateLimitWithRedis as rateLimit } from "../lib/redisRateLimitStore.js";
 import { limitContactChangeOtp } from "../middleware/rateLimit.js";
 import { sendSms } from "../lib/sms.js";
 import { sendMail, SECURITY_EMAIL_FROM } from "../lib/mailer.js";
+import { getVerificationCodeEmail } from "../lib/authEmailTemplates.js";
 import {
   generateOtp as generateContactChangeOtp,
   storeContactChangeOtp,
@@ -857,17 +858,6 @@ const updateProfile: RequestHandler = async (req, res) => {
 };
 router.put("/profile", updateProfile as unknown as RequestHandler);
 
-function contactChangeOtpEmailHtml(otp: string): string {
-  return [
-    '<div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:0 auto;padding:24px;">',
-    '<h2 style="color:#02665e;margin:0 0 12px;">Confirm your new email</h2>',
-    '<p style="color:#334155;font-size:14px;">Use this code to confirm this email address for your NoLSAF account. It expires in 5 minutes.</p>',
-    `<p style="font-size:32px;font-weight:bold;letter-spacing:8px;color:#0f172a;background:#f1f5f9;border-radius:12px;padding:16px;text-align:center;">${otp}</p>`,
-    '<p style="color:#64748b;font-size:12px;">If you did not request this change, you can safely ignore this email — your account will not be affected.</p>',
-    '</div>',
-  ].join('');
-}
-
 const FIELD_REGEX: Record<"phone" | "email", RegExp> = {
   phone: /^\+?[1-9]\d{1,14}$/,
   email: /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/,
@@ -923,15 +913,17 @@ const requestContactChange: RequestHandler = async (req, res) => {
     await storeContactChangeOtp(userId, field, value, otp);
 
     if (field === "phone") {
-      const smsResult = await sendSms(value, `Your NoLSAF verification code is ${otp}`);
+      const smsResult = await sendSms(value, `Your NoLSAF code to confirm your new phone number is ${otp}. It expires in 5 minutes. Do not share it.`);
       if (!smsResult?.success) {
         return sendError(res, 502, "Failed to send the verification code. Please try again.");
       }
     } else {
       try {
-        await sendMail(value, "Confirm your new NoLSAF email", contactChangeOtpEmailHtml(otp), undefined, {
+        const { subject, html } = getVerificationCodeEmail(otp, { purpose: "contact", expiryMinutes: 5 });
+        await sendMail(value, subject, html, undefined, {
           bypassEligibilityCheck: true,
           from: SECURITY_EMAIL_FROM,
+          replyTo: "support@nolsaf.com",
         });
       } catch {
         return sendError(res, 502, "Failed to send the verification code. Please try again.");

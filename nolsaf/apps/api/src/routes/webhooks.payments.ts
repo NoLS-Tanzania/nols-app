@@ -20,7 +20,7 @@ import bodyParser from "body-parser"; // for raw parser here
 import { invalidateOwnerReports } from "../lib/cache.js";
 import { sendSms } from "../lib/sms.js";
 import { sendMail } from "../lib/mailer.js";
-import { getBookingReceivedEmail } from "../lib/bookingEmailTemplates.js";
+import { getBookingReceivedEmail, getTourBookingConfirmedEmail, getGroupStayConfirmedEmail } from "../lib/bookingEmailTemplates.js";
 import { generateBookingReservationPdf } from "../lib/bookingPdfGen.js";
 import { notifyUser } from "../lib/notifications.js";
 import crypto from "crypto";
@@ -274,7 +274,7 @@ async function notifyTravellerInvoicePaid(updatedInvoice: any, sourceInvoice: an
     if (guestEmail) {
       await sendMail(guestEmail, subject, html, [
         { filename: `NolSAF-Booking-${refCode}.pdf`, content: reservationPdf },
-      ]);
+      ], { replyTo: "bookings@nolsaf.com" });
     }
 
     if (guestPhone) {
@@ -610,9 +610,13 @@ export async function markGroupBookingDepositPaid(
     } catch { /* non-fatal */ }
   }
 
-  // SMS to customer
+  // SMS + email to customer
   try {
-    const user = await prisma.user.findUnique({ where: { id: groupBooking.userId }, select: { phone: true } });
+    const user = await prisma.user.findUnique({
+      where: { id: groupBooking.userId },
+      select: { phone: true, email: true, name: true, fullName: true },
+    });
+
     if (user?.phone) {
       const smsText =
         `NoLSAF: Group Stay Confirmed!\n` +
@@ -622,7 +626,32 @@ export async function markGroupBookingDepositPaid(
         `support@nolsaf.com`;
       await sendSms(user.phone, smsText);
     }
-  } catch { /* non-fatal */ }
+
+    if (user?.email) {
+      let propertyName: string | undefined;
+      if (groupBooking.confirmedPropertyId) {
+        const prop = await prisma.property.findUnique({
+          where: { id: groupBooking.confirmedPropertyId },
+          select: { title: true },
+        });
+        propertyName = prop?.title || undefined;
+      }
+      const { subject, html } = getGroupStayConfirmedEmail({
+        guestName: user.fullName || user.name || "Guest",
+        propertyName,
+        destination: destination || undefined,
+        checkIn: groupBooking.checkIn ?? new Date(),
+        checkOut: groupBooking.checkOut ?? new Date(),
+        roomsNeeded: Number(groupBooking.roomsNeeded ?? 1),
+        depositAmount: want,
+        currency: groupBooking.currency || "TZS",
+        bookingId: groupBooking.id,
+      });
+      await sendMail(user.email, subject, html, undefined, { replyTo: "bookings@nolsaf.com" });
+    }
+  } catch (notifyErr) {
+    console.error(`[GroupStay] Failed to send deposit confirmation to customer for booking #${groupBooking.id}:`, (notifyErr as any)?.message ?? notifyErr);
+  }
 
   return { ok: true };
 }
@@ -931,6 +960,26 @@ router.post("/azampay", webhookLimiter, async (req: any, res) => {
                 `Keep this ref. support@nolsaf.com`;
               await sendSms(tourBooking.guestPhone, smsText);
             } catch { /* non-fatal */ }
+          }
+
+          // Email to guest
+          if (tourBooking.guestEmail) {
+            try {
+              const { subject, html } = getTourBookingConfirmedEmail({
+                guestName: tourBooking.guestName || "Guest",
+                tourTitle: String(tourBooking.title || "your tour"),
+                destination: tourBooking.destination || undefined,
+                startDate: tourBooking.startDate,
+                travelerCount: Number(tourBooking.travelerCount ?? 1),
+                totalAmount: want,
+                currency: tourBooking.currency || "TZS",
+                bookingId: tourBooking.id,
+                bookingCode: tourBooking.bookingCode || undefined,
+              });
+              await sendMail(tourBooking.guestEmail, subject, html, undefined, { replyTo: "bookings@nolsaf.com" });
+            } catch (mailErr) {
+              console.error(`[WEBHOOK] Failed to email tour booking ${tourBooking.id} confirmation:`, (mailErr as any)?.message ?? mailErr);
+            }
           }
         } catch (tourErr) {
           console.error(`[WEBHOOK] Failed to mark tour booking ${tourBooking.id} as paid:`, (tourErr as any)?.message ?? tourErr);
