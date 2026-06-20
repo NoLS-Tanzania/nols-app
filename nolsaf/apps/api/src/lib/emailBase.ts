@@ -367,19 +367,26 @@ export function proDetailRows(
   total?: [string, string],
   accent: string = BRAND_TEAL
 ): string {
-  const rowsHtml = rows.map(([label, value]) => `
+  const lastIdx = rows.length - 1;
+  const rowsHtml = rows.map(([label, value], i) => {
+    const divider = (i === lastIdx && !total) ? "" : "border-bottom:1px solid #eef1f1;";
+    return `
     <tr>
-      <td style="padding:11px 0;font-size:14px;color:#6b7280;border-bottom:1px solid #f0f2f2;">${label}</td>
-      <td align="right" style="padding:11px 0;font-size:14px;color:#1a1a1a;font-weight:bold;border-bottom:1px solid #f0f2f2;">${value}</td>
-    </tr>`).join("");
+      <td style="padding:12px 16px;font-size:13px;color:#6b7280;background:#f7f9f9;${divider}vertical-align:top;width:40%;">${label}</td>
+      <td style="padding:12px 16px;font-size:14px;color:#1a1a1a;font-weight:bold;${divider}vertical-align:top;">${value}</td>
+    </tr>`;
+  }).join("");
   const totalHtml = total ? `
     <tr>
-      <td style="padding:14px 0 0;font-size:15px;color:#1a1a1a;font-weight:bold;">${total[0]}</td>
-      <td align="right" style="padding:14px 0 0;font-size:16px;color:${accent};font-weight:bold;">${total[1]}</td>
+      <td style="padding:13px 16px;font-size:14px;color:#1a1a1a;font-weight:bold;background:#f7f9f9;">${total[0]}</td>
+      <td style="padding:13px 16px;font-size:15px;color:${accent};font-weight:bold;">${total[1]}</td>
     </tr>` : "";
+  const heading = title
+    ? `<div style="font-size:13px;font-weight:bold;letter-spacing:0.3px;color:#1a1a1a;margin:0 0 10px;">${title}</div>`
+    : "";
   return `
-    <div style="font-size:13px;font-weight:bold;letter-spacing:0.5px;color:#1a1a1a;margin-bottom:8px;">${title}</div>
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+    ${heading}
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border:1px solid #e6eae9;border-radius:12px;border-collapse:separate;border-spacing:0;overflow:hidden;">
       ${rowsHtml}
       ${totalHtml}
     </table>`;

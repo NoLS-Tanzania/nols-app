@@ -82,9 +82,7 @@ export function getBookingReceivedEmail(data: BookingEmailData): { subject: stri
         ["Check in",       fmtDate(data.checkIn)],
         ["Check out",      fmtDate(data.checkOut)],
         ["Nights",         String(nights)],
-        ["Rooms",          String(data.roomsQty ?? 1)],
-        ["Booking number", String(data.bookingId)],
-      ],
+        ["Rooms",          String(data.roomsQty ?? 1)],      ],
       ["Total paid", fmtMoney(data.totalAmount)]
     )}
     ${proDivider()}
@@ -135,9 +133,7 @@ export function getBookingConfirmedEmail(data: BookingConfirmedEmailData): { sub
         ["Check in",       fmtDate(data.checkIn)],
         ["Check out",      fmtDate(data.checkOut)],
         ["Nights",         String(nights)],
-        ["Rooms",          String(data.roomsQty ?? 1)],
-        ["Booking number", String(data.bookingId)],
-      ],
+        ["Rooms",          String(data.roomsQty ?? 1)],      ],
       ["Total", fmtMoney(data.totalAmount)]
     )}
     ${proDivider()}
@@ -146,7 +142,7 @@ export function getBookingConfirmedEmail(data: BookingConfirmedEmailData): { sub
   `;
 
   return {
-    subject: `Your booking at ${data.propertyName} is confirmed (${data.bookingId})`,
+    subject: `Your booking at ${data.propertyName} is confirmed`,
     html: proEmail("Your booking is confirmed", body),
   };
 }
@@ -190,9 +186,7 @@ export function getBookingCancelledEmail(data: BookingCancelledEmailData): { sub
       [
         ["Property",       data.propertyName],
         ["Check in",       fmtDate(data.checkIn)],
-        ["Check out",      fmtDate(data.checkOut)],
-        ["Booking number", String(data.bookingId)],
-      ],
+        ["Check out",      fmtDate(data.checkOut)],      ],
       ["Booking total", fmtMoney(data.totalAmount)],
       RED
     )}
@@ -206,7 +200,7 @@ export function getBookingCancelledEmail(data: BookingCancelledEmailData): { sub
   `;
 
   return {
-    subject: `Your booking at ${data.propertyName} has been cancelled (${data.bookingId})`,
+    subject: `Your booking at ${data.propertyName} has been cancelled`,
     html: proEmail("Your booking has been cancelled", body),
   };
 }
@@ -241,9 +235,7 @@ export function getOwnerDisbursementEmail(data: OwnerDisbursementEmailData): { s
     ${proDivider()}
     ${proDetailRows(
       "Disbursement details",
-      [
-        ["Booking number", String(data.bookingId)],
-        ["Property",       data.propertyName],
+      [        ["Property",       data.propertyName],
         ["Check in",       fmtDate(data.checkIn)],
         ["Check out",      fmtDate(data.checkOut)],
         ["Nights",         String(nights)],
@@ -261,7 +253,7 @@ export function getOwnerDisbursementEmail(data: OwnerDisbursementEmailData): { s
   `;
 
   return {
-    subject: `Payout disbursed for booking ${data.bookingId} (${data.propertyName})`,
+    subject: `Payout disbursed for ${data.propertyName}`,
     html: proEmail("Your payout has been sent", body),
   };
 }
@@ -294,9 +286,7 @@ export function getTourBookingConfirmedEmail(data: TourBookingEmailData): { subj
   if (data.destination) detailRows.push(["Destination", data.destination]);
   detailRows.push(
     ["Date",            fmtDate(data.startDate)],
-    ["Travelers",       String(data.travelerCount)],
-    ["Booking number",  String(data.bookingId)],
-  );
+    ["Travelers",       String(data.travelerCount)],  );
 
   const body = `
     <p style="margin:0;color:#4b5563;">Hi ${data.guestName}, we are delighted to have you. Your tour <strong style="color:#1a1a1a;">${data.tourTitle}</strong> is paid for and confirmed, and we cannot wait to share the experience with you.</p>
@@ -352,9 +342,7 @@ export function getGroupStayConfirmedEmail(data: GroupStayEmailData): { subject:
     ["Check in",        fmtDate(data.checkIn)],
     ["Check out",       fmtDate(data.checkOut)],
     ["Nights",          String(nights)],
-    ["Rooms",           String(data.roomsNeeded)],
-    ["Booking number",  String(data.bookingId)],
-  );
+    ["Rooms",           String(data.roomsNeeded)],  );
 
   const body = `
     <p style="margin:0;color:#4b5563;">Hi ${data.guestName}, we are delighted to welcome your group. Your deposit has been received and your group stay is secured. We cannot wait to host you.</p>
@@ -376,5 +364,115 @@ export function getGroupStayConfirmedEmail(data: GroupStayEmailData): { subject:
   return {
     subject: `Your group stay is confirmed (${refCode})`,
     html: proEmail("Your group stay is confirmed", body),
+  };
+}
+
+// ─── 7. Owner: new paid booking ───────────────────────────────────────────────
+
+/**
+ * Sent to a property owner the moment a guest books and pays for their property
+ * (every payment rail, via notifyOwnerInvoicePaid). Lets the owner prepare for
+ * the guest instead of only learning at disbursement time.
+ */
+export interface OwnerNewBookingEmailData {
+  ownerName: string;
+  propertyName: string;
+  guestName?: string;
+  checkIn: Date | string;
+  checkOut: Date | string;
+  roomsQty?: number;
+  /** The owner's expected net payout for this booking */
+  netPayout?: number | string | null;
+  bookingId: number;
+  currency?: string;
+}
+
+export function getOwnerNewBookingEmail(data: OwnerNewBookingEmailData): { subject: string; html: string } {
+  const currency = data.currency || "TZS";
+  const nights = nightCount(data.checkIn, data.checkOut);
+
+  const rows: Array<[string, string]> = [["Property", data.propertyName]];
+  if (data.guestName) rows.push(["Guest", data.guestName]);
+  rows.push(
+    ["Check in",       fmtDate(data.checkIn)],
+    ["Check out",      fmtDate(data.checkOut)],
+    ["Nights",         String(nights)],
+    ["Rooms",          String(data.roomsQty ?? 1)],  );
+
+  const payoutBlock =
+    data.netPayout != null && Number(data.netPayout) > 0
+      ? `${proHighlight("Your expected payout", fmtMoney(data.netPayout, currency), "This will be disbursed to your registered payment method after the guest's stay.", BRAND_TEAL)}${proDivider()}`
+      : "";
+
+  const body = `
+    <p style="margin:0;color:#4b5563;">Hi ${data.ownerName}, good news. A guest has just booked and paid for <strong style="color:#1a1a1a;">${data.propertyName}</strong>. Please get everything ready for their stay.</p>
+    ${proDivider()}
+    ${payoutBlock}${proDetailRows("Booking details", rows)}
+    ${proDivider()}
+    ${proNoteCard(BRAND_TEAL, "What to do next", "Prepare the room for the dates above. The guest will present their booking reference on arrival.")}
+    ${proDivider()}
+    <p style="margin:0;color:#4b5563;font-size:14px;">Questions? Contact us at <a href="mailto:support@nolsaf.com" style="color:${BRAND_TEAL};text-decoration:none;font-weight:bold;">support@nolsaf.com</a>.</p>
+    <p style="margin:18px 0 0;color:#1a1a1a;">Warmly,<br><strong>The NoLSAF Team</strong></p>
+  `;
+
+  return {
+    subject: `New booking at ${data.propertyName}`,
+    html: proEmail("You have a new booking", body),
+  };
+}
+
+// ─── 8. Operator: new paid tour booking ───────────────────────────────────────
+
+/**
+ * Sent to a tour operator the moment a traveler books and pays for their tour
+ * (every payment rail, via markTourBookingPaid).
+ */
+export interface OperatorTourBookedEmailData {
+  operatorName: string;
+  tourTitle: string;
+  destination?: string;
+  guestName?: string;
+  startDate: Date | string;
+  travelerCount: number;
+  /** The operator's expected payout for this booking */
+  operatorPayout?: number | string | null;
+  bookingId: number;
+  bookingCode?: string;
+  currency?: string;
+}
+
+export function getOperatorTourBookedEmail(data: OperatorTourBookedEmailData): { subject: string; html: string } {
+  const currency = data.currency || "TZS";
+
+  const RED = "#b42318";
+  const RED_BG = "#fdf3f2";
+
+  const rows: Array<[string, string]> = [["Tour", data.tourTitle]];
+  if (data.destination) rows.push(["Destination", data.destination]);
+  if (data.guestName) rows.push(["Guest", data.guestName]);
+  rows.push(
+    ["Date",      fmtDate(data.startDate)],
+    ["Travelers", String(data.travelerCount)],
+  );
+
+  const payoutBlock =
+    data.operatorPayout != null && Number(data.operatorPayout) > 0
+      ? `${proHighlight("Your expected payout", fmtMoney(data.operatorPayout, currency), "", BRAND_TEAL)}${proDivider()}`
+      : "";
+
+  const body = `
+    <p style="margin:0;color:#4b5563;">Hi ${data.operatorName}, good news. A traveler has just booked and paid for your tour <strong style="color:#1a1a1a;">${data.tourTitle}</strong>. Please get ready to host them.</p>
+    ${proDivider()}
+    ${payoutBlock}${proDetailRows("Tour booking", rows)}
+    ${proDivider()}
+    ${proNoteCard(RED, "Deliver exactly as described", "Honor the full itinerary and timetable you described for this tour. That is what the traveler paid for, and NoLSAF remotely reviews the entire route to confirm the paid service is delivered as planned.", RED_BG)}
+    ${proDivider()}
+    <p style="margin:0;color:#4b5563;font-size:14px;">Questions? Contact us at <a href="mailto:support@nolsaf.com" style="color:${BRAND_TEAL};text-decoration:none;font-weight:bold;">support@nolsaf.com</a>.</p>
+    <p style="margin:18px 0 0;color:#1a1a1a;">Warmly,<br><strong>The NoLSAF Team</strong></p>
+  `;
+
+  return {
+    subject: `New tour booking: ${data.tourTitle}`,
+    html: proEmail("You have a new tour booking", body),
   };
 }

@@ -20,7 +20,7 @@ import bodyParser from "body-parser"; // for raw parser here
 import { invalidateOwnerReports } from "../lib/cache.js";
 import { sendSms } from "../lib/sms.js";
 import { sendMail } from "../lib/mailer.js";
-import { getBookingReceivedEmail, getTourBookingConfirmedEmail, getGroupStayConfirmedEmail } from "../lib/bookingEmailTemplates.js";
+import { getBookingReceivedEmail, getTourBookingConfirmedEmail, getGroupStayConfirmedEmail, getOwnerNewBookingEmail, getOperatorTourBookedEmail } from "../lib/bookingEmailTemplates.js";
 import { generateBookingReservationPdf } from "../lib/bookingPdfGen.js";
 import { notifyUser } from "../lib/notifications.js";
 import crypto from "crypto";
@@ -101,6 +101,40 @@ async function notifyOwnerInvoicePaid(params: {
       createdId = Number(n.id);
     } catch {
       // non-fatal
+    }
+
+    // Email + SMS to the owner — so they know to prepare, not only at disbursement.
+    // Gated on !already so duplicate webhooks don't re-notify.
+    try {
+      const [owner, booking] = await Promise.all([
+        prisma.user.findUnique({ where: { id: ownerId }, select: { email: true, phone: true, name: true, fullName: true } }),
+        prisma.booking.findUnique({ where: { id: bookingId }, select: { guestName: true, roomsQty: true } }),
+      ]);
+      const ownerName = owner?.fullName || owner?.name || "there";
+      if (owner?.email) {
+        const { subject, html } = getOwnerNewBookingEmail({
+          ownerName,
+          propertyName: propertyTitle || "your property",
+          guestName: booking?.guestName || undefined,
+          checkIn: checkIn || new Date(),
+          checkOut: checkOut || new Date(),
+          roomsQty: Number(booking?.roomsQty ?? 1),
+          netPayout: amount ?? null,
+          bookingId,
+        });
+        await sendMail(owner.email, subject, html, undefined, { replyTo: "support@nolsaf.com" });
+      }
+      if (owner?.phone) {
+        const smsText =
+          `NoLSAF: New booking!\n` +
+          `Booking #${bookingId}` + (propertyTitle ? ` at ${String(propertyTitle).slice(0, 40)}` : "") + `\n` +
+          (checkIn ? `Check-in: ${new Date(checkIn).toISOString().slice(0, 10)}\n` : "") +
+          (amount ? `Your payout: ${Number(amount).toLocaleString("en-US")} TZS\n` : "") +
+          `support@nolsaf.com`;
+        await sendSms(owner.phone, smsText);
+      }
+    } catch (notifyErr) {
+      console.error(`[Owner] Failed to email/SMS new booking ${bookingId}:`, (notifyErr as any)?.message ?? notifyErr);
     }
   }
 
@@ -684,6 +718,7 @@ export async function markTourBookingPaid(
       destination: true,
       startDate: true,
       travelerCount: true,
+      operatorPayoutAmount: true,
     },
   });
   if (!tour) return { ok: false, reason: "not_found" };
@@ -702,12 +737,15 @@ export async function markTourBookingPaid(
     },
   });
 
-  // Notify operator (agent)
+  // Notify operator (agent): in-app + email + SMS, so they prepare immediately.
   if (tour.operatorAgentId) {
     try {
       const agent = await prisma.agent.findUnique({
         where: { id: tour.operatorAgentId },
-        select: { userId: true },
+        select: {
+          userId: true,
+          user: { select: { email: true, phone: true, name: true, fullName: true } },
+        },
       });
       if (agent?.userId) {
         await notifyUser(agent.userId, "agent_tour_booking_paid", {
@@ -719,7 +757,35 @@ export async function markTourBookingPaid(
           currency: tour.currency,
         });
       }
-    } catch { /* non-fatal */ }
+      const operatorName = agent?.user?.fullName || agent?.user?.name || "there";
+      if (agent?.user?.email) {
+        const { subject, html } = getOperatorTourBookedEmail({
+          operatorName,
+          tourTitle: String(tour.title || "your tour"),
+          destination: tour.destination || undefined,
+          guestName: tour.guestName || undefined,
+          startDate: tour.startDate,
+          travelerCount: Number(tour.travelerCount ?? 1),
+          operatorPayout: tour.operatorPayoutAmount != null ? Number(tour.operatorPayoutAmount) : null,
+          bookingId: tour.id,
+          bookingCode: tour.bookingCode || undefined,
+          currency: tour.currency || "TZS",
+        });
+        await sendMail(agent.user.email, subject, html, undefined, { replyTo: "support@nolsaf.com" });
+      }
+      if (agent?.user?.phone) {
+        const payout = tour.operatorPayoutAmount != null ? Number(tour.operatorPayoutAmount) : null;
+        const smsText =
+          `NoLSAF: New tour booking!\n` +
+          `Tour: ${String(tour.title || "").slice(0, 40)}\n` +
+          `Travelers: ${tour.travelerCount}\n` +
+          (payout ? `Your payout: ${tour.currency} ${payout.toLocaleString("en-US")}\n` : "") +
+          `support@nolsaf.com`;
+        await sendSms(agent.user.phone, smsText);
+      }
+    } catch (notifyErr) {
+      console.error(`[Operator] Failed to notify tour booking ${tour.id}:`, (notifyErr as any)?.message ?? notifyErr);
+    }
   }
 
   // SMS to guest
