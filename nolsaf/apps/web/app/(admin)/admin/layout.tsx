@@ -3,9 +3,10 @@ import "@/styles/globals.css";
 import { useState, useEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import SiteHeader from "@/components/SiteHeader";
-import AdminFooter from "@/components/AdminFooter";
 import AdminNav from "@/components/AdminSidebar";
 import LayoutFrame from "@/components/LayoutFrame";
+import AdminNotificationListener from "@/components/AdminNotificationListener";
+import AdminOperationalFooter from "@/components/AdminOperationalFooter";
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     if (typeof window === "undefined") return true;
@@ -50,6 +51,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen flex flex-col bg-neutral-50">
+      <AdminNotificationListener />
       {/* Full-width header */}
       <SiteHeader role="ADMIN" />
 
@@ -89,8 +91,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
           {/* Main content: match Owner spacing and styling (no extra border/bg) */}
           <div className={`pt-16 pb-6 transition-all duration-300 ease-in-out ${sidebarOpen ? 'owner-content-gap' : 'md:ml-20'}`}>
-            <div className="relative h-[calc(100vh-4rem)] rounded-3xl border border-slate-200/60 bg-gradient-to-b from-white/[0.035] via-white/[0.02] to-white/[0.01] backdrop-blur-xl overflow-hidden shadow-[0_18px_55px_rgba(0,0,0,0.30),0_0_46px_rgba(2,102,94,0.14)] ring-1 ring-black/[0.04] after:pointer-events-none after:absolute after:inset-0 after:rounded-3xl after:ring-1 after:ring-slate-200/50">
-              <div ref={mainRef} className="h-full overflow-y-auto overflow-x-hidden">
+            <div className="relative flex h-[calc(100vh-4rem)] flex-col rounded-3xl border border-slate-200/60 bg-gradient-to-b from-white/[0.035] via-white/[0.02] to-white/[0.01] backdrop-blur-xl overflow-hidden shadow-[0_18px_55px_rgba(0,0,0,0.30),0_0_46px_rgba(2,102,94,0.14)] ring-1 ring-black/[0.04] after:pointer-events-none after:absolute after:inset-0 after:rounded-3xl after:ring-1 after:ring-slate-200/50">
+              <div ref={mainRef} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
                 <main className="min-w-0 overflow-x-hidden">
                   <div className="w-full min-w-0 overflow-x-hidden">
                     <div className="mx-auto w-full min-w-0 overflow-x-hidden">
@@ -99,15 +101,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                   </div>
                 </main>
               </div>
+              <AdminOperationalFooter />
             </div>
           </div>
         </div>
       </div>
 
-      <AdminFooter
-        policyBasePath="/admin"
-        containerClassName="public-container pt-4 pb-9"
-      />
     </div>
   );
 }

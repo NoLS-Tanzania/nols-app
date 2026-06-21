@@ -1,4 +1,5 @@
 import { prisma } from "@nolsaf/prisma";
+import { buildErrorDiagnostic, type ErrorDiagnostic } from "./errorDiagnostics.js";
 
 export type ObservedRequest = {
   requestId: string;
@@ -11,6 +12,7 @@ export type ObservedRequest = {
   userAgent: string | null;
   actorId?: number | null;
   actorRole?: string | null;
+  exceptionCaptured?: boolean;
   timestamp: string;
 };
 
@@ -67,6 +69,11 @@ export type ImpactedUserSummary = {
     durationMs: number | null;
     message: string | null;
     requestId: string | null;
+    source: string | null;
+    stack: string | null;
+    componentStack: string | null;
+    release: string | null;
+    diagnostic: ErrorDiagnostic | null;
   } | null;
   resolution: {
     status: "open" | "restored";
@@ -108,7 +115,7 @@ export function recordObservedRequest(entry: ObservedRequest) {
   totalRequestsObserved += 1;
   recentRequests.push(entry);
   if (recentRequests.length > maxRequests) recentRequests.shift();
-  if (entry.statusCode >= 500 || entry.durationMs >= slowRequestThresholdMs) {
+  if ((!entry.exceptionCaptured && entry.statusCode >= 500) || entry.durationMs >= slowRequestThresholdMs) {
     queueImportantRequest(entry);
   }
   if (entry.statusCode >= 500) {
@@ -311,7 +318,7 @@ async function flushImportantRequests() {
 }
 
 export async function getImpactedUsers(limit = 20): Promise<ImpactedUserSummary[]> {
-  const actions = ["OBSERVABILITY_5XX_REQUEST", "OBSERVABILITY_SLOW_REQUEST", "CLIENT_ERROR"];
+  const actions = ["OBSERVABILITY_5XX_REQUEST", "OBSERVABILITY_SLOW_REQUEST", "CLIENT_ERROR", "SERVER_EXCEPTION"];
   const rows = await prisma.auditLog.findMany({
     where: { action: { in: actions } },
     orderBy: { createdAt: "desc" },
@@ -387,11 +394,24 @@ export async function getImpactedUsers(limit = 20): Promise<ImpactedUserSummary[
 
     existing.eventCount += 1;
     if (row.action === "OBSERVABILITY_SLOW_REQUEST") existing.slowCount += 1;
-    if (row.action === "OBSERVABILITY_5XX_REQUEST") existing.serverErrorCount += 1;
+    if (row.action === "OBSERVABILITY_5XX_REQUEST" || row.action === "SERVER_EXCEPTION") existing.serverErrorCount += 1;
     if (row.action === "CLIENT_ERROR") existing.clientErrorCount += 1;
     if (route && !existing.routes.includes(route)) existing.routes.push(route);
     if (!existing.lastSeenAt && createdAt) existing.lastSeenAt = createdAt;
     if (!existing.lastEvent) {
+      const storedDiagnostic = diagnosticOrNull(after.diagnostic);
+      const hasDiagnosticInput = Boolean(textOrNull(after.stack) || textOrNull(after.source));
+      const diagnostic = storedDiagnostic ?? (hasDiagnosticInput
+        ? await buildErrorDiagnostic({
+            service: row.action === "CLIENT_ERROR" ? "web" : "api",
+            message: after.message,
+            stack: after.stack,
+            source: after.source,
+            line: after.line,
+            column: after.column,
+            release: after.release,
+          })
+        : null);
       existing.lastEvent = {
         action: row.action,
         route: textOrNull(after.route),
@@ -400,6 +420,11 @@ export async function getImpactedUsers(limit = 20): Promise<ImpactedUserSummary[
         durationMs: numberOrNull(after.durationMs),
         message: textOrNull(after.message),
         requestId: textOrNull(after.requestId),
+        source: textOrNull(after.source),
+        stack: textOrNull(after.stack),
+        componentStack: textOrNull(after.componentStack),
+        release: textOrNull(after.release),
+        diagnostic,
       };
     }
 
@@ -501,6 +526,13 @@ function openImpactResolution(): ImpactedUserSummary["resolution"] {
     restoredAt: null,
     restoredBy: null,
   };
+}
+
+function diagnosticOrNull(value: unknown): ErrorDiagnostic | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const diagnostic = value as Partial<ErrorDiagnostic>;
+  if (typeof diagnostic.fingerprint !== "string" || !Array.isArray(diagnostic.frames)) return null;
+  return diagnostic as ErrorDiagnostic;
 }
 
 function impactKeyFor(actorId: number | null, ip: string | null | undefined, ua: string | null | undefined) {

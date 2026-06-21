@@ -164,6 +164,17 @@ export default function SiteHeader({
     }
   }, [logoutRedirect]);
 
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    const onAdminNotification = () => {
+      setUnreadCount((current) => (current ?? 0) + 1);
+    };
+
+    window.addEventListener("nols:admin-notification", onAdminNotification);
+    return () => window.removeEventListener("nols:admin-notification", onAdminNotification);
+  }, [isAdmin]);
+
   const handleTouch = (id: string) => {
     setTouchedIcon(id);
     // clear after 2s so touch shows the hover state briefly

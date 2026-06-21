@@ -11,6 +11,7 @@ import {
   getRecentRequests,
   getRecentSlowRequests,
 } from "../lib/observability.js";
+import { getActiveSnapshot } from "../lib/activePresence.js";
 
 const router = Router();
 
@@ -38,6 +39,48 @@ router.get("/snapshot", async (req, res) => {
 router.get("/impacted-users", async (req, res) => {
   const limit = Number(req.query.limit ?? 20);
   res.json({ ok: true, items: await getImpactedUsers(limit) });
+});
+
+// Compact footer signal: authenticated clients with unresolved impact vs clients
+// active during the last 15 minutes.
+router.get("/impact-summary", async (_req, res) => {
+  const activeWindowMinutes = 15;
+  const windowMs = activeWindowMinutes * 60 * 1000;
+  const sinceActive = new Date(Date.now() - windowMs);
+  const [impactedUsers, presence] = await Promise.all([
+    getImpactedUsers(500),
+    Promise.resolve(getActiveSnapshot(windowMs)),
+  ]);
+
+  let activeSessionsDb = 0;
+  try {
+    const activeSessions = await prisma.session.findMany({
+      where: { revokedAt: null, lastSeenAt: { gte: sinceActive } },
+      distinct: ["userId"],
+      select: { userId: true },
+    });
+    activeSessionsDb = activeSessions.length;
+  } catch {
+    activeSessionsDb = 0;
+  }
+  // Presence is process-local; DB sessions keep the ratio useful across instances.
+  const activeClients = Math.max(presence.total, activeSessionsDb);
+
+  const openImpacts = impactedUsers.filter(
+    (item) => item.userId != null && item.resolution?.status === "open"
+  );
+  const impactedClients = openImpacts.length;
+
+  res.json({
+    ok: true,
+    generatedAt: new Date().toISOString(),
+    activeWindowMinutes,
+    activeClients,
+    impactedClients,
+    healthyClients: Math.max(0, activeClients - impactedClients),
+    impactRate: activeClients > 0 ? impactedClients / activeClients : (impactedClients > 0 ? 1 : 0),
+    attentionRequired: impactedClients > 0,
+  });
 });
 
 router.post("/impacted-users/restore", async (req, res) => {

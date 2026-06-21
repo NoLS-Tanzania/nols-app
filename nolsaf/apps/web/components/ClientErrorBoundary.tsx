@@ -14,8 +14,17 @@ export default class ClientErrorBoundary extends React.Component<Props, { error:
   }
 
   componentDidCatch(error: Error, info: any) {
-    // You can log the error to an external service here
     console.error('ClientErrorBoundary caught', error, info);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("nols:client-error", {
+        detail: {
+          message: error.message,
+          source: "react-error-boundary",
+          stack: error.stack,
+          componentStack: typeof info?.componentStack === "string" ? info.componentStack : undefined,
+        },
+      }));
+    }
   }
 
   handleReload = () => {

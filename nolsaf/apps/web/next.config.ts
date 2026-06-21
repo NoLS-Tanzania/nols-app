@@ -16,6 +16,9 @@ const socketOrigin = (process.env.NEXT_PUBLIC_SOCKET_URL || '').replace(/\/$/, '
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Generated maps are immediately moved out of public static assets by the
+  // post-build collector and retained as private diagnostics artifacts.
+  productionBrowserSourceMaps: true,
   transpilePackages: ['@nolsaf/shared'],
   // 'standalone' is required for Docker/Railway deployments.
   // Vercel (process.env.VERCEL) handles its own output format — standalone breaks it.

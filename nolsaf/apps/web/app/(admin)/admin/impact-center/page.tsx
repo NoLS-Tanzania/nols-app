@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, ArrowLeft, Bug, CheckCircle2, ChevronLeft, ChevronRight, Clock3, History, RefreshCw, Search, ServerCrash, ShieldCheck, UserRound, Users, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Bug, CheckCircle2, ChevronLeft, ChevronRight, Clock3, ExternalLink, FileCode2, History, RefreshCw, Search, ServerCrash, ShieldCheck, UserRound, Users, X } from "lucide-react";
 import apiClient from "@/lib/apiClient";
 
 type ImpactedUser = {
@@ -26,6 +26,11 @@ type ImpactedUser = {
     durationMs: number | null;
     message: string | null;
     requestId: string | null;
+    source: string | null;
+    stack: string | null;
+    componentStack: string | null;
+    release: string | null;
+    diagnostic: ErrorDiagnostic | null;
   } | null;
   resolution: {
     status: "open" | "restored";
@@ -38,6 +43,25 @@ type ImpactedUser = {
       role: string | null;
     } | null;
   };
+};
+
+type ErrorDiagnostic = {
+  service: "web" | "api";
+  release: string | null;
+  fingerprint: string;
+  primaryFrame: DiagnosticFrame | null;
+  frames: DiagnosticFrame[];
+};
+
+type DiagnosticFrame = {
+  functionName: string | null;
+  file: string;
+  line: number | null;
+  column: number | null;
+  inApp: boolean;
+  mapped: boolean;
+  codeContext?: Array<{ line: number; content: string; highlight: boolean }>;
+  sourceLink?: string | null;
 };
 
 type Filter = "all" | "critical" | "slow" | "client" | "server" | "known" | "visitors" | "restored";
@@ -112,6 +136,8 @@ export default function AdminImpactCenterPage() {
         item.lastEvent?.message,
         item.lastEvent?.route,
         item.lastEvent?.path,
+        item.lastEvent?.diagnostic?.primaryFrame?.file,
+        item.lastEvent?.diagnostic?.fingerprint,
         ...item.routes,
       ]
         .filter(Boolean)
@@ -307,6 +333,7 @@ function ImpactPersonCard({ item, onRestore }: { item: ImpactedUser; onRestore: 
   const severity = restored ? "Restored" : critical ? "Critical" : item.slowCount > 0 ? "Warning" : "Reviewed";
   const iconClass = restored ? "border-emerald-100 bg-emerald-50 text-emerald-700" : critical ? "border-red-100 bg-red-50 text-red-700" : item.slowCount > 0 ? "border-amber-100 bg-amber-50 text-amber-700" : "border-emerald-100 bg-emerald-50 text-emerald-700";
   const eventLabel = item.lastEvent?.message || item.lastEvent?.route || item.lastEvent?.path || item.lastEvent?.action || "Observed impact";
+  const diagnostic = item.lastEvent?.diagnostic;
 
   return (
     <div className="px-4 py-4 sm:px-5">
@@ -327,6 +354,7 @@ function ImpactPersonCard({ item, onRestore }: { item: ImpactedUser; onRestore: 
             </div>
             {item.email ? <p className="mt-0.5 truncate text-xs text-slate-500">{item.email}</p> : null}
             <p className="mt-3 max-w-4xl text-sm font-medium leading-6 text-slate-800">{eventLabel}</p>
+            {diagnostic ? <DiagnosticPanel diagnostic={diagnostic} rawStack={item.lastEvent?.stack} /> : null}
             <div className="mt-3 flex flex-wrap gap-1.5">
               {item.routes.map((route) => (
                 <span key={route} className="border border-slate-200 bg-slate-50 px-2 py-1 font-mono text-[11px] text-slate-600">
@@ -390,6 +418,80 @@ function ImpactPersonCard({ item, onRestore }: { item: ImpactedUser; onRestore: 
               </button>
             ) : null}
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DiagnosticPanel({ diagnostic, rawStack }: { diagnostic: ErrorDiagnostic; rawStack?: string | null }) {
+  const frame = diagnostic.primaryFrame;
+  const location = frame
+    ? `${frame.file}${frame.line ? `:${frame.line}` : ""}${frame.column ? `:${frame.column}` : ""}`
+    : null;
+
+  return (
+    <div className="mt-3 overflow-hidden border border-slate-200 bg-slate-950 text-slate-100 shadow-sm">
+      <div className="flex flex-col gap-2 border-b border-white/10 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-2">
+          <FileCode2 className="h-4 w-4 shrink-0 text-emerald-400" aria-hidden />
+          <div className="min-w-0">
+            <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
+              {frame?.mapped ? "Exact source location" : "Generated source location"}
+            </div>
+            <div className="mt-0.5 truncate font-mono text-xs font-semibold text-slate-100" title={location || undefined}>
+              {location || "No stack frame available"}
+            </div>
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide">
+          <span className="border border-white/10 bg-white/5 px-2 py-1 text-slate-300">{diagnostic.service}</span>
+          {diagnostic.release ? <span className="border border-white/10 bg-white/5 px-2 py-1 text-slate-300">{diagnostic.release.slice(0, 12)}</span> : null}
+          <span className="border border-white/10 bg-white/5 px-2 py-1 font-mono text-slate-400">{diagnostic.fingerprint}</span>
+        </div>
+      </div>
+
+      {frame?.codeContext?.length ? (
+        <div className="overflow-x-auto py-2 font-mono text-[11px] leading-5">
+          {frame.codeContext.map((codeLine) => (
+            <div
+              key={codeLine.line}
+              className={`grid min-w-max grid-cols-[3.5rem_minmax(36rem,1fr)] px-3 ${codeLine.highlight ? "bg-rose-500/15 text-rose-100" : "text-slate-300"}`}
+            >
+              <span className={`select-none pr-3 text-right ${codeLine.highlight ? "font-black text-rose-300" : "text-slate-600"}`}>{codeLine.line}</span>
+              <code className="whitespace-pre">{codeLine.content || " "}</code>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="px-3 py-2 text-xs text-slate-400">
+          {frame?.mapped
+            ? "Source identified; nearby code is unavailable in this release artifact."
+            : "Private source map not available for this release. The generated line is retained for correlation."}
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/10 px-3 py-2">
+        <div className="text-[10px] font-semibold text-slate-500">
+          {frame?.functionName ? `Function: ${frame.functionName}` : `${diagnostic.frames.length} captured frame${diagnostic.frames.length === 1 ? "" : "s"}`}
+        </div>
+        <div className="flex items-center gap-2">
+          {rawStack ? (
+            <details className="relative">
+              <summary className="cursor-pointer list-none text-[11px] font-bold text-slate-300 hover:text-white">Stack trace</summary>
+              <pre className="mt-2 max-h-48 max-w-full overflow-auto whitespace-pre-wrap border border-white/10 bg-black/30 p-2 text-[10px] leading-4 text-slate-400 sm:max-w-2xl">{rawStack}</pre>
+            </details>
+          ) : null}
+          {frame?.sourceLink ? (
+            <a
+              href={frame.sourceLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-400 no-underline hover:text-emerald-300"
+            >
+              Open source <ExternalLink className="h-3 w-3" aria-hidden />
+            </a>
+          ) : null}
         </div>
       </div>
     </div>

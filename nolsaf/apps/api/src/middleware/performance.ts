@@ -37,6 +37,7 @@ export function performanceMiddleware(req: Request, res: Response, next: NextFun
       userAgent: req.headers["user-agent"]?.toString() || null,
       actorId: (req as any).user?.id ?? null,
       actorRole: (req as any).user?.role ?? null,
+      exceptionCaptured: Boolean((req as any).exceptionCaptured),
       timestamp: new Date().toISOString(),
     };
 

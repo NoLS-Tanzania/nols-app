@@ -148,4 +148,28 @@ router.post('/:id/mark-read', asyncHandler(async (req, res) => {
   }
 }));
 
+// DELETE /api/admin/notifications/:id - read notifications only
+router.delete('/:id', asyncHandler(async (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ ok: false, error: 'invalid_id' });
+    }
+
+    const result = await prisma.notification.deleteMany({
+      where: { id, unread: false },
+    });
+
+    if (result.count === 0) {
+      return res.status(404).json({ ok: false, error: 'not_found_or_unread' });
+    }
+
+    return res.json({ ok: true });
+  } catch (err: any) {
+    console.error('DELETE /api/admin/notifications/:id failed:', err?.message || err);
+    return res.status(500).json({ ok: false, error: String(err?.message || err) });
+  }
+}));
+
 export default router;
