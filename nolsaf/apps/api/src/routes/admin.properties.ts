@@ -992,13 +992,52 @@ router.patch("/:id", (async (req: AuthedRequest, res) => {
     });
     if (!property) return res.status(404).json({ error: "Property not found" });
 
-    const { title, description, basePrice, currency, commissionPercent, discountRules, roomPrices } = req.body;
+    const {
+      title,
+      description,
+      basePrice,
+      currency,
+      commissionPercent,
+      discountRules,
+      roomPrices,
+      latitude,
+      longitude,
+      coordinateCorrectionReason,
+    } = req.body;
 
     const updateData: any = {};
     if (title !== undefined) updateData.title = String(title);
     if (description !== undefined) updateData.description = String(description);
     if (basePrice !== undefined) updateData.basePrice = Number(basePrice);
     if (currency !== undefined) updateData.currency = String(currency);
+
+    const coordinatesRequested = latitude !== undefined || longitude !== undefined;
+    let correctionReason: string | null = null;
+    if (coordinatesRequested) {
+      if (latitude === undefined || longitude === undefined) {
+        return res.status(400).json({ error: "Latitude and longitude must be provided together" });
+      }
+      if (String(latitude).trim() === "" || String(longitude).trim() === "") {
+        return res.status(400).json({ error: "Latitude and longitude cannot be empty" });
+      }
+
+      const latitudeNumber = Number(latitude);
+      const longitudeNumber = Number(longitude);
+      if (!Number.isFinite(latitudeNumber) || latitudeNumber < -90 || latitudeNumber > 90) {
+        return res.status(400).json({ error: "Latitude must be between -90 and 90" });
+      }
+      if (!Number.isFinite(longitudeNumber) || longitudeNumber < -180 || longitudeNumber > 180) {
+        return res.status(400).json({ error: "Longitude must be between -180 and 180" });
+      }
+
+      correctionReason = String(coordinateCorrectionReason || "").trim();
+      if (correctionReason.length < 5 || correctionReason.length > 500) {
+        return res.status(400).json({ error: "A correction reason between 5 and 500 characters is required" });
+      }
+
+      updateData.latitude = latitudeNumber;
+      updateData.longitude = longitudeNumber;
+    }
 
     // Store commission and discount rules in services JSON field
     if (commissionPercent !== undefined || discountRules !== undefined) {
@@ -1084,11 +1123,11 @@ router.patch("/:id", (async (req: AuthedRequest, res) => {
     await auditLog({
       actorId: req.user!.id,
       actorRole: req.user!.role,
-      action: "PROPERTY_UPDATE",
+      action: coordinatesRequested ? "PROPERTY_COORDINATES_UPDATE" : "PROPERTY_UPDATE",
       entity: "PROPERTY",
       entityId: id,
       before: property,
-      after: updated,
+      after: coordinatesRequested ? { ...updated, reason: correctionReason } : updated,
       ip: req.ip,
       ua: req.headers["user-agent"] as string,
     });
