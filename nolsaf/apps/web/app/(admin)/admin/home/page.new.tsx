@@ -1292,14 +1292,14 @@ export default function AdminHomePage() {
                 </div>
               </section>
 
-              <section className="col-span-12 lg:col-span-7 rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-[0_20px_80px_-60px_rgba(0,0,0,0.9)] overflow-hidden">
+              <section className="col-span-12 lg:col-span-7 overflow-hidden rounded-3xl border border-white/10 bg-[#111827]">
                 <div className="p-5 sm:p-6 border-b border-white/10 flex items-center justify-between gap-3 flex-wrap">
                   <div>
                     <div className="text-sm font-semibold text-white">Revenue analytics</div>
                     <div className="text-xs text-slate-400">Commission & subscription series</div>
                   </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <div className="inline-flex rounded-2xl bg-white/5 p-1 border border-white/10">
+                  <div className="scrollbar-hide flex max-w-full flex-nowrap items-center gap-2 overflow-x-auto overscroll-x-contain pb-1 touch-pan-x">
+                    <div className="inline-flex shrink-0 rounded-2xl bg-white/5 p-1 border border-white/10">
                       <button
                         type="button"
                         onClick={() => setRangeType("hours")}
@@ -1326,7 +1326,7 @@ export default function AdminHomePage() {
                     <button
                       type="button"
                       onClick={() => router.push("/admin/revenue")}
-                      className="inline-flex items-center rounded-2xl border border-teal-400/20 bg-teal-500/10 px-3 py-2 text-xs font-semibold text-teal-100 hover:bg-teal-500/15 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/25"
+                      className="inline-flex shrink-0 items-center whitespace-nowrap rounded-2xl border border-teal-400/20 bg-teal-500/10 px-3 py-2 text-xs font-semibold text-teal-100 hover:bg-teal-500/15 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/25"
                     >
                       View details
                     </button>
@@ -1335,7 +1335,7 @@ export default function AdminHomePage() {
                       <select
                         title="Hours range"
                         aria-label="Hours range"
-                        className="border border-white/10 rounded-2xl px-3 py-2 bg-white/5 text-xs text-slate-100 hover:bg-white/10 transition-colors duration-200"
+                        className="shrink-0 whitespace-nowrap border border-white/10 rounded-2xl px-3 py-2 bg-white/5 text-xs text-slate-100 hover:bg-white/10 transition-colors duration-200"
                         value={hoursWindow}
                         onChange={(e) => setHoursWindow(Number(e.target.value))}
                       >
@@ -1349,7 +1349,7 @@ export default function AdminHomePage() {
                       <select
                         title="Months range"
                         aria-label="Months range"
-                        className="border border-white/10 rounded-2xl px-3 py-2 bg-white/5 text-xs text-slate-100 hover:bg-white/10 transition-colors duration-200"
+                        className="shrink-0 whitespace-nowrap border border-white/10 rounded-2xl px-3 py-2 bg-white/5 text-xs text-slate-100 hover:bg-white/10 transition-colors duration-200"
                         value={monthsWindow}
                         onChange={(e) => setMonthsWindow(Number(e.target.value))}
                       >
@@ -1375,40 +1375,60 @@ export default function AdminHomePage() {
                       const totalS = subscriptionArr.reduce((s, v) => s + Number(v || 0), 0);
                       const totalT = totalC + totalS;
                       const hasPoints = (chartData?.labels?.length || 0) > 0;
+                      const fallbackHourPoints = Math.min(6, Math.max(2, hoursWindow));
+                      const fallbackMonthPoints = Math.max(2, monthsWindow);
+                      const fallbackLabels = rangeType === "hours"
+                        ? Array.from({ length: fallbackHourPoints }, (_, index) => {
+                            const hoursAgo = Math.round(((fallbackHourPoints - 1 - index) * Math.max(1, hoursWindow - 1)) / Math.max(1, fallbackHourPoints - 1));
+                            return new Date(Date.now() - hoursAgo * 60 * 60 * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+                          })
+                        : rangeType === "months"
+                          ? Array.from({ length: fallbackMonthPoints }, (_, index) => {
+                              const date = new Date();
+                              date.setMonth(date.getMonth() - (fallbackMonthPoints - 1 - index));
+                              return date.toLocaleDateString([], { month: "short" });
+                            })
+                          : Array.from({ length: propertiesCount }, (_, index) => `#${index + 1}`);
+                      const baselineLabels = hasPoints ? chartData.labels : fallbackLabels;
+                      const totalsByPoint = commissionArr.map((value, index) => Number(value || 0) + Number(subscriptionArr[index] || 0));
+                      const activePoints = totalsByPoint.filter((value) => value > 0).length;
+                      const hasRevenue = totalT > 0;
+                      const averageRevenue = hasPoints ? Math.round(totalT / chartData.labels.length) : 0;
+                      const commissionShare = totalT > 0 ? Math.round((totalC / totalT) * 100) : 0;
+                      const pointLabel = rangeType === "properties" ? "properties" : rangeType === "months" ? "months" : "hours";
 
                       return (
                         <>
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
-                            <div className="p-4 rounded-2xl border border-white/10 bg-white/5">
-                              <div className="text-xs text-slate-400 font-medium">Commission</div>
-                              <div className="mt-1 text-lg font-extrabold text-white">Tsh {totalC.toLocaleString()}</div>
-                            </div>
-                            <div className="p-4 rounded-2xl border border-white/10 bg-white/5">
-                              <div className="text-xs text-slate-400 font-medium">Subscription</div>
-                              <div className="mt-1 text-lg font-extrabold text-white">Tsh {totalS.toLocaleString()}</div>
-                            </div>
-                            <div className="p-4 rounded-2xl border border-emerald-400/15 bg-emerald-500/10">
-                              <div className="text-xs text-emerald-200 font-semibold">Total revenue</div>
-                              <div className="mt-1 text-lg font-extrabold text-white">Tsh {totalT.toLocaleString()}</div>
-                            </div>
-                          </div>
-
-                          <div className="h-72">
-                            {rangeType === "properties" ? (
-                              <div className="mb-2 text-xs text-slate-400">
-                                Showing top {propertiesCount} properties (ranked) by revenue.
+                          <div className="rounded-2xl border border-white/10 bg-[#0d1524] p-4 sm:p-5">
+                            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                              <div>
+                                <div className="text-sm font-semibold text-slate-100">Revenue performance</div>
+                                <div className="mt-0.5 text-xs text-slate-500">
+                                  {rangeType === "properties" ? `Top ${propertiesCount} properties ranked by revenue` : `Commission and subscriptions across ${pointLabel}`}
+                                </div>
                               </div>
-                            ) : null}
-                            {hasPoints ? (
+                              <div className="flex items-center gap-3 text-[11px] text-slate-400">
+                                <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-sky-400" />Commission</span>
+                                <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-400" />Subscription</span>
+                              </div>
+                            </div>
+
+                            <div className="h-56 sm:h-64">
+                            {hasPoints && hasRevenue ? (
                               <Chart
-                                type={rangeType === "properties" ? "bar" : "line"}
+                                type="line"
                                 data={chartData}
                                 options={{
                                   responsive: true,
                                   maintainAspectRatio: false,
+                                  layout: { padding: { left: 4, right: 8, top: 6, bottom: 0 } },
+                                  elements: {
+                                    line: { tension: 0.35, borderWidth: 2 },
+                                    point: { radius: 2.5, hoverRadius: 5, borderWidth: 0 },
+                                  },
                                   interaction: { mode: "index", intersect: false },
                                   plugins: {
-                                    legend: { labels: { color: "rgba(226,232,240,0.9)" } },
+                                    legend: { display: false },
                                     tooltip: {
                                       callbacks: {
                                         labelColor: (ctx: any) => {
@@ -1434,11 +1454,13 @@ export default function AdminHomePage() {
                                   scales: {
                                     y: {
                                       beginAtZero: true,
-                                      grid: { color: "rgba(255,255,255,0.06)" },
-                                      ticks: { color: "rgba(226,232,240,0.8)" },
+                                      border: { display: false },
+                                      grid: { color: "rgba(255,255,255,0.055)", drawTicks: false },
+                                      ticks: { display: false },
                                     },
                                     x: {
-                                      grid: { color: "rgba(255,255,255,0.04)" },
+                                      border: { display: false },
+                                      grid: { display: false },
                                       ticks: {
                                         color: "rgba(226,232,240,0.75)",
                                         autoSkip: rangeType !== "properties",
@@ -1461,10 +1483,48 @@ export default function AdminHomePage() {
                                 }}
                               />
                             ) : (
-                              <div className="h-full flex items-center justify-center text-sm text-slate-400">
-                                No revenue data for the selected range.
+                              <div className="relative flex h-full flex-col justify-end overflow-hidden rounded-xl border border-white/[0.06] bg-[#0a1220] px-4 pb-8 pt-5">
+                                <div className="pointer-events-none absolute inset-x-4 top-1/4 border-t border-dashed border-white/[0.06]" />
+                                <div className="pointer-events-none absolute inset-x-4 top-1/2 border-t border-dashed border-white/[0.06]" />
+                                <div className="pointer-events-none absolute inset-x-4 top-3/4 border-t border-dashed border-white/[0.06]" />
+                                <div className="absolute inset-x-0 top-[38%] text-center">
+                                  <div className="text-sm font-semibold text-slate-300">Revenue baseline ready</div>
+                                  <div className="mt-1 text-xs text-slate-500">The line will rise when commission or subscription revenue is posted.</div>
+                                </div>
+                                <div className="relative flex items-center">
+                                  {baselineLabels.map((label, index) => (
+                                    <div key={`${String(label)}-${index}`} className="flex min-w-0 flex-1 items-center">
+                                      <span className="h-2 w-2 shrink-0 rounded-full border-2 border-slate-500 bg-[#0a1220]" />
+                                      {index < baselineLabels.length - 1 && <span className="h-px min-w-0 flex-1 bg-slate-600" />}
+                                    </div>
+                                  ))}
+                                </div>
+                                <div className="mt-3 flex justify-between text-[10px] text-slate-500">
+                                  <span>{String(baselineLabels[0] ?? "Start")}</span>
+                                  <span>{String(baselineLabels[baselineLabels.length - 1] ?? "Now")}</span>
+                                </div>
                               </div>
                             )}
+                            </div>
+                          </div>
+
+                          <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                            <div className="rounded-xl border border-white/10 bg-white/[0.035] p-3">
+                              <div className="text-[11px] font-medium text-slate-500">Total revenue</div>
+                              <div className="mt-1 text-base font-bold text-white">Tsh {totalT.toLocaleString()}</div>
+                            </div>
+                            <div className="rounded-xl border border-white/10 bg-white/[0.035] p-3">
+                              <div className="text-[11px] font-medium text-slate-500">Average / point</div>
+                              <div className="mt-1 text-base font-bold text-white">Tsh {averageRevenue.toLocaleString()}</div>
+                            </div>
+                            <div className="rounded-xl border border-white/10 bg-white/[0.035] p-3">
+                              <div className="text-[11px] font-medium text-slate-500">Active {pointLabel}</div>
+                              <div className="mt-1 text-base font-bold text-white">{activePoints} / {baselineLabels.length}</div>
+                            </div>
+                            <div className="rounded-xl border border-white/10 bg-white/[0.035] p-3">
+                              <div className="text-[11px] font-medium text-slate-500">Commission mix</div>
+                              <div className="mt-1 text-base font-bold text-white">{commissionShare}%</div>
+                            </div>
                           </div>
                         </>
                       );
@@ -1473,7 +1533,7 @@ export default function AdminHomePage() {
                 </div>
               </section>
 
-              <section className="col-span-12 lg:col-span-5 rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-[0_20px_80px_-60px_rgba(0,0,0,0.9)] overflow-hidden">
+              <section className="col-span-12 lg:col-span-5 overflow-hidden rounded-3xl border border-white/10 bg-[#111827]">
                 <div className="p-5 sm:p-6 border-b border-white/10 flex items-center justify-between">
                   <div>
                     <div className="text-sm font-semibold text-white">Recent activities</div>
@@ -1487,7 +1547,7 @@ export default function AdminHomePage() {
 
                     if (loading) {
                       return (
-                        <ul className="divide-y divide-white/10 rounded-2xl border border-white/10 bg-white/0 p-2">
+                        <ul className="list-none divide-y divide-white/10 rounded-2xl border border-white/10 bg-[#0d1524] p-2">
                           {Array.from({ length: 5 }).map((_, i) => (
                             <li key={i} className="py-3 px-3">
                               <div className="flex items-center justify-between gap-3">
@@ -1508,7 +1568,7 @@ export default function AdminHomePage() {
                     }
 
                     return (
-                      <ul className="divide-y divide-white/10 rounded-2xl border border-white/10 bg-white/0 p-2">
+                      <ul className="list-none divide-y divide-white/10 rounded-2xl border border-white/10 bg-[#0d1524] p-2">
                         {recentActivities!.slice(0, 5).map((a: any) => {
                           const tone = auditTone(a.action);
                           const detailsText = formatAuditDetails(a.action, a.details);
@@ -1516,7 +1576,7 @@ export default function AdminHomePage() {
                           return (
                             <li
                               key={a.id ?? `${a.action}-${a.createdAt ?? ""}`}
-                              className="py-2.5 px-3 rounded-xl hover:bg-white/5 transition-colors duration-200"
+                              className="rounded-xl px-3 py-2.5"
                             >
                               <div className="flex items-start gap-3">
                                 <div className={"mt-1.5 h-2 w-2 rounded-full shrink-0 " + tone.dot} aria-hidden />

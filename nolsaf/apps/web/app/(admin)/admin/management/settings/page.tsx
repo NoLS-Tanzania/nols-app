@@ -706,15 +706,15 @@ export default function SystemSettingsPage(){
                 </div>
                 <span className="inline-flex shrink-0 items-center rounded-xl border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.10em] text-emerald-700">Finance</span>
               </div>
-              <div className="grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2">
+              <div className="grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {/* Property Commission */}
-                <div className="rounded-[14px] border border-slate-200 bg-slate-50/60 p-4 shadow-sm">
-                  <div className="mb-3">
+                <div className="flex h-full min-w-0 flex-col rounded-[14px] border border-slate-200 bg-slate-50/60 p-4">
+                  <div className="mb-4 min-h-[52px]">
                     <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Property Commission</p>
                     <p className="mt-0.5 text-[11px] text-slate-400">Charged to property owners on accommodation bookings.</p>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
+                  <div className="mt-auto grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
+                    <div className="min-w-0">
                       <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Rate</p>
                       <div className="flex overflow-hidden rounded-[10px] border border-slate-200 bg-white shadow-sm focus-within:border-[#02665e]/50 focus-within:ring-2 focus-within:ring-[#02665e]/15">
                         <input
@@ -727,11 +727,11 @@ export default function SystemSettingsPage(){
                         <div className="flex shrink-0 items-center border-l border-slate-100 bg-[#02665e]/8 px-2.5 text-xs font-bold text-[#02665e]">%</div>
                       </div>
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Currency</p>
                       <select
                         aria-label="Property commission currency"
-                        className="w-full rounded-[10px] border border-slate-200 bg-white py-2 pl-3 pr-3 text-sm font-medium text-slate-800 shadow-sm outline-none focus:border-[#02665e]/50 focus:ring-2 focus:ring-[#02665e]/15"
+                        className="box-border w-full min-w-0 rounded-[10px] border border-slate-200 bg-white py-2 pl-3 pr-3 text-sm font-medium text-slate-800 outline-none focus:border-[#02665e]/50 focus:ring-2 focus:ring-[#02665e]/15"
                         value={s?.commissionCurrency || 'TZS'}
                         onChange={e=>setS((prev: any)=>({...(prev||{}), commissionCurrency: e.target.value}))}
                       >
@@ -745,13 +745,13 @@ export default function SystemSettingsPage(){
                   </div>
                 </div>
                 {/* Driver Commission */}
-                <div className="rounded-[14px] border border-slate-200 bg-slate-50/60 p-4 shadow-sm">
-                  <div className="mb-3">
+                <div className="flex h-full min-w-0 flex-col rounded-[14px] border border-slate-200 bg-slate-50/60 p-4">
+                  <div className="mb-4 min-h-[52px]">
                     <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Driver Commission</p>
                     <p className="mt-0.5 text-[11px] text-slate-400">Deducted from driver transport trip payouts.</p>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
+                  <div className="mt-auto grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
+                    <div className="min-w-0">
                       <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Rate</p>
                       <div className="flex overflow-hidden rounded-[10px] border border-slate-200 bg-white shadow-sm focus-within:border-[#02665e]/50 focus-within:ring-2 focus-within:ring-[#02665e]/15">
                         <input
@@ -764,11 +764,11 @@ export default function SystemSettingsPage(){
                         <div className="flex shrink-0 items-center border-l border-slate-100 bg-[#02665e]/8 px-2.5 text-xs font-bold text-[#02665e]">%</div>
                       </div>
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Currency</p>
                       <select
                         aria-label="Driver commission currency"
-                        className="w-full rounded-[10px] border border-slate-200 bg-white py-2 pl-3 pr-3 text-sm font-medium text-slate-800 shadow-sm outline-none focus:border-[#02665e]/50 focus:ring-2 focus:ring-[#02665e]/15"
+                        className="box-border w-full min-w-0 rounded-[10px] border border-slate-200 bg-white py-2 pl-3 pr-3 text-sm font-medium text-slate-800 outline-none focus:border-[#02665e]/50 focus:ring-2 focus:ring-[#02665e]/15"
                         value={s?.driverCommissionCurrency || 'TZS'}
                         onChange={e=>setS((prev: any)=>({...(prev||{}), driverCommissionCurrency: e.target.value}))}
                       >
@@ -782,13 +782,13 @@ export default function SystemSettingsPage(){
                   </div>
                 </div>
                 {/* Tour Agent Commission */}
-                <div className="rounded-[14px] border border-slate-200 bg-slate-50/60 p-4 shadow-sm">
-                  <div className="mb-3">
+                <div className="flex h-full min-w-0 flex-col rounded-[14px] border border-slate-200 bg-slate-50/60 p-4 sm:col-span-2 lg:col-span-1">
+                  <div className="mb-4 min-h-[52px]">
                     <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Tour Agent Commission</p>
                     <p className="mt-0.5 text-[11px] text-slate-400">Platform fee deducted from agent tour earnings.</p>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
+                  <div className="mt-auto grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
+                    <div className="min-w-0">
                       <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Rate</p>
                       <div className="flex overflow-hidden rounded-[10px] border border-slate-200 bg-white shadow-sm focus-within:border-[#02665e]/50 focus-within:ring-2 focus-within:ring-[#02665e]/15">
                         <input
@@ -801,11 +801,11 @@ export default function SystemSettingsPage(){
                         <div className="flex shrink-0 items-center border-l border-slate-100 bg-[#02665e]/8 px-2.5 text-xs font-bold text-[#02665e]">%</div>
                       </div>
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Currency</p>
                       <select
                         aria-label="Agent commission currency"
-                        className="w-full rounded-[10px] border border-slate-200 bg-white py-2 pl-3 pr-3 text-sm font-medium text-slate-800 shadow-sm outline-none focus:border-[#02665e]/50 focus:ring-2 focus:ring-[#02665e]/15"
+                        className="box-border w-full min-w-0 rounded-[10px] border border-slate-200 bg-white py-2 pl-3 pr-3 text-sm font-medium text-slate-800 outline-none focus:border-[#02665e]/50 focus:ring-2 focus:ring-[#02665e]/15"
                         value={s?.agentCommissionCurrency || 'USD'}
                         onChange={e=>setS((prev: any)=>({...(prev||{}), agentCommissionCurrency: e.target.value}))}
                       >
@@ -819,15 +819,15 @@ export default function SystemSettingsPage(){
                   </div>
                 </div>
                 {/* Display Currency (global formatting) */}
-                <div className="rounded-[14px] border border-slate-200 bg-slate-50/60 p-4 shadow-sm">
-                  <div className="mb-3">
+                <div className="flex min-w-0 flex-col gap-4 rounded-[14px] border border-[#02665e]/15 bg-[#02665e]/[0.035] p-4 sm:col-span-2 lg:col-span-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="min-w-0">
                     <label htmlFor="currency" className="block text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Display Currency</label>
                     <p className="mt-0.5 text-[11px] text-slate-400">Default currency for displaying monetary values platform-wide.</p>
                   </div>
-                  <div className="relative">
+                  <div className="relative w-full shrink-0 lg:w-64">
                     <select
                       id="currency"
-                      className="w-full rounded-[10px] border border-slate-200 bg-white py-2 pl-3 pr-3 text-sm font-medium text-slate-800 shadow-sm outline-none focus:border-[#02665e]/50 focus:ring-2 focus:ring-[#02665e]/15"
+                      className="box-border w-full min-w-0 rounded-[10px] border border-slate-200 bg-white py-2 pl-3 pr-3 text-sm font-medium text-slate-800 outline-none focus:border-[#02665e]/50 focus:ring-2 focus:ring-[#02665e]/15"
                       value={s?.currency||"TZS"}
                       onChange={e=>setS((prev: any)=>({...(prev||{}), currency: e.target.value}))}
                     >
