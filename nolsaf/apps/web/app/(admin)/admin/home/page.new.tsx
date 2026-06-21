@@ -651,22 +651,9 @@ export default function AdminHomePage() {
         className={
           "group relative block no-underline " +
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 " +
-          "motion-safe:transition-transform motion-safe:duration-300 motion-safe:ease-out hover:-translate-y-0.5 active:translate-y-0 " +
+          "motion-safe:transition-colors motion-safe:duration-200 " +
           (className ? className : "")
         }
-        onMouseMove={(e) => {
-          const target = e.currentTarget as HTMLElement;
-          const rect = target.getBoundingClientRect();
-          const x = ((e.clientX - rect.left) / rect.width) * 100;
-          const y = ((e.clientY - rect.top) / rect.height) * 100;
-          target.style.setProperty("--x", `${x}%`);
-          target.style.setProperty("--y", `${y}%`);
-        }}
-        onMouseLeave={(e) => {
-          const target = e.currentTarget as HTMLElement;
-          target.style.removeProperty("--x");
-          target.style.removeProperty("--y");
-        }}
         style={
           reduceMotion
             ? undefined
@@ -682,22 +669,11 @@ export default function AdminHomePage() {
       >
         <div
           className={
-            "relative overflow-hidden rounded-[24px] bg-gradient-to-br " +
+            "relative overflow-hidden rounded-[24px] border border-white/10 " +
             gradient +
-            " shadow-[0_28px_80px_-56px_rgba(0,0,0,0.92)] motion-safe:transition motion-safe:duration-300 motion-safe:ease-out " +
-            "group-hover:shadow-[0_36px_100px_-60px_rgba(0,0,0,0.96)] group-hover:saturate-[1.06] group-hover:brightness-[1.02]"
+            " motion-safe:transition-colors motion-safe:duration-200 group-hover:border-white/20"
           }
         >
-          <div className="pointer-events-none absolute inset-0 bg-black/10" aria-hidden />
-          <div
-            className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-            aria-hidden
-            style={{
-              background:
-                "radial-gradient(900px circle at var(--x,50%) var(--y,40%), rgba(255,255,255,0.22), transparent 42%), radial-gradient(700px circle at 95% 55%, rgba(255,255,255,0.14), transparent 55%)",
-            }}
-          />
-
           <div className={"relative " + (featured ? "p-5 sm:p-5 min-h-[150px]" : "p-4 min-h-[128px]")}
           >
             <div className="flex items-start justify-between gap-4">
@@ -935,22 +911,9 @@ export default function AdminHomePage() {
 
   return (
     <div className="relative min-h-screen bg-[#070B1C] text-slate-100 overflow-hidden">
-      <div
-        className="pointer-events-none absolute inset-0"
-        aria-hidden
-        style={{
-          background:
-            "radial-gradient(900px circle at 18% 20%, rgba(59,130,246,0.16), transparent 45%), radial-gradient(900px circle at 75% 18%, rgba(236,72,153,0.14), transparent 44%), radial-gradient(900px circle at 55% 85%, rgba(16,185,129,0.12), transparent 46%), linear-gradient(to bottom, rgba(2,6,23,0.00), rgba(2,6,23,0.60))",
-        }}
-      />
-      <div
-        className="pointer-events-none absolute inset-0 opacity-[0.14] [background-image:linear-gradient(to_right,rgba(255,255,255,0.09)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.09)_1px,transparent_1px)] [background-size:42px_42px]"
-        aria-hidden
-      />
-
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
         <div className="grid grid-cols-12 gap-6">
-          <main className="col-span-12 rounded-[32px] border border-white/10 bg-white/[0.02] backdrop-blur-xl shadow-[0_26px_110px_-70px_rgba(0,0,0,0.95)] p-5 sm:p-6 lg:p-8">
+          <main className="col-span-12 rounded-[32px] border border-white/10 bg-white/[0.02] shadow-[0_26px_110px_-70px_rgba(0,0,0,0.95)] p-5 sm:p-6 lg:p-8">
             <div className="flex items-start justify-between gap-4 flex-wrap mb-6">
               <div>
                 <div className="flex items-center gap-2 text-xs text-slate-400">
@@ -1153,16 +1116,8 @@ export default function AdminHomePage() {
                 <div className="mt-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                   <Link
                     href="/admin/properties/previews"
-                    className="group relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-white/8 via-white/5 to-white/2 backdrop-blur-xl p-5 shadow-[0_22px_80px_-60px_rgba(0,0,0,0.95)] motion-safe:transition hover:-translate-y-0.5 hover:bg-white/10 no-underline hover:no-underline"
+                    className="group relative overflow-hidden rounded-3xl border border-white/10 bg-[#123c36] p-5 transition-colors duration-200 hover:border-white/20 no-underline hover:no-underline"
                   >
-                    <div
-                      className="pointer-events-none absolute inset-0 opacity-75"
-                      aria-hidden
-                      style={{
-                        background:
-                          "radial-gradient(520px circle at 20% 25%, rgba(2,102,94,0.22), transparent 56%), radial-gradient(520px circle at 92% 35%, rgba(34,197,94,0.14), transparent 62%)",
-                      }}
-                    />
                     <div className="relative flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="text-xs text-slate-400">Best property type</div>
@@ -1194,16 +1149,8 @@ export default function AdminHomePage() {
 
                   <Link
                     href={highlights?.bestDriver?.driverId ? `/admin/drivers/audit/${highlights.bestDriver.driverId}` : "/admin/drivers"}
-                    className="group relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-white/8 via-white/5 to-white/2 backdrop-blur-xl p-5 shadow-[0_22px_80px_-60px_rgba(0,0,0,0.95)] motion-safe:transition hover:-translate-y-0.5 hover:bg-white/10 no-underline hover:no-underline"
+                    className="group relative overflow-hidden rounded-3xl border border-white/10 bg-[#172f45] p-5 transition-colors duration-200 hover:border-white/20 no-underline hover:no-underline"
                   >
-                    <div
-                      className="pointer-events-none absolute inset-0 opacity-75"
-                      aria-hidden
-                      style={{
-                        background:
-                          "radial-gradient(520px circle at 20% 25%, rgba(56,189,248,0.20), transparent 56%), radial-gradient(520px circle at 90% 30%, rgba(2,102,94,0.14), transparent 62%)",
-                      }}
-                    />
                     <div className="relative flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="text-xs text-slate-400">Best driver (NoLSAF revenue)</div>
@@ -1238,16 +1185,8 @@ export default function AdminHomePage() {
 
                   <Link
                     href={highlights?.bestOwner?.ownerId ? `/admin/owners/${highlights.bestOwner.ownerId}` : "/admin/owners"}
-                    className="group relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-white/8 via-white/5 to-white/2 backdrop-blur-xl p-5 shadow-[0_22px_80px_-60px_rgba(0,0,0,0.95)] motion-safe:transition hover:-translate-y-0.5 hover:bg-white/10 no-underline hover:no-underline"
+                    className="group relative overflow-hidden rounded-3xl border border-white/10 bg-[#123a38] p-5 transition-colors duration-200 hover:border-white/20 no-underline hover:no-underline"
                   >
-                    <div
-                      className="pointer-events-none absolute inset-0 opacity-75"
-                      aria-hidden
-                      style={{
-                        background:
-                          "radial-gradient(520px circle at 20% 25%, rgba(16,185,129,0.18), transparent 56%), radial-gradient(520px circle at 92% 35%, rgba(2,102,94,0.16), transparent 62%)",
-                      }}
-                    />
                     <div className="relative flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="text-xs text-slate-400">Best owner (revenue + bookings)</div>
@@ -1281,16 +1220,8 @@ export default function AdminHomePage() {
 
                   <Link
                     href="/admin/bookings"
-                    className="group relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-white/8 via-white/5 to-white/2 backdrop-blur-xl p-5 shadow-[0_22px_80px_-60px_rgba(0,0,0,0.95)] motion-safe:transition hover:-translate-y-0.5 hover:bg-white/10 no-underline hover:no-underline"
+                    className="group relative overflow-hidden rounded-3xl border border-white/10 bg-[#273548] p-5 transition-colors duration-200 hover:border-white/20 no-underline hover:no-underline"
                   >
-                    <div
-                      className="pointer-events-none absolute inset-0 opacity-75"
-                      aria-hidden
-                      style={{
-                        background:
-                          "radial-gradient(520px circle at 20% 25%, rgba(148,163,184,0.18), transparent 56%), radial-gradient(520px circle at 92% 35%, rgba(56,189,248,0.14), transparent 62%)",
-                      }}
-                    />
                     <div className="relative flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="text-xs text-slate-400">Most booked region</div>
@@ -1325,16 +1256,8 @@ export default function AdminHomePage() {
                         ? `/admin/properties/previews?previewId=${highlights.topProperty.propertyId}`
                         : "/admin/properties/previews"
                     }
-                    className="group relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-white/8 via-white/5 to-white/2 backdrop-blur-xl p-5 shadow-[0_22px_80px_-60px_rgba(0,0,0,0.95)] motion-safe:transition hover:-translate-y-0.5 hover:bg-white/10 md:col-span-2 xl:col-span-1 no-underline hover:no-underline"
+                    className="group relative overflow-hidden rounded-3xl border border-white/10 bg-[#123845] p-5 transition-colors duration-200 hover:border-white/20 md:col-span-2 xl:col-span-1 no-underline hover:no-underline"
                   >
-                    <div
-                      className="pointer-events-none absolute inset-0 opacity-75"
-                      aria-hidden
-                      style={{
-                        background:
-                          "radial-gradient(520px circle at 20% 25%, rgba(2,102,94,0.18), transparent 56%), radial-gradient(520px circle at 92% 35%, rgba(34,211,238,0.12), transparent 62%)",
-                      }}
-                    />
                     <div className="relative flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="text-xs text-slate-400">Top property (bookings + interactions)</div>
@@ -1619,7 +1542,7 @@ export default function AdminHomePage() {
               </section>
 
 
-              <section className="col-span-12 rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-[0_20px_80px_-60px_rgba(0,0,0,0.9)] overflow-hidden">
+              <section className="col-span-12 rounded-3xl border border-white/10 bg-white/5 shadow-[0_20px_80px_-60px_rgba(0,0,0,0.9)] overflow-hidden">
                 <div className="p-5 sm:p-6 border-b border-white/10 flex items-center justify-between gap-3 flex-wrap">
                   <div>
                     <div className="text-sm font-semibold text-white">Operations snapshot</div>
@@ -1777,12 +1700,6 @@ export default function AdminHomePage() {
                     <div className="text-xs text-slate-400">Navigate every module instantly</div>
                   </div>
                   <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                    <span className="flex items-center gap-[3px]" aria-hidden>
-                      {([0, 350, 700] as const).map((d) => (
-                        <span key={d} className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500/70"
-                          style={{ animation: "nols-seq-blink 1.2s ease-in-out infinite", animationDelay: `${d}ms` }} />
-                      ))}
-                    </span>
                     Live
                   </div>
                 </div>
@@ -1814,7 +1731,7 @@ export default function AdminHomePage() {
                     title="Approvals"
                     description="Review new properties"
                     icon={CheckCircle2}
-                    gradient="from-brand-700 via-emerald-500 to-lime-300"
+                    gradient="bg-[#12463f]"
                     iconWrap="bg-brand-500/15 border-brand-300/20 text-white"
                     badge={monitoring ? monitoring.pendingApprovals : null}
                     className="col-span-12 sm:col-span-6 lg:col-span-4"
@@ -1828,7 +1745,7 @@ export default function AdminHomePage() {
                     title="Payments"
                     description="Payouts & settlements"
                     icon={CreditCard}
-                    gradient="from-brand-700 via-cyan-500 to-sky-300"
+                    gradient="bg-[#174456]"
                     iconWrap="bg-cyan-500/15 border-cyan-200/20 text-white"
                     badge={paymentsWaiting ?? null}
                     className="col-span-12 sm:col-span-6 lg:col-span-4"
@@ -1842,7 +1759,7 @@ export default function AdminHomePage() {
                     title="Bookings"
                     description="Trips, status, issues"
                     icon={CalendarDays}
-                    gradient="from-brand-800 via-sky-500 to-cyan-300"
+                    gradient="bg-[#193e59]"
                     iconWrap="bg-sky-500/15 border-sky-200/20 text-white"
                     badge={monitoring ? Math.round(bookingsAnimated) : null}
                     className="col-span-12 sm:col-span-6 lg:col-span-4"
@@ -1856,7 +1773,7 @@ export default function AdminHomePage() {
                     title="Revenue"
                     description="Reports & breakdown"
                     icon={BarChart2}
-                    gradient="from-brand-700 via-sky-500 to-cyan-300"
+                    gradient="bg-[#174154]"
                     iconWrap="bg-brand-500/15 border-brand-200/20 text-white"
                     className="col-span-12 sm:col-span-6 lg:col-span-3"
                     index={3}
@@ -1887,7 +1804,7 @@ export default function AdminHomePage() {
                     title="Properties"
                     description="Manage listings"
                     icon={Building2}
-                    gradient="from-brand-800 via-emerald-500 to-teal-300"
+                    gradient="bg-[#16463d]"
                     iconWrap="bg-emerald-500/15 border-emerald-200/20 text-white"
                     className="col-span-12 sm:col-span-6 lg:col-span-3"
                     index={4}
@@ -1911,7 +1828,7 @@ export default function AdminHomePage() {
                     title="Analytics"
                     description="Trends & performance"
                     icon={LineChart}
-                    gradient="from-slate-600 via-brand-400 to-slate-200"
+                    gradient="bg-[#344653]"
                     iconWrap="bg-white/10 border-white/15 text-white"
                     className="col-span-12 sm:col-span-6 lg:col-span-3"
                     index={5}
@@ -1933,18 +1850,12 @@ export default function AdminHomePage() {
                     title="Messages"
                     description="Inbox & communication"
                     icon={MessagesSquare}
-                    gradient="from-brand-800 via-blue-500 to-cyan-300"
+                    gradient="bg-[#243f61]"
                     iconWrap="bg-blue-500/15 border-blue-200/20 text-white"
                     className="col-span-12 sm:col-span-6 lg:col-span-3"
                     index={6}
                     bottomSlot={
                       <div className="flex items-center gap-3">
-                        <span className="flex items-center gap-[3px]" aria-hidden>
-                          {([0, 350, 700] as const).map((d) => (
-                            <span key={d} className="inline-block h-2 w-2 rounded-full bg-white/50"
-                              style={{ animation: "nols-seq-blink 1.2s ease-in-out infinite", animationDelay: `${d}ms` }} />
-                          ))}
-                        </span>
                         <div className="text-[11px] leading-tight">
                           <span className="font-extrabold text-white tabular-nums">{usersNewValue}</span>
                           <span className="text-white/55 ml-1">new this week</span>

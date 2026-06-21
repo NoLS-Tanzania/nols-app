@@ -93,20 +93,6 @@ export default function AdminFinancePage() {
 
   return (
     <div className="relative min-h-screen w-full bg-[#070B1C] text-slate-100 overflow-hidden">
-      {/* Ambient glows + faint grid, matching the admin dashboard shell */}
-      <div
-        className="pointer-events-none absolute inset-0"
-        aria-hidden
-        style={{
-          background:
-            "radial-gradient(900px circle at 18% 20%, rgba(16,185,129,0.16), transparent 45%), radial-gradient(900px circle at 78% 16%, rgba(59,130,246,0.14), transparent 44%), radial-gradient(900px circle at 60% 88%, rgba(139,92,246,0.12), transparent 46%), linear-gradient(to bottom, rgba(2,6,23,0.00), rgba(2,6,23,0.60))",
-        }}
-      />
-      <div
-        className="pointer-events-none absolute inset-0 opacity-[0.14] [background-image:linear-gradient(to_right,rgba(255,255,255,0.09)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.09)_1px,transparent_1px)] [background-size:42px_42px]"
-        aria-hidden
-      />
-
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6 py-6 sm:py-8">
         {/* Header */}
         <div className="mb-6">
@@ -141,7 +127,7 @@ export default function AdminFinancePage() {
             label="NoLSAF revenue"
             sublabel="Realized platform take"
             icon={TrendingUp}
-            tone="from-emerald-500/20 to-emerald-300/5 border-emerald-400/20"
+            tone="bg-[#123c36] border-[#24584f]"
             currency={data?.baseCurrency || "TZS"}
             value={totals ? totals.nolsafRevenue : null}
             loading={loading}
@@ -151,7 +137,7 @@ export default function AdminFinancePage() {
             label="Total GMV"
             sublabel="Gross value transacted"
             icon={Wallet}
-            tone="from-sky-500/20 to-sky-300/5 border-sky-400/20"
+            tone="bg-[#17384b] border-[#28536a]"
             currency={data?.baseCurrency || "TZS"}
             value={totals ? totals.gmv : null}
             loading={loading}
@@ -161,7 +147,7 @@ export default function AdminFinancePage() {
             label="Paid to partners"
             sublabel="Owners, operators, drivers"
             icon={HandCoins}
-            tone="from-violet-500/20 to-violet-300/5 border-violet-400/20"
+            tone="bg-[#2d3151] border-[#454b70]"
             currency={data?.baseCurrency || "TZS"}
             value={totals ? totals.partnerNet : null}
             loading={loading}
@@ -171,7 +157,7 @@ export default function AdminFinancePage() {
             label="Pending revenue"
             sublabel={totals ? `${totals.pendingCount} in pipeline` : "In pipeline"}
             icon={Hourglass}
-            tone="from-amber-500/20 to-amber-300/5 border-amber-400/20"
+            tone="bg-[#3a342e] border-[#554a40]"
             currency={data?.baseCurrency || "TZS"}
             value={totals ? totals.pendingRevenue : null}
             loading={loading}
@@ -179,7 +165,7 @@ export default function AdminFinancePage() {
         </div>
 
         {/* Per-stream breakdown */}
-        <section className="mt-6 rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl overflow-hidden">
+        <section className="mt-6 rounded-3xl border border-white/10 bg-white/5 overflow-hidden">
           <div className="p-5 sm:p-6 border-b border-white/10">
             <div className="text-sm font-semibold">Revenue by stream</div>
             <div className="text-xs text-slate-400">NoLSAF take per source (realized)</div>
@@ -281,29 +267,31 @@ function HeroCard({
   return (
     <div
       className={
-        "rounded-3xl border bg-gradient-to-b " +
+        "rounded-3xl border " +
         tone +
-        " backdrop-blur-xl p-5 shadow-[0_20px_80px_-60px_rgba(0,0,0,0.9)] " +
+        " p-5 " +
         (className ?? "")
       }
     >
-      <div className="flex items-start justify-between">
-        <div className="text-sm font-semibold text-white">{label}</div>
-        <Icon className="h-5 w-5 text-white/70 shrink-0" />
+      <div className="flex items-start justify-between gap-3">
+        <div className="text-sm font-semibold text-slate-100">{label}</div>
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06]">
+          <Icon className="h-[18px] w-[18px] text-slate-200" />
+        </div>
       </div>
-      <div className="mt-3 h-8 flex items-baseline gap-1.5 whitespace-nowrap">
+      <div className="mt-4 flex min-h-8 items-baseline gap-2 whitespace-nowrap">
         {loading ? (
           <span className="inline-block h-7 w-32 rounded bg-white/10 animate-pulse" />
         ) : (
           <>
-            <span className="text-xs font-semibold text-slate-300/70">{currency}</span>
-            <span className="text-2xl font-extrabold tabular-nums text-white leading-none">
+            <span className="text-[11px] font-bold uppercase tracking-wide text-slate-400">{currency}</span>
+            <span className="text-2xl font-extrabold tabular-nums tracking-tight text-white leading-none">
               {value === null ? "0" : HERO_NF.format(Math.round(value))}
             </span>
           </>
         )}
       </div>
-      <div className="mt-1.5 text-xs text-slate-300/80">{sublabel}</div>
+      <div className="mt-2 text-xs text-slate-400">{sublabel}</div>
     </div>
   );
 }

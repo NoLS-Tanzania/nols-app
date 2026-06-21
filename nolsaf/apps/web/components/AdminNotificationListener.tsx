@@ -14,12 +14,14 @@ type AdminNotification = {
 };
 
 const SOUND_COOLDOWN_MS = 1_200;
+const SOUND_KEY = "nolsaf:admin-notification-sound";
 
 export default function AdminNotificationListener() {
   const { socket } = useSocket(undefined, { enabled: true, joinDriverRoom: false });
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioUnlockedRef = useRef(false);
   const lastSoundAtRef = useRef(0);
+  const soundEnabledRef = useRef(true);
 
   const unlockAudio = useCallback(() => {
     if (audioUnlockedRef.current) return;
@@ -71,6 +73,11 @@ export default function AdminNotificationListener() {
   }, []);
 
   useEffect(() => {
+    soundEnabledRef.current = localStorage.getItem(SOUND_KEY) !== "off";
+    const onSoundChange = (event: Event) => {
+      soundEnabledRef.current = (event as CustomEvent<{ enabled?: boolean }>).detail?.enabled !== false;
+    };
+    window.addEventListener("nols:admin-notification-sound-change", onSoundChange);
     const armAudio = () => unlockAudio();
     window.addEventListener("pointerdown", armAudio, { once: true, passive: true });
     window.addEventListener("keydown", armAudio, { once: true });
@@ -78,6 +85,7 @@ export default function AdminNotificationListener() {
     return () => {
       window.removeEventListener("pointerdown", armAudio);
       window.removeEventListener("keydown", armAudio);
+      window.removeEventListener("nols:admin-notification-sound-change", onSoundChange);
       void audioContextRef.current?.close().catch(() => undefined);
       audioContextRef.current = null;
     };
@@ -99,7 +107,7 @@ export default function AdminNotificationListener() {
         },
       }));
       window.dispatchEvent(new CustomEvent("nols:admin-notification", { detail: notification }));
-      playChime(urgent);
+      if (soundEnabledRef.current) playChime(urgent);
     };
 
     if (socket.connected) joinAdminRoom();

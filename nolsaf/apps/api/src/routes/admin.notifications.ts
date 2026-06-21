@@ -67,6 +67,7 @@ router.get('/', asyncHandler(async (req, res) => {
     const dto = items.map((i: typeof items[number]) => {
       const baseDto: any = {
         id: i.id,
+        type: i.type,
         title: i.title,
         body: i.body,
         createdAt: i.createdAt,

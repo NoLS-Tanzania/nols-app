@@ -163,12 +163,12 @@ export default function AdminOperationalFooter() {
   return (
     <footer
       aria-label="Admin workspace status and resources"
-      className="relative z-10 shrink-0 border-t border-slate-200/80 bg-white/80 px-3 py-2 backdrop-blur-xl sm:px-4"
+      className="relative z-10 shrink-0 border-t border-white/10 bg-[#0b1424] px-3 py-2 sm:px-4"
     >
       <div className="flex min-h-9 items-center justify-between gap-3">
         <Link
           href="/admin/observability"
-          className="group inline-flex min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-600 no-underline transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/25"
+          className="group inline-flex min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-300 no-underline transition-colors hover:bg-white/[0.07] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/30"
           title={`${statusTitle} · Open observability`}
           aria-label={`${statusLabel}. ${statusTitle}. Open observability.`}
         >
@@ -177,7 +177,7 @@ export default function AdminOperationalFooter() {
               <span className="absolute h-3 w-3 animate-ping rounded-full bg-emerald-400/35 [animation-duration:2.2s]" />
             )}
             <span className={`absolute h-2 w-2 rounded-full ${statusTone}`} />
-            <HeartPulse className={`relative h-3.5 w-3.5 ${health === "healthy" ? "text-emerald-700" : "text-transparent"}`} />
+            <HeartPulse className={`relative h-3.5 w-3.5 ${health === "healthy" ? "text-emerald-300" : "text-transparent"}`} />
           </span>
           <span className="truncate">{statusLabel}</span>
           {health === "healthy" && latencyMs != null && (
@@ -190,7 +190,7 @@ export default function AdminOperationalFooter() {
             <Link
               key={href}
               href={href}
-              className="group inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-500 no-underline transition-colors hover:bg-[#02665e]/[0.07] hover:text-[#02665e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/25"
+              className="group inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-400 no-underline transition-colors hover:bg-white/[0.07] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/30"
             >
               <Icon className="h-3.5 w-3.5 transition-transform group-hover:-translate-y-px" aria-hidden />
               {label}
@@ -202,8 +202,8 @@ export default function AdminOperationalFooter() {
             aria-label={`${impactLabel}. ${impactTitle}`}
             className={`group inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold no-underline transition-colors focus-visible:outline-none focus-visible:ring-2 ${
               impact?.attentionRequired
-                ? "bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-200 hover:bg-rose-100 focus-visible:ring-rose-300"
-                : "text-slate-500 hover:bg-emerald-50 hover:text-emerald-700 focus-visible:ring-[#02665e]/25"
+                ? "bg-red-500/15 text-red-300 ring-1 ring-inset ring-red-400/30 hover:bg-red-500/20 focus-visible:ring-red-400/40"
+                : "text-slate-400 hover:bg-white/[0.07] hover:text-emerald-300 focus-visible:ring-emerald-400/30"
             }`}
           >
             <span className="relative flex h-4 w-4 items-center justify-center" aria-hidden>
@@ -215,21 +215,21 @@ export default function AdminOperationalFooter() {
         </nav>
 
         <div className="flex shrink-0 items-center gap-2 text-[11px] font-semibold text-slate-400">
-          <span className="hidden rounded-full border border-slate-200 bg-slate-50 px-2 py-1 capitalize md:inline-flex">
+          <span className="hidden rounded-full border border-white/10 bg-white/[0.05] px-2 py-1 capitalize md:inline-flex">
             {environment}
           </span>
-          <span className="rounded-full border border-slate-200/80 bg-white px-2 py-1 tabular-nums">
+          <span className="rounded-full border border-white/10 bg-white/[0.05] px-2 py-1 tabular-nums">
             v{VERSION}
           </span>
         </div>
       </div>
 
-      <nav aria-label="Admin mobile footer shortcuts" className="mt-1 grid grid-cols-3 gap-1 border-t border-slate-100 pt-1 sm:hidden">
+      <nav aria-label="Admin mobile footer shortcuts" className="mt-1 grid grid-cols-3 gap-1 border-t border-white/10 pt-1 sm:hidden">
         {quickLinks.map(({ href, label, Icon }) => (
           <Link
             key={href}
             href={href}
-            className="inline-flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[11px] font-semibold text-slate-500 no-underline transition-colors hover:bg-[#02665e]/[0.07] hover:text-[#02665e]"
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[11px] font-semibold text-slate-400 no-underline transition-colors hover:bg-white/[0.07] hover:text-white"
           >
             <Icon className="h-3.5 w-3.5" aria-hidden />
             {label}
@@ -238,7 +238,7 @@ export default function AdminOperationalFooter() {
         <Link
           href="/admin/observability"
           className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[11px] font-semibold no-underline transition-colors ${
-            impact?.attentionRequired ? "bg-rose-50 text-rose-700" : "text-slate-500 hover:bg-emerald-50 hover:text-emerald-700"
+            impact?.attentionRequired ? "bg-red-500/15 text-red-300" : "text-slate-400 hover:bg-white/[0.07] hover:text-emerald-300"
           }`}
           aria-label={`${impactLabel}. ${impactTitle}`}
           title={impactTitle}

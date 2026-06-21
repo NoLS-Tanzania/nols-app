@@ -172,8 +172,18 @@ export default function SiteHeader({
     };
 
     window.addEventListener("nols:admin-notification", onAdminNotification);
-    return () => window.removeEventListener("nols:admin-notification", onAdminNotification);
+    const onUnreadChange = (event: Event) => {
+      const detail = (event as CustomEvent<{ count?: number; delta?: number }>).detail;
+      setUnreadCount((current) => typeof detail?.count === "number" ? Math.max(0, detail.count) : Math.max(0, (current ?? 0) + (detail?.delta ?? 0)));
+    };
+    window.addEventListener("nols:admin-unread-change", onUnreadChange);
+    return () => {
+      window.removeEventListener("nols:admin-notification", onAdminNotification);
+      window.removeEventListener("nols:admin-unread-change", onUnreadChange);
+    };
   }, [isAdmin]);
+
+  const openAdminNotifications = () => window.dispatchEvent(new Event("nols:admin-notifications:open"));
 
   const handleTouch = (id: string) => {
     setTouchedIcon(id);
@@ -562,8 +572,8 @@ export default function SiteHeader({
                 <Sliders className="h-5 w-5 text-white opacity-90 group-hover:opacity-100 transition-all duration-300 group-hover:rotate-90" />
               </button>
 
-              <Link
-                href="/admin/messages"
+              <button
+                onClick={openAdminNotifications}
                 className="group relative inline-flex items-center justify-center h-10 w-10 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/10 hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-out"
                 aria-label="Notifications"
                 title="Notifications"
@@ -577,7 +587,7 @@ export default function SiteHeader({
                   {(unreadCount ?? unreadMessages) > 9 ? "9+" : (unreadCount ?? unreadMessages)}
                 </span>
                 )}
-              </Link>
+              </button>
 
               <Link 
                 href="/admin/support" 
@@ -1256,13 +1266,12 @@ export default function SiteHeader({
                   >
                     <RefreshCw className={`h-5 w-5 text-white/90 group-hover:text-white transition-transform duration-300 ${isRefreshing ? 'animate-spin' : 'group-hover:rotate-180'}`} />
                   </button>
-                  <Link
-                    href="/admin/messages"
+                  <button
                     aria-label="Notifications"
                     title="Notifications"
                     className="mobile-menu-item group relative inline-flex h-11 w-11 items-center justify-center rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-300 ease-out"
                     style={{ '--delay': 4 } as React.CSSProperties}
-                    onClick={() => setOpen(false)}
+                    onClick={() => { setOpen(false); openAdminNotifications(); }}
                   >
                     <Bell className="h-5 w-5 text-white/90 group-hover:text-white transition-transform duration-300 group-hover:scale-110" />
                     {(unreadCount ?? unreadMessages) > 0 && (
@@ -1273,7 +1282,7 @@ export default function SiteHeader({
                       {(unreadCount ?? unreadMessages) > 9 ? "9+" : (unreadCount ?? unreadMessages)}
                     </span>
                     )}
-                  </Link>
+                  </button>
                   <Link
                     href="/admin/support"
                     aria-label="Support"
