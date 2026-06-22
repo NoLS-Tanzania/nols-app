@@ -18,6 +18,29 @@ describe("API smoke", () => {
     expect(res.body).toHaveProperty("error");
   });
 
+  it("does not disclose Express through the X-Powered-By header", async () => {
+    const res = await request(app).get("/definitely-not-a-route");
+    expect(res.headers["x-powered-by"]).toBeUndefined();
+  });
+
+  it("rejects non-string login credentials before authentication work", async () => {
+    const res = await request(app)
+      .post("/api/auth/login-password")
+      .send({ email: { injected: true }, password: ["not", "text"] });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: "invalid_login_input" });
+  });
+
+  it("rejects oversized login credentials", async () => {
+    const res = await request(app)
+      .post("/api/auth/login-password")
+      .send({ email: `${"a".repeat(321)}@example.com`, password: "test-password" });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: "invalid_login_input" });
+  });
+
   it("keeps the placeholder codes search endpoint reachable", async () => {
     const res = await request(app).post("/codes/search").send({ q: "abc" });
     expect(res.status).toBe(200);

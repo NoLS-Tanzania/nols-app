@@ -33,6 +33,9 @@ function shouldStartSocketServer(): boolean {
 
 const app = express();
 
+// Do not advertise the application framework in every response.
+app.disable("x-powered-by");
+
 app.use(requestIdMiddleware);
 registerEarlyRoutes(app);
 
