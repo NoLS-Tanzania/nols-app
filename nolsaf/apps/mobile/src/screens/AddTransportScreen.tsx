@@ -102,6 +102,10 @@ export function AddTransportScreen({ navigation, route }: Props) {
     return Number.isNaN(candidate.getTime()) ? null : candidate.toISOString();
   }, [arrivalDate, arrivalTime, isScheduled]);
 
+  // Peak-time adjustment only applies to a scheduled ride whose time the
+  // customer actually picked; an instant ride never surges off the current clock.
+  const applySurge = isScheduled && scheduledDateIso != null;
+
   const fare = useMemo(
     () =>
       calculateFarePreview(
@@ -109,9 +113,10 @@ export function AddTransportScreen({ navigation, route }: Props) {
         destination,
         vehicleType,
         currency,
-        scheduledDateIso ? new Date(scheduledDateIso) : new Date()
+        scheduledDateIso ? new Date(scheduledDateIso) : new Date(),
+        applySurge
       ),
-    [currency, destination, pickup, scheduledDateIso, vehicleType]
+    [currency, destination, pickup, scheduledDateIso, vehicleType, applySurge]
   );
 
   const passengerCount = Math.min(20, Math.max(1, Number(passengers) || 1));
@@ -384,6 +389,24 @@ export function AddTransportScreen({ navigation, route }: Props) {
                 ESTIMATED FARE
               </AppText>
               <AmountText amount={fare.total} currency={fare.currency} tone="inverse" />
+              {fare.surgeAmount > 0 ? (
+                <AppStack gap={1}>
+                  <View style={styles.rowBetween}>
+                    <AppText variant="caption" tone="inverse">Base ride fare</AppText>
+                    <AppText variant="caption" weight="semiBold" tone="inverse">
+                      {fare.subtotal.toLocaleString()} {fare.currency}
+                    </AppText>
+                  </View>
+                  <View style={styles.rowBetween}>
+                    <AppText variant="caption" weight="bold" tone="inverse">
+                      Peak fare ({Math.round((fare.surgeMultiplier - 1) * 100)}%)
+                    </AppText>
+                    <AppText variant="caption" weight="bold" tone="inverse">
+                      +{fare.surgeAmount.toLocaleString()} {fare.currency}
+                    </AppText>
+                  </View>
+                </AppStack>
+              ) : null}
               <AppText variant="caption" tone="inverse">
                 {fare.approximate
                   ? "Base rate only. NoLSAF confirms the final fare once the route is set."

@@ -1,7 +1,7 @@
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useFocusEffect } from "@react-navigation/native";
 import type { LucideIcon } from "lucide-react-native";
-import { Activity, BedDouble, BookOpen, Calendar, CalendarCheck, ChevronRight, Clock, FileText, ListChecks, MapPin } from "lucide-react-native";
+import { Activity, Ban, BedDouble, BookOpen, Calendar, CalendarCheck, ChevronRight, Clock, FileText, ListChecks, MapPin } from "lucide-react-native";
 import { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from "react-native";
 
@@ -385,6 +385,21 @@ export function MyBookingsScreen({ navigation }: Props) {
                         Complete payment for this stay to add NoLSAF transport.
                       </AppText>
                     ) : null}
+
+                    {booking.isPaid && !isPastStay(booking) && booking.bookingCode ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        onPress={() =>
+                          navigation.navigate("CancelBooking", { bookingCode: booking.bookingCode as string, propertyTitle: title })
+                        }
+                        style={({ pressed }) => [styles.cancelRow, pressed && styles.cardPressed]}
+                      >
+                        <Ban color={colors.danger} size={14} />
+                        <AppText variant="caption" weight="bold" tone="danger">
+                          Cancel booking
+                        </AppText>
+                      </Pressable>
+                    ) : null}
                   </AppStack>
                 );
               })}
@@ -585,5 +600,17 @@ const styles = StyleSheet.create({
   },
   gateNote: {
     paddingLeft: spacing[1]
+  },
+  cancelRow: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[1],
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: "#fecaca",
+    backgroundColor: "#fef2f2",
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[1]
   }
 });

@@ -1,5 +1,5 @@
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { Building2, Car, Check, CheckCircle2, ChevronLeft, ChevronRight, Eye, EyeOff, Lock, Mail, Phone, ShieldCheck, User } from "lucide-react-native";
+import { Check, CheckCircle2, ChevronLeft, Eye, EyeOff, Mail, Phone, ShieldCheck } from "lucide-react-native";
 import { useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, TextInput, View } from "react-native";
 
@@ -12,16 +12,10 @@ import { RootStackParamList } from "../navigation/types";
 import { colors, radius, spacing } from "../theme";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Register">;
-type Step = "role" | "contact" | "otp" | "profile";
-type IconType = typeof User;
+type Step = "contact" | "otp" | "profile";
+type IconType = typeof Phone;
 
 const RESEND_COOLDOWN_SEC = 60;
-
-const ROLE_OPTIONS: { key: string; Icon: IconType; title: string; text: string; enabled: boolean; badge?: string }[] = [
-  { key: "CUSTOMER", Icon: User, title: "Traveller", text: "Book verified stays, rides, and tour packages.", enabled: true, badge: "Recommended" },
-  { key: "OWNER", Icon: Building2, title: "Property owner", text: "List and manage your verified properties.", enabled: false },
-  { key: "DRIVER", Icon: Car, title: "Driver", text: "Accept ride and tour requests nearby.", enabled: false }
-];
 
 function maskDestination(channel: OtpChannel, value: string) {
   if (channel === "PHONE") {
@@ -36,7 +30,7 @@ export function RegisterScreen({ navigation, route }: Props) {
   const { completeOtpSignIn } = useAuth();
   const referralCode = route.params?.ref;
 
-  const [step, setStep] = useState<Step>("role");
+  const [step, setStep] = useState<Step>("contact");
   const [channel, setChannel] = useState<OtpChannel>("PHONE");
   const [countryCode, setCountryCode] = useState(DEFAULT_PHONE_COUNTRY_CODE);
   const [phone, setPhone] = useState("");
@@ -147,13 +141,12 @@ export function RegisterScreen({ navigation, route }: Props) {
       <SafeScreen contentStyle={styles.screen}>
         <AppStack gap={6}>
           <ScreenHeader
-            title="Create your account"
-            subtitle="Verified registration with a one-time code sent to your phone or email."
+            title="Create your traveller account"
+            subtitle="Register to book verified stays, rides and tour packages."
             onBack={() => {
-              if (step === "contact") setStep("role");
+              if (step === "contact") navigation.goBack();
               else if (step === "otp") setStep("contact");
               else if (step === "profile") setStep("otp");
-              else navigation.goBack();
             }}
           />
 
@@ -161,62 +154,6 @@ export function RegisterScreen({ navigation, route }: Props) {
             <AppText variant="bodySmall" tone="primary" weight="bold" style={styles.center}>
               You were invited by a friend
             </AppText>
-          ) : null}
-
-          {step === "role" ? (
-            <AppCard>
-              <AppStack gap={4}>
-                <View>
-                  <AppText variant="titleSm" weight="extraBold">
-                    Who is joining NoLSAF?
-                  </AppText>
-                  <AppText variant="caption" tone="muted">
-                    Pick the account type that fits you best.
-                  </AppText>
-                </View>
-                <AppStack gap={3}>
-                  {ROLE_OPTIONS.map(({ key, Icon, title, text, enabled, badge }) => (
-                    <Pressable
-                      key={key}
-                      accessibilityRole="button"
-                      disabled={!enabled}
-                      onPress={() => setStep("contact")}
-                      style={({ pressed }) => [styles.roleCard, enabled ? styles.roleCardEnabled : styles.roleCardDisabled, pressed && enabled && styles.pressed]}
-                    >
-                      <View style={[styles.roleIcon, enabled ? styles.roleIconEnabled : styles.roleIconDisabled]}>
-                        <Icon color={enabled ? colors.white : colors.softText} size={22} />
-                      </View>
-                      <View style={styles.flex}>
-                        <View style={styles.roleTitleRow}>
-                          <AppText variant="bodySmall" weight="extraBold" tone={enabled ? "default" : "muted"}>
-                            {title}
-                          </AppText>
-                          {badge ? (
-                            <View style={styles.recommendedBadge}>
-                              <AppText variant="caption" weight="bold" tone="inverse">
-                                {badge}
-                              </AppText>
-                            </View>
-                          ) : null}
-                          {!enabled ? (
-                            <View style={styles.soonBadge}>
-                              <Lock color={colors.softText} size={11} />
-                              <AppText variant="caption" weight="bold" tone="muted">
-                                Web only
-                              </AppText>
-                            </View>
-                          ) : null}
-                        </View>
-                        <AppText variant="caption" tone="muted">
-                          {text}
-                        </AppText>
-                      </View>
-                      {enabled ? <ChevronRight color={colors.brand[300]} size={20} /> : null}
-                    </Pressable>
-                  ))}
-                </AppStack>
-              </AppStack>
-            </AppCard>
           ) : null}
 
           {step === "contact" ? (
@@ -354,7 +291,7 @@ export function RegisterScreen({ navigation, route }: Props) {
             </AppCard>
           ) : null}
 
-          {step === "role" ? (
+          {step === "contact" ? (
             <Pressable accessibilityRole="button" onPress={() => navigation.navigate("Login")} style={styles.loginLink}>
               <ChevronLeft color={colors.primary} size={14} />
               <AppText variant="bodySmall" tone="primary" weight="bold">
@@ -461,60 +398,6 @@ const styles = StyleSheet.create({
   center: {
     textAlign: "center",
     paddingHorizontal: spacing[3]
-  },
-  roleCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing[3],
-    borderRadius: radius.md,
-    borderWidth: 1.5,
-    padding: spacing[3]
-  },
-  roleCardEnabled: {
-    borderColor: colors.brand[200],
-    backgroundColor: colors.brand[50]
-  },
-  roleCardDisabled: {
-    borderColor: colors.border,
-    backgroundColor: "#f8fafc"
-  },
-  roleIcon: {
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: radius.full
-  },
-  roleIconEnabled: {
-    backgroundColor: colors.primary
-  },
-  roleIconDisabled: {
-    backgroundColor: "#f1f5f9",
-    borderWidth: 1,
-    borderColor: colors.border
-  },
-  roleTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    flexWrap: "wrap",
-    gap: spacing[2]
-  },
-  recommendedBadge: {
-    borderRadius: radius.full,
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing[2],
-    paddingVertical: 2
-  },
-  soonBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    borderRadius: radius.full,
-    backgroundColor: "#f1f5f9",
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: spacing[2],
-    paddingVertical: 2
   },
   channelRow: {
     flexDirection: "row",

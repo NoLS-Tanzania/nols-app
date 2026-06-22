@@ -11,6 +11,9 @@ import { BusinessAccessScreen } from "../screens/BusinessAccessScreen";
 import { AddTransportScreen } from "../screens/AddTransportScreen";
 import { BookingPaymentScreen } from "../screens/BookingPaymentScreen";
 import { BookingReviewScreen } from "../screens/BookingReviewScreen";
+import { CancelBookingScreen } from "../screens/CancelBookingScreen";
+import { CancellationDetailScreen } from "../screens/CancellationDetailScreen";
+import { MyCancellationsScreen } from "../screens/MyCancellationsScreen";
 import { CostCalculatorScreen } from "../screens/CostCalculatorScreen";
 import { CustomerHomeScreen } from "../screens/CustomerHomeScreen";
 import { ForgotPasswordScreen } from "../screens/ForgotPasswordScreen";
@@ -88,6 +91,9 @@ export function AppNavigator() {
             <Stack.Screen name="MyRides" component={MyRidesScreen} />
             <Stack.Screen name="RideDetail" component={RideDetailScreen} />
             <Stack.Screen name="MyBookings" component={MyBookingsScreen} />
+            <Stack.Screen name="CancelBooking" component={CancelBookingScreen} />
+            <Stack.Screen name="MyCancellations" component={MyCancellationsScreen} />
+            <Stack.Screen name="CancellationDetail" component={CancellationDetailScreen} />
             <Stack.Screen name="MyTours" component={MyToursScreen} />
             <Stack.Screen name="TourDetail" component={TourDetailScreen} />
             <Stack.Screen name="AddTransport" component={AddTransportScreen} />

@@ -8,6 +8,14 @@ export type RootStackParamList = {
   MyRides: undefined;
   RideDetail: { id: number };
   MyBookings: undefined;
+  CancelBooking: {
+    /** Booking code to pre-resolve the cancellation lookup. */
+    bookingCode: string;
+    /** Shown in the header while the lookup resolves. */
+    propertyTitle?: string;
+  };
+  MyCancellations: undefined;
+  CancellationDetail: { id: number };
   AddTransport: {
     bookingId: number;
     mode: "scheduled" | "instant";

@@ -167,7 +167,15 @@ export function BookingReviewScreen({ navigation, route }: Props) {
   const [avail, setAvail] = useState<number | null | undefined>(undefined);
   const [availLoading, setAvailLoading] = useState(false);
 
-  const [transport, setTransport] = useState<TransportSelection>({ include: false, fare: 0, ready: true, fields: {} });
+  const [transport, setTransport] = useState<TransportSelection>({
+    include: false,
+    fare: 0,
+    fareSubtotal: 0,
+    surgeMultiplier: 1,
+    surgeAmount: 0,
+    ready: true,
+    fields: {}
+  });
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -658,14 +666,26 @@ export function BookingReviewScreen({ navigation, route }: Props) {
               </AppText>
             </View>
             {transportFare > 0 ? (
-              <View style={styles.priceRow}>
-                <AppText variant="bodySmall" tone="muted" style={styles.flex}>
-                  Ride to the stay
-                </AppText>
-                <AppText variant="bodySmall" weight="semiBold">
-                  {transportFare.toLocaleString()} {currency}
-                </AppText>
-              </View>
+              <AppStack gap={2}>
+                <View style={styles.priceRow}>
+                  <AppText variant="bodySmall" tone="muted" style={styles.flex}>
+                    Ride to the stay
+                  </AppText>
+                  <AppText variant="bodySmall" weight="semiBold">
+                    {(transport.surgeAmount > 0 ? transport.fareSubtotal : transportFare).toLocaleString()} {currency}
+                  </AppText>
+                </View>
+                {transport.surgeAmount > 0 ? (
+                  <View style={styles.priceRow}>
+                    <AppText variant="caption" tone="warning" weight="semiBold" style={styles.flex}>
+                      Peak fare ({Math.round((transport.surgeMultiplier - 1) * 100)}%)
+                    </AppText>
+                    <AppText variant="bodySmall" tone="warning" weight="semiBold">
+                      +{transport.surgeAmount.toLocaleString()} {currency}
+                    </AppText>
+                  </View>
+                ) : null}
+              </AppStack>
             ) : null}
             <View style={styles.divider} />
             <View style={styles.priceRow}>

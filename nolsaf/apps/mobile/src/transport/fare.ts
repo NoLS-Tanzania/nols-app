@@ -77,6 +77,12 @@ function surgeMultiplier(at: Date): number {
 }
 
 export type FarePreview = {
+  /** Rounded ride fare before a peak-time adjustment. */
+  subtotal: number;
+  /** Time-based multiplier (1 means standard pricing). */
+  surgeMultiplier: number;
+  /** Exact amount added by the multiplier, so subtotal + surgeAmount = total. */
+  surgeAmount: number;
   total: number;
   distanceKm: number;
   estimatedMinutes: number;
@@ -90,18 +96,27 @@ export type FarePreview = {
  * Upfront fixed-fare preview. When the property has no registered coordinates
  * the web shows the minimum base rate and notes the driver will confirm, so we
  * mirror that with `approximate: true`.
+ *
+ * `applySurge` gates the peak-time adjustment: it should only be applied when
+ * the traveller has actually picked a scheduled pickup time. For an instant /
+ * unselected ride we never surge off the current clock, so the adjustment is
+ * hidden unless their chosen time genuinely lands in a surge window.
  */
 export function calculateFarePreview(
   origin: GeoPoint | null,
   destination: GeoPoint | null,
   vehicleType: TransportVehicleType,
   currency = "TZS",
-  at: Date = new Date()
+  at: Date = new Date(),
+  applySurge = true
 ): FarePreview {
   const cfg = VEHICLE_PRICING[vehicleType] || VEHICLE_PRICING.CAR;
 
   if (!origin || !destination) {
     return {
+      subtotal: cfg.baseFare,
+      surgeMultiplier: 1,
+      surgeAmount: 0,
       total: cfg.baseFare,
       distanceKm: 0,
       estimatedMinutes: 0,
@@ -113,10 +128,15 @@ export function calculateFarePreview(
 
   const distanceKm = calculateDistanceKm(origin, destination);
   const estimatedMinutes = estimateTravelTimeMinutes(distanceKm, vehicleType);
-  const subtotal = cfg.baseFare + distanceKm * cfg.perKmRate + estimatedMinutes * cfg.perMinuteRate;
-  const total = Math.max(cfg.baseFare, Math.ceil(subtotal * surgeMultiplier(at)));
+  const rawSubtotal = cfg.baseFare + distanceKm * cfg.perKmRate + estimatedMinutes * cfg.perMinuteRate;
+  const subtotal = Math.max(cfg.baseFare, Math.ceil(rawSubtotal));
+  const multiplier = applySurge ? surgeMultiplier(at) : 1;
+  const total = Math.max(cfg.baseFare, Math.ceil(rawSubtotal * multiplier));
 
   return {
+    subtotal,
+    surgeMultiplier: multiplier,
+    surgeAmount: Math.max(0, total - subtotal),
     total,
     distanceKm,
     estimatedMinutes,

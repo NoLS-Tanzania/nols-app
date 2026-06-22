@@ -1,5 +1,6 @@
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import {
+  Ban,
   Bell,
   Bookmark,
   Camera,
@@ -243,6 +244,7 @@ export function AccountScreen({ navigation }: Props) {
           </AppCard>
 
           <MenuSection title="Policies & Support">
+            <MenuRow Icon={Ban} title="Cancellation claims" subtitle="Request a booking cancellation and track its status and messages." onPress={() => navigation.navigate("MyCancellations")} />
             <MenuRow Icon={FileText} title="NoLSAF Policies" subtitle="Traveller terms, privacy, payments, refunds, and safety policies." onPress={() => navigation.navigate("AccountResources", { mode: "policies" })} />
             <MenuRow Icon={CircleHelp} title="Help Center" subtitle="Get support for rides, stays, tours, payments, and documents." onPress={() => navigation.navigate("AccountResources", { mode: "help" })} />
             <MenuRow Icon={MessageCircleQuestion} title="Contact support" subtitle="Reach NoLSAF customer support from your account." onPress={() => navigation.navigate("AccountResources", { mode: "support" })} />

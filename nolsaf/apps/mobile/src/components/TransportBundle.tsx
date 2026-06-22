@@ -41,6 +41,10 @@ export type TransportSelection = {
   include: boolean;
   /** Ride fare to add to the total (0 when not included). */
   fare: number;
+  /** Ride fare before any peak-time adjustment. */
+  fareSubtotal: number;
+  surgeMultiplier: number;
+  surgeAmount: number;
   /** True when the selection is complete enough to submit. */
   ready: boolean;
   /** Fields to merge into the create-booking request. */
@@ -185,9 +189,19 @@ export function TransportBundle({ destination, currency, defaultArrivalDate, onC
   const originLat = originPoint?.latitude ?? null;
   const originLng = originPoint?.longitude ?? null;
 
+  // Only a scheduled pickup with a valid date+time has a real ride moment, so
+  // that is the only case where a peak-time adjustment can apply. Instant rides
+  // never surge off the current clock — we don't want the adjustment to appear
+  // by default just because the customer happens to open this at a busy hour.
+  const scheduledMoment = useMemo(() => {
+    if (mode !== "scheduled" || !arrivalDate || !TIME_RE.test(arrivalTime)) return null;
+    const date = new Date(`${arrivalDate}T${arrivalTime}:00`);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }, [arrivalDate, arrivalTime, mode]);
+
   const fare = useMemo(
-    () => calculateFarePreview(originPoint, destination, vehicleType, currency),
-    [originLat, originLng, destination, vehicleType, currency]
+    () => calculateFarePreview(originPoint, destination, vehicleType, currency, scheduledMoment ?? new Date(), scheduledMoment != null),
+    [originLat, originLng, destination, vehicleType, currency, scheduledMoment]
   );
 
   // Briefly show a skeleton when the inputs that drive the fare change, so the
@@ -216,7 +230,7 @@ export function TransportBundle({ destination, currency, defaultArrivalDate, onC
 
   const selection = useMemo<TransportSelection>(() => {
     if (!include || !originPoint) {
-      return { include, fare: 0, ready: !include, fields: {} };
+      return { include, fare: 0, fareSubtotal: 0, surgeMultiplier: 1, surgeAmount: 0, ready: !include, fields: {} };
     }
     const base: Partial<CreateBookingInput> = {
       includeTransport: true,
@@ -236,8 +250,16 @@ export function TransportBundle({ destination, currency, defaultArrivalDate, onC
           ? new Date(`${arrivalDate}T${arrivalTime}:00`).toISOString()
           : null;
     }
-    return { include: true, fare: fare.total, ready, fields: base };
-  }, [include, originLat, originLng, originAddress, mode, pickup, vehicleType, fare.total, arrivalNumber, pickupLocation, arrivalDate, arrivalTime, ready]);
+    return {
+      include: true,
+      fare: fare.total,
+      fareSubtotal: fare.subtotal,
+      surgeMultiplier: fare.surgeMultiplier,
+      surgeAmount: fare.surgeAmount,
+      ready,
+      fields: base
+    };
+  }, [include, originLat, originLng, originAddress, mode, pickup, vehicleType, fare.total, fare.subtotal, fare.surgeMultiplier, fare.surgeAmount, arrivalNumber, pickupLocation, arrivalDate, arrivalTime, ready]);
 
   useEffect(() => {
     onChange(selection);
@@ -560,6 +582,7 @@ export function TransportBundle({ destination, currency, defaultArrivalDate, onC
             ) : calculating ? (
               <FareSkeleton />
             ) : (
+              <AppStack gap={2}>
               <View style={styles.fareRow}>
                 <View style={styles.flex}>
                   <AppText variant="caption" weight="semiBold" tone="muted">
@@ -579,6 +602,22 @@ export function TransportBundle({ destination, currency, defaultArrivalDate, onC
                   {fare.total.toLocaleString()} {currency}
                 </AppText>
               </View>
+              {fare.surgeAmount > 0 ? (
+                <View style={styles.surgeDisclosure}>
+                  <View style={styles.flex}>
+                    <AppText variant="caption" weight="bold" tone="warning">
+                      Peak fare ({Math.round((fare.surgeMultiplier - 1) * 100)}%)
+                    </AppText>
+                    <AppText variant="caption" tone="muted">
+                      Base ride {fare.subtotal.toLocaleString()} {currency}
+                    </AppText>
+                  </View>
+                  <AppText variant="caption" weight="bold" tone="warning">
+                    +{fare.surgeAmount.toLocaleString()} {currency}
+                  </AppText>
+                </View>
+              ) : null}
+              </AppStack>
             )}
             </AppStack>
           </View>
@@ -762,6 +801,18 @@ const styles = StyleSheet.create({
     borderColor: colors.brand[200],
     paddingHorizontal: spacing[3],
     paddingVertical: spacing[3]
+  },
+  surgeDisclosure: {
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[3],
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: "#f2c879",
+    backgroundColor: "#fff8e8",
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[2]
   },
   hintRow: { flexDirection: "row", alignItems: "center", gap: spacing[2], minWidth: 0 }
 });
