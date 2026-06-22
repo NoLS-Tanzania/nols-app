@@ -772,6 +772,8 @@ function recordDevice(userId: number, fingerprint: string): void {
 // POST /api/auth/login-password
 // Body: { email, password }
 // Rate limited: 10 login attempts per IP per 15 minutes
+const MAX_LOGIN_IDENTIFIER_LENGTH = 320;
+const MAX_LOGIN_PASSWORD_LENGTH = 1024;
 
 // Register the route with rate limiting and async error handling
 router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res, next) => {
@@ -779,11 +781,26 @@ router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res,
     res.setHeader('Content-Type', 'application/json');
   
   try {
-    
     const { email, password } = req.body || {};
-    const identifier = String(email || '').trim();
+    if (typeof email !== "string" || typeof password !== "string") {
+      return res.status(400).json({
+        error: "invalid_login_input",
+        message: "Email and password must be text values.",
+      });
+    }
+
+    const identifier = email.trim();
     if (!identifier || !password) {
       return res.status(400).json({ error: "email and password required" });
+    }
+    if (
+      identifier.length > MAX_LOGIN_IDENTIFIER_LENGTH ||
+      password.length > MAX_LOGIN_PASSWORD_LENGTH
+    ) {
+      return res.status(400).json({
+        error: "invalid_login_input",
+        message: "Email or password exceeds the allowed length.",
+      });
     }
     
     // Check if account is locked
