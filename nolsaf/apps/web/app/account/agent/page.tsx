@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import Link from "next/link";
 import apiClient from "@/lib/apiClient";
 import { fetchAccountSession } from "@/lib/accountSession";
-import { ArrowRight, BadgeCheck, CheckCircle, ClipboardList, Clock, Eye, Star, ToggleRight, ShieldAlert } from "lucide-react";
+import { ArrowRight, BadgeCheck, CheckCircle, ClipboardList, Clock, Eye, Minus, Star, ToggleRight, ShieldAlert, TrendingDown, TrendingUp } from "lucide-react";
 
 const api = apiClient;
 
@@ -70,153 +70,133 @@ function classNames(...values: Array<string | false | null | undefined>) {
   return values.filter(Boolean).join(" ");
 }
 
+// Monotone cubic spline (Fritsch–Carlson) → smooth curve that never overshoots
+// the baseline, so sparse/zero-heavy daily counts read as a clean trend, not a zig-zag.
+function smoothPath(pts: Array<{ x: number; y: number }>): string {
+  const n = pts.length;
+  if (n === 0) return "";
+  if (n === 1) return `M ${pts[0].x.toFixed(2)} ${pts[0].y.toFixed(2)}`;
+  if (n === 2)
+    return `M ${pts[0].x.toFixed(2)} ${pts[0].y.toFixed(2)} L ${pts[1].x.toFixed(2)} ${pts[1].y.toFixed(2)}`;
+
+  const xs = pts.map((p) => p.x);
+  const ys = pts.map((p) => p.y);
+  const dx: number[] = [];
+  const slope: number[] = [];
+  for (let i = 0; i < n - 1; i++) {
+    const h = xs[i + 1] - xs[i];
+    dx.push(h);
+    slope.push(h === 0 ? 0 : (ys[i + 1] - ys[i]) / h);
+  }
+
+  const m = new Array<number>(n);
+  m[0] = slope[0];
+  m[n - 1] = slope[n - 2];
+  for (let i = 1; i < n - 1; i++) {
+    m[i] = slope[i - 1] * slope[i] <= 0 ? 0 : (slope[i - 1] + slope[i]) / 2;
+  }
+  for (let i = 0; i < n - 1; i++) {
+    if (slope[i] === 0) {
+      m[i] = 0;
+      m[i + 1] = 0;
+      continue;
+    }
+    const a = m[i] / slope[i];
+    const b = m[i + 1] / slope[i];
+    const s = a * a + b * b;
+    if (s > 9) {
+      const t = 3 / Math.sqrt(s);
+      m[i] = t * a * slope[i];
+      m[i + 1] = t * b * slope[i];
+    }
+  }
+
+  let d = `M ${xs[0].toFixed(2)} ${ys[0].toFixed(2)}`;
+  for (let i = 0; i < n - 1; i++) {
+    const h = dx[i];
+    const c1x = xs[i] + h / 3;
+    const c1y = ys[i] + (m[i] * h) / 3;
+    const c2x = xs[i + 1] - h / 3;
+    const c2y = ys[i + 1] - (m[i + 1] * h) / 3;
+    d += ` C ${c1x.toFixed(2)} ${c1y.toFixed(2)}, ${c2x.toFixed(2)} ${c2y.toFixed(2)}, ${xs[i + 1].toFixed(2)} ${ys[i + 1].toFixed(2)}`;
+  }
+  return d;
+}
+
 function Sparkline({ values, variant }: { values: number[]; variant: TrendVariant }) {
+  const gid = useId().replace(/[^a-zA-Z0-9]/g, "");
   const geom = useMemo(() => {
     const n = values.length;
-    if (!n) {
-      return {
-        points: [] as Array<{ x: number; y: number }>,
-        polyPoints: "",
-        lineD: "",
-        stepD: "",
-        areaD: "",
-      };
-    }
+    if (!n) return null;
 
     const w = 120;
     const h = 44;
-    const paddingX = 3;
-    const paddingY = 6;
-    const baselineY = h - paddingY;
+    const padX = 4;
+    const padTop = 9;
+    const padBottom = 7;
+    const baselineY = h - padBottom;
 
     const max = Math.max(...values);
     const min = Math.min(...values);
     const range = Math.max(1, max - min);
-    const step = n === 1 ? 0 : (w - paddingX * 2) / (n - 1);
+    const step = n === 1 ? 0 : (w - padX * 2) / (n - 1);
 
     const pts = values.map((v, i) => {
-      const x = paddingX + step * i;
+      const x = n === 1 ? w / 2 : padX + step * i;
       const t = (v - min) / range;
-      const y = paddingY + (1 - t) * (h - paddingY * 2);
+      const y = padTop + (1 - t) * (h - padTop - padBottom);
       return { x, y };
     });
 
-    const polyPoints = pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
-    const lineD = `M ${pts.map((p) => `${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" L ")}`;
-
-    const stepParts: string[] = [];
-    for (let i = 0; i < pts.length; i++) {
-      const p = pts[i];
-      if (i === 0) {
-        stepParts.push(`M ${p.x.toFixed(1)} ${p.y.toFixed(1)}`);
-        continue;
-      }
-      const prev = pts[i - 1];
-      stepParts.push(`L ${p.x.toFixed(1)} ${prev.y.toFixed(1)}`);
-      stepParts.push(`L ${p.x.toFixed(1)} ${p.y.toFixed(1)}`);
-    }
-    const stepD = stepParts.join(" ");
-
+    const line = smoothPath(pts);
     const first = pts[0];
     const last = pts[pts.length - 1];
-    const areaD = `${lineD} L ${last.x.toFixed(1)} ${baselineY.toFixed(1)} L ${first.x.toFixed(
-      1
-    )} ${baselineY.toFixed(1)} Z`;
+    const area =
+      n === 1
+        ? ""
+        : `${line} L ${last.x.toFixed(2)} ${baselineY.toFixed(2)} L ${first.x.toFixed(2)} ${baselineY.toFixed(2)} Z`;
 
-    return { points: pts, polyPoints, lineD, stepD, areaD };
+    return {
+      line,
+      area,
+      leftPct: (last.x / w) * 100,
+      topPct: (last.y / h) * 100,
+    };
   }, [values]);
 
-  if (!values.length) return null;
+  if (!geom) return null;
 
   return (
-    <svg
-      viewBox="0 0 120 44"
-      className="absolute inset-x-3 bottom-3 h-11 w-[calc(100%-1.5rem)] pointer-events-none"
-      aria-hidden
-    >
-      {variant === "area" ? (
-        <>
-          <path d={geom.areaD} fill="currentColor" opacity="0.10" />
-          <path
-            d={geom.lineD}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.25"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            opacity="0.95"
-          />
-        </>
-      ) : variant === "line" ? (
-        <>
-          <path
-            d={geom.lineD}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="6"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            opacity="0.10"
-          />
-          <path
-            d={geom.lineD}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.25"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            opacity="0.95"
-          />
-        </>
-      ) : variant === "dots" ? (
-        <>
-          <path
-            d={geom.lineD}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeDasharray="3 4"
-            opacity="0.8"
-          />
-          {geom.points.map((p, idx) => {
-            const isLast = idx === geom.points.length - 1;
-            return (
-              <circle
-                key={idx}
-                cx={p.x}
-                cy={p.y}
-                r={isLast ? 3.2 : 2.1}
-                fill="currentColor"
-                opacity={isLast ? 0.95 : 0.35}
-              />
-            );
-          })}
-        </>
-      ) : (
-        <>
-          <path
-            d={geom.stepD}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.25"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            opacity="0.95"
-          />
-          <path
-            d={geom.stepD}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="6"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            opacity="0.08"
-          />
-        </>
-      )}
-    </svg>
+    <div className="absolute inset-0 overflow-hidden" data-variant={variant} aria-hidden>
+      <svg
+        viewBox="0 0 120 44"
+        preserveAspectRatio="none"
+        className="absolute inset-0 h-full w-full"
+      >
+        <defs>
+          <linearGradient id={`spark-${gid}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="currentColor" stopOpacity="0.28" />
+            <stop offset="55%" stopColor="currentColor" stopOpacity="0.07" />
+            <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        {geom.area ? <path d={geom.area} fill={`url(#spark-${gid})`} /> : null}
+        <path
+          d={geom.line}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2.4}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+          opacity={0.95}
+        />
+      </svg>
+      <span
+        className="absolute z-10 h-[7px] w-[7px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-current shadow-[0_0_0_2.5px_rgba(255,255,255,0.95),0_2px_6px_rgba(15,23,42,0.25)]"
+        style={{ left: `${geom.leftPct}%`, top: `${geom.topPct}%` }}
+      />
+    </div>
   );
 }
 
@@ -440,40 +420,56 @@ function StatCard({
       ? "bg-info/10 border-info/15"
       : "bg-brand/10 border-brand/15";
 
+  // Direction over the window: recent half vs. prior half.
+  const half = Math.max(1, Math.floor(trend.length / 2));
+  const sum = (arr: number[]) => arr.reduce((a, b) => a + (Number(b) || 0), 0);
+  const delta = sum(trend.slice(-half)) - sum(trend.slice(0, Math.max(0, trend.length - half)));
+  const deltaDir = delta > 0 ? "up" : delta < 0 ? "down" : "flat";
+  const deltaClass =
+    deltaDir === "up"
+      ? "text-emerald-700 bg-emerald-50 border-emerald-100"
+      : deltaDir === "down"
+      ? "text-rose-700 bg-rose-50 border-rose-100"
+      : "text-slate-500 bg-slate-50 border-slate-200";
+  const DeltaIcon = deltaDir === "up" ? TrendingUp : deltaDir === "down" ? TrendingDown : Minus;
+
   return (
     <div
       className={classNames(
-        "relative rounded-2xl border border-slate-200 bg-white/70 backdrop-blur shadow-card p-5 overflow-hidden",
+        "group relative flex flex-col rounded-2xl border border-slate-200 bg-white shadow-card overflow-hidden transition-shadow hover:shadow-lg",
         className
       )}
     >
-      <div
-        className={classNames(
-          "absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t to-transparent",
-          tone === "success" ? "from-success/8" : tone === "info" ? "from-info/8" : "from-brand/8"
-        )}
-        aria-hidden
-      />
-
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-start gap-3">
+      <div className="flex items-start justify-between gap-3 p-5 pb-3">
+        <div className="flex items-start gap-3 min-w-0">
           <div
             className={classNames(
-              "h-12 w-12 rounded-2xl border flex items-center justify-center",
+              "h-11 w-11 shrink-0 rounded-xl border flex items-center justify-center",
               iconBgClass,
               toneTextClass
             )}
           >
             {icon}
           </div>
-          <div>
-            <div className="text-sm font-semibold text-slate-700">{label}</div>
-            <div className="text-2xl font-bold text-slate-900 tracking-tight mt-1">{value}</div>
+          <div className="min-w-0">
+            <div className="text-[13px] font-semibold text-slate-500 truncate">{label}</div>
+            <div className="text-[28px] leading-none font-bold text-slate-900 tracking-tight mt-1.5 tabular-nums">
+              {value}
+            </div>
           </div>
+        </div>
+        <div
+          className={classNames(
+            "inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-bold tabular-nums",
+            deltaClass
+          )}
+        >
+          <DeltaIcon className="h-3.5 w-3.5" aria-hidden />
+          {deltaDir === "flat" ? "Steady" : Math.abs(delta)}
         </div>
       </div>
 
-      <div className={classNames("relative mt-2 h-12", toneTextClass)} aria-hidden>
+      <div className={classNames("relative h-14 w-full", toneTextClass)}>
         <Sparkline values={trend} variant={variant} />
       </div>
     </div>
