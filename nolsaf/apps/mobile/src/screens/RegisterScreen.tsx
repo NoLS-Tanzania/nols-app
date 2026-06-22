@@ -6,7 +6,7 @@ import { Pressable, StyleSheet, TextInput, View } from "react-native";
 import { useAuth } from "../auth";
 import { completeOtpProfile, sendOtp, verifyOtp } from "../auth/authApi";
 import { OtpChannel } from "../auth/types";
-import { AppButton, AppCard, AppInput, AppStack, AppText, GuestBottomNav, PhoneNumberField, SafeScreen, ScreenHeader } from "../components";
+import { AppButton, AppCard, AppInput, AppStack, AppText, AuthScreen, PhoneNumberField } from "../components";
 import { DEFAULT_PHONE_COUNTRY_CODE, isPhoneLengthValid } from "../lib/phone";
 import { RootStackParamList } from "../navigation/types";
 import { colors, radius, spacing } from "../theme";
@@ -136,20 +136,40 @@ export function RegisterScreen({ navigation, route }: Props) {
     }
   }
 
-  return (
-    <View style={styles.root}>
-      <SafeScreen contentStyle={styles.screen}>
-        <AppStack gap={6}>
-          <ScreenHeader
-            title="Create your traveller account"
-            subtitle="Register to book verified stays, rides and tour packages."
-            onBack={() => {
-              if (step === "contact") navigation.goBack();
-              else if (step === "otp") setStep("contact");
-              else if (step === "profile") setStep("otp");
-            }}
-          />
+  const stepNumber = step === "contact" ? 1 : step === "otp" ? 2 : 3;
+  const heroTitle = step === "contact" ? "Join NoLSAF" : step === "otp" ? "Verify your contact" : "Make it yours";
+  const heroSubtitle =
+    step === "contact"
+      ? "One traveller account for verified stays, rides and tours."
+      : step === "otp"
+        ? "A quick security check keeps your account protected."
+        : "Add the essentials now; you can complete the rest later.";
 
+  const handleBack = () => {
+    if (step === "contact") navigation.goBack();
+    else if (step === "otp") setStep("contact");
+    else setStep("otp");
+  };
+
+  return (
+    <AuthScreen
+      title={heroTitle}
+      subtitle={heroSubtitle}
+      onBack={handleBack}
+      icon={<ShieldCheck color={colors.white} size={24} />}
+      progress={{ current: stepNumber, total: 3, label: "Account setup" }}
+      footer={
+        step === "contact" ? (
+          <Pressable accessibilityRole="button" onPress={() => navigation.navigate("Login")} style={styles.loginLink}>
+            <ChevronLeft color={colors.primary} size={14} />
+            <AppText variant="bodySmall" tone="primary" weight="bold">
+              Already have an account? Login
+            </AppText>
+          </Pressable>
+        ) : undefined
+      }
+    >
+        <AppStack gap={5}>
           {referralCode ? (
             <AppText variant="bodySmall" tone="primary" weight="bold" style={styles.center}>
               You were invited by a friend
@@ -157,7 +177,7 @@ export function RegisterScreen({ navigation, route }: Props) {
           ) : null}
 
           {step === "contact" ? (
-            <AppCard>
+            <AppCard style={styles.authCard}>
               <AppStack gap={4}>
                 <AppText variant="titleSm" weight="extraBold">
                   Where should we send your code?
@@ -204,7 +224,7 @@ export function RegisterScreen({ navigation, route }: Props) {
           ) : null}
 
           {step === "otp" ? (
-            <AppCard>
+            <AppCard style={styles.authCard}>
               <AppStack gap={4}>
                 <View style={styles.otpHeader}>
                   <View style={styles.otpIcon}>
@@ -227,6 +247,7 @@ export function RegisterScreen({ navigation, route }: Props) {
                   keyboardType="number-pad"
                   maxLength={6}
                   textContentType="oneTimeCode"
+                  style={styles.codeInput}
                 />
                 {error ? (
                   <AppText variant="bodySmall" tone="danger">
@@ -245,7 +266,7 @@ export function RegisterScreen({ navigation, route }: Props) {
           ) : null}
 
           {step === "profile" ? (
-            <AppCard>
+            <AppCard style={styles.authCard}>
               <AppStack gap={4}>
                 <AppText variant="titleSm" weight="extraBold">
                   Finish your profile
@@ -291,19 +312,8 @@ export function RegisterScreen({ navigation, route }: Props) {
             </AppCard>
           ) : null}
 
-          {step === "contact" ? (
-            <Pressable accessibilityRole="button" onPress={() => navigation.navigate("Login")} style={styles.loginLink}>
-              <ChevronLeft color={colors.primary} size={14} />
-              <AppText variant="bodySmall" tone="primary" weight="bold">
-                Already have an account? Login
-              </AppText>
-            </Pressable>
-          ) : null}
         </AppStack>
-      </SafeScreen>
-
-      <GuestBottomNav active="Login" />
-    </View>
+    </AuthScreen>
   );
 }
 
@@ -383,13 +393,9 @@ function ChannelPill({ Icon, label, active, onPress }: { Icon: IconType; label: 
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: colors.surface
-  },
-  screen: {
-    justifyContent: "center",
-    paddingBottom: spacing[4]
+  authCard: {
+    borderRadius: radius.xl,
+    padding: spacing[5]
   },
   flex: {
     flex: 1,
@@ -398,6 +404,12 @@ const styles = StyleSheet.create({
   center: {
     textAlign: "center",
     paddingHorizontal: spacing[3]
+  },
+  codeInput: {
+    textAlign: "center",
+    fontSize: 22,
+    letterSpacing: 10,
+    fontWeight: "700"
   },
   channelRow: {
     flexDirection: "row",

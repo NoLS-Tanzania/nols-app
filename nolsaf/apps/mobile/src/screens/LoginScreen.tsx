@@ -6,7 +6,7 @@ import { Pressable, StyleSheet, View } from "react-native";
 import { useAuth } from "../auth";
 import { sendOtp, verifyOtp } from "../auth/authApi";
 import { OtpChannel } from "../auth/types";
-import { AppButton, AppCard, AppInput, AppStack, AppText, GuestBottomNav, PhoneNumberField, SafeScreen, ScreenHeader } from "../components";
+import { AppButton, AppCard, AppInput, AppStack, AppText, AuthScreen, PhoneNumberField } from "../components";
 import { DEFAULT_PHONE_COUNTRY_CODE, isPhoneLengthValid } from "../lib/phone";
 import { RootStackParamList } from "../navigation/types";
 import { colors, radius, spacing } from "../theme";
@@ -120,17 +120,30 @@ export function LoginScreen({ navigation }: Props) {
   }
 
   return (
-    <View style={styles.root}>
-      <SafeScreen contentStyle={styles.screen}>
-        <AppStack gap={6}>
-          <ScreenHeader
-            title="Login"
-            subtitle="Use your NoLSAF customer account to continue."
-            onBack={() => navigation.goBack()}
-          />
-
-          <AppCard>
+    <AuthScreen
+      title="Welcome back"
+      subtitle="Your stays, rides and journeys are ready when you are."
+      onBack={() => navigation.goBack()}
+      icon={<KeyRound color={colors.white} size={24} />}
+      footer={
+        <Pressable accessibilityRole="button" onPress={() => navigation.navigate("Register")}>
+          <AppText variant="bodySmall" tone="primary" weight="bold" style={styles.note}>
+            New to NoLSAF? Create your traveller account
+          </AppText>
+        </Pressable>
+      }
+    >
+      <AppStack gap={5}>
+          <AppCard style={styles.authCard}>
             <AppStack gap={4}>
+              <View style={styles.cardIntro}>
+                <AppText variant="titleSm" weight="extraBold">
+                  Sign in securely
+                </AppText>
+                <AppText variant="caption" tone="muted">
+                  Choose the method that works best for you.
+                </AppText>
+              </View>
               <View style={styles.methodRow}>
                 <MethodPill Icon={KeyRound} label="Password" active={method === "password"} onPress={() => switchMethod("password")} />
                 <MethodPill Icon={ShieldCheck} label="One-time code" active={method === "otp"} onPress={() => switchMethod("otp")} />
@@ -214,6 +227,7 @@ export function LoginScreen({ navigation }: Props) {
                         keyboardType="number-pad"
                         maxLength={6}
                         textContentType="oneTimeCode"
+                        style={styles.codeInput}
                       />
                       {error ? (
                         <AppText variant="bodySmall" tone="danger">
@@ -234,18 +248,8 @@ export function LoginScreen({ navigation }: Props) {
               )}
             </AppStack>
           </AppCard>
-
-          <Pressable accessibilityRole="button" onPress={() => navigation.navigate("Register")}>
-            <AppText variant="bodySmall" tone="primary" weight="bold" style={styles.note}>
-              New to NoLSAF? Create an account
-            </AppText>
-          </Pressable>
-
-        </AppStack>
-      </SafeScreen>
-
-      <GuestBottomNav active="Login" />
-    </View>
+      </AppStack>
+    </AuthScreen>
   );
 }
 
@@ -261,13 +265,12 @@ function MethodPill({ Icon, label, active, onPress }: { Icon: IconType; label: s
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: colors.surface
+  authCard: {
+    borderRadius: radius.xl,
+    padding: spacing[5]
   },
-  screen: {
-    justifyContent: "center",
-    paddingBottom: spacing[4]
+  cardIntro: {
+    gap: spacing[1]
   },
   methodRow: {
     flexDirection: "row",
@@ -292,6 +295,12 @@ const styles = StyleSheet.create({
   note: {
     textAlign: "center",
     paddingHorizontal: spacing[3]
+  },
+  codeInput: {
+    textAlign: "center",
+    fontSize: 22,
+    letterSpacing: 10,
+    fontWeight: "700"
   },
   forgotLink: {
     alignSelf: "flex-end"
