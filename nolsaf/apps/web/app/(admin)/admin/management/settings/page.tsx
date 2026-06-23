@@ -1,6 +1,6 @@
 "use client";
 // AdminPageHeader removed in favor of a centered, compact header for this page
-import { Settings, Shield, Lock, AlertTriangle, Network, Clock } from "lucide-react";
+import { Settings, ShieldCheck, Lock, AlertTriangle, Clock, CreditCard, Award, Crown, Bell, Flag, KeyRound, Globe, Gauge, Activity, FileText, CalendarClock, Gift, History } from "lucide-react";
 import apiClient from "@/lib/apiClient";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { sanitizeTrustedHtml } from "@/utils/html";
@@ -14,10 +14,12 @@ export default function SystemSettingsPage(){
     "w-full rounded-lg border border-slate-200/70 bg-white/80 px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition-all duration-200 placeholder:text-slate-400 focus:border-[#02665e] focus:ring-2 focus:ring-inset focus:ring-[#02665e]/18";
   const toggleTrackClass =
     "relative h-6 w-11 shrink-0 rounded-full bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[#02665e]/15 peer-checked:bg-[#02665e] after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-slate-200 after:bg-white after:transition-all peer-checked:after:translate-x-full";
+  // Canonical button styles — every button on this page uses one of these so
+  // radius (rounded-xl), padding, and weight stay consistent.
   const btnPrimary =
-    "inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-[#02776d] to-[#015b54] px-4 py-2 text-sm font-semibold text-white shadow-sm ring-1 ring-[#02665e]/20 transition-all duration-200 hover:from-[#026e65] hover:to-[#014f49] focus:outline-none focus:ring-4 focus:ring-[#02665e]/20 disabled:cursor-not-allowed disabled:opacity-60";
+    "inline-flex items-center justify-center gap-2 rounded-lg bg-[#02665e] px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-all duration-200 hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-[#02665e]/30 disabled:cursor-not-allowed disabled:opacity-60";
   const btnSecondary =
-    "inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200/80 bg-white/70 px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-all duration-200 hover:bg-white focus:outline-none focus:ring-4 focus:ring-[#02665e]/10";
+    "inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-all duration-200 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-[#02665e]/15 disabled:cursor-not-allowed disabled:opacity-60";
 
   const formatMoney = (value: unknown) => {
     const currency = (s?.currency || 'TZS').toUpperCase();
@@ -49,6 +51,9 @@ export default function SystemSettingsPage(){
     driverCommissionCurrency: string;
     agentCommissionPercent: number;
     agentCommissionCurrency: string;
+    driverLevelGoldThreshold?: number;
+    driverLevelDiamondThreshold?: number;
+    referralCreditPercent?: number;
     taxPercent: number;
     currency: string;
     invoicePrefix: string;
@@ -101,6 +106,9 @@ export default function SystemSettingsPage(){
     driverCommissionCurrency: 'TZS',
     agentCommissionPercent: 0,
     agentCommissionCurrency: 'USD',
+    driverLevelGoldThreshold: 500000,
+    driverLevelDiamondThreshold: 2000000,
+    referralCreditPercent: 0.0035,
     taxPercent: 0,
     currency: 'TZS',
     invoicePrefix: 'INV-',
@@ -147,6 +155,9 @@ export default function SystemSettingsPage(){
   // support contact (editable by admin)
   const [supportEmail, setSupportEmail] = useState<string>('');
   const [supportPhone, setSupportPhone] = useState<string>('');
+  // Referral credit is stored as a decimal fraction (0.0035), but shown to the admin
+  // as a percentage (0.35) for readability.
+  const [referralPercentInput, setReferralPercentInput] = useState<string>('');
 
   const [toast, setToast] = useState<string | null>(null);
   const [savedCard, setSavedCard] = useState<boolean>(false);
@@ -154,6 +165,10 @@ export default function SystemSettingsPage(){
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<boolean>(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [tierLadder, setTierLadder] = useState<Record<string, Record<string, number>>>({});
+  const [tierDefaults, setTierDefaults] = useState<Record<string, Record<string, number>>>({});
+  const [tierErrors, setTierErrors] = useState<Record<string, string>>({});
+  const [savingTiers, setSavingTiers] = useState<boolean>(false);
 
   useEffect(() => {
     if (!toast) return;
@@ -208,7 +223,37 @@ export default function SystemSettingsPage(){
     setPayoutCron(s.payoutCron ?? '');
     setSupportEmail(s.supportEmail ?? '');
     setSupportPhone(s.supportPhone ?? '');
+    setReferralPercentInput(s.referralCreditPercent != null ? String(Number(s.referralCreditPercent) * 100) : '');
+    if ((s as any).agentTierLadder) setTierLadder((s as any).agentTierLadder);
+    if ((s as any).agentTierLadderDefaults) setTierDefaults((s as any).agentTierLadderDefaults);
   }, [s]);
+
+  const setTierField = (tier: string, field: string, value: string) => {
+    setTierLadder((prev) => ({ ...prev, [tier]: { ...(prev[tier] || {}), [field]: Number(value) } }));
+  };
+
+  const saveTierLadder = async () => {
+    setSavingTiers(true);
+    setTierErrors({});
+    try {
+      await api.put('/api/admin/settings', { agentTierLadder: tierLadder });
+      setToast('Operator tiers saved');
+      setSavedCard(true);
+      await load();
+    } catch (e: any) {
+      const details = e?.response?.data?.details;
+      if (Array.isArray(details)) {
+        const map: Record<string, string> = {};
+        for (const d of details) map[d.field] = d.message;
+        setTierErrors(map);
+        setToast('Fix the highlighted tier values');
+      } else {
+        setToast(e?.response?.data?.message || 'Failed to save operator tiers');
+      }
+    } finally {
+      setSavingTiers(false);
+    }
+  };
 
   // show a subtle loading hint while fetching but keep the form visible
 
@@ -317,7 +362,26 @@ export default function SystemSettingsPage(){
       const error = validateField(field, valuesToValidate[field]);
       if (error) errors[field] = error;
     });
-    
+
+    // Driver level + referral business config (mirrors server-side rules so the
+    // admin sees the problem inline instead of bouncing off a 400).
+    const goldVal = Number(s.driverLevelGoldThreshold ?? 0);
+    const diamondVal = Number(s.driverLevelDiamondThreshold ?? 0);
+    if (!Number.isFinite(goldVal) || goldVal < 0) {
+      errors.driverLevelGoldThreshold = 'Enter a non-negative amount (TZS).';
+    }
+    if (!Number.isFinite(diamondVal) || diamondVal < 0) {
+      errors.driverLevelDiamondThreshold = 'Enter a non-negative amount (TZS).';
+    } else if (Number.isFinite(goldVal) && diamondVal < goldVal) {
+      errors.driverLevelDiamondThreshold = 'Diamond threshold must be ≥ Gold threshold.';
+    }
+    if (referralPercentInput.trim() !== '') {
+      const refPct = Number(referralPercentInput);
+      if (!Number.isFinite(refPct) || refPct < 0 || refPct > 100) {
+        errors.referralCreditPercent = 'Enter a percentage between 0 and 100.';
+      }
+    }
+
     if (Object.keys(errors).length > 0) {
       setValidationErrors(errors);
       const errorMessages = Object.values(errors);
@@ -363,6 +427,12 @@ export default function SystemSettingsPage(){
   alertOnSuspiciousActivity: Boolean(s.alertOnSuspiciousActivity ?? false),
   supportEmail: supportEmail || s.supportEmail,
   supportPhone: supportPhone || s.supportPhone,
+  driverLevelGoldThreshold: Number(s.driverLevelGoldThreshold ?? 500000),
+  driverLevelDiamondThreshold: Number(s.driverLevelDiamondThreshold ?? 2000000),
+  // Convert the percentage shown in the UI back to a decimal fraction for storage.
+  referralCreditPercent: referralPercentInput.trim() === ''
+    ? (s.referralCreditPercent ?? 0.0035)
+    : Number(referralPercentInput) / 100,
     };
     setSaving(true);
     try {
@@ -371,9 +441,18 @@ export default function SystemSettingsPage(){
       setLastSavedAt(new Date());
       await load();
       await loadSessionPolicyAudit();
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setToast('Failed to save system settings');
+      const details = err?.response?.data?.details;
+      if (Array.isArray(details) && details.length) {
+        // Surface each field error inline next to its input.
+        const map: Record<string, string> = {};
+        for (const d of details) if (d?.field) map[d.field] = d.message;
+        setValidationErrors(map);
+        setToast(details[0]?.message || 'Please fix the highlighted fields');
+      } else {
+        setToast(err?.response?.data?.message || 'Failed to save system settings');
+      }
     } finally {
       setSaving(false);
     }
@@ -560,7 +639,7 @@ export default function SystemSettingsPage(){
                 </div>
                 <button
                   onClick={() => setSavedCard(false)}
-                  className="mt-1 w-full rounded-xl bg-[#02665e] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#015b54] transition-colors"
+                  className="mt-1 w-full rounded-lg bg-[#02665e] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#015b54] transition-colors"
                 >
                   Done
                 </button>
@@ -570,8 +649,8 @@ export default function SystemSettingsPage(){
         )}
       </AnimatePresence>
 
-      <div className="mx-auto w-full max-w-4xl px-4 py-6 pb-28 sm:px-6 lg:px-8">
-        <div className="space-y-5">
+      <div className="mx-auto w-full max-w-4xl px-4 py-6 pb-6 sm:px-6 lg:px-8">
+        <div className="space-y-5 flex flex-col">
 
           {/* Header */}
           <div className="relative overflow-hidden rounded-3xl border border-slate-200/60 bg-white/70 shadow-sm backdrop-blur">
@@ -594,27 +673,22 @@ export default function SystemSettingsPage(){
                     Saved {lastSavedAt.toLocaleTimeString()}
                   </span>
                 )}
-                <button
-                  onClick={saveSystemSettings}
-                  disabled={loading || saving}
-                  className="inline-flex items-center gap-2 rounded-xl bg-[#02665e] px-5 py-2.5 text-sm font-bold text-white shadow-[0_4px_16px_-4px_rgba(2,102,94,0.45)] transition hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-[#02665e]/30 disabled:opacity-60 disabled:cursor-not-allowed"
-                  type="button"
-                >
-                  <Settings className="h-4 w-4" />
-                  {saving ? "Saving..." : "Save Settings"}
-                </button>
+                <span className="hidden sm:inline-flex items-center gap-1.5 text-xs text-slate-400">
+                  <Lock className="h-3.5 w-3.5" />
+                  Save bar pinned below
+                </span>
               </div>
             </div>
           </div>
 
-          {/* Settings Audit Trail */}
-          <div className="bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] overflow-hidden">
+          {/* Settings Audit Trail — pinned to the bottom via order-last */}
+          <div className="order-last bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] overflow-hidden">
             <div className="p-6 sm:p-8">
               {/* Header */}
               <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
                 <div className="flex items-center gap-3">
                   <div className="h-10 w-10 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
-                    <AlertTriangle className="h-5 w-5 text-violet-600" />
+                    <History className="h-5 w-5 text-violet-600" />
                   </div>
                   <div className="min-w-0">
                     <h3 className="text-base font-bold text-slate-900">Settings Audit Trail</h3>
@@ -697,14 +771,13 @@ export default function SystemSettingsPage(){
               <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 mb-6">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="h-10 w-10 rounded-xl bg-[#02665e]/10 flex items-center justify-center shrink-0">
-                    <Settings className="h-5 w-5 text-[#02665e]" />
+                    <CreditCard className="h-5 w-5 text-[#02665e]" />
                   </div>
                   <div className="min-w-0">
                     <h3 className="text-base font-bold text-slate-900">Payments</h3>
                     <p className="text-sm text-slate-500">Platform fee and currency formatting.</p>
                   </div>
                 </div>
-                <span className="inline-flex shrink-0 items-center rounded-xl border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.10em] text-emerald-700">Finance</span>
               </div>
               <div className="grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {/* Property Commission */}
@@ -843,20 +916,181 @@ export default function SystemSettingsPage(){
             </div>
           </section>
 
+          {/* Operator Tiers */}
+          <section id="operatortiers" className="bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] overflow-hidden">
+            <div className="p-6 sm:p-8">
+              <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 mb-6">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="h-10 w-10 rounded-xl bg-indigo-50 flex items-center justify-center shrink-0">
+                    <Crown className="h-5 w-5 text-indigo-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-base font-bold text-slate-900">Operator Tiers</h3>
+                    <p className="text-sm text-slate-500">Promotion thresholds for tour operators. A tier needs all four met; each must be ≥ the tier below. Revenue is in <span className="font-semibold text-slate-600">USD</span>.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {[
+                  { key: 'SILVER', label: 'Silver', chip: 'border-slate-200 bg-slate-100 text-slate-600', dot: 'bg-slate-400' },
+                  { key: 'GOLD', label: 'Gold', chip: 'border-amber-200 bg-amber-50 text-amber-700', dot: 'bg-amber-400' },
+                  { key: 'PLATINUM', label: 'Platinum', chip: 'border-indigo-200 bg-indigo-50 text-indigo-700', dot: 'bg-indigo-400' },
+                ].map((tier) => (
+                  <div key={tier.key} className="min-w-0 rounded-[14px] border border-slate-200 bg-slate-50/60 p-4">
+                    <div className="mb-3 flex items-center gap-2">
+                      <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.10em] ${tier.chip}`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${tier.dot}`} />
+                        {tier.label}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-3">
+                      {[
+                        { key: 'minTours', label: 'Completed tours', step: '1', max: undefined as number | undefined, prefix: undefined as string | undefined, suffix: undefined as string | undefined },
+                        { key: 'minRevenue', label: 'NoLSAF revenue', step: '100', max: undefined as number | undefined, prefix: '$', suffix: undefined as string | undefined },
+                        { key: 'minRating', label: 'Min rating', step: '0.1', max: 5 as number | undefined, prefix: undefined as string | undefined, suffix: '★' },
+                        { key: 'minReviews', label: 'Min reviews', step: '1', max: undefined as number | undefined, prefix: undefined as string | undefined, suffix: undefined as string | undefined },
+                      ].map((f) => {
+                        const err = tierErrors[`${tier.key}.${f.key}`];
+                        return (
+                          <div key={f.key} className="flex min-w-0 grow basis-[140px] flex-col">
+                            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">{f.label}</p>
+                            <div className={`flex overflow-hidden rounded-[10px] border bg-white shadow-sm focus-within:ring-2 ${err ? 'border-rose-300 focus-within:ring-rose-200' : 'border-slate-200 focus-within:border-[#02665e]/50 focus-within:ring-[#02665e]/15'}`}>
+                              {f.prefix ? <div className="flex shrink-0 items-center border-r border-slate-100 bg-slate-50 px-2.5 text-xs font-bold text-slate-400">{f.prefix}</div> : null}
+                              <input
+                                type="number" min={0} step={f.step} {...(f.max != null ? { max: f.max } : {})} inputMode="decimal"
+                                value={tierLadder?.[tier.key]?.[f.key] ?? ''}
+                                onChange={(e) => setTierField(tier.key, f.key, e.target.value)}
+                                className="min-w-0 flex-1 border-0 bg-transparent px-3 py-2 text-sm font-medium text-slate-900 outline-none placeholder:text-slate-300 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                              />
+                              {f.suffix ? <div className="flex shrink-0 items-center border-l border-slate-100 bg-slate-50 px-2.5 text-xs font-bold text-amber-400">{f.suffix}</div> : null}
+                            </div>
+                            {err ? <p className="mt-1 text-[10px] font-medium text-rose-600">{err}</p> : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-5 flex flex-wrap items-center gap-3">
+                <button onClick={saveTierLadder} disabled={savingTiers} className={btnPrimary} type="button">
+                  {savingTiers ? 'Saving…' : 'Save operator tiers'}
+                </button>
+                <button type="button" onClick={() => { setTierLadder(tierDefaults); setTierErrors({}); }} className={btnSecondary}>
+                  Reset to defaults
+                </button>
+                <span className="text-xs text-slate-400">Saved separately from the main Save bar.</span>
+              </div>
+            </div>
+          </section>
+
+          {/* Driver Levels & Rewards */}
+          <section id="driverlevels" className="bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] overflow-hidden">
+            <div className="p-6 sm:p-8">
+              <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 mb-6">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="h-10 w-10 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
+                    <Award className="h-5 w-5 text-amber-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-base font-bold text-slate-900">Driver Levels &amp; Rewards</h3>
+                    <p className="text-sm text-slate-500">Earnings thresholds that promote a driver&apos;s badge, plus the referral credit rate. Changes apply at runtime — no code deploy needed.</p>
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {/* Gold threshold */}
+                <div className="flex h-full min-w-0 flex-col rounded-[14px] border border-slate-200 bg-slate-50/60 p-4">
+                  <div className="mb-3 flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.10em] text-amber-700">
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                      Gold
+                    </span>
+                  </div>
+                  <p className="mb-3 text-[11px] text-slate-400">Lifetime earnings a driver must reach to become Gold.</p>
+                  <div className="mt-auto">
+                    <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Threshold</p>
+                    <div className={`flex overflow-hidden rounded-[10px] border bg-white shadow-sm focus-within:ring-2 ${validationErrors.driverLevelGoldThreshold ? 'border-rose-300 focus-within:ring-rose-200' : 'border-slate-200 focus-within:border-[#02665e]/50 focus-within:ring-[#02665e]/15'}`}>
+                      <input
+                        id="driverLevelGoldThreshold"
+                        type="number" min={0} step="1000" inputMode="numeric"
+                        value={s?.driverLevelGoldThreshold ?? ''}
+                        className="min-w-0 flex-1 border-0 bg-transparent px-3 py-2 text-sm font-medium text-slate-900 outline-none placeholder:text-slate-300 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        onChange={e=>{ setS((prev: any)=>({...(prev||{}), driverLevelGoldThreshold: Number(e.target.value)})); setValidationErrors(prev=>{ const n={...prev}; delete n.driverLevelGoldThreshold; delete n.driverLevelDiamondThreshold; return n; }); }}
+                      />
+                      <div className="flex shrink-0 items-center border-l border-slate-100 bg-[#02665e]/8 px-2.5 text-xs font-bold text-[#02665e]">TZS</div>
+                    </div>
+                    {validationErrors.driverLevelGoldThreshold && <p className="mt-1 text-[10px] font-medium text-rose-600">{validationErrors.driverLevelGoldThreshold}</p>}
+                  </div>
+                </div>
+                {/* Diamond threshold */}
+                <div className="flex h-full min-w-0 flex-col rounded-[14px] border border-slate-200 bg-slate-50/60 p-4">
+                  <div className="mb-3 flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.10em] text-indigo-700">
+                      <span className="h-1.5 w-1.5 rounded-full bg-indigo-400" />
+                      Diamond
+                    </span>
+                  </div>
+                  <p className="mb-3 text-[11px] text-slate-400">Earnings for the top Diamond badge. Must be ≥ Gold.</p>
+                  <div className="mt-auto">
+                    <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Threshold</p>
+                    <div className={`flex overflow-hidden rounded-[10px] border bg-white shadow-sm focus-within:ring-2 ${validationErrors.driverLevelDiamondThreshold ? 'border-rose-300 focus-within:ring-rose-200' : 'border-slate-200 focus-within:border-[#02665e]/50 focus-within:ring-[#02665e]/15'}`}>
+                      <input
+                        id="driverLevelDiamondThreshold"
+                        type="number" min={0} step="1000" inputMode="numeric"
+                        value={s?.driverLevelDiamondThreshold ?? ''}
+                        className="min-w-0 flex-1 border-0 bg-transparent px-3 py-2 text-sm font-medium text-slate-900 outline-none placeholder:text-slate-300 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        onChange={e=>{ setS((prev: any)=>({...(prev||{}), driverLevelDiamondThreshold: Number(e.target.value)})); setValidationErrors(prev=>{ const n={...prev}; delete n.driverLevelDiamondThreshold; return n; }); }}
+                      />
+                      <div className="flex shrink-0 items-center border-l border-slate-100 bg-[#02665e]/8 px-2.5 text-xs font-bold text-[#02665e]">TZS</div>
+                    </div>
+                    {validationErrors.driverLevelDiamondThreshold && <p className="mt-1 text-[10px] font-medium text-rose-600">{validationErrors.driverLevelDiamondThreshold}</p>}
+                  </div>
+                </div>
+                {/* Referral credit */}
+                <div className="flex h-full min-w-0 flex-col rounded-[14px] border border-slate-200 bg-slate-50/60 p-4 sm:col-span-2 lg:col-span-1">
+                  <div className="mb-3 flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.10em] text-slate-600">
+                      <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
+                      Referral
+                    </span>
+                  </div>
+                  <p className="mb-3 text-[11px] text-slate-400">Credit awarded to a referrer as a percentage of the referred booking.</p>
+                  <div className="mt-auto">
+                    <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Credit rate</p>
+                    <div className={`flex overflow-hidden rounded-[10px] border bg-white shadow-sm focus-within:ring-2 ${validationErrors.referralCreditPercent ? 'border-rose-300 focus-within:ring-rose-200' : 'border-slate-200 focus-within:border-[#02665e]/50 focus-within:ring-[#02665e]/15'}`}>
+                      <input
+                        id="referralCreditPercent"
+                        type="number" min={0} max={100} step="0.01" inputMode="decimal" placeholder="0.35"
+                        value={referralPercentInput}
+                        className="min-w-0 flex-1 border-0 bg-transparent px-3 py-2 text-sm font-medium text-slate-900 outline-none placeholder:text-slate-300 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        onChange={e=>{ setReferralPercentInput(e.target.value); setValidationErrors(prev=>{ const n={...prev}; delete n.referralCreditPercent; return n; }); }}
+                      />
+                      <div className="flex shrink-0 items-center border-l border-slate-100 bg-[#02665e]/8 px-2.5 text-xs font-bold text-[#02665e]">%</div>
+                    </div>
+                    {validationErrors.referralCreditPercent && <p className="mt-1 text-[10px] font-medium text-rose-600">{validationErrors.referralCreditPercent}</p>}
+                  </div>
+                </div>
+              </div>
+              <p className="mt-4 text-[11px] text-slate-400">Use the <span className="font-semibold text-slate-500">Save Settings</span> button at the top to apply these values.</p>
+            </div>
+          </section>
+
           {/* Notifications */}
           <section id="notifications" className="bg-white rounded-[20px] border border-slate-200 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] overflow-hidden">
             <div className="p-6 sm:p-8">
               <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 mb-6">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="h-10 w-10 rounded-xl bg-indigo-50 flex items-center justify-center shrink-0">
-                    <Shield className="h-5 w-5 text-indigo-600" />
+                  <div className="h-10 w-10 rounded-xl bg-sky-50 flex items-center justify-center shrink-0">
+                    <Bell className="h-5 w-5 text-sky-600" />
                   </div>
                   <div className="min-w-0">
                     <h3 className="text-base font-bold text-slate-900">Notifications</h3>
                     <p className="text-sm text-slate-500">Channels and customer support contact.</p>
                   </div>
                 </div>
-                <span className="inline-flex shrink-0 items-center rounded-xl border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.10em] text-indigo-700">Live</span>
               </div>
               <div className="space-y-3">
                 <div className="flex min-w-0 items-center justify-between gap-4 rounded-[14px] border border-slate-100 bg-slate-50/50 px-4 py-3.5">
@@ -898,15 +1132,15 @@ export default function SystemSettingsPage(){
             <div className="p-6 sm:p-8">
               <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 mb-6">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="h-10 w-10 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
-                    <Settings className="h-5 w-5 text-amber-600" />
+                  <div className="h-10 w-10 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
+                    <Flag className="h-5 w-5 text-slate-600" />
                   </div>
                   <div className="min-w-0">
                     <h3 className="text-base font-bold text-slate-900">Feature Flags &amp; Templates</h3>
                     <p className="text-sm text-slate-500">Client-side preview only, backend persistence is pending.</p>
                   </div>
                 </div>
-                <span className="inline-flex shrink-0 items-center rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.10em] text-amber-700">Preview</span>
+                <span className="inline-flex shrink-0 items-center rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.10em] text-amber-700">Not saved</span>
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="rounded-[14px] border border-slate-100 bg-slate-50/50 p-4">
@@ -918,8 +1152,9 @@ export default function SystemSettingsPage(){
                   <textarea id="notificationTemplates" className={`${inputClass} h-28 font-mono text-[12px]`} value={notificationTemplates} onChange={e=>setNotificationTemplates(e.target.value)} placeholder='{"owner_payout": "Payout of {{amount}} processed"}' />
                 </div>
               </div>
-              <div className="mt-4">
-                <button onClick={saveFlagsAndTemplates} className={btnSecondary} type="button">Save (preview)</button>
+              <div className="mt-4 flex items-center gap-3">
+                <button onClick={saveFlagsAndTemplates} className={btnSecondary} type="button" disabled>Save (coming soon)</button>
+                <span className="text-xs text-slate-400">These fields are not persisted yet.</span>
               </div>
             </div>
           </section>
@@ -930,7 +1165,7 @@ export default function SystemSettingsPage(){
               <div className="flex items-start justify-between gap-4 mb-6">
                 <div className="flex items-center gap-3">
                   <div className="h-10 w-10 rounded-xl bg-rose-50 flex items-center justify-center shrink-0">
-                    <Shield className="h-5 w-5 text-rose-600" />
+                    <ShieldCheck className="h-5 w-5 text-rose-600" />
                   </div>
                   <div>
                     <h3 className="text-base font-bold text-slate-900">Security & Sessions</h3>
@@ -1038,7 +1273,7 @@ export default function SystemSettingsPage(){
             <div className="p-6 sm:p-8">
               <div className="flex items-center gap-3 mb-6">
                 <div className="h-10 w-10 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
-                  <Lock className="h-5 w-5 text-amber-600" />
+                  <KeyRound className="h-5 w-5 text-amber-600" />
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-slate-900">Password Requirements</h3>
@@ -1088,7 +1323,7 @@ export default function SystemSettingsPage(){
             <div className="p-6 sm:p-8">
               <div className="flex items-center gap-3 mb-6">
                 <div className="h-10 w-10 rounded-xl bg-orange-50 flex items-center justify-center shrink-0">
-                  <Network className="h-5 w-5 text-orange-600" />
+                  <Globe className="h-5 w-5 text-orange-600" />
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-slate-900">Network Security</h3>
@@ -1136,7 +1371,7 @@ export default function SystemSettingsPage(){
             <div className="p-6 sm:p-8">
               <div className="flex items-center gap-3 mb-6">
                 <div className="h-10 w-10 rounded-xl bg-red-50 flex items-center justify-center shrink-0">
-                  <Shield className="h-5 w-5 text-red-600" />
+                  <Gauge className="h-5 w-5 text-red-600" />
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-slate-900">Rate Limiting & DDoS Protection</h3>
@@ -1171,7 +1406,7 @@ export default function SystemSettingsPage(){
             <div className="p-6 sm:p-8">
               <div className="flex items-center gap-3 mb-6">
                 <div className="h-10 w-10 rounded-xl bg-purple-50 flex items-center justify-center shrink-0">
-                  <AlertTriangle className="h-5 w-5 text-purple-600" />
+                  <Activity className="h-5 w-5 text-purple-600" />
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-slate-900">Security Audit & Monitoring</h3>
@@ -1233,7 +1468,7 @@ export default function SystemSettingsPage(){
             <div className="p-6 sm:p-8">
               <div className="flex items-center gap-3 mb-6">
                 <div className="h-10 w-10 rounded-xl bg-[#02665e]/10 flex items-center justify-center shrink-0">
-                  <Settings className="h-5 w-5 text-[#02665e]" />
+                  <FileText className="h-5 w-5 text-[#02665e]" />
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-slate-900">Tax & Invoicing</h3>
@@ -1254,9 +1489,10 @@ export default function SystemSettingsPage(){
                 <label htmlFor="invoiceTemplate" className="block text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 mb-1.5">Invoice Template (HTML)</label>
                 <textarea id="invoiceTemplate" className={`${inputClass} h-28 font-mono text-[12px]`} value={invoiceTemplate} onChange={e=>setInvoiceTemplate(e.target.value)} placeholder="<h1>Invoice {{invoiceNumber}}</h1>" />
               </div>
-              <div className="flex flex-wrap gap-2 mb-4">
-                <button onClick={saveInvoicingSettings} className={btnPrimary} type="button">Save</button>
+              <div className="flex flex-wrap items-center gap-3 mb-4">
+                <button onClick={saveInvoicingSettings} className={btnPrimary} type="button">Save tax &amp; prefix</button>
                 <button onClick={previewInvoice} className={btnSecondary} type="button">Preview</button>
+                <span className="text-xs text-slate-400">Template is preview-only.</span>
               </div>
               <div
                 id="invoicePreviewArea"
@@ -1272,7 +1508,7 @@ export default function SystemSettingsPage(){
               <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 mb-6">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="h-10 w-10 rounded-xl bg-sky-50 flex items-center justify-center shrink-0">
-                    <Clock className="h-5 w-5 text-sky-600" />
+                    <CalendarClock className="h-5 w-5 text-sky-600" />
                   </div>
                   <div className="min-w-0">
                     <h3 className="text-base font-bold text-slate-900">Scheduling</h3>
@@ -1300,7 +1536,7 @@ export default function SystemSettingsPage(){
             <div className="p-6 sm:p-8">
               <div className="flex items-center gap-3 mb-6">
                 <div className="h-10 w-10 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
-                  <Shield className="h-5 w-5 text-violet-600" />
+                  <Gift className="h-5 w-5 text-violet-600" />
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-slate-900">Bonuses</h3>
@@ -1387,29 +1623,31 @@ export default function SystemSettingsPage(){
           </section>
 
         </div>
-      </div>
 
-      {/* Sticky save bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200 bg-white/90 px-4 py-3 backdrop-blur-sm sm:px-6">
-        <div className="mx-auto flex max-w-4xl items-center justify-between gap-4">
-          <div>
-            {lastSavedAt ? (
-              <span className="text-xs text-slate-500">
-                Last saved: <span className="font-semibold text-slate-700">{lastSavedAt.toLocaleTimeString()}</span>
-              </span>
-            ) : (
-              <span className="text-xs text-slate-400">Unsaved changes will be lost on reload.</span>
-            )}
+        {/* Save bar — STICKY inside the content column (not viewport-fixed), so it
+            aligns to the settings card width and scrolls within the admin workspace
+            surface instead of spilling past the sidebar. */}
+        <div className="sticky bottom-4 z-40 mt-5">
+          <div className="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white/95 px-5 py-3 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.20)] backdrop-blur">
+            <div>
+              {lastSavedAt ? (
+                <span className="text-xs text-slate-500">
+                  Last saved: <span className="font-semibold text-slate-700">{lastSavedAt.toLocaleTimeString()}</span>
+                </span>
+              ) : (
+                <span className="text-xs text-slate-400">Unsaved changes will be lost on reload.</span>
+              )}
+            </div>
+            <button
+              onClick={saveSystemSettings}
+              disabled={loading || saving}
+              className="inline-flex items-center gap-2 rounded-lg bg-[#02665e] px-5 py-2.5 text-sm font-bold text-white shadow-[0_4px_16px_-4px_rgba(2,102,94,0.45)] transition hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-[#02665e]/30 disabled:opacity-60 disabled:cursor-not-allowed"
+              type="button"
+            >
+              <Settings className="h-4 w-4" />
+              {saving ? "Saving..." : "Save Settings"}
+            </button>
           </div>
-          <button
-            onClick={saveSystemSettings}
-            disabled={loading || saving}
-            className="inline-flex items-center gap-2 rounded-xl bg-[#02665e] px-5 py-2.5 text-sm font-bold text-white shadow-[0_4px_16px_-4px_rgba(2,102,94,0.45)] transition hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-[#02665e]/30 disabled:opacity-60 disabled:cursor-not-allowed"
-            type="button"
-          >
-            <Settings className="h-4 w-4" />
-            {saving ? "Saving..." : "Save Settings"}
-          </button>
         </div>
       </div>
     </div>

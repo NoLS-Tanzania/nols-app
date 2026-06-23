@@ -659,6 +659,24 @@ export default function AgentPortalHomePage() {
     return typeof raw === "string" && raw.trim() ? raw.trim() : "—";
   }, [agentMe]);
 
+  const levelProgress = useMemo(() => {
+    const next = (agentMe as any)?.agent?.levelProgress;
+    if (!next || typeof next !== "object") return null;
+    const nextLevel = typeof next.level === "string" ? next.level : null;
+    if (!nextLevel) return null;
+    const met = next.met || {};
+    const remaining = next.remaining || {};
+    // Surface the single most actionable gap toward the next tier.
+    if (!met.reviews) return `Collect reviews to reach ${nextLevel}`;
+    const toursLeft = Number(remaining.tours);
+    if (!met.tours && Number.isFinite(toursLeft) && toursLeft > 0) {
+      return `${toursLeft} more tour${toursLeft === 1 ? "" : "s"} to ${nextLevel}`;
+    }
+    if (!met.revenue) return `More revenue to reach ${nextLevel}`;
+    if (!met.rating) return `Raise rating to reach ${nextLevel}`;
+    return `On track for ${nextLevel}`;
+  }, [agentMe]);
+
   const agentRating = useMemo(() => {
     const rating = (agentMe as any)?.agent?.performanceMetrics?.overallRating;
     const totalReviews = (agentMe as any)?.agent?.performanceMetrics?.totalReviews;
@@ -1088,7 +1106,7 @@ export default function AgentPortalHomePage() {
                     <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
                       <div className="text-xs font-semibold text-white/70">Level</div>
                       <div className="mt-1 text-lg font-extrabold text-white tabular-nums">{agentLevel}</div>
-                      <div className="mt-1 text-xs font-semibold text-white/55">Promotion-based</div>
+                      <div className="mt-1 text-xs font-semibold text-white/55">{levelProgress || "Highest tier reached"}</div>
                     </div>
 
                     <div className="rounded-2xl border border-white/10 bg-white/5 p-3">

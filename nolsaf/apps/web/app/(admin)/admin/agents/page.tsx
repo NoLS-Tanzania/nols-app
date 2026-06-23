@@ -88,6 +88,10 @@ type Agent = {
   currentActiveRequests: number;
   performanceMetrics: any;
   level?: string;
+  completedTours?: number;
+  noLSAFRevenue?: number;
+  overallRating?: number | null;
+  totalReviews?: number;
   promotionProgress?: {
     currentTrips: number;
     minTrips: number;
@@ -185,11 +189,8 @@ export default function AdminAgentsPage() {
 
   // Filter states
   const [status, setStatus] = useState<string>("");
-  const [educationLevel, setEducationLevel] = useState<string>("");
-  const [available, setAvailable] = useState<string>("");
-  const [suspensionReasonFilter, setSuspensionReasonFilter] = useState<string>("");
+  const [level, setLevel] = useState<string>("");
   const [areasOfOperation, setAreasOfOperation] = useState<string>("");
-  const [specializations, setSpecializations] = useState<string>("");
   const [languages, setLanguages] = useState<string>("");
   const [q, setQ] = useState("");
   const [debouncedQ, setDebouncedQ] = useState("");
@@ -197,12 +198,8 @@ export default function AdminAgentsPage() {
 
   useEffect(() => {
     if (searchParams) {
-      const urlStatus = searchParams.get("status");
-      const urlEducationLevel = searchParams.get("educationLevel");
-      const urlAvailable = searchParams.get("available");
-      setStatus(urlStatus || "");
-      setEducationLevel(urlEducationLevel || "");
-      setAvailable(urlAvailable || "");
+      setStatus(searchParams.get("status") || "");
+      setLevel(searchParams.get("level") || "");
     }
   }, [searchParams]);
 
@@ -232,11 +229,8 @@ export default function AdminAgentsPage() {
       };
 
       if (status && status.trim()) params.status = sanitizeInput(status.trim());
-      if (educationLevel && educationLevel.trim()) params.educationLevel = sanitizeInput(educationLevel.trim());
-      if (available && available.trim()) params.available = sanitizeInput(available.trim());
-      if (suspensionReasonFilter && suspensionReasonFilter.trim()) params.suspensionReason = sanitizeInput(suspensionReasonFilter.trim());
+      if (level && level.trim()) params.level = sanitizeInput(level.trim());
       if (areasOfOperation && areasOfOperation.trim()) params.areasOfOperation = sanitizeInput(areasOfOperation.trim());
-      if (specializations && specializations.trim()) params.specializations = sanitizeInput(specializations.trim());
       if (languages && languages.trim()) params.languages = sanitizeInput(languages.trim());
       if (debouncedQ && debouncedQ.trim()) params.q = sanitizeInput(debouncedQ.trim());
 
@@ -252,7 +246,7 @@ export default function AdminAgentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, status, educationLevel, available, suspensionReasonFilter, areasOfOperation, specializations, languages, debouncedQ]);
+  }, [page, status, level, areasOfOperation, languages, debouncedQ]);
 
   useEffect(() => {
     authify();
@@ -282,6 +276,19 @@ export default function AdminAgentsPage() {
         return <XCircle className="h-4 w-4" />;
       default:
         return <Clock className="h-4 w-4" />;
+    }
+  };
+
+  const getTierBadgeClass = (tier?: string) => {
+    switch ((tier || "BRONZE").toUpperCase()) {
+      case "PLATINUM":
+        return "bg-purple-100 text-purple-700 border-purple-200";
+      case "GOLD":
+        return "bg-yellow-100 text-yellow-700 border-yellow-200";
+      case "SILVER":
+        return "bg-slate-100 text-slate-700 border-slate-200";
+      default:
+        return "bg-amber-50 text-amber-700 border-amber-200";
     }
   };
 
@@ -352,10 +359,15 @@ export default function AdminAgentsPage() {
     };
   }, [closeAgentDetails, viewingAgent]);
 
+  // Obligatory tour-company documents — must mirror REQUIRED_DOCUMENTS in
+  // app/account/agent/documents/page.tsx (the operator upload page) so the admin
+  // panel checks for exactly what operators are asked to upload.
   const requiredDocTypes = useRef([
-    { type: "ACADEMIC_CERTIFICATES", label: "Academic certificates" },
-    { type: "NDA", label: "Signed NDA" },
-    { type: "NATIONAL_ID_OR_PASSPORT", label: "National ID / Travel Passport" },
+    { type: "BRELA_CERTIFICATE", label: "BRELA Certificate" },
+    { type: "TIN_NUMBER", label: "TIN Number" },
+    { type: "TOURISM_LICENSE", label: "Tourism License" },
+    { type: "BUSINESS_LICENCE", label: "Business Licence" },
+    { type: "NATIONAL_ID_OR_PASSPORT", label: "National ID / Passport" },
   ] as const);
 
   const getLatestDocByType = useCallback((docs: AgentDocument[], type: string) => {
@@ -560,57 +572,21 @@ export default function AdminAgentsPage() {
               </select>
             </div>
 
-            {/* Suspension Reason Filter — only meaningful when filtering SUSPENDED */}
+            {/* Operator Tier Filter */}
             <div className="flex flex-col min-w-0">
-              <label htmlFor="suspension-reason-filter" className="text-xs font-semibold text-gray-700 mb-2">Suspension Reason</label>
+              <label htmlFor="tier-filter" className="text-xs font-semibold text-gray-700 mb-2">Operator Tier</label>
               <select
-                id="suspension-reason-filter"
-                aria-label="Filter by suspension reason"
-                value={suspensionReasonFilter}
-                onChange={(e) => setSuspensionReasonFilter(e.target.value)}
+                id="tier-filter"
+                aria-label="Filter by operator tier"
+                value={level}
+                onChange={(e) => setLevel(e.target.value)}
                 className="w-full min-w-0 px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] outline-none text-sm bg-white hover:border-gray-300 focus:bg-white transition-all duration-200 cursor-pointer box-border appearance-none"
               >
-                <option value="">All Reasons</option>
-                <option value="Policy Violation">Policy Violation</option>
-                <option value="Code of Conduct Breach">Code of Conduct Breach</option>
-                <option value="Fraudulent Activity">Fraudulent Activity</option>
-              </select>
-            </div>
-
-            {/* Availability Filter */}
-            <div className="flex flex-col min-w-0">
-              <label htmlFor="availability-filter" className="text-xs font-semibold text-gray-700 mb-2">Availability</label>
-              <select
-                id="availability-filter"
-                aria-label="Filter by availability"
-                title="Filter by availability"
-                value={available}
-                onChange={(e) => setAvailable(e.target.value)}
-                className="w-full min-w-0 px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] outline-none text-sm bg-white hover:border-gray-300 focus:bg-white transition-all duration-200 cursor-pointer box-border appearance-none"
-              >
-                <option value="">All Availability</option>
-                <option value="true">Available</option>
-                <option value="false">Not Available</option>
-              </select>
-            </div>
-
-            {/* Education Level Filter */}
-            <div className="flex flex-col min-w-0">
-              <label htmlFor="education-filter" className="text-xs font-semibold text-gray-700 mb-2">Education</label>
-              <select
-                id="education-filter"
-                aria-label="Education"
-                value={educationLevel}
-                onChange={(e) => setEducationLevel(e.target.value)}
-                className="w-full min-w-0 px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] outline-none text-sm bg-white hover:border-gray-300 focus:bg-white transition-all duration-200 cursor-pointer box-border appearance-none"
-              >
-                <option value="">All Education Levels</option>
-                <option value="HIGH_SCHOOL">High School</option>
-                <option value="DIPLOMA">Diploma</option>
-                <option value="BACHELORS">Bachelors</option>
-                <option value="MASTERS">Masters</option>
-                <option value="PHD">PhD</option>
-                <option value="OTHER">Other</option>
+                <option value="">All Tiers</option>
+                <option value="BRONZE">Bronze</option>
+                <option value="SILVER">Silver</option>
+                <option value="GOLD">Gold</option>
+                <option value="PLATINUM">Platinum</option>
               </select>
             </div>
 
@@ -629,26 +605,6 @@ export default function AdminAgentsPage() {
                 }}
                 aria-label="Filter by area of operation"
                 title="Filter by area of operation"
-                maxLength={100}
-                className="w-full min-w-0 px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] outline-none text-sm bg-white hover:border-gray-300 focus:bg-white transition-all duration-200 box-border placeholder:text-gray-400"
-              />
-            </div>
-
-            {/* Specializations Filter */}
-            <div className="flex flex-col min-w-0">
-              <label className="text-xs font-semibold text-gray-700 mb-2">Specialization</label>
-              <input
-                type="text"
-                placeholder="Filter by specialization..."
-                value={specializations}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  if (value.length <= 100) {
-                    setSpecializations(value);
-                  }
-                }}
-                aria-label="Filter by specialization"
-                title="Filter by specialization"
                 maxLength={100}
                 className="w-full min-w-0 px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#02665e]/20 focus:border-[#02665e] outline-none text-sm bg-white hover:border-gray-300 focus:bg-white transition-all duration-200 box-border placeholder:text-gray-400"
               />
@@ -676,16 +632,13 @@ export default function AdminAgentsPage() {
           </div>
 
           {/* Clear Filters Button */}
-          {(status || educationLevel || available || suspensionReasonFilter || areasOfOperation || specializations || languages || q) && (
+          {(status || level || areasOfOperation || languages || q) && (
             <div className="flex justify-end pt-2">
               <button
                 onClick={() => {
                   setStatus("");
-                  setEducationLevel("");
-                  setAvailable("");
-                  setSuspensionReasonFilter("");
+                  setLevel("");
                   setAreasOfOperation("");
-                  setSpecializations("");
                   setLanguages("");
                   setQ("");
                 }}
@@ -726,7 +679,7 @@ export default function AdminAgentsPage() {
       ) : agents.length === 0 ? (
         <div className="bg-white rounded-lg border border-gray-200 p-8 shadow-sm">
           <div className="text-center text-gray-500">
-            {debouncedQ || status || educationLevel || available || areasOfOperation || specializations || languages
+            {debouncedQ || status || level || areasOfOperation || languages
               ? "No tour companies found matching your filters"
               : "No tour companies found"}
           </div>
@@ -738,8 +691,8 @@ export default function AdminAgentsPage() {
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Education</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Experience</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tier</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Performance</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Areas of Operation</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Languages</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Workload</th>
@@ -765,15 +718,24 @@ export default function AdminAgentsPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-1 text-sm text-gray-900">
-                        <GraduationCap className="h-4 w-4 text-gray-400" />
-                        {agent.educationLevel ? agent.educationLevel.replace("_", " ") : "N/A"}
-                      </div>
+                      <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${getTierBadgeClass(agent.level)}`}>
+                        <Award className="h-3.5 w-3.5" />
+                        {agent.level ? agent.level.charAt(0) + agent.level.slice(1).toLowerCase() : "Bronze"}
+                      </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-1 text-sm text-gray-900">
-                        <Briefcase className="h-4 w-4 text-gray-400" />
-                        {agent.yearsOfExperience ? `${agent.yearsOfExperience} years` : "N/A"}
+                      <div className="space-y-0.5 text-sm">
+                        <div className="flex items-center gap-1.5 text-gray-900">
+                          <Briefcase className="h-3.5 w-3.5 text-gray-400" />
+                          <span className="font-medium">{agent.completedTours ?? 0}</span>
+                          <span className="text-xs text-gray-400">tours</span>
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {(agent.noLSAFRevenue ?? 0).toLocaleString()} USD
+                          {agent.overallRating != null && (
+                            <span className="ml-2 text-amber-600">★ {agent.overallRating.toFixed(1)}</span>
+                          )}
+                        </div>
                       </div>
                     </td>
                     <td className="px-6 py-4">

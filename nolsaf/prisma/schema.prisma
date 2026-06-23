@@ -1706,6 +1706,11 @@ model SystemSetting {
   /// Agent promotion: Minimum revenue required for promotion (in TZS, default: 20,000,000)
   agentPromotionMinRevenue Int? @default(20000000)
 
+  /// Operator tier ladder overrides (JSON). Editable per-tier thresholds for
+  /// SILVER/GOLD/PLATINUM: { SILVER: {minTours,minRevenue,minRating,minReviews}, ... }.
+  /// Null/blank falls back to the hardcoded defaults in lib/agentLevel.ts.
+  agentTierLadder Json?
+
   /// Agent commission percentage (default: 15% of trip budget goes to NoLSAF)
   agentCommissionPercent Decimal? @default(15.0) @db.Decimal(5, 2)
 
@@ -1922,6 +1927,7 @@ model TourBooking {
   operator      Agent          @relation("AgentTourBookings", fields: [operatorAgentId], references: [id], onDelete: Cascade)
   customer      User?          @relation("UserTourBookings", fields: [customerId], references: [id], onDelete: SetNull)
   paymentEvents PaymentEvent[]
+  agentReview   AgentReview?   @relation("AgentReviewsTourBooking")
 
   @@index([operatorAgentId])
   @@index([customerId])
@@ -2266,8 +2272,12 @@ model AgentReview {
   /// User who wrote the review (customer who worked with the agent)
   userId Int
 
-  /// Optional: Link to the plan request that this review is for
+  /// Optional: Link to the plan request that this review is for (legacy Plan-With-Us flow)
   planRequestId Int?
+
+  /// Optional: Link to the tour booking this review is for (current operator flow).
+  /// Unique so a completed booking can be reviewed at most once.
+  tourBookingId Int? @unique
 
   /// Punctuality rating (1-5)
   punctualityRating Int // 1-5
@@ -2289,10 +2299,12 @@ model AgentReview {
   agent       Agent        @relation(fields: [agentId], references: [id], onDelete: Cascade)
   user        User         @relation("AgentReviewsUser", fields: [userId], references: [id], onDelete: Cascade)
   planRequest PlanRequest? @relation("AgentReviewsPlanRequest", fields: [planRequestId], references: [id], onDelete: SetNull)
+  tourBooking TourBooking? @relation("AgentReviewsTourBooking", fields: [tourBookingId], references: [id], onDelete: SetNull)
 
   @@index([agentId])
   @@index([userId])
   @@index([planRequestId])
+  @@index([tourBookingId])
   @@index([createdAt])
   @@index([agentId, createdAt])
   @@map("agent_reviews")

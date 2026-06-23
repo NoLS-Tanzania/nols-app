@@ -16,6 +16,7 @@ import {
 } from "../middleware/rateLimit.js";
 import { buildOperatorProfileSeed, mergeOperatorProfileSeed } from "../lib/operatorProfileSeed.js";
 import { extractPlannedActivities } from "../lib/agentPlannedActivities.js";
+import { computeAgentLevel, resolveTierLadder } from "../lib/agentLevel.js";
 import {
   buildContractWorkflowSeed,
   readContractWorkflow,
@@ -942,13 +943,37 @@ router.get(
         ? (avgPunctuality + avgCustomerCare + avgCommunication) / 3
         : null;
 
+    const overallRating = overallRatingRaw != null ? roundRating(overallRatingRaw) : null;
+
     const performanceMetrics = {
       totalReviews,
       punctualityRating: avgPunctuality != null ? roundRating(avgPunctuality) : null,
       customerCareRating: avgCustomerCare != null ? roundRating(avgCustomerCare) : null,
       communicationRating: avgCommunication != null ? roundRating(avgCommunication) : null,
-      overallRating: overallRatingRaw != null ? roundRating(overallRatingRaw) : null,
+      overallRating,
     };
+
+    // Live rank from tour-company activity: completed tours + NoLSAF commission
+    // revenue + customer rating. Single source of truth shared with the admin panel.
+    const [completedTours, revenueAgg, tierSetting] = await Promise.all([
+      prisma.tourBooking.count({
+        where: { operatorAgentId: agent.id, status: "COMPLETED" },
+      }),
+      prisma.tourBooking.aggregate({
+        where: { operatorAgentId: agent.id, ...paidTourBookingWhere() },
+        _sum: { commissionAmount: true },
+      }),
+      // Admin-configurable tier ladder; defensive so the hot /me path never
+      // breaks if the column isn't migrated yet (falls back to defaults).
+      prisma.systemSetting
+        .findUnique({ where: { id: 1 }, select: { agentTierLadder: true } as any })
+        .catch(() => null),
+    ]);
+    // Tour bookings are quoted in USD end-to-end (invoice → payout), so the
+    // commission is already USD — sum it directly, no conversion.
+    const noLSAFRevenue = Math.round(Number(revenueAgg._sum.commissionAmount ?? 0));
+    const tiers = resolveTierLadder((tierSetting as any)?.agentTierLadder);
+    const levelInfo = computeAgentLevel({ completedTours, noLSAFRevenue, overallRating, totalReviews }, tiers);
 
     // Sync checklist-facing document proof fields from canonical UserDocument records.
     // The web checklist writes to /api/account/documents, so /api/agent/me should expose
@@ -1039,7 +1064,11 @@ router.get(
       agent: {
         id: agent.id,
         status: agent.status,
-        level: (agent as any).level ?? null,
+        level: levelInfo.level,
+        levelBenefits: levelInfo.benefits,
+        levelProgress: levelInfo.next,
+        completedTrips: levelInfo.completedTours,
+        noLSAFRevenue: levelInfo.noLSAFRevenue,
         educationLevel: (agent as any).educationLevel ?? null,
         areasOfOperation: (agent as any).areasOfOperation ?? null,
         certifications: (agent as any).certifications ?? null,

@@ -8,6 +8,7 @@ import { audit } from "../lib/audit.js";
 import { sanitizeText } from "../lib/sanitize.js";
 import { sanitizeUserDocument } from "../lib/userDocumentSecurity.js";
 import { buildOperatorProfileSeed, mergeOperatorProfileSeed } from "../lib/operatorProfileSeed.js";
+import { computeAgentLevel, resolveTierLadder } from "../lib/agentLevel.js";
 import { rateLimitWithRedis as rateLimit } from "../lib/redisRateLimitStore.js";
 import { Prisma } from "@prisma/client";
 import { sendMail } from "../lib/mailer.js";
@@ -75,6 +76,12 @@ interface AgentResponse {
   level?: string;
   totalCompletedTrips?: number;
   totalRevenueGenerated?: number | string;
+  // Live operator-tier metrics (list view): completed tours, NoLSAF commission (USD),
+  // average rating, and review count — the signals behind the BRONZE→PLATINUM tier.
+  completedTours?: number;
+  noLSAFRevenue?: number;
+  overallRating?: number | null;
+  totalReviews?: number;
   promotionProgress?: any;
   operatorProfile?: Prisma.JsonValue | null;
   financialSummary?: {
@@ -157,6 +164,8 @@ const listAgentsQuerySchema = z.object({
   // NOTE: Apply `optional()` AFTER `transform()` so missing `available` stays `undefined`
   // (otherwise Zod would transform `undefined` into `false`, unintentionally filtering results).
   available: z.enum(["true", "false"]).transform((val) => val === "true").optional(),
+  // Operator tier (BRONZE→PLATINUM), computed live from tour-company activity.
+  level: z.enum(["BRONZE", "SILVER", "GOLD", "PLATINUM"]).optional(),
   areasOfOperation: z.string().optional(),
   specializations: z.string().optional(),
   languages: z.string().optional(),
@@ -883,6 +892,7 @@ router.get("/", validate(listAgentsQuerySchema, "query"), async (req: any, res) 
       status,
       educationLevel,
       available,
+      level,
       areasOfOperation,
       specializations,
       languages,
@@ -995,11 +1005,69 @@ router.get("/", validate(listAgentsQuerySchema, "query"), async (req: any, res) 
       });
     }
 
-    // Map to response format
-    const items = filteredAgents.map(formatAgentResponse);
+    // ---- Operator tier (BRONZE→PLATINUM), computed LIVE from tour-company activity ----
+    // The same signals the detail view and operator dashboard use: completed tours,
+    // NoLSAF commission (USD), and average review rating. Batched per page so the
+    // table stays accurate against the admin-configurable ladder without N+1 queries.
+    const agentIds = filteredAgents.map((a) => a.id);
+    const tiers = resolveTierLadder((await prisma.systemSetting.findUnique({ where: { id: 1 } }) as any)?.agentTierLadder);
 
-    // Adjust total count after filtering
-    const filteredTotal = areasOfOperation || specializations || languages
+    const toursByAgent = new Map<number, number>();
+    const revenueByAgent = new Map<number, number>();
+    const ratingByAgent = new Map<number, { sum: number; count: number }>();
+
+    if (agentIds.length) {
+      const [completedGroups, revenueGroups, reviewGroups] = await Promise.all([
+        prisma.tourBooking.groupBy({
+          by: ["operatorAgentId"],
+          where: { operatorAgentId: { in: agentIds }, status: "COMPLETED" },
+          _count: { _all: true },
+        }),
+        prisma.tourBooking.groupBy({
+          by: ["operatorAgentId"],
+          where: { operatorAgentId: { in: agentIds } },
+          _sum: { commissionAmount: true },
+        }),
+        prisma.agentReview.groupBy({
+          by: ["agentId"],
+          where: { agentId: { in: agentIds } },
+          _avg: { punctualityRating: true, customerCareRating: true, communicationRating: true },
+          _count: { _all: true },
+        }),
+      ]);
+      for (const g of completedGroups) if (g.operatorAgentId != null) toursByAgent.set(g.operatorAgentId, g._count._all);
+      for (const g of revenueGroups) if (g.operatorAgentId != null) revenueByAgent.set(g.operatorAgentId, Math.round(Number(g._sum.commissionAmount ?? 0)));
+      for (const g of reviewGroups) {
+        const avg = ((g._avg.punctualityRating ?? 0) + (g._avg.customerCareRating ?? 0) + (g._avg.communicationRating ?? 0)) / 3;
+        ratingByAgent.set(g.agentId, { sum: avg, count: g._count._all });
+      }
+    }
+
+    // Map to response format, overriding `level` with the live computed tier + metrics.
+    let items = filteredAgents.map((agent) => {
+      const completedTours = toursByAgent.get(agent.id) ?? 0;
+      const noLSAFRevenue = revenueByAgent.get(agent.id) ?? 0;
+      const r = ratingByAgent.get(agent.id);
+      const totalReviews = r?.count ?? 0;
+      const overallRating = totalReviews > 0 ? Math.round((r!.sum) * 10) / 10 : null;
+      const levelInfo = computeAgentLevel({ completedTours, noLSAFRevenue, overallRating, totalReviews }, tiers);
+      return {
+        ...formatAgentResponse(agent),
+        level: levelInfo.level,
+        completedTours,
+        noLSAFRevenue,
+        overallRating,
+        totalReviews,
+      };
+    });
+
+    // Tier filter (applied after the live computation, like the JSON filters above).
+    if (level) {
+      items = items.filter((it) => it.level === level);
+    }
+
+    // Adjust total count after in-memory filtering
+    const filteredTotal = areasOfOperation || specializations || languages || level
       ? items.length
       : total;
 
@@ -1229,9 +1297,7 @@ router.get("/:id", validate(getAgentParamsSchema, "params"), async (req: any, re
 
     // Get promotion thresholds and commission settings
     const systemSettings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
-    const minTrips = systemSettings?.agentPromotionMinTrips || DEFAULT_PROMOTION_MIN_TRIPS;
     const maxTrips = systemSettings?.agentPromotionMaxTrips || DEFAULT_PROMOTION_MAX_TRIPS;
-    const minRevenue = systemSettings?.agentPromotionMinRevenue || DEFAULT_PROMOTION_MIN_REVENUE;
     const commissionPercent = systemSettings?.agentCommissionPercent || DEFAULT_COMMISSION_PERCENT;
 
     // Financial summary split:
@@ -1261,31 +1327,54 @@ router.get("/:id", validate(getAgentParamsSchema, "params"), async (req: any, re
     const netFromBookings =
       netFromBookingsRaw > 0 ? netFromBookingsRaw : Math.max(0, grossFromBookings - commissionFromBookings);
 
-    // Calculate promotion progress
-    const currentTrips = agent.totalCompletedTrips || 0;
-    const currentRevenue = Number(agent.totalRevenueGenerated || 0);
-    const commissionAmount = Math.round((currentRevenue * commissionPercent) * 100) / 100;
-    const netRevenue = Math.round((currentRevenue - commissionAmount) * 100) / 100;
-    const tripsProgress = Math.min(100, Math.round((currentTrips / minTrips) * 100));
-    const revenueProgress = Math.min(100, Math.round((currentRevenue / minRevenue) * 100));
-    const overallProgress = Math.min(100, Math.round((tripsProgress + revenueProgress) / 2));
+    // Promotion progress — computed LIVE from tour-company activity (the same
+    // source the operator dashboard uses), not the retired Plan-With-Us counters.
+    const completedTours = await prisma.tourBooking.count({
+      where: { operatorAgentId: agent.id, status: "COMPLETED" },
+    });
+    const currentTrips = completedTours;
+    // Tour bookings are quoted in USD end-to-end, so commission is already USD.
+    const currentRevenue = Math.round(Number(bookingRevenue._sum.commissionAmount ?? 0));
+    const overallRating =
+      totalReviews > 0
+        ? Math.round(((avgPunctualityRating + avgCustomerCareRating + avgCommunicationRating) / 3) * Math.pow(10, RATING_DECIMAL_PLACES)) /
+          Math.pow(10, RATING_DECIMAL_PLACES)
+        : null;
 
-    // Determine if eligible for promotion (must meet BOTH criteria)
-    const eligibleForPromotion = currentTrips >= minTrips && currentRevenue >= minRevenue;
+    const tiers = resolveTierLadder((systemSettings as any)?.agentTierLadder);
+    const levelInfo = computeAgentLevel({ completedTours, noLSAFRevenue: currentRevenue, overallRating, totalReviews }, tiers);
+    performanceMetrics.overallRating = overallRating;
+
+    const next = levelInfo.next;
+    const tripsProgress = next ? next.progress.tours : 100;
+    const revenueProgress = next ? next.progress.revenue : 100;
+    const overallProgress = next ? next.progress.overall : 100;
+    const eligibleForPromotion = !!next && next.met.tours && next.met.revenue && next.met.rating && next.met.reviews;
 
     const response: AgentResponse = {
       ...formatAgentResponse(agent),
+      level: levelInfo.level,
       performanceMetrics,
       promotionProgress: {
+        currentLevel: levelInfo.level,
+        nextLevel: next?.level ?? null,
+        benefits: levelInfo.benefits,
         currentTrips,
-        minTrips,
+        minTrips: next?.requirements.tours ?? currentTrips,
         maxTrips,
         currentRevenue,
-        minRevenue,
+        minRevenue: next?.requirements.revenue ?? currentRevenue,
+        currentRating: overallRating,
+        minRating: next?.requirements.rating ?? null,
+        currentReviews: totalReviews,
+        minReviews: next?.requirements.reviews ?? null,
+        ratingProgress: next ? next.progress.rating : 100,
+        reviewsProgress: next ? next.progress.reviews : 100,
         tripsProgress,
         revenueProgress,
         overallProgress,
         eligibleForPromotion,
+        criteriaMet: next?.met ?? null,
       },
       assignedPlanRequests: agent.assignedPlanRequests || [],
       reviews: reviews,

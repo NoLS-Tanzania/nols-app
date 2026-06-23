@@ -1960,4 +1960,119 @@ router.get("/:id/receipt", (async (req: AuthedRequest, res) => {
   }
 }) as RequestHandler);
 
+/**
+ * GET /api/customer/tour-bookings/:id/agent-review
+ * Returns the review the customer left for this booking's operator, if any,
+ * plus whether the booking is eligible to be reviewed.
+ */
+router.get("/:id/agent-review", (async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const idNum = Number(req.params.id);
+    if (!Number.isFinite(idNum) || idNum <= 0) return res.status(400).json({ error: "Invalid booking id" });
+
+    const booking = await prisma.tourBooking.findFirst({
+      where: { id: idNum, customerId: userId },
+      select: { id: true, status: true },
+    });
+    if (!booking) return res.status(404).json({ error: "Tour booking not found" });
+
+    const review = await prisma.agentReview.findUnique({
+      where: { tourBookingId: booking.id },
+      select: {
+        id: true,
+        punctualityRating: true,
+        customerCareRating: true,
+        communicationRating: true,
+        comment: true,
+        createdAt: true,
+      },
+    });
+
+    const eligible = String(booking.status || "").toUpperCase() === "COMPLETED";
+    return res.json({ ok: true, eligible, alreadyReviewed: !!review, review });
+  } catch (error: any) {
+    console.error("GET /customer/tour-bookings/:id/agent-review error:", error);
+    return res.status(500).json({ error: "Failed to load review" });
+  }
+}) as RequestHandler);
+
+/**
+ * POST /api/customer/tour-bookings/:id/agent-review
+ * The booking owner rates the tour operator after a COMPLETED trip.
+ * Three 1-5 dimensions (punctuality, customer care, communication) + optional comment.
+ * One review per booking (enforced by the unique tourBookingId).
+ */
+router.post("/:id/agent-review", (async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const idNum = Number(req.params.id);
+    if (!Number.isFinite(idNum) || idNum <= 0) return res.status(400).json({ error: "Invalid booking id" });
+
+    const body = (req.body ?? {}) as Record<string, any>;
+    const punctualityRating = Number(body.punctualityRating);
+    const customerCareRating = Number(body.customerCareRating);
+    const communicationRating = Number(body.communicationRating);
+    const comment = cleanText(body.comment, 1000) || null;
+
+    const isValidScore = (v: number) => Number.isInteger(v) && v >= 1 && v <= 5;
+    if (![punctualityRating, customerCareRating, communicationRating].every(isValidScore)) {
+      return res.status(400).json({ error: "Each rating must be a whole number between 1 and 5" });
+    }
+
+    const booking = await prisma.tourBooking.findFirst({
+      where: { id: idNum, customerId: userId },
+      select: { id: true, status: true, operatorAgentId: true },
+    });
+    if (!booking) return res.status(404).json({ error: "Tour booking not found" });
+
+    if (String(booking.status || "").toUpperCase() !== "COMPLETED") {
+      return res.status(409).json({
+        error: "not_completed",
+        message: "You can review the operator once the trip is completed.",
+      });
+    }
+
+    const existing = await prisma.agentReview.findUnique({
+      where: { tourBookingId: booking.id },
+      select: { id: true },
+    });
+    if (existing) {
+      return res.status(409).json({
+        error: "already_reviewed",
+        message: "You have already reviewed this trip.",
+      });
+    }
+
+    const review = await prisma.agentReview.create({
+      data: {
+        agentId: booking.operatorAgentId,
+        userId,
+        tourBookingId: booking.id,
+        punctualityRating,
+        customerCareRating,
+        communicationRating,
+        comment,
+      },
+      select: {
+        id: true,
+        punctualityRating: true,
+        customerCareRating: true,
+        communicationRating: true,
+        comment: true,
+        createdAt: true,
+      },
+    });
+
+    return res.status(201).json({ ok: true, review });
+  } catch (error: any) {
+    // Unique violation race (two concurrent submissions for the same booking).
+    if (error?.code === "P2002") {
+      return res.status(409).json({ error: "already_reviewed", message: "You have already reviewed this trip." });
+    }
+    console.error("POST /customer/tour-bookings/:id/agent-review error:", error);
+    return res.status(500).json({ error: "Failed to submit review" });
+  }
+}) as RequestHandler);
+
 export default router;
