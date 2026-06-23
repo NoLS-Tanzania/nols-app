@@ -103,6 +103,12 @@ const repeatedErrorAlertCooldownMs = 15 * 60 * 1000;
 const maxPendingImportantRequests = 500;
 const importantRequestFlushDelayMs = 2000;
 const importantRequestFlushBatchSize = 100;
+const apiRouteHealthThrottleMs = 5 * 60 * 1000;
+// Routes that recently returned a 5xx or slow response. We only persist a
+// durable health signal when one of these recovers, which keeps the audit
+// volume to roughly one row per recovery episode.
+const degradedRoutes = new Map<string, number>();
+const lastApiRouteHealthAt = new Map<string, number>();
 
 export function normalizeRoute(path: string): string {
   return path
@@ -115,11 +121,61 @@ export function recordObservedRequest(entry: ObservedRequest) {
   totalRequestsObserved += 1;
   recentRequests.push(entry);
   if (recentRequests.length > maxRequests) recentRequests.shift();
-  if ((!entry.exceptionCaptured && entry.statusCode >= 500) || entry.durationMs >= slowRequestThresholdMs) {
+  const isServerError = entry.statusCode >= 500;
+  const isSlow = entry.durationMs >= slowRequestThresholdMs;
+  if ((!entry.exceptionCaptured && isServerError) || isSlow) {
     queueImportantRequest(entry);
   }
-  if (entry.statusCode >= 500) {
+  if (isServerError || isSlow) {
+    if (entry.route) degradedRoutes.set(entry.route, Date.now());
+  } else {
+    maybeRecordRouteHealth(entry);
+  }
+  if (isServerError) {
     void maybeAlertRepeatedServerErrors(entry);
+  }
+}
+
+// Persists a durable "this API route is healthy again" signal the moment a
+// previously-degraded route returns a fast, non-5xx response. Unlike the
+// in-memory recentRequests window, this survives restarts and is shared across
+// instances via the database, so the Impact Center can auto-close server/slow
+// incidents instead of leaving them stuck red.
+function maybeRecordRouteHealth(entry: ObservedRequest) {
+  const route = entry.route;
+  if (!route || !route.startsWith("/api/")) return;
+  if (!degradedRoutes.has(route)) return;
+  const now = Date.now();
+  const last = lastApiRouteHealthAt.get(route) ?? 0;
+  if (now - last < apiRouteHealthThrottleMs) return;
+  lastApiRouteHealthAt.set(route, now);
+  degradedRoutes.delete(route);
+  void persistRouteHealth(entry);
+}
+
+async function persistRouteHealth(entry: ObservedRequest) {
+  try {
+    await prisma.auditLog.create({
+      data: {
+        actorId: entry.actorId ?? null,
+        actorRole: entry.actorRole ?? null,
+        action: "API_ROUTE_HEALTH",
+        entity: "OBSERVABILITY",
+        entityId: null,
+        ip: entry.ip,
+        ua: entry.userAgent,
+        beforeJson: null,
+        afterJson: {
+          route: entry.route,
+          path: entry.path,
+          statusCode: entry.statusCode,
+          durationMs: Math.round(entry.durationMs * 100) / 100,
+          timestamp: entry.timestamp,
+        },
+      },
+    });
+  } catch (err: any) {
+    console.warn("[observability] failed to persist route health", err?.message || err);
   }
 }
 
@@ -343,6 +399,12 @@ export async function getImpactedUsers(limit = 20): Promise<ImpactedUserSummary[
     },
   });
 
+  const apiHealthRows = await prisma.auditLog.findMany({
+    where: { action: "API_ROUTE_HEALTH", entity: "OBSERVABILITY" },
+    orderBy: { createdAt: "desc" },
+    take: 300,
+  });
+
   const resolutions = new Map<string, ImpactedUserSummary["resolution"]>();
   for (const row of resolutionRows) {
     const after = normalizeJsonObject(row.afterJson);
@@ -431,7 +493,7 @@ export async function getImpactedUsers(limit = 20): Promise<ImpactedUserSummary[
     groups.set(key, existing);
   }
 
-  applyAutomaticImpactRecovery(groups, resolutions, healthRows);
+  applyAutomaticImpactRecovery(groups, resolutions, healthRows, apiHealthRows);
 
   return Array.from(groups.values())
     .sort((a, b) => b.eventCount - a.eventCount || Date.parse(b.lastSeenAt ?? "0") - Date.parse(a.lastSeenAt ?? "0"))
@@ -442,8 +504,23 @@ export async function getImpactedUsers(limit = 20): Promise<ImpactedUserSummary[
 function applyAutomaticImpactRecovery(
   groups: Map<string, ImpactedUserSummary>,
   manualResolutions: Map<string, ImpactedUserSummary["resolution"]>,
-  healthRows: Array<{ actorId: number | null; ip: string | null; ua: string | null; afterJson: unknown; createdAt: Date | null }>
+  healthRows: Array<{ actorId: number | null; ip: string | null; ua: string | null; afterJson: unknown; createdAt: Date | null }>,
+  apiHealthRows: Array<{ afterJson: unknown; createdAt: Date | null }>
 ) {
+  // Latest "route healthy again" timestamp per API route, indexed by both the
+  // raw and normalized route so either form recorded on an incident matches.
+  const apiHealthByRoute = new Map<string, number>();
+  for (const row of apiHealthRows) {
+    const after = normalizeJsonObject(row.afterJson);
+    const route = textOrNull(after.route);
+    const at = row.createdAt ? row.createdAt.getTime() : NaN;
+    if (!route || !Number.isFinite(at)) continue;
+    for (const key of new Set([route, normalizeRoute(route)])) {
+      const existing = apiHealthByRoute.get(key);
+      if (existing === undefined || at > existing) apiHealthByRoute.set(key, at);
+    }
+  }
+
   const healthByKey = new Map<string, Array<{ route: string | null; path: string | null; createdAt: string }>>();
 
   for (const row of healthRows) {
@@ -471,6 +548,26 @@ function applyAutomaticImpactRecovery(
     }
 
     if (item.resolution.status === "restored") continue;
+
+    // Server/slow incidents auto-close once every affected API route has
+    // reported a healthy response newer than the last impact ("all healthy =
+    // recovered"). Mixed incidents that also carry a frontend crash fall
+    // through to the client-side recovery checks below instead.
+    if (hasServerOrSlowImpact && !hasClientImpact) {
+      const apiRoutes = item.routes.filter((route) => route && route.startsWith("/api/"));
+      const healthyAtFor = (route: string) =>
+        apiHealthByRoute.get(route) ?? apiHealthByRoute.get(normalizeRoute(route));
+      if (apiRoutes.length > 0 && apiRoutes.every((route) => (healthyAtFor(route) ?? 0) > lastImpactAt)) {
+        const restoredAtMs = Math.max(...apiRoutes.map((route) => healthyAtFor(route) ?? 0));
+        item.resolution = {
+          status: "restored",
+          note: "Auto-restored after every affected API route returned a healthy response.",
+          restoredAt: new Date(restoredAtMs).toISOString(),
+          restoredBy: null,
+        };
+        continue;
+      }
+    }
 
     const routeSet = new Set(item.routes.filter(Boolean));
     const healthyEvents = healthByKey.get(item.key) ?? [];
