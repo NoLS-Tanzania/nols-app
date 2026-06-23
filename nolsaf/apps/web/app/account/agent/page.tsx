@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import apiClient from "@/lib/apiClient";
 import { fetchAccountSession } from "@/lib/accountSession";
@@ -70,132 +70,34 @@ function classNames(...values: Array<string | false | null | undefined>) {
   return values.filter(Boolean).join(" ");
 }
 
-// Monotone cubic spline (Fritsch–Carlson) → smooth curve that never overshoots
-// the baseline, so sparse/zero-heavy daily counts read as a clean trend, not a zig-zag.
-function smoothPath(pts: Array<{ x: number; y: number }>): string {
-  const n = pts.length;
-  if (n === 0) return "";
-  if (n === 1) return `M ${pts[0].x.toFixed(2)} ${pts[0].y.toFixed(2)}`;
-  if (n === 2)
-    return `M ${pts[0].x.toFixed(2)} ${pts[0].y.toFixed(2)} L ${pts[1].x.toFixed(2)} ${pts[1].y.toFixed(2)}`;
-
-  const xs = pts.map((p) => p.x);
-  const ys = pts.map((p) => p.y);
-  const dx: number[] = [];
-  const slope: number[] = [];
-  for (let i = 0; i < n - 1; i++) {
-    const h = xs[i + 1] - xs[i];
-    dx.push(h);
-    slope.push(h === 0 ? 0 : (ys[i + 1] - ys[i]) / h);
-  }
-
-  const m = new Array<number>(n);
-  m[0] = slope[0];
-  m[n - 1] = slope[n - 2];
-  for (let i = 1; i < n - 1; i++) {
-    m[i] = slope[i - 1] * slope[i] <= 0 ? 0 : (slope[i - 1] + slope[i]) / 2;
-  }
-  for (let i = 0; i < n - 1; i++) {
-    if (slope[i] === 0) {
-      m[i] = 0;
-      m[i + 1] = 0;
-      continue;
-    }
-    const a = m[i] / slope[i];
-    const b = m[i + 1] / slope[i];
-    const s = a * a + b * b;
-    if (s > 9) {
-      const t = 3 / Math.sqrt(s);
-      m[i] = t * a * slope[i];
-      m[i + 1] = t * b * slope[i];
-    }
-  }
-
-  let d = `M ${xs[0].toFixed(2)} ${ys[0].toFixed(2)}`;
-  for (let i = 0; i < n - 1; i++) {
-    const h = dx[i];
-    const c1x = xs[i] + h / 3;
-    const c1y = ys[i] + (m[i] * h) / 3;
-    const c2x = xs[i + 1] - h / 3;
-    const c2y = ys[i + 1] - (m[i + 1] * h) / 3;
-    d += ` C ${c1x.toFixed(2)} ${c1y.toFixed(2)}, ${c2x.toFixed(2)} ${c2y.toFixed(2)}, ${xs[i + 1].toFixed(2)} ${ys[i + 1].toFixed(2)}`;
-  }
-  return d;
-}
-
+// Micro bar sparkline. Daily counts are sparse and zero-heavy, so a line/area
+// reads as stray spikes — discrete bars sit on a shared baseline, handle zeros
+// gracefully, and fade older days so the most recent activity reads first.
 function Sparkline({ values, variant }: { values: number[]; variant: TrendVariant }) {
-  const gid = useId().replace(/[^a-zA-Z0-9]/g, "");
-  const geom = useMemo(() => {
-    const n = values.length;
-    if (!n) return null;
+  const max = useMemo(
+    () => Math.max(1, ...values.map((v) => (Number.isFinite(Number(v)) ? Number(v) : 0))),
+    [values]
+  );
+  if (!values.length) return null;
 
-    const w = 120;
-    const h = 44;
-    const padX = 4;
-    const padTop = 9;
-    const padBottom = 7;
-    const baselineY = h - padBottom;
-
-    const max = Math.max(...values);
-    const min = Math.min(...values);
-    const range = Math.max(1, max - min);
-    const step = n === 1 ? 0 : (w - padX * 2) / (n - 1);
-
-    const pts = values.map((v, i) => {
-      const x = n === 1 ? w / 2 : padX + step * i;
-      const t = (v - min) / range;
-      const y = padTop + (1 - t) * (h - padTop - padBottom);
-      return { x, y };
-    });
-
-    const line = smoothPath(pts);
-    const first = pts[0];
-    const last = pts[pts.length - 1];
-    const area =
-      n === 1
-        ? ""
-        : `${line} L ${last.x.toFixed(2)} ${baselineY.toFixed(2)} L ${first.x.toFixed(2)} ${baselineY.toFixed(2)} Z`;
-
-    return {
-      line,
-      area,
-      leftPct: (last.x / w) * 100,
-      topPct: (last.y / h) * 100,
-    };
-  }, [values]);
-
-  if (!geom) return null;
-
+  const n = values.length;
   return (
-    <div className="absolute inset-0 overflow-hidden" data-variant={variant} aria-hidden>
-      <svg
-        viewBox="0 0 120 44"
-        preserveAspectRatio="none"
-        className="absolute inset-0 h-full w-full"
-      >
-        <defs>
-          <linearGradient id={`spark-${gid}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="currentColor" stopOpacity="0.28" />
-            <stop offset="55%" stopColor="currentColor" stopOpacity="0.07" />
-            <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        {geom.area ? <path d={geom.area} fill={`url(#spark-${gid})`} /> : null}
-        <path
-          d={geom.line}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={2.4}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          vectorEffect="non-scaling-stroke"
-          opacity={0.95}
-        />
-      </svg>
-      <span
-        className="absolute z-10 h-[7px] w-[7px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-current shadow-[0_0_0_2.5px_rgba(255,255,255,0.95),0_2px_6px_rgba(15,23,42,0.25)]"
-        style={{ left: `${geom.leftPct}%`, top: `${geom.topPct}%` }}
-      />
+    <div className="flex h-full w-full items-end gap-[3px]" data-variant={variant} aria-hidden>
+      {values.map((raw, i) => {
+        const v = Number(raw) || 0;
+        const pct = (v / max) * 100;
+        const height = v > 0 ? Math.max(10, pct) : 0;
+        const isLast = i === n - 1;
+        // Older days fade toward the left; today is fully saturated.
+        const opacity = isLast ? 1 : 0.2 + (i / Math.max(1, n - 1)) * 0.45;
+        return (
+          <div
+            key={i}
+            className="flex-1 rounded-t-[2.5px] bg-current"
+            style={{ height: `${height}%`, minHeight: v > 0 ? 3 : 0, opacity }}
+          />
+        );
+      })}
     </div>
   );
 }
@@ -469,8 +371,14 @@ function StatCard({
         </div>
       </div>
 
-      <div className={classNames("relative h-14 w-full", toneTextClass)}>
-        <Sparkline values={trend} variant={variant} />
+      <div className="mt-auto px-5 pb-4 pt-2">
+        <div className={classNames("relative h-10 border-b border-slate-100", toneTextClass)}>
+          <Sparkline values={trend} variant={variant} />
+        </div>
+        <div className="mt-1.5 flex items-center justify-between text-[10px] font-medium text-slate-400">
+          <span>14d ago</span>
+          <span>Today</span>
+        </div>
       </div>
     </div>
   );
