@@ -86,6 +86,10 @@ export type ImpactedUserSummary = {
       role: string | null;
     } | null;
   };
+  // Triage signal for open incidents: "active" = still erroring within the
+  // attention window (fix now), "unconfirmed" = aged out with no recovery proof
+  // (review), "none" = restored/healed.
+  attention: "active" | "unconfirmed" | "none";
 };
 
 const maxRequests = 1000;
@@ -104,6 +108,9 @@ const maxPendingImportantRequests = 500;
 const importantRequestFlushDelayMs = 2000;
 const importantRequestFlushBatchSize = 100;
 const apiRouteHealthThrottleMs = 5 * 60 * 1000;
+// An open incident whose most recent error is within this window is treated as
+// actively firing ("needs attention now"); older ones age into "unconfirmed".
+const activeAttentionWindowMs = 15 * 60 * 1000;
 // Routes that recently returned a 5xx or slow response. We only persist a
 // durable health signal when one of these recovers, which keeps the audit
 // volume to roughly one row per recovery episode.
@@ -452,6 +459,7 @@ export async function getImpactedUsers(limit = 20): Promise<ImpactedUserSummary[
         lastSeenAt: createdAt,
         lastEvent: null,
         resolution: resolutions.get(key) ?? openImpactResolution(),
+        attention: "none",
       } satisfies ImpactedUserSummary);
 
     existing.eventCount += 1;
@@ -498,7 +506,14 @@ export async function getImpactedUsers(limit = 20): Promise<ImpactedUserSummary[
   return Array.from(groups.values())
     .sort((a, b) => b.eventCount - a.eventCount || Date.parse(b.lastSeenAt ?? "0") - Date.parse(a.lastSeenAt ?? "0"))
     .slice(0, clampLimit(limit))
-    .map((item) => ({ ...item, routes: item.routes.slice(0, 8) }));
+    .map((item) => ({ ...item, routes: item.routes.slice(0, 8), attention: computeAttention(item) }));
+}
+
+function computeAttention(item: ImpactedUserSummary): ImpactedUserSummary["attention"] {
+  if (item.resolution.status === "restored") return "none";
+  const lastImpactAt = Date.parse(item.lastSeenAt ?? "");
+  if (Number.isFinite(lastImpactAt) && Date.now() - lastImpactAt <= activeAttentionWindowMs) return "active";
+  return "unconfirmed";
 }
 
 function applyAutomaticImpactRecovery(

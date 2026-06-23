@@ -43,6 +43,7 @@ type ImpactedUser = {
       role: string | null;
     } | null;
   };
+  attention: "active" | "unconfirmed" | "none";
 };
 
 type ErrorDiagnostic = {
@@ -64,7 +65,7 @@ type DiagnosticFrame = {
   sourceLink?: string | null;
 };
 
-type Filter = "all" | "critical" | "slow" | "client" | "server" | "known" | "visitors" | "restored";
+type Filter = "all" | "attention" | "critical" | "slow" | "client" | "server" | "known" | "visitors" | "restored";
 const pageSize = 8;
 
 export default function AdminImpactCenterPage() {
@@ -108,6 +109,7 @@ export default function AdminImpactCenterPage() {
     const activeItems = items.filter((item) => item.resolution?.status !== "restored");
     return {
       people: items.length,
+      attention: activeItems.filter((item) => item.attention === "active").length,
       critical: activeItems.filter((item) => item.serverErrorCount > 0 || item.clientErrorCount > 0).length,
       slow: activeItems.filter((item) => item.slowCount > 0).length,
       client: activeItems.filter((item) => item.clientErrorCount > 0).length,
@@ -121,6 +123,7 @@ export default function AdminImpactCenterPage() {
     return items.filter((item) => {
       if (filter === "restored" && item.resolution?.status !== "restored") return false;
       if (filter !== "restored" && item.resolution?.status === "restored") return false;
+      if (filter === "attention" && item.attention !== "active") return false;
       if (filter === "critical" && item.serverErrorCount + item.clientErrorCount === 0) return false;
       if (filter === "slow" && item.slowCount === 0) return false;
       if (filter === "client" && item.clientErrorCount === 0) return false;
@@ -207,7 +210,8 @@ export default function AdminImpactCenterPage() {
 
         {error ? <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800">{error}</div> : null}
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-7">
+          <SummaryCard icon={ServerCrash} label="Active now" value={summary.attention} tone={summary.attention > 0 ? "red" : "green"} />
           <SummaryCard icon={UserRound} label="Impacted people" value={summary.people} tone="slate" />
           <SummaryCard icon={AlertTriangle} label="Critical people" value={summary.critical} tone={summary.critical > 0 ? "red" : "green"} />
           <SummaryCard icon={Clock3} label="Slow experience" value={summary.slow} tone={summary.slow > 0 ? "amber" : "green"} />
@@ -240,6 +244,9 @@ export default function AdminImpactCenterPage() {
             </div>
             <div className="mt-4 flex max-w-full flex-wrap gap-1.5 border border-slate-200 bg-slate-50 p-1">
               <FilterButton active={filter === "all"} onClick={() => setFilter("all")}>All</FilterButton>
+              <FilterButton active={filter === "attention"} onClick={() => setFilter("attention")}>
+                Needs attention{summary.attention > 0 ? ` (${summary.attention})` : ""}
+              </FilterButton>
               <FilterButton active={filter === "critical"} onClick={() => setFilter("critical")}>Critical</FilterButton>
               <FilterButton active={filter === "server"} onClick={() => setFilter("server")}>5xx</FilterButton>
               <FilterButton active={filter === "client"} onClick={() => setFilter("client")}>Client</FilterButton>
@@ -348,6 +355,17 @@ function ImpactPersonCard({ item, onRestore }: { item: ImpactedUser; onRestore: 
               <span className={`border px-2 py-0.5 text-[11px] font-bold uppercase ${restored ? "border-emerald-200 bg-emerald-50 text-emerald-700" : critical ? "border-red-200 bg-red-50 text-red-700" : item.slowCount > 0 ? "border-amber-200 bg-amber-50 text-amber-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
                 {severity}
               </span>
+              {!restored && item.attention === "active" ? (
+                <span className="inline-flex items-center gap-1 border border-red-300 bg-red-600 px-2 py-0.5 text-[11px] font-bold uppercase text-white">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+                  Active
+                </span>
+              ) : null}
+              {!restored && item.attention === "unconfirmed" ? (
+                <span className="border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-bold uppercase text-amber-700">
+                  Unconfirmed
+                </span>
+              ) : null}
               {item.role ? <span className="border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-bold uppercase text-slate-600">{item.role}</span> : null}
               {!item.userId ? <span className="border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-bold uppercase text-sky-700">Visitor</span> : null}
               {item.userId ? <span className="font-mono text-xs text-slate-400">#{item.userId}</span> : null}
