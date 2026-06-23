@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import { Search, X, User, CheckCircle, XCircle, Clock, Eye, Filter, GraduationCap, MapPin, Award, Languages, Briefcase, UsersRound, ChevronDown, Calendar, DollarSign, Star, CheckCircle2, Mail, Phone, TrendingUp, Target, Trophy, Loader2, AlertCircle, RefreshCw, ExternalLink, FileX, Check, Undo2, ShieldOff, ShieldCheck, AlertTriangle } from "lucide-react";
+import { Search, X, User, CheckCircle, XCircle, Clock, Eye, Filter, GraduationCap, MapPin, Award, Languages, Briefcase, UsersRound, ChevronDown, Calendar, DollarSign, Star, CheckCircle2, Mail, Phone, TrendingUp, Target, Trophy, Loader2, AlertCircle, RefreshCw, ExternalLink, FileX, FileText, FileCheck, Check, Undo2, ShieldOff, ShieldCheck, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import apiClient from "@/lib/apiClient";
 import Link from "next/link";
 
@@ -98,6 +98,13 @@ type Agent = {
     maxTrips: number;
     currentRevenue: number;
     minRevenue: number;
+    revenueCurrency?: string;
+    currentRating?: number | null;
+    minRating?: number | null;
+    currentReviews?: number;
+    minReviews?: number | null;
+    ratingProgress?: number;
+    reviewsProgress?: number;
     tripsProgress: number;
     revenueProgress: number;
     overallProgress: number;
@@ -190,6 +197,9 @@ export default function AdminAgentsPage() {
   // Filter states
   const [status, setStatus] = useState<string>("");
   const [level, setLevel] = useState<string>("");
+  // Client-side sort of the current page (pageSize 30). null = API order (newest first).
+  const [sortKey, setSortKey] = useState<"company" | "tier" | "performance" | "status" | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [areasOfOperation, setAreasOfOperation] = useState<string>("");
   const [languages, setLanguages] = useState<string>("");
   const [q, setQ] = useState("");
@@ -290,6 +300,41 @@ export default function AdminAgentsPage() {
       default:
         return "bg-amber-50 text-amber-700 border-amber-200";
     }
+  };
+
+  const toggleSort = (key: "company" | "tier" | "performance" | "status") => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  };
+
+  const TIER_RANK: Record<string, number> = { BRONZE: 0, SILVER: 1, GOLD: 2, PLATINUM: 3 };
+  const sortedAgents = (() => {
+    if (!sortKey) return agents;
+    const dir = sortDir === "asc" ? 1 : -1;
+    const val = (a: Agent): number | string => {
+      switch (sortKey) {
+        case "company": return (a.user?.name || a.user?.email || "").toLowerCase();
+        case "tier": return TIER_RANK[(a.level || "BRONZE").toUpperCase()] ?? 0;
+        case "performance": return a.completedTours ?? 0;
+        case "status": return (a.status || "").toLowerCase();
+        default: return 0;
+      }
+    };
+    return [...agents].sort((a, b) => {
+      const av = val(a), bv = val(b);
+      if (av < bv) return -1 * dir;
+      if (av > bv) return 1 * dir;
+      return 0;
+    });
+  })();
+
+  const SortIcon = ({ k }: { k: "company" | "tier" | "performance" | "status" }) => {
+    if (sortKey !== k) return <ArrowUpDown className="h-3 w-3 text-gray-300" />;
+    return sortDir === "asc" ? <ArrowUp className="h-3 w-3 text-[#02665e]" /> : <ArrowDown className="h-3 w-3 text-[#02665e]" />;
   };
 
   const pages = Math.max(1, Math.ceil(total / pageSize));
@@ -690,18 +735,33 @@ export default function AdminAgentsPage() {
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tier</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Performance</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Areas of Operation</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Languages</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Workload</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                    <button type="button" onClick={() => toggleSort("company")} className="inline-flex items-center gap-1.5 border-0 bg-transparent p-0 m-0 cursor-pointer uppercase tracking-wider text-gray-500 hover:text-gray-700 focus:outline-none">
+                      Company <SortIcon k="company" />
+                    </button>
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                    <button type="button" onClick={() => toggleSort("tier")} className="inline-flex items-center gap-1.5 border-0 bg-transparent p-0 m-0 cursor-pointer uppercase tracking-wider text-gray-500 hover:text-gray-700 focus:outline-none">
+                      Tier <SortIcon k="tier" />
+                    </button>
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                    <button type="button" onClick={() => toggleSort("performance")} className="inline-flex items-center gap-1.5 border-0 bg-transparent p-0 m-0 cursor-pointer uppercase tracking-wider text-gray-500 hover:text-gray-700 focus:outline-none">
+                      Performance <SortIcon k="performance" />
+                    </button>
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Areas of Operation</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Languages</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                    <button type="button" onClick={() => toggleSort("status")} className="inline-flex items-center gap-1.5 border-0 bg-transparent p-0 m-0 cursor-pointer uppercase tracking-wider text-gray-500 hover:text-gray-700 focus:outline-none">
+                      Status <SortIcon k="status" />
+                    </button>
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {agents.map((agent) => (
+                {sortedAgents.map((agent) => (
                   <tr key={agent.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
@@ -777,27 +837,6 @@ export default function AdminAgentsPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{agent.currentActiveRequests}</span>
-                          <span className="text-gray-400">/</span>
-                          <span>{agent.maxActiveRequests}</span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2 mt-1 max-w-[100px]">
-                            <div
-                              className={`h-2 rounded-full transition-all duration-300 ${
-                                agent.currentActiveRequests >= agent.maxActiveRequests
-                                  ? "bg-red-500"
-                                  : agent.currentActiveRequests >= agent.maxActiveRequests * 0.8
-                                  ? "bg-yellow-500"
-                                  : "bg-green-500"
-                              }`}
-                              style={{ width: `${Math.min(100, (agent.currentActiveRequests / agent.maxActiveRequests) * 100)}%` }}
-                            />
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold ${getStatusColor(agent.status)}`}>
                         {getStatusIcon(agent.status)}
                         {agent.status}
@@ -844,25 +883,26 @@ export default function AdminAgentsPage() {
           </div>
 
           {/* Pagination */}
-          {pages > 1 && (
-            <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+          {total > 0 && (
+            <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex flex-wrap items-center justify-between gap-3">
               <div className="text-sm text-gray-700">
-                Showing {(page - 1) * pageSize + 1} to {Math.min(page * pageSize, total)} of {total} agents
+                Showing {(page - 1) * pageSize + 1} to {Math.min(page * pageSize, total)} of {total} companies
               </div>
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2">
                 <button
                   onClick={() => setPage(Math.max(1, page - 1))}
                   disabled={page === 1}
                   aria-label="Go to previous page"
-                  className="px-3 py-1 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Previous
                 </button>
+                <span className="px-2 text-sm font-medium text-gray-600 tabular-nums">Page {page} of {pages}</span>
                 <button
                   onClick={() => setPage(Math.min(pages, page + 1))}
-                  disabled={page === pages}
+                  disabled={page >= pages}
                   aria-label="Go to next page"
-                  className="px-3 py-1 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Next
                 </button>
@@ -1170,7 +1210,7 @@ export default function AdminAgentsPage() {
                       {docsError}
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="flex gap-4 overflow-x-auto pb-3 snap-x scroll-smooth [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-200">
                       {requiredDocTypes.current.map((reqDoc) => {
                         const latest = getLatestDocByType(agentDocuments, reqDoc.type);
                         const status = String(latest?.status || "NOT_UPLOADED").toUpperCase();
@@ -1181,41 +1221,45 @@ export default function AdminAgentsPage() {
                         const isNotUploaded = !latest?.url;
 
                         return (
-                          <div key={reqDoc.type} className={`relative rounded-xl overflow-hidden border h-full flex flex-col shadow-sm ${
-                            isApproved ? 'border-emerald-200 bg-emerald-50/40' :
-                            isRejected ? 'border-red-200 bg-red-50/30' :
-                            canPreview  ? 'border-amber-200 bg-amber-50/30' :
-                            'border-slate-200 bg-white'
-                          }`}>
-                            {/* Left status accent strip */}
-                            <div className={`absolute left-0 inset-y-0 w-[3px] ${
-                              isApproved ? 'bg-emerald-500' :
-                              isRejected ? 'bg-red-400' :
-                              canPreview  ? 'bg-amber-400' :
-                              'bg-slate-300'
-                            }`} aria-hidden />
-                            <div className="pl-4 pr-4 pt-4 pb-3 min-w-0">
-                              <div className="flex items-start justify-between gap-2">
+                          <div key={reqDoc.type} className="group shrink-0 w-[260px] snap-start rounded-2xl border border-slate-200 bg-white p-4 flex flex-col transition-all duration-200 hover:border-slate-300 hover:shadow-md">
+                            <div className="flex items-start justify-between gap-2 min-w-0">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+                                  isApproved ? 'bg-emerald-50 text-emerald-600' :
+                                  isRejected ? 'bg-red-50 text-red-500' :
+                                  canPreview  ? 'bg-amber-50 text-amber-600' :
+                                  'bg-slate-100 text-slate-400'
+                                }`} aria-hidden>
+                                  {isApproved ? <FileCheck className="h-4.5 w-4.5" /> : isNotUploaded ? <FileX className="h-4.5 w-4.5" /> : <FileText className="h-4.5 w-4.5" />}
+                                </span>
                                 <div className="min-w-0">
-                                  <div className="text-sm font-bold text-slate-900 leading-snug">{reqDoc.label}</div>
-                                  <div className="text-[10px] text-slate-400 mt-0.5 font-mono">{reqDoc.type}</div>
+                                  <div className="text-sm font-bold text-slate-900 leading-snug truncate">{reqDoc.label}</div>
+                                  <div className="text-[10px] text-slate-400 font-mono truncate">{reqDoc.type}</div>
                                 </div>
-                                <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide ${
-                                  isApproved ? 'bg-emerald-100 text-emerald-700' :
-                                  isRejected ? 'bg-red-100 text-red-600' :
-                                  canPreview  ? 'bg-amber-100 text-amber-700' :
-                                  'bg-slate-100 text-slate-500'
-                                }`}>{isApproved ? 'Approved' : isRejected ? 'Rejected' : canPreview ? 'Pending' : 'Missing'}</span>
                               </div>
-
-                              {isRejected && latest?.reason ? (
-                                <div className="mt-2.5 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                                  {latest.reason}
-                                </div>
-                              ) : null}
+                              <span className={`shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${
+                                isApproved ? 'bg-emerald-100 text-emerald-700' :
+                                isRejected ? 'bg-red-100 text-red-600' :
+                                canPreview  ? 'bg-amber-100 text-amber-700' :
+                                'bg-slate-100 text-slate-500'
+                              }`}>
+                                <span className={`h-1.5 w-1.5 rounded-full ${
+                                  isApproved ? 'bg-emerald-500' :
+                                  isRejected ? 'bg-red-500' :
+                                  canPreview  ? 'bg-amber-500' :
+                                  'bg-slate-400'
+                                }`} />
+                                {isApproved ? 'Approved' : isRejected ? 'Rejected' : canPreview ? 'Pending' : 'Missing'}
+                              </span>
                             </div>
 
-                            <div className="mt-auto px-4 pb-4 flex items-center justify-end gap-2 pt-2">
+                            {isRejected && latest?.reason ? (
+                              <div className="mt-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                                {latest.reason}
+                              </div>
+                            ) : null}
+
+                            <div className="mt-auto flex items-center justify-end gap-2 pt-3 mt-3 border-t border-slate-100">
                               {/* NOT UPLOADED icon only */}
                               {isNotUploaded ? (
                                 <span
@@ -1402,7 +1446,7 @@ export default function AdminAgentsPage() {
                             <span className="text-sm font-medium text-gray-700">Completed Events</span>
                           </div>
                           <span className="text-sm font-semibold text-gray-900">
-                            {viewingAgent.promotionProgress.currentTrips} / {viewingAgent.promotionProgress.minTrips} - {viewingAgent.promotionProgress.maxTrips}
+                            {viewingAgent.promotionProgress.currentTrips} / {viewingAgent.promotionProgress.minTrips}
                           </span>
                         </div>
                         <div className="w-full bg-gray-200 rounded-full h-2.5">
@@ -1425,16 +1469,17 @@ export default function AdminAgentsPage() {
 
                       {/* Revenue Progress */}
                       <div>
-                        <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center justify-between mb-1">
                           <div className="flex items-center gap-2">
                             <TrendingUp className="h-4 w-4 text-[#02665e]" />
-                            <span className="text-sm font-medium text-gray-700">Revenue Generated</span>
+                            <span className="text-sm font-medium text-gray-700">NoLSAF Revenue</span>
                           </div>
                           <span className="text-sm font-semibold text-gray-900">
-                            TZS {Number(viewingAgent.promotionProgress.currentRevenue).toLocaleString()} / {viewingAgent.promotionProgress.minRevenue.toLocaleString()}
+                            {viewingAgent.promotionProgress.revenueCurrency || "USD"} {Number(viewingAgent.promotionProgress.currentRevenue).toLocaleString()} / {viewingAgent.promotionProgress.minRevenue.toLocaleString()}
                           </span>
                         </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2.5">
+                        <p className="text-[11px] text-gray-400 mb-2">All of this belongs to NoLSAF.</p>
+                        <div className="relative w-full bg-gray-200 rounded-full h-2.5">
                           <div
                             className={`h-2.5 rounded-full transition-all duration-500 ${
                               viewingAgent.promotionProgress.revenueProgress >= 100
@@ -1444,12 +1489,87 @@ export default function AdminAgentsPage() {
                             style={{ width: `${Math.min(100, viewingAgent.promotionProgress.revenueProgress)}%` }}
                           />
                         </div>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {viewingAgent.promotionProgress.currentRevenue >= viewingAgent.promotionProgress.minRevenue
-                            ? '✓ Revenue requirement met'
-                            : `TZS ${(viewingAgent.promotionProgress.minRevenue - viewingAgent.promotionProgress.currentRevenue).toLocaleString()} more needed`
-                          }
-                        </p>
+                        <div className="mt-1 flex items-center justify-between">
+                          <p className="text-xs text-gray-500">
+                            {viewingAgent.promotionProgress.currentRevenue >= viewingAgent.promotionProgress.minRevenue
+                              ? '✓ Revenue requirement met'
+                              : `${viewingAgent.promotionProgress.revenueCurrency || "USD"} ${(viewingAgent.promotionProgress.minRevenue - viewingAgent.promotionProgress.currentRevenue).toLocaleString()} more needed`
+                            }
+                          </p>
+                          <span className={`text-xs font-semibold ${
+                            viewingAgent.promotionProgress.revenueProgress >= 100 ? 'text-green-600' : 'text-orange-600'
+                          }`}>
+                            {Math.round(viewingAgent.promotionProgress.revenueProgress)}% of target
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Rating Progress */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-2">
+                            <Star className="h-4 w-4 text-[#02665e]" />
+                            <span className="text-sm font-medium text-gray-700">Customer Rating</span>
+                          </div>
+                          <span className="text-sm font-semibold text-gray-900">
+                            {viewingAgent.promotionProgress.currentRating != null
+                              ? `${viewingAgent.promotionProgress.currentRating.toFixed(1)} / ${viewingAgent.promotionProgress.minRating ?? "—"} ★`
+                              : "No ratings yet"}
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2.5">
+                          <div
+                            className={`h-2.5 rounded-full transition-all duration-500 ${
+                              (viewingAgent.promotionProgress.ratingProgress ?? 0) >= 100 ? "bg-green-500" : "bg-amber-500"
+                            }`}
+                            style={{ width: `${Math.min(100, viewingAgent.promotionProgress.ratingProgress ?? 0)}%` }}
+                          />
+                        </div>
+                        <div className="mt-1 flex items-center justify-between">
+                          <p className="text-xs text-gray-500">
+                            {viewingAgent.promotionProgress.minRating != null && (viewingAgent.promotionProgress.currentRating ?? 0) >= viewingAgent.promotionProgress.minRating
+                              ? "✓ Rating requirement met"
+                              : `Needs ${viewingAgent.promotionProgress.minRating ?? "—"}★ average`}
+                          </p>
+                          <span className={`text-xs font-semibold ${
+                            (viewingAgent.promotionProgress.ratingProgress ?? 0) >= 100 ? "text-green-600" : "text-amber-600"
+                          }`}>
+                            {Math.round(viewingAgent.promotionProgress.ratingProgress ?? 0)}% of target
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Reviews Progress */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-2">
+                            <UsersRound className="h-4 w-4 text-[#02665e]" />
+                            <span className="text-sm font-medium text-gray-700">Reviews</span>
+                          </div>
+                          <span className="text-sm font-semibold text-gray-900">
+                            {viewingAgent.promotionProgress.currentReviews ?? 0} / {viewingAgent.promotionProgress.minReviews ?? "—"}
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2.5">
+                          <div
+                            className={`h-2.5 rounded-full transition-all duration-500 ${
+                              (viewingAgent.promotionProgress.reviewsProgress ?? 0) >= 100 ? "bg-green-500" : "bg-blue-500"
+                            }`}
+                            style={{ width: `${Math.min(100, viewingAgent.promotionProgress.reviewsProgress ?? 0)}%` }}
+                          />
+                        </div>
+                        <div className="mt-1 flex items-center justify-between">
+                          <p className="text-xs text-gray-500">
+                            {viewingAgent.promotionProgress.minReviews != null && (viewingAgent.promotionProgress.currentReviews ?? 0) >= viewingAgent.promotionProgress.minReviews
+                              ? "✓ Reviews requirement met"
+                              : `${Math.max(0, (viewingAgent.promotionProgress.minReviews ?? 0) - (viewingAgent.promotionProgress.currentReviews ?? 0))} more reviews needed`}
+                          </p>
+                          <span className={`text-xs font-semibold ${
+                            (viewingAgent.promotionProgress.reviewsProgress ?? 0) >= 100 ? "text-green-600" : "text-blue-600"
+                          }`}>
+                            {Math.round(viewingAgent.promotionProgress.reviewsProgress ?? 0)}% of target
+                          </span>
+                        </div>
                       </div>
 
                       {/* Promotion Eligibility */}

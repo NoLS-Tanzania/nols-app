@@ -1364,6 +1364,10 @@ router.get("/:id", validate(getAgentParamsSchema, "params"), async (req: any, re
         maxTrips,
         currentRevenue,
         minRevenue: next?.requirements.revenue ?? currentRevenue,
+        // Tier revenue is NoLSAF commission, quoted in the configured commission
+        // currency (USD by default) — see lib/agentLevel.ts. Surfaced so the UI
+        // labels it correctly instead of assuming TZS.
+        revenueCurrency: String(systemSettings?.agentCommissionCurrency || "USD"),
         currentRating: overallRating,
         minRating: next?.requirements.rating ?? null,
         currentReviews: totalReviews,
