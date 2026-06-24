@@ -1,0 +1,119 @@
+import { ApiError, AppButton, AppText, SafeScreen, StateView, colors, spacing } from "@nolsaf/native-ui";
+import { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
+
+import { getAgentMe, useAuth } from "../auth";
+import { OperatorHomeScreen } from "./OperatorHomeScreen";
+import { OwnerHomeScreen } from "./OwnerHomeScreen";
+
+type OperatorCheck = "checking" | "active" | "suspended" | "error";
+
+// The role gate, the gateway that controls which dashboard renders. It runs
+// after login (status "authenticated") and branches on the single account role,
+// the same boundary the API enforces with requireRole("OWNER") and
+// requireRole("AGENT"). v1 is one role per account: an OWNER sees the Owner
+// dashboard, an AGENT sees the Operator dashboard (unless suspended), and any
+// other role is refused. This is a user experience layer over an authorization
+// boundary the server already enforces, not the boundary itself.
+export function RoleGateScreen() {
+  const { user, token, signOut } = useAuth();
+
+  const role = useMemo(() => {
+    const raw = (user?.role ?? "").toString().toUpperCase();
+    return raw === "CUSTOMER" ? "USER" : raw;
+  }, [user?.role]);
+
+  const [operatorCheck, setOperatorCheck] = useState<OperatorCheck>("checking");
+
+  useEffect(() => {
+    if (role !== "AGENT" || !token) return;
+    let alive = true;
+    setOperatorCheck("checking");
+    (async () => {
+      try {
+        await getAgentMe(token);
+        if (alive) setOperatorCheck("active");
+      } catch (err) {
+        const apiError = err as ApiError;
+        const payload = apiError?.payload as { error?: string } | undefined;
+        if (apiError?.status === 403 && payload?.error === "AGENT_SUSPENDED") {
+          if (alive) setOperatorCheck("suspended");
+        } else if (alive) {
+          setOperatorCheck("error");
+        }
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [role, token]);
+
+  if (role === "OWNER") {
+    return <OwnerHomeScreen />;
+  }
+
+  if (role === "AGENT") {
+    if (operatorCheck === "active") return <OperatorHomeScreen />;
+
+    if (operatorCheck === "suspended") {
+      return (
+        <GateMessage
+          title="Account temporarily suspended"
+          message="Your operator account is under review, so assignments are paused. If you believe this is an error, contact security@nolsaf.com or hr@nolsaf.com."
+          onSignOut={signOut}
+        />
+      );
+    }
+
+    if (operatorCheck === "error") {
+      return (
+        <SafeScreen scroll={false} contentStyle={styles.center}>
+          <StateView
+            title="We could not load your operator access"
+            message="Check your connection and try again."
+            actionLabel="Retry"
+            onAction={() => setOperatorCheck("checking")}
+          />
+        </SafeScreen>
+      );
+    }
+
+    return (
+      <SafeScreen scroll={false} contentStyle={styles.center}>
+        <View style={styles.loading}>
+          <ActivityIndicator color={colors.primary} />
+          <AppText variant="bodySmall" tone="muted">
+            Preparing your operator dashboard
+          </AppText>
+        </View>
+      </SafeScreen>
+    );
+  }
+
+  // Any non partner role (customer, driver, admin). NoLSAF admin stays on the
+  // secured web portal and must never appear here.
+  return (
+    <GateMessage
+      title="This app is for NoLSAF partners"
+      message="NoLSAF Partners is for property owners and tour operators. Your account does not have a partner role on this device."
+      onSignOut={signOut}
+    />
+  );
+}
+
+function GateMessage({ title, message, onSignOut }: { title: string; message: string; onSignOut: () => Promise<void> }) {
+  return (
+    <SafeScreen scroll={false} contentStyle={styles.center}>
+      <View style={styles.messageWrap}>
+        <StateView title={title} message={message} />
+        <AppButton title="Sign out" variant="ghost" onPress={() => void onSignOut()} />
+      </View>
+    </SafeScreen>
+  );
+}
+
+const styles = StyleSheet.create({
+  center: { justifyContent: "center" },
+  loading: { alignItems: "center", gap: spacing[3] },
+  messageWrap: { gap: spacing[4] }
+});

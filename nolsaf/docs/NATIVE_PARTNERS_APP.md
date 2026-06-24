@@ -657,11 +657,54 @@ Commit Routing in `BRANCHING.md` (shared native UI belongs on the native trunk).
 but not yet consumed by a screen; the next step scaffolds `apps/partners` and composes
 the Owner and Operator home screens from these primitives.
 
-Still to build before the homes render on device:
+### App scaffold, single login, and the role gate (built)
 
-* Scaffold `apps/partners` (Expo, NoLSAF theme, Inter font, the login and role gate, the
-  navigation shell), after the Shared code contract prerequisite milestone.
-* Compose `OwnerHomeScreen` and `OperatorHomeScreen` from the kit, wired to the
-  `/api/owner/**` and `/api/agent/**` endpoints in the API readiness checklist.
-* A Metro build to confirm the kit renders on device, since typecheck alone does not
-  exercise `react-native-svg` at runtime.
+`apps/partners` is scaffolded as an Expo workspace that consumes `@nolsaf/native-ui`
+from day one (no forks), and the gateway that controls which dashboard renders is
+built end to end:
+
+* App config: `package.json` (`@nolsaf/partners`, `com.nolsaf.partners`), `app.json`,
+  `tsconfig.json`, `babel.config.js`, `index.js`, and `metro.config.js` with the
+  monorepo resolution the Shared code contract requires (`watchFolders` to the
+  workspace root, `resolver.nodeModulesPaths` for the app and root `node_modules`, and
+  the single React resolution guard).
+* `App.tsx` loads the Inter fonts, calls `configureApiClient({ apiUrl })` once at
+  startup from `EXPO_PUBLIC_API_URL` (the decoupled client, so the package stays free
+  of any app's env module), and renders a boot screen, then the login, then the gate.
+* Auth (`src/auth/`): `AuthProvider` (bootstrap from secure storage, password login,
+  logout), `authApi` (`POST /api/auth/login-password`, `GET /api/account/me`,
+  `GET /api/agent/me`, `POST /api/auth/logout`), `types`, and `secureSession` bound to
+  the `nolsaf_partners_token` key via the shared `createSecureSession`. Mirrors the
+  customer app pattern, trimmed (no registration or OTP, partners already hold
+  accounts).
+* `LoginScreen`: the single Partners login, built from the shared `AppInput`,
+  `AppButton`, and `SafeScreen`. One login for both roles.
+* `RoleGateScreen`: the gateway. After the `authenticated` state it reads the single
+  account role and branches, the same boundary the API enforces with
+  `requireRole("OWNER")` and `requireRole("AGENT")`: `OWNER` renders the Owner home;
+  `AGENT` calls `/api/agent/me` and renders the Operator home, or a suspended state on
+  `403 AGENT_SUSPENDED`; any other role (customer, driver, admin) is refused with a
+  clear message. v1 is one role per account, with no in app switcher. Loading, error,
+  suspended, and refused states are all present.
+* `OwnerHomeScreen` and `OperatorHomeScreen`: composed entirely from the dashboard kit
+  (`PartnerHero`, `HeroStat`, `StatCard`, `MiniTrendChart`, `SnapshotTile`,
+  `StatusBadge`, `AppBottomNav`), matching the agreed phone design. `PartnerHero` gained
+  an optional `headerRight` slot (used here for sign out).
+
+State: `@nolsaf/native-ui` typecheck still passes (exit 0). A standalone
+`apps/partners` typecheck is blocked only on the workspace install, plus the known
+single `@types/react` dedup that `NATIVE_DRIVER_APP.md` already resolved with a tsconfig
+react types pin (the errors are duplicate `@types/react` resolution in native-ui, not
+defects in the Partners code). The Partners code mirrors the proven customer app
+structure.
+
+Still to build:
+
+* Run the workspace install (the pending lockfile regen) so `apps/partners` resolves
+  Expo and a single `@types/react`, then a Metro build to confirm the gate and homes
+  render on device.
+* Wire `OwnerHomeScreen` and `OperatorHomeScreen` to live data
+  (`/api/owner/properties/mine`, `/api/owner/revenue/stats`, `/api/owner/bookings/*`,
+  `/api/agent/me`, `/api/agent/tour-bookings`); they use sample values today.
+* Expand the navigation shell beyond the home tab (Properties, Bookings, Money, Account
+  for Owner; Tours, Revenue, Account for Operator) using the bottom tabs already shown.

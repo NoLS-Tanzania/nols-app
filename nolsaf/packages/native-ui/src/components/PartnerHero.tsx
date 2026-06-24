@@ -1,4 +1,4 @@
-import { PropsWithChildren } from "react";
+import { PropsWithChildren, ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
 import Svg, { Defs, LinearGradient, Path, Rect, Stop } from "react-native-svg";
 
@@ -11,6 +11,8 @@ export type PartnerHeroProps = PropsWithChildren<{
   subtitle?: string;
   live?: boolean;
   align?: "center" | "left";
+  /** Optional action rendered at the top right of the hero (for example a bell or sign out). */
+  headerRight?: ReactNode;
 }>;
 
 const BACKDROP_BARS = [235, 250, 265, 280, 295, 310, 325, 340];
@@ -21,7 +23,7 @@ const BACKDROP_BARS = [235, 250, 265, 280, 295, 310, 325, 340];
 // HeroStat cards). The gradient and backdrop use react-native-svg so no extra
 // dependency is needed. align="center" matches the Owner home, "left" the
 // Operator home.
-export function PartnerHero({ eyebrow, title, subtitle, live, align = "center", children }: PartnerHeroProps) {
+export function PartnerHero({ eyebrow, title, subtitle, live, align = "center", headerRight, children }: PartnerHeroProps) {
   const alignItems = align === "center" ? "center" : "flex-start";
   const textAlign = align === "center" ? "center" : "left";
 
@@ -47,6 +49,8 @@ export function PartnerHero({ eyebrow, title, subtitle, live, align = "center", 
           <Rect key={i} x={x} y={188 + (i % 3) * 8} width={9} height={72 - (i % 3) * 8} fill="#1d9e75" fillOpacity={0.25} />
         ))}
       </Svg>
+
+      {headerRight ? <View style={styles.headerRight}>{headerRight}</View> : null}
 
       <View style={[styles.content, { alignItems }]}>
         <View style={styles.eyebrowRow}>
@@ -90,6 +94,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing[4],
     paddingTop: spacing[5],
     paddingBottom: spacing[5]
+  },
+  headerRight: {
+    position: "absolute",
+    top: spacing[4],
+    right: spacing[4],
+    zIndex: 2
   },
   eyebrowRow: { flexDirection: "row", alignItems: "center", gap: spacing[2] },
   dash: { width: 16, height: 2, backgroundColor: "#1d9e75" },
