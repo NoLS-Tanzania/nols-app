@@ -9,7 +9,7 @@ A production-grade, multi-tenant SaaS platform for real-time accommodation disco
 
 ## Architecture Overview
 
-The system follows a **monorepo microservices-inspired architecture** using pnpm workspaces, with clear separation of concerns across three application boundaries:
+The system follows a **monorepo microservices-inspired architecture** using npm workspaces, with clear separation of concerns across three application boundaries:
 
 - `apps/api` — RESTful backend service (Node.js + Express + TypeScript) exposing authenticated endpoints for CRUD operations, session management, and business logic orchestration
 - `apps/web` — Isomorphic Next.js 14 frontend leveraging the App Router, React Server Components (RSC), and client-side hydration for interactive UI segments
@@ -31,7 +31,7 @@ The system follows a **monorepo microservices-inspired architecture** using pnpm
 | Database | MariaDB / MySQL | Relational data persistence |
 | Caching Layer | Redis | Session store, rate limiting |
 | Maps | Mapbox GL JS | WebGL-rendered interactive maps |
-| Monorepo Tooling | pnpm workspaces | Dependency hoisting, workspace linking |
+| Monorepo Tooling | npm workspaces | Dependency hoisting, workspace linking |
 | Containerization | Docker | Reproducible deployment environments |
 
 ---
@@ -72,14 +72,14 @@ nolsaf/
 ### Prerequisites
 
 - Node.js ≥ 18.x
-- pnpm ≥ 9.x
+- npm ≥ 10.x (the repo pins `npm@11.6.1` via the `packageManager` field)
 - MariaDB 10.6+ or MySQL 8.x
 - Redis 7.x
 
 ### Install
 
 ```bash
-pnpm install
+npm install
 ```
 
 ### Environment Variables
@@ -114,18 +114,18 @@ Keep that value on normal API instances. Set `RUN_BACKGROUND_WORKERS=true` only 
 
 ```bash
 # Concurrent API + Web dev servers
-pnpm dev
+npm run dev
 
 # Isolated per package
-pnpm --filter api dev
-pnpm --filter web dev
+npm --workspace=@nolsaf/api run dev
+npm --workspace=@nolsaf/web run dev
 ```
 
 ### Database Migrations
 
 ```bash
-pnpm prisma migrate dev     # Apply pending migrations
-pnpm prisma generate        # Regenerate Prisma client
+npm run prisma:migrate      # Apply pending migrations
+npm run prisma:generate     # Regenerate Prisma client
 ```
 
 ---

@@ -388,6 +388,12 @@ Current linked plan files:
   auth and KYC gate, dashboard, trips and active trip flow, scheduled trips, earnings,
   profile, management, security, and policies, with live map and dispatch deferred to
   its own later phase.
+* `NATIVE_PARTNERS_APP.md`, the NoLSAF Partners native app (Phase 5 of this file), the
+  one app for Owner and Operator (agent), covering the single login and role gate (one
+  role per account for v1), the role specific navigation shell, the Owner dashboard
+  (properties, availability, bookings, group stays, revenue, invoices, reports) and the
+  Operator dashboard (tour bookings, assignments, operator profile, revenues, contract),
+  with shared account, security, and policy screens.
 
 ### Admin Exclusion Policy
 

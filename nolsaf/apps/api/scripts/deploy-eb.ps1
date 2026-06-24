@@ -1,5 +1,5 @@
 # deploy-eb.ps1
-# Vendors workspace packages so EB can resolve them without pnpm workspaces,
+# Vendors workspace packages so EB can resolve them without npm workspaces,
 # then runs `eb deploy` and cleans up.
 #
 # Usage (from apps/api):
