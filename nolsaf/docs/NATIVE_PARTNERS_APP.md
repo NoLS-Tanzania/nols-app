@@ -613,3 +613,55 @@ backward compatible with web.
    `resolver.nodeModulesPaths`). No package manager change is needed; the repo is
    already unified on npm. Optionally remove the stale pnpm debris and fix the README.
    Without the consume and delete step, Partners would institutionalize a three way fork.
+
+## Implementation progress
+
+This section records what is actually built, so the plan stays a living reference.
+Every new addition is logged here as it lands, the same convention the customer app
+uses in `NATIVE_APP_SETUP.md`.
+
+### Shared dashboard kit in `packages/native-ui` (built)
+
+The first real code is the shared, role neutral dashboard primitives, added to
+`@nolsaf/native-ui` so both the Owner and Operator homes (and the driver app) compose
+the same components instead of forking. This follows the Shared code contract: generic
+UI lives in the package, screens live in the app. All use the existing theme tokens
+(`colors`, `radius`, `spacing`, `shadows`, `fonts`) and the overflow protection rules
+(`numberOfLines`, `minWidth: 0`, `flexShrink`). The chart and hero use
+`react-native-svg`, already a package dependency, so no new dependency was added.
+
+Components added under `packages/native-ui/src/components/` and exported from the
+package index:
+
+* `PartnerHero`, the premium dark teal hero reused from the web portal look: an svg
+  gradient plus a faint trend backdrop, an eyebrow, an optional Live pill, the title and
+  subtitle, and a children slot for the in hero stat cards. `align="center"` matches the
+  Owner home, `align="left"` the Operator home.
+* `HeroStat`, the translucent glass stat card that sits inside `PartnerHero` (for
+  example BOOKINGS and NET REVENUE), with a role accent color, optional icon, optional
+  currency prefix, and footer.
+* `StatCard`, the white home stat card: tinted icon, label, large value, optional
+  `DeltaBadge`, and optional caption or `Sparkline`. Read only; it renders the values it
+  is given and never computes them.
+* `DeltaBadge`, the up, down, or steady trend pill (green, red, neutral), icon library
+  agnostic (uses a glyph arrow).
+* `Sparkline`, the fading discrete bars, ported from the web `Sparkline`.
+* `MiniTrendChart`, the dark 14 day line chart card (multiple series, faint grid,
+  optional legend), built on `react-native-svg`.
+* `SnapshotTile`, the compact color coded tile (Requested, Paid, Awaiting action, and so
+  on) used in the 2x2 grids under the trend chart.
+
+State: `npm run typecheck` on `@nolsaf/native-ui` passes against the real
+`react-native` and `react-native-svg` types. These live on `native/integration` per the
+Commit Routing in `BRANCHING.md` (shared native UI belongs on the native trunk). Built
+but not yet consumed by a screen; the next step scaffolds `apps/partners` and composes
+the Owner and Operator home screens from these primitives.
+
+Still to build before the homes render on device:
+
+* Scaffold `apps/partners` (Expo, NoLSAF theme, Inter font, the login and role gate, the
+  navigation shell), after the Shared code contract prerequisite milestone.
+* Compose `OwnerHomeScreen` and `OperatorHomeScreen` from the kit, wired to the
+  `/api/owner/**` and `/api/agent/**` endpoints in the API readiness checklist.
+* A Metro build to confirm the kit renders on device, since typecheck alone does not
+  exercise `react-native-svg` at runtime.
