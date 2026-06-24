@@ -83,33 +83,77 @@ shared package here, so it cannot drift.
 - All native commits land here, routed by folder (see below).
 - Native release builds are cut from here per app via EAS.
 
-### How to make an app only change (for example, driver UI only)
+## Daily git commands (the only workflow you need)
+
+Two rules that keep this safe:
+
+1. Never run `git add -A` or `git add .` in this repo. There are untracked build
+   artifacts (`apps/mobile/node_modules`, `.expo`, `dist`, `.env.local`). Always stage
+   the exact folder you changed, for example `git add packages/native-ui` or
+   `git add apps/driver`.
+2. The commit prefix is the blast radius. `feat(native-ui):` means a shared change you
+   verified across all apps. `feat(driver):` means driver only. Keep history honest
+   about what each commit affects.
+
+### Start every session
 
 ```bash
 git checkout nolsaf/integration
-# edit files under apps/driver/ only
-cd apps/driver && npx expo start      # runs only the driver app
-git add apps/driver/ && git commit -m "feat(driver): ..."
+git pull origin nolsaf/integration      # get the latest before editing
+```
+
+### Change one app only (driver, partners, or customer)
+
+The folder isolates it, so no cross app check is needed:
+
+```bash
+# edit files under apps/driver/  (or apps/partners/ , apps/mobile/)
+( cd apps/driver && npx tsc --noEmit )      # typecheck just that app
+( cd apps/driver && npx expo start )        # optional: run just that app
+
+git add apps/driver                         # stage only that folder
+git commit -m "feat(driver): what changed"
+git push origin nolsaf/integration
 ```
 
 The commit touches only `apps/driver/**`, so `apps/mobile` and `apps/partners` are
-untouched. No separate branch is needed; the folder boundary isolates it. The same
-holds for customer only (`apps/mobile/`) and partners only (`apps/partners/`).
+untouched.
 
-### How to make a shared change (for example, a native-ui component)
+### Change the shared UI (`packages/native-ui`)
 
-Editing `packages/native-ui/` intentionally affects all three apps, which is the point
-of sharing. Update the component and its consumers in the same commit, and run the
-typecheck across all three apps before pushing, so a breaking change cannot land for
-one app and rot the others.
+A native-ui change affects all three apps, so verify every consumer compiles before
+committing. This is the drift guard:
 
-### Releasing one app independently
+```bash
+# edit files under packages/native-ui/src/...
+
+npm --workspace=@nolsaf/native-ui run typecheck
+( cd apps/partners && npx tsc --noEmit )
+( cd apps/mobile   && npx tsc --noEmit )
+( cd apps/driver   && npx tsc --noEmit )
+
+git add packages/native-ui                  # plus any app files you changed to match
+git commit -m "feat(native-ui): what changed"
+git push origin nolsaf/integration
+```
+
+### Pull backend or web updates from staging
+
+When the API, database, or shared contracts change on `staging`:
+
+```bash
+git checkout nolsaf/integration
+git merge origin/staging                    # bring API/web/contract updates into native
+git push origin nolsaf/integration
+```
+
+### Release one app independently
 
 Each app keeps its own `app.json`, bundle id, and `eas.json`, so they ship separately
 even though they share a tree:
 
 ```bash
-cd apps/driver && eas build --profile production    # builds only the driver app
+cd apps/partners && eas build --profile production   # or apps/driver, apps/mobile
 ```
 
 Choose which app to build and submit. Sharing a branch does not force them to ship
