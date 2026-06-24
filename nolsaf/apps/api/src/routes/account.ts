@@ -363,6 +363,7 @@ const getMe: RequestHandler = async (req, res) => {
     if (hasField('operationArea')) select.operationArea = true;
     if (hasField('paymentPhone')) select.paymentPhone = true;
     if (hasField('paymentVerified')) select.paymentVerified = true;
+    if (hasField('languages')) select.languages = true;
     if (hasField('isVipDriver')) select.isVipDriver = true;
     if (hasField('kycStatus')) select.kycStatus = true;
     if (hasField('kycNote')) select.kycNote = true;

@@ -169,40 +169,12 @@ export default function DriverDashboard({ className }: { className?: string }) {
     }
   }, [showGoalsModal, goals]);
 
+  // Load goals from server (synced across all devices/platforms)
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem('driver_goals');
-      if (raw) setGoals(JSON.parse(raw));
-    } catch (e) {
-      // ignore
-    }
+    api.get('/api/driver/goals')
+      .then((r) => { if (r.data?.goals) setGoals(r.data.goals); })
+      .catch(() => {});
   }, []);
-
-  // Once we know which driver is logged in, scope local overrides to that driver.
-  useEffect(() => {
-    const id = me?.id;
-    if (!id) return;
-
-    const goalsKey = `driver_goals:${String(id)}`;
-    // Goals: hydrate from per-driver key; migrate legacy key if present.
-    try {
-      const raw = localStorage.getItem(goalsKey);
-      if (raw) {
-        setGoals(JSON.parse(raw));
-      } else {
-        const legacy = localStorage.getItem('driver_goals');
-        if (legacy) {
-          setGoals(JSON.parse(legacy));
-          try {
-            localStorage.setItem(goalsKey, legacy);
-            localStorage.removeItem('driver_goals');
-          } catch {}
-        }
-      }
-    } catch {
-      // ignore
-    }
-  }, [me?.id]);
 
   // Setup Socket.IO for real-time reminder updates
   useEffect(() => {
@@ -244,16 +216,8 @@ export default function DriverDashboard({ className }: { className?: string }) {
   }, []);
 
   const saveGoals = (g: { trips?: number; money?: number; moneyUrgent?: boolean } | null) => {
-    try {
-      const goalsKey = me?.id ? `driver_goals:${String(me.id)}` : 'driver_goals';
-      if (g) {
-        localStorage.setItem(goalsKey, JSON.stringify(g));
-        setGoals(g);
-      } else {
-        localStorage.removeItem(goalsKey);
-        setGoals(null);
-      }
-    } catch (e) {}
+    api.put('/api/driver/goals', g ?? {}).catch(() => {});
+    setGoals(g);
   };
 
     const handleSaveGoals = () => {

@@ -1,0 +1,36 @@
+import { InvoiceItem } from "../driver/types";
+
+export type RootStackParamList = {
+  Login: undefined;
+  ForgotPassword: undefined;
+  Home: undefined;
+  Trips: undefined;
+  Earnings: undefined;
+  Account: undefined;
+  Notifications: undefined;
+  TripDetail: { tripId: number };
+  ScheduledTrips: undefined;
+  History: undefined;
+  Reminders: undefined;
+  Rating: undefined;
+  Payouts: undefined;
+  Bonus: undefined;
+  Level: undefined;
+  Referral: undefined;
+  Invoices: undefined;
+  InvoiceDetail: { invoice: InvoiceItem };
+  Profile: undefined;
+  Management: undefined;
+  License: undefined;
+  Insurance: undefined;
+  Contract: undefined;
+  Security: undefined;
+  ChangePassword: undefined;
+  TwoFactor: undefined;
+  LoginHistory: undefined;
+  Policies: undefined;
+  Support: undefined;
+  ClaimPolicy: undefined;
+  Safety: undefined;
+  WebPage: { title: string; url: string };
+};

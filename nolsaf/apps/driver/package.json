@@ -1,0 +1,53 @@
+{
+  "name": "@nolsaf/driver",
+  "version": "0.1.0",
+  "private": true,
+  "main": "index.js",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@expo-google-fonts/inter": "^0.4.2",
+    "@nolsaf/native-ui": "*",
+    "@react-navigation/native": "^7.2.5",
+    "@react-navigation/native-stack": "^7.16.0",
+    "@rnmapbox/maps": "^10.3.1",
+    "babel-preset-expo": "~56.0.0",
+    "expo": "~56.0.0",
+    "expo-asset": "~56.0.17",
+    "expo-audio": "~56.0.12",
+    "expo-dev-client": "~56.0.20",
+    "expo-file-system": "~56.0.8",
+    "expo-font": "~56.0.7",
+    "expo-image-picker": "~56.0.18",
+    "expo-linear-gradient": "~56.0.4",
+    "expo-location": "~56.0.18",
+    "expo-modules-core": "~56.0.17",
+    "expo-secure-store": "~56.0.4",
+    "expo-sharing": "~56.0.18",
+    "expo-splash-screen": "~56.0.10",
+    "expo-status-bar": "~56.0.4",
+    "expo-task-manager": "~56.0.19",
+    "lucide-react-native": "^0.545.0",
+    "qrcode": "^1.5.4",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.85.3",
+    "react-native-maps": "1.27.2",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "4.25.2",
+    "react-native-svg": "15.15.4",
+    "react-native-view-shot": "^5.1.0",
+    "react-native-web": "^0.21.2",
+    "react-native-webview": "13.16.1",
+    "socket.io-client": "^4.8.1"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.14",
+    "typescript": "~5.9.2"
+  }
+}

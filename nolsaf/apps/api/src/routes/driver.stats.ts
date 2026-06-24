@@ -13,6 +13,7 @@ import { requireAuth, AuthedRequest } from "../middleware/auth.js";
 import { z } from "zod";
 import { limitDriverLocationUpdate, limitDriverAvailabilityToggle } from "../middleware/rateLimit.js";
 import { isTrustedUserDocumentUrl } from "../lib/userDocumentSecurity.js";
+import { notifyAdmins } from "../lib/notifications.js";
 
 // local no-op audit helper to satisfy references to `audit`
 // If the application provides an audit function via req.app.get('audit'), delegate to it.
@@ -896,6 +897,7 @@ const updateDriverProfile: RequestHandler = async (req, res) => {
     // Optional extra fields (not always present in Prisma schema)
     region,
     district,
+    languages,
   } = req.body ?? {};
   const userId = (req as AuthedRequest).user!.id;
   const role = String((req as AuthedRequest).user?.role ?? "").trim().toUpperCase();
@@ -974,6 +976,7 @@ const updateDriverProfile: RequestHandler = async (req, res) => {
   if (hasField('vehicleMake') && typeof vehicleMake !== 'undefined') data.vehicleMake = vehicleMake;
   if (hasField('operationArea') && typeof operationArea !== 'undefined') data.operationArea = operationArea;
   if (hasField('paymentPhone') && typeof paymentPhone !== 'undefined') data.paymentPhone = paymentPhone;
+  if (hasField('languages') && typeof languages !== 'undefined') data.languages = Array.isArray(languages) ? languages : null;
   // Resubmitting profile clears any outstanding admin note (driver has addressed it)
   if (hasField('kycNote')) data.kycNote = null;
 
