@@ -46,10 +46,10 @@ export function LoginScreen() {
           <NolsafLogoMark color={colors.white} width={34} height={34} />
         </View>
         <View style={styles.brandText}>
-          <AppText variant="titleSm" weight="bold">
+          <AppText variant="titleSm" weight="bold" style={styles.brandTitle}>
             NoLSAF Partners
           </AppText>
-          <AppText variant="bodySmall" tone="muted">
+          <AppText variant="bodySmall" tone="muted" style={styles.brandSubtitle}>
             Owners and tour operators
           </AppText>
         </View>
@@ -60,7 +60,7 @@ export function LoginScreen() {
           Sign in
         </AppText>
         <AppText variant="bodySmall" tone="muted" style={styles.intro}>
-          Use the same NoLSAF account you use on the web. We will take you to your dashboard.
+          Sign in to access your bookings, earnings, and listings.
         </AppText>
 
         <View style={styles.form}>
@@ -88,10 +88,6 @@ export function LoginScreen() {
           <AppButton title="Sign in" loading={submitting} onPress={onSubmit} />
         </View>
       </View>
-
-      <AppText variant="caption" tone="soft" style={styles.footer}>
-        Admin tools stay on the secured web portal. This app is for property owners and tour operators only.
-      </AppText>
     </SafeScreen>
   );
 }
@@ -102,7 +98,6 @@ const styles = StyleSheet.create({
     justifyContent: "center"
   },
   brandRow: {
-    flexDirection: "row",
     alignItems: "center",
     gap: spacing[3]
   },
@@ -115,8 +110,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary
   },
   brandText: {
-    minWidth: 0,
-    flexShrink: 1
+    alignItems: "center"
+  },
+  brandTitle: {
+    textAlign: "center"
+  },
+  brandSubtitle: {
+    textAlign: "center"
   },
   card: {
     borderRadius: 16,
@@ -132,8 +132,5 @@ const styles = StyleSheet.create({
   form: {
     marginTop: spacing[4],
     gap: spacing[4]
-  },
-  footer: {
-    textAlign: "center"
   }
 });

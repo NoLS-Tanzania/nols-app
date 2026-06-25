@@ -31,51 +31,64 @@ export function OperatorHomeScreen() {
           title="Dashboard"
           subtitle="Track your assignments, status and daily workload."
           align="left"
-          headerRight={<LogOut size={20} color="#cdeee2" onPress={() => void signOut()} />}
+          headerRight={<LogOut size={20} color={colors.onHeroSoft} onPress={() => void signOut()} />}
         >
           <View style={styles.heroRow}>
-            <HeroStat label="ASSIGNED" value="8" accent="#85B7EB" footer="active now" />
-            <HeroStat label="RATING" value="4.8" prefix="Level GOLD" accent="#EF9F27" />
+            <HeroStat label="ASSIGNED" value="8" accent={colors.accent.blueBright} footer="active now" />
+            <HeroStat label="RATING" value="4.8" prefix="Level GOLD" accent={colors.accent.amber} />
           </View>
         </PartnerHero>
 
         <View style={styles.body}>
-          <View style={styles.statRow}>
-            <StatCard
-              label="Total"
-              value="10"
-              icon={<ClipboardList size={19} color={colors.primary} />}
-              iconBg={colors.brand[50]}
-              delta={{ direction: "up", label: 3 }}
-            />
-            <StatCard
-              label="Completed"
-              value="2"
-              icon={<CircleCheck size={19} color="#3B6D11" />}
-              iconBg="#EAF3DE"
-              delta={{ direction: "down", label: 1 }}
-            />
-            <StatCard
-              label="Active"
-              value="8"
-              icon={<Clock size={19} color="#185FA5" />}
-              iconBg="#E6F1FB"
-              delta={{ direction: "steady", label: "0" }}
-            />
-          </View>
+          <ScrollView
+            horizontal
+            nestedScrollEnabled
+            directionalLockEnabled
+            decelerationRate="fast"
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.statSlider}
+          >
+            <View style={styles.statSlide}>
+              <StatCard
+                label="Total"
+                value="10"
+                icon={<ClipboardList size={19} color={colors.primary} />}
+                iconBg={colors.brand[50]}
+                delta={{ direction: "up", label: 3 }}
+              />
+            </View>
+            <View style={styles.statSlide}>
+              <StatCard
+                label="Completed"
+                value="2"
+                icon={<CircleCheck size={19} color={colors.accent.green} />}
+                iconBg={colors.accent.greenSoft}
+                delta={{ direction: "down", label: 1 }}
+              />
+            </View>
+            <View style={styles.statSlide}>
+              <StatCard
+                label="Active"
+                value="8"
+                icon={<Clock size={19} color={colors.accent.blue} />}
+                iconBg={colors.accent.blueSoft}
+                delta={{ direction: "steady", label: "0" }}
+              />
+            </View>
+          </ScrollView>
 
           <MiniTrendChart
             title="Bookings, 14 days"
             meta="70% success"
             series={[
-              { values: [4, 5, 4.5, 7, 6, 8, 7, 9], color: "#2dd4bf" },
-              { values: [2, 2.5, 3, 4, 3.6, 5, 4.5, 6], color: "#22c55e" },
-              { values: [3, 2.6, 4, 3.5, 4.4, 3.8, 4.8, 4.2], color: "#60a5fa", dashed: true }
+              { values: [4, 5, 4.5, 7, 6, 8, 7, 9], color: colors.chart.total },
+              { values: [2, 2.5, 3, 4, 3.6, 5, 4.5, 6], color: colors.chart.done },
+              { values: [3, 2.6, 4, 3.5, 4.4, 3.8, 4.8, 4.2], color: colors.chart.active, dashed: true }
             ]}
             legend={[
-              { label: "Total", color: "#2dd4bf" },
-              { label: "Done", color: "#22c55e" },
-              { label: "Active", color: "#60a5fa" }
+              { label: "Total", color: colors.chart.total },
+              { label: "Done", color: colors.chart.done },
+              { label: "Active", color: colors.chart.active }
             ]}
           />
 
@@ -96,8 +109,8 @@ export function OperatorHomeScreen() {
               </AppText>
             </View>
             <View style={styles.listRow}>
-              <View style={[styles.thumb, { backgroundColor: "#E6F1FB" }]}>
-                <Route size={18} color="#185FA5" />
+              <View style={[styles.thumb, { backgroundColor: colors.accent.blueSoft }]}>
+                <Route size={18} color={colors.accent.blue} />
               </View>
               <View style={styles.listText}>
                 <AppText variant="bodySmall" weight="semiBold" numberOfLines={1}>
@@ -131,7 +144,7 @@ export function OperatorHomeScreen() {
                 Level
               </AppText>
               <View style={styles.perfValueRow}>
-                <Star size={16} color="#BA7517" />
+                <Star size={16} color={colors.accent.gold} />
                 <AppText variant="titleSm" weight="semiBold">
                   GOLD
                 </AppText>
@@ -145,7 +158,7 @@ export function OperatorHomeScreen() {
                 Rating
               </AppText>
               <View style={styles.perfValueRow}>
-                <Star size={16} color="#BA7517" />
+                <Star size={16} color={colors.accent.gold} />
                 <AppText variant="titleSm" weight="semiBold">
                   4.8 / 5
                 </AppText>
@@ -173,10 +186,12 @@ export function OperatorHomeScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surface },
-  scroll: { paddingBottom: spacing[4] },
+  scroll: { padding: spacing[3], paddingBottom: spacing[4], gap: spacing[3] },
   heroRow: { flexDirection: "row", gap: spacing[3], width: "100%" },
-  body: { padding: spacing[3], gap: spacing[3] },
+  body: { gap: spacing[3] },
   statRow: { flexDirection: "row", gap: spacing[2] },
+  statSlider: { gap: spacing[2], paddingRight: spacing[3] },
+  statSlide: { width: 200, flexGrow: 0, flexShrink: 0 },
   snapshotGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing[2] },
   section: {
     borderRadius: radius.lg,

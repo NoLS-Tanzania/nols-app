@@ -1,0 +1,22 @@
+# Generated native projects (recreated by `expo prebuild` / EAS Build)
+/android/
+/ios/
+
+# Expo
+.expo/
+dist/
+web-build/
+
+# Native build artifacts
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
+# Metro / dependencies
+node_modules/
+
+# Local env
+.env*.local

@@ -7,7 +7,9 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "bundleIdentifier": "com.nolsaf.partners",
       "supportsTablet": true
@@ -18,6 +20,17 @@
     "web": {
       "bundler": "metro"
     },
-    "plugins": ["expo-secure-store", "expo-font"]
+    "plugins": [
+      "expo-secure-store",
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "NoLSAF Partners needs your location to pin your property on the map.",
+          "locationAlwaysAndWhenInUsePermission": "NoLSAF Partners needs your location to pin your property on the map."
+        }
+      ],
+      "@rnmapbox/maps"
+    ]
   }
 }
