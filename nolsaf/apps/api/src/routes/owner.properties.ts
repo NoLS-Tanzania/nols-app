@@ -872,9 +872,11 @@ router.put("/:id", (async (req: AuthedRequest, res) => {
             : undefined,
       };
 
-    // If the property was APPROVED or REJECTED, reset to PENDING so admin reviews the changes
+    // Editing must never auto-submit. If a live (APPROVED) or previously REJECTED
+    // listing is changed, revert it to DRAFT so the owner explicitly clicks
+    // "Submit for review" again — an edit alone should never land it in PENDING.
     if (exists.status === "APPROVED" || exists.status === "REJECTED") {
-      updateData.status = "PENDING";
+      updateData.status = "DRAFT";
     }
 
     let updated: any;
