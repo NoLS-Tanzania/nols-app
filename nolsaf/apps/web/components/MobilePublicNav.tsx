@@ -15,6 +15,11 @@ export default function MobilePublicNav() {
   const [user, setUser] = useState<AccountSession | null>(null);
   const [pressed, setPressed] = useState<Slot | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  // This nav lives in the root layout and persists across client navigations,
+  // so the SSR'd shell and the hydrating client can disagree on usePathname().
+  // Defer the path-derived active highlight until after mount so the server and
+  // first client render are identical (no active tab), then light up post-hydration.
+  const [mounted, setMounted] = useState(false);
   const router = useRouter();
 
   const press   = useCallback((s: Slot) => setPressed(s), []);
@@ -39,10 +44,12 @@ export default function MobilePublicNav() {
     return () => { alive = false; };
   }, []);
 
-  const isHome       = pathname === "/public";
-  const isProperties = pathname.startsWith("/public/properties");
-  const isRides      = pathname.startsWith("/account/rides");
-  const isAccount    = pathname.startsWith("/account") && !isRides;
+  useEffect(() => { setMounted(true); }, []);
+
+  const isHome       = mounted && pathname === "/public";
+  const isProperties = mounted && pathname.startsWith("/public/properties");
+  const isRides      = mounted && pathname.startsWith("/account/rides");
+  const isAccount    = mounted && pathname.startsWith("/account") && !isRides;
 
   // Hide on portals that have their own navigation
   const isHidden =

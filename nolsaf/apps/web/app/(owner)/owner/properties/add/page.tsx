@@ -792,8 +792,10 @@ export default function AddProperty() {
               if (property.ward) setWard(property.ward);
               if (property.street) setStreet(property.street);
               if (property.zip) setZip(property.zip);
-              if (property.latitude) setLatitude(property.latitude.toString());
-              if (property.longitude) setLongitude(property.longitude.toString());
+              const _lat = parseFloat(String(property.latitude));
+              const _lng = parseFloat(String(property.longitude));
+              if (Number.isFinite(_lat)) setLatitude(_lat);
+              if (Number.isFinite(_lng)) setLongitude(_lng);
               if (property.description) setDesc(property.description);
               if (property.totalBedrooms) setTotalBedrooms(property.totalBedrooms);
               if (property.totalBathrooms) setTotalBathrooms(property.totalBathrooms);
@@ -893,6 +895,12 @@ export default function AddProperty() {
                       gym: services.gym || false,
                       distanceHospital: services.distanceHospital || "",
                     });
+                    // Restore top-level toggles stored inside services
+                    if (services.acceptGroupBookings)
+                      setAcceptGroupBooking(true);
+                    else if (Array.isArray(services.tags) && services.tags.includes("Group stay"))
+                      setAcceptGroupBooking(true);
+                    if (services.freeCancellation) setFreeCancellation(true);
                   }
                 } catch (e) {
                   console.error("Error parsing services:", e);
@@ -1877,6 +1885,8 @@ export default function AddProperty() {
           ...(services.socialHall ? { socialHall: true } : {}),
           ...(services.sportsGames ? { sportsGames: true } : {}),
           ...(services.gym ? { gym: true } : {}),
+          ...(acceptGroupBooking ? { acceptGroupBookings: true } : {}),
+          ...(freeCancellation ? { freeCancellation: true } : {}),
         // Service tags array for filtering/searching
         tags: Array.from(
           new Set<string>([
