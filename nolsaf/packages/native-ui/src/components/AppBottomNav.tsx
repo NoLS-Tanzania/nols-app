@@ -2,7 +2,7 @@ import { ReactNode, useEffect, useRef } from "react";
 import { Animated, Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { colors, radius, spacing } from "../theme";
+import { colors, radius, shadows, spacing } from "../theme";
 import { AppText } from "./AppText";
 
 export type AppBottomNavItem<Key extends string> = {
@@ -12,27 +12,51 @@ export type AppBottomNavItem<Key extends string> = {
   onPress: () => void;
 };
 
+/** The raised circular action that floats in the middle of the bar (for example a QR scan). */
+export type AppBottomNavCenterAction = {
+  icon: (color: string) => ReactNode;
+  onPress: () => void;
+  accessibilityLabel: string;
+};
+
 type AppBottomNavProps<Key extends string> = {
   activeKey: Key;
   items: Array<AppBottomNavItem<Key>>;
+  /** When set, a floating button is rendered in the middle, splitting the tabs evenly around it. */
+  centerAction?: AppBottomNavCenterAction;
 };
 
-export function AppBottomNav<Key extends string>({ activeKey, items }: AppBottomNavProps<Key>) {
+export function AppBottomNav<Key extends string>({ activeKey, items, centerAction }: AppBottomNavProps<Key>) {
   const insets = useSafeAreaInsets();
+
+  // Split the tabs around the floating centre button so they sit evenly on each side.
+  const half = Math.ceil(items.length / 2);
+  const left = centerAction ? items.slice(0, half) : items;
+  const right = centerAction ? items.slice(half) : [];
+
+  const renderItem = (item: AppBottomNavItem<Key>) => (
+    <AppBottomNavButton key={item.key} active={item.key === activeKey} item={item} />
+  );
 
   return (
     <View style={[styles.shell, { paddingBottom: Math.max(insets.bottom, spacing[2]) }]}>
+      {centerAction ? (
+        <View pointerEvents="box-none" style={styles.centerWrap}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={centerAction.accessibilityLabel}
+            onPress={centerAction.onPress}
+            style={({ pressed }) => [styles.centerButton, pressed && styles.centerButtonPressed]}
+          >
+            {centerAction.icon(colors.white)}
+          </Pressable>
+        </View>
+      ) : null}
+
       <View style={styles.bar}>
-        {items.map((item) => {
-          const active = item.key === activeKey;
-          return (
-            <AppBottomNavButton
-              key={item.key}
-              active={active}
-              item={item}
-            />
-          );
-        })}
+        {left.map(renderItem)}
+        {centerAction ? <View style={styles.centerSlot} /> : null}
+        {right.map(renderItem)}
       </View>
     </View>
   );
@@ -70,6 +94,8 @@ function AppBottomNavButton<Key extends string>({
     outputRange: [0.55, 1]
   });
 
+  const tint = active ? colors.primary : colors.brandMuted;
+
   return (
     <Pressable
       accessibilityRole="button"
@@ -77,36 +103,30 @@ function AppBottomNavButton<Key extends string>({
       style={({ pressed }) => [styles.item, pressed && styles.itemPressed]}
     >
       <View style={styles.itemInner}>
-        <View style={styles.iconWrapBase}>
-          <Animated.View
-            pointerEvents="none"
-            style={[styles.iconWrapActive, { opacity: activeOpacity, transform: [{ scale: iconScale }] }]}
-          />
-          {item.icon(active ? colors.primary : colors.softText)}
-        </View>
-        <AppText
-          variant="caption"
-          weight={active ? "bold" : "medium"}
-          tone={active ? "default" : "soft"}
-          numberOfLines={1}
-          style={styles.label}
-        >
-          {item.label}
-        </AppText>
+        {/* Active dash sits above the icon, matching the web mobile nav. */}
         <Animated.View
           style={[
             styles.activeMarker,
-            {
-              opacity: activeOpacity,
-              backgroundColor: active ? colors.primary : colors.border,
-              transform: [{ scaleX: markerScale }]
-            }
+            { opacity: activeOpacity, transform: [{ scaleX: markerScale }] }
           ]}
         />
+        <Animated.View style={[styles.iconWrap, { transform: [{ scale: iconScale }] }]}>
+          {item.icon(tint)}
+        </Animated.View>
+        <AppText
+          variant="caption"
+          weight={active ? "bold" : "medium"}
+          numberOfLines={1}
+          style={[styles.label, { color: tint }]}
+        >
+          {item.label}
+        </AppText>
       </View>
     </Pressable>
   );
 }
+
+const CENTER_SIZE = 58;
 
 const styles = StyleSheet.create({
   shell: {
@@ -136,34 +156,51 @@ const styles = StyleSheet.create({
     minWidth: 0,
     alignItems: "center",
     justifyContent: "center",
-    gap: 4
+    gap: 3
   },
-  iconWrapBase: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.md,
+  iconWrap: {
     alignItems: "center",
     justifyContent: "center"
-  },
-  iconWrapActive: {
-    position: "absolute",
-    width: 40,
-    height: 40,
-    borderRadius: radius.md,
-    backgroundColor: colors.brand[50]
   },
   label: {
     textAlign: "center",
     maxWidth: 82,
-    fontSize: 9.5,
-    lineHeight: 11.5,
-    letterSpacing: 0.6,
-    textTransform: "uppercase"
+    fontSize: 10,
+    lineHeight: 12,
+    letterSpacing: 0.1
   },
   activeMarker: {
     width: 18,
-    height: 3,
+    height: 2.5,
     borderRadius: radius.full,
-    marginTop: 1
+    marginBottom: 1,
+    backgroundColor: colors.primary
+  },
+  // Reserves the gap in the tab row that the floating button sits over.
+  centerSlot: {
+    width: CENTER_SIZE + spacing[3]
+  },
+  centerWrap: {
+    position: "absolute",
+    top: -CENTER_SIZE / 2,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    zIndex: 2
+  },
+  centerButton: {
+    width: CENTER_SIZE,
+    height: CENTER_SIZE,
+    borderRadius: CENTER_SIZE / 2,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 4,
+    borderColor: colors.white,
+    ...shadows.sheet
+  },
+  centerButtonPressed: {
+    opacity: 0.85,
+    transform: [{ scale: 0.94 }]
   }
 });

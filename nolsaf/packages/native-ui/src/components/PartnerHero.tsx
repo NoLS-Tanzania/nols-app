@@ -88,6 +88,7 @@ const styles = StyleSheet.create({
   wrap: {
     position: "relative",
     overflow: "hidden",
+    borderRadius: radius.xl,
     backgroundColor: "#053a31"
   },
   content: {

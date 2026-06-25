@@ -24,7 +24,7 @@ export function configureApiClient(config: { apiUrl: string }) {
  * machine-readable code (e.g. "password_reused", "weak_password"), in which case the
  * provided fallback is used instead.
  */
-export function getErrorMessage(error: unknown, fallback: string): string {
+export function getErrorMessage(error: unknown, fallback = "Something went wrong. Please try again."): string {
   const payload = (error as ApiError | undefined)?.payload as { reasons?: unknown } | undefined;
   if (Array.isArray(payload?.reasons) && payload!.reasons.length) {
     return payload!.reasons.map(String).join(" ");

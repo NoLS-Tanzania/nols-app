@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 
 import { colors, radius, shadows, spacing } from "../theme";
 import { AppText } from "./AppText";
@@ -14,16 +14,19 @@ export type StatCardProps = {
   caption?: string;
   delta?: DeltaBadgeProps;
   spark?: { values: number[]; color?: string };
+  /** When set, the card becomes a button (used to drill into the detail screen). */
+  onPress?: () => void;
 };
 
 // The white stat card shared by the Owner and Operator home screens: a tinted
 // icon, label, large value, an optional trend delta pill, and an optional
 // caption or sparkline. Server authoritative; it only renders the values it is
-// given and never computes them. Follows the Overflow Prevention Policy
+// given and never computes them. Pass onPress to make it a tappable button that
+// drills into a detail screen. Follows the Overflow Prevention Policy
 // (numberOfLines + minWidth 0 + flexShrink) from NATIVE_APP_SETUP.md.
-export function StatCard({ label, value, icon, iconBg, caption, delta, spark }: StatCardProps) {
-  return (
-    <View style={styles.card}>
+export function StatCard({ label, value, icon, iconBg, caption, delta, spark, onPress }: StatCardProps) {
+  const body = (
+    <>
       <View style={styles.headerRow}>
         <View style={styles.left}>
           {icon ? <View style={[styles.iconWrap, iconBg ? { backgroundColor: iconBg } : null]}>{icon}</View> : null}
@@ -50,8 +53,23 @@ export function StatCard({ label, value, icon, iconBg, caption, delta, spark }: 
           <Sparkline values={spark.values} color={spark.color} />
         </View>
       ) : null}
-    </View>
+    </>
   );
+
+  if (onPress) {
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${label}, ${String(value)}`}
+        onPress={onPress}
+        style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+      >
+        {body}
+      </Pressable>
+    );
+  }
+
+  return <View style={styles.card}>{body}</View>;
 }
 
 const styles = StyleSheet.create({
@@ -64,6 +82,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     padding: spacing[3],
     ...shadows.card
+  },
+  cardPressed: {
+    opacity: 0.85,
+    transform: [{ scale: 0.98 }]
   },
   headerRow: {
     flexDirection: "row",

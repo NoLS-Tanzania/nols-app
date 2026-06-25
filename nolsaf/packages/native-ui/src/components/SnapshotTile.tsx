@@ -1,4 +1,4 @@
-import { StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 
 import { colors, radius, spacing } from "../theme";
 import { AppText } from "./AppText";
@@ -17,23 +17,43 @@ export type SnapshotTileProps = {
   label: string;
   value: string | number;
   tone?: SnapshotTone;
+  /** When set, the tile becomes a button (used to drill into the detail screen). */
+  onPress?: () => void;
 };
 
 // A compact, color coded snapshot tile (Requested, Paid, Awaiting action, and so
-// on). Used in 2x2 grids under the trend chart on both Owner and Operator homes.
-export function SnapshotTile({ label, value, tone = "neutral" }: SnapshotTileProps) {
+// on). Used under the trend chart on both Owner and Operator homes. Pass onPress
+// to make it a tappable button that drills into a detail screen.
+export function SnapshotTile({ label, value, tone = "neutral", onPress }: SnapshotTileProps) {
   const t = tones[tone];
 
-  return (
-    <View style={[styles.tile, { backgroundColor: t.bg, borderColor: t.border }]}>
+  const body = (
+    <>
       <AppText variant="caption" numberOfLines={1} style={{ color: t.text }}>
         {label}
       </AppText>
       <AppText variant="titleSm" weight="semiBold" numberOfLines={1} style={{ color: t.text, marginTop: 2 }}>
         {String(value)}
       </AppText>
-    </View>
+    </>
   );
+
+  const tileStyle = { backgroundColor: t.bg, borderColor: t.border };
+
+  if (onPress) {
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${label}, ${String(value)}`}
+        onPress={onPress}
+        style={({ pressed }) => [styles.tile, tileStyle, pressed && styles.tilePressed]}
+      >
+        {body}
+      </Pressable>
+    );
+  }
+
+  return <View style={[styles.tile, tileStyle]}>{body}</View>;
 }
 
 const styles = StyleSheet.create({
@@ -43,5 +63,9 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
     padding: spacing[2]
+  },
+  tilePressed: {
+    opacity: 0.85,
+    transform: [{ scale: 0.98 }]
   }
 });
