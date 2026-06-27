@@ -81,6 +81,16 @@ function fmt(d: string) {
   }
 }
 
+function statusTone(status: string) {
+  const key = String(status || "").toUpperCase();
+  if (key === "REFUNDED") return "bg-emerald-50 text-emerald-700 ring-emerald-200";
+  if (key === "REJECTED") return "bg-red-50 text-red-700 ring-red-200";
+  if (key === "PROCESSING") return "bg-teal-50 text-teal-700 ring-teal-200";
+  if (key === "NEED_INFO") return "bg-amber-50 text-amber-700 ring-amber-200";
+  if (key === "REVIEWING") return "bg-blue-50 text-blue-700 ring-blue-200";
+  return "bg-slate-50 text-slate-700 ring-slate-200";
+}
+
 export default function AdminCancellationDetailPage() {
   const params = useParams<{ id?: string | string[] }>();
   const idParam = Array.isArray(params?.id) ? params?.id?.[0] : params?.id;
@@ -271,7 +281,7 @@ export default function AdminCancellationDetailPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+    <div className="mx-auto w-full max-w-6xl px-3 py-5 sm:px-5 lg:px-6 space-y-5">
       {/* Header with Back Button */}
       <div className="flex items-center justify-between">
         <Link 
@@ -301,40 +311,45 @@ export default function AdminCancellationDetailPage() {
       ) : !item ? null : (
         <div className="space-y-6">
           {/* Main Request Card */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             {/* Header Section */}
-            <div className="bg-gradient-to-r from-gray-50 to-white border-b border-gray-200 px-6 py-5">
-              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+            <div className="border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white px-5 py-5 sm:px-6">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-3 mb-2">
-                    <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-[#02665e] to-[#014d47] flex items-center justify-center">
+                    <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-[#02665e] shadow-sm">
                       <FileText className="h-5 w-5 text-white" />
                     </div>
                     <div>
-                      <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Cancellation Request</div>
-                      <div className="text-2xl font-bold text-gray-900 mt-0.5">#{item.id}</div>
+                      <div className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Cancellation Request</div>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-2">
+                        <span className="text-2xl font-black text-slate-950">#{item.id}</span>
+                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ring-1 ${statusTone(item.status)}`}>
+                          {getWorkflowFlow(item.status).current}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                  <div className="mt-3 flex items-center gap-2 text-sm text-gray-600">
-                    <span className="font-medium">Booking Code:</span>
-                    <span className="font-mono font-semibold text-gray-900 bg-gray-100 px-2 py-1 rounded">{item.bookingCode}</span>
+                  <div className="mt-3 inline-flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-sm text-slate-600">
+                    <span className="font-semibold">Booking code</span>
+                    <span className="font-mono font-bold text-slate-950">{item.bookingCode}</span>
                   </div>
                 </div>
-                <div className="bg-white rounded-lg border border-gray-200 p-4 min-w-[200px]">
-                  <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Customer</div>
-                  <div className="font-semibold text-gray-900">{item.user?.name || `User #${item.user.id}`}</div>
+                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm sm:min-w-[260px]">
+                  <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-500"><User className="h-3.5 w-3.5 text-[#02665e]" />Customer</div>
+                  <div className="font-bold text-slate-950">{item.user?.name || `User #${item.user.id}`}</div>
                   <div className="text-sm text-gray-600 mt-1">{item.user.email || item.user.phone || "—"}</div>
                 </div>
               </div>
             </div>
 
             {/* Quick Info Cards */}
-            <div className="px-6 py-5">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-lg border border-blue-200 p-4">
+            <div className="px-5 py-5 sm:px-6">
+              <div className="mb-5 grid grid-cols-1 gap-3 lg:grid-cols-3">
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <Building className="h-4 w-4 text-blue-600" />
-                    <div className="text-xs font-semibold text-blue-700 uppercase tracking-wider">Property</div>
+                    <div className="text-xs font-bold text-blue-700 uppercase tracking-wider">Property</div>
                   </div>
                   <div className="font-bold text-gray-900 text-sm mb-1">{item.booking.property.title}</div>
                   <div className="text-xs text-gray-600 flex items-center gap-1">
@@ -342,18 +357,18 @@ export default function AdminCancellationDetailPage() {
                     {[item.booking.property.regionName, item.booking.property.city, item.booking.property.district].filter(Boolean).join(" • ") || "—"}
                   </div>
                 </div>
-                <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 rounded-lg border border-emerald-200 p-4">
+                <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <Calendar className="h-4 w-4 text-emerald-600" />
-                    <div className="text-xs font-semibold text-emerald-700 uppercase tracking-wider">Check-in</div>
+                    <div className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Check-in</div>
                   </div>
                   <div className="font-bold text-gray-900 text-sm">{new Date(item.booking.checkIn).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
                   <div className="text-xs text-gray-600 mt-1">{new Date(item.booking.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                 </div>
-                <div className="bg-gradient-to-br from-amber-50 to-amber-100/50 rounded-lg border border-amber-200 p-4">
+                <div className="rounded-2xl border border-amber-100 bg-amber-50/80 p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <DollarSign className="h-4 w-4 text-amber-600" />
-                    <div className="text-xs font-semibold text-amber-700 uppercase tracking-wider">Policy</div>
+                    <div className="text-xs font-bold text-amber-700 uppercase tracking-wider">Policy</div>
                   </div>
                   <div className="font-bold text-gray-900 text-sm">
                     {item.policyRefundPercent === 100 ? "100% (free)" : item.policyRefundPercent === 50 ? "50%" : "Manual"}
@@ -363,10 +378,16 @@ export default function AdminCancellationDetailPage() {
               </div>
 
               {/* Status Section */}
-              <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
-                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
-                  Status
-                </label>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <div className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Workflow action</div>
+                    <div className="mt-1 text-sm font-semibold text-slate-950">Update cancellation status</div>
+                  </div>
+                  <span className={`inline-flex w-fit rounded-full px-2.5 py-1 text-xs font-bold ring-1 ${statusTone(item.status)}`}>
+                    Current: {getWorkflowFlow(item.status).current}
+                  </span>
+                </div>
                 
                 {/* Warning for SUBMITTED status - must review first */}
                 {item.status === "SUBMITTED" && (
@@ -383,46 +404,58 @@ export default function AdminCancellationDetailPage() {
                   </div>
                 )}
                 
-                <select
-                  id="status-select"
-                  aria-label="Status"
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-900 focus:ring-2 focus:ring-[#02665e] focus:border-[#02665e] outline-none transition-all"
-                >
-                  {(() => {
-                    const flow = getWorkflowFlow(item.status);
-                    return flow.next.map((nextStatus) => {
-                      const valueMap: Record<string, string> = {
-                        "Reviewing": "REVIEWING",
-                        "Need Info": "NEED_INFO",
-                        "Processing": "PROCESSING",
-                        "Refunded": "REFUNDED",
-                        "Rejected": "REJECTED"
-                      };
-                      return (
-                        <option key={valueMap[nextStatus]} value={valueMap[nextStatus]}>
-                          {nextStatus}
-                        </option>
-                      );
-                    });
-                  })()}
-                </select>
+                <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
+                  <div>
+                    <label htmlFor="status-select" className="mb-2 block text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
+                      New status
+                    </label>
+                    <select
+                      id="status-select"
+                      aria-label="Status"
+                      value={status}
+                      onChange={(e) => setStatus(e.target.value)}
+                      className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-bold text-slate-950 outline-none transition-all focus:border-[#02665e] focus:ring-2 focus:ring-[#02665e]/20"
+                    >
+                      {(() => {
+                        const flow = getWorkflowFlow(item.status);
+                        return flow.next.map((nextStatus) => {
+                          const valueMap: Record<string, string> = {
+                            "Reviewing": "REVIEWING",
+                            "Need Info": "NEED_INFO",
+                            "Processing": "PROCESSING",
+                            "Refunded": "REFUNDED",
+                            "Rejected": "REJECTED"
+                          };
+                          return (
+                            <option key={valueMap[nextStatus]} value={valueMap[nextStatus]}>
+                              {nextStatus}
+                            </option>
+                          );
+                        });
+                      })()}
+                    </select>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={save}
+                    disabled={!canSave || saving}
+                    className="inline-flex h-[46px] items-center justify-center gap-2 rounded-xl bg-[#02665e] px-5 text-sm font-bold text-white shadow-sm transition-all duration-200 hover:bg-[#014d47] hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[#02665e] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                    Save Changes
+                  </button>
+                </div>
                 
                 {/* Workflow Flow Indicator */}
                 {(() => {
                   const flow = getWorkflowFlow(item.status);
                   if (flow.next.length > 0) {
                     return (
-                      <div className="mt-3 pt-3 border-t border-gray-200">
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="h-1.5 w-1.5 rounded-full bg-[#02665e]"></div>
-                          <span className="text-xs font-semibold text-gray-700">Current: <span className="text-[#02665e]">{flow.current}</span></span>
-                        </div>
+                      <div className="mt-4 border-t border-slate-200 pt-3">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-xs text-gray-600">Next possible actions:</span>
+                          <span className="text-xs font-semibold text-slate-500">Next allowed:</span>
                           {flow.next.map((next, idx) => (
-                            <span key={idx} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-white border border-gray-300 text-xs font-medium text-gray-700">
+                            <span key={idx} className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700">
                               <span className="h-1 w-1 rounded-full bg-[#02665e]"></span>
                               {next}
                             </span>
@@ -432,7 +465,7 @@ export default function AdminCancellationDetailPage() {
                     );
                   }
                   return (
-                    <div className="mt-3 pt-3 border-t border-gray-200">
+                    <div className="mt-4 border-t border-slate-200 pt-3">
                       <div className="flex items-center gap-2">
                         <div className="h-1.5 w-1.5 rounded-full bg-emerald-600"></div>
                         <span className="text-xs font-semibold text-gray-700">Status: <span className="text-emerald-600">{flow.current}</span> (Final)</span>
@@ -441,22 +474,9 @@ export default function AdminCancellationDetailPage() {
                   );
                 })()}
                 
-                <p className="mt-2 text-xs text-gray-500">
+                <p className="mt-3 text-xs text-slate-500">
                   Changing the status will automatically send a message to the customer
                 </p>
-              </div>
-
-              {/* Save Button */}
-              <div className="flex justify-end pt-4 border-t border-gray-200">
-                <button
-                  type="button"
-                  onClick={save}
-                  disabled={!canSave || saving}
-                  className="inline-flex items-center gap-2 rounded-lg bg-[#02665e] px-6 py-2.5 text-sm font-semibold text-white hover:bg-[#014d47] focus:outline-none focus:ring-2 focus:ring-[#02665e] focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
-                >
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                  Save Changes
-                </button>
               </div>
             </div>
           </div>
@@ -787,46 +807,46 @@ export default function AdminCancellationDetailPage() {
 
               {/* Cancellation Reason */}
               {item.reason && (
-                <div className="bg-gradient-to-br from-gray-50 to-white rounded-lg border border-gray-200 p-4 shadow-sm">
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                   <div className="flex items-center gap-2 mb-3">
                     <div className="h-8 w-8 rounded-lg bg-orange-100 flex items-center justify-center">
                       <FileText className="h-4 w-4 text-orange-600" />
                     </div>
-                    <div className="text-xs font-bold text-gray-700 uppercase tracking-wider">Cancellation Reason</div>
+                    <div className="text-xs font-bold text-slate-700 uppercase tracking-wider">Cancellation Reason</div>
                   </div>
-                  <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap bg-white p-3 rounded border border-gray-200">{item.reason}</div>
+                  <div className="max-h-32 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm leading-relaxed text-slate-700 whitespace-pre-wrap">{item.reason}</div>
                 </div>
               )}
             </div>
           </div>
 
           {/* Messages Section */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             {/* Messages Header */}
-            <div className="bg-gradient-to-r from-gray-50 to-white border-b border-gray-200 px-6 py-4">
-              <div className="flex items-center justify-between">
+            <div className="border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white px-4 py-4 sm:px-5">
+              <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-[#02665e] to-[#014d47] flex items-center justify-center">
+                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-[#02665e]">
                     <MessageSquare className="h-5 w-5 text-white" />
                   </div>
-                  <div>
-                    <h2 className="text-lg font-bold text-gray-900">Messages</h2>
-                    <p className="text-xs text-gray-500 mt-0.5">Communicate with the customer about this claim</p>
+                  <div className="min-w-0">
+                    <h2 className="text-base font-bold text-slate-950 sm:text-lg">Messages</h2>
+                    <p className="mt-0.5 truncate text-xs text-slate-500">Communicate with the customer about this claim</p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => load()}
-                  className="px-3 py-1.5 text-xs font-semibold text-[#02665e] hover:bg-[#02665e]/10 rounded-lg transition-colors"
+                  className="inline-flex flex-shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-[#02665e] shadow-sm transition-colors hover:bg-[#02665e]/5"
                 >
                   Refresh
                 </button>
               </div>
             </div>
 
-            <div className="px-6 py-5 space-y-4 overflow-x-hidden">
+            <div className="space-y-4 overflow-x-hidden px-4 py-4 sm:px-5">
               {/* Messages List */}
-              <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+              <div className="max-h-[22rem] space-y-3 overflow-y-auto pr-1">
                 {item.messages.length === 0 ? (
                   <div className="text-center py-8">
                     <MessageSquare className="h-12 w-12 text-gray-300 mx-auto mb-3" />
@@ -837,13 +857,13 @@ export default function AdminCancellationDetailPage() {
                   item.messages.map((m) => (
                     <div
                       key={m.id}
-                      className={`rounded-lg border-2 p-4 shadow-sm ${
+                      className={`rounded-xl border p-3 shadow-sm ${
                         m.senderRole === "ADMIN"
-                          ? "border-emerald-200 bg-gradient-to-r from-emerald-50 to-emerald-100/30"
-                          : "border-gray-200 bg-white"
+                          ? "border-emerald-100 bg-emerald-50/70"
+                          : "border-slate-200 bg-white"
                       }`}
                     >
-                      <div className="flex items-center justify-between mb-2">
+                      <div className="mb-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                         <div className="flex items-center gap-2">
                           <div className={`h-6 w-6 rounded-full flex items-center justify-center ${
                             m.senderRole === "ADMIN" ? "bg-emerald-100" : "bg-gray-100"
@@ -860,9 +880,9 @@ export default function AdminCancellationDetailPage() {
                             {m.senderRole === "ADMIN" ? "Admin" : "Customer"}
                           </span>
                         </div>
-                        <div className="text-xs text-gray-500">{fmt(m.createdAt)}</div>
+                        <div className="text-xs text-slate-500">{fmt(m.createdAt)}</div>
                       </div>
-                      <div className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">{m.body}</div>
+                      <div className="text-sm leading-relaxed text-slate-800 whitespace-pre-wrap">{m.body}</div>
                     </div>
                   ))
                 )}
