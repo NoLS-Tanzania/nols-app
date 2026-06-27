@@ -8,6 +8,10 @@ import type { RequestHandler } from "express";
 const router = Router();
 router.use(requireAuth as unknown as RequestHandler, requireRole("OWNER") as unknown as RequestHandler);
 
+function roundMoney(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
 function normalizeText(v: unknown): string {
   return String(v ?? "")
     .trim()
@@ -313,7 +317,7 @@ router.post("/", asyncHandler(async (req: Request, res: Response) => {
 
   const groupBookingIdNum = Number(groupBookingId);
   const propertyIdNum = Number(propertyId);
-  const offeredPrice = Number(offeredPricePerNight);
+  const basePricePerNight = Number(offeredPricePerNight);
   const discount = discountPercent ? Number(discountPercent) : null;
 
   if (!Number.isFinite(groupBookingIdNum) || groupBookingIdNum <= 0) {
@@ -324,8 +328,8 @@ router.post("/", asyncHandler(async (req: Request, res: Response) => {
     return res.status(400).json({ error: "Invalid property ID" });
   }
 
-  if (!Number.isFinite(offeredPrice) || offeredPrice <= 0) {
-    return res.status(400).json({ error: "Invalid offered price" });
+  if (!Number.isFinite(basePricePerNight) || basePricePerNight <= 0) {
+    return res.status(400).json({ error: "Invalid base price per night" });
   }
 
   if (discount !== null && (!Number.isFinite(discount) || discount < 0 || discount > 100)) {
@@ -488,11 +492,15 @@ router.post("/", asyncHandler(async (req: Request, res: Response) => {
         }
       }
 
-      // Calculate total amount (simplified: price per night * number of nights)
+      // Calculate the owner amount from the base nightly price and discount.
+      // The server is the source of truth; client-side totals are preview only.
       const checkIn = groupBooking.checkIn ? new Date(groupBooking.checkIn) : null;
       const checkOut = groupBooking.checkOut ? new Date(groupBooking.checkOut) : null;
       const nights = checkIn && checkOut ? Math.max(1, Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24))) : 1;
-      const totalAmount = offeredPrice * nights * groupBooking.roomsNeeded;
+      const rooms = Math.max(1, Number(groupBooking.roomsNeeded || 1));
+      const discountAmountPerNight = roundMoney(basePricePerNight * ((discount ?? 0) / 100));
+      const finalPricePerNight = roundMoney(Math.max(0, basePricePerNight - discountAmountPerNight));
+      const totalAmount = roundMoney(finalPricePerNight * nights * rooms);
 
       // Create the claim
       const claim = await tx.groupBookingClaim.create({
@@ -500,11 +508,11 @@ router.post("/", asyncHandler(async (req: Request, res: Response) => {
           groupBookingId: groupBookingIdNum,
           ownerId: ownerId,
           propertyId: propertyIdNum,
-          offeredPricePerNight: offeredPrice,
+          offeredPricePerNight: basePricePerNight,
           discountPercent: discount,
           specialOffers: specialOffers ? String(specialOffers).trim() : null,
           notes: notes ? String(notes).trim() : null,
-          totalAmount: totalAmount,
+          totalAmount,
           currency: groupBooking.currency || "TZS",
           status: "PENDING",
         },

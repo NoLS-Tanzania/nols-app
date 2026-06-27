@@ -335,7 +335,7 @@ export default function GroupStayDetail() {
       const response = await api.post(`/api/owner/group-stays/${idParam}/check-in`, {});
       if (response.data?.success) {
         window.dispatchEvent(new CustomEvent("nols:toast", {
-          detail: { type: "success", title: "Check-in recorded", message: "Remember to collect your balance from the guest at the property.", duration: 4000 },
+          detail: { type: "success", title: "Check-in recorded", message: "Remember to collect the stay balance from the guest at the property.", duration: 4000 },
         }));
         try {
           const updated = await api.get(`/api/owner/group-stays/${idParam}`);
@@ -444,7 +444,7 @@ export default function GroupStayDetail() {
                   You collect at the property{ownerCollectsText ? ` • ${ownerCollectsText}` : ""}
                 </div>
                 <div className="text-xs text-slate-600 mt-0.5">
-                  The guest already paid the deposit (NoLSAF&apos;s commission) online. Collect your balance directly from the guest{ownerCollectsText ? "" : ""}.
+                  The guest already paid the deposit online. Collect the stay balance directly from the guest{ownerCollectsText ? "" : ""}.
                 </div>
               </div>
             </div>
@@ -1168,7 +1168,7 @@ export default function GroupStayDetail() {
                 icon={<Wallet className="h-5 w-5 text-teal-600" />}
                 tone="teal"
                 title="How you get paid"
-                body="The deposit the guest pays online is NoLSAF's commission. You collect your full balance (the booking total minus that deposit) directly from the guest at the property. NoLSAF takes nothing further from your balance, so there is no separate payout to wait for."
+                body="The guest pays the deposit online. You collect the stay balance directly from the guest at the property. NoLSAF does not collect anything further from that balance, so there is no separate payout to wait for."
               />
               <PolicyItem
                 icon={<CalendarX className="h-5 w-5 text-rose-600" />}

@@ -1432,7 +1432,6 @@ export default function OwnerClaimBookingPage() {
                             className="w-full px-3 py-2 sm:py-2.5 border border-slate-300 rounded-lg text-sm text-slate-900 bg-white focus:ring-2 focus:ring-brand focus:border-brand outline-none transition-all duration-200 box-border"
                           >
                             <option value="percentage">Percentage (%)</option>
-                            <option value="fixed">Fixed Amount</option>
                           </select>
                         </div>
 
@@ -1538,7 +1537,7 @@ export default function OwnerClaimBookingPage() {
                               <span className="text-xs sm:text-sm font-bold text-purple-700">
                                 {discountType === "percentage" 
                                   ? `${discountPercent}%`
-                                  : formatCurrency(Number(discountPercent), selectedGroupStay?.currency || "TZS")}
+                                  : `${discountPercent}%`}
                               </span>
                             </div>
 
@@ -1548,7 +1547,7 @@ export default function OwnerClaimBookingPage() {
                               <span className="text-xs sm:text-sm font-bold text-red-600">
                                 -{discountType === "percentage"
                                   ? formatCurrency((Number(offeredPrice) * Number(discountPercent)) / 100, selectedGroupStay?.currency || "TZS")
-                                  : formatCurrency(Number(discountPercent), selectedGroupStay?.currency || "TZS")}
+                                  : formatCurrency((Number(offeredPrice) * Number(discountPercent)) / 100, selectedGroupStay?.currency || "TZS")}
                               </span>
                             </div>
 

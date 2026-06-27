@@ -847,7 +847,7 @@ model GroupBooking {
   totalAmount Decimal? @db.Decimal(12, 2)
   /// Currency code (default: TZS)
   currency    String   @default("TZS")
-  /// Deposit amount required to confirm the booking (10% of totalAmount)
+  /// Deposit amount required to confirm the booking. For group stay auctions this is the NoLSAF commission amount.
   depositAmount Decimal? @db.Decimal(12, 2)
   /// Whether the deposit has been paid
   depositPaid   Boolean  @default(false)
@@ -998,7 +998,7 @@ model GroupBookingClaim {
   propertyId Int
 
   // ==================== Offer Details ====================
-  /// Offered price per night (with discount applied)
+  /// Owner's base price per room/night before any offer discount
   offeredPricePerNight Decimal @db.Decimal(12, 2)
   /// Discount percentage (e.g., 15 for 15% off)
   discountPercent Decimal? @db.Decimal(5, 2)
@@ -1006,7 +1006,7 @@ model GroupBookingClaim {
   specialOffers String? @db.Text
   /// Additional notes from owner
   notes String? @db.Text
-  /// Total amount for the stay (calculated)
+  /// Total owner amount for the stay after discount, before NoLSAF commission
   totalAmount Decimal @db.Decimal(12, 2)
   /// Currency code
   currency String @default("TZS")
