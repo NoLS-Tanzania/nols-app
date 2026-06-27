@@ -62,6 +62,7 @@ type DepositStatus = {
   ok: boolean;
   status: string;
   totalAmount?: number | null;
+  ownerAmount?: number | null;
   commissionPercent?: number | null;
   currency?: string | null;
   depositAmount?: number | null;
@@ -223,8 +224,8 @@ export default function GroupStayDepositPage() {
   const totalAmount = Number(deposit?.totalAmount || 0);
   const currency = deposit?.currency || "TZS";
   const commissionPercent = deposit?.commissionPercent ?? null;
-  const remainingBalance = Math.max(0, totalAmount - depositAmount);
-  const depositPercent = Math.min(100, Math.max(0, commissionPercent ?? (totalAmount > 0 ? (depositAmount / totalAmount) * 100 : 0)));
+  const remainingBalance = Number(deposit?.ownerAmount ?? Math.max(0, totalAmount - depositAmount));
+  const depositSharePercent = Math.min(100, Math.max(0, totalAmount > 0 ? (depositAmount / totalAmount) * 100 : 0));
   const msUntilDue = deposit?.depositDueAt ? new Date(deposit.depositDueAt).getTime() - now : null;
   const fmtMoney = (v: number) => `${currency} ${Math.round(v).toLocaleString()}`;
 
@@ -442,11 +443,13 @@ export default function GroupStayDepositPage() {
               </div>
             </div>
             <div className="mt-4 h-2 overflow-hidden rounded-full bg-emerald-100">
-              <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-[#02665e]" style={{ width: `${depositPercent}%` }} />
+              <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-[#02665e]" style={{ width: `${depositSharePercent}%` }} />
             </div>
             <div className="mt-2 flex items-center justify-between text-xs font-semibold">
-              <span className="text-emerald-700">{Math.round(depositPercent)}% payable now</span>
-              <span className="text-slate-400">of total cost</span>
+              <span className="text-emerald-700">
+                Deposit to secure
+              </span>
+              <span className="text-slate-400">Due now</span>
             </div>
           </div>
 
@@ -456,7 +459,7 @@ export default function GroupStayDepositPage() {
               <div className="mt-1 truncate text-sm font-extrabold text-slate-800">{fmtMoney(totalAmount)}</div>
             </div>
             <div className="min-w-0 px-3 sm:px-4">
-              <div className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Pay later</div>
+              <div className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Stay balance</div>
               <div className="mt-1 truncate text-sm font-extrabold text-slate-600">{fmtMoney(remainingBalance)}</div>
             </div>
           </div>

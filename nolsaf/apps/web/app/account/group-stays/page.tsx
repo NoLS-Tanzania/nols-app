@@ -32,6 +32,7 @@ type GroupStay = {
   checkOut: string;
   status: string;
   totalAmount: number;
+  ownerAmount?: number | null;
   numberOfGuests: number;
   passengers?: Array<{
     id: number;
@@ -76,6 +77,11 @@ type AuctionOffer = {
     offeredPricePerNight: number;
     discountPercent?: number | null;
     totalAmount: number;
+    customerPricePerNight?: number | null;
+    customerOriginalPricePerNight?: number | null;
+    customerTotalAmount?: number | null;
+    customerOriginalTotalAmount?: number | null;
+    customerSavingsAmount?: number | null;
     currency: string;
     specialOffers?: string | null;
     notes?: string | null;
@@ -934,7 +940,7 @@ export default function MyGroupStaysPage() {
                     const currency = dep?.currency || "TZS";
                     const depositAmount = Number(dep?.amount || 0);
                     const total = Number(stay.totalAmount || 0);
-                    const remaining = Math.max(0, total - depositAmount);
+                    const remaining = Number(dep?.ownerAmount ?? stay.ownerAmount ?? Math.max(0, total - depositAmount));
                     const fmtMoney = (v: number) => `${currency} ${Math.round(v).toLocaleString()}`;
                     const dueMs = dep?.dueAt ? new Date(dep.dueAt).getTime() - now : null;
                     const expired = !!dep?.expired || (dueMs != null && dueMs <= 0);
@@ -990,7 +996,7 @@ export default function MyGroupStaysPage() {
                               <div className="min-w-0">
                                 <h4 className="text-base font-bold text-slate-900">Deposit due to confirm</h4>
                                 <p className="text-xs text-slate-600 mt-0.5">
-                                  Pay the deposit to lock your rooms. The balance is settled on check-in.
+                                  Pay the deposit to lock your rooms. The stay balance is settled on check-in.
                                 </p>
                                 {dueLabel && dueDateLabel && (
                                   <div className={`mt-2 inline-flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold ${urgent ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-amber-200 bg-white/70 text-amber-800'}`}>
@@ -1018,7 +1024,7 @@ export default function MyGroupStaysPage() {
                             <div className="mt-4 grid grid-cols-3 gap-2">
                               <div className="rounded-xl border border-amber-200/70 bg-white px-3 py-2">
                                 <div className="text-[10px] uppercase tracking-wide text-slate-400">
-                                  Deposit{dep?.commissionPercent ? ` (${dep.commissionPercent}%)` : ''}
+                                  Deposit to secure
                                 </div>
                                 <div className="text-sm font-bold text-amber-700 tabular-nums">{fmtMoney(depositAmount)}</div>
                               </div>
@@ -1027,7 +1033,7 @@ export default function MyGroupStaysPage() {
                                 <div className="text-sm font-bold text-slate-800 tabular-nums">{fmtMoney(total)}</div>
                               </div>
                               <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-                                <div className="text-[10px] uppercase tracking-wide text-slate-400">Balance</div>
+                                <div className="text-[10px] uppercase tracking-wide text-slate-400">Stay balance</div>
                                 <div className="text-sm font-bold text-slate-600 tabular-nums">{fmtMoney(remaining)}</div>
                               </div>
                             </div>
@@ -1109,13 +1115,20 @@ export default function MyGroupStaysPage() {
 
                             {(auctionOffersByBooking[stay.id] || []).map((offer) => {
                               const offers = auctionOffersByBooking[stay.id] || [];
-                              const total = Number(offer.offer.totalAmount || 0);
-                              const nightly = Number(offer.offer.offeredPricePerNight || 0);
+                              const total = Number(offer.offer.customerTotalAmount ?? offer.offer.totalAmount ?? 0);
+                              const nightly = Number(offer.offer.customerPricePerNight ?? offer.offer.offeredPricePerNight ?? 0);
                               const discount = Number(offer.offer.discountPercent || 0);
-                              const bestTotal = Math.min(...offers.map((item) => Number(item.offer.totalAmount || Infinity)));
+                              const bestTotal = Math.min(...offers.map((item) => Number(item.offer.customerTotalAmount ?? item.offer.totalAmount ?? Infinity)));
                               const isBestPrice = offers.length > 1 && total > 0 && total === bestTotal;
-                              const originalNightly = discount > 0 && discount < 100 ? nightly / (1 - discount / 100) : null;
-                              const savings = originalNightly && nightly > 0 ? total * (originalNightly / nightly - 1) : null;
+                              const originalNightly = Number(offer.offer.customerOriginalPricePerNight ?? 0) > 0
+                                ? Number(offer.offer.customerOriginalPricePerNight)
+                                : (discount > 0 && discount < 100 ? nightly / (1 - discount / 100) : null);
+                              const originalTotal = Number(offer.offer.customerOriginalTotalAmount ?? 0) > 0
+                                ? Number(offer.offer.customerOriginalTotalAmount)
+                                : (originalNightly && nightly > 0 ? total * (originalNightly / nightly) : null);
+                              const savings = Number(offer.offer.customerSavingsAmount ?? 0) > 0
+                                ? Number(offer.offer.customerSavingsAmount)
+                                : (originalTotal && total > 0 ? originalTotal - total : null);
                               const amenities = (offer.offer.specialOffers || "").split(/[,\n]/).map((item) => item.trim()).filter(Boolean);
                               const location = [offer.property.regionName, offer.property.district, offer.property.ward || offer.property.city].filter(Boolean).join(", ");
 

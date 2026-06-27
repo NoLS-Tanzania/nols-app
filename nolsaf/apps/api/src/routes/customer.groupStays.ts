@@ -31,11 +31,6 @@ const depositPaymentLimiter = makePaymentRateLimiter({
   limit: 4,
   keyFn: (req: any) => `group-stay-deposit:${req.user?.id || req.ip || "anon"}`,
 });
-const configuredDepositPercent = Number(process.env.GROUP_STAY_DEPOSIT_PERCENT);
-const GROUP_STAY_DEPOSIT_PERCENT = Number.isFinite(configuredDepositPercent)
-  ? Math.max(1, Math.min(100, configuredDepositPercent))
-  : 30;
-
 function coerceIdArray(value: unknown): number[] {
   if (!Array.isArray(value)) return [];
   return value
@@ -159,6 +154,8 @@ router.get("/", async (req, res) => {
         status: gb.status,
         totalAmount: gb.totalAmount,
         depositAmount: gb.depositAmount != null ? Number(gb.depositAmount) : null,
+        ownerAmount: gb.ownerAmount != null ? Number(gb.ownerAmount) : null,
+        commissionPercent: gb.commissionPercent != null ? Number(gb.commissionPercent) : null,
         depositPaid: Boolean(gb.depositPaid),
         depositPaidAt: gb.depositPaidAt ?? null,
         depositDueAt: gb.depositDueAt ?? null,
@@ -221,6 +218,9 @@ router.get("/:id/auction-offers", async (req, res) => {
         isOpenForClaims: true,
         recommendedPropertyIds: true,
         confirmedPropertyId: true,
+        roomsNeeded: true,
+        checkIn: true,
+        checkOut: true,
       },
     });
 
@@ -253,6 +253,7 @@ router.get("/:id/auction-offers", async (req, res) => {
             district: true,
             ward: true,
             city: true,
+            services: true,
             images: {
               select: {
                 url: true,
@@ -268,8 +269,27 @@ router.get("/:id/auction-offers", async (req, res) => {
       orderBy: { totalAmount: "asc" },
     });
 
-    const offers = (claims as any[])
-      .map((c: any) => ({
+    const roomsNeeded = Math.max(1, Number((booking as any).roomsNeeded || 1));
+    const checkIn = (booking as any).checkIn ? new Date((booking as any).checkIn) : null;
+    const checkOut = (booking as any).checkOut ? new Date((booking as any).checkOut) : null;
+    const nights = checkIn && checkOut
+      ? Math.max(1, Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)))
+      : 1;
+
+    const offers = (await Promise.all((claims as any[]).map(async (c: any) => {
+      const ownerBasePricePerNight = roundMoney(Number(c.offeredPricePerNight || 0));
+      const discountPercent = Number(c.discountPercent || 0);
+      const ownerDiscountedPricePerNight = roundMoney(Math.max(0, ownerBasePricePerNight * (1 - Math.max(0, Math.min(100, discountPercent)) / 100)));
+      const ownerTotalAmount = roundMoney(Number(c.totalAmount || (ownerDiscountedPricePerNight * nights * roomsNeeded)));
+      const commissionPercent = await getEffectiveCommissionPercent(c.property?.services);
+      const multiplier = 1 + commissionPercent / 100;
+      const customerOriginalPricePerNight = roundMoney(ownerBasePricePerNight * multiplier);
+      const customerPricePerNight = roundMoney(ownerDiscountedPricePerNight * multiplier);
+      const customerTotalAmount = roundMoney(ownerTotalAmount * multiplier);
+      const customerOriginalTotalAmount = roundMoney(customerOriginalPricePerNight * nights * roomsNeeded);
+      const customerSavingsAmount = roundMoney(Math.max(0, customerOriginalTotalAmount - customerTotalAmount));
+
+      return {
         claimId: c.id,
         property: {
           id: c.property?.id,
@@ -290,11 +310,17 @@ router.get("/:id/auction-offers", async (req, res) => {
           offeredPricePerNight: c.offeredPricePerNight,
           discountPercent: c.discountPercent,
           totalAmount: c.totalAmount,
+          customerPricePerNight,
+          customerOriginalPricePerNight,
+          customerTotalAmount,
+          customerOriginalTotalAmount,
+          customerSavingsAmount,
           currency: c.currency,
           specialOffers: c.specialOffers,
           notes: c.notes,
         },
-      }))
+      };
+    })))
       // preserve admin ordering, but always keep only the recommended set
       .sort((a: any, b: any) => recommendedIds.indexOf(a.property.id) - recommendedIds.indexOf(b.property.id));
 
@@ -371,11 +397,11 @@ router.post("/:id/auction-confirm", async (req, res) => {
     }
 
     const now = new Date();
-    const ownerAmount = Number(claim.totalAmount || 0);
+    const ownerAmount = roundMoney(Number(claim.totalAmount ?? 0));
     const commissionPercent = await getEffectiveCommissionPercent(claim.property?.services);
     const commissionAmount = roundMoney(ownerAmount * (commissionPercent / 100));
     const totalAmount = roundMoney(ownerAmount + commissionAmount);
-    const depositAmount = Math.max(1, roundMoney(totalAmount * (GROUP_STAY_DEPOSIT_PERCENT / 100)));
+    const depositAmount = commissionAmount;
     const depositDueAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
     await (prisma as any).groupBooking.update({
@@ -470,6 +496,8 @@ router.post("/:id/auction-confirm", async (req, res) => {
           description: `Customer confirmed auction propertyId=${propertyId}`,
           metadata: {
             propertyId,
+            ownerAmount,
+            commissionPercent,
             totalAmount,
             depositAmount,
             depositDueAt,
@@ -481,7 +509,7 @@ router.post("/:id/auction-confirm", async (req, res) => {
       // audit is best-effort
     }
 
-    return res.json({ ok: true, bookingId, propertyId, totalAmount, depositAmount, depositDueAt, status: "AWAITING_DEPOSIT" });
+    return res.json({ ok: true, bookingId, propertyId, ownerAmount, commissionPercent, totalAmount, depositAmount, depositDueAt, status: "AWAITING_DEPOSIT" });
   } catch (error: any) {
     console.error("POST /customer/group-stays/:id/auction-confirm error:", error);
     return res.status(500).json({ error: "Failed to confirm auction offer" });

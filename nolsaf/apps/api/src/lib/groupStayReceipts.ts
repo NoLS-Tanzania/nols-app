@@ -47,7 +47,7 @@ export async function loadGroupStayDepositReceiptData(bookingId: number, userId:
     where: { id: bookingId, userId },
     select: {
       id: true, toRegion: true, toDistrict: true, checkIn: true, checkOut: true,
-      totalAmount: true, depositAmount: true, depositPaid: true, depositPaidAt: true,
+      totalAmount: true, depositAmount: true, ownerAmount: true, depositPaid: true, depositPaidAt: true,
       currency: true, paymentRef: true, paymentProvider: true,
       confirmedProperty: { select: { title: true } },
       user: { select: { name: true, fullName: true, email: true } },
@@ -60,6 +60,7 @@ export async function loadGroupStayDepositReceiptData(bookingId: number, userId:
   const paidAt = new Date(booking.depositPaidAt);
   const depositPaid = Number(booking.depositAmount || 0);
   const bookingTotal = Number(booking.totalAmount || 0);
+  const remainingBalance = Number(booking.ownerAmount ?? Math.max(0, bookingTotal - depositPaid));
   const destination = [booking.toDistrict, booking.toRegion].filter(Boolean).join(", ");
 
   return { ok: true, receipt: {
@@ -73,7 +74,7 @@ export async function loadGroupStayDepositReceiptData(bookingId: number, userId:
     checkOut: booking.checkOut || paidAt,
     bookingTotal,
     depositPaid,
-    remainingBalance: Math.max(0, bookingTotal - depositPaid),
+    remainingBalance,
     currency: booking.currency || "TZS",
     paymentMethod: booking.paymentProvider || "AZAMPAY",
     paymentRef: booking.paymentRef || null,
