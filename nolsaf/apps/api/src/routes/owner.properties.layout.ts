@@ -78,17 +78,25 @@ router.get("/:id/availability", async (req, res) => {
     .filter(Boolean);
 
   // Fetch bookings that overlap the window for this property
-  // IMPORTANT: expects Booking.roomCode (string) to match layout room "code".
-  const bookings = await prisma.booking.findMany({
-    where: {
-      propertyId: id,
-      checkIn: { lt: clipEnd },    // overlap condition
-      checkOut: { gt: clipStart },
-    // PENDING_CHECKIN is deprecated; treat as CHECKED_IN at UI/business-layer
-    status: { in: ["CONFIRMED", "CHECKED_IN"] }
-    },
-    select: { id: true, checkIn: true, checkOut: true, status: true, roomCode: true, guestName: true, totalAmount: true }
-  });
+  const [bookings, blocks] = await Promise.all([
+    prisma.booking.findMany({
+      where: {
+        propertyId: id,
+        checkIn:  { lt: clipEnd },
+        checkOut: { gt: clipStart },
+        status: { in: ["CONFIRMED", "CHECKED_IN"] },
+      },
+      select: { id: true, checkIn: true, checkOut: true, status: true, roomCode: true, guestName: true, totalAmount: true }
+    }),
+    prisma.propertyAvailabilityBlock.findMany({
+      where: {
+        propertyId: id,
+        startDate: { lt: clipEnd },
+        endDate:   { gt: clipStart },
+      },
+      select: { id: true, startDate: true, endDate: true, roomCode: true, source: true, bedsBlocked: true }
+    }),
+  ]);
 
   // Index bookings by roomCode + compute overlapped nights
   const byCode: Record<string, { id:number; checkIn:Date; checkOut:Date; status:string; nights:number; guestName?: string | null; totalAmount?: any }[]> = {};
@@ -101,28 +109,50 @@ router.get("/:id/availability", async (req, res) => {
     byCode[code].push({ id: b.id, checkIn: b.checkIn, checkOut: b.checkOut, status: b.status, nights: n, guestName: (b as any).guestName, totalAmount: (b as any).totalAmount });
   }
 
-  // Build response for each code in the layout
+  // Index blocks by roomCode (null roomCode = all rooms)
+  const blocksByCode: Record<string, { id:number; startDate:Date; endDate:Date; source:string|null; nights:number }[]> = {};
+  for (const bl of blocks) {
+    const n = overlapNights(clipStart, clipEnd, bl.startDate, bl.endDate);
+    if (n <= 0) continue;
+    // A block with no roomCode affects every room in the layout
+    const codes = bl.roomCode ? [bl.roomCode] : roomCodes;
+    for (const code of codes) {
+      if (!blocksByCode[code]) blocksByCode[code] = [];
+      blocksByCode[code].push({ id: bl.id, startDate: bl.startDate, endDate: bl.endDate, source: bl.source, nights: n });
+    }
+  }
+
+  // Build response: bookings + blocks both contribute to occupancy
   const rooms = roomCodes.map(code => {
-    const bs = byCode[code] ?? [];
-    const nightsBooked = bs.reduce((s, x) => s + x.nights, 0);
-    // cap at nightsTotal (in case of overlapping bookings on same room)
-    const capped = Math.min(nightsTotal, nightsBooked);
-    const pct = (capped / nightsTotal) * 100; // 0..100
+    const bs  = byCode[code]      ?? [];
+    const bls = blocksByCode[code] ?? [];
+    const nightsBooked  = bs.reduce((s, x) => s + x.nights, 0);
+    const nightsBlocked = bls.reduce((s, x) => s + x.nights, 0);
+    const nightsOccupied = Math.min(nightsTotal, nightsBooked + nightsBlocked);
+    const pct = (nightsOccupied / nightsTotal) * 100;
     return {
       code,
-      busy: pct > 0, // backward compatible flag
-      occupancyPct: Math.round(pct), // integer 0..100
-      nightsBooked: capped,
+      busy: pct > 0,
+      occupancyPct:   Math.round(pct),
+      nightsBooked,
+      nightsBlocked,
+      nightsOccupied,
       nightsTotal,
-      // Convert Date objects to ISO strings for JSON serialization
-      bookings: bs.map(b => ({ 
-        id: b.id, 
-        checkIn: b.checkIn instanceof Date ? b.checkIn.toISOString() : b.checkIn, 
-        checkOut: b.checkOut instanceof Date ? b.checkOut.toISOString() : b.checkOut, 
+      bookings: bs.map(b => ({
+        id: b.id,
+        checkIn:  b.checkIn  instanceof Date ? b.checkIn.toISOString()  : b.checkIn,
+        checkOut: b.checkOut instanceof Date ? b.checkOut.toISOString() : b.checkOut,
         status: b.status,
         guestName: b.guestName,
-        totalAmount: b.totalAmount
-      }))
+        totalAmount: b.totalAmount,
+      })),
+      blocks: bls.map(bl => ({
+        id: bl.id,
+        startDate: bl.startDate instanceof Date ? bl.startDate.toISOString() : bl.startDate,
+        endDate:   bl.endDate   instanceof Date ? bl.endDate.toISOString()   : bl.endDate,
+        source: bl.source,
+        nights: bl.nights,
+      })),
     };
   });
 

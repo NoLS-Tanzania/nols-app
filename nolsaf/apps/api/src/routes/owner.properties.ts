@@ -108,6 +108,7 @@ function cleanServices(services: unknown): any {
       'restaurant', 'bar', 'pool', 'sauna', 'laundry', 'roomService',
       'security24', 'firstAid', 'fireExtinguisher', 'onSiteShop', 'nearbyMall',
       'socialHall', 'sportsGames', 'gym', 'wifi', 'ac',
+      'acceptGroupBookings', 'freeCancellation',
       // Persist house rules inside services JSON for admin/owner previews
       'houseRules'
     ];
@@ -845,8 +846,8 @@ router.put("/:id", (async (req: AuthedRequest, res) => {
         city: parsed.city,
         zip: parsed.zip,
         country: parsed.country,
-        latitude: parsed.latitude ?? null,
-        longitude: parsed.longitude ?? null,
+        latitude: typeof parsed.latitude === "undefined" ? undefined : parsed.latitude ?? null,
+        longitude: typeof parsed.longitude === "undefined" ? undefined : parsed.longitude ?? null,
         // counts …
         totalBedrooms: parsed.totalBedrooms,
         totalBathrooms: parsed.totalBathrooms,
