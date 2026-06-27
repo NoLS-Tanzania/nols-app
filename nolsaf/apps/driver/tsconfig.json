@@ -3,6 +3,7 @@
   "compilerOptions": {
     "strict": true,
     "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
     "moduleSuffixes": [".ios", ".android", ".native", ""]
   },
   "include": [

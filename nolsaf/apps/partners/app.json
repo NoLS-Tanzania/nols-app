@@ -12,10 +12,16 @@
     ],
     "ios": {
       "bundleIdentifier": "com.nolsaf.partners",
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "NoLSAF Partners uses the camera to scan guest booking QR codes for check in validation."
+      }
     },
     "android": {
-      "package": "com.nolsaf.partners"
+      "package": "com.nolsaf.partners",
+      "permissions": [
+        "CAMERA"
+      ]
     },
     "web": {
       "bundler": "metro"
@@ -28,6 +34,12 @@
         {
           "locationWhenInUsePermission": "NoLSAF Partners needs your location to pin your property on the map.",
           "locationAlwaysAndWhenInUsePermission": "NoLSAF Partners needs your location to pin your property on the map."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "NoLSAF Partners uses the camera to scan guest booking QR codes for check in validation."
         }
       ],
       "@rnmapbox/maps"

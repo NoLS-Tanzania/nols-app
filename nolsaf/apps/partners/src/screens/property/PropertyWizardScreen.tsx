@@ -17,6 +17,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAuth } from "../../auth";
 import { EMPTY_DRAFT, PropertyDraft } from "./types";
+import { getRegionCode } from "./data";
 import { BasicsStep }   from "./steps/BasicsStep";
 import { RoomsStep }    from "./steps/RoomsStep";
 import { ServicesStep } from "./steps/ServicesStep";
@@ -94,6 +95,150 @@ function webClearDraft() {
 const HOTEL_STAR_TO_NUMBER: Record<string, number> = {
   basic: 1, simple: 2, moderate: 3, high: 4, luxury: 5,
 };
+
+function numOrNull(value: unknown): number | null {
+  if (value === "" || value == null) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function inferBasePrice(rooms: PropertyDraft["roomsSpec"]): number | null {
+  const prices = rooms
+    .map((room) => Number(room.pricePerNight))
+    .filter((price) => Number.isFinite(price) && price > 0);
+  return prices.length ? Math.min(...prices) : null;
+}
+
+function fmtWindow(from: string, to = "") {
+  const f = String(from || "").trim();
+  const t = String(to || "").trim();
+  if (f && t) return `${f} - ${t}`;
+  if (f) return `From ${f}`;
+  if (t) return `Until ${t}`;
+  return "";
+}
+
+function toApiHouseRules(d: PropertyDraft) {
+  const out: Record<string, unknown> = {};
+  const checkIn = fmtWindow(d.houseRules.checkInFrom);
+  const checkOut = fmtWindow(d.houseRules.checkOutFrom);
+  if (checkIn) out.checkIn = checkIn;
+  if (checkOut) out.checkOut = checkOut;
+  if (typeof d.houseRules.petsAllowed === "boolean") out.pets = d.houseRules.petsAllowed;
+  if (d.houseRules.petsNote.trim()) out.petsNote = d.houseRules.petsNote.trim();
+  if (typeof d.houseRules.smokingNotAllowed === "boolean") out.smoking = d.houseRules.smokingNotAllowed;
+  if (d.houseRules.other.trim()) out.other = d.houseRules.other.trim();
+  return Object.keys(out).length ? out : null;
+}
+
+function nearbyFacilitiesToServiceTags(list: PropertyDraft["services"]["nearbyFacilities"]): string[] {
+  const map: Record<string, string> = {
+    Hospital: "Near hospital",
+    Pharmacy: "Near pharmacy",
+    Polyclinic: "Near polyclinic",
+    Clinic: "Near clinic",
+    "Police station": "Near police station",
+    Airport: "Near airport",
+    "Bus station": "Near bus station",
+    "Petrol station": "Near petrol station",
+    "Main road": "Near main road",
+  };
+  return Array.from(new Set((list || []).map((facility) => map[String(facility.type || "")]).filter(Boolean)));
+}
+
+function servicesToTags(s: PropertyDraft["services"]): string[] {
+  const out: string[] = [];
+  if (s.parking === "free") out.push("Free parking");
+  if (s.parking === "paid") out.push(`Paid parking (${s.parkingPrice || 0} TZS)`);
+  if (s.breakfastIncluded) out.push("Breakfast included");
+  if (s.breakfastAvailable) out.push("Breakfast available");
+  if (s.restaurant) out.push("Restaurant");
+  if (s.bar) out.push("Bar");
+  if (s.pool) out.push("Pool");
+  if (s.sauna) out.push("Sauna");
+  if (s.laundry) out.push("Laundry");
+  if (s.roomService) out.push("Room service");
+  if (s.security24) out.push("24h security");
+  if (s.firstAid) out.push("First aid");
+  if (s.fireExtinguisher) out.push("Fire extinguisher");
+  if (s.onSiteShop) out.push("On-site shop");
+  if (s.nearbyMall) out.push("Nearby mall");
+  if (s.socialHall) out.push("Social hall");
+  if (s.sportsGames) out.push("Sports & games");
+  if (s.gym) out.push("Gym");
+  return out;
+}
+
+function toApiServices(d: PropertyDraft) {
+  const s = d.services;
+  const servicesObj: Record<string, unknown> = {
+    ...(s.parking && s.parking !== "no" ? { parking: s.parking } : {}),
+    ...(s.parking === "paid" && s.parkingPrice ? { parkingPrice: Number(s.parkingPrice) } : {}),
+    ...(s.breakfastIncluded ? { breakfastIncluded: true } : {}),
+    ...(s.breakfastAvailable ? { breakfastAvailable: true } : {}),
+    ...(s.restaurant ? { restaurant: true } : {}),
+    ...(s.bar ? { bar: true } : {}),
+    ...(s.pool ? { pool: true } : {}),
+    ...(s.sauna ? { sauna: true } : {}),
+    ...(s.laundry ? { laundry: true } : {}),
+    ...(s.roomService ? { roomService: true } : {}),
+    ...(s.security24 ? { security24: true } : {}),
+    ...(s.firstAid ? { firstAid: true } : {}),
+    ...(s.fireExtinguisher ? { fireExtinguisher: true } : {}),
+    ...(s.onSiteShop ? { onSiteShop: true } : {}),
+    ...(s.nearbyMall ? { nearbyMall: true } : {}),
+    ...(s.socialHall ? { socialHall: true } : {}),
+    ...(s.sportsGames ? { sportsGames: true } : {}),
+    ...(s.gym ? { gym: true } : {}),
+    ...(d.acceptGroupBookings ? { acceptGroupBookings: true } : {}),
+    ...(d.freeCancellation ? { freeCancellation: true } : {}),
+  };
+
+  const tags = Array.from(new Set([
+    ...servicesToTags(s),
+    ...nearbyFacilitiesToServiceTags(s.nearbyFacilities),
+    ...(d.freeCancellation ? ["Free cancellation"] : []),
+    ...(d.acceptGroupBookings ? ["Group stay"] : []),
+    ...d.paymentModes.map((mode) => `Payment: ${mode}`),
+  ]));
+  if (tags.length) servicesObj.tags = tags;
+  if (s.nearbyFacilities.length) servicesObj.nearbyFacilities = s.nearbyFacilities;
+  return servicesObj;
+}
+
+function hasServiceTag(services: Record<string, unknown>, expected: string) {
+  const tags = services.tags;
+  if (!Array.isArray(tags)) return false;
+  const expectedKey = expected.trim().toLowerCase();
+  return tags.some((tag) => typeof tag === "string" && tag.trim().toLowerCase() === expectedKey);
+}
+
+function fromApiHouseRules(services: Record<string, unknown>): PropertyDraft["houseRules"] {
+  const raw = (services.houseRules as Record<string, unknown>) ?? {};
+  return {
+    checkInFrom: String(raw.checkInFrom ?? raw.checkIn ?? ""),
+    checkOutFrom: String(raw.checkOutFrom ?? raw.checkOut ?? ""),
+    petsAllowed:
+      raw.petsAllowed != null ? Boolean(raw.petsAllowed)
+      : raw.pets != null ? Boolean(raw.pets)
+      : null,
+    petsNote: String(raw.petsNote ?? ""),
+    smokingNotAllowed:
+      raw.smokingNotAllowed != null ? Boolean(raw.smokingNotAllowed)
+      : raw.smoking != null ? Boolean(raw.smoking)
+      : null,
+    other: String(raw.other ?? ""),
+  };
+}
+
+function fromApiPaymentModes(services: Record<string, unknown>) {
+  if (Array.isArray(services.paymentModes)) return services.paymentModes.map(String);
+  const tags = Array.isArray(services.tags) ? services.tags.map(String) : [];
+  return tags
+    .filter((tag) => tag.startsWith("Payment: "))
+    .map((tag) => tag.replace(/^Payment:\s*/, ""))
+    .filter(Boolean);
+}
 
 // The public property page and the web owner form read each room with a specific
 // set of field names (roomType, roomsCount, bathItems, bathPrivate "yes"/"no",
@@ -225,7 +370,7 @@ export function PropertyWizardScreen({ visible, onClose, propertyId, onSuccess }
       .then((raw) => {
         const p = raw as Record<string, unknown>;
         const services = (p.services as Record<string, unknown>) ?? {};
-        const houseRules = (services.houseRules as Record<string, unknown>) ?? {};
+        const houseRules = fromApiHouseRules(services);
         const loaded: PropertyDraft = {
           title:           String(p.title ?? ""),
           type:            String(p.type ?? ""),
@@ -271,17 +416,10 @@ export function PropertyWizardScreen({ visible, onClose, propertyId, onSuccess }
           totalBathrooms:      p.totalBathrooms != null ? String(p.totalBathrooms) : "",
           maxGuests:           p.maxGuests != null ? String(p.maxGuests) : "",
           description:         String(p.description ?? ""),
-          acceptGroupBookings: Boolean((services as Record<string, unknown>).acceptGroupBookings),
-          houseRules: {
-            checkInFrom:      String(houseRules.checkInFrom ?? ""),
-            checkOutFrom:     String(houseRules.checkOutFrom ?? ""),
-            petsAllowed:      houseRules.petsAllowed != null ? Boolean(houseRules.petsAllowed) : null,
-            petsNote:         String(houseRules.petsNote ?? ""),
-            smokingNotAllowed:houseRules.smokingNotAllowed != null ? Boolean(houseRules.smokingNotAllowed) : null,
-            other:            String(houseRules.other ?? ""),
-          },
+          acceptGroupBookings: Boolean((services as Record<string, unknown>).acceptGroupBookings) || hasServiceTag(services, "Group stay"),
+          houseRules,
           freeCancellation:    Boolean((services as Record<string, unknown>).freeCancellation),
-          paymentModes:        ((services as Record<string, unknown>).paymentModes as string[]) ?? [],
+          paymentModes:        fromApiPaymentModes(services),
           photos:              (p.photos as string[]) ?? [],
         };
         setDraft(loaded);
@@ -301,30 +439,29 @@ export function PropertyWizardScreen({ visible, onClose, propertyId, onSuccess }
     buildingType:    d.buildingType,
     totalFloors:     d.buildingType === "multi_storey" && d.totalFloors ? Number(d.totalFloors) : undefined,
     regionName:      d.regionName,
-    regionId:        d.regionName || undefined,   // submit guard checks !!regionId; API accepts string
+    regionId:        getRegionCode(d.regionName) || d.regionName || undefined,
     district:        d.district,
     ward:            d.ward,
     street:          d.street,
     city:            d.city,
     zip:             d.zip,
     country:         d.country,
-    latitude:        d.latitude ? Number(d.latitude) : undefined,
-    longitude:       d.longitude ? Number(d.longitude) : undefined,
+    latitude:        numOrNull(d.latitude) ?? undefined,
+    longitude:       numOrNull(d.longitude) ?? undefined,
     tourismSiteId:   d.tourismSiteId ?? undefined,
     tourismSiteName: d.tourismSiteName || undefined,
     parkPlacement:   d.parkPlacement || undefined,
     roomsSpec:       toApiRoomsSpec(d.roomsSpec),
     services: {
-      ...d.services,
-      parkingPrice: d.services.parkingPrice ? Number(d.services.parkingPrice) : undefined,
-      houseRules: d.houseRules,
-      acceptGroupBookings: d.acceptGroupBookings,
-      freeCancellation: d.freeCancellation,
-      paymentModes: d.paymentModes,
+      ...toApiServices(d),
+      houseRules: toApiHouseRules(d),
     },
-    totalBedrooms:  d.totalBedrooms ? Number(d.totalBedrooms) : undefined,
-    totalBathrooms: d.totalBathrooms ? Number(d.totalBathrooms) : undefined,
-    maxGuests:      d.maxGuests ? Number(d.maxGuests) : undefined,
+    houseRules:     toApiHouseRules(d),
+    basePrice:      inferBasePrice(d.roomsSpec),
+    currency:       "TZS",
+    totalBedrooms:  numOrNull(d.totalBedrooms) ?? 0,
+    totalBathrooms: numOrNull(d.totalBathrooms) ?? 0,
+    maxGuests:      numOrNull(d.maxGuests) ?? 1,
     description:    d.description || undefined,
     photos:         d.photos,
   }), []);

@@ -155,6 +155,10 @@ export function getStreets(regionName: string, districtName: string, wardName: s
   return ward?.streets ?? [];
 }
 
+export function getRegionCode(regionName: string): string | undefined {
+  return REGIONS_FULL_DATA.find(r => r.name === regionName)?.code;
+}
+
 // ── Status display ─────────────────────────────────────────────────────────
 
 export const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {

@@ -12,24 +12,95 @@ import {
   radius,
   spacing
 } from "@nolsaf/native-ui";
-import { Bed, Bell, Building2, Calendar, CalendarCheck, ChartPie, ClipboardList, Gavel, Home, KeyRound, LogIn, LogOut, Plus, QrCode, UserCircle, Users, Wallet } from "lucide-react-native";
-import { useState } from "react";
+import { Bed, Bell, Building2, Calendar, CalendarCheck, ClipboardList, Gavel, Home, KeyRound, LogIn, LogOut, Plus, QrCode, UserCircle, Users, Wallet } from "lucide-react-native";
+import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { useAuth } from "../auth";
 import { OwnerAccountSheet } from "./OwnerAccountSheet";
 import { OwnerHelpSheet } from "./OwnerHelpSheet";
+import { OwnerBookingsScreen } from "./OwnerBookingsScreen";
+import { OwnerBookingValidationScreen } from "./OwnerBookingValidationScreen";
 import { OwnerProfileSheet } from "./OwnerProfileSheet";
 import { OwnerPropertiesScreen } from "./OwnerPropertiesScreen";
+import { OwnerAvailabilityScreen } from "./OwnerAvailabilityScreen";
+import { OwnerGroupStaysScreen } from "./OwnerGroupStaysScreen";
+import { OwnerRevenueScreen } from "./OwnerRevenueScreen";
 import { OwnerSecuritySheet } from "./OwnerSecuritySheet";
 import { PropertyWizardScreen } from "./property/PropertyWizardScreen";
+import { apiRequest } from "@nolsaf/native-ui";
+import { fetchOwnerGroupStayCounts, OwnerGroupStaySegment } from "../ownerGroupStays";
+import { fetchOwnerRevenueStats, formatTzs, OwnerRevenueSegment } from "../ownerRevenue";
 
-// The Owner home, composed entirely from the @nolsaf/native-ui dashboard kit.
-// The numbers below are sample placeholders; the next increment wires them to
-// /api/owner/properties/mine, /api/owner/revenue/stats, /api/owner/reports/* and
-// /api/owner/bookings/* (see the API readiness checklist in the plan). The shell
-// and composition are final.
+type HomeStats = {
+  requestedCount: number;
+  paidCount: number;
+  rejectedCount: number;
+  paidRevenue: number;
+  pendingRevenue: number;
+  totalRevenue: number;
+  totalProperties: number;
+  approvedProperties: number;
+  pendingProperties: number;
+  checkedIn: number;
+  checkoutDue: number;
+  groupStaysAssigned: number;
+  groupStaysAvailable: number;
+  groupStayBids: number;
+};
+
 export function OwnerHomeScreen() {
+  const { token } = useAuth();
+  const [activeTab, setActiveTab] = useState<"home" | "bookings" | "calendar" | "account" | "revenue" | "groupStays">("home");
+  const [homeStats, setHomeStats] = useState<HomeStats>({
+    requestedCount: 0, paidCount: 0, rejectedCount: 0,
+    paidRevenue: 0, pendingRevenue: 0, totalRevenue: 0,
+    totalProperties: 0, approvedProperties: 0, pendingProperties: 0,
+    checkedIn: 0, checkoutDue: 0,
+    groupStaysAssigned: 0, groupStaysAvailable: 0, groupStayBids: 0
+  });
+  const [checkedInBookings, setCheckedInBookings] = useState<any[]>([]);
+  const [checkoutBookings, setCheckoutBookings] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!token) return;
+    Promise.all([
+      fetchOwnerRevenueStats({ token, segment: "all" }),
+      fetchOwnerRevenueStats({ token, segment: "requested" }),
+      fetchOwnerRevenueStats({ token, segment: "rejected" }),
+      apiRequest<{ checkedIn: number; checkoutDue: number }>("/api/owner/bookings/sidebar-counts", { token }).catch(() => ({ checkedIn: 0, checkoutDue: 0 })),
+      apiRequest<{ total: number; items: any[] }>("/api/owner/properties/mine?pageSize=200", { token }).catch(() => ({ total: 0, items: [] })),
+      apiRequest<any[]>("/api/owner/bookings/checked-in", { token }).catch(() => []),
+      apiRequest<any[]>("/api/owner/bookings/for-checkout", { token }).catch(() => []),
+      fetchOwnerGroupStayCounts({ token }).catch(() => ({ assigned: 0, available: 0, myBids: 0 }))
+    ]).then(([all, requested, rejected, sidebar, props, checkedIn, forCheckout, groupStays]) => {
+      const propItems: any[] = Array.isArray(props?.items) ? props.items : [];
+      const approvedProperties = propItems.filter((p) => String(p.status).toUpperCase() === "APPROVED").length;
+      const pendingProperties = propItems.filter((p) => ["PENDING", "DRAFT", "UNDER_REVIEW"].includes(String(p.status).toUpperCase())).length;
+      setHomeStats({
+        requestedCount: requested.totalInvoices,
+        paidCount: all.paidInvoices,
+        rejectedCount: rejected.totalInvoices,
+        paidRevenue: all.paidRevenue,
+        pendingRevenue: all.pendingRevenue,
+        totalRevenue: all.totalRevenue,
+        totalProperties: Number(props?.total ?? propItems.length),
+        approvedProperties,
+        pendingProperties,
+        checkedIn: Number(sidebar?.checkedIn ?? 0),
+        checkoutDue: Number(sidebar?.checkoutDue ?? 0),
+        groupStaysAssigned: groupStays.assigned,
+        groupStaysAvailable: groupStays.available,
+        groupStayBids: groupStays.myBids
+      });
+      setCheckedInBookings(Array.isArray(checkedIn) ? checkedIn : []);
+      setCheckoutBookings(Array.isArray(forCheckout) ? forCheckout : []);
+    }).catch(() => {});
+  }, [token]);
+  const [revenueSegment, setRevenueSegment] = useState<OwnerRevenueSegment>("all");
+  const [groupStaySegment, setGroupStaySegment] = useState<OwnerGroupStaySegment>("assigned");
+  const [validationOpen, setValidationOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [securityOpen, setSecurityOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -43,6 +114,34 @@ export function OwnerHomeScreen() {
     if (destination === "profile")    { setProfileOpen(true);    return; }
     if (destination === "help")       { setHelpOpen(true);       return; }
     if (destination === "properties") { setPropertiesOpen(true); return; }
+    if (destination === "bookings")   { setActiveTab("bookings"); return; }
+    if (destination === "calendar") { setActiveTab("calendar"); return; }
+    if (destination === "revenue" || destination === "payouts" || destination === "this-month") {
+      setRevenueSegment("all");
+      setActiveTab("revenue");
+      return;
+    }
+    if (destination === "requested" || destination === "paid" || destination === "rejected") {
+      setRevenueSegment(destination);
+      setActiveTab("revenue");
+      return;
+    }
+    if (destination === "validate-booking") { setValidationOpen(true); return; }
+    if (destination === "group-stays" || destination === "group-stays-assigned") {
+      setGroupStaySegment("assigned");
+      setActiveTab("groupStays");
+      return;
+    }
+    if (destination === "group-stays-bid") {
+      setGroupStaySegment("available");
+      setActiveTab("groupStays");
+      return;
+    }
+    if (destination === "group-stays-my-bids") {
+      setGroupStaySegment("myBids");
+      setActiveTab("groupStays");
+      return;
+    }
     if (destination === "add-property") {
       setEditingPropertyId(undefined);
       setWizardOpen(true);
@@ -56,6 +155,23 @@ export function OwnerHomeScreen() {
 
   return (
     <SafeAreaView style={styles.root} edges={["top", "left", "right"]}>
+      {validationOpen ? (
+        <OwnerBookingValidationScreen
+          onBack={() => setValidationOpen(false)}
+          onConfirmed={() => {
+            setValidationOpen(false);
+            setActiveTab("bookings");
+          }}
+        />
+      ) : activeTab === "bookings" ? (
+        <OwnerBookingsScreen onOpenValidate={() => setValidationOpen(true)} />
+      ) : activeTab === "revenue" ? (
+        <OwnerRevenueScreen initialSegment={revenueSegment} />
+      ) : activeTab === "groupStays" ? (
+        <OwnerGroupStaysScreen initialSegment={groupStaySegment} />
+      ) : activeTab === "calendar" ? (
+        <OwnerAvailabilityScreen />
+      ) : (
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         <PartnerHero
           eyebrow="OWNER PORTAL"
@@ -85,8 +201,8 @@ export function OwnerHomeScreen() {
           }
         >
           <View style={styles.heroRow}>
-            <HeroStat label="BOOKINGS" value="2" accent={colors.accent.blueBright} footer="Last 14 days" />
-            <HeroStat label="REVENUE" value="9,450,000" prefix="TZS" accent={colors.accent.teal} />
+            <HeroStat label="CHECKED IN" value={String(homeStats.checkedIn)} accent={colors.accent.blueBright} footer="Active guests" />
+            <HeroStat label="REVENUE" value={homeStats.totalRevenue > 0 ? (homeStats.totalRevenue / 1_000_000).toFixed(1) + "M" : "0"} prefix="TZS" accent={colors.accent.teal} />
           </View>
         </PartnerHero>
 
@@ -94,39 +210,37 @@ export function OwnerHomeScreen() {
           <View style={styles.statRow}>
             <StatCard
               label="Properties"
-              value="12"
+              value={String(homeStats.totalProperties)}
               icon={<Building2 size={19} color={colors.primary} />}
               iconBg={colors.brand[50]}
-              caption="9 approved, 3 pending"
-              delta={{ direction: "up", label: 2 }}
+              caption={`${homeStats.approvedProperties} approved, ${homeStats.pendingProperties} pending`}
               onPress={() => setPropertiesOpen(true)}
             />
             <StatCard
-              label="Occupancy"
-              value="78%"
-              icon={<ChartPie size={19} color={colors.accent.blue} />}
+              label="Checkout due"
+              value={String(homeStats.checkoutDue)}
+              icon={<CalendarCheck size={19} color={colors.accent.blue} />}
               iconBg={colors.accent.blueSoft}
-              caption="this week"
-              delta={{ direction: "up", label: "4%" }}
-              onPress={() => open("occupancy")}
+              caption="within 7 hours"
+              onPress={() => open("bookings")}
             />
           </View>
           <View style={styles.statRow}>
             <StatCard
               label="Pending payout"
-              value="1.2M"
+              value={formatTzs(homeStats.pendingRevenue).replace(/^TZS\s?/i, "")}
               icon={<Wallet size={19} color={colors.accent.amberDark} />}
               iconBg={colors.accent.amberSoft}
-              caption="2 invoices requested"
+              caption={`${homeStats.requestedCount} invoice${homeStats.requestedCount !== 1 ? "s" : ""} requested`}
               onPress={() => open("payouts")}
             />
             <StatCard
-              label="Check outs due"
-              value="3"
+              label="Checked in"
+              value={String(homeStats.checkedIn)}
               icon={<CalendarCheck size={19} color={colors.primary} />}
               iconBg={colors.brand[50]}
-              caption="today"
-              onPress={() => open("checkouts")}
+              caption="active guests"
+              onPress={() => open("bookings")}
             />
           </View>
 
@@ -146,16 +260,16 @@ export function OwnerHomeScreen() {
             contentContainerStyle={styles.snapshotSlider}
           >
             <View style={styles.snapshotSlide}>
-              <SnapshotTile label="Requested" value="3" tone="amber" onPress={() => open("requested")} />
+              <SnapshotTile label="Requested" value={String(homeStats.requestedCount)} tone="amber" onPress={() => open("requested")} />
             </View>
             <View style={styles.snapshotSlide}>
-              <SnapshotTile label="Paid" value="14" tone="green" onPress={() => open("paid")} />
+              <SnapshotTile label="Paid" value={String(homeStats.paidCount)} tone="green" onPress={() => open("paid")} />
             </View>
             <View style={styles.snapshotSlide}>
-              <SnapshotTile label="Rejected" value="1" tone="red" onPress={() => open("rejected")} />
+              <SnapshotTile label="Rejected" value={String(homeStats.rejectedCount)} tone="red" onPress={() => open("rejected")} />
             </View>
             <View style={styles.snapshotSlide}>
-              <SnapshotTile label="This month" value="4.2M" tone="neutral" onPress={() => open("this-month")} />
+              <SnapshotTile label="Total paid" value={formatTzs(homeStats.paidRevenue).replace(/^TZS\s?/i, "TSh ")} tone="neutral" onPress={() => open("paid")} />
             </View>
             <View style={styles.snapshotSlide}>
               <SnapshotTile label="Reports" value="View" tone="brand" onPress={() => open("reports")} />
@@ -178,22 +292,26 @@ export function OwnerHomeScreen() {
                 </View>
                 <AppText variant="bodySmall" weight="semiBold">Ready to check in</AppText>
               </View>
-              <StatusBadge status="approved" label="2" />
+              <StatusBadge status="approved" label={String(homeStats.checkedIn)} />
             </View>
-            <View style={styles.listRow}>
-              <View style={[styles.thumb, { backgroundColor: colors.accent.blueSoft }]}>
-                <KeyRound size={18} color={colors.accent.blue} />
+            {checkedInBookings.length === 0 ? (
+              <AppText variant="caption" tone="muted">No active check-ins right now.</AppText>
+            ) : checkedInBookings.slice(0, 2).map((b) => (
+              <View key={b.id} style={styles.listRow}>
+                <View style={[styles.thumb, { backgroundColor: colors.accent.blueSoft }]}>
+                  <KeyRound size={18} color={colors.accent.blue} />
+                </View>
+                <View style={styles.listText}>
+                  <AppText variant="bodySmall" weight="semiBold" numberOfLines={1}>
+                    {b.property?.title ?? "Property"}{b.roomType ? `, ${b.roomType}` : ""}
+                  </AppText>
+                  <AppText variant="caption" tone="muted" numberOfLines={1}>
+                    {b.guestName ?? "Guest"}{b.codeVisible ? ` · ${b.codeVisible}` : ""}
+                  </AppText>
+                </View>
+                <StatusBadge status="approved" label="in" />
               </View>
-              <View style={styles.listText}>
-                <AppText variant="bodySmall" weight="semiBold" numberOfLines={1}>
-                  Serengeti View Lodge, Rm 2
-                </AppText>
-                <AppText variant="caption" tone="muted" numberOfLines={1}>
-                  T. Mwangi , NLS-3A9X · arrives today
-                </AppText>
-              </View>
-              <StatusBadge status="approved" label="due" />
-            </View>
+            ))}
           </View>
 
           {/* Check-out card */}
@@ -205,22 +323,26 @@ export function OwnerHomeScreen() {
                 </View>
                 <AppText variant="bodySmall" weight="semiBold">Ready for check out</AppText>
               </View>
-              <StatusBadge status="awaiting" label="3" />
+              <StatusBadge status="awaiting" label={String(homeStats.checkoutDue)} />
             </View>
-            <View style={styles.listRow}>
-              <View style={[styles.thumb, { backgroundColor: colors.brand[50] }]}>
-                <Bed size={18} color={colors.primary} />
+            {checkoutBookings.length === 0 ? (
+              <AppText variant="caption" tone="muted">No checkouts due in the next 7 hours.</AppText>
+            ) : checkoutBookings.slice(0, 2).map((b) => (
+              <View key={b.id} style={styles.listRow}>
+                <View style={[styles.thumb, { backgroundColor: colors.brand[50] }]}>
+                  <Bed size={18} color={colors.primary} />
+                </View>
+                <View style={styles.listText}>
+                  <AppText variant="bodySmall" weight="semiBold" numberOfLines={1}>
+                    {b.property?.title ?? "Property"}
+                  </AppText>
+                  <AppText variant="caption" tone="muted" numberOfLines={1}>
+                    {b.guestName ?? "Guest"}{b.codeVisible ? ` · ${b.codeVisible}` : ""} · departs {new Date(b.checkOut).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </AppText>
+                </View>
+                <StatusBadge status="awaiting" label="due" />
               </View>
-              <View style={styles.listText}>
-                <AppText variant="bodySmall" weight="semiBold" numberOfLines={1}>
-                  Amani Beach Villa, Rm 4
-                </AppText>
-                <AppText variant="caption" tone="muted" numberOfLines={1}>
-                  Grace M. , NLS-7F2K · departs today
-                </AppText>
-              </View>
-              <StatusBadge status="verified" />
-            </View>
+            ))}
           </View>
 
           {/* ── Group stays label ── */}
@@ -254,7 +376,7 @@ export function OwnerHomeScreen() {
                   <Users size={16} color={colors.primary} />
                 </View>
                 <AppText variant="caption" tone="muted" numberOfLines={1}>Assigned to Me</AppText>
-                <AppText variant="titleSm" weight="semiBold" numberOfLines={1}>4</AppText>
+                <AppText variant="titleSm" weight="semiBold" numberOfLines={1}>{homeStats.groupStaysAssigned}</AppText>
               </Pressable>
 
               <Pressable
@@ -266,7 +388,7 @@ export function OwnerHomeScreen() {
                   <Gavel size={16} color={colors.accent.amberDark} />
                 </View>
                 <AppText variant="caption" tone="muted" numberOfLines={1}>Available to Bid</AppText>
-                <AppText variant="titleSm" weight="semiBold" numberOfLines={1}>7</AppText>
+                <AppText variant="titleSm" weight="semiBold" numberOfLines={1}>{homeStats.groupStaysAvailable}</AppText>
               </Pressable>
 
               <Pressable
@@ -278,25 +400,26 @@ export function OwnerHomeScreen() {
                   <ClipboardList size={16} color={colors.accent.blue} />
                 </View>
                 <AppText variant="caption" tone="muted" numberOfLines={1}>My Bids</AppText>
-                <AppText variant="titleSm" weight="semiBold" numberOfLines={1}>2</AppText>
+                <AppText variant="titleSm" weight="semiBold" numberOfLines={1}>{homeStats.groupStayBids}</AppText>
               </Pressable>
             </View>
           </View>
         </View>
       </ScrollView>
+      )}
 
       <AppBottomNav
-        activeKey="home"
+        activeKey={activeTab}
         items={[
-          { key: "home", label: "Home", icon: (c) => <Home size={22} color={c} />, onPress: () => undefined },
-          { key: "bookings", label: "Bookings", icon: (c) => <ClipboardList size={22} color={c} />, onPress: () => undefined },
-          { key: "calendar", label: "Calendar", icon: (c) => <Calendar size={22} color={c} />, onPress: () => undefined },
-          { key: "account", label: "Account", icon: (c) => <UserCircle size={22} color={c} />, onPress: () => setAccountOpen(true) }
+          { key: "home", label: "Home", icon: (c) => <Home size={22} color={c} />, onPress: () => setActiveTab("home") },
+          { key: "bookings", label: "Bookings", icon: (c) => <ClipboardList size={22} color={c} />, onPress: () => setActiveTab("bookings") },
+          { key: "calendar", label: "Calendar", icon: (c) => <Calendar size={22} color={c} />, onPress: () => setActiveTab("calendar") },
+          { key: "account", label: "Account", icon: (c) => <UserCircle size={22} color={c} />, onPress: () => { setActiveTab("account"); setAccountOpen(true); } }
         ]}
         centerAction={{
           accessibilityLabel: "Scan guest QR",
           icon: (c) => <QrCode size={26} color={c} />,
-          onPress: () => undefined
+          onPress: () => setValidationOpen(true)
         }}
       />
       <OwnerAccountSheet

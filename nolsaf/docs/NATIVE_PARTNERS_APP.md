@@ -698,13 +698,71 @@ react types pin (the errors are duplicate `@types/react` resolution in native-ui
 defects in the Partners code). The Partners code mirrors the proven customer app
 structure.
 
+### Owner bookings tab and validation (built)
+
+The Owner Bookings tile and bottom tab are now wired to the same backend routes the web
+Owner portal uses. This is the first Owner core workflow beyond the dashboard shell.
+
+Built in `apps/partners`:
+
+* `src/ownerBookings/` contains the Owner booking API client, types, and formatting
+  helpers. It calls the existing web backed routes, not mobile specific forks:
+  `/api/owner/reports/bookings`, `/api/owner/bookings/recent`,
+  `/api/owner/bookings/checked-in`, `/api/owner/bookings/for-checkout`,
+  `/api/owner/bookings/checked-out`, `/api/owner/bookings/validate`,
+  `/api/owner/bookings/confirm-checkin`, and
+  `/api/owner/bookings/:id/confirm-checkout`.
+* `OwnerBookingsScreen` renders the mobile segments from the Partners plan: All,
+  Recent, Checked in, Check out, and History. The dense web tables are rebuilt as
+  booking cards with property, guest, code, room, dates, status, owner amount, search,
+  counts, refresh, and a check out confirm flow.
+* `OwnerBookingValidationScreen` is the single validator for both receipt QR payloads
+  and typed booking codes. It uses `expo-camera` and `CameraView` to scan QR codes,
+  normalizes the result the same way the web page does (JSON receipt payloads pass
+  through, URL query codes are extracted, plain text becomes the booking code), then
+  sends the value to `/api/owner/bookings/validate`. It displays the backend
+  eligibility result and confirms check in through `/api/owner/bookings/confirm-checkin`
+  with the same consent snapshot shape the web flow records.
+* `OwnerHomeScreen` now routes the Bookings tab to the real bookings screen and the
+  center QR action to validation. Camera permission is declared in `app.json`, and the
+  manual fallback stays available when camera access is denied.
+
+State: `npm --workspace=@nolsaf/partners run typecheck` passes, and
+`npx expo export --platform web` from `apps/partners` bundles successfully against the
+new screens.
+
+### Owner revenue and payouts (built)
+
+The Owner Account sheet `Revenue & Payouts` item is now wired to a native revenue
+screen using the same backend routes as the web Owner portal.
+
+Built in `apps/partners`:
+
+* `src/ownerRevenue/` contains the Owner revenue API client, types, and formatting
+  helpers. It calls `/api/owner/revenue/stats`,
+  `/api/owner/revenue/invoices`, `/api/owner/revenue/invoices/:id`, and
+  `/api/owner/revenue/invoices/:id/receipt`.
+* `OwnerRevenueScreen` renders mobile segments for All, Requested, Paid, and Rejected.
+  Requested uses the same canonical plus legacy status query as web,
+  `REQUESTED,SUBMITTED`. Paid and Rejected use `PAID` and `REJECTED`.
+* The screen shows server authoritative totals, paid revenue, pending revenue,
+  invoice counts, search, load more, refresh, invoice cards, invoice detail, and paid
+  receipt QR payload data. Commission and payout math stay server supplied through
+  `netPayable` and `total`.
+* `OwnerHomeScreen` routes the Account sheet revenue item and the dashboard money
+  snapshot tiles into the matching revenue segment.
+
+State: `npm --workspace=@nolsaf/partners run typecheck` passes against the new revenue
+screen. The Expo web export should remain the final smoke test after each native money
+increment.
+
 Still to build:
 
-* Run the workspace install (the pending lockfile regen) so `apps/partners` resolves
-  Expo and a single `@types/react`, then a Metro build to confirm the gate and homes
-  render on device.
-* Wire `OwnerHomeScreen` and `OperatorHomeScreen` to live data
-  (`/api/owner/properties/mine`, `/api/owner/revenue/stats`, `/api/owner/bookings/*`,
-  `/api/agent/me`, `/api/agent/tour-bookings`); they use sample values today.
+* Wire the remaining Owner dashboard cards to live data
+  (`/api/owner/properties/mine`, `/api/owner/reports/*`); the Owner Bookings and
+  Revenue screens are live, but some dashboard hero and stat cards still use sample
+  values.
+* Wire `OperatorHomeScreen` to live data (`/api/agent/me`,
+  `/api/agent/tour-bookings`); it uses sample values today.
 * Expand the navigation shell beyond the home tab (Properties, Bookings, Money, Account
   for Owner; Tours, Revenue, Account for Operator) using the bottom tabs already shown.

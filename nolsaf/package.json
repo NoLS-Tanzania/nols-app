@@ -46,7 +46,8 @@
   "dependencies": {
     "dotenv": "^17.2.3",
     "pdf-parse": "^2.4.5",
-    "prisma": "^7.3.0"
+    "prisma": "^7.3.0",
+    "simple-swizzle": "^0.2.2"
   },
   "overrides": {
     "axios": "^1.15.2",

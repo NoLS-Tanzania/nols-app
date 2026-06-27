@@ -1,6 +1,6 @@
 import { PropsWithChildren, ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
-import Svg, { Defs, LinearGradient, Path, Rect, Stop } from "react-native-svg";
+import Svg, { Defs, LinearGradient, Path, Rect, Stop, Text as SvgText } from "react-native-svg";
 
 import { radius, spacing } from "../theme";
 import { AppText } from "./AppText";
@@ -38,6 +38,20 @@ export function PartnerHero({ eyebrow, title, subtitle, live, align = "center", 
           </LinearGradient>
         </Defs>
         <Rect x="0" y="0" width="360" height="260" fill="url(#partnerHeroGrad)" />
+        {/* Watermark — large diagonal "OWNER PORTAL" in the background */}
+        <SvgText
+          x="180"
+          y="145"
+          fontSize="46"
+          fontWeight="bold"
+          fill="#3ec9a6"
+          fillOpacity={0.06}
+          textAnchor="middle"
+          letterSpacing="8"
+          transform="rotate(-18, 180, 145)"
+        >
+          OWNER PORTAL
+        </SvgText>
         <Path
           d="M0 210 L70 160 L120 185 L180 80 L235 130 L285 105 L360 70"
           stroke="#3ec9a6"
@@ -53,12 +67,9 @@ export function PartnerHero({ eyebrow, title, subtitle, live, align = "center", 
       {headerRight ? <View style={styles.headerRight}>{headerRight}</View> : null}
 
       <View style={[styles.content, { alignItems }]}>
-        <View style={styles.eyebrowRow}>
-          <View style={styles.dash} />
-          <AppText variant="caption" style={styles.eyebrow}>
-            {eyebrow}
-          </AppText>
-        </View>
+        <AppText variant="caption" style={styles.eyebrow}>
+          {eyebrow}
+        </AppText>
 
         {live ? (
           <View style={styles.livePill}>
@@ -102,9 +113,12 @@ const styles = StyleSheet.create({
     right: spacing[4],
     zIndex: 2
   },
-  eyebrowRow: { flexDirection: "row", alignItems: "center", gap: spacing[2] },
-  dash: { width: 16, height: 2, backgroundColor: "#1d9e75" },
-  eyebrow: { color: "#7fd9bf", letterSpacing: 2 },
+  eyebrow: {
+    color: "rgba(127,217,191,0.35)",
+    letterSpacing: 4,
+    fontSize: 10,
+    fontWeight: "700",
+  },
   livePill: {
     flexDirection: "row",
     alignItems: "center",
