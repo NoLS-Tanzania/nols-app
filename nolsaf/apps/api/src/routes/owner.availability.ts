@@ -186,6 +186,52 @@ router.post("/blocks", (async (req: AuthedRequest, res: Response) => {
       return;
     }
 
+    // Reject past start dates
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    if (startDate < todayStart) {
+      res.status(400).json({ error: "Cannot block past dates. Start date must be today or in the future." });
+      return;
+    }
+
+    // Reject same-day blocks
+    const startDay = new Date(startDate); startDay.setHours(0, 0, 0, 0);
+    const endDay   = new Date(endDate);   endDay.setHours(0, 0, 0, 0);
+    if (startDay.getTime() >= endDay.getTime()) {
+      res.status(400).json({ error: "End date must be on a different day from start date. Same-day blocks are not allowed." });
+      return;
+    }
+
+    // Conflict check: reject if active bookings overlap with the requested date range.
+    const conflictingBookings = await prisma.booking.findMany({
+      where: {
+        propertyId: data.propertyId,
+        status: { in: [...AVAILABILITY_BLOCKING_BOOKING_STATUSES] },
+        AND: [{ checkIn: { lt: endDate } }, { checkOut: { gt: startDate } }],
+        ...(data.roomCode ? { roomCode: data.roomCode } : {}),
+      },
+      select: { id: true, checkIn: true, checkOut: true, status: true, guestName: true, roomCode: true },
+    });
+
+    if (conflictingBookings.length > 0) {
+      res.status(409).json({
+        error: "CONFLICT_BOOKINGS",
+        message: "There are active bookings overlapping with this date range. Cancel or modify those bookings before blocking.",
+        conflictingBookings: conflictingBookings.map((b) => ({
+          id: b.id,
+          checkIn: b.checkIn.toISOString(),
+          checkOut: b.checkOut.toISOString(),
+          status: b.status,
+          guestName: b.guestName,
+          roomCode: b.roomCode,
+        })),
+      });
+      return;
+    }
+
+    // Duplicate block check: warn but allow — overlapping blocks are redundant, not harmful.
+    // (Frontend surfaces this as a warning via check-conflicts before the user reaches this POST.)
+
     // Capacity check: do not allow booked+blocked to exceed total registered rooms for this type.
     // Single calculateAvailability call (no roomType filter) returns all room types at once,
     // avoiding a second sequential DB call when we need to list alternatives.
