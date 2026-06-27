@@ -557,7 +557,7 @@ function AssignedStayDetailModal({ stay, token, onClose, onCheckedIn }: { stay: 
                     You collect at the property  ·  {formatGroupStayMoney(stay.totalAmount, stay.currency || "TZS")}
                   </AppText>
                   <AppText variant="caption" tone="muted" style={{ marginTop: 4 }}>
-                    The guest already paid the deposit (NoLSAF's commission) online. Collect your balance directly from the guest.
+                    The guest already paid the deposit online. Collect the stay balance directly from the guest.
                   </AppText>
                 </View>
               </View>
@@ -787,7 +787,7 @@ function AssignedStayDetailModal({ stay, token, onClose, onCheckedIn }: { stay: 
                       <CheckinTerm text="The group has physically arrived at the property." />
                       <CheckinTerm text="The guest identity and group roster have been reviewed where provided." />
                       <CheckinTerm text="Rooms and agreed services are ready for the confirmed stay." />
-                      <CheckinTerm text="Any remaining owner balance will be collected directly from the guest at the property." />
+                      <CheckinTerm text="Any remaining stay balance will be collected directly from the guest at the property." />
                     </View>
 
                     <Pressable
@@ -897,7 +897,7 @@ function AssignedStayDetailModal({ stay, token, onClose, onCheckedIn }: { stay: 
                     <PolicyRow
                       icon={<Wallet size={20} color={colors.primary} />}
                       title="How you get paid"
-                      body="The deposit the guest pays online is NoLSAF's commission. You collect your full balance directly from the guest at the property. NoLSAF takes nothing further from your balance."
+                      body="The guest pays the deposit online. You collect the stay balance directly from the guest at the property. NoLSAF does not collect anything further from that balance."
                     />
                     <PolicyRow
                       icon={<CalendarX size={20} color="#e11d48" />}

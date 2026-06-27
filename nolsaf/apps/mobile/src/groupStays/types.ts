@@ -175,6 +175,11 @@ export type AuctionOffer = {
     offeredPricePerNight?: number | null;
     discountPercent?: number | null;
     totalAmount?: number | null;
+    customerPricePerNight?: number | null;
+    customerOriginalPricePerNight?: number | null;
+    customerTotalAmount?: number | null;
+    customerOriginalTotalAmount?: number | null;
+    customerSavingsAmount?: number | null;
     currency?: string | null;
     specialOffers?: string | null;
     notes?: string | null;
@@ -191,6 +196,8 @@ export type AuctionConfirmResponse = {
   ok: boolean;
   bookingId: number;
   propertyId: number;
+  ownerAmount?: number | null;
+  commissionPercent?: number | null;
   totalAmount?: number | null;
   depositAmount?: number | null;
 };

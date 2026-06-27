@@ -315,7 +315,7 @@ export function GroupStayDepositPaymentScreen({ navigation, route }: Props) {
   const currency = deposit.currency || booking.currency || "TZS";
   const depositAmount = Number(deposit.depositAmount || 0);
   const totalAmount = Number(deposit.totalAmount ?? booking.totalAmount ?? 0);
-  const remainingAmount = Math.max(0, totalAmount - depositAmount);
+  const remainingAmount = Number(deposit.ownerAmount ?? Math.max(0, totalAmount - depositAmount));
   const commissionPercent = deposit.commissionPercent != null ? Number(deposit.commissionPercent) : null;
   const destination = [booking.toRegion, booking.toDistrict, booking.toWard].filter(Boolean).join(", ");
   const statusUpper = deposit.status.toUpperCase();
@@ -482,13 +482,13 @@ export function GroupStayDepositPaymentScreen({ navigation, route }: Props) {
             </View>
             <View style={styles.depositRow}>
               <AppText variant="bodySmall" weight="bold" style={styles.flex}>
-                {commissionPercent != null ? `Deposit due (${commissionPercent}%)` : "Deposit due"}
+                Deposit to secure
               </AppText>
               <AmountText amount={depositAmount} currency={currency} variant="titleSm" weight="extraBold" tone="primary" />
             </View>
             <View style={styles.totalRow}>
               <AppText variant="bodySmall" weight="bold" style={styles.flex} tone="muted">
-                Remaining balance
+                Stay balance
               </AppText>
               <AmountText amount={remainingAmount} currency={currency} variant="bodySmall" weight="bold" tone="muted" />
             </View>

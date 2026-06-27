@@ -324,7 +324,7 @@ export function GroupStayDetailScreen({ navigation, route }: Props) {
                       ) : null}
                       <View style={styles.depositAmountRow}>
                         <AppText variant="caption" tone="muted">
-                          {commissionPercent != null ? `Deposit due (${commissionPercent}%)` : "Deposit due"}
+                          Deposit due
                         </AppText>
                         {depositLabel ? (
                           <AppText variant="title" weight="bold" style={styles.depositText}>
@@ -334,7 +334,7 @@ export function GroupStayDetailScreen({ navigation, route }: Props) {
                       </View>
                       {remainingLabel ? (
                         <View style={styles.depositAmountRow}>
-                          <AppText variant="caption" tone="muted">Remaining balance</AppText>
+                          <AppText variant="caption" tone="muted">Stay balance</AppText>
                           <AppText variant="bodySmall" weight="semiBold">{remainingLabel}</AppText>
                         </View>
                       ) : null}
@@ -429,7 +429,7 @@ export function GroupStayDetailScreen({ navigation, route }: Props) {
                             >
                             {(() => {
                               const totals = offers
-                                .map((o) => Number(o.offer.totalAmount || 0))
+                                .map((o) => Number(o.offer.customerTotalAmount ?? o.offer.totalAmount ?? 0))
                                 .filter((n) => n > 0);
                               const bestTotal = totals.length > 0 ? Math.min(...totals) : null;
 
@@ -442,15 +442,18 @@ export function GroupStayDetailScreen({ navigation, route }: Props) {
                                   .filter(Boolean)
                                   .join(", ");
 
-                                const offeredPerNight = Number(offer.offer.offeredPricePerNight || 0);
+                                const offeredPerNight = Number(offer.offer.customerPricePerNight ?? offer.offer.offeredPricePerNight ?? 0);
                                 const discountPercent = Number(offer.offer.discountPercent || 0);
-                                const total = Number(offer.offer.totalAmount || 0);
+                                const total = Number(offer.offer.customerTotalAmount ?? offer.offer.totalAmount ?? 0);
                                 const roomsNeeded = Math.max(1, Number(booking?.roomsNeeded || 1));
                                 const hasDiscount = discountPercent > 0 && offeredPerNight > 0;
-                                const originalPerNight = hasDiscount ? offeredPerNight / (1 - discountPercent / 100) : null;
+                                const customerOriginalPerNight = Number(offer.offer.customerOriginalPricePerNight ?? 0);
+                                const originalPerNight = customerOriginalPerNight > 0 ? customerOriginalPerNight : (hasDiscount ? offeredPerNight / (1 - discountPercent / 100) : null);
                                 const nights = offeredPerNight > 0 ? Math.round(total / offeredPerNight / roomsNeeded) : null;
-                                const originalTotal = hasDiscount && originalPerNight && nights ? originalPerNight * nights * roomsNeeded : null;
-                                const savings = originalTotal && total ? originalTotal - total : null;
+                                const customerOriginalTotal = Number(offer.offer.customerOriginalTotalAmount ?? 0);
+                                const originalTotal = customerOriginalTotal > 0 ? customerOriginalTotal : (hasDiscount && originalPerNight && nights ? originalPerNight * nights * roomsNeeded : null);
+                                const customerSavings = Number(offer.offer.customerSavingsAmount ?? 0);
+                                const savings = customerSavings > 0 ? customerSavings : (originalTotal && total ? originalTotal - total : null);
 
                                 const pricePerNight = formatAmount(offeredPerNight, offer.offer.currency);
                                 const originalPricePerNight = originalPerNight ? formatAmount(originalPerNight, offer.offer.currency) : undefined;
