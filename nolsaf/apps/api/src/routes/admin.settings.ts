@@ -2,6 +2,18 @@ import { Router } from "express";
 import { prisma } from "@nolsaf/prisma";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { audit } from "../lib/audit.js";
+import { resolveTierLadder, defaultTierLadderConfig, validateTierLadder } from "../lib/agentLevel.js";
+
+/** Convert a resolved tier-spec list back to the editable {TIER:{thresholds}} config. */
+function tierLadderToConfig(raw: unknown) {
+  const tiers = resolveTierLadder(raw);
+  const out: Record<string, { minTours: number; minRevenue: number; minRating: number; minReviews: number }> = {};
+  for (const t of tiers) {
+    if (t.level === "BRONZE") continue;
+    out[t.level] = { minTours: t.minTours, minRevenue: t.minRevenue, minRating: t.minRating, minReviews: t.minReviews };
+  }
+  return out;
+}
 
 export const router = Router();
 router.use(requireAuth, requireRole("ADMIN"));
@@ -72,11 +84,37 @@ async function hasSupportColumns(): Promise<boolean> {
   }
 }
 
+let tierLadderColumnAvailable: boolean | null = null;
+async function hasTierLadderColumn(): Promise<boolean> {
+  // Only cache the POSITIVE result. Caching a negative for the process lifetime
+  // means a column added mid-run (e.g. migration applied after boot) is never
+  // picked up until restart — which silently breaks the settings save path.
+  if (tierLadderColumnAvailable === true) return true;
+  try {
+    await prisma.systemSetting.findUnique({
+      where: { id: 1 },
+      select: { agentTierLadder: true } as any,
+    });
+    tierLadderColumnAvailable = true;
+    return true;
+  } catch (err: any) {
+    if (
+      err?.code === "P2022" ||
+      String(err?.message || "").includes("ColumnNotFound") ||
+      String(err?.message || "").includes("Unknown field")
+    ) {
+      return false; // not cached — re-check next time
+    }
+    throw err;
+  }
+}
+
 /** GET current settings */
 router.get("/", async (_req, res) => {
   const roleCols = await hasRoleTtlColumns();
   const currencyCol = await hasCurrencyColumn();
   const supportCols = await hasSupportColumns();
+  const tierCol = await hasTierLadderColumn();
   const s =
     (await prisma.systemSetting.findUnique({
       where: { id: 1 },
@@ -87,6 +125,11 @@ router.get("/", async (_req, res) => {
         driverCommissionCurrency: true,
         agentCommissionPercent: true,
         agentCommissionCurrency: true,
+        ...(tierCol ? { agentTierLadder: true } : {}),
+        // Driver level + referral business config (baseline columns — always present).
+        referralCreditPercent: true,
+        driverLevelGoldThreshold: true,
+        driverLevelDiamondThreshold: true,
         taxPercent: true,
         ...(currencyCol ? { currency: true } : {}),
         invoicePrefix: true,
@@ -145,6 +188,14 @@ router.get("/", async (_req, res) => {
   out.commissionCurrency = out.commissionCurrency ?? "TZS";
   out.driverCommissionCurrency = out.driverCommissionCurrency ?? "TZS";
   out.agentCommissionCurrency = out.agentCommissionCurrency ?? "USD";
+  // Driver level + referral business config defaults (match lib/business-config.ts).
+  out.driverLevelGoldThreshold = out.driverLevelGoldThreshold ?? 500000;
+  out.driverLevelDiamondThreshold = out.driverLevelDiamondThreshold ?? 2000000;
+  out.referralCreditPercent = out.referralCreditPercent != null ? Number(out.referralCreditPercent) : 0.0035;
+  // Operator tier ladder: return the effective (defaults merged with overrides)
+  // editable config plus the pristine defaults for a "reset" affordance.
+  out.agentTierLadder = tierLadderToConfig(tierCol ? (out as any).agentTierLadder : null);
+  out.agentTierLadderDefaults = defaultTierLadderConfig();
   res.json(mask(out));
 });
 
@@ -184,6 +235,7 @@ router.put("/", async (req, res) => {
   const roleCols = await hasRoleTtlColumns();
   const currencyCol = await hasCurrencyColumn();
   const supportCols = await hasSupportColumns();
+  const tierCol = await hasTierLadderColumn();
   // Fetch full record so the audit diff covers ALL changed fields, not just session ones.
   const before = await prisma.systemSetting.findUnique({ where: { id: 1 } });
 
@@ -227,6 +279,61 @@ router.put("/", async (req, res) => {
   const sanitizedUpdate: Record<string, unknown> = { ...body };
   const errors: Array<{ field: string; message: string }> = [];
 
+  // `agentTierLadderDefaults` is a read-only echo — never persist it.
+  delete (sanitizedUpdate as any).agentTierLadderDefaults;
+
+  // Operator tier ladder: validate (thresholds non-negative + monotonic across tiers).
+  if (body.agentTierLadder !== undefined) {
+    if (!tierCol) {
+      delete (sanitizedUpdate as any).agentTierLadder; // column not migrated yet — ignore
+    } else {
+      const result = validateTierLadder(body.agentTierLadder);
+      if (!result.ok) {
+        return res.status(400).json({
+          error: "INVALID_TIER_LADDER",
+          message: "One or more operator tier thresholds are invalid.",
+          details: result.errors,
+        });
+      }
+      sanitizedUpdate.agentTierLadder = result.ladder as any;
+    }
+  }
+
+  // Driver level thresholds + referral credit (business config). These are
+  // baseline columns, so no migration/feature-flag guard is needed — an admin can
+  // tune driver Gold/Diamond badges and referral payouts at runtime.
+  const driverGold = toIntOrNull(body.driverLevelGoldThreshold);
+  const driverDiamond = toIntOrNull(body.driverLevelDiamondThreshold);
+  if (driverGold !== undefined) {
+    if (driverGold !== null && (!Number.isFinite(driverGold) || driverGold < 0)) {
+      errors.push({ field: "driverLevelGoldThreshold", message: "Must be a non-negative amount (TZS)." });
+    } else {
+      sanitizedUpdate.driverLevelGoldThreshold = driverGold;
+    }
+  }
+  if (driverDiamond !== undefined) {
+    if (driverDiamond !== null && (!Number.isFinite(driverDiamond) || driverDiamond < 0)) {
+      errors.push({ field: "driverLevelDiamondThreshold", message: "Must be a non-negative amount (TZS)." });
+    } else {
+      sanitizedUpdate.driverLevelDiamondThreshold = driverDiamond;
+    }
+  }
+  // Diamond must sit above Gold (use effective values: incoming or existing).
+  const effGold = (driverGold ?? before?.driverLevelGoldThreshold ?? 0) as number;
+  const effDiamond = (driverDiamond ?? before?.driverLevelDiamondThreshold ?? 0) as number;
+  if (Number.isFinite(effGold) && Number.isFinite(effDiamond) && effDiamond < effGold) {
+    errors.push({ field: "driverLevelDiamondThreshold", message: "Diamond threshold must be ≥ Gold threshold." });
+  }
+  // referralCreditPercent is stored as a decimal fraction (0.0035 = 0.35%).
+  if (body.referralCreditPercent !== undefined && body.referralCreditPercent !== null && body.referralCreditPercent !== "") {
+    const rc = Number(body.referralCreditPercent);
+    if (!Number.isFinite(rc) || rc < 0 || rc > 1) {
+      errors.push({ field: "referralCreditPercent", message: "Must be a decimal fraction between 0 and 1 (e.g. 0.0035 for 0.35%)." });
+    } else {
+      sanitizedUpdate.referralCreditPercent = rc;
+    }
+  }
+
   for (const k of sessionKeys) {
     const raw = body[k];
     const parsed = toIntOrNull(raw);
@@ -267,8 +374,8 @@ router.put("/", async (req, res) => {
 
   if (errors.length) {
     return res.status(400).json({
-      error: 'INVALID_SESSION_TTL',
-      message: 'One or more session TTL values are invalid.',
+      error: 'INVALID_SETTINGS',
+      message: 'One or more settings values are invalid.',
       details: errors,
     });
   }

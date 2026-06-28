@@ -47,6 +47,15 @@ export type PublicPropertyDetail = {
   services: any; // Can be array of strings OR object with commissionPercent and discountRules
   roomsSpec: any[];
   ownerId?: number; // Include ownerId to check ownership on frontend
+  physicalVerification?: {
+    status: "VERIFIED" | "PENDING";
+    verifiedAt: string | null;
+    verifiedBy: string | null;
+    verifiedByRole: string | null;
+    method: string;
+    note: string | null;
+    checklist: string[];
+  };
 };
 
 export function slugify(input: string) {

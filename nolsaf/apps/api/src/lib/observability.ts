@@ -1,4 +1,5 @@
 import { prisma } from "@nolsaf/prisma";
+import { buildErrorDiagnostic, type ErrorDiagnostic } from "./errorDiagnostics.js";
 
 export type ObservedRequest = {
   requestId: string;
@@ -11,6 +12,7 @@ export type ObservedRequest = {
   userAgent: string | null;
   actorId?: number | null;
   actorRole?: string | null;
+  exceptionCaptured?: boolean;
   timestamp: string;
 };
 
@@ -67,6 +69,11 @@ export type ImpactedUserSummary = {
     durationMs: number | null;
     message: string | null;
     requestId: string | null;
+    source: string | null;
+    stack: string | null;
+    componentStack: string | null;
+    release: string | null;
+    diagnostic: ErrorDiagnostic | null;
   } | null;
   resolution: {
     status: "open" | "restored";
@@ -79,6 +86,10 @@ export type ImpactedUserSummary = {
       role: string | null;
     } | null;
   };
+  // Triage signal for open incidents: "active" = still erroring within the
+  // attention window (fix now), "unconfirmed" = aged out with no recovery proof
+  // (review), "none" = restored/healed.
+  attention: "active" | "unconfirmed" | "none";
 };
 
 const maxRequests = 1000;
@@ -96,6 +107,15 @@ const repeatedErrorAlertCooldownMs = 15 * 60 * 1000;
 const maxPendingImportantRequests = 500;
 const importantRequestFlushDelayMs = 2000;
 const importantRequestFlushBatchSize = 100;
+const apiRouteHealthThrottleMs = 5 * 60 * 1000;
+// An open incident whose most recent error is within this window is treated as
+// actively firing ("needs attention now"); older ones age into "unconfirmed".
+const activeAttentionWindowMs = 15 * 60 * 1000;
+// Routes that recently returned a 5xx or slow response. We only persist a
+// durable health signal when one of these recovers, which keeps the audit
+// volume to roughly one row per recovery episode.
+const degradedRoutes = new Map<string, number>();
+const lastApiRouteHealthAt = new Map<string, number>();
 
 export function normalizeRoute(path: string): string {
   return path
@@ -108,11 +128,61 @@ export function recordObservedRequest(entry: ObservedRequest) {
   totalRequestsObserved += 1;
   recentRequests.push(entry);
   if (recentRequests.length > maxRequests) recentRequests.shift();
-  if (entry.statusCode >= 500 || entry.durationMs >= slowRequestThresholdMs) {
+  const isServerError = entry.statusCode >= 500;
+  const isSlow = entry.durationMs >= slowRequestThresholdMs;
+  if ((!entry.exceptionCaptured && isServerError) || isSlow) {
     queueImportantRequest(entry);
   }
-  if (entry.statusCode >= 500) {
+  if (isServerError || isSlow) {
+    if (entry.route) degradedRoutes.set(entry.route, Date.now());
+  } else {
+    maybeRecordRouteHealth(entry);
+  }
+  if (isServerError) {
     void maybeAlertRepeatedServerErrors(entry);
+  }
+}
+
+// Persists a durable "this API route is healthy again" signal the moment a
+// previously-degraded route returns a fast, non-5xx response. Unlike the
+// in-memory recentRequests window, this survives restarts and is shared across
+// instances via the database, so the Impact Center can auto-close server/slow
+// incidents instead of leaving them stuck red.
+function maybeRecordRouteHealth(entry: ObservedRequest) {
+  const route = entry.route;
+  if (!route || !route.startsWith("/api/")) return;
+  if (!degradedRoutes.has(route)) return;
+  const now = Date.now();
+  const last = lastApiRouteHealthAt.get(route) ?? 0;
+  if (now - last < apiRouteHealthThrottleMs) return;
+  lastApiRouteHealthAt.set(route, now);
+  degradedRoutes.delete(route);
+  void persistRouteHealth(entry);
+}
+
+async function persistRouteHealth(entry: ObservedRequest) {
+  try {
+    await prisma.auditLog.create({
+      data: {
+        actorId: entry.actorId ?? null,
+        actorRole: entry.actorRole ?? null,
+        action: "API_ROUTE_HEALTH",
+        entity: "OBSERVABILITY",
+        entityId: null,
+        ip: entry.ip,
+        ua: entry.userAgent,
+        beforeJson: null,
+        afterJson: {
+          route: entry.route,
+          path: entry.path,
+          statusCode: entry.statusCode,
+          durationMs: Math.round(entry.durationMs * 100) / 100,
+          timestamp: entry.timestamp,
+        },
+      },
+    });
+  } catch (err: any) {
+    console.warn("[observability] failed to persist route health", err?.message || err);
   }
 }
 
@@ -311,7 +381,7 @@ async function flushImportantRequests() {
 }
 
 export async function getImpactedUsers(limit = 20): Promise<ImpactedUserSummary[]> {
-  const actions = ["OBSERVABILITY_5XX_REQUEST", "OBSERVABILITY_SLOW_REQUEST", "CLIENT_ERROR"];
+  const actions = ["OBSERVABILITY_5XX_REQUEST", "OBSERVABILITY_SLOW_REQUEST", "CLIENT_ERROR", "SERVER_EXCEPTION"];
   const rows = await prisma.auditLog.findMany({
     where: { action: { in: actions } },
     orderBy: { createdAt: "desc" },
@@ -334,6 +404,12 @@ export async function getImpactedUsers(limit = 20): Promise<ImpactedUserSummary[
     include: {
       actor: { select: { id: true, name: true, email: true, role: true } },
     },
+  });
+
+  const apiHealthRows = await prisma.auditLog.findMany({
+    where: { action: "API_ROUTE_HEALTH", entity: "OBSERVABILITY" },
+    orderBy: { createdAt: "desc" },
+    take: 300,
   });
 
   const resolutions = new Map<string, ImpactedUserSummary["resolution"]>();
@@ -383,15 +459,29 @@ export async function getImpactedUsers(limit = 20): Promise<ImpactedUserSummary[
         lastSeenAt: createdAt,
         lastEvent: null,
         resolution: resolutions.get(key) ?? openImpactResolution(),
+        attention: "none",
       } satisfies ImpactedUserSummary);
 
     existing.eventCount += 1;
     if (row.action === "OBSERVABILITY_SLOW_REQUEST") existing.slowCount += 1;
-    if (row.action === "OBSERVABILITY_5XX_REQUEST") existing.serverErrorCount += 1;
+    if (row.action === "OBSERVABILITY_5XX_REQUEST" || row.action === "SERVER_EXCEPTION") existing.serverErrorCount += 1;
     if (row.action === "CLIENT_ERROR") existing.clientErrorCount += 1;
     if (route && !existing.routes.includes(route)) existing.routes.push(route);
     if (!existing.lastSeenAt && createdAt) existing.lastSeenAt = createdAt;
     if (!existing.lastEvent) {
+      const storedDiagnostic = diagnosticOrNull(after.diagnostic);
+      const hasDiagnosticInput = Boolean(textOrNull(after.stack) || textOrNull(after.source));
+      const diagnostic = storedDiagnostic ?? (hasDiagnosticInput
+        ? await buildErrorDiagnostic({
+            service: row.action === "CLIENT_ERROR" ? "web" : "api",
+            message: after.message,
+            stack: after.stack,
+            source: after.source,
+            line: after.line,
+            column: after.column,
+            release: after.release,
+          })
+        : null);
       existing.lastEvent = {
         action: row.action,
         route: textOrNull(after.route),
@@ -400,25 +490,52 @@ export async function getImpactedUsers(limit = 20): Promise<ImpactedUserSummary[
         durationMs: numberOrNull(after.durationMs),
         message: textOrNull(after.message),
         requestId: textOrNull(after.requestId),
+        source: textOrNull(after.source),
+        stack: textOrNull(after.stack),
+        componentStack: textOrNull(after.componentStack),
+        release: textOrNull(after.release),
+        diagnostic,
       };
     }
 
     groups.set(key, existing);
   }
 
-  applyAutomaticImpactRecovery(groups, resolutions, healthRows);
+  applyAutomaticImpactRecovery(groups, resolutions, healthRows, apiHealthRows);
 
   return Array.from(groups.values())
     .sort((a, b) => b.eventCount - a.eventCount || Date.parse(b.lastSeenAt ?? "0") - Date.parse(a.lastSeenAt ?? "0"))
     .slice(0, clampLimit(limit))
-    .map((item) => ({ ...item, routes: item.routes.slice(0, 8) }));
+    .map((item) => ({ ...item, routes: item.routes.slice(0, 8), attention: computeAttention(item) }));
+}
+
+function computeAttention(item: ImpactedUserSummary): ImpactedUserSummary["attention"] {
+  if (item.resolution.status === "restored") return "none";
+  const lastImpactAt = Date.parse(item.lastSeenAt ?? "");
+  if (Number.isFinite(lastImpactAt) && Date.now() - lastImpactAt <= activeAttentionWindowMs) return "active";
+  return "unconfirmed";
 }
 
 function applyAutomaticImpactRecovery(
   groups: Map<string, ImpactedUserSummary>,
   manualResolutions: Map<string, ImpactedUserSummary["resolution"]>,
-  healthRows: Array<{ actorId: number | null; ip: string | null; ua: string | null; afterJson: unknown; createdAt: Date | null }>
+  healthRows: Array<{ actorId: number | null; ip: string | null; ua: string | null; afterJson: unknown; createdAt: Date | null }>,
+  apiHealthRows: Array<{ afterJson: unknown; createdAt: Date | null }>
 ) {
+  // Latest "route healthy again" timestamp per API route, indexed by both the
+  // raw and normalized route so either form recorded on an incident matches.
+  const apiHealthByRoute = new Map<string, number>();
+  for (const row of apiHealthRows) {
+    const after = normalizeJsonObject(row.afterJson);
+    const route = textOrNull(after.route);
+    const at = row.createdAt ? row.createdAt.getTime() : NaN;
+    if (!route || !Number.isFinite(at)) continue;
+    for (const key of new Set([route, normalizeRoute(route)])) {
+      const existing = apiHealthByRoute.get(key);
+      if (existing === undefined || at > existing) apiHealthByRoute.set(key, at);
+    }
+  }
+
   const healthByKey = new Map<string, Array<{ route: string | null; path: string | null; createdAt: string }>>();
 
   for (const row of healthRows) {
@@ -446,6 +563,26 @@ function applyAutomaticImpactRecovery(
     }
 
     if (item.resolution.status === "restored") continue;
+
+    // Server/slow incidents auto-close once every affected API route has
+    // reported a healthy response newer than the last impact ("all healthy =
+    // recovered"). Mixed incidents that also carry a frontend crash fall
+    // through to the client-side recovery checks below instead.
+    if (hasServerOrSlowImpact && !hasClientImpact) {
+      const apiRoutes = item.routes.filter((route) => route && route.startsWith("/api/"));
+      const healthyAtFor = (route: string) =>
+        apiHealthByRoute.get(route) ?? apiHealthByRoute.get(normalizeRoute(route));
+      if (apiRoutes.length > 0 && apiRoutes.every((route) => (healthyAtFor(route) ?? 0) > lastImpactAt)) {
+        const restoredAtMs = Math.max(...apiRoutes.map((route) => healthyAtFor(route) ?? 0));
+        item.resolution = {
+          status: "restored",
+          note: "Auto-restored after every affected API route returned a healthy response.",
+          restoredAt: new Date(restoredAtMs).toISOString(),
+          restoredBy: null,
+        };
+        continue;
+      }
+    }
 
     const routeSet = new Set(item.routes.filter(Boolean));
     const healthyEvents = healthByKey.get(item.key) ?? [];
@@ -501,6 +638,13 @@ function openImpactResolution(): ImpactedUserSummary["resolution"] {
     restoredAt: null,
     restoredBy: null,
   };
+}
+
+function diagnosticOrNull(value: unknown): ErrorDiagnostic | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const diagnostic = value as Partial<ErrorDiagnostic>;
+  if (typeof diagnostic.fingerprint !== "string" || !Array.isArray(diagnostic.frames)) return null;
+  return diagnostic as ErrorDiagnostic;
 }
 
 function impactKeyFor(actorId: number | null, ip: string | null | undefined, ua: string | null | undefined) {

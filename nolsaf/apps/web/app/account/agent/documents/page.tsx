@@ -52,6 +52,7 @@ const REQUIRED_DOCUMENTS = [
   { id: "tin", label: "TIN Number", description: "Tax Identification Number Certificate" },
   { id: "license", label: "Tourism License", description: "Valid Tourism Operating License" },
   { id: "business", label: "Business Licence", description: "Business Licence Certificate" },
+  { id: "nationalId", label: "National ID / Passport", description: "Representative's National ID or Travel Passport" },
 ];
 
 const DOCUMENT_TYPE_BY_ID: Record<string, string> = {
@@ -59,6 +60,7 @@ const DOCUMENT_TYPE_BY_ID: Record<string, string> = {
   tin: "TIN_NUMBER",
   license: "TOURISM_LICENSE",
   business: "BUSINESS_LICENCE",
+  nationalId: "NATIONAL_ID_OR_PASSPORT",
 };
 
 export default function AgentDocumentsPage() {

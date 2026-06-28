@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import apiClient from "@/lib/apiClient";
 import { fetchAccountSession } from "@/lib/accountSession";
-import { ArrowRight, BadgeCheck, CheckCircle, ClipboardList, Clock, Eye, Star, ToggleRight, ShieldAlert } from "lucide-react";
+import { ArrowRight, BadgeCheck, CheckCircle, ClipboardList, Clock, Eye, Minus, Star, ToggleRight, ShieldAlert, TrendingDown, TrendingUp } from "lucide-react";
 
 const api = apiClient;
 
@@ -70,153 +70,35 @@ function classNames(...values: Array<string | false | null | undefined>) {
   return values.filter(Boolean).join(" ");
 }
 
+// Micro bar sparkline. Daily counts are sparse and zero-heavy, so a line/area
+// reads as stray spikes — discrete bars sit on a shared baseline, handle zeros
+// gracefully, and fade older days so the most recent activity reads first.
 function Sparkline({ values, variant }: { values: number[]; variant: TrendVariant }) {
-  const geom = useMemo(() => {
-    const n = values.length;
-    if (!n) {
-      return {
-        points: [] as Array<{ x: number; y: number }>,
-        polyPoints: "",
-        lineD: "",
-        stepD: "",
-        areaD: "",
-      };
-    }
-
-    const w = 120;
-    const h = 44;
-    const paddingX = 3;
-    const paddingY = 6;
-    const baselineY = h - paddingY;
-
-    const max = Math.max(...values);
-    const min = Math.min(...values);
-    const range = Math.max(1, max - min);
-    const step = n === 1 ? 0 : (w - paddingX * 2) / (n - 1);
-
-    const pts = values.map((v, i) => {
-      const x = paddingX + step * i;
-      const t = (v - min) / range;
-      const y = paddingY + (1 - t) * (h - paddingY * 2);
-      return { x, y };
-    });
-
-    const polyPoints = pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
-    const lineD = `M ${pts.map((p) => `${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" L ")}`;
-
-    const stepParts: string[] = [];
-    for (let i = 0; i < pts.length; i++) {
-      const p = pts[i];
-      if (i === 0) {
-        stepParts.push(`M ${p.x.toFixed(1)} ${p.y.toFixed(1)}`);
-        continue;
-      }
-      const prev = pts[i - 1];
-      stepParts.push(`L ${p.x.toFixed(1)} ${prev.y.toFixed(1)}`);
-      stepParts.push(`L ${p.x.toFixed(1)} ${p.y.toFixed(1)}`);
-    }
-    const stepD = stepParts.join(" ");
-
-    const first = pts[0];
-    const last = pts[pts.length - 1];
-    const areaD = `${lineD} L ${last.x.toFixed(1)} ${baselineY.toFixed(1)} L ${first.x.toFixed(
-      1
-    )} ${baselineY.toFixed(1)} Z`;
-
-    return { points: pts, polyPoints, lineD, stepD, areaD };
-  }, [values]);
-
+  const max = useMemo(
+    () => Math.max(1, ...values.map((v) => (Number.isFinite(Number(v)) ? Number(v) : 0))),
+    [values]
+  );
   if (!values.length) return null;
 
+  const n = values.length;
   return (
-    <svg
-      viewBox="0 0 120 44"
-      className="absolute inset-x-3 bottom-3 h-11 w-[calc(100%-1.5rem)] pointer-events-none"
-      aria-hidden
-    >
-      {variant === "area" ? (
-        <>
-          <path d={geom.areaD} fill="currentColor" opacity="0.10" />
-          <path
-            d={geom.lineD}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.25"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            opacity="0.95"
+    <div className="flex h-full w-full items-end gap-[3px]" data-variant={variant} aria-hidden>
+      {values.map((raw, i) => {
+        const v = Number(raw) || 0;
+        const pct = (v / max) * 100;
+        const height = v > 0 ? Math.max(10, pct) : 0;
+        const isLast = i === n - 1;
+        // Older days fade toward the left; today is fully saturated.
+        const opacity = isLast ? 1 : 0.2 + (i / Math.max(1, n - 1)) * 0.45;
+        return (
+          <div
+            key={i}
+            className="flex-1 rounded-t-[2.5px] bg-current"
+            style={{ height: `${height}%`, minHeight: v > 0 ? 3 : 0, opacity }}
           />
-        </>
-      ) : variant === "line" ? (
-        <>
-          <path
-            d={geom.lineD}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="6"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            opacity="0.10"
-          />
-          <path
-            d={geom.lineD}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.25"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            opacity="0.95"
-          />
-        </>
-      ) : variant === "dots" ? (
-        <>
-          <path
-            d={geom.lineD}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeDasharray="3 4"
-            opacity="0.8"
-          />
-          {geom.points.map((p, idx) => {
-            const isLast = idx === geom.points.length - 1;
-            return (
-              <circle
-                key={idx}
-                cx={p.x}
-                cy={p.y}
-                r={isLast ? 3.2 : 2.1}
-                fill="currentColor"
-                opacity={isLast ? 0.95 : 0.35}
-              />
-            );
-          })}
-        </>
-      ) : (
-        <>
-          <path
-            d={geom.stepD}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.25"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            opacity="0.95"
-          />
-          <path
-            d={geom.stepD}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="6"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            opacity="0.08"
-          />
-        </>
-      )}
-    </svg>
+        );
+      })}
+    </div>
   );
 }
 
@@ -440,41 +322,63 @@ function StatCard({
       ? "bg-info/10 border-info/15"
       : "bg-brand/10 border-brand/15";
 
+  // Direction over the window: recent half vs. prior half.
+  const half = Math.max(1, Math.floor(trend.length / 2));
+  const sum = (arr: number[]) => arr.reduce((a, b) => a + (Number(b) || 0), 0);
+  const delta = sum(trend.slice(-half)) - sum(trend.slice(0, Math.max(0, trend.length - half)));
+  const deltaDir = delta > 0 ? "up" : delta < 0 ? "down" : "flat";
+  const deltaClass =
+    deltaDir === "up"
+      ? "text-emerald-700 bg-emerald-50 border-emerald-100"
+      : deltaDir === "down"
+      ? "text-rose-700 bg-rose-50 border-rose-100"
+      : "text-slate-500 bg-slate-50 border-slate-200";
+  const DeltaIcon = deltaDir === "up" ? TrendingUp : deltaDir === "down" ? TrendingDown : Minus;
+
   return (
     <div
       className={classNames(
-        "relative rounded-2xl border border-slate-200 bg-white/70 backdrop-blur shadow-card p-5 overflow-hidden",
+        "group relative flex flex-col rounded-2xl border border-slate-200 bg-white shadow-card overflow-hidden transition-shadow hover:shadow-lg",
         className
       )}
     >
-      <div
-        className={classNames(
-          "absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t to-transparent",
-          tone === "success" ? "from-success/8" : tone === "info" ? "from-info/8" : "from-brand/8"
-        )}
-        aria-hidden
-      />
-
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-start gap-3">
+      <div className="flex items-start justify-between gap-3 p-5 pb-3">
+        <div className="flex items-start gap-3 min-w-0">
           <div
             className={classNames(
-              "h-12 w-12 rounded-2xl border flex items-center justify-center",
+              "h-11 w-11 shrink-0 rounded-xl border flex items-center justify-center",
               iconBgClass,
               toneTextClass
             )}
           >
             {icon}
           </div>
-          <div>
-            <div className="text-sm font-semibold text-slate-700">{label}</div>
-            <div className="text-2xl font-bold text-slate-900 tracking-tight mt-1">{value}</div>
+          <div className="min-w-0">
+            <div className="text-[13px] font-semibold text-slate-500 truncate">{label}</div>
+            <div className="text-[28px] leading-none font-bold text-slate-900 tracking-tight mt-1.5 tabular-nums">
+              {value}
+            </div>
           </div>
+        </div>
+        <div
+          className={classNames(
+            "inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-bold tabular-nums",
+            deltaClass
+          )}
+        >
+          <DeltaIcon className="h-3.5 w-3.5" aria-hidden />
+          {deltaDir === "flat" ? "Steady" : Math.abs(delta)}
         </div>
       </div>
 
-      <div className={classNames("relative mt-2 h-12", toneTextClass)} aria-hidden>
-        <Sparkline values={trend} variant={variant} />
+      <div className="mt-auto px-5 pb-4 pt-2">
+        <div className={classNames("relative h-10 border-b border-slate-100", toneTextClass)}>
+          <Sparkline values={trend} variant={variant} />
+        </div>
+        <div className="mt-1.5 flex items-center justify-between text-[10px] font-medium text-slate-400">
+          <span>14d ago</span>
+          <span>Today</span>
+        </div>
       </div>
     </div>
   );
@@ -753,6 +657,24 @@ export default function AgentPortalHomePage() {
   const agentLevel = useMemo(() => {
     const raw = (agentMe as any)?.agent?.level;
     return typeof raw === "string" && raw.trim() ? raw.trim() : "—";
+  }, [agentMe]);
+
+  const levelProgress = useMemo(() => {
+    const next = (agentMe as any)?.agent?.levelProgress;
+    if (!next || typeof next !== "object") return null;
+    const nextLevel = typeof next.level === "string" ? next.level : null;
+    if (!nextLevel) return null;
+    const met = next.met || {};
+    const remaining = next.remaining || {};
+    // Surface the single most actionable gap toward the next tier.
+    if (!met.reviews) return `Collect reviews to reach ${nextLevel}`;
+    const toursLeft = Number(remaining.tours);
+    if (!met.tours && Number.isFinite(toursLeft) && toursLeft > 0) {
+      return `${toursLeft} more tour${toursLeft === 1 ? "" : "s"} to ${nextLevel}`;
+    }
+    if (!met.revenue) return `More revenue to reach ${nextLevel}`;
+    if (!met.rating) return `Raise rating to reach ${nextLevel}`;
+    return `On track for ${nextLevel}`;
   }, [agentMe]);
 
   const agentRating = useMemo(() => {
@@ -1184,7 +1106,7 @@ export default function AgentPortalHomePage() {
                     <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
                       <div className="text-xs font-semibold text-white/70">Level</div>
                       <div className="mt-1 text-lg font-extrabold text-white tabular-nums">{agentLevel}</div>
-                      <div className="mt-1 text-xs font-semibold text-white/55">Promotion-based</div>
+                      <div className="mt-1 text-xs font-semibold text-white/55">{levelProgress || "Highest tier reached"}</div>
                     </div>
 
                     <div className="rounded-2xl border border-white/10 bg-white/5 p-3">

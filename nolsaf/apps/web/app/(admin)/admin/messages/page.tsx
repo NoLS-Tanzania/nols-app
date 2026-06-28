@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { Bell, Check, ChevronDown, ChevronUp, ExternalLink, User, Calendar, Building2, AlertTriangle, RefreshCw } from "lucide-react";
+import { Bell, Check, ChevronDown, ChevronUp, ExternalLink, User, Calendar, Building2, AlertTriangle, RefreshCw, Trash2, Loader2 } from "lucide-react";
 import Link from "next/link";
 
 type Message = {
@@ -21,6 +21,7 @@ export default function Page() {
   const [viewed, setViewed] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(() => new Set());
 
   const formatTime = useCallback((dateString?: string) => {
     if (!dateString) return "";
@@ -91,6 +92,54 @@ export default function Page() {
 
   const [openId, setOpenId] = useState<string | null>(null);
 
+  const deleteViewed = useCallback(async (message: Message) => {
+    if (message.unread || deletingIds.has(message.id)) return;
+
+    const originalIndex = viewed.findIndex((item) => item.id === message.id);
+    setDeletingIds((current) => new Set(current).add(message.id));
+    setViewed((current) => current.filter((item) => item.id !== message.id));
+    setOpenId((current) => current === message.id ? null : current);
+
+    try {
+      const response = await fetch(`/api/admin/notifications/${message.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error(`Delete failed ${response.status}`);
+
+      window.dispatchEvent(new CustomEvent("nols:toast", {
+        detail: {
+          type: "success",
+          title: "Notification deleted",
+          message: "The viewed notification was removed.",
+          duration: 3_000,
+        },
+      }));
+    } catch (error) {
+      console.error("delete notification failed", error);
+      setViewed((current) => {
+        if (current.some((item) => item.id === message.id)) return current;
+        const restored = [...current];
+        restored.splice(Math.max(0, originalIndex), 0, message);
+        return restored;
+      });
+      window.dispatchEvent(new CustomEvent("nols:toast", {
+        detail: {
+          type: "error",
+          title: "Could not delete notification",
+          message: "The notification was restored. Please try again.",
+          duration: 5_000,
+        },
+      }));
+    } finally {
+      setDeletingIds((current) => {
+        const next = new Set(current);
+        next.delete(message.id);
+        return next;
+      });
+    }
+  }, [deletingIds, viewed]);
+
   const renderList = (items: Message[]) => {
     if (items.length === 0) {
       return (
@@ -113,14 +162,14 @@ export default function Page() {
           return (
             <div
               key={m.id}
-              className={`rounded-2xl border bg-white shadow-sm overflow-hidden transition-colors ${
+              className={`relative rounded-2xl border bg-white shadow-sm overflow-hidden transition-all ${
                 m.unread ? "border-[#02665e]/25" : "border-slate-200"
               }`}
             >
               {/* Row header */}
               <button
                 type="button"
-                className="w-full px-4 py-3.5 flex items-start justify-between gap-4 text-left"
+                className={`w-full px-4 py-3.5 flex items-start justify-between gap-4 text-left ${m.unread ? "" : "pr-14"}`}
                 onClick={async () => {
                   const next = isOpen ? null : m.id;
                   setOpenId(next);
@@ -166,6 +215,21 @@ export default function Page() {
                     : <ChevronDown className="h-5 w-5 text-slate-400" aria-hidden />}
                 </div>
               </button>
+
+              {!m.unread && (
+                <button
+                  type="button"
+                  onClick={() => void deleteViewed(m)}
+                  disabled={deletingIds.has(m.id)}
+                  className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-xl border border-red-200 bg-white text-red-600 shadow-sm transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  aria-label={`Delete ${m.title}`}
+                  title="Delete viewed notification"
+                >
+                  {deletingIds.has(m.id)
+                    ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                    : <Trash2 className="h-4 w-4" aria-hidden />}
+                </button>
+              )}
 
               {/* Expanded body */}
               {isOpen && (
@@ -283,6 +347,7 @@ export default function Page() {
                       </div>
                     )}
                   </div>
+
                 </div>
               )}
             </div>

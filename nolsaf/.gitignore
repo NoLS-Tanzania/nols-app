@@ -97,3 +97,5 @@ backups/
 archives/
 .vercel
 .env*.local
+# Private production source maps are deployment diagnostics artifacts.
+artifacts/source-maps/

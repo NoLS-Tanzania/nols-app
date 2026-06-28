@@ -867,15 +867,18 @@ export default function OwnerClaimBookingPage() {
               const ownerClaim = gs.ownerClaims?.find(claim => claim.status === "PENDING" || claim.status === "REVIEWING" || claim.status === "ACCEPTED");
               
               return (
-              <div key={gs.id} className={`group relative bg-white rounded-3xl overflow-hidden transition-all duration-500 hover:shadow-2xl hover:-translate-y-2 border border-slate-100 ${isUrgent ? 'ring-4 ring-red-500/20 shadow-red-500/10' : 'shadow-lg shadow-slate-200/50'}`}>
-                {/* Left accent bar - color based on urgency */}
-                <div className={`absolute left-0 top-0 bottom-0 w-2 bg-gradient-to-b ${
-                  isUrgent ? 'from-red-500 via-red-600 to-red-700' : 
-                  isHot ? 'from-orange-500 via-orange-600 to-orange-700' : 
-                  'from-brand via-brand-500 to-brand-600'
-                } shadow-lg`}></div>
+              <div key={gs.id} className={`group relative overflow-hidden rounded-3xl border shadow-lg transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${
+                isUrgent
+                  ? 'border-rose-200 bg-gradient-to-br from-white via-white to-rose-50/70 shadow-rose-100/70 ring-4 ring-rose-100/70'
+                  : isHot
+                    ? 'border-orange-200 bg-gradient-to-br from-white via-white to-orange-50/70 shadow-orange-100/70'
+                    : 'border-emerald-200 bg-gradient-to-br from-white via-white to-emerald-50/50 shadow-emerald-100/60'
+              }`}>
+                <div className={`pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full ${
+                  isUrgent ? 'bg-rose-200/30' : isHot ? 'bg-orange-200/30' : 'bg-emerald-200/30'
+                }`} />
                 
-                <div className="pl-6 pr-6 py-6">
+                <div className="relative p-6">
                   {/* Digital Clock Icon with Countdown Timer - Featured at Top */}
                   {gs.submissionDeadline && (
                     <div className="mb-8">
@@ -1429,7 +1432,6 @@ export default function OwnerClaimBookingPage() {
                             className="w-full px-3 py-2 sm:py-2.5 border border-slate-300 rounded-lg text-sm text-slate-900 bg-white focus:ring-2 focus:ring-brand focus:border-brand outline-none transition-all duration-200 box-border"
                           >
                             <option value="percentage">Percentage (%)</option>
-                            <option value="fixed">Fixed Amount</option>
                           </select>
                         </div>
 
@@ -1535,7 +1537,7 @@ export default function OwnerClaimBookingPage() {
                               <span className="text-xs sm:text-sm font-bold text-purple-700">
                                 {discountType === "percentage" 
                                   ? `${discountPercent}%`
-                                  : formatCurrency(Number(discountPercent), selectedGroupStay?.currency || "TZS")}
+                                  : `${discountPercent}%`}
                               </span>
                             </div>
 
@@ -1545,7 +1547,7 @@ export default function OwnerClaimBookingPage() {
                               <span className="text-xs sm:text-sm font-bold text-red-600">
                                 -{discountType === "percentage"
                                   ? formatCurrency((Number(offeredPrice) * Number(discountPercent)) / 100, selectedGroupStay?.currency || "TZS")
-                                  : formatCurrency(Number(discountPercent), selectedGroupStay?.currency || "TZS")}
+                                  : formatCurrency((Number(offeredPrice) * Number(discountPercent)) / 100, selectedGroupStay?.currency || "TZS")}
                               </span>
                             </div>
 
@@ -1607,69 +1609,38 @@ export default function OwnerClaimBookingPage() {
                   </label>
                   
                   {/* Service Checkboxes */}
-                  <div className="p-4 sm:p-5 bg-gradient-to-br from-slate-50 via-white to-slate-50/50 rounded-xl border border-slate-200/60 shadow-sm">
-                    <div className="flex items-center gap-2 mb-4 sm:mb-5">
-                      <div className="h-6 w-6 sm:h-7 sm:w-7 rounded-lg bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center shadow-md">
-                        <Gift className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-white" />
+                  <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50/70 via-white to-white p-4 shadow-sm sm:p-5">
+                    <div className="mb-4 flex items-center justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#02665e] shadow-sm">
+                          <Gift className="h-4 w-4 text-white" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-slate-900">Quick select services</p>
+                          <p className="mt-0.5 text-[11px] text-slate-500">Choose everything included in your offer.</p>
+                        </div>
                       </div>
-                      <p className="text-xs sm:text-sm font-bold text-slate-900">Quick Select Services</p>
+                      <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${selectedServices.length > 0 ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-500"}`}>
+                        {selectedServices.length} selected
+                      </span>
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3">
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
                       {exceptionalServices.map((service) => {
                         const isSelected = selectedServices.includes(service);
                         return (
                           <label
                             key={service}
-                            className={`relative flex items-center gap-2.5 p-2.5 sm:p-3 rounded-xl border-2 cursor-pointer transition-all duration-300 group ${
+                            className={`group flex min-h-10 w-full cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-left transition-all duration-200 ${
                               isSelected
-                                ? "bg-gradient-to-br from-brand-50 to-brand-100/50 border-brand-400 shadow-md shadow-brand-200/50"
-                                : "bg-white border-slate-200 hover:border-brand-300 hover:bg-slate-50 hover:shadow-md"
+                                ? "border-[#02665e] bg-[#02665e] text-white shadow-md shadow-emerald-900/10"
+                                : "border-slate-200 bg-white text-slate-700 hover:border-emerald-300 hover:bg-emerald-50/60"
                             }`}
                           >
-                            <div className="relative flex-shrink-0">
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={() => handleServiceToggle(service)}
-                                className="sr-only"
-                                aria-label={`Select ${service}`}
-                              />
-                              <div
-                                className={`h-4 w-4 sm:h-5 sm:w-5 rounded-md border-2 flex items-center justify-center transition-all duration-300 ${
-                                  isSelected
-                                    ? "bg-gradient-to-br from-brand-500 to-brand-600 border-brand-600 shadow-sm"
-                                    : "border-slate-300 bg-white group-hover:border-brand-400"
-                                }`}
-                              >
-                                {isSelected && (
-                                  <svg
-                                    className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-white"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                    strokeWidth={3}
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      d="M5 13l4 4L19 7"
-                                    />
-                                  </svg>
-                                )}
-                              </div>
-                            </div>
-                            <span
-                              className={`text-[10px] sm:text-xs font-semibold leading-tight transition-colors duration-300 ${
-                                isSelected
-                                  ? "text-brand-900"
-                                  : "text-slate-700 group-hover:text-brand-700"
-                              }`}
-                            >
-                              {service}
+                            <input type="checkbox" checked={isSelected} onChange={() => handleServiceToggle(service)} className="sr-only" aria-label={`Select ${service}`} />
+                            <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${isSelected ? "bg-white/15" : "bg-slate-100 text-slate-400 group-hover:bg-white group-hover:text-emerald-600"}`}>
+                              {isSelected ? <CheckCircle2 className="h-3.5 w-3.5 text-white" /> : <Plus className="h-3.5 w-3.5" />}
                             </span>
-                            {isSelected && (
-                              <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-brand-400/10 to-transparent pointer-events-none" />
-                            )}
+                            <span className="text-xs font-semibold leading-snug">{service}</span>
                           </label>
                         );
                       })}

@@ -6,6 +6,7 @@ import { prisma } from "@nolsaf/prisma";
 import { AuthedRequest, requireAuth, requireRole } from "../middleware/auth.js";
 import { invalidateOwnerReports } from "../lib/cache.js";
 import { getEffectiveCommissionPercent, resolveOwnerPayoutAmount, extractOwnerPayoutFromAccommodationGross } from "../lib/accommodationPayout.js";
+import { notifyAdmins } from "../lib/notifications.js";
 import { validateBookingCode, markBookingCodeAsUsed } from "../lib/bookingCodeService.js";
 import { getBookingValidationWindowStatus } from "../lib/bookingValidationWindow.js";
 import {
@@ -916,7 +917,26 @@ const sendInvoiceFromBooking: RequestHandler = async (req, res) => {
 
   await invalidateOwnerReports(r.user!.id);
   if (result.submitted) {
-    try { req.app.get('io')?.emit?.('admin:invoice:submitted', { invoiceId: result.invoiceId, bookingId: booking.id }); } catch {}
+    try {
+      await notifyAdmins("owner_payout_claim_submitted", {
+        ownerId: r.user!.id,
+        ownerName: owner?.name || (owner as any)?.fullName || owner?.email || null,
+        invoiceId: result.invoiceId,
+        invoiceNumber,
+        bookingId: booking.id,
+        propertyId: booking.property?.id ?? null,
+        propertyTitle: booking.property?.title ?? null,
+        amount: ownerPayout,
+      });
+    } catch {
+      // Notification delivery must not fail an otherwise successful payout claim.
+    }
+    try {
+      req.app.get('io')?.to?.('admin')?.emit?.('admin:invoice:submitted', {
+        invoiceId: result.invoiceId,
+        bookingId: booking.id,
+      });
+    } catch {}
   }
 
   return (res as Response).status(result.created ? 201 : 200).json({ ok: true, invoiceId: result.invoiceId, status: result.status, created: result.created, submitted: result.submitted });

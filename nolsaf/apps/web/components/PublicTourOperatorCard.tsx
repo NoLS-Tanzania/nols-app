@@ -191,20 +191,26 @@ export default function PublicTourOperatorCard({
           <div className="my-3 h-px bg-slate-100" />
 
           {hasConfidence ? (
-            <div className="mb-3 rounded-xl border border-[#02665e]/20 bg-[#02665e]/7 bg-[linear-gradient(135deg,rgba(2,102,94,0.10)_12.5%,transparent_12.5%,transparent_50%,rgba(2,102,94,0.10)_50%,rgba(2,102,94,0.10)_62.5%,transparent_62.5%,transparent_100%)] bg-[length:18px_18px] px-3 py-2">
-              <div className="flex items-center justify-between gap-2">
-                <div className="inline-flex min-w-0 items-center gap-1.5 text-xs font-bold text-[#02665e]">
-                  <TrendingUp className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                  <span className="truncate">Trip Confidence</span>
-                </div>
-                <span className="shrink-0 rounded-full bg-[#02665e] px-2 py-0.5 text-xs font-black text-white">
+            <div className="mb-3 rounded-2xl border border-emerald-100 bg-white p-3 shadow-sm ring-1 ring-emerald-50">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-[#02665e] text-sm font-black text-white shadow-sm">
                   {confidenceScore}%
-                </span>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 text-xs font-black text-slate-950">
+                    <TrendingUp className="h-3.5 w-3.5 shrink-0 text-[#02665e]" aria-hidden />
+                    <span className="truncate">Trip confidence</span>
+                  </div>
+                  <div className="mt-1 text-[11px] font-medium leading-5 text-slate-500">
+                    {Number(confidence?.averageRating || 0).toFixed(1)}/5 from {confidence?.totalRatings || 0} recent event ratings
+                  </div>
+                </div>
               </div>
-              <div className="mt-1 text-[11px] font-medium leading-5 text-slate-600">
-                Recent {Number(confidence?.averageRating || 0).toFixed(1)}/5 from {confidence?.totalRatings || 0} event ratings
-                {confidence?.topFeeling ? ` - ${confidence.topFeeling}` : ""}
-              </div>
+              {confidence?.topFeeling ? (
+                <div className="mt-2 rounded-xl bg-emerald-50 px-2.5 py-1.5 text-[11px] font-semibold text-[#02665e]">
+                  Guest signal: {confidence.topFeeling}
+                </div>
+              ) : null}
             </div>
           ) : null}
 

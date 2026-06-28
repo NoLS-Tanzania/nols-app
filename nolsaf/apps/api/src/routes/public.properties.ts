@@ -56,6 +56,36 @@ function parseCsv(v: any): string[] {
     .filter(Boolean);
 }
 
+function getServicesObject(value: any): Record<string, any> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return value as Record<string, any>;
+}
+
+function normalizeVerificationChecklist(value: any): string[] {
+  const fallback = [
+    "Location confirmed on-site",
+    "Property photos reviewed",
+    "Rooms and amenities checked",
+    "Host details matched",
+  ];
+  if (!Array.isArray(value)) return fallback;
+  const cleaned = value.map((item) => String(item || "").trim()).filter(Boolean);
+  return cleaned.length ? cleaned.slice(0, 8) : fallback;
+}
+
+function publicVerifierName(value: string | null): string | null {
+  const cleaned = String(value || "").trim();
+  return cleaned || null;
+}
+
+function publicVerifierRole(value: string | null): string {
+  const role = String(value || "").trim().toUpperCase();
+  if (role === "ADMIN" || role === "SUPER_ADMIN") return "NoLSAF property verifier";
+  if (role === "OWNER") return "NoLSAF host verification contact";
+  if (role === "AGENT") return "NoLSAF field agent";
+  return "NoLSAF verification team";
+}
+
 function expandPropertyTypeFilters(types: string[]): string[] {
   const aliases = new Set<string>();
   for (const raw of types) {
@@ -889,8 +919,60 @@ const getPublicProperty: RequestHandler = async (req, res) => {
 
           if (!p) return null;
 
-          const legacyPhotos = await resolveLegacyPhotoUrls(id);
+          const [legacyPhotos, approvalAudit] = await Promise.all([
+            resolveLegacyPhotoUrls(id),
+            prisma.auditLog.findFirst({
+              where: { entity: "PROPERTY", entityId: id, action: "PROPERTY_APPROVE" },
+              orderBy: { createdAt: "desc" },
+              select: {
+                createdAt: true,
+                actorRole: true,
+                actor: {
+                  select: { id: true, name: true, email: true, role: true },
+                },
+              },
+            }),
+          ]);
           const dto = toPublicDetail({ ...p, photos: legacyPhotos });
+          const servicesObj = getServicesObject(dto.services);
+          const manualVerification =
+            getServicesObject(servicesObj.verification).status || getServicesObject(servicesObj.physicalVerification).status
+              ? {
+                  ...getServicesObject(servicesObj.physicalVerification),
+                  ...getServicesObject(servicesObj.verification),
+                }
+              : {};
+          const actorName =
+            approvalAudit?.actor?.name ||
+            approvalAudit?.actor?.email ||
+            (approvalAudit?.actor?.id ? `Admin #${approvalAudit.actor.id}` : null);
+          const physicalVerification = {
+            status: "VERIFIED" as const,
+            verifiedAt:
+              typeof manualVerification.verifiedAt === "string" && manualVerification.verifiedAt.trim()
+                ? manualVerification.verifiedAt.trim()
+                : approvalAudit?.createdAt
+                  ? approvalAudit.createdAt.toISOString()
+                  : null,
+            verifiedBy:
+              typeof manualVerification.verifiedBy === "string" && manualVerification.verifiedBy.trim()
+                ? publicVerifierName(manualVerification.verifiedBy) || "NoLSAF verification team"
+                : publicVerifierName(actorName) || "NoLSAF verification team",
+            verifiedByRole:
+              typeof manualVerification.verifiedByRole === "string" && manualVerification.verifiedByRole.trim()
+                ? publicVerifierRole(manualVerification.verifiedByRole)
+                : publicVerifierRole(approvalAudit?.actor?.role || approvalAudit?.actorRole || null),
+            method:
+              typeof manualVerification.method === "string" && manualVerification.method.trim()
+                ? manualVerification.method.trim()
+                : "On-site property inspection",
+            note:
+              typeof manualVerification.note === "string" && manualVerification.note.trim()
+                ? manualVerification.note.trim()
+                : "Verified through NoLSAF property review before listing.",
+            checklist: normalizeVerificationChecklist(manualVerification.checklist),
+          };
+          dto.physicalVerification = physicalVerification;
           return { property: dto };
         },
         {

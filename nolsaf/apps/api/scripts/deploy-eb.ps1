@@ -60,6 +60,17 @@ npx tsc -p tsconfig.json
 node scripts/fix-esm-imports.mjs
 Pop-Location
 
+# ── 4b. Stage the Prisma schema into the bundle ──────────────────────────────
+# The single source-of-truth schema lives at <repo>/prisma/schema.prisma, but the
+# on-instance predeploy hook (.platform/hooks/predeploy/generate-prisma.sh) runs
+# `prisma generate --schema=./prisma/schema.prisma` relative to apps/api. Copy it
+# in so it's part of the deployed working-directory bundle.
+$SchemaSrc = "$RepoRoot\prisma\schema.prisma"
+$SchemaDir = "$ApiDir\prisma"
+Write-Host "`n── Staging Prisma schema into $SchemaDir …"
+New-Item -ItemType Directory -Path $SchemaDir -Force | Out-Null
+Copy-Item $SchemaSrc -Destination "$SchemaDir\schema.prisma" -Force
+
 # ── 5. Deploy to Elastic Beanstalk ────────────────────────────────────────────
 Write-Host "`n── Deploying to Elastic Beanstalk …"
 Push-Location $ApiDir
@@ -81,5 +92,8 @@ Move-Item $PkgJsonBackup $PkgJsonPath -Force
 
 Write-Host "── Cleaning vendor dir …"
 Remove-Item $VendorRoot -Recurse -Force -ErrorAction SilentlyContinue
+
+Write-Host "── Cleaning staged Prisma schema …"
+Remove-Item $SchemaDir -Recurse -Force -ErrorAction SilentlyContinue
 
 Write-Host "`n=== [deploy-eb] Done. ==="

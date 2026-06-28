@@ -87,62 +87,6 @@ function normalizeHotelStar(v: unknown): string | null {
   return map[Math.trunc(n)] ?? String(v);
 }
 
-function normalizeLocationText(value: unknown): string {
-  return String(value ?? "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-}
-
-function locationMatches(expected: unknown, candidates: Array<unknown>): boolean {
-  const normalizedExpected = normalizeLocationText(expected);
-  if (!normalizedExpected) return true;
-
-  const expectedTerms = normalizedExpected.split(/\s+/).filter((term) => term.length > 1);
-  if (!expectedTerms.length) return true;
-
-  const combined = candidates
-    .map((candidate) => normalizeLocationText(candidate))
-    .filter(Boolean)
-    .join(" ");
-
-  if (!combined) return false;
-  return expectedTerms.every((term) => combined.includes(term));
-}
-
-function getContextText(feature: any, prefixes: string[]): string | null {
-  const context = Array.isArray(feature?.context) ? feature.context : [];
-  const match = context.find((entry: any) => prefixes.some((prefix) => String(entry?.id || "").startsWith(prefix)));
-  return match?.text ? String(match.text) : null;
-}
-
-async function reverseGeocodePropertyLocation(lat: number, lng: number) {
-  const token = process.env.MAPBOX_ACCESS_TOKEN || process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
-  if (!token) {
-    throw new Error("Location validation service is not configured");
-  }
-
-  const params = new URLSearchParams({
-    access_token: token,
-    limit: "1",
-    types: "address,neighborhood,locality,place,district,postcode,region",
-  });
-
-  const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?${params.toString()}`, {
-    headers: {
-      "User-Agent": "NoLS-API/1.0",
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Reverse geocoding failed with status ${response.status}`);
-  }
-
-  const data = await response.json();
-  return data?.features?.[0] ?? null;
-}
-
-
 function cleanServices(services: unknown): any {
   // Handle legacy array format
   if (Array.isArray(services)) {
@@ -164,6 +108,7 @@ function cleanServices(services: unknown): any {
       'restaurant', 'bar', 'pool', 'sauna', 'laundry', 'roomService',
       'security24', 'firstAid', 'fireExtinguisher', 'onSiteShop', 'nearbyMall',
       'socialHall', 'sportsGames', 'gym', 'wifi', 'ac',
+      'acceptGroupBookings', 'freeCancellation',
       // Persist house rules inside services JSON for admin/owner previews
       'houseRules'
     ];
@@ -901,8 +846,8 @@ router.put("/:id", (async (req: AuthedRequest, res) => {
         city: parsed.city,
         zip: parsed.zip,
         country: parsed.country,
-        latitude: parsed.latitude ?? null,
-        longitude: parsed.longitude ?? null,
+        latitude: typeof parsed.latitude === "undefined" ? undefined : parsed.latitude ?? null,
+        longitude: typeof parsed.longitude === "undefined" ? undefined : parsed.longitude ?? null,
         // counts …
         totalBedrooms: parsed.totalBedrooms,
         totalBathrooms: parsed.totalBathrooms,
@@ -928,9 +873,11 @@ router.put("/:id", (async (req: AuthedRequest, res) => {
             : undefined,
       };
 
-    // If the property was APPROVED or REJECTED, reset to PENDING so admin reviews the changes
+    // Editing must never auto-submit. If a live (APPROVED) or previously REJECTED
+    // listing is changed, revert it to DRAFT so the owner explicitly clicks
+    // "Submit for review" again — an edit alone should never land it in PENDING.
     if (exists.status === "APPROVED" || exists.status === "REJECTED") {
-      updateData.status = "PENDING";
+      updateData.status = "DRAFT";
     }
 
     let updated: any;
@@ -1060,55 +1007,11 @@ router.post("/:id/submit", (async (req: AuthedRequest, res) => {
       return res.status(400).json({ error: "Incomplete property. Please complete required fields (name, exact location pin, ≥3 photos, ≥1 room type)." });
     }
 
-    let detectedLocation: {
-      address: string | null;
-      region: string | null;
-      district: string | null;
-      ward: string | null;
-      postcode: string | null;
-    } | null = null;
-
-    try {
-      const feature = await reverseGeocodePropertyLocation(p.latitude!, p.longitude!);
-      if (!feature) {
-        return res.status(400).json({ error: "Unable to confirm the selected map pin. Move the pin to the exact property location and try again." });
-      }
-
-      detectedLocation = {
-        address: feature.place_name || feature.text || null,
-        region: getContextText(feature, ["region"]) || getContextText(feature, ["place"]),
-        district: getContextText(feature, ["district"]) || getContextText(feature, ["place"]),
-        ward: getContextText(feature, ["locality", "neighborhood"]),
-        postcode: getContextText(feature, ["postcode"]),
-      };
-
-      const mismatches: string[] = [];
-      const selectedRegion = p.regionName || p.regionId;
-
-      if (selectedRegion && detectedLocation.region && !locationMatches(selectedRegion, [detectedLocation.region, detectedLocation.address])) {
-        mismatches.push(`Detected region is "${detectedLocation.region}" but selected region is "${selectedRegion}".`);
-      }
-      if (p.district && detectedLocation.district && !locationMatches(p.district, [detectedLocation.district, detectedLocation.address])) {
-        mismatches.push(`Detected district is "${detectedLocation.district}" but selected district is "${p.district}".`);
-      }
-      if (p.ward && detectedLocation.ward && !locationMatches(p.ward, [detectedLocation.ward, detectedLocation.address])) {
-        mismatches.push(`Detected ward is "${detectedLocation.ward}" but selected ward is "${p.ward}".`);
-      }
-      if (p.zip && detectedLocation.postcode && !locationMatches(p.zip, [detectedLocation.postcode])) {
-        mismatches.push(`Detected postcode is "${detectedLocation.postcode}" but selected postcode is "${p.zip}".`);
-      }
-
-      if (mismatches.length) {
-        return res.status(400).json({
-          error: "The property pin does not match the selected address fields.",
-          mismatches,
-          detectedLocation,
-        });
-      }
-    } catch (validationError: any) {
-      console.error(`Property ${id} location validation failed:`, validationError);
-      return res.status(503).json({ error: "Location validation is temporarily unavailable. Please try submitting again." });
-    }
+    // The owner-placed map pin is the authoritative coordinate. We intentionally
+    // do NOT cross-check it against the selected region/district/ward via reverse
+    // geocoding: Mapbox's Tanzania admin boundaries are coarse/incorrect (e.g. it
+    // reports Ilala as "Dar es Salaam"), which rejected perfectly valid listings.
+    // The completeness check above already guarantees a valid pin exists.
 
     const updated = await prisma.property.update({
       where: { id },

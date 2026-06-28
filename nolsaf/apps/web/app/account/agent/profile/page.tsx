@@ -9,6 +9,7 @@ import {
   Building2,
   Camera,
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Eye,
@@ -298,6 +299,13 @@ function packageExcludedSuggestions(includedSuggestions: string[]): string[] {
   ])).sort((a, b) => a.localeCompare(b));
 }
 
+const packageStepDefs = [
+  { n: 1, label: "Basics" },
+  { n: 2, label: "Pricing & terms" },
+  { n: 3, label: "Inclusions" },
+  { n: 4, label: "Itinerary" },
+] as const;
+
 const AUTO_SAVE_DELAY_MS = 5000;
 const AUTO_SAVE_RETRY_AFTER_429_MS = 15000;
 
@@ -567,12 +575,32 @@ function Field({
 
   return (
     <label className="block min-w-0">
-      <span className="block text-xs text-slate-600">
+      <span className="block text-xs font-semibold text-slate-700">
         {cleanLabel}
-        {showRequired ? <span className="ml-1 text-red-500">*</span> : null}
+        {showRequired ? <span className="ml-0.5 text-red-500">*</span> : null}
       </span>
       {children}
     </label>
+  );
+}
+
+const fieldBase =
+  "mt-2 box-border block w-full max-w-full rounded-lg border border-slate-200 bg-slate-50 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-[#02665e]/40 focus:bg-white focus:ring-4 focus:ring-[#02665e]/10";
+
+function Segmented({ value, onChange, options }: { value: string; onChange: (value: string) => void; options: { value: string; label: string }[] }) {
+  return (
+    <div className="mt-2 flex gap-1.5 overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 p-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          onClick={() => onChange(o.value)}
+          className={`shrink-0 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${value === o.value ? "bg-[#02665e] text-white shadow-sm" : "text-slate-600 hover:bg-white hover:text-slate-900"}`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -580,7 +608,7 @@ function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className={`mt-1.5 box-border block w-full max-w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none placeholder:text-slate-400 focus:ring-2 focus:ring-emerald-200 ${props.className ?? ""}`}
+      className={`${fieldBase} h-11 px-3.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${props.className ?? ""}`}
     />
   );
 }
@@ -589,7 +617,7 @@ function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
     <textarea
       {...props}
-      className={`mt-1.5 box-border block min-h-[104px] w-full max-w-full resize-y rounded-md border border-slate-200 bg-white px-3 py-2 text-sm leading-6 text-slate-950 outline-none placeholder:text-slate-400 focus:ring-2 focus:ring-emerald-200 ${props.className ?? ""}`}
+      className={`${fieldBase} min-h-[112px] resize-y px-3.5 py-2.5 leading-6 ${props.className ?? ""}`}
     />
   );
 }
@@ -599,8 +627,9 @@ function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
     <span className="relative block">
       <select
         {...props}
-        className={`mt-1.5 box-border block w-full max-w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none focus:ring-2 focus:ring-emerald-200 disabled:bg-slate-50 disabled:text-slate-400 ${props.className ?? ""}`}
+        className={`${fieldBase} h-11 !appearance-none [-webkit-appearance:none] pl-3.5 pr-10 disabled:bg-slate-100 disabled:text-slate-400 ${props.className ?? ""}`}
       />
+      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
     </span>
   );
 }
@@ -617,18 +646,19 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="relative mx-auto box-border w-full max-w-[860px] overflow-hidden rounded-lg border border-slate-300 bg-white p-4 shadow-[0_1px_4px_rgba(15,23,42,0.08)] ring-1 ring-inset ring-white sm:p-5">
-        <div className="mb-4 flex items-start gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
-          {icon}
+    <section className="box-border w-full rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] sm:p-6 lg:p-7">
+      <div className="lg:grid lg:grid-cols-[minmax(0,260px)_minmax(0,1fr)] lg:gap-8">
+        <div className="mb-6 lg:mb-0">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#02665e]/10 text-[#02665e] ring-1 ring-[#02665e]/15">
+            {icon}
+          </div>
+          <h2 className="mt-4 text-lg font-black leading-snug tracking-tight text-slate-900">{title}</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-500">{text}</p>
         </div>
         <div className="min-w-0">
-          <h2 className="text-lg font-black leading-tight text-slate-950 sm:text-xl">{title}</h2>
-          <p className="mt-1 text-sm leading-6 text-slate-600">{text}</p>
+          {children}
         </div>
       </div>
-      {children}
-      <div className="pointer-events-none absolute inset-x-4 bottom-0 h-px bg-gradient-to-r from-transparent via-emerald-100 to-transparent" aria-hidden />
     </section>
   );
 }
@@ -641,7 +671,7 @@ function FieldGrid({
   className?: string;
 }) {
   return (
-    <div className={`grid w-full max-w-[828px] grid-cols-1 gap-3 overflow-hidden md:grid-cols-2 ${className}`}>
+    <div className={`grid w-full grid-cols-1 gap-x-5 gap-y-4 md:grid-cols-2 ${className}`}>
       {Children.map(children, (child) => (
         <div className="min-w-0">
           {child}
@@ -753,6 +783,7 @@ export default function AgentOperatorProfileEditor() {
   const [itineraryDrafts, setItineraryDrafts] = useState<Record<string, { title: string; description: string; events: ItineraryEvent[] }>>({});
   const [autosaveRetryTick, setAutosaveRetryTick] = useState(0);
   const [expandedPackageIds, setExpandedPackageIds] = useState<Record<string, boolean>>({});
+  const [packageStep, setPackageStep] = useState<Record<string, number>>({});
   const [expandedEventIds, setExpandedEventIds] = useState<Record<string, boolean>>({});
   const [photoSlideIndex, setPhotoSlideIndex] = useState<Record<string, number>>({});
   const touchStartXRef = useRef<Record<string, number | null>>({});
@@ -825,23 +856,23 @@ export default function AgentOperatorProfileEditor() {
   const profileSnapshot = useMemo(() => JSON.stringify(profile), [profile]);
 
   const readiness = useMemo(() => {
-    const checks = [
-      profile.companyName,
-      profile.contactEmail,
-      profile.contactPhone,
-      profile.businessAddress,
-      profile.physicalLocation,
-      profile.operatingRegions.length,
-      profile.tourismTypes.length,
-      profile.services.length,
-      profile.vehicles.length || profile.tools.length,
-      profile.packageItems.length || profile.seasonalPrices.length,
-      Object.values(profile.classifiedPhotos).some((items) => Array.isArray(items) && items.length > 0),
-      profile.description,
-      profile.guidesAvailable || profile.minimumBookingNotice || profile.maxTripsPerDay,
+    const steps = [
+      { label: "Company name", done: Boolean(profile.companyName) },
+      { label: "Contact email", done: Boolean(profile.contactEmail) },
+      { label: "Contact phone", done: Boolean(profile.contactPhone) },
+      { label: "Business address", done: Boolean(profile.businessAddress) },
+      { label: "Physical location", done: Boolean(profile.physicalLocation) },
+      { label: "Operating regions", done: profile.operatingRegions.length > 0 },
+      { label: "Tourism types", done: profile.tourismTypes.length > 0 },
+      { label: "Services", done: profile.services.length > 0 },
+      { label: "Fleet or tools", done: profile.vehicles.length > 0 || profile.tools.length > 0 },
+      { label: "Packages or pricing", done: profile.packageItems.length > 0 || profile.seasonalPrices.length > 0 },
+      { label: "Photos", done: Object.values(profile.classifiedPhotos).some((items) => Array.isArray(items) && items.length > 0) },
+      { label: "Description", done: Boolean(profile.description) },
+      { label: "Capacity details", done: Boolean(profile.guidesAvailable || profile.minimumBookingNotice || profile.maxTripsPerDay) },
     ];
-    const done = checks.filter(Boolean).length;
-    return { done, total: checks.length, pct: Math.round((done / checks.length) * 100) };
+    const done = steps.filter((step) => step.done).length;
+    return { steps, done, total: steps.length, pct: Math.round((done / steps.length) * 100) };
   }, [profile]);
 
   useEffect(() => {
@@ -1540,17 +1571,46 @@ async function persistProfileDraft(showSuccessMessage = true) {
 
   const reviewStatus = String(profile.reviewStatus || profile.review?.status || "DRAFT").toUpperCase();
   const reviewReason = String(profile.reviewReason || profile.review?.reason || "").trim();
-  const reviewBadge =
-    reviewStatus === "APPROVED"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-      : reviewStatus === "CHANGES_REQUESTED"
-        ? "border-amber-200 bg-amber-50 text-amber-800"
-        : reviewStatus === "REJECTED"
-          ? "border-red-200 bg-red-50 text-red-700"
-          : ["SUBMITTED", "RESUBMITTED"].includes(reviewStatus)
-            ? "border-sky-200 bg-sky-50 text-sky-700"
-            : "border-slate-200 bg-slate-50 text-slate-700";
   const canSubmit = readiness.pct === 100 && !["SUBMITTED", "RESUBMITTED"].includes(reviewStatus);
+  const anyPackageExpanded = profile.packageItems.some((p) => expandedPackageIds[p.id]);
+  const statusMeta = (() => {
+    switch (reviewStatus) {
+      case "APPROVED":
+        return { tone: "border-emerald-200 bg-emerald-50 text-emerald-800", icon: <ShieldCheck className="h-4 w-4" />, title: "Approved", subtitle: "Your profile is live for customers." };
+      case "SUBMITTED":
+      case "RESUBMITTED":
+        return { tone: "border-sky-200 bg-sky-50 text-sky-800", icon: <ShieldCheck className="h-4 w-4" />, title: "Under review", subtitle: "We will notify you once it is reviewed." };
+      case "CHANGES_REQUESTED":
+        return { tone: "border-amber-200 bg-amber-50 text-amber-900", icon: <XCircle className="h-4 w-4" />, title: "Changes requested", subtitle: reviewReason || "Update the noted details and resubmit." };
+      case "REJECTED":
+        return { tone: "border-red-200 bg-red-50 text-red-800", icon: <XCircle className="h-4 w-4" />, title: "Rejected", subtitle: reviewReason || "Review the feedback and resubmit." };
+      default:
+        return { tone: "border-slate-200 bg-slate-50 text-slate-700", icon: <Save className="h-4 w-4" />, title: "Draft", subtitle: readiness.pct === 100 ? "Ready to submit for review." : "Complete all sections to submit." };
+    }
+  })();
+
+  const heroTitle = profile.companyName?.trim() || "Operator profile";
+  const heroLocation = [profile.physicalLocation, profile.businessAddress].find((value) => value?.trim())?.trim() || "";
+  const heroInitials = (profile.companyName?.trim() || "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word[0]?.toUpperCase() ?? "")
+    .join("") || "";
+  const tierLevel = String(agent?.level || "").toUpperCase();
+  const tierLabel = tierLevel ? `${tierLevel.charAt(0)}${tierLevel.slice(1).toLowerCase()} operator` : "";
+  const tierColor =
+    tierLevel === "PLATINUM" ? "#cdd8dc"
+      : tierLevel === "GOLD" ? "#e0b341"
+        : tierLevel === "SILVER" ? "#c3ccd4"
+          : tierLevel === "BRONZE" ? "#cd7f32"
+            : "#ffffff";
+  const nextStep = readiness.steps.find((step) => !step.done);
+  const heroStats = [
+    { label: "Coverage", count: profile.operatingRegions.length, target: 3, hint: "regions" },
+    { label: "Packages", count: profile.packageItems.length, target: 3, hint: "packages" },
+    { label: "Photos", count: profile.gallery.length, target: 8, hint: "photos" },
+  ];
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -1623,79 +1683,125 @@ async function persistProfileDraft(showSuccessMessage = true) {
           <ArrowLeft className="h-4 w-4" />
         </Link>
 
-        <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
-          <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-[#063f3b] p-5 text-white shadow-[0_18px_45px_rgba(2,32,29,0.18)] sm:p-6">
-            <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(15,118,110,0.58),rgba(8,47,73,0.34)_48%,rgba(2,102,94,0.18))]" aria-hidden />
-            <div className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full border border-white/10" aria-hidden />
-            <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-200/50 to-transparent" aria-hidden />
-            <div className="relative flex flex-col gap-6 lg:min-h-[250px] lg:justify-between">
-              <div className="flex min-w-0 gap-4">
-                <div className="hidden h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-white/15 bg-white/10 text-cyan-50 shadow-inner sm:flex">
-                  <Building2 className="h-8 w-8" />
+        <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
+          <div className="relative overflow-hidden rounded-2xl bg-[#063f3b] p-5 text-white sm:p-6">
+            <div className="flex flex-col gap-6">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex min-w-0 gap-3 sm:gap-4">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/15 bg-white/10 text-base font-black text-cyan-50 sm:h-14 sm:w-14">
+                    {profile.companyLogoUrl ? (
+                      <img src={profile.companyLogoUrl} alt={heroTitle} className="h-full w-full object-cover" />
+                    ) : heroInitials ? (
+                      <span>{heroInitials}</span>
+                    ) : (
+                      <Building2 className="h-7 w-7" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-cyan-100">Company marketplace setup</p>
+                    <h1 className="mt-1.5 text-xl font-black leading-tight tracking-normal text-white break-words sm:text-2xl">{heroTitle}</h1>
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-cyan-50/80">
+                      {tierLabel ? (
+                        <span title={tierLabel} aria-label={tierLabel} className="inline-flex items-center">
+                          <ShieldCheck className="h-5 w-5" style={{ color: tierColor }} />
+                        </span>
+                      ) : null}
+                      {heroLocation ? (
+                        <span className="inline-flex items-center gap-1.5 truncate">
+                          <MapPin className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">{heroLocation}</span>
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <p className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-cyan-100">Company marketplace setup</p>
-                  <h1 className="mt-2 text-3xl font-black tracking-normal text-white sm:text-4xl">Operator Profile</h1>
-                  <p className="mt-3 max-w-2xl text-sm leading-6 text-cyan-50/85 sm:text-base sm:leading-7">Build the company identity, coverage, packages, fleet, and photos customers review before choosing a tour operator.</p>
+
+                <div className="flex shrink-0 items-center gap-3">
+                  <div className="relative h-[72px] w-[72px]">
+                    <svg viewBox="0 0 72 72" className="h-[72px] w-[72px] -rotate-90">
+                      <circle cx="36" cy="36" r="30" fill="none" stroke="rgba(255,255,255,0.16)" strokeWidth="7" />
+                      <circle cx="36" cy="36" r="30" fill="none" stroke="#5dcaa5" strokeWidth="7" strokeLinecap="round" strokeDasharray={`${(readiness.pct / 100) * 188.5} 188.5`} />
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <span className="text-lg font-black leading-none">{readiness.pct}%</span>
+                      <span className="text-[10px] text-cyan-50/60">{readiness.done}/{readiness.total}</span>
+                    </div>
+                  </div>
+                  <div className="hidden max-w-[150px] sm:block">
+                    <p className="text-[11px] font-black uppercase tracking-wide text-cyan-100">{readiness.pct === 100 ? "Ready to publish" : "Almost there"}</p>
+                    <p className="mt-1 text-sm leading-5 text-cyan-50/85">{nextStep ? `Next: ${nextStep.label.toLowerCase()}` : "All sections complete."}</p>
+                  </div>
                 </div>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
                 <div className="grid grid-cols-3 gap-2">
-                  <div className="rounded-xl border border-white/10 bg-white/10 px-3 py-3">
-                    <p className="text-[10px] font-black uppercase tracking-wide text-cyan-100/80">Coverage</p>
-                    <p className="mt-1 text-lg font-black text-white">{profile.operatingRegions.length}</p>
-                  </div>
-                  <div className="rounded-xl border border-white/10 bg-white/10 px-3 py-3">
-                    <p className="text-[10px] font-black uppercase tracking-wide text-cyan-100/80">Packages</p>
-                    <p className="mt-1 text-lg font-black text-white">{profile.packageItems.length}</p>
-                  </div>
-                  <div className="rounded-xl border border-white/10 bg-white/10 px-3 py-3">
-                    <p className="text-[10px] font-black uppercase tracking-wide text-cyan-100/80">Photos</p>
-                    <p className="mt-1 text-lg font-black text-white">{profile.gallery.length}</p>
-                  </div>
+                  {heroStats.map((stat) => {
+                    const pct = Math.min(100, Math.round((stat.count / stat.target) * 100));
+                    const reached = stat.count >= stat.target;
+                    return (
+                      <div key={stat.label} className="rounded-xl border border-white/10 bg-white/[0.07] px-3 py-3">
+                        <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wide text-cyan-100/80">
+                          <span>{stat.label}</span>
+                          <span>{stat.count}/{stat.target}</span>
+                        </div>
+                        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/15">
+                          <div className="h-full rounded-full bg-[#5dcaa5]" style={{ width: `${pct}%` }} />
+                        </div>
+                        <p className="mt-2 text-[11px] text-cyan-50/55">{reached ? "Complete" : `Add ${stat.target - stat.count} more`}</p>
+                      </div>
+                    );
+                  })}
                 </div>
 
-                <div className="grid grid-cols-1 gap-2 min-[430px]:grid-cols-2 sm:w-64 sm:grid-cols-1">
-                  <Link href="/account/agent/profile/preview" className="inline-flex h-11 min-w-0 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white px-3 text-sm font-black text-slate-900 no-underline shadow-sm hover:bg-cyan-50">
+                <div className="grid grid-cols-1 gap-2 min-[430px]:grid-cols-2 lg:w-64 lg:grid-cols-1">
+                  <Link href="/account/agent/profile/preview" className="inline-flex h-11 min-w-0 items-center justify-center gap-2 rounded-xl bg-white px-3 text-sm font-black text-slate-900 no-underline hover:bg-cyan-50">
                     <Eye className="h-4 w-4" />
-                  <span className="truncate">Full preview</span>
+                    <span className="truncate">Preview as customer</span>
                   </Link>
-                  <Link href="/account/agent/card" className="inline-flex h-11 min-w-0 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/10 px-3 text-sm font-black text-white no-underline shadow-sm hover:bg-white/15">
+                  <Link href="/account/agent/card" className="inline-flex h-11 min-w-0 items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/[0.06] px-3 text-sm font-black text-white no-underline hover:bg-white/15">
                     <Eye className="h-4 w-4" />
-                  <span className="truncate">Marketplace card</span>
+                    <span className="truncate">Marketplace card</span>
                   </Link>
                 </div>
               </div>
             </div>
           </div>
 
-          <aside className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_14px_35px_rgba(15,23,42,0.08)]">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-extrabold uppercase tracking-wider text-slate-500">Readiness</p>
-                <p className="mt-2 text-4xl font-black text-slate-950">{readiness.pct}%</p>
+          <aside className="rounded-2xl border border-slate-200 bg-white p-5">
+            <p className="text-xs font-extrabold uppercase tracking-wider text-slate-500">Profile status</p>
+
+            <div className={`mt-3 flex items-start gap-3 rounded-xl border p-3 ${statusMeta.tone}`}>
+              <span className="mt-0.5 shrink-0">{statusMeta.icon}</span>
+              <div className="min-w-0">
+                <p className="text-sm font-black">{statusMeta.title}</p>
+                <p className="mt-0.5 text-xs leading-5 opacity-80">{statusMeta.subtitle}</p>
               </div>
-              <div
-                className="flex h-20 w-20 items-center justify-center rounded-full p-2 text-sm font-black text-slate-950 shadow-inner"
-                style={{ background: `conic-gradient(#059669 ${readiness.pct * 3.6}deg, #e2e8f0 0deg)` }}
-              >
-                <div className="flex h-full w-full items-center justify-center rounded-full bg-white">
-                  {readiness.done}/{readiness.total}
+            </div>
+
+            <div className="mt-4">
+              <div className="flex items-center justify-between text-xs font-bold">
+                <span className="text-slate-500">Readiness</span>
+                <span className="text-slate-900">{readiness.done}/{readiness.total} · {readiness.pct}%</span>
+              </div>
+              <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+                <div className="h-full rounded-full bg-emerald-600" style={{ width: `${readiness.pct}%` }} />
+              </div>
+            </div>
+
+            {readiness.done < readiness.total ? (
+              <div className="mt-4 border-t border-slate-100 pt-4">
+                <p className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">Still to complete</p>
+                <div className="mt-2.5 space-y-2">
+                  {readiness.steps.filter((step) => !step.done).map((step) => (
+                    <div key={step.label} className="flex items-center gap-2 text-sm">
+                      <span className="h-4 w-4 shrink-0 rounded-full border border-slate-300" />
+                      <span className="font-semibold text-slate-800">{step.label}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
-            </div>
-            <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
-              <div className="h-full rounded-full bg-emerald-600" style={{ width: `${readiness.pct}%` }} />
-            </div>
-            <p className="mt-3 text-sm leading-6 text-slate-600">Complete identity, services, pricing, tools, and photos before booking visibility.</p>
-            <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 p-4">
-              <p className="text-xs font-extrabold uppercase tracking-wider text-slate-500">Admin review</p>
-              <div className={`mt-2 inline-flex rounded-full border px-2.5 py-1 text-xs font-black ${reviewBadge}`}>
-                {reviewStatus.replace(/_/g, " ")}
-              </div>
-              {reviewReason ? <p className="mt-2 text-xs leading-5 text-slate-600">{reviewReason}</p> : null}
-            </div>
+            ) : null}
           </aside>
         </div>
 
@@ -1715,7 +1821,7 @@ async function persistProfileDraft(showSuccessMessage = true) {
 
         <div className="mt-5 space-y-5">
           <Section icon={<Users className="h-5 w-5" />} title="Contact Person Information" text="Your personal details as the primary contact for this operator profile.">
-            <div className="grid w-full max-w-[828px] grid-cols-1 gap-3 overflow-hidden md:grid-cols-2">
+            <FieldGrid>
               <Field label="Full Name *">
                 <Input value={profile.contactPersonName ?? ""} onChange={(e) => update("contactPersonName", e.target.value)} placeholder="John Doe" />
               </Field>
@@ -1734,7 +1840,7 @@ async function persistProfileDraft(showSuccessMessage = true) {
                   <option value="Other">Other</option>
                 </Select>
               </Field>
-            </div>
+            </FieldGrid>
           </Section>
 
           <Section icon={<Building2 className="h-5 w-5" />} title="Partnership Company Information" text="Business details customers see before selecting an operator.">
@@ -1846,14 +1952,14 @@ async function persistProfileDraft(showSuccessMessage = true) {
                 </button>
               </div>
               {profile.tourismTypes.length > 0 && (
-                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="mt-4 flex flex-wrap gap-2">
                   {profile.tourismTypes.map((item) => (
-                    <div key={item} className="inline-flex items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-                      <span>{item}</span>
-                      <button type="button" onClick={() => toggleTourismType(item)} className="shrink-0 hover:text-red-600">
-                        <XCircle className="h-4 w-4" />
+                    <span key={item} className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 py-1.5 pl-3.5 pr-1.5 text-sm font-semibold text-emerald-800">
+                      {item}
+                      <button type="button" onClick={() => toggleTourismType(item)} aria-label={`Remove ${item}`} className="flex h-5 w-5 items-center justify-center rounded-full text-emerald-600 transition-colors hover:bg-emerald-200/70 hover:text-emerald-900">
+                        <X className="h-3.5 w-3.5" />
                       </button>
-                    </div>
+                    </span>
                   ))}
                 </div>
               )}
@@ -1900,17 +2006,20 @@ async function persistProfileDraft(showSuccessMessage = true) {
                 </div>
               </div>
               {profile.services.length > 0 && (
-                <div className="mt-4 space-y-4">
+                <div className="mt-5 space-y-5">
                   {Object.entries(profile.serviceClassification ?? {}).map(([category, catServices]) =>
                     catServices.length > 0 ? (
                       <div key={category}>
-                        <p className="mb-3 text-xs font-black uppercase tracking-[0.15em] text-slate-600">{category}</p>
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        <p className="mb-2.5 flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.12em] text-slate-400">
+                          {category}
+                          <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500">{catServices.length}</span>
+                        </p>
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                           {catServices.map((svc) => (
-                            <div key={svc} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm">
-                              <span className="font-medium text-slate-900">{svc}</span>
-                              <button type="button" onClick={() => removeClassifiedService(svc)} className="shrink-0 text-slate-400 hover:text-red-600 transition-colors">
-                                <X className="h-4 w-4" />
+                            <div key={svc} className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm transition-colors hover:border-slate-300">
+                              <span className="truncate font-medium text-slate-700">{svc}</span>
+                              <button type="button" onClick={() => removeClassifiedService(svc)} aria-label={`Remove ${svc}`} className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600">
+                                <X className="h-3.5 w-3.5" />
                               </button>
                             </div>
                           ))}
@@ -1918,20 +2027,22 @@ async function persistProfileDraft(showSuccessMessage = true) {
                       </div>
                     ) : null
                   )}
-                  {/* show uncategorized services not in any classification */}
                   {(() => {
                     const classified = new Set(Object.values(profile.serviceClassification ?? {}).flat());
                     const unclassified = profile.services.filter((s) => !classified.has(s));
                     if (unclassified.length === 0) return null;
                     return (
                       <div>
-                        <p className="mb-3 text-xs font-black uppercase tracking-[0.15em] text-slate-600">Uncategorized</p>
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        <p className="mb-2.5 flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.12em] text-slate-400">
+                          Uncategorized
+                          <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500">{unclassified.length}</span>
+                        </p>
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                           {unclassified.map((svc) => (
-                            <div key={svc} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm">
-                              <span className="font-medium text-slate-900">{svc}</span>
-                              <button type="button" onClick={() => removeClassifiedService(svc)} className="shrink-0 text-slate-400 hover:text-red-600 transition-colors">
-                                <X className="h-4 w-4" />
+                            <div key={svc} className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm transition-colors hover:border-slate-300">
+                              <span className="truncate font-medium text-slate-700">{svc}</span>
+                              <button type="button" onClick={() => removeClassifiedService(svc)} aria-label={`Remove ${svc}`} className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600">
+                                <X className="h-3.5 w-3.5" />
                               </button>
                             </div>
                           ))}
@@ -2102,7 +2213,15 @@ async function persistProfileDraft(showSuccessMessage = true) {
             )}
 
             <div className="mt-7 border-t border-slate-100 pt-5">
-              <h3 className="text-base font-black text-slate-950">Fleet &amp; Vehicles <span className="text-red-500">*</span></h3>
+              <h3 className="flex flex-wrap items-center gap-2 text-base font-black text-slate-950">
+                <span>Fleet &amp; Vehicles <span className="text-red-500">*</span></span>
+                {profile.vehicles.length > 0 ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700">
+                    <Check className="h-3 w-3" />
+                    {profile.vehicles.length} added
+                  </span>
+                ) : null}
+              </h3>
               <div className="mt-3 flex items-center gap-4">
                 <span className="text-sm text-slate-700">Does your company have vehicles for tours? <span className="text-red-500">*</span></span>
                 <div className="flex gap-2">
@@ -2174,23 +2293,26 @@ async function persistProfileDraft(showSuccessMessage = true) {
             </div>
 
             {profile.vehicles.length > 0 && (
-              <div className="mt-3 space-y-2">
-                {profile.vehicles.map((v) => (
-                  <div key={v.id} className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 p-3">
-                    <div>
-                      <div className="text-sm font-medium text-blue-900">{v.type}</div>
-                      <div className="mt-0.5 text-xs text-blue-700">
-                        {v.quantity} vehicle{v.quantity !== "1" ? "s" : ""} • {v.seatsPerVehicle} seat{v.seatsPerVehicle !== "1" ? "s" : ""} each • {v.ownedBy}
-                        {v.registrationNumber ? ` • Reg: ${v.registrationNumber}` : ""}
-                        {v.serviceMode ? ` • Mode: ${v.serviceMode}` : ""}
-                        {v.notes ? ` • ${v.notes}` : ""}
+              <div className="mt-4">
+                <p className="mb-2 text-xs font-extrabold uppercase tracking-wider text-slate-500">Added vehicles ({profile.vehicles.length})</p>
+                <div className="space-y-2">
+                  {profile.vehicles.map((v) => (
+                    <div key={v.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-3">
+                      <div className="min-w-0">
+                        <div className="text-sm font-bold text-slate-900">{v.type}</div>
+                        <div className="mt-0.5 text-xs text-slate-500">
+                          {v.quantity} vehicle{v.quantity !== "1" ? "s" : ""} · {v.seatsPerVehicle} seat{v.seatsPerVehicle !== "1" ? "s" : ""} each · {v.ownedBy}
+                          {v.registrationNumber ? ` · Reg: ${v.registrationNumber}` : ""}
+                          {v.serviceMode ? ` · Mode: ${v.serviceMode}` : ""}
+                          {v.notes ? ` · ${v.notes}` : ""}
+                        </div>
                       </div>
+                      <button type="button" onClick={() => update("vehicles", profile.vehicles.filter((x) => x.id !== v.id))} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600" aria-label="Remove vehicle">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </div>
-                    <button type="button" onClick={() => update("vehicles", profile.vehicles.filter((x) => x.id !== v.id))} className="ml-3 flex-shrink-0 text-red-500 hover:text-red-700">
-                      <XCircle className="h-5 w-5" />
-                    </button>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             )}
             </>
@@ -2226,48 +2348,29 @@ async function persistProfileDraft(showSuccessMessage = true) {
           </Section>
 
           <Section icon={<BriefcaseBusiness className="h-5 w-5" />} title="Packages And Pricing" text="Add tour packages, seasonal pricing, and add-ons.">
-            <div className="mt-8 overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-[0_10px_28px_rgba(15,23,42,0.07)]">
-              <div className="relative overflow-hidden bg-gradient-to-br from-white via-emerald-50/45 to-cyan-50/60 px-4 py-4 sm:px-5">
-                <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#02665e]/30 to-transparent" aria-hidden />
-                <div className="relative grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-                  <div className="min-w-0">
-                    <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#02665e]">Commercial package studio</p>
-                    <h3 className="mt-1 text-xl font-black text-slate-950 sm:text-2xl">Tour Packages</h3>
-                    <p className="mt-1 text-sm leading-6 text-slate-600">Build clear and complete offers that customers can confidently compare and book.</p>
-                  </div>
-                  <div className="grid gap-2 lg:min-w-[160px]">
-                    <button type="button" onClick={addPackage} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#02665e] px-4 text-sm font-black text-white shadow-sm hover:bg-[#01544d]">
-                      <PackagePlus className="h-4 w-4" />
-                      Add package
-                    </button>
-                  </div>
-                </div>
-                <div className="relative mt-4 grid grid-cols-1 gap-2 min-[430px]:grid-cols-3">
-                  <div className="rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
-                    <p className="text-[10px] font-black uppercase tracking-wide text-[#02665e]">Packages</p>
-                    <p className="mt-1 text-lg font-black text-slate-950">{profile.packageItems.length}</p>
-                  </div>
-                  <div className="rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
-                    <p className="text-[10px] font-black uppercase tracking-wide text-[#02665e]">Seasons</p>
-                    <p className="mt-1 text-lg font-black text-slate-950">{profile.seasonalPrices.length}</p>
-                  </div>
-                  <div className="rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
-                    <p className="text-[10px] font-black uppercase tracking-wide text-[#02665e]">Add-ons</p>
-                    <p className="mt-1 text-lg font-black text-slate-950">{profile.addOns.length}</p>
-                  </div>
-                </div>
-                <div className="mt-3 rounded-xl border border-[#02665e]/15 bg-white/90 px-3 py-3">
-                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#02665e]">Why this section is important</p>
-                  <p className="mt-1 text-xs font-semibold leading-5 text-slate-600">Customers decide based on this package information. Incomplete details reduce trust and make booking harder.</p>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700">Package identity</span>
-                    <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700">Commercial terms</span>
-                    <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700">Included services</span>
-                    <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700">Day-by-day itinerary</span>
-                  </div>
-                </div>
+            <div className="mt-2">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h3 className="text-xl font-black text-slate-950 sm:text-2xl">Tour packages</h3>
+                <button type="button" onClick={addPackage} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#02665e] px-4 text-sm font-black text-white shadow-sm hover:bg-[#01544d]">
+                  <PackagePlus className="h-4 w-4" />
+                  Add package
+                </button>
               </div>
-              <div className="space-y-4 bg-slate-50/70 p-3 sm:p-4">
+              <div className="mt-4 flex flex-wrap gap-2">
+                <span className="inline-flex items-baseline gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm">
+                  <span className="font-black text-slate-900">{profile.packageItems.length}</span>
+                  <span className="text-slate-500">packages</span>
+                </span>
+                <span className="inline-flex items-baseline gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm">
+                  <span className="font-black text-slate-900">{profile.seasonalPrices.length}</span>
+                  <span className="text-slate-500">seasons</span>
+                </span>
+                <span className="inline-flex items-baseline gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm">
+                  <span className="font-black text-slate-900">{profile.addOns.length}</span>
+                  <span className="text-slate-500">add-ons</span>
+                </span>
+              </div>
+              <div className="mt-5 space-y-4">
                 {profile.packageItems.length === 0 && (
                   <div className="rounded-2xl border border-dashed border-emerald-300 bg-white p-5 text-center">
                     <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
@@ -2286,6 +2389,9 @@ async function persistProfileDraft(showSuccessMessage = true) {
                 const excludedSuggestions = packageExcludedSuggestions(includedSuggestions);
                 const isExpanded = expandedPackageIds[pkg.id] ?? false;
                 const isComplete = packageLooksComplete(pkg);
+                const step = packageStep[pkg.id] ?? 1;
+                const setStep = (s: number) => setPackageStep((m) => ({ ...m, [pkg.id]: Math.max(1, Math.min(4, s)) }));
+                if (anyPackageExpanded && !isExpanded) return null;
                 const normalizedDiscountCondition = String(pkg.discountCondition || "").trim();
                 const normalizedDiscountUnit = String(pkg.discountUnit || "").trim();
                 const isNumericCondition = /^\d+$/.test(normalizedDiscountCondition);
@@ -2308,7 +2414,7 @@ async function persistProfileDraft(showSuccessMessage = true) {
 
                 return (
                 <div key={pkg.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                  <div className="bg-gradient-to-r from-slate-950 via-[#064e46] to-[#0f766e] px-4 py-4 text-white sm:px-5">
+                  <div className="bg-[#02665e] px-4 py-4 text-white sm:px-5">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-cyan-100">Package {index + 1}</p>
@@ -2351,9 +2457,25 @@ async function persistProfileDraft(showSuccessMessage = true) {
                     </div>
                   </div>
                   {isExpanded ? (
-                  <div className="space-y-5 p-4 sm:p-5">
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4">
-                      <p className="mb-3 text-xs font-black uppercase tracking-wide text-slate-500">Package identity</p>
+                  <div className="p-4 sm:p-5">
+                    <div className="-mx-1 flex items-center gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                      {packageStepDefs.map((s) => (
+                        <button
+                          key={s.n}
+                          type="button"
+                          onClick={() => setStep(s.n)}
+                          className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-bold transition-colors ${step === s.n ? "border-[#02665e] bg-[#02665e] text-white" : step > s.n ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"}`}
+                        >
+                          <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] ${step === s.n ? "bg-white/20 text-white" : step > s.n ? "bg-emerald-200 text-emerald-900" : "bg-slate-100 text-slate-500"}`}>{step > s.n ? "✓" : s.n}</span>
+                          {s.label}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                    {step === 1 && (
+                    <div>
+                      <h4 className="text-lg font-black text-slate-900">The basics</h4>
+                      <p className="mt-1 text-sm leading-6 text-slate-500">Name this package and where it goes, then add a short summary customers see first.</p>
                     <FieldGrid>
                     <Field label="Package name *"><Input value={pkg.name} onChange={(e) => patchPackage(pkg.id, { name: e.target.value })} placeholder="Serengeti classic safari" /></Field>
                     <Field label="Destination *"><Input value={pkg.destination} onChange={(e) => patchPackage(pkg.id, { destination: e.target.value })} placeholder="Serengeti, Ngorongoro" /></Field>
@@ -2364,10 +2486,13 @@ async function persistProfileDraft(showSuccessMessage = true) {
                     </Field>
                   </div>
                     </div>
+                    )}
 
-                    <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-3 sm:p-4">
-                      <p className="mb-3 text-xs font-black uppercase tracking-wide text-emerald-700">Commercial terms</p>
-                  <FieldGrid className="mt-3">
+                    {step === 2 && (
+                    <div>
+                      <h4 className="text-lg font-black text-slate-900">Pricing &amp; tour details</h4>
+                      <p className="mt-1 text-sm leading-6 text-slate-500">Tell customers how this trip runs and what it costs. Set its type, length, group size, price, and what the price includes.</p>
+                  <FieldGrid className="mt-4">
                     <Field label="Tour category *">
                       <Select value={pkg.category} onChange={(e) => patchPackage(pkg.id, { category: e.target.value })}>
                         <option value="">Select category</option>
@@ -2383,21 +2508,15 @@ async function persistProfileDraft(showSuccessMessage = true) {
                         <option>Other</option>
                       </Select>
                     </Field>
-                    <Field label="Difficulty">
-                      <Select value={pkg.difficulty} onChange={(e) => patchPackage(pkg.id, { difficulty: e.target.value })}>
-                        <option value="">Select difficulty</option>
-                        <option>Easy</option>
-                        <option>Moderate</option>
-                        <option>Challenging</option>
-                        <option>Extreme</option>
-                      </Select>
+                    <Field label="Difficulty level">
+                      <Segmented value={pkg.difficulty} onChange={(v) => patchPackage(pkg.id, { difficulty: v })} options={[{ value: "Easy", label: "Easy" }, { value: "Moderate", label: "Moderate" }, { value: "Challenging", label: "Challenging" }, { value: "Extreme", label: "Extreme" }]} />
                     </Field>
                     <Field label="Duration *"><Input value={pkg.duration} onChange={(e) => patchPackage(pkg.id, { duration: e.target.value })} placeholder="3 days / 2 nights" /></Field>
-                    <Field label="Mode *"><Select value={pkg.mode} onChange={(e) => patchPackage(pkg.id, { mode: e.target.value })}><option>Private</option><option>Shared</option><option>Private and shared</option></Select></Field>
+                    <Field label="Booking mode *"><Segmented value={pkg.mode} onChange={(v) => patchPackage(pkg.id, { mode: v })} options={[{ value: "Private", label: "Private" }, { value: "Shared", label: "Shared" }, { value: "Private and shared", label: "Both" }]} /></Field>
                     <Field label="Min group size (pax) *"><Input type="number" min="1" value={pkg.minPax} onChange={(e) => patchPackage(pkg.id, { minPax: e.target.value })} placeholder="1" /></Field>
                     <Field label="Max group size (pax) *"><Input type="number" min="1" value={pkg.maxPax} onChange={(e) => patchPackage(pkg.id, { maxPax: e.target.value })} placeholder="12" /></Field>
                     <Field label="Price per person *"><Input type="number" min="0" value={pkg.pricePerPerson} onChange={(e) => patchPackage(pkg.id, { pricePerPerson: e.target.value })} placeholder="450" /></Field>
-                    <Field label="Currency *"><Select value={pkg.currency} onChange={(e) => patchPackage(pkg.id, { currency: e.target.value })}><option>USD</option><option>TZS</option><option>EUR</option></Select></Field>
+                    <Field label="Currency *"><Segmented value={pkg.currency} onChange={(v) => patchPackage(pkg.id, { currency: v })} options={[{ value: "USD", label: "USD" }, { value: "TZS", label: "TZS" }, { value: "EUR", label: "EUR" }]} /></Field>
                     <Field label="Accommodation">
                       <Select value={pkg.accommodation} onChange={(e) => patchPackage(pkg.id, { accommodation: e.target.value })}>
                         <option value="">Select accommodation</option>
@@ -2424,13 +2543,13 @@ async function persistProfileDraft(showSuccessMessage = true) {
                   <div className="mt-3">
                     <Field label="Meeting / departure point"><Input value={pkg.meetingPoint} onChange={(e) => patchPackage(pkg.id, { meetingPoint: e.target.value })} placeholder="Arusha town centre or hotel pick-up" /></Field>
                   </div>
-                  <div className="mt-4 rounded-xl border border-dashed border-emerald-200 bg-white/70 p-3 sm:p-4">
-                    <p className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-700">Discount rule</p>
-                    <p className="mt-1 text-xs leading-5 text-slate-600">Use this only when the standard package price can be reduced for a clear business reason. Define the trigger, the discount method, and the exact rule a customer must satisfy.</p>
-                    <div className="mt-2 rounded-lg border border-emerald-100 bg-emerald-50/70 px-3 py-2 text-[11px] font-semibold leading-5 text-slate-600">
-                      Example: Large group, USD 50 off, when 6 or more travelers book together. Another example: Returning customer, 5% off, for customers with a completed previous booking.
+                  <div className="mt-6">
+                    <h4 className="text-base font-black text-slate-900">Discount <span className="text-sm font-semibold text-slate-400">(optional)</span></h4>
+                    <p className="mt-1 text-sm leading-6 text-slate-500">Add a price reduction only when there is a clear reason. Set what triggers it, the amount, and who qualifies.</p>
+                    <div className="mt-2 rounded-lg bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-500">
+                      Example: large group, USD 50 off when 6 or more travelers book together.
                     </div>
-                    <FieldGrid className="mt-3">
+                    <FieldGrid className="mt-4">
                       <Field label="Discount trigger">
                         <Select value={pkg.discountFactor} onChange={(e) => patchPackage(pkg.id, { discountFactor: e.target.value })}>
                           <option value="">No discount defined</option>
@@ -2486,9 +2605,12 @@ async function persistProfileDraft(showSuccessMessage = true) {
                     ) : null}
                   </div>
                     </div>
+                    )}
 
-                    <div className="rounded-xl border border-slate-200 bg-white p-3 sm:p-4">
-                      <p className="mb-3 text-xs font-black uppercase tracking-wide text-slate-500">Value promise for this Package</p>
+                    {step === 3 && (
+                    <div>
+                      <h4 className="text-lg font-black text-slate-900">What's included</h4>
+                      <p className="mt-1 text-sm leading-6 text-slate-500">List what the price covers and what it does not, so customers know exactly what they get.</p>
                   <FieldGrid className="mt-3">
                     <Field label="Included *">
                       <div className="space-y-2">
@@ -2581,18 +2703,18 @@ async function persistProfileDraft(showSuccessMessage = true) {
                     </Field>
                   </div>
                     </div>
+                    )}
 
-                  {/* Day-by-day itinerary */}
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4">
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <p className="text-xs font-black uppercase tracking-wide text-slate-500">Day-by-day itinerary <span className="text-red-500">*</span></p>
-                    </div>
+                    {step === 4 && (
+                  <div>
+                    <h4 className="text-lg font-black text-slate-900">Day-by-day plan <span className="text-red-500">*</span></h4>
+                    <p className="mt-1 mb-3 text-sm leading-6 text-slate-500">Lay out each day with its activities and times so travelers know what to expect.</p>
                     {pkg.itinerary.length > 0 && (
                       <div className="mb-3 space-y-3">
                         {pkg.itinerary.map((day) => (
-                          <div key={day.id} className="rounded-lg border border-slate-200 bg-white p-3">
-                            <div className="mb-2 flex items-center justify-between gap-2">
-                              <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-950 text-[10px] font-black text-white">{day.day}</span>
+                          <div key={day.id} className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+                            <div className="mb-3 flex items-center gap-2">
+                              <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#02665e] text-xs font-black text-white">{day.day}</span>
                               <Input
                                 className="flex-1"
                                 value={day.title}
@@ -2610,10 +2732,8 @@ async function persistProfileDraft(showSuccessMessage = true) {
                             />
                             <div className="mt-2">
                               <Field label="Timetable events *">
-                                <div className="mb-3 rounded-md bg-blue-50 p-3 text-sm text-slate-700">
-                                  <p className="font-semibold">Format example:</p>
-                                  <p className="mt-1 text-slate-600">• From 07:00 to 08:00 → Breakfast at lodge</p>
-                                  <p className="mt-1 text-slate-600">Specify each activity with its exact time range and clear description.</p>
+                                <div className="mb-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs leading-5 text-slate-500">
+                                  Add each activity with a time range. Example: 07:00 to 08:00, breakfast at lodge.
                                 </div>
                                 <div className="space-y-2">
                                   <div key={`${day.id}-header`} className="hidden sm:grid sm:grid-cols-[116px_116px_minmax(0,1fr)_130px_auto] sm:items-center sm:px-1">
@@ -2798,14 +2918,9 @@ async function persistProfileDraft(showSuccessMessage = true) {
                         ))}
                       </div>
                     )}
-                    <div className="space-y-2 rounded-lg border border-dashed border-slate-300 p-3">
-                      <div className="rounded-lg bg-blue-50 border border-blue-200 p-2.5">
-                        <p className="text-xs font-semibold text-blue-900">✓ Required to save this day:</p>
-                        <ul className="text-xs text-blue-800 space-y-1 mt-1.5 list-disc list-inside">
-                          <li>Day title (e.g., "Game drive in Serengeti")</li>
-                          <li>At least one event with times, OR times in description</li>
-                        </ul>
-                      </div>
+                    <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
+                      <p className="text-xs font-extrabold uppercase tracking-wider text-slate-500">Add a new day</p>
+                      <p className="text-xs leading-5 text-slate-500">Needs a day title and at least one event with times, or times mentioned in the description.</p>
                       <Input
                         value={itineraryDrafts[pkg.id]?.title ?? ""}
                         onChange={(e) => setItineraryDrafts((d) => ({ ...d, [pkg.id]: { ...(d[pkg.id] ?? { title: "", description: "", events: [] }), title: e.target.value } }))}
@@ -3020,6 +3135,26 @@ async function persistProfileDraft(showSuccessMessage = true) {
                       })()} 
                     </div>
                   </div>
+                    )}
+                    </div>
+                    <div className="mt-6 flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
+                      <button type="button" onClick={() => setStep(step - 1)} disabled={step <= 1} className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed">
+                        <ChevronLeft className="h-4 w-4" />
+                        Back
+                      </button>
+                      <p className="text-xs font-bold text-slate-500">Step {step} of 4 · {packageStepDefs[step - 1].label}</p>
+                      {step < 4 ? (
+                        <button type="button" onClick={() => setStep(step + 1)} className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#02665e] px-4 text-sm font-black text-white hover:bg-[#01544d]">
+                          Next
+                          <ChevronRight className="h-4 w-4" />
+                        </button>
+                      ) : (
+                        <button type="button" onClick={() => setExpandedPackageIds((prev) => ({ ...prev, [pkg.id]: false }))} className="inline-flex h-10 items-center gap-2 rounded-lg bg-emerald-700 px-4 text-sm font-black text-white hover:bg-emerald-800">
+                          <Check className="h-4 w-4" />
+                          Done
+                        </button>
+                      )}
+                    </div>
                   </div>
                   ) : (
                     <div className="flex items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/80 px-4 py-3 sm:px-5">
@@ -3039,6 +3174,8 @@ async function persistProfileDraft(showSuccessMessage = true) {
               </div>
             </div>
 
+            {!anyPackageExpanded && (
+            <>
             <div className="mt-7 flex flex-col gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
               <h3 className="text-base font-black text-slate-950">Seasonal pricing</h3>
               <button type="button" onClick={addSeason} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-300 px-3 text-sm font-black text-slate-800 sm:justify-start">
@@ -3088,6 +3225,8 @@ async function persistProfileDraft(showSuccessMessage = true) {
                 <button type="button" onClick={() => addCustom("addOns", customAddOn, setCustomAddOn)} className="mt-1 rounded-md border border-slate-200 px-5 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50">Add</button>
               </div>
             </div>
+            </>
+            )}
           </Section>
 
           <Section icon={<Camera className="h-5 w-5" />} title="Gallery" text="Upload photos by category so every image appears in the correct customer-facing area.">

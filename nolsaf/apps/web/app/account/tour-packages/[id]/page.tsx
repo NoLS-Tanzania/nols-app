@@ -4,7 +4,7 @@ import { useEffect, useState, type ChangeEvent } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import apiClient from "@/lib/apiClient";
-import { ArrowLeft, Loader2, CalendarDays, Ticket, Receipt, CheckCircle2, Clock3, CreditCard, Plus, Minus, MapPin, Trash2, Users, Share2, Copy } from "lucide-react";
+import { ArrowLeft, Loader2, CalendarDays, Ticket, Receipt, CheckCircle2, Clock3, CreditCard, Plus, Minus, MapPin, Trash2, Users, Share2, Copy, Star } from "lucide-react";
 
 const api = apiClient;
 const MAX_ACTION_WORDS = 30;
@@ -455,6 +455,7 @@ export default function TourPackageDetailsPage() {
   };
   const dashboardBucket = String(item?.dashboardBucket || "").toUpperCase();
   const isDraft = dashboardBucket === "DRAFT";
+  const isCompleted = dashboardBucket === "COMPLETED" || String(item?.status || "").toUpperCase() === "COMPLETED";
   const timelineTeam = item?.timelineTeam && typeof item.timelineTeam === "object" ? item.timelineTeam : {};
   const timelineJoinedTotal = Math.max(1, Number(timelineTeam.joinedTotal || 1));
   const timelineTotalTravellers = Math.max(1, Number(timelineTeam.totalTravellers || item?.travelerCount || 1));
@@ -1188,7 +1189,197 @@ export default function TourPackageDetailsPage() {
           )}
           </div>
         </section>
+
+        {!loading && !error && item && isCompleted ? (
+          <AgentReviewSection bookingId={id} />
+        ) : null}
       </div>
     </div>
+  );
+}
+
+type ReviewData = {
+  punctualityRating: number;
+  customerCareRating: number;
+  communicationRating: number;
+  comment?: string | null;
+  createdAt?: string;
+};
+
+const REVIEW_DIMENSIONS: Array<{ key: "punctualityRating" | "customerCareRating" | "communicationRating"; label: string; hint: string }> = [
+  { key: "punctualityRating", label: "Punctuality", hint: "On time for pickups & activities" },
+  { key: "customerCareRating", label: "Customer care", hint: "Attentive and helpful throughout" },
+  { key: "communicationRating", label: "Communication", hint: "Clear and responsive" },
+];
+
+function StarRating({
+  value,
+  onChange,
+  readOnly = false,
+}: {
+  value: number;
+  onChange?: (v: number) => void;
+  readOnly?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-1">
+      {[1, 2, 3, 4, 5].map((star) => {
+        const active = star <= value;
+        return (
+          <button
+            key={star}
+            type="button"
+            disabled={readOnly}
+            onClick={readOnly ? undefined : () => onChange?.(star)}
+            aria-label={`${star} star${star > 1 ? "s" : ""}`}
+            className={`${readOnly ? "cursor-default" : "cursor-pointer hover:scale-110"} transition-transform`}
+          >
+            <Star
+              className={`h-6 w-6 ${active ? "fill-amber-400 text-amber-400" : "fill-transparent text-slate-300"}`}
+            />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function AgentReviewSection({ bookingId }: { bookingId: string }) {
+  const [loading, setLoading] = useState(true);
+  const [eligible, setEligible] = useState(false);
+  const [review, setReview] = useState<ReviewData | null>(null);
+  const [scores, setScores] = useState<Record<string, number>>({
+    punctualityRating: 0,
+    customerCareRating: 0,
+    communicationRating: 0,
+  });
+  const [comment, setComment] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await api.get(`/api/customer/tour-bookings/${encodeURIComponent(bookingId)}/agent-review`);
+        if (!alive) return;
+        setEligible(!!res.data?.eligible);
+        setReview(res.data?.review ?? null);
+      } catch {
+        if (alive) setEligible(false);
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [bookingId]);
+
+  const allRated = REVIEW_DIMENSIONS.every((d) => scores[d.key] >= 1);
+
+  async function submit() {
+    if (!allRated || submitting) return;
+    setSubmitting(true);
+    setErrorMsg(null);
+    try {
+      const res = await api.post(`/api/customer/tour-bookings/${encodeURIComponent(bookingId)}/agent-review`, {
+        punctualityRating: scores.punctualityRating,
+        customerCareRating: scores.customerCareRating,
+        communicationRating: scores.communicationRating,
+        comment: comment.trim() || undefined,
+      });
+      setReview(res.data?.review ?? null);
+    } catch (err: any) {
+      const code = String(err?.response?.data?.error || "");
+      if (code === "already_reviewed") {
+        setErrorMsg("You have already reviewed this trip.");
+      } else {
+        setErrorMsg(String(err?.response?.data?.message || "Could not submit your review. Please try again."));
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <section className="card overflow-hidden">
+        <div className="card-section">
+          <div className="h-5 w-40 animate-pulse rounded bg-slate-200" />
+        </div>
+      </section>
+    );
+  }
+
+  if (!eligible && !review) return null;
+
+  return (
+    <section className="card overflow-hidden">
+      <div className="card-section space-y-4">
+        <div>
+          <h2 className="text-lg font-bold text-slate-900">Rate your operator</h2>
+          <p className="text-sm text-slate-600 mt-0.5">
+            {review
+              ? "Thanks for your feedback — here's the review you left."
+              : "Your honest rating helps other travellers and recognises great operators."}
+          </p>
+        </div>
+
+        {review ? (
+          <div className="space-y-3">
+            {REVIEW_DIMENSIONS.map((d) => (
+              <div key={d.key} className="flex items-center justify-between gap-3">
+                <span className="text-sm font-medium text-slate-700">{d.label}</span>
+                <StarRating value={(review as any)[d.key]} readOnly />
+              </div>
+            ))}
+            {review.comment ? (
+              <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                “{review.comment}”
+              </p>
+            ) : null}
+            <div className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-700">
+              <CheckCircle2 className="h-4 w-4" />
+              Review submitted
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {REVIEW_DIMENSIONS.map((d) => (
+              <div key={d.key} className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="text-sm font-medium text-slate-800">{d.label}</div>
+                  <div className="text-xs text-slate-500">{d.hint}</div>
+                </div>
+                <StarRating value={scores[d.key]} onChange={(v) => setScores((s) => ({ ...s, [d.key]: v }))} />
+              </div>
+            ))}
+
+            <textarea
+              value={comment}
+              onChange={(e) => setComment(e.target.value.slice(0, 1000))}
+              placeholder="Add a comment (optional)"
+              rows={3}
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-teal-400 focus:outline-none"
+            />
+
+            {errorMsg ? (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{errorMsg}</div>
+            ) : null}
+
+            <button
+              type="button"
+              onClick={submit}
+              disabled={!allRated || submitting}
+              className="inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"
+            >
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Star className="h-4 w-4" />}
+              Submit review
+            </button>
+          </div>
+        )}
+      </div>
+    </section>
   );
 }

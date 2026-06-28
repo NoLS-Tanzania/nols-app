@@ -272,6 +272,152 @@ router.get("/stats", async (req, res) => {
   }
 });
 
+/**
+ * GET /admin/group-stays/bookings/earnings?filter=CHECKED_IN|ALL&page=&pageSize=
+ * Read-only owner-earnings reference for confirmed group stays. NoLSAF's commission is the
+ * deposit; the owner collects the balance (total minus deposit) from the guest at the property.
+ * NoLSAF does not disburse to owners, so there is no action here. Registered before /:id so
+ * "earnings" is not parsed as an id.
+ */
+router.get("/earnings", async (req, res) => {
+  try {
+    res.setHeader("Content-Type", "application/json");
+
+    const { filter = "CHECKED_IN", ownerId = "", q = "", page = "1", pageSize = "50" } = req.query as any;
+    const filterUpper = String(filter).trim().toUpperCase();
+    const where: any = { status: { in: ["CONFIRMED", "COMPLETED"] }, depositPaid: true };
+    if (filterUpper === "CHECKED_IN") {
+      where.checkedInAt = { not: null };
+    }
+
+    // Filter to a single owner by id, or fuzzy-search owners by name/email.
+    const ownerIdNum = Number(ownerId);
+    if (Number.isFinite(ownerIdNum) && ownerIdNum > 0) {
+      where.assignedOwnerId = ownerIdNum;
+    } else {
+      where.assignedOwnerId = { not: null };
+      const search = String(q).trim();
+      if (search) {
+        where.assignedOwner = { is: { OR: [{ name: { contains: search } }, { email: { contains: search } }] } };
+      }
+    }
+
+    const skip = (Math.max(1, Number(page) || 1) - 1) * Math.min(Number(pageSize) || 50, 100);
+    const take = Math.min(Number(pageSize) || 50, 100);
+
+    const [items, total] = await Promise.all([
+      (prisma as any).groupBooking.findMany({
+        where,
+        include: {
+          assignedOwner: { select: { id: true, name: true, email: true, phone: true } },
+          confirmedProperty: { select: { id: true, title: true } },
+        },
+        orderBy: [{ checkedInAt: "desc" }, { confirmedAt: "desc" }, { id: "desc" }],
+        skip,
+        take,
+      }),
+      (prisma as any).groupBooking.count({ where }),
+    ]);
+
+    // Best-effort: attach the guest's review of the confirmed property (matched by property + customer).
+    const propertyIds = Array.from(new Set(items.map((b: any) => b.confirmedPropertyId).filter((v: any) => Number.isFinite(v))));
+    const customerIds = Array.from(new Set(items.map((b: any) => b.userId).filter((v: any) => Number.isFinite(v))));
+    const reviewByKey = new Map<string, any>();
+    if (propertyIds.length > 0 && customerIds.length > 0) {
+      const reviews = await (prisma as any).propertyReview.findMany({
+        where: { propertyId: { in: propertyIds }, userId: { in: customerIds }, isHidden: false },
+        select: { propertyId: true, userId: true, rating: true, title: true, comment: true, ownerResponse: true, createdAt: true },
+        orderBy: { createdAt: "desc" },
+      });
+      for (const rv of reviews) {
+        const k = `${rv.propertyId}:${rv.userId}`;
+        if (!reviewByKey.has(k)) reviewByKey.set(k, rv); // keep most recent per (property, customer)
+      }
+    }
+
+    const mapped = items.map((b: any) => {
+      const totalAmount = b.totalAmount != null ? Number(b.totalAmount) : 0;
+      const depositAmount = b.depositAmount != null ? Number(b.depositAmount) : 0;
+      const review = reviewByKey.get(`${b.confirmedPropertyId}:${b.userId}`) || null;
+      return {
+        id: b.id,
+        toRegion: b.toRegion || null,
+        toDistrict: b.toDistrict || null,
+        checkIn: b.checkIn || null,
+        checkOut: b.checkOut || null,
+        checkedInAt: b.checkedInAt || null,
+        currency: b.currency || "TZS",
+        totalAmount,
+        // NoLSAF commission is the deposit; the owner collects the rest at the property.
+        commissionAmount: Math.round(depositAmount),
+        ownerCollects: Math.max(0, Math.round(totalAmount - depositAmount)),
+        assignedOwner: b.assignedOwner
+          ? { id: b.assignedOwner.id, name: b.assignedOwner.name || "Owner", email: b.assignedOwner.email, phone: b.assignedOwner.phone }
+          : null,
+        confirmedProperty: b.confirmedProperty ? { id: b.confirmedProperty.id, title: b.confirmedProperty.title } : null,
+        guestReview: review
+          ? {
+              rating: review.rating,
+              title: review.title || null,
+              comment: review.comment || null,
+              ownerResponse: review.ownerResponse || null,
+              createdAt: review.createdAt,
+            }
+          : null,
+      };
+    });
+
+    return res.json({ total, page: Number(page) || 1, pageSize: take, items: mapped });
+  } catch (err: any) {
+    res.setHeader("Content-Type", "application/json");
+    if (err instanceof Prisma.PrismaClientKnownRequestError && (err.code === "P2021" || err.code === "P2022")) {
+      return res.json({ total: 0, page: 1, pageSize: 50, items: [] });
+    }
+    console.error("Error in GET /admin/group-stays/bookings/earnings:", err);
+    return res.status(500).json({ error: "Internal server error", message: err?.message || "Unknown error" });
+  }
+});
+
+/**
+ * GET /admin/group-stays/bookings/earnings/owners
+ * Distinct owners who have confirmed group stays, with record counts (for the earnings filter).
+ * Registered before /:id so the path is not parsed as an id.
+ */
+router.get("/earnings/owners", async (_req, res) => {
+  try {
+    res.setHeader("Content-Type", "application/json");
+
+    const grouped = await (prisma as any).groupBooking.groupBy({
+      by: ["assignedOwnerId"],
+      where: { status: { in: ["CONFIRMED", "COMPLETED"] }, depositPaid: true, assignedOwnerId: { not: null } },
+      _count: { _all: true },
+    });
+
+    const ownerIds = grouped.map((g: any) => g.assignedOwnerId).filter((v: any) => Number.isFinite(v));
+    const users = ownerIds.length
+      ? await (prisma as any).user.findMany({ where: { id: { in: ownerIds } }, select: { id: true, name: true } })
+      : [];
+    const nameById = new Map<number, string>(users.map((u: any) => [u.id, u.name || ""]));
+
+    const owners = grouped
+      .map((g: any) => ({
+        id: g.assignedOwnerId as number,
+        name: nameById.get(g.assignedOwnerId) || "Deleted Owner",
+        count: g._count?._all ?? 0,
+      }))
+      .sort((a: any, b: any) => b.count - a.count);
+
+    return res.json({ owners });
+  } catch (err: any) {
+    res.setHeader("Content-Type", "application/json");
+    if (err instanceof Prisma.PrismaClientKnownRequestError && (err.code === "P2021" || err.code === "P2022")) {
+      return res.json({ owners: [] });
+    }
+    console.error("Error in GET /admin/group-stays/bookings/earnings/owners:", err);
+    return res.status(500).json({ error: "Internal server error", message: err?.message || "Unknown error" });
+  }
+});
+
 /** GET /admin/group-stays/bookings/:id - Get single booking details */
 router.get("/:id", async (req, res) => {
   try {
@@ -340,6 +486,12 @@ router.get("/:id", async (req, res) => {
       propertyConfirmedAt: booking.propertyConfirmedAt || null,
       // Admin notes/suggestions
       adminNotes: booking.adminNotes || null,
+      // Financials: NoLSAF's commission is the deposit; the owner collects the balance at the property.
+      totalAmount: booking.totalAmount != null ? Number(booking.totalAmount) : null,
+      depositAmount: booking.depositAmount != null ? Number(booking.depositAmount) : null,
+      depositPaid: booking.depositPaid || false,
+      currency: booking.currency || "TZS",
+      checkedInAt: booking.checkedInAt || null,
     };
 
     return res.json(mapped);

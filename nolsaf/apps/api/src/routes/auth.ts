@@ -6,7 +6,7 @@ import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { generateAuthenticationOptions, verifyAuthenticationResponse } from '@simplewebauthn/server';
 import { sendMail, SECURITY_EMAIL_FROM } from '../lib/mailer.js';
-import { getPasswordResetEmail, getLoginAlertEmail, getPasswordChangedConfirmationEmail } from '../lib/authEmailTemplates.js';
+import { getPasswordResetEmail, getLoginAlertEmail, getPasswordChangedConfirmationEmail, getVerificationCodeEmail } from '../lib/authEmailTemplates.js';
 import { sendSms } from '../lib/sms.js';
 import { addPasswordToHistory, getPasswordChangeCooldownRemaining, isPasswordReused, recordPasswordChangeSuccess } from '../lib/security.js';
 import { validatePasswordWithSettings } from '../lib/securitySettings.js';
@@ -294,17 +294,6 @@ function maskEmailForAudit(email: string): string {
   return `${local.slice(0, 2)}****@${domain}`;
 }
 
-function otpEmailHtml(otp: string): string {
-  return [
-    '<div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:0 auto;padding:24px;">',
-    '<h2 style="color:#02665e;margin:0 0 12px;">NoLSAF verification code</h2>',
-    '<p style="color:#334155;font-size:14px;">Use this code to continue. It expires in 5 minutes.</p>',
-    `<p style="font-size:32px;font-weight:bold;letter-spacing:8px;color:#0f172a;background:#f1f5f9;border-radius:12px;padding:16px;text-align:center;">${otp}</p>`,
-    '<p style="color:#64748b;font-size:12px;">If you did not request this code, you can safely ignore this email. Never share this code with anyone — NoLSAF staff will never ask for it.</p>',
-    '</div>',
-  ].join('');
-}
-
 function normalizeSignupRole(input: any): 'CUSTOMER' | 'OWNER' | 'DRIVER' | 'RESET' | null {
   const v = String(input ?? '').trim().toUpperCase();
   if (!v) return null;
@@ -476,18 +465,37 @@ router.post('/send-otp', limitOtpSend, async (req, res) => {
   const entity = otpEntityKey(channel, destination, codeHash);
   const destinationMasked = channel === 'PHONE' ? maskPhoneForAudit(destination) : maskEmailForAudit(destination);
 
+  // The OTP serves three distinct flows — make every message say which one,
+  // so a signup code is never mistaken for a sign-in or reset code.
+  const otpUse = authOtpUse(normalizedRole); // AUTH_SIGNUP | AUTH_LOGIN | AUTH_RESET
+  const otpPurpose: "signup" | "login" | "reset" =
+    otpUse === "AUTH_SIGNUP" ? "signup" : otpUse === "AUTH_RESET" ? "reset" : "login";
+  const otpExpiryMinutes = Math.max(1, Math.round(OTP_TTL_SEC / 60));
+  const smsLabel =
+    otpPurpose === "signup" ? "account verification code" :
+    otpPurpose === "reset"  ? "password reset code" :
+    "sign-in code";
+
   let provider: string | null = null;
   let sendFailureReason: string | null = null;
   if (channel === 'PHONE') {
-    const smsResult = await sendSms(destination, `Your NoLSAF verification code is ${otp}`);
+    const smsResult = await sendSms(
+      destination,
+      `Your NoLSAF ${smsLabel} is ${otp}. It expires in ${otpExpiryMinutes} minutes. Do not share it.`
+    );
     provider = smsResult?.provider ?? null;
     if (!smsResult?.success) sendFailureReason = smsResult?.error ?? 'sms_failed';
   } else {
     try {
       // OTP emails are transactional auth messages — always deliverable.
-      await sendMail(destination, 'Your NoLSAF verification code', otpEmailHtml(otp), undefined, {
+      const { subject: otpSubject, html: otpHtml } = getVerificationCodeEmail(otp, {
+        purpose: otpPurpose,
+        expiryMinutes: otpExpiryMinutes,
+      });
+      await sendMail(destination, otpSubject, otpHtml, undefined, {
         bypassEligibilityCheck: true,
         from: SECURITY_EMAIL_FROM,
+        replyTo: "support@nolsaf.com",
       });
       provider = 'email';
     } catch (e: any) {
@@ -772,6 +780,8 @@ function recordDevice(userId: number, fingerprint: string): void {
 // POST /api/auth/login-password
 // Body: { email, password }
 // Rate limited: 10 login attempts per IP per 15 minutes
+const MAX_LOGIN_IDENTIFIER_LENGTH = 320;
+const MAX_LOGIN_PASSWORD_LENGTH = 1024;
 
 // Register the route with rate limiting and async error handling
 router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res, next) => {
@@ -779,11 +789,26 @@ router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res,
     res.setHeader('Content-Type', 'application/json');
   
   try {
-    
     const { email, password } = req.body || {};
-    const identifier = String(email || '').trim();
+    if (typeof email !== "string" || typeof password !== "string") {
+      return res.status(400).json({
+        error: "invalid_login_input",
+        message: "Email and password must be text values.",
+      });
+    }
+
+    const identifier = email.trim();
     if (!identifier || !password) {
       return res.status(400).json({ error: "email and password required" });
+    }
+    if (
+      identifier.length > MAX_LOGIN_IDENTIFIER_LENGTH ||
+      password.length > MAX_LOGIN_PASSWORD_LENGTH
+    ) {
+      return res.status(400).json({
+        error: "invalid_login_input",
+        message: "Email or password exceeds the allowed length.",
+      });
     }
     
     // Check if account is locked
@@ -1036,7 +1061,7 @@ router.post("/login-password", limitLoginAttempts, asyncHandler(async (req, res,
             country,
             resetPasswordUrl: `${appUrl}/account/forgot-password`,
           });
-          await sendMail(user.email, subject, html, undefined, { from: SECURITY_EMAIL_FROM, replyTo: "security@nolsaf.com" });
+          await sendMail(user.email, subject, html, undefined, { from: SECURITY_EMAIL_FROM, replyTo: "support@nolsaf.com" });
         }
       } catch (e) {
         console.warn('[LOGIN] Sign-in alert email failed:', e);
@@ -1977,7 +2002,7 @@ router.post('/forgot-password', async (req, res) => {
     if (user.email) {
       try {
         const { subject: resetSubject, html: resetHtml } = getPasswordResetEmail(user.name || user.email || 'there', resetLink);
-        await sendMail(user.email, resetSubject, resetHtml, undefined, { from: SECURITY_EMAIL_FROM, replyTo: "security@nolsaf.com" });
+        await sendMail(user.email, resetSubject, resetHtml, undefined, { from: SECURITY_EMAIL_FROM, replyTo: "support@nolsaf.com" });
       } catch (e) {
         console.warn('Failed to send reset email:', e);
       }
@@ -2097,7 +2122,7 @@ router.post('/reset-password', async (req, res) => {
           device: String(req.headers['user-agent'] || '').slice(0, 120) || undefined,
           securityUrl: `${appUrl}/account/forgot-password`,
         });
-        await sendMail(recipientEmail, cSubject, cHtml, undefined, { from: SECURITY_EMAIL_FROM, replyTo: "security@nolsaf.com" });
+        await sendMail(recipientEmail, cSubject, cHtml, undefined, { from: SECURITY_EMAIL_FROM, replyTo: "support@nolsaf.com" });
       }
     } catch (emailErr) {
       console.warn('[reset-password] Failed to send confirmation email:', emailErr);

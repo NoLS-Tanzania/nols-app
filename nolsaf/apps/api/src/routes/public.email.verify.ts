@@ -24,33 +24,40 @@ function respondError(req: any, res: any, status: number, message: string) {
 }
 
 async function handleEmailVerify(req: any, res: any) {
-  const token = String(req.query.token || "");
-  if (!token) return respondError(req, res, 400, "Missing verification token");
+  try {
+    const token = String(req.query.token || "");
+    if (!token) return respondError(req, res, 400, "Missing verification token");
 
-  const rec = await prisma.emailVerificationToken.findUnique({ where: { token } });
-  if (!rec || rec.expiresAt < new Date()) return respondError(req, res, 400, "Invalid or expired verification link");
+    const rec = await prisma.emailVerificationToken.findUnique({ where: { token } });
+    if (!rec || rec.expiresAt < new Date()) return respondError(req, res, 400, "Invalid or expired verification link");
 
-  const user = await prisma.user.findUnique({ where: { id: rec.userId } });
-  if (!user) return respondError(req, res, 404, "User not found");
+    const user = await prisma.user.findUnique({ where: { id: rec.userId } });
+    if (!user) return respondError(req, res, 404, "User not found");
 
-  if (rec.newEmail) {
-    // change-email flow
-    const before = { email: user.email };
-    await prisma.user.update({ where: { id: user.id }, data: { email: rec.newEmail, emailVerifiedAt: new Date() } });
-    await audit(req, "EMAIL_CHANGED", `user:${user.id}`, before, { email: rec.newEmail });
-  } else {
-    // verify existing email
-    await prisma.user.update({ where: { id: user.id }, data: { emailVerifiedAt: new Date() } });
-    await audit(req, "EMAIL_VERIFIED", `user:${user.id}`);
+    if (rec.newEmail) {
+      // change-email flow
+      const before = { email: user.email };
+      await prisma.user.update({ where: { id: user.id }, data: { email: rec.newEmail, emailVerifiedAt: new Date() } });
+      await audit(req, "EMAIL_CHANGED", `user:${user.id}`, before, { email: rec.newEmail });
+    } else {
+      // verify existing email
+      await prisma.user.update({ where: { id: user.id }, data: { emailVerifiedAt: new Date() } });
+      await audit(req, "EMAIL_VERIFIED", `user:${user.id}`);
+    }
+
+    await prisma.emailVerificationToken.delete({ where: { id: rec.id } });
+
+    // Redirect to appropriate page based on user role
+    const app = (process.env.APP_URL || process.env.WEB_ORIGIN || "http://localhost:3000").replace(/\/$/, "");
+    const redirectPath = getRedirectPath(user.role);
+    if (wantsJson(req)) return res.json({ ok: true, redirectPath, role: user.role });
+    res.redirect(`${app}${redirectPath}`);
+  } catch (err) {
+    // Without this guard an async throw (e.g. a DB error) would never send a
+    // response, leaving the client stuck on "Verifying your email address...".
+    console.error("public.email.verify failed", err);
+    return respondError(req, res, 500, "We could not verify your email right now. Please try again.");
   }
-
-  await prisma.emailVerificationToken.delete({ where: { id: rec.id } });
-
-  // Redirect to appropriate page based on user role
-  const app = (process.env.APP_URL || process.env.WEB_ORIGIN || "http://localhost:3000").replace(/\/$/, "");
-  const redirectPath = getRedirectPath(user.role);
-  if (wantsJson(req)) return res.json({ ok: true, redirectPath, role: user.role });
-  res.redirect(`${app}${redirectPath}`);
 }
 
 /** GET /api/admin/email/verify?token=... (legacy path) */

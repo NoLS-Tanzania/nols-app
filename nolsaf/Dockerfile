@@ -25,7 +25,18 @@ RUN set -eu; \
 	elif [ -f /app/nolsaf/package-lock.json ]; then ROOT=/app/nolsaf; \
 	else echo "package-lock.json not found in /app or /app/nolsaf"; ls -la /app; exit 1; fi; \
 	cd "$ROOT"; \
-	npm ci --include-workspace-root --workspace=@nolsaf/api --workspace=@nolsaf/shared --workspace=@nolsaf/prisma; \
+	npm config set fetch-retries 5; \
+	npm config set fetch-retry-factor 2; \
+	npm config set fetch-retry-mintimeout 10000; \
+	npm config set fetch-retry-maxtimeout 120000; \
+	npm config set fetch-timeout 300000; \
+	install_attempt=1; \
+	until npm ci --include-workspace-root --workspace=@nolsaf/api --workspace=@nolsaf/shared --workspace=@nolsaf/prisma; do \
+		if [ "$install_attempt" -ge 3 ]; then exit 1; fi; \
+		echo "npm ci failed (attempt $install_attempt/3); retrying in 10 seconds..."; \
+		install_attempt=$((install_attempt + 1)); \
+		sleep 10; \
+	done; \
 	npm run prisma:generate; \
 	npm run --workspace=@nolsaf/shared build; \
 	npm run --workspace=@nolsaf/prisma build; \

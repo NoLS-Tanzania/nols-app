@@ -4,7 +4,8 @@ import {
   Gift, Search, X, Calendar, MapPin, Clock, User, 
   Loader2, Eye, 
   Sparkles, Tag, DollarSign,
-  Filter, Building2, Users as UsersIcon, ArrowRight, ArrowLeft, FileText, ChevronDown, ChevronUp
+  Filter, Building2, Users as UsersIcon, ArrowRight, ArrowLeft, FileText, ChevronDown, ChevronUp,
+  CheckCircle2, ListFilter
 } from "lucide-react";
 import Image from "next/image";
 import apiClient from "@/lib/apiClient";
@@ -383,13 +384,13 @@ export default function AdminGroupStaysClaimsPage() {
       {activeBookingId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/40" onClick={closeBookingReview} />
-          <div className="relative w-full max-w-5xl bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="sticky top-0 z-10 bg-white p-3 sm:p-4 border-b border-gray-200 flex items-center justify-between gap-3">
+          <div className="relative w-full max-w-4xl bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="sticky top-0 z-10 bg-white p-4 sm:p-5 border-b border-gray-200 flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Booking #{activeBookingId}</div>
-                <div className="text-base sm:text-lg font-bold text-gray-900 truncate">Review & Recommend Offers</div>
+                <div className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider">Booking #{activeBookingId}</div>
+                <div className="mt-1 text-xl sm:text-2xl font-bold text-gray-950 truncate">Review offers</div>
                 {bookingClaims?.groupBooking && (
-                  <div className="mt-1 text-xs sm:text-sm text-gray-600">
+                  <div className="mt-2 text-sm text-gray-600">
                     {bookingClaims.groupBooking.toRegion}
                     {bookingClaims.groupBooking.toDistrict ? `, ${bookingClaims.groupBooking.toDistrict}` : ""} • Guests {bookingClaims.groupBooking.headcount} • Rooms {bookingClaims.groupBooking.roomsNeeded}
                   </div>
@@ -397,15 +398,32 @@ export default function AdminGroupStaysClaimsPage() {
               </div>
               <button
                 onClick={closeBookingReview}
-                className="p-2 rounded-lg border border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                className="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-gray-200 text-gray-500 hover:text-gray-800 hover:bg-gray-50"
                 aria-label="Close"
                 title="Close"
               >
-                <X className="h-4 w-4" />
+                <X className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 sm:p-5">
+            {bookingClaims && (
+              <div className="border-b border-gray-200 bg-white px-4 sm:px-5 py-3 grid grid-cols-3 gap-2">
+                <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Offers</div>
+                  <div className="mt-0.5 text-sm font-bold text-gray-950">{bookingClaims.claims.length}</div>
+                </div>
+                <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Selected</div>
+                  <div className="mt-0.5 text-sm font-bold text-gray-950">{selectedClaimIds.length}/3</div>
+                </div>
+                <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Saved</div>
+                  <div className="mt-0.5 text-sm font-bold text-gray-950">{bookingClaims.recommendedClaimIds?.length || 0}</div>
+                </div>
+              </div>
+            )}
+
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 bg-gray-50/60">
               {bookingClaimsLoading ? (
                 <div className="flex flex-col items-center justify-center py-12">
                   <Loader2 className="h-8 w-8 animate-spin text-emerald-600 mb-3" />
@@ -416,49 +434,53 @@ export default function AdminGroupStaysClaimsPage() {
               ) : (
                 <>
                   {bookingClaims?.recommendedClaimIds?.length > 0 && (
-                    <div className="mb-4 text-xs sm:text-sm bg-green-50 border border-green-200 text-green-900 rounded-lg p-3">
-                      Recommendations already saved for this booking. Review the audit history below to confirm.
+                    <div className="mb-4 flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-700" />
+                      <div>Recommendations are saved for this booking. Review the audit history below to confirm.</div>
                     </div>
                   )}
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {bookingClaims.shortlist && (
+                  <div className="mb-4 rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {bookingClaims.shortlist && (
+                          <button
+                            onClick={() => setShowShortlistOnly((v) => !v)}
+                            className="inline-flex h-10 items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm font-semibold text-gray-800 hover:bg-gray-100"
+                            title={showShortlistOnly ? "Showing shortlist" : "Showing all offers"}
+                          >
+                            <ListFilter className="h-4 w-4 text-gray-500" />
+                            {showShortlistOnly ? "Shortlist" : "All offers"}
+                          </button>
+                        )}
+                        <div className="text-sm text-gray-500">Choose up to three offers.</div>
+                      </div>
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                         <button
-                          onClick={() => setShowShortlistOnly((v) => !v)}
-                          className="px-3 py-1.5 text-xs font-semibold bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100"
-                          title={showShortlistOnly ? "Showing shortlist" : "Showing all offers"}
+                          onClick={startReview}
+                          disabled={startingReview}
+                          className="h-10 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-800 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
+                          title="Mark all pending as REVIEWING"
                         >
-                          {showShortlistOnly ? "⭐ Shortlist" : "📦 All"}
+                          {startingReview ? "Starting..." : "Mark reviewing"}
                         </button>
-                      )}
-                      <div className="text-xs text-gray-500">Selected {selectedClaimIds.length}/3</div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={startReview}
-                        disabled={startingReview}
-                        className="px-3 py-2 text-xs font-semibold bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
-                        title="Mark all pending as REVIEWING"
-                      >
-                        {startingReview ? "Starting..." : "Mark Reviewing"}
-                      </button>
-                      <button
-                        onClick={recommendSelected}
-                        disabled={
-                          bookingClaimsLoading ||
-                          recommending ||
-                          selectedClaimIds.length === 0 ||
-                          (bookingClaims?.recommendedClaimIds?.length || 0) > 0
-                        }
-                        className="px-4 py-2 text-xs font-semibold bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-lg hover:from-emerald-700 hover:to-teal-700 disabled:opacity-60 disabled:cursor-not-allowed"
-                        title={(bookingClaims?.recommendedClaimIds?.length || 0) > 0 ? "Already recommended (locked)" : "Save recommendations for customer"}
-                      >
-                        {recommending ? "Saving..." : "Recommend Selected"}
-                      </button>
+                        <button
+                          onClick={recommendSelected}
+                          disabled={
+                            bookingClaimsLoading ||
+                            recommending ||
+                            selectedClaimIds.length === 0 ||
+                            (bookingClaims?.recommendedClaimIds?.length || 0) > 0
+                          }
+                          className="h-10 rounded-lg bg-emerald-600 px-4 text-sm font-bold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                          title={(bookingClaims?.recommendedClaimIds?.length || 0) > 0 ? "Already recommended (locked)" : "Save recommendations for customer"}
+                        >
+                          {recommending ? "Saving..." : "Recommend selected"}
+                        </button>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                     {bookingClaims.claims
                       .filter((c) => {
                         if (!showShortlistOnly || !bookingClaims.shortlist) return true;
@@ -476,53 +498,54 @@ export default function AdminGroupStaysClaimsPage() {
                         return (
                           <div
                             key={c.id}
-                            className={`rounded-xl border p-4 shadow-sm ${
-                              isSelected ? "border-emerald-400 bg-emerald-50/40" : "border-gray-200 bg-white"
+                            className={`rounded-xl border bg-white p-4 shadow-sm transition-colors ${
+                              isSelected || isRecommended ? "border-emerald-300 ring-1 ring-emerald-100" : "border-gray-200"
                             }`}
                           >
-                            <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
+                                <div className="flex items-center gap-1.5 flex-wrap">
                                   {isRecommended && (
-                                    <span className="px-2 py-1 text-[10px] font-bold rounded-md border bg-green-50 text-green-700 border-green-200">
-                                      RECOMMENDED
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
+                                      <CheckCircle2 className="h-3 w-3" />
+                                      Recommended
                                     </span>
                                   )}
-                                  <span className={`px-2 py-1 text-[10px] font-bold rounded-md border ${badgeClasses(c.status)}`}>{c.status}</span>
+                                  <span className={`px-2.5 py-1 text-[11px] font-bold rounded-full border ${badgeClasses(c.status)}`}>{c.status}</span>
                                   {(isHigh || isMid || isLow) && (
                                     <span
-                                      className={`px-2 py-1 text-[10px] font-bold rounded-md border ${
+                                      className={`px-2.5 py-1 text-[11px] font-bold rounded-full ${
                                         isHigh
-                                          ? "bg-amber-50 text-amber-800 border-amber-200"
+                                          ? "bg-amber-50 text-amber-800"
                                           : isMid
-                                          ? "bg-slate-50 text-slate-800 border-slate-200"
-                                          : "bg-indigo-50 text-indigo-800 border-indigo-200"
+                                          ? "bg-slate-100 text-slate-700"
+                                          : "bg-indigo-50 text-indigo-700"
                                       }`}
                                     >
-                                      {isHigh ? "HIGH" : isMid ? "MID" : "LOW"}
+                                      {isHigh ? "High match" : isMid ? "Mid match" : "Low match"}
                                     </span>
                                   )}
                                 </div>
-                                <div className="mt-2 text-sm font-bold text-gray-900 truncate">
+                                <div className="mt-3 text-base font-bold text-gray-950 truncate">
                                   {c.property?.title || `Property #${c.propertyId}`}
                                 </div>
-                                <div className="mt-1 text-xs text-gray-600 truncate">Owner: {c.owner.name}</div>
+                                <div className="mt-1 text-sm text-gray-600 truncate">Owner: {c.owner.name}</div>
                               </div>
                               <div className="text-right flex-shrink-0">
-                                <div className="text-sm font-bold text-emerald-700">
+                                <div className="text-base font-bold text-emerald-700">
                                   {c.currency} {Number(c.totalAmount).toLocaleString()}
                                 </div>
-                                <div className="text-[11px] text-gray-500">Total</div>
+                                <div className="text-xs text-gray-500">Total</div>
                               </div>
                             </div>
 
                             {c.specialOffers && (
-                              <div className="mt-3 text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-lg p-2">
+                              <div className="mt-4 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-sm leading-relaxed text-amber-900">
                                 {c.specialOffers}
                               </div>
                             )}
 
-                            <div className="mt-3 pt-3 border-t border-gray-200 flex items-center justify-between gap-2">
+                            <div className="mt-4 flex items-center justify-between gap-3 border-t border-gray-100 pt-3">
                               <button
                                 onClick={() => toggleSelection(c.id)}
                                 disabled={
@@ -530,15 +553,15 @@ export default function AdminGroupStaysClaimsPage() {
                                   isRecommended ||
                                   (!isSelected && selectedClaimIds.length >= 3)
                                 }
-                                className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
-                                  isSelected
-                                    ? "bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700"
-                                    : "bg-white text-gray-800 border-gray-200 hover:bg-gray-50"
+                                className={`h-10 rounded-lg px-4 text-sm font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${
+                                  isSelected || isRecommended
+                                    ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                                    : "border border-gray-200 bg-white text-gray-800 hover:bg-gray-50"
                                 }`}
                               >
                                 {isRecommended ? "Recommended" : isSelected ? "Selected" : "Select"}
                               </button>
-                              <div className="text-[11px] text-gray-500">{c.currency} {Number(c.offeredPricePerNight).toLocaleString()}/night</div>
+                              <div className="text-sm text-gray-500">{c.currency} {Number(c.offeredPricePerNight).toLocaleString()}/night</div>
                             </div>
                           </div>
                         );

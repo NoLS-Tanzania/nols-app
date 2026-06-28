@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import DatePicker from '@/components/ui/DatePicker';
 import { REGIONS as TZ_REGIONS } from '@/lib/tzRegions';
 import { REGIONS_FULL_DATA } from '@/lib/tzRegionsFull';
 import Link from 'next/link';
-import { Calendar, ChevronDown, ChevronLeft, ChevronRight, Check, Truck, Bus, Coffee, Users, Wrench, Download, ArrowLeft, CheckCircle, ArrowRight, Trash2, Lock, DoorOpen } from 'lucide-react';
+import { Calendar, ChevronDown, ChevronLeft, ChevronRight, Check, Truck, Bus, Coffee, Users, Wrench, Download, ArrowLeft, CheckCircle, CheckCircle2, ArrowRight, Trash2, Lock, DoorOpen, Megaphone, MapPin, ShieldCheck, Gavel, Info } from 'lucide-react';
 import Spinner from './Spinner';
 import ComingSoonGate from './ComingSoonGate';
 
@@ -13,6 +13,7 @@ import ComingSoonGate from './ComingSoonGate';
  *  Set GATE_ENABLED to false when NoLSAF team is ready to open Group Stays.
  *  Nothing else needs to change — the modal simply won't appear.
  * ----------------------------------------------------------------------- */
+// TEMP (testing): set back to `true` to restore the coming-soon gate before launch.
 const GATE_ENABLED = false;
 const GATE_LAUNCH_DATE = new Date('2026-06-25T00:00:00');
 
@@ -31,6 +32,9 @@ export default function GroupStaysCard({ onCloseAction }: { onCloseAction?: () =
   const [errors, setErrors] = useState<string[]>([]);
   const [hasSavedDraft, setHasSavedDraft] = useState<boolean>(false);
   const [draftNotice, setDraftNotice] = useState<string>('');
+  // Bid-model explainer (parity with the mobile app's "How it works" panel).
+  // Collapsed by default — opens only when the chip is tapped.
+  const [showHowItWorks, setShowHowItWorks] = useState<boolean>(false);
 
   // Coming-soon gate — only the open/close state lives here now
   const [showComingSoon, setShowComingSoon] = useState(false);
@@ -166,6 +170,15 @@ export default function GroupStaysCard({ onCloseAction }: { onCloseAction?: () =
   const [showAllPassengers, setShowAllPassengers] = useState<boolean>(false);
   const [isCreating, setIsCreating] = useState<boolean>(false);
   const [showSuccess, setShowSuccess] = useState<boolean>(false);
+
+  // Keep focus on the task: when the result screen replaces the form, scroll it
+  // into view so the page doesn't appear to "jump to the footer".
+  const successRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (showSuccess && successRef.current) {
+      successRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [showSuccess]);
   const templateColumns = ['First name','Last name','Phone','Age','Gender','Nationality'];
 
   const toIsoDate = (d: Date) => {
@@ -181,6 +194,11 @@ export default function GroupStaysCard({ onCloseAction }: { onCloseAction?: () =
     if (Number.isNaN(dt.getTime())) return '';
     dt.setUTCDate(dt.getUTCDate() + days);
     return toIsoDate(dt);
+  };
+
+  const isoDateToApiDateTime = (iso: string) => {
+    if (!iso) return null;
+    return `${iso}T00:00:00.000Z`;
   };
 
   const clearSavedDraft = () => {
@@ -508,8 +526,8 @@ export default function GroupStaysCard({ onCloseAction }: { onCloseAction?: () =
       otherCount: otherCount > 0 ? otherCount : null,
       needsPrivateRoom,
       privateRoomCount,
-      checkin: useDates ? checkInIso : null,
-      checkout: useDates ? checkOutIso : null,
+      checkin: useDates ? isoDateToApiDateTime(checkInIso) : null,
+      checkout: useDates ? isoDateToApiDateTime(checkOutIso) : null,
       useDates,
       roomSize,
       roomsNeeded,
@@ -543,7 +561,14 @@ export default function GroupStaysCard({ onCloseAction }: { onCloseAction?: () =
       // Handle error responses
       if (!response.ok) {
         if (response.status === 401) {
-          throw new Error('Session expired. Please log in again.');
+          // Creating a group stay requires a signed-in customer (the booking is
+          // tied to a user). Route to login and return to this form afterwards;
+          // steps 1–2 are autosaved as a draft, so little is lost.
+          if (typeof window !== 'undefined') {
+            window.location.href = `/account/login?next=${encodeURIComponent('/public/group-stays')}`;
+            return;
+          }
+          throw new Error('Please sign in to submit your group stay request.');
         } else if (response.status === 400 && data.details) {
           // Handle validation errors
           const validationErrors = data.details.map((err: any) => 
@@ -643,7 +668,7 @@ export default function GroupStaysCard({ onCloseAction }: { onCloseAction?: () =
   // Show success screen if booking was created successfully
   if (showSuccess) {
     return (
-      <section className="mt-4" aria-labelledby="group-stays-success">
+      <section ref={successRef} className="mt-4" aria-labelledby="group-stays-success">
         <div className="public-container">
           <div className="bg-white rounded-2xl border border-slate-200 p-8 sm:p-12 shadow-sm">
             <style dangerouslySetInnerHTML={{ __html: `
@@ -676,11 +701,12 @@ export default function GroupStaysCard({ onCloseAction }: { onCloseAction?: () =
               {/* Heading and description with slide-up animation */}
               <div className="space-y-3 success-slide-up">
                 <h2 id="group-stays-success" className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
-                  Thank you for your Group Stay booking!
+                  Thank you for your group stay request
                 </h2>
                 <p className="text-base sm:text-lg text-slate-600 leading-relaxed">
-                  We&apos;ve received your group stay request and our team is currently reviewing it. 
-                  We&apos;ll get back to you soon with accommodation options and pricing tailored to your group&apos;s needs.
+                  Eligible property owners in your destination can now bid for your stay with their best price.
+                  NoLSAF shortlists the most reliable offers so you can compare and pick the one that excites you most.
+                  Follow updates from My Group Stays.
                 </p>
               </div>
 
@@ -763,10 +789,10 @@ export default function GroupStaysCard({ onCloseAction }: { onCloseAction?: () =
               <div>
                 <h3 id="group-stays-heading"
                   className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight drop-shadow-md">
-                  Group Stays Hub
+                  Request a group stay
                 </h3>
                 <p className="mt-2 text-sm sm:text-base text-white/70 font-medium max-w-md mx-auto leading-relaxed">
-                  Reserve rooms and manage group lodging for families, teams and events.
+                  Share your group&apos;s details and let property owners bid for your stay with their best price. You pick the offer that excites you most.
                 </p>
               </div>
 
@@ -859,6 +885,46 @@ export default function GroupStaysCard({ onCloseAction }: { onCloseAction?: () =
               <div key={currentStep} className="stepContentTransition">
               {currentStep === 1 && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* How it works — bid-model explainer (parity with the app).
+                      Compact chip; the panel opens only when tapped. */}
+                  <div className="sm:col-span-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowHowItWorks((v) => !v)}
+                      aria-expanded={showHowItWorks}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 shadow-sm transition-colors hover:bg-emerald-100"
+                    >
+                      <Info className="h-3.5 w-3.5 text-emerald-600" aria-hidden />
+                      How it works
+                      <ChevronDown
+                        className={`h-3.5 w-3.5 text-emerald-600 transition-transform ${showHowItWorks ? 'rotate-180' : ''}`}
+                        aria-hidden
+                      />
+                    </button>
+
+                    <div
+                      className={`grid transition-all duration-300 ease-in-out ${showHowItWorks ? 'grid-rows-[1fr] opacity-100 mt-2' : 'grid-rows-[0fr] opacity-0'}`}
+                    >
+                      <div className="overflow-hidden">
+                        <div className="rounded-2xl border border-emerald-100 bg-gradient-to-b from-emerald-50/80 to-white p-4 shadow-sm space-y-3.5">
+                          {[
+                            { Icon: Megaphone, text: "You post your group's trip details. No payment is needed to submit a request." },
+                            { Icon: MapPin, text: "Only property owners in your chosen destination area see your request and can bid." },
+                            { Icon: ShieldCheck, text: "NoLSAF screens every interested owner and shortlists only the best, most reliable offers for you." },
+                            { Icon: Gavel, text: "Owners compete with their best price. You compare offers and pick the one that excites you most." },
+                            { Icon: CheckCircle2, text: "To confirm your pick, pay a small non-refundable deposit. The remaining balance is settled on check-in day." },
+                          ].map(({ Icon, text }, i) => (
+                            <div key={i} className="flex items-start gap-3">
+                              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-100/70">
+                                <Icon className="h-4 w-4 text-emerald-600" aria-hidden />
+                              </span>
+                              <p className="text-xs text-slate-600 leading-relaxed pt-1">{text}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                   <div className="sm:col-span-2">
                     <div className="flex items-center justify-between gap-3 text-xs">
                       <div className="text-slate-500">
@@ -1382,7 +1448,7 @@ export default function GroupStaysCard({ onCloseAction }: { onCloseAction?: () =
                               {checkInPickerOpen && (
                                 <>
                                   <div className="fixed inset-0 z-40" onClick={() => setCheckInPickerOpen(false)} />
-                                  <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                                  <div className="absolute left-0 top-full z-50 mt-2 max-w-[calc(100vw-2rem)]">
                                     <DatePicker
                                       selected={checkInIso || undefined}
                                       onSelectAction={(s) => {
@@ -1421,7 +1487,7 @@ export default function GroupStaysCard({ onCloseAction }: { onCloseAction?: () =
                               {checkOutPickerOpen && (
                                 <>
                                   <div className="fixed inset-0 z-40" onClick={() => setCheckOutPickerOpen(false)} />
-                                  <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                                  <div className="absolute right-0 top-full z-50 mt-2 max-w-[calc(100vw-2rem)]">
                                     <DatePicker
                                       selected={checkOutIso || undefined}
                                       onSelectAction={(s) => {
@@ -2029,7 +2095,7 @@ export default function GroupStaysCard({ onCloseAction }: { onCloseAction?: () =
                 <button type="button" onClick={() => { /* save draft local */ }} disabled={isCreating || !isFormComplete()} className="px-3 py-2 bg-slate-50 border rounded-lg transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-200 disabled:opacity-50 disabled:cursor-not-allowed">Save draft</button>
                 <button 
                   type="button" 
-                  onClick={_handleCreate} 
+                  onClick={() => { if (GATE_ENABLED) { setShowComingSoon(true); } else { _handleCreate(); } }}
                   disabled={isCreating || !isFormComplete()}
                   className="px-4 py-2 bg-emerald-600 text-white rounded-lg shadow transition transform hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 focus:outline-none focus:ring-2 focus:ring-emerald-300 inline-flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none"
                   title={!isFormComplete() ? 'Please fill all required fields' : ''}

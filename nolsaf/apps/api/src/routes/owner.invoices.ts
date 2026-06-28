@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import { AuthedRequest, requireAuth, requireRole } from "../middleware/auth.js";
 import { invalidateOwnerReports } from "../lib/cache.js";
 import { getEffectiveCommissionPercent, resolveOwnerPayoutAmount } from "../lib/accommodationPayout.js";
+import { notifyAdmins } from "../lib/notifications.js";
 export const router = Router();
 router.use(requireAuth as unknown as RequestHandler, requireRole("OWNER") as unknown as RequestHandler);
 
@@ -280,8 +281,24 @@ router.post("/:id/submit", async (req, res) => {
     data: { status: "REQUESTED" },
   });
   await invalidateOwnerReports(updated.ownerId);
-  // notify admins in real-time (optional) - only once (when transitioning DRAFT -> REQUESTED)
-  try { authReq.app.get("io")?.emit?.("admin:invoice:submitted", { invoiceId: updated.id, bookingId: updated.bookingId }); } catch {}
+  // Notify admins only once, when the invoice first transitions to REQUESTED.
+  try {
+    await notifyAdmins("owner_payout_claim_submitted", {
+      ownerId: updated.ownerId,
+      invoiceId: updated.id,
+      invoiceNumber: updated.invoiceNumber,
+      bookingId: updated.bookingId,
+      amount: updated.netPayable ?? updated.total ?? null,
+    });
+  } catch {
+    // Notification delivery must not fail an otherwise successful payout claim.
+  }
+  try {
+    authReq.app.get("io")?.to?.("admin")?.emit?.("admin:invoice:submitted", {
+      invoiceId: updated.id,
+      bookingId: updated.bookingId,
+    });
+  } catch {}
 
   return res.json({ ok: true, status: updated.status, alreadySubmitted: false });
 });

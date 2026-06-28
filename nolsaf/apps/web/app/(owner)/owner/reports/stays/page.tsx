@@ -225,6 +225,18 @@ export default function StaysReportPage() {
 
   const canExport = !!data && !loading;
 
+  // Auction participation: surface the discounted stay total and how much the
+  // owner will actually collect at check-in from ACCEPTED offers. The claim's
+  // totalAmount is the owner's discounted payout (guest pays this directly at
+  // the property; NoLSAF's commission was already paid as the online deposit).
+  const auctionSummary = useMemo(() => {
+    const claims = data?.auctionClaims ?? [];
+    const accepted = claims.filter((c) => String(c.status || "").toUpperCase() === "ACCEPTED");
+    const acceptedTotal = accepted.reduce((s, c) => s + Number(c.totalAmount || 0), 0);
+    const currency = claims[0]?.currency || "TZS";
+    return { acceptedCount: accepted.length, acceptedTotal, currency };
+  }, [data]);
+
   function exportCsv() {
     if (!data) return;
 
@@ -519,17 +531,34 @@ export default function StaysReportPage() {
 
     const rowsAuctionClaims = (data.auctionClaims || [])
       .map((c) => {
+        const cur = c.currency || "TZS";
         return `
 <tr>
   <td>#${escapeHtml(String(c.groupBookingId))}</td>
   <td>${escapeHtml(String(c.property?.title || "—"))}</td>
-  <td style="text-align:right;">TZS ${escapeHtml(fmtMoneyTZS(Number(c.offeredPricePerNight || 0)))}</td>
+  <td style="text-align:right;">${escapeHtml(cur)} ${escapeHtml(fmtMoneyTZS(Number(c.offeredPricePerNight || 0)))}</td>
   <td style="text-align:right;">${escapeHtml(c.discountPercent ? String(c.discountPercent) + '%' : '—')}</td>
+  <td style="text-align:right;">${escapeHtml(cur)} ${escapeHtml(fmtMoneyTZS(Number(c.totalAmount || 0)))}</td>
   <td>${escapeHtml(String(c.status || "—"))}</td>
   <td>${escapeHtml(fmtDateTime(c.createdAt))}</td>
 </tr>`;
       })
       .join("\n");
+
+    // Accepted offers: total the owner collects directly at check-in.
+    const acceptedClaims = (data.auctionClaims || []).filter(
+      (c) => String(c.status || "").toUpperCase() === "ACCEPTED"
+    );
+    const acceptedCollectTotal = acceptedClaims.reduce((s, c) => s + Number(c.totalAmount || 0), 0);
+    const acceptedCurrency = (data.auctionClaims || [])[0]?.currency || "TZS";
+    const rowsAuctionFooter = acceptedClaims.length
+      ? `
+<tr>
+  <td colspan="4" style="text-align:right;font-weight:700;">You collect at check-in (${escapeHtml(String(acceptedClaims.length))} accepted)</td>
+  <td style="text-align:right;font-weight:800;color:var(--brand);">${escapeHtml(acceptedCurrency)} ${escapeHtml(fmtMoneyTZS(acceptedCollectTotal))}</td>
+  <td colspan="2"></td>
+</tr>`
+      : "";
 
     const seriesHtml = (data.series || [])
       .map((s) => {
@@ -1000,13 +1029,15 @@ export default function StaysReportPage() {
               <th>Property</th>
               <th style="text-align:right;">Offer / Night</th>
               <th style="text-align:right;">Discount</th>
+              <th style="text-align:right;">Stay Total (after discount)</th>
               <th>Status</th>
               <th>Created</th>
             </tr>
           </thead>
           <tbody>
-            ${rowsAuctionClaims || '<tr><td colspan="6" style="color:var(--faint);font-style:italic;">No auction claims in this range.</td></tr>'}
+            ${rowsAuctionClaims || '<tr><td colspan="7" style="color:var(--faint);font-style:italic;">No auction claims in this range.</td></tr>'}
           </tbody>
+          ${rowsAuctionFooter ? `<tfoot>${rowsAuctionFooter}</tfoot>` : ""}
         </table>
       </div>
     </div>
@@ -1268,7 +1299,7 @@ export default function StaysReportPage() {
             <div className="h-7 w-1 rounded-full bg-indigo-500" />
             <div>
               <div className="text-sm font-semibold text-gray-900">Group stays received</div>
-              <div className="text-xs text-gray-400 mt-0.5">Group bookings assigned to you in this range</div>
+              <div className="text-xs text-gray-400 mt-0.5">Group bookings assigned to you, by stay dates in this range</div>
             </div>
           </div>
           <div className="p-4 overflow-x-auto">
@@ -1298,7 +1329,7 @@ export default function StaysReportPage() {
                 ) : (
                   <tr>
                     <td className="py-6 px-3 text-sm text-gray-400 italic" colSpan={6}>
-                      {loading ? "Loading…" : "No group stays received in this range."}
+                      {loading ? "Loading…" : "No group stays with check-in/check-out dates in this range. Accepted offers appear here once their stay dates fall inside the selected period — widen the date range to include the stay dates."}
                     </td>
                   </tr>
                 )}
@@ -1316,39 +1347,67 @@ export default function StaysReportPage() {
             </div>
           </div>
           <div className="p-4 overflow-x-auto">
-            <table className="min-w-[840px] w-full text-sm">
+            <table className="min-w-[960px] w-full text-sm">
               <thead>
                 <tr className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 bg-gray-50/70 border-b border-gray-100">
                   <th className="text-left py-2.5 px-3">Group stay</th>
                   <th className="text-left py-2.5 px-3">Property</th>
                   <th className="text-right py-2.5 px-3">Offer / night</th>
                   <th className="text-right py-2.5 px-3">Discount</th>
+                  <th className="text-right py-2.5 px-3">Stay total (after discount)</th>
                   <th className="text-left py-2.5 px-3">Status</th>
                   <th className="text-left py-2.5 px-3">Created</th>
                 </tr>
               </thead>
               <tbody>
                 {data?.auctionClaims?.length ? (
-                  data.auctionClaims.map((c) => (
-                    <tr key={c.id} className="border-b last:border-b-0 hover:bg-gray-50/60 transition-colors">
-                      <td className="py-2.5 px-3 font-medium text-gray-900">#{c.groupBookingId}</td>
-                      <td className="py-2.5 px-3 text-gray-600">{c.property?.title || "—"}</td>
-                      <td className="py-2.5 px-3 text-right font-semibold text-indigo-700">TZS {fmtMoneyTZS(Number(c.offeredPricePerNight || 0))}</td>
-                      <td className="py-2.5 px-3 text-right text-gray-600">{c.discountPercent ? `${String(c.discountPercent)}%` : "—"}</td>
-                      <td className="py-2.5 px-3 text-gray-600">{c.status || "—"}</td>
-                      <td className="py-2.5 px-3 text-gray-500 text-xs">{fmtDateTime(c.createdAt)}</td>
-                    </tr>
-                  ))
+                  data.auctionClaims.map((c) => {
+                    const accepted = String(c.status || "").toUpperCase() === "ACCEPTED";
+                    return (
+                      <tr key={c.id} className="border-b last:border-b-0 hover:bg-gray-50/60 transition-colors">
+                        <td className="py-2.5 px-3 font-medium text-gray-900">#{c.groupBookingId}</td>
+                        <td className="py-2.5 px-3 text-gray-600">{c.property?.title || "—"}</td>
+                        <td className="py-2.5 px-3 text-right font-semibold text-indigo-700">{c.currency || "TZS"} {fmtMoneyTZS(Number(c.offeredPricePerNight || 0))}</td>
+                        <td className="py-2.5 px-3 text-right text-gray-600">{c.discountPercent ? `${String(c.discountPercent)}%` : "—"}</td>
+                        <td className={"py-2.5 px-3 text-right font-semibold " + (accepted ? "text-emerald-700" : "text-gray-700")}>{c.currency || "TZS"} {fmtMoneyTZS(Number(c.totalAmount || 0))}</td>
+                        <td className="py-2.5 px-3 text-gray-600">{c.status || "—"}</td>
+                        <td className="py-2.5 px-3 text-gray-500 text-xs">{fmtDateTime(c.createdAt)}</td>
+                      </tr>
+                    );
+                  })
                 ) : (
                   <tr>
-                    <td className="py-6 px-3 text-sm text-gray-400 italic" colSpan={6}>
+                    <td className="py-6 px-3 text-sm text-gray-400 italic" colSpan={7}>
                       {loading ? "Loading…" : "No auction claims created in this range."}
                     </td>
                   </tr>
                 )}
               </tbody>
+              {auctionSummary.acceptedCount > 0 && (
+                <tfoot>
+                  <tr className="border-t-2 border-gray-200 bg-emerald-50/40">
+                    <td className="py-3 px-3 text-xs font-semibold text-gray-700" colSpan={4}>
+                      You collect at check-in
+                      <span className="ml-1.5 font-normal text-gray-400">
+                        ({auctionSummary.acceptedCount} accepted {auctionSummary.acceptedCount === 1 ? "offer" : "offers"})
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 text-right text-sm font-extrabold text-emerald-700">
+                      {auctionSummary.currency} {fmtMoneyTZS(auctionSummary.acceptedTotal)}
+                    </td>
+                    <td className="py-3 px-3" colSpan={2} />
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
+          {auctionSummary.acceptedCount > 0 && (
+            <div className="px-5 pb-4 -mt-1">
+              <p className="text-[11px] text-gray-400">
+                Stay total is the owner&apos;s discounted payout. The guest pays it directly to you at the property — NoLSAF&apos;s commission was already collected as the online deposit.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 

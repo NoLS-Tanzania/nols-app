@@ -167,6 +167,11 @@ router.get("/:id", asyncHandler(async (req: Request, res: Response) => {
         status: true,
         confirmedPropertyId: true,
         createdAt: true,
+        // Check-in milestone + earnings split (NoLSAF keeps the deposit; owner collects the balance)
+        checkedInAt: true,
+        totalAmount: true,
+        depositAmount: true,
+        currency: true,
         // Arrangement fields
         arrPickup: true,
         arrTransport: true,
@@ -200,6 +205,104 @@ router.get("/:id", asyncHandler(async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error("Error fetching group stay details:", err);
     return res.status(500).json({ error: "Failed to fetch group stay details" });
+  }
+}));
+
+/**
+ * GET /owner/group-stays/:id/roster
+ * Return the group member roster for an assigned owner group stay.
+ */
+router.get("/:id/roster", asyncHandler(async (req: Request, res: Response) => {
+  res.setHeader("Content-Type", "application/json");
+
+  const r = req as AuthedRequest;
+  const ownerId = r.user?.id;
+
+  if (!ownerId || typeof ownerId !== "number") {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  const groupBookingId = Number(req.params.id);
+  if (!groupBookingId || isNaN(groupBookingId) || groupBookingId <= 0) {
+    return res.status(400).json({ error: "Invalid group stay ID" });
+  }
+
+  try {
+    const booking = await prisma.groupBooking.findFirst({
+      where: {
+        id: groupBookingId,
+        assignedOwnerId: ownerId,
+      },
+      select: {
+        id: true,
+        headcount: true,
+        roster: true,
+        passengers: {
+          orderBy: { sequenceNumber: "asc" },
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            phone: true,
+            age: true,
+            gender: true,
+            nationality: true,
+            sequenceNumber: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+
+    if (!booking) {
+      return res.status(404).json({ error: "Group stay not found or not assigned to you" });
+    }
+
+    const structuredMembers = (booking.passengers || []).map((p) => ({
+      id: p.id,
+      firstName: p.firstName,
+      lastName: p.lastName,
+      name: [p.firstName, p.lastName].filter(Boolean).join(" ").trim(),
+      phone: p.phone,
+      age: p.age,
+      gender: p.gender,
+      nationality: p.nationality,
+      sequenceNumber: p.sequenceNumber,
+      createdAt: p.createdAt,
+      source: "passengers",
+    }));
+
+    const fallbackRoster = Array.isArray(booking.roster)
+      ? booking.roster.map((raw: any, index: number) => {
+          const firstName = String(raw?.firstName ?? raw?.firstname ?? "").trim();
+          const lastName = String(raw?.lastName ?? raw?.lastname ?? "").trim();
+          const fullName = String(raw?.name ?? raw?.fullName ?? [firstName, lastName].filter(Boolean).join(" ")).trim();
+          return {
+            id: raw?.id ?? `roster-${index + 1}`,
+            firstName,
+            lastName,
+            name: fullName || `Member ${index + 1}`,
+            phone: raw?.phone ?? raw?.phoneNumber ?? null,
+            age: raw?.age ?? null,
+            gender: raw?.gender ?? raw?.sex ?? null,
+            nationality: raw?.nationality ?? null,
+            sequenceNumber: raw?.sequenceNumber ?? index + 1,
+            createdAt: raw?.createdAt ?? null,
+            source: "roster",
+          };
+        })
+      : [];
+
+    const members = structuredMembers.length > 0 ? structuredMembers : fallbackRoster;
+
+    return res.json({
+      members,
+      total: members.length,
+      expectedTotal: booking.headcount,
+    });
+  } catch (err: any) {
+    console.error("Error fetching owner group stay roster:", err);
+    return res.status(500).json({ error: "Failed to fetch group roster" });
   }
 }));
 
@@ -551,6 +654,97 @@ router.post("/:id/accept", asyncHandler(async (req: Request, res: Response) => {
     console.error("Error accepting group stay assignment:", err);
     return res.status(500).json({ error: "Failed to accept assignment" });
   }
+}));
+
+/**
+ * POST /owner/group-stays/:id/check-in
+ * Owner marks the group as checked in (an arrival milestone).
+ *
+ * Money model: NoLSAF's commission is the deposit the guest already paid online.
+ * The owner collects their full balance (booking total minus deposit) directly from
+ * the guest at the property. NoLSAF does not disburse anything to the owner, so
+ * check-in carries no payout obligation.
+ */
+router.post("/:id/check-in", asyncHandler(async (req: Request, res: Response) => {
+  res.setHeader("Content-Type", "application/json");
+
+  const r = req as AuthedRequest;
+  const ownerId = r.user?.id;
+  if (!ownerId || typeof ownerId !== "number") {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  const groupBookingId = Number(req.params.id);
+  if (!groupBookingId || isNaN(groupBookingId) || groupBookingId <= 0) {
+    return res.status(400).json({ error: "Invalid group stay ID" });
+  }
+
+  const booking = await prisma.groupBooking.findFirst({
+    where: { id: groupBookingId, assignedOwnerId: ownerId },
+    select: {
+      id: true,
+      status: true,
+      depositPaid: true,
+      checkedInAt: true,
+      totalAmount: true,
+      depositAmount: true,
+      currency: true,
+    },
+  });
+
+  if (!booking) {
+    return res.status(404).json({ error: "Group stay not found or not assigned to you" });
+  }
+  if (String(booking.status).toUpperCase() !== "CONFIRMED" || !booking.depositPaid) {
+    return res.status(400).json({ error: "This group stay is not confirmed yet. Check-in is available once the guest's deposit is paid." });
+  }
+  if (booking.checkedInAt) {
+    return res.status(409).json({ error: "This group stay is already checked in.", alreadyCheckedIn: true });
+  }
+
+  // The owner collects this balance from the guest at the property (NoLSAF keeps the deposit).
+  const total = Number(booking.totalAmount || 0);
+  const deposit = Number(booking.depositAmount || 0);
+  const ownerCollects = Math.max(0, Math.round(total - deposit));
+  const currency = booking.currency || "TZS";
+  const now = new Date();
+
+  const updated = await prisma.groupBooking.update({
+    where: { id: booking.id },
+    data: { checkedInAt: now },
+    select: { id: true, checkedInAt: true },
+  });
+
+  // Audit (best-effort, outside any transaction)
+  try {
+    await prisma.groupBookingAudit.create({
+      data: {
+        groupBookingId: booking.id,
+        adminId: ownerId,
+        action: "OWNER_MARKED_CHECKIN",
+        description: "Owner marked the group as checked in.",
+        metadata: { ownerId, ownerCollects, currency },
+      },
+    });
+  } catch (auditErr) {
+    console.error("Failed to create audit log for group stay check-in:", auditErr);
+  }
+
+  // Confirm the arrival to the owner (best-effort)
+  try {
+    await notifyUser(ownerId, "group_stay_update", {
+      title: "Check-in recorded",
+      body: `Thanks for confirming check-in for group stay #${booking.id}. Remember to collect your balance of ${currency} ${ownerCollects.toLocaleString("en-US")} from the guest at the property.`,
+      groupBookingId: booking.id,
+    });
+  } catch { /* non-fatal */ }
+
+  return res.json({
+    success: true,
+    checkedInAt: updated.checkedInAt,
+    ownerCollects,
+    currency,
+  });
 }));
 
 export default router;

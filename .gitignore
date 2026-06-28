@@ -1,5 +1,7 @@
 .cursor/
 .claude/
+.codex-worktrees/
+nolsaf/apps/*/.expo/
 
 # IDE
 .vscode/

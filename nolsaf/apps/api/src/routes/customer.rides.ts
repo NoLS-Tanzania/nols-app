@@ -35,7 +35,23 @@ router.get("/", async (req, res) => {
       const [items, count] = await Promise.all([
         prisma.transportBooking.findMany({
           where,
-          include: {
+          select: {
+            id: true,
+            scheduledDate: true,
+            pickupTime: true,
+            dropoffTime: true,
+            fromRegion: true,
+            fromDistrict: true,
+            fromWard: true,
+            fromAddress: true,
+            toRegion: true,
+            toDistrict: true,
+            toWard: true,
+            toAddress: true,
+            status: true,
+            amount: true,
+            rating: true,
+            createdAt: true,
             driver: {
               select: {
                 id: true,

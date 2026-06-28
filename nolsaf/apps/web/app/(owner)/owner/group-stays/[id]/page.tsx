@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import apiClient from "@/lib/apiClient";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, CheckCircle, Calendar, User, Phone, Mail, Building2, MapPin, Users, X, Search, MessageSquare, Send, CheckCircle2, Info, Sparkles, Car, UtensilsCrossed, UserCheck, Wrench, FileText } from "lucide-react";
+import { ArrowLeft, CheckCircle, Calendar, User, Phone, Mail, Building2, MapPin, Users, X, Search, MessageSquare, Send, CheckCircle2, Info, Sparkles, Car, UtensilsCrossed, UserCheck, Wrench, FileText, ShieldCheck, CalendarX, TrendingUp, HeartHandshake, Wallet } from "lucide-react";
 
 const api = apiClient;
 
@@ -45,6 +45,11 @@ type GroupStayDetail = {
   passengers?: Passenger[];
   messages?: Message[];
   createdAt: string;
+  // Check-in milestone + earnings split
+  checkedInAt?: string | null;
+  totalAmount?: number | null;
+  depositAmount?: number | null;
+  currency?: string | null;
   // Arrangement fields
   arrPickup?: boolean;
   arrTransport?: boolean;
@@ -63,6 +68,8 @@ export default function GroupStayDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showPassengersModal, setShowPassengersModal] = useState(false);
+  const [showPolicyModal, setShowPolicyModal] = useState(false);
+  const [checkingIn, setCheckingIn] = useState(false);
   const [passengerSearch, setPassengerSearch] = useState("");
   const [modalRef, setModalRef] = useState<HTMLDivElement | null>(null);
   const [messageText, setMessageText] = useState("");
@@ -108,6 +115,16 @@ export default function GroupStayDetail() {
       };
     }
   }, [showPassengersModal, modalRef]);
+
+  // Close the policy modal on Escape
+  useEffect(() => {
+    if (!showPolicyModal) return;
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowPolicyModal(false);
+    };
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [showPolicyModal]);
 
   // Filter passengers based on search
   const filteredPassengers = groupStay?.passengers
@@ -293,6 +310,47 @@ export default function GroupStayDetail() {
   }
 
   const statusBadge = getStatusBadge(groupStay.status);
+  const isConfirmed = groupStay.status?.toUpperCase() === "CONFIRMED";
+  const guestFirstName = groupStay.user?.name?.trim()?.split(/\s+/)[0] || "";
+  const heroDestination = [groupStay.toDistrict, groupStay.toRegion].filter(Boolean).join(", ") || groupStay.toRegion || "-";
+
+  const goToMessaging = () => {
+    setShowCommunication(true);
+    setTimeout(() => {
+      document.getElementById("owner-communication")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
+  };
+
+  const isCheckedIn = !!groupStay.checkedInAt;
+  const heroCurrency = groupStay.currency || "TZS";
+  const ownerCollectsAmount = Math.max(0, Math.round(Number(groupStay.totalAmount || 0) - Number(groupStay.depositAmount || 0)));
+  const ownerCollectsText = groupStay.totalAmount != null
+    ? `${heroCurrency} ${ownerCollectsAmount.toLocaleString("en-US")}`
+    : null;
+
+  const handleCheckIn = async () => {
+    if (checkingIn) return;
+    setCheckingIn(true);
+    try {
+      const response = await api.post(`/api/owner/group-stays/${idParam}/check-in`, {});
+      if (response.data?.success) {
+        window.dispatchEvent(new CustomEvent("nols:toast", {
+          detail: { type: "success", title: "Check-in recorded", message: "Remember to collect the stay balance from the guest at the property.", duration: 4000 },
+        }));
+        try {
+          const updated = await api.get(`/api/owner/group-stays/${idParam}`);
+          if (updated.data) setGroupStay(updated.data);
+        } catch { /* ignore refresh error */ }
+      }
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || "Failed to record check-in. Please try again.";
+      window.dispatchEvent(new CustomEvent("nols:toast", {
+        detail: { type: "error", title: "Error", message: msg, duration: 5000 },
+      }));
+    } finally {
+      setCheckingIn(false);
+    }
+  };
 
   return (
     <div className="min-h-[60vh] px-4 py-6 max-w-4xl mx-auto">
@@ -320,6 +378,125 @@ export default function GroupStayDetail() {
           </span>
         </div>
       </div>
+
+      {/* Offer Accepted Hero Card — shown once the guest's deposit is confirmed */}
+      {isConfirmed && (
+        <div className="mb-6 relative overflow-hidden rounded-3xl border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-green-50 shadow-lg shadow-emerald-100/60 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-emerald-200/30" />
+          <div className="pointer-events-none absolute -left-12 -bottom-12 h-36 w-36 rounded-full bg-green-200/30" />
+
+          <div className="relative p-6 sm:p-8">
+            {/* Title */}
+            <div className="flex items-start gap-4">
+              <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center shadow-lg shadow-emerald-300/40 flex-shrink-0">
+                <CheckCircle className="h-7 w-7 text-white" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-2xl font-bold text-emerald-900">Offer Accepted 🎉</h2>
+                  <span className="px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide bg-emerald-600 text-white shadow-sm">
+                    Deposit paid
+                  </span>
+                </div>
+                <p className="text-sm text-emerald-800/80 mt-1.5 leading-relaxed">
+                  Congratulations! {guestFirstName ? `${guestFirstName}'s` : "The guest's"} deposit is confirmed and you&apos;re now hosting this group. Here&apos;s everything you need to welcome them.
+                </p>
+              </div>
+            </div>
+
+            {/* Details grid */}
+            <div className="mt-6 grid grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3">
+              {groupStay.user?.name && (
+                <HeroStat icon={<User className="h-4 w-4" />} label="Guest" value={groupStay.user.name} />
+              )}
+              {groupStay.user?.phone && (
+                <HeroStat icon={<Phone className="h-4 w-4" />} label="Phone" value={groupStay.user.phone} />
+              )}
+              {groupStay.confirmedProperty?.title && (
+                <HeroStat icon={<Building2 className="h-4 w-4" />} label="Property" value={groupStay.confirmedProperty.title} />
+              )}
+              <HeroStat icon={<MapPin className="h-4 w-4" />} label="Destination" value={heroDestination} />
+              {groupStay.checkIn && (
+                <HeroStat icon={<Calendar className="h-4 w-4" />} label="Check-in" value={formatDate(groupStay.checkIn)} />
+              )}
+              {groupStay.checkOut && (
+                <HeroStat icon={<Calendar className="h-4 w-4" />} label="Check-out" value={formatDate(groupStay.checkOut)} />
+              )}
+              <HeroStat
+                icon={<Users className="h-4 w-4" />}
+                label="Group size"
+                value={`${groupStay.headcount} ${groupStay.headcount === 1 ? "person" : "people"} • ${groupStay.roomsNeeded} ${groupStay.roomsNeeded === 1 ? "room" : "rooms"}`}
+              />
+              <HeroStat
+                icon={<Sparkles className="h-4 w-4" />}
+                label="Stay type"
+                value={`${groupStay.groupType ? groupStay.groupType.charAt(0).toUpperCase() + groupStay.groupType.slice(1) : "Group"} • ${groupStay.accommodationType ? groupStay.accommodationType.charAt(0).toUpperCase() + groupStay.accommodationType.slice(1) : "-"}`}
+              />
+            </div>
+
+            {/* You collect at property + check-in milestone */}
+            <div className="mt-6 flex items-start gap-3 rounded-xl border border-emerald-200 bg-white/80 px-4 py-3">
+              <div className="h-9 w-9 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                <Wallet className="h-4 w-4 text-emerald-700" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-sm font-bold text-slate-900">
+                  You collect at the property{ownerCollectsText ? ` • ${ownerCollectsText}` : ""}
+                </div>
+                <div className="text-xs text-slate-600 mt-0.5">
+                  The guest already paid the deposit online. Collect the stay balance directly from the guest{ownerCollectsText ? "" : ""}.
+                </div>
+              </div>
+            </div>
+
+            {isCheckedIn ? (
+              <div className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-emerald-700">
+                <CheckCircle className="h-4 w-4" />
+                Checked in{groupStay.checkedInAt ? ` on ${formatDate(groupStay.checkedInAt)}` : ""}
+              </div>
+            ) : (
+              <div className="mt-3">
+                <button
+                  onClick={handleCheckIn}
+                  disabled={checkingIn}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-green-600 text-white font-semibold text-sm shadow-md shadow-emerald-300/40 hover:from-emerald-700 hover:to-green-700 hover:shadow-lg transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {checkingIn ? (
+                    <>
+                      <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Recording...
+                    </>
+                  ) : (
+                    <>
+                      <UserCheck className="h-4 w-4" />
+                      Mark group checked in
+                    </>
+                  )}
+                </button>
+                <p className="text-xs text-slate-500 mt-1.5">Mark the group as checked in when they arrive.</p>
+              </div>
+            )}
+
+            {/* CTAs */}
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <button
+                onClick={goToMessaging}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-green-600 text-white font-semibold text-sm shadow-md shadow-emerald-300/40 hover:from-emerald-700 hover:to-green-700 hover:shadow-lg transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+              >
+                <MessageSquare className="h-4 w-4" />
+                Message your guest
+              </button>
+              <button
+                onClick={() => setShowPolicyModal(true)}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border-2 border-emerald-300 bg-white text-emerald-700 font-semibold text-sm hover:bg-emerald-50 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+              >
+                <ShieldCheck className="h-4 w-4" />
+                View policy
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Content Cards */}
       <div className="grid gap-6 md:grid-cols-2">
@@ -609,7 +786,7 @@ export default function GroupStayDetail() {
       )}
 
       {/* Communication & Feedback Section */}
-      <div className="mt-6 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden transition-all duration-200 w-full max-w-full">
+      <div id="owner-communication" className="mt-6 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden transition-all duration-200 w-full max-w-full">
         <div className="px-4 sm:px-6 py-4 border-b border-slate-200">
           <div className="flex items-center justify-between min-w-0 gap-3">
             <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -951,6 +1128,87 @@ export default function GroupStayDetail() {
         </Link>
       </div>
 
+      {/* Hosting Policy Modal */}
+      {showPolicyModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+          onClick={() => setShowPolicyModal(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="policy-modal-title"
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[85vh] overflow-hidden flex flex-col animate-in slide-in-from-bottom-4 duration-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-emerald-600 to-green-700 px-5 sm:px-6 py-4 flex items-center justify-between flex-shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="h-10 w-10 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
+                  <ShieldCheck className="h-5 w-5 text-white" />
+                </div>
+                <div className="min-w-0">
+                  <h2 id="policy-modal-title" className="text-base sm:text-lg font-semibold text-white truncate">Hosting policy</h2>
+                  <p className="text-xs text-white/80 mt-0.5">Please follow these for a confirmed group stay</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowPolicyModal(false)}
+                className="h-8 w-8 rounded-lg bg-white/20 hover:bg-white/30 text-white transition-all duration-200 flex items-center justify-center hover:scale-110 flex-shrink-0 ml-3"
+                title="Close"
+                aria-label="Close policy"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
+              <PolicyItem
+                icon={<Wallet className="h-5 w-5 text-teal-600" />}
+                tone="teal"
+                title="How you get paid"
+                body="The guest pays the deposit online. You collect the stay balance directly from the guest at the property. NoLSAF does not collect anything further from that balance, so there is no separate payout to wait for."
+              />
+              <PolicyItem
+                icon={<CalendarX className="h-5 w-5 text-rose-600" />}
+                tone="rose"
+                title="Block the selected dates"
+                body={`Do not accept other guests for these rooms on the booked stay dates${groupStay.checkIn && groupStay.checkOut ? ` (${formatDate(groupStay.checkIn)} to ${formatDate(groupStay.checkOut)})` : ""}. Keep them reserved for this group so no one is turned away on arrival.`}
+              />
+              <PolicyItem
+                icon={<TrendingUp className="h-5 w-5 text-amber-600" />}
+                tone="amber"
+                title="An opportunity that counts"
+                body="NoLSAF reviews hosting trends across every group stay. Treat this booking as a chance to stand out and earn more group placements in the future."
+              />
+              <PolicyItem
+                icon={<MessageSquare className="h-5 w-5 text-blue-600" />}
+                tone="blue"
+                title="Stay in close communication"
+                body="Reach out to your guest early, share arrival and check in details, and reply to their questions promptly throughout the stay."
+              />
+              <PolicyItem
+                icon={<HeartHandshake className="h-5 w-5 text-emerald-600" />}
+                tone="emerald"
+                title="Treat travellers well"
+                body="Welcome the group warmly and make sure every traveller is cared for and comfortable from arrival to checkout."
+              />
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-5 sm:px-6 py-4 border-t border-slate-200 flex-shrink-0">
+              <button
+                onClick={() => setShowPolicyModal(false)}
+                className="w-full px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-green-600 text-white font-semibold text-sm hover:from-emerald-700 hover:to-green-700 transition-all duration-200"
+              >
+                Got it
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Passengers Modal */}
       {showPassengersModal && groupStay?.passengers && (
         <div 
@@ -1103,6 +1361,41 @@ export default function GroupStayDetail() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function PolicyItem({ icon, tone, title, body }: { icon: React.ReactNode; tone: "rose" | "amber" | "blue" | "emerald" | "teal"; title: string; body: string }) {
+  const toneClasses: Record<string, string> = {
+    rose: "bg-rose-50 border-rose-100",
+    amber: "bg-amber-50 border-amber-100",
+    blue: "bg-blue-50 border-blue-100",
+    emerald: "bg-emerald-50 border-emerald-100",
+    teal: "bg-teal-50 border-teal-100",
+  };
+  return (
+    <div className="flex items-start gap-3.5">
+      <div className={`h-10 w-10 rounded-xl border flex items-center justify-center flex-shrink-0 ${toneClasses[tone]}`}>
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <h3 className="text-sm font-bold text-slate-900">{title}</h3>
+        <p className="text-sm text-slate-600 leading-relaxed mt-0.5">{body}</p>
+      </div>
+    </div>
+  );
+}
+
+function HeroStat({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div className="flex items-center gap-2.5 sm:gap-3 rounded-xl border border-emerald-100 bg-white/70 backdrop-blur-sm px-3 py-2.5 sm:px-4 sm:py-3 transition-all duration-200 hover:bg-white hover:shadow-sm">
+      <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0 text-emerald-700">
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <div className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wide text-emerald-700/70">{label}</div>
+        <div className="text-[13px] sm:text-sm font-bold text-slate-900 truncate" title={value}>{value}</div>
+      </div>
     </div>
   );
 }

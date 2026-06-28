@@ -493,20 +493,25 @@ router.get("/stats", async (req: Request, res: Response) => {
     const status = toSingleString((req.query as any).status);
     const assignedOwnerIdRaw = toSingleString((req.query as any).assignedOwnerId);
 
-    const baseWhere: any = {};
-    if (status) baseWhere.status = status;
+    const statusCountWhere: any = {};
     if (assignedOwnerIdRaw) {
       const ownerId = Number(assignedOwnerIdRaw);
-      if (Number.isFinite(ownerId) && ownerId > 0) baseWhere.assignedOwnerId = ownerId;
+      if (Number.isFinite(ownerId) && ownerId > 0) statusCountWhere.assignedOwnerId = ownerId;
     }
+    const baseWhere: any = { ...statusCountWhere };
+    if (status) baseWhere.status = status;
 
-    const [total, claims, admin] = await Promise.all([
+    const [total, claims, admin, groupedStatuses] = await Promise.all([
       (prisma as any).groupBooking.count({ where: baseWhere }),
       (prisma as any).groupBooking.count({ where: { ...baseWhere, isOpenForClaims: true } }),
       (prisma as any).groupBooking.count({ where: { ...baseWhere, isOpenForClaims: false } }),
+      (prisma as any).groupBooking.groupBy({ by: ["status"], where: statusCountWhere, _count: { _all: true } }),
     ]);
 
-    return res.json({ total, claims, admin });
+    const statuses = Object.fromEntries(
+      (groupedStatuses || []).map((row: any) => [String(row.status || "UNKNOWN").toUpperCase(), Number(row._count?._all || 0)])
+    );
+    return res.json({ total, claims, admin, statuses });
   } catch (err: any) {
     console.error("Error fetching group stay assignment stats:", err);
     return res.status(500).json({ error: "Failed to fetch assignment stats" });

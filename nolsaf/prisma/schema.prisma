@@ -847,7 +847,7 @@ model GroupBooking {
   totalAmount Decimal? @db.Decimal(12, 2)
   /// Currency code (default: TZS)
   currency    String   @default("TZS")
-  /// Deposit amount required to confirm the booking (10% of totalAmount)
+  /// Deposit amount required to confirm the booking. For group stay auctions this is the NoLSAF commission amount.
   depositAmount Decimal? @db.Decimal(12, 2)
   /// Whether the deposit has been paid
   depositPaid   Boolean  @default(false)
@@ -867,6 +867,19 @@ model GroupBooking {
   payerPhone        String? @db.VarChar(40)
   /// Payment provider used for the deposit (e.g. AZAMPAY)
   paymentProvider   String? @db.VarChar(40)
+
+  // ==================== Owner Payout (group stay) ====================
+  /// Timestamp when the assigned owner marked the group as checked in (triggers the payout obligation)
+  checkedInAt       DateTime?
+  /// Owner's payout owed by NoLSAF after check-in (deposit minus commission). The remaining balance is
+  /// collected by the owner directly from the guest at the property.
+  ownerPayoutAmount Decimal?  @db.Decimal(12, 2)
+  /// Owner payout lifecycle: NONE | PENDING | PAID
+  ownerPayoutStatus String    @default("NONE") @db.VarChar(20)
+  /// Timestamp when NoLSAF marked the owner payout as paid
+  ownerPayoutPaidAt DateTime?
+  /// Reference for the manual payout transfer (bank/mobile money ref) recorded by admin
+  ownerPayoutRef    String?   @db.VarChar(120)
 
   // ==================== Administrative Notes ====================
   /// Internal admin notes about this booking
@@ -911,6 +924,7 @@ model GroupBooking {
   @@index([createdAt])
   @@index([assignedOwnerId])
   @@index([confirmedPropertyId])
+  @@index([ownerPayoutStatus])
   @@map("group_bookings")
 }
 
@@ -984,7 +998,7 @@ model GroupBookingClaim {
   propertyId Int
 
   // ==================== Offer Details ====================
-  /// Offered price per night (with discount applied)
+  /// Owner's base price per room/night before any offer discount
   offeredPricePerNight Decimal @db.Decimal(12, 2)
   /// Discount percentage (e.g., 15 for 15% off)
   discountPercent Decimal? @db.Decimal(5, 2)
@@ -992,7 +1006,7 @@ model GroupBookingClaim {
   specialOffers String? @db.Text
   /// Additional notes from owner
   notes String? @db.Text
-  /// Total amount for the stay (calculated)
+  /// Total owner amount for the stay after discount, before NoLSAF commission
   totalAmount Decimal @db.Decimal(12, 2)
   /// Currency code
   currency String @default("TZS")
@@ -1692,6 +1706,11 @@ model SystemSetting {
   /// Agent promotion: Minimum revenue required for promotion (in TZS, default: 20,000,000)
   agentPromotionMinRevenue Int? @default(20000000)
 
+  /// Operator tier ladder overrides (JSON). Editable per-tier thresholds for
+  /// SILVER/GOLD/PLATINUM: { SILVER: {minTours,minRevenue,minRating,minReviews}, ... }.
+  /// Null/blank falls back to the hardcoded defaults in lib/agentLevel.ts.
+  agentTierLadder Json?
+
   /// Agent commission percentage (default: 15% of trip budget goes to NoLSAF)
   agentCommissionPercent Decimal? @default(15.0) @db.Decimal(5, 2)
 
@@ -1908,6 +1927,7 @@ model TourBooking {
   operator      Agent          @relation("AgentTourBookings", fields: [operatorAgentId], references: [id], onDelete: Cascade)
   customer      User?          @relation("UserTourBookings", fields: [customerId], references: [id], onDelete: SetNull)
   paymentEvents PaymentEvent[]
+  agentReview   AgentReview?   @relation("AgentReviewsTourBooking")
 
   @@index([operatorAgentId])
   @@index([customerId])
@@ -2252,8 +2272,12 @@ model AgentReview {
   /// User who wrote the review (customer who worked with the agent)
   userId Int
 
-  /// Optional: Link to the plan request that this review is for
+  /// Optional: Link to the plan request that this review is for (legacy Plan-With-Us flow)
   planRequestId Int?
+
+  /// Optional: Link to the tour booking this review is for (current operator flow).
+  /// Unique so a completed booking can be reviewed at most once.
+  tourBookingId Int? @unique
 
   /// Punctuality rating (1-5)
   punctualityRating Int // 1-5
@@ -2275,10 +2299,12 @@ model AgentReview {
   agent       Agent        @relation(fields: [agentId], references: [id], onDelete: Cascade)
   user        User         @relation("AgentReviewsUser", fields: [userId], references: [id], onDelete: Cascade)
   planRequest PlanRequest? @relation("AgentReviewsPlanRequest", fields: [planRequestId], references: [id], onDelete: SetNull)
+  tourBooking TourBooking? @relation("AgentReviewsTourBooking", fields: [tourBookingId], references: [id], onDelete: SetNull)
 
   @@index([agentId])
   @@index([userId])
   @@index([planRequestId])
+  @@index([tourBookingId])
   @@index([createdAt])
   @@index([agentId, createdAt])
   @@map("agent_reviews")

@@ -49,6 +49,11 @@ export async function notifyAdmins(template: string, data: any) {
         body: `${data.operatorName ? `${data.operatorName} ` : "An operator "}submitted a payout claim for booking ${data.bookingCode || `#${data.tourBookingId}`}. Review it in the tour revenue dashboard.`
       },
 
+      owner_payout_claim_submitted: {
+        title: "Owner Payout Invoice Submitted",
+        body: `${data.ownerName ? `${data.ownerName} ` : "A property owner "}submitted invoice ${data.invoiceNumber || `#${data.invoiceId}`} for a payout claim${data.propertyTitle ? ` for "${data.propertyTitle}"` : data.bookingId ? ` on booking #${data.bookingId}` : ""}. Review it in the admin revenue dashboard.`
+      },
+
       // Transport (driver allocation) escalations
       transport_auto_dispatch_no_drivers_2m: {
         title: "No Driver Acceptance Yet (2 min)",
@@ -75,7 +80,7 @@ export async function notifyAdmins(template: string, data: any) {
 
     try {
       // Create notification for admins (no userId/ownerId = visible to all admins)
-      await prisma.notification.create({
+      const created = await prisma.notification.create({
         data: {
           userId: null,
           ownerId: null,
@@ -87,6 +92,8 @@ export async function notifyAdmins(template: string, data: any) {
             ? "ride"
             : template.startsWith("careers")
               ? "careers"
+            : template.startsWith("owner_payout")
+              ? "invoice"
             : template.startsWith("cancellation")
               ? "cancellation"
               : template.startsWith("group_stay")
@@ -96,6 +103,28 @@ export async function notifyAdmins(template: string, data: any) {
                 : "property"
         }
       });
+
+      // Best-effort realtime delivery to authenticated admin dashboards.
+      // The database record remains the source of truth if Socket.IO is unavailable.
+      try {
+        const io = (global as any).io;
+        if (io && typeof io.to === "function") {
+          const urgent = template === "transport_auto_dispatch_warning"
+            || template === "transport_auto_dispatch_takeover";
+
+          io.to("admin").emit("admin:notification:new", {
+            id: created.id,
+            title: created.title,
+            body: created.body,
+            type: created.type,
+            template,
+            priority: urgent ? "urgent" : "normal",
+            createdAt: created.createdAt,
+          });
+        }
+      } catch {
+        // Realtime delivery is optional; the saved inbox notification is not affected.
+      }
     } catch (err: any) {
       console.error("[notify] admins - failed to create notification", err?.message || err, template);
     }

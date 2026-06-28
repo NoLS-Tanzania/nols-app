@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import apiClient from "@/lib/apiClient";
-import { Users, User, CheckCircle, Loader2, Search, Clock, XCircle, Filter, ChevronDown, MapPin, Calendar, Building2, Users as UsersIcon, Phone, Mail, AlertCircle, Percent, FileText, History, Activity, Ban, Gavel } from "lucide-react";
+import { Users, User, CheckCircle, Loader2, Search, Clock, XCircle, Filter, ChevronDown, ChevronLeft, ChevronRight, MapPin, Calendar, Building2, Users as UsersIcon, Phone, Mail, AlertCircle, Percent, FileText, History, Activity, Ban, Gavel } from "lucide-react";
 import DatePicker from "@/components/ui/DatePicker";
 import Link from "next/link";
 
@@ -118,7 +118,7 @@ export default function AdminGroupStayAssignmentsPage() {
   const [owners, setOwners] = useState<Owner[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
-  const [summary, setSummary] = useState<{ total: number; admin: number; claims: number } | null>(null);
+  const [summary, setSummary] = useState<{ total: number; admin: number; claims: number; statuses: Record<string, number> } | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [assigning, setAssigning] = useState<number | null>(null);
   const [linking, setLinking] = useState<number | null>(null);
@@ -148,24 +148,31 @@ export default function AdminGroupStayAssignmentsPage() {
   const [auditLoading, setAuditLoading] = useState<Record<number, boolean>>({});
   const [expandedAudits, setExpandedAudits] = useState<Record<number, boolean>>({});
   const [view, setView] = useState<"all" | "claims" | "admin">("admin");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(12);
+  const [totalItems, setTotalItems] = useState(0);
 
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
       const params: any = {};
       params.view = view;
+      params.page = page;
+      params.pageSize = pageSize;
       if (selectedStatus) params.status = selectedStatus;
       if (selectedOwner) params.assignedOwnerId = selectedOwner;
 
       const response = await api.get("/api/admin/group-stays/assignments", { params });
       setGroupStays(response.data.items || []);
+      setTotalItems(Number(response.data.total || 0));
+      setPageSize(Number(response.data.pageSize || pageSize));
     } catch (err: any) {
       console.error("Failed to load group stays:", err);
       setGroupStays([]);
     } finally {
       setLoading(false);
     }
-  }, [selectedStatus, selectedOwner, view]);
+  }, [selectedStatus, selectedOwner, view, page, pageSize]);
 
   const loadSummary = useCallback(async () => {
     try {
@@ -175,11 +182,12 @@ export default function AdminGroupStayAssignmentsPage() {
       if (selectedOwner) params.assignedOwnerId = selectedOwner;
 
       const response = await api.get("/api/admin/group-stays/assignments/stats", { params });
-      const next = response.data as { total?: number; admin?: number; claims?: number };
+      const next = response.data as { total?: number; admin?: number; claims?: number; statuses?: Record<string, number> };
       setSummary({
         total: Number(next?.total ?? 0),
         admin: Number(next?.admin ?? 0),
         claims: Number(next?.claims ?? 0),
+        statuses: next?.statuses || {},
       });
     } catch (err: any) {
       console.error("Failed to load assignment summary stats:", err);
@@ -470,16 +478,13 @@ export default function AdminGroupStayAssignmentsPage() {
 
   // Calculate filter counts
   const statusCounts = useMemo(() => {
-    const counts: Record<string, number> = {
-      all: groupStays.length,
-      PENDING: groupStays.filter(gs => gs.status.toUpperCase() === 'PENDING').length,
-      PROCESSING: groupStays.filter(gs => gs.status.toUpperCase() === 'PROCESSING').length,
-      CONFIRMED: groupStays.filter(gs => gs.status.toUpperCase() === 'CONFIRMED').length,
-      COMPLETED: groupStays.filter(gs => gs.status.toUpperCase() === 'COMPLETED').length,
-      CANCELED: groupStays.filter(gs => gs.status.toUpperCase() === 'CANCELED' || gs.status.toUpperCase() === 'CANCELLED').length,
-    };
-    return counts;
-  }, [groupStays]);
+    const statuses = summary?.statuses || {};
+    return {
+      all: Object.values(statuses).reduce((sum, count) => sum + Number(count || 0), 0),
+      ...statuses,
+      CANCELED: Number(statuses.CANCELED || 0) + Number(statuses.CANCELLED || 0),
+    } as Record<string, number>;
+  }, [summary]);
 
   const ownerCounts = useMemo(() => {
     const counts: Record<string, number> = {
@@ -535,6 +540,8 @@ export default function AdminGroupStayAssignmentsPage() {
   const getStatusBadge = (status: string) => {
     const colors: Record<string, string> = {
       PENDING: "bg-amber-100 text-amber-700 border-amber-200",
+      REVIEWING: "bg-violet-100 text-violet-700 border-violet-200",
+      AWAITING_DEPOSIT: "bg-amber-100 text-amber-800 border-amber-200",
       PROCESSING: "bg-blue-100 text-blue-700 border-blue-200",
       CONFIRMED: "bg-green-100 text-green-700 border-green-200",
       COMPLETED: "bg-emerald-100 text-emerald-700 border-emerald-200",
@@ -543,6 +550,26 @@ export default function AdminGroupStayAssignmentsPage() {
     };
     const key = (status || "").toUpperCase();
     return colors[key] || "bg-gray-100 text-gray-700 border-gray-200";
+  };
+
+  const getStatusCardTone = (status: string) => {
+    const key = (status || "").toUpperCase();
+    if (key === "PENDING" || key === "AWAITING_DEPOSIT") return "border-amber-200 bg-gradient-to-br from-white via-white to-amber-50/60 shadow-amber-100/60";
+    if (key === "REVIEWING") return "border-violet-200 bg-gradient-to-br from-white via-white to-violet-50/60 shadow-violet-100/60";
+    if (key === "PROCESSING") return "border-blue-200 bg-gradient-to-br from-white via-white to-blue-50/60 shadow-blue-100/60";
+    if (key === "CONFIRMED" || key === "COMPLETED") return "border-emerald-200 bg-gradient-to-br from-white via-white to-emerald-50/60 shadow-emerald-100/60";
+    if (key === "CANCELED" || key === "CANCELLED") return "border-rose-200 bg-gradient-to-br from-white via-white to-rose-50/60 shadow-rose-100/60";
+    return "border-slate-200 bg-gradient-to-br from-white via-white to-slate-50 shadow-slate-200/60";
+  };
+
+  const getStatusCornerTone = (status: string) => {
+    const key = (status || "").toUpperCase();
+    if (key === "PENDING" || key === "AWAITING_DEPOSIT") return "bg-amber-200/30";
+    if (key === "REVIEWING") return "bg-violet-200/30";
+    if (key === "PROCESSING") return "bg-blue-200/30";
+    if (key === "CONFIRMED" || key === "COMPLETED") return "bg-emerald-200/30";
+    if (key === "CANCELED" || key === "CANCELLED") return "bg-rose-200/30";
+    return "bg-slate-200/35";
   };
 
   const filteredGroupStays = useMemo(() => {
@@ -611,7 +638,6 @@ export default function AdminGroupStayAssignmentsPage() {
 
       {/* Summary strip */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="h-1 bg-gradient-to-r from-slate-400 via-brand to-emerald-500" />
         <div className="p-4 sm:p-5">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="text-left">
@@ -628,10 +654,10 @@ export default function AdminGroupStayAssignmentsPage() {
 
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
           {([
-            { key: "admin" as const, label: "Admin-handled", icon: User, value: summary?.admin ?? null, accentFrom: "from-slate-400", accentTo: "to-slate-500", iconBg: "bg-slate-50 border-slate-200 text-slate-600", iconBgActive: "bg-white border-slate-300 text-slate-700" },
-            { key: "claims" as const, label: "Open for claims", icon: AlertCircle, value: summary?.claims ?? null, accentFrom: "from-brand-400", accentTo: "to-brand-600", iconBg: "bg-brand-50/40 border-brand-100 text-brand", iconBgActive: "bg-white border-brand-200 text-brand" },
-            { key: "all" as const, label: "All", icon: Users, value: summary?.total ?? null, accentFrom: "from-emerald-400", accentTo: "to-emerald-600", iconBg: "bg-emerald-50 border-emerald-100 text-emerald-700", iconBgActive: "bg-white border-emerald-300 text-emerald-700" },
-          ]).map(({ key, label, icon: Icon, value, accentFrom, accentTo, iconBg, iconBgActive }) => {
+            { key: "admin" as const, label: "Admin-handled", icon: User, value: summary?.admin ?? null, iconBg: "bg-slate-50 border-slate-200 text-slate-600", iconBgActive: "bg-white border-slate-300 text-slate-700" },
+            { key: "claims" as const, label: "Open for claims", icon: AlertCircle, value: summary?.claims ?? null, iconBg: "bg-brand-50/40 border-brand-100 text-brand", iconBgActive: "bg-white border-brand-200 text-brand" },
+            { key: "all" as const, label: "All", icon: Users, value: summary?.total ?? null, iconBg: "bg-emerald-50 border-emerald-100 text-emerald-700", iconBgActive: "bg-white border-emerald-300 text-emerald-700" },
+          ]).map(({ key, label, icon: Icon, value, iconBg, iconBgActive }) => {
             const active = view === key;
             const resolvedValue = summaryLoading ? null : value;
 
@@ -639,7 +665,7 @@ export default function AdminGroupStayAssignmentsPage() {
               <button
                 key={key}
                 type="button"
-                onClick={() => setView(key)}
+                onClick={() => { setView(key); setPage(1); }}
                 className={`group text-left rounded-xl border overflow-hidden transition-all duration-200 hover:-translate-y-0.5 ${
                   active
                     ? "border-slate-200 shadow-md bg-white"
@@ -647,7 +673,6 @@ export default function AdminGroupStayAssignmentsPage() {
                 }`}
                 aria-pressed={active}
               >
-                <div className={`h-1 bg-gradient-to-r ${active ? `${accentFrom} ${accentTo}` : "from-slate-200 to-slate-200 group-hover:" + accentFrom}`} />
                 <div className="p-4 flex items-start justify-between">
                   <div>
                     <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{label}</div>
@@ -734,12 +759,14 @@ export default function AdminGroupStayAssignmentsPage() {
                 <label className="block text-sm font-semibold text-slate-700">Filter by Status</label>
                 <select
                   value={selectedStatus}
-                  onChange={(e) => setSelectedStatus(e.target.value)}
+                  onChange={(e) => { setSelectedStatus(e.target.value); setPage(1); }}
                   className="w-full px-4 py-2.5 border-2 border-slate-200 rounded-xl focus:ring-2 focus:ring-brand focus:border-brand outline-none transition-all duration-200 text-sm font-medium bg-white shadow-sm hover:shadow-md"
                 >
                   <option value="">All statuses ({statusCounts.all})</option>
-                  <option value="PENDING">Pending ({statusCounts.PENDING || 0})</option>
-                  <option value="PROCESSING">Processing ({statusCounts.PROCESSING || 0})</option>
+                  <option value="PENDING">Pending request ({statusCounts.PENDING || 0})</option>
+                  <option value="REVIEWING">Under review ({statusCounts.REVIEWING || 0})</option>
+                  <option value="PROCESSING">Recommendations sent ({statusCounts.PROCESSING || 0})</option>
+                  <option value="AWAITING_DEPOSIT">Awaiting deposit ({statusCounts.AWAITING_DEPOSIT || 0})</option>
                   <option value="CONFIRMED">Confirmed ({statusCounts.CONFIRMED || 0})</option>
                   <option value="COMPLETED">Completed ({statusCounts.COMPLETED || 0})</option>
                   <option value="CANCELED">Canceled ({statusCounts.CANCELED || 0})</option>
@@ -752,7 +779,7 @@ export default function AdminGroupStayAssignmentsPage() {
                   <label className="block text-sm font-semibold text-slate-700">Filter by Owner</label>
                   <select
                     value={selectedOwner}
-                    onChange={(e) => setSelectedOwner(e.target.value)}
+                    onChange={(e) => { setSelectedOwner(e.target.value); setPage(1); }}
                     className="w-full px-4 py-2.5 border-2 border-slate-200 rounded-xl focus:ring-2 focus:ring-brand focus:border-brand outline-none transition-all duration-200 text-sm font-medium bg-white shadow-sm hover:shadow-md"
                     aria-label="Filter by Owner"
                     title="Filter by Owner"
@@ -841,6 +868,7 @@ export default function AdminGroupStayAssignmentsPage() {
                   setSearchQuery("");
                   setSelectedStatus("");
                   setSelectedOwner("");
+                  setPage(1);
                 }}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-brand text-white font-medium text-sm hover:bg-brand-600 transition-colors"
                 aria-label="Clear all filters"
@@ -854,11 +882,11 @@ export default function AdminGroupStayAssignmentsPage() {
           filteredGroupStays.map((gs) => (
             <div
               key={gs.id}
-              className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 animate-in fade-in slide-in-from-bottom-2"
+              className={`relative overflow-hidden rounded-2xl border shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg animate-in fade-in slide-in-from-bottom-2 ${getStatusCardTone(gs.status)}`}
             >
-              <div className="h-1 bg-gradient-to-r from-brand-400 via-brand-500 to-emerald-500" />
+              <div className={`pointer-events-none absolute -right-14 -top-14 h-36 w-36 rounded-full ${getStatusCornerTone(gs.status)}`} />
               {/* Card Header */}
-              <div className="p-6 pb-4">
+              <div className="relative p-6 pb-4">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-4">
                     <div className="inline-flex items-center justify-center h-12 w-12 rounded-xl bg-gradient-to-br from-brand-50 to-brand-100 border border-brand-200 shadow-sm">
@@ -1394,6 +1422,25 @@ export default function AdminGroupStayAssignmentsPage() {
           ))
         )}
       </div>
+
+      {totalItems > pageSize && (
+        <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-sm text-slate-500">
+            Showing <span className="font-bold text-slate-800">{(page - 1) * pageSize + 1}</span>–<span className="font-bold text-slate-800">{Math.min(page * pageSize, totalItems)}</span> of <span className="font-bold text-slate-800">{totalItems}</span> assignments
+          </div>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page <= 1 || loading} className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">
+              <ChevronLeft className="h-4 w-4" /> Previous
+            </button>
+            <span className="inline-flex h-10 min-w-20 items-center justify-center rounded-xl bg-slate-100 px-3 text-sm font-bold text-slate-700">
+              {page} / {Math.ceil(totalItems / pageSize)}
+            </span>
+            <button type="button" onClick={() => setPage((current) => Math.min(Math.ceil(totalItems / pageSize), current + 1))} disabled={page >= Math.ceil(totalItems / pageSize) || loading} className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#02665e] px-3 text-sm font-bold text-white transition-colors hover:bg-[#014e47] disabled:cursor-not-allowed disabled:opacity-40">
+              Next <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Open for Claims Modal */}
       {showClaimsModal && (
