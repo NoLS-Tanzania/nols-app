@@ -50,7 +50,7 @@ Copy-Item $PkgJsonPath $PkgJsonBackup -Force
 $content = Get-Content $PkgJsonPath -Raw
 $content = $content -replace '"@nolsaf/prisma":\s*"file:[^"]*"', '"@nolsaf/prisma": "file:./_workspace/@nolsaf/prisma"'
 $content = $content -replace '"@nolsaf/shared":\s*"file:[^"]*"', '"@nolsaf/shared": "file:./_workspace/@nolsaf/shared"'
-Set-Content $PkgJsonPath $content -Encoding UTF8
+[System.IO.File]::WriteAllText($PkgJsonPath, $content, [System.Text.UTF8Encoding]::new($false))
 
 # ── 4. Build the API (TypeScript → dist) ─────────────────────────────────────
 Write-Host "`n── Building @nolsaf/api …"
@@ -86,6 +86,9 @@ try {
         $eb = "C:\Users\NoLS Tanzania\AppData\Roaming\Python\Python312\Scripts\eb.exe"
     }
     & $eb deploy
+    if ($LASTEXITCODE -ne 0) {
+        throw "Elastic Beanstalk deploy failed with exit code $LASTEXITCODE."
+    }
 } finally {
     Pop-Location
 }
