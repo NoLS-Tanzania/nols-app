@@ -2,7 +2,7 @@
 
 import { TermsSection } from "./Terms";
 
-export const PRIVACY_LAST_UPDATED = "1 January 2026";
+export const PRIVACY_LAST_UPDATED = "28 June 2026";
 
 export const PRIVACY_SECTIONS: TermsSection[] = [
   {
@@ -12,7 +12,7 @@ export const PRIVACY_SECTIONS: TermsSection[] = [
         <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6 rounded">
           <h3 className="text-lg font-semibold text-gray-900 mb-2">Summary</h3>
           <p className="text-sm text-gray-700 leading-relaxed">
-            NoLSAF is committed to protecting your privacy and personal information. This Privacy Policy explains how we collect, use, store, and protect your data when you use our platform to book accommodations, list properties, or provide transportation services. We collect information necessary to provide our services, including account details, booking information, payment data, and location information. We use this data to facilitate bookings, process payments, verify identities, improve our services, and communicate with you. We implement strong security measures to protect your information and only share data with trusted service providers and as required by law. You have rights to access, update, or delete your personal information at any time. By using NoLSAF, you consent to the practices described in this policy.
+            NoLSAF is committed to protecting your privacy and personal information. This Privacy Policy explains how we collect, use, store, and protect your data when you use our platform to book accommodations, request transport, make payments, register or onboard, arrange group stays, book tour packages, use trip planning tools, or provide services as an owner, driver, or tour operator. We collect information necessary to provide these services, including account details, booking information, payment data, location and route information, group passenger details, tour permit information, and sensitive travel compliance documents where required. We use this data to facilitate bookings, process payments, verify identities, arrange services, process permits, improve our services, and communicate with you. We implement strong security measures to protect your information and only share data with trusted service providers, verified service partners, relevant authorities where required, and as required by law. You have rights to access, update, or delete your personal information at any time, subject to legal and operational retention requirements.
           </p>
         </div>
 
@@ -23,7 +23,7 @@ export const PRIVACY_SECTIONS: TermsSection[] = [
 
         <p>
           <strong>1.1 Scope</strong><br />
-          This Privacy Policy applies to all personal information collected by NoLSAF through our Services, including but not limited to information provided during account registration, property listings, booking transactions, payment processing, customer support interactions, and use of our website and mobile applications.
+          This Privacy Policy applies to all personal information collected by NoLSAF through our Services, including but not limited to information provided during account registration, onboarding, property listings, accommodation bookings, transport requests, group stays, tour package bookings, permit processing, trip estimates, payment processing, customer support interactions, and use of our website and mobile applications.
         </p>
 
         <p>
@@ -47,6 +47,8 @@ export const PRIVACY_SECTIONS: TermsSection[] = [
           d. Password (stored securely using encryption)<br />
           e. Role selection (User/Traveller, Owner, or Driver)<br />
           f. Profile photo or avatar (optional)<br />
+          g. Referral code or inviter details where you register through an invite link<br />
+          h. Preferred currency, language, notification preferences, and security settings where you provide them<br />
           <em>Example: When you register as a property owner, we collect your name, email, and phone number to create your account and enable you to list properties and manage bookings.</em>
         </p>
 
@@ -76,18 +78,65 @@ export const PRIVACY_SECTIONS: TermsSection[] = [
         </p>
 
         <p>
-          <strong>2.1.4 Booking Information</strong><br />
-          When you make a booking, we collect;<br />
+          <strong>2.1.4 Accommodation Booking Information</strong><br />
+          When you make an accommodation booking, we collect;<br />
           a. Check-in and check-out dates<br />
-          b. Number of guests<br />
-          c. Special requests or preferences<br />
-          d. Payment information (processed securely through third-party payment processors)<br />
-          e. Communication preferences<br />
-          <em>Example: We store your booking dates and guest count to facilitate your stay and ensure the property can accommodate your needs.</em>
+          b. Guest name, phone number, and email address where provided<br />
+          c. Nationality, sex, age group, adults, children, pets, and room quantity where required for the booking flow<br />
+          d. Selected property, room type, room code or unit, special requests, and stay preferences<br />
+          e. Optional transport add-ons, including pickup address, pickup coordinates, arrival type, arrival number, transport company, arrival time, vehicle type, and pickup location<br />
+          f. Payment information and invoice information processed through third-party payment processors<br />
+          <em>Example: We store your booking dates, guest contact details, selected room, and transport add-on details to reserve the property, create the invoice, send confirmations, and coordinate arrival.</em>
         </p>
 
         <p>
-          <strong>2.1.5 Communication Data</strong><br />
+          <strong>2.1.5 Transport Booking Information</strong><br />
+          When you request transport, we collect;<br />
+          a. Passenger name, phone number, email address, and linked account details where available<br />
+          b. Pickup and drop-off addresses, GPS coordinates, route distance and duration estimates<br />
+          c. Scheduled date, pickup time, drop-off time, vehicle type, number of passengers, notes, and preferred driver language<br />
+          d. Arrival details such as flight, bus, train, ferry, or other arrival type, arrival number, transport company, arrival time, and pickup location<br />
+          e. Trip code, payment status, assigned driver, driver/passenger ratings, reviews, and transport messages<br />
+          <em>Example: We use your pickup coordinates and destination address to calculate the fare, match a driver, and help the driver reach you.</em>
+        </p>
+
+        <p>
+          <strong>2.1.6 Group Stay Information</strong><br />
+          When you request a group stay, we collect;<br />
+          a. Group type, headcount, male/female/other count, room size, rooms needed, private room needs, and accommodation type<br />
+          b. Origin and destination country, region, district, ward, exact location, and flexible or fixed dates<br />
+          c. Arrangement preferences such as pickup, transport, meals, guide/staff, equipment, pickup location, pickup time, and arrangement notes<br />
+          d. Passenger roster details, including first name, last name, phone number, age, gender, nationality, and sequence number where provided<br />
+          e. Messages, owner offers, selected property, deposit payment information, and cancellation or status notes<br />
+          <em>Example: For a school, team, event, family, workers, or safari group stay, we may collect a passenger roster and room breakdown so verified owners can prepare suitable accommodation and NoLSAF can coordinate the booking.</em>
+        </p>
+
+        <p>
+          <strong>2.1.7 Tour Package and Permit Information</strong><br />
+          When you book a tour package or request operator-supported travel arrangements, we collect;<br />
+          a. Tour operator, package, destination, category, travel dates, traveler count, guest name, email, phone number, nationality, and booking notes<br />
+          b. Package and operator snapshots so your purchased package can be honored even if the operator later edits their profile<br />
+          c. Passenger or traveler roster details needed for tour operations, permit processing, conservation area entry, park entry, accommodation, transport, and emergency support<br />
+          d. Passport details or passport copies, national ID details where applicable, visa or permit information, travel insurance details, and emergency contact details where required for the booked package<br />
+          e. Yellow fever certificate, vaccination proof, medical, dietary, mobility, accessibility, or other health-related information only where legally or operationally required for the tour, permit, destination, operator, carrier, park, or authority<br />
+          f. Payment access tokens, payment references, payer phone number, bank or mobile money details required to initiate payment, card checkout references, and payment status<br />
+          <em>Example: Some safari, park, conservation, border, island, or multi-day packages require passport information, permit details, yellow fever proof, or passenger rosters. We collect these only when needed to deliver the booked tour or satisfy legal, authority, operator, safety, or permit requirements.</em>
+        </p>
+
+        <p>
+          <strong>2.1.8 Trip Planning and Cost Estimate Information</strong><br />
+          When you use trip planning or cost estimate tools, we may collect nationality or country code, destinations, travel dates, number of adults and children, transport preference, requested activities, accommodation tier, estimated cost breakdown, session identifier, anonymized IP address, and linked user ID where you are logged in.<br />
+          <em>Example: We use your selected destinations, traveler count, nationality, activities, and transport preference to calculate park fees, visa-related estimates, transport estimates, and accommodation ranges.</em>
+        </p>
+
+        <p>
+          <strong>2.1.9 Plan Request Information</strong><br />
+          If a planning request service is available and you submit a request, we may collect your role, trip type, destinations, dates, group size, budget, notes, name, email, phone number, transport needs, pickup and drop-off locations, vehicle requirements, and role-specific event, school, university, community, or tourist requirements.<br />
+          <em>Example: For a school or event planning request, we may collect age range, chaperone count, learning objectives, venue preferences, accessibility needs, and special support requirements so our team can prepare a suitable proposal.</em>
+        </p>
+
+        <p>
+          <strong>2.1.10 Communication Data</strong><br />
           We collect information from your communications with us, including;<br />
           a. Customer support inquiries and responses<br />
           b. Feedback and reviews you submit<br />
@@ -105,7 +154,7 @@ export const PRIVACY_SECTIONS: TermsSection[] = [
           b. Operating system and version<br />
           c. Browser type and version<br />
           d. IP address<br />
-          e. Unique device identifiers<br />
+          e. Unique device identifiers, app storage identifiers, session identifiers, login history, active session metadata, and security audit data<br />
           <strong>2.2.2 Usage Information</strong><br />
           We collect information about how you interact with our Services, including;<br />
           a. Pages visited and time spent on pages<br />
@@ -126,8 +175,8 @@ export const PRIVACY_SECTIONS: TermsSection[] = [
           We use cookies, local storage, and similar technologies to enhance your experience and collect information;<br />
           <strong>2.3.1 Essential Cookies</strong><br />
           These cookies are necessary for the platform to function, including;<br />
-          a. Authentication tokens (stored securely)<br />
-          b. Session management<br />
+          a. Authentication tokens, including secure session cookies and mobile secure storage tokens<br />
+          b. Session management, role routing, CSRF protection, and account security<br />
           c. User preferences (theme, language)<br />
           d. Shopping cart and booking information<br />
           <strong>2.3.2 Analytics Cookies</strong><br />
@@ -140,17 +189,18 @@ export const PRIVACY_SECTIONS: TermsSection[] = [
           a. Remember your login status<br />
           b. Store user preferences (accepted policies, widget settings)<br />
           c. Cache data for faster loading<br />
+          d. Store cookie consent choices, temporary form state, draft data, and mobile app authentication tokens where applicable<br />
           <em>Example: We store your authentication token in a secure cookie so you don't have to log in every time you visit our platform. You can clear your cookies at any time through your browser settings.</em>
         </p>
 
         <p>
           <strong>2.4 Information from Third Parties</strong><br />
           We may receive information about you from third-party sources, including;<br />
-          a. Payment processors (Stripe, AzamPay, M-Pesa, etc.) - transaction status and payment method details<br />
+          a. Payment processors (AzamPay, M-Pesa, Mixx by Yas, Airtel Money, HaloPesa, banks, card processors, etc.) - transaction status, payment method details, checkout references, webhooks, and payment event data<br />
           b. Social media platforms (if you choose to register or log in using social media)<br />
           c. Property verification services<br />
           d. Background check providers (for Drivers)<br />
-          e. Government databases (for verification purposes)<br />
+          e. Government, permit, park, conservation, border, immigration, health, or regulatory authorities where needed for verification, tour permits, legal compliance, or travel operations<br />
           <em>Example: When you pay for a booking using M-Pesa, the payment processor sends us confirmation that your payment was successful, along with the transaction reference number.</em>
         </p>
 
@@ -164,11 +214,12 @@ export const PRIVACY_SECTIONS: TermsSection[] = [
           We use your information to;<br />
           a. Create and manage your account<br />
           b. Process and facilitate bookings<br />
-          c. Verify your identity and eligibility (for Owners and Drivers)<br />
-          d. Process payments and payouts<br />
-          e. Communicate with you about bookings, services, and account matters<br />
-          f. Provide customer support<br />
-          g. Send booking confirmations, receipts, and updates<br />
+          c. Verify your identity and eligibility (for Owners, Drivers, Tour Operators, and where required for travellers)<br />
+          d. Process payments, deposits, refunds, commissions, invoices, and payouts<br />
+          e. Coordinate accommodation, transport, group stays, tour packages, permits, park entry, operator arrangements, and related services<br />
+          f. Communicate with you about bookings, services, and account matters<br />
+          g. Provide customer support<br />
+          h. Send booking confirmations, receipts, vouchers, check-in codes, payment updates, and service updates<br />
           <em>Example: When you book a property, we use your email and phone number to send you booking confirmation, check-in instructions, and important updates about your stay.</em>
         </p>
 
@@ -177,10 +228,12 @@ export const PRIVACY_SECTIONS: TermsSection[] = [
           We use your information to;<br />
           a. Verify property listings and ensure accuracy<br />
           b. Match Drivers with transportation requests<br />
-          c. Facilitate communication between Users, Owners, and Drivers<br />
-          d. Process reviews and ratings<br />
-          e. Manage disputes and resolve issues<br />
-          f. Enforce our Terms of Service and policies<br />
+          c. Match group stay requests with suitable verified property owners<br />
+          d. Facilitate communication between Users, Owners, Drivers, Tour Operators, and NoLSAF support/admin teams<br />
+          e. Process tour permits, passenger rosters, travel-document checks, and authority submissions where required for a booked service<br />
+          f. Process reviews and ratings<br />
+          g. Manage disputes and resolve issues<br />
+          h. Enforce our Terms of Service and policies<br />
           <em>Example: We use property verification information to ensure that only legitimate, safe properties are listed on our platform, protecting both travelers and property owners.</em>
         </p>
 
@@ -189,9 +242,11 @@ export const PRIVACY_SECTIONS: TermsSection[] = [
           We use payment information to;<br />
           a. Process booking payments from Users<br />
           b. Distribute payouts to Owners and Drivers<br />
-          c. Handle refunds and cancellations<br />
-          d. Prevent fraud and unauthorized transactions<br />
-          e. Comply with financial regulations<br />
+          c. Process tour operator payouts, group stay deposits, platform commissions, and reconciliation records<br />
+          d. Handle refunds and cancellations<br />
+          e. Prevent fraud and unauthorized transactions<br />
+          f. Comply with financial regulations<br />
+          g. Record transaction references, checkout session IDs, payer phone numbers, bank codes, card checkout URLs, webhook payloads, and payment status updates needed for reconciliation and support<br />
           <em>Example: When you pay for a booking, we securely transmit your payment details to our payment processor (like AzamPay or Stripe) to complete the transaction. We don't store your full credit card number.</em>
         </p>
 
@@ -211,8 +266,9 @@ export const PRIVACY_SECTIONS: TermsSection[] = [
           a. Verify identities and prevent fraud<br />
           b. Detect and prevent unauthorized access<br />
           c. Investigate suspicious activities<br />
-          d. Ensure compliance with laws and regulations<br />
-          e. Protect the safety of Users, Owners, and Drivers<br />
+          d. Ensure compliance with laws, travel rules, health requirements, permit requirements, and financial regulations<br />
+          e. Protect the safety of Users, Owners, Drivers, Tour Operators, passengers, and staff<br />
+          f. Support emergency, accessibility, dietary, medical, or special assistance needs connected to a booked service<br />
           <em>Example: If we detect unusual activity on your account (like multiple failed login attempts), we may temporarily lock your account and notify you to prevent unauthorized access.</em>
         </p>
 
@@ -223,6 +279,7 @@ export const PRIVACY_SECTIONS: TermsSection[] = [
           b. Improve our Services and user experience<br />
           c. Develop new features and functionality<br />
           d. Conduct research and statistical analysis<br />
+          e. Improve fare calculation, booking availability, group stay matching, tour package operations, and trip estimate accuracy<br />
           <em>Example: We analyze which property features are most searched for to help us improve our search functionality and help property owners understand what travelers are looking for.</em>
         </p>
 
@@ -246,10 +303,17 @@ export const PRIVACY_SECTIONS: TermsSection[] = [
         <p>
           <strong>4.2 Business Partners</strong><br />
           We may share limited information with business partners, including;<br />
-          a. Property Owners - booking details, guest information, and communication history<br />
-          b. Drivers - ride request details, passenger information, and location data<br />
-          c. Verified service providers - to facilitate bookings and services<br />
+          a. Property Owners - booking details, guest information, stay dates, group stay information, selected offers, and communication history needed to host you<br />
+          b. Drivers - ride request details, passenger information, pickup and drop-off locations, route information, notes, language preference, and timing information needed to provide transport<br />
+          c. Tour Operators - tour booking details, passenger rosters, emergency contact details, passport or ID information, permit information, yellow fever or other required vaccination proof, dietary/medical/accessibility needs, and payment status needed to deliver the booked package<br />
+          d. Verified service providers - accommodation providers, transport providers, guides, park/conservation operators, activity providers, support providers, and other partners needed to facilitate bookings and services<br />
+          e. Permit, park, conservation, border, immigration, health, emergency, or regulatory authorities where disclosure is required or reasonably necessary for a booked tour, permit, safety, legal compliance, or dispute handling<br />
           <em>Example: When you book a property, we share your name, contact information, and booking details with the property owner so they can prepare for your arrival and communicate with you.</em>
+        </p>
+
+        <p>
+          <strong>4.2.1 Sensitive Tour and Health-Related Data</strong><br />
+          Passport information, yellow fever certificates, vaccination proof, medical, dietary, mobility, accessibility, and emergency information are treated as sensitive information. We use this information only for the relevant tour package, permit processing, legal or authority requirement, safety support, emergency response, or operational arrangement. We do not use this information for marketing.
         </p>
 
         <p>
@@ -353,11 +417,11 @@ export const PRIVACY_SECTIONS: TermsSection[] = [
         <p>
           <strong>5.3 Payment Security</strong><br />
           We take extra precautions to protect payment information. Our platform is designed for one-time payments, which means you will be required to enter your payment details for each transaction;<br />
-          a. We do not store full credit card numbers or complete payment details on our servers<br />
+          a. We do not store full credit card numbers or complete card details on our servers<br />
           b. Payment processing is handled by secure, certified payment processors<br />
           c. All payment transactions are encrypted during transmission<br />
           d. For local payment methods (M-Pesa, Mixx by Yas, Airtel Money, HaloPesa, AzamPay), payment details are entered through secure popup windows provided by the payment provider<br />
-          e. We only store transaction references and payment status information necessary for booking confirmation and record-keeping<br />
+          e. For bank, mobile money, and card flows, we may store transaction references, checkout session IDs, payer phone numbers, bank/payment provider identifiers, card checkout redirect references, webhook events, raw status codes, and payment status information necessary for booking confirmation, fraud prevention, support, refunds, reconciliation, and record-keeping<br />
           <em>Example: When you make a booking, you'll be prompted to enter your payment details through a secure popup window. For local mobile money payments, this popup is provided by your payment service (like M-Pesa or AzamPay). Your payment information is processed securely and we only store the transaction reference number to confirm your payment was successful. For each new booking, you'll enter your payment details again, ensuring maximum security.</em>
         </p>
 
@@ -392,7 +456,17 @@ export const PRIVACY_SECTIONS: TermsSection[] = [
         </p>
 
         <p>
-          <strong>6.4 Marketing Data</strong><br />
+          <strong>6.4 Sensitive Tour Documents and Health-Related Information</strong><br />
+          Passport copies, permit documents, yellow fever certificates, vaccination proof, medical, dietary, mobility, accessibility, emergency contact, and similar sensitive tour information are retained only for as long as reasonably needed to process the booked service, satisfy authority or legal requirements, support safety and emergency obligations, resolve disputes, and maintain necessary operational records. Access to this information is limited to authorized personnel and service partners who need it for the relevant booking.
+        </p>
+
+        <p>
+          <strong>6.5 Trip Estimates and Planning Requests</strong><br />
+          Trip estimate inputs and planning request records may be retained to provide continuity, improve estimate accuracy, respond to customer requests, audit pricing logic, and support service delivery, unless deletion is required or appropriate under applicable law.
+        </p>
+
+        <p>
+          <strong>6.6 Marketing Data</strong><br />
           If you unsubscribe from marketing communications, we will remove you from our marketing lists but may retain your email address on a suppression list to ensure we don't contact you again.
         </p>
 

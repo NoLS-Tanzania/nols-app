@@ -3,7 +3,7 @@
 import Link from "@/components/PolicyLink";
 import { TermsSection } from "./Terms";
 
-export const COOKIES_LAST_UPDATED = "1 January 2026";
+export const COOKIES_LAST_UPDATED = "28 June 2026";
 
 export const COOKIES_SECTIONS: TermsSection[] = [
   {
@@ -13,7 +13,7 @@ export const COOKIES_SECTIONS: TermsSection[] = [
         <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6 rounded">
           <h3 className="text-lg font-semibold text-gray-900 mb-2">Summary</h3>
           <p className="text-sm text-gray-700 leading-relaxed">
-            NoLSAF uses cookies and similar technologies to enhance your experience on our platform. Cookies are small text files stored on your device that help us remember your preferences, keep you logged in, and improve our services. We use essential cookies that are necessary for the platform to function, analytics cookies to understand how you use our site, and preference cookies to remember your settings. You can control cookies through your browser settings, though disabling certain cookies may affect platform functionality. We also use local storage to remember your login status, theme preferences, and other settings. By using NoLSAF, you consent to our use of cookies as described in this policy.
+            NoLSAF uses cookies and similar technologies to keep you signed in, secure your account, remember preferences, manage booking and payment flows, and improve our services. We use essential cookies that are necessary for the platform to function, local storage for consent and app preferences, session storage for temporary navigation and form context, and secure mobile storage for app authentication tokens. You can control cookies through your browser settings and our cookie preferences, though disabling essential cookies may affect login, booking, payment, and account features.
           </p>
         </div>
 
@@ -31,10 +31,11 @@ export const COOKIES_SECTIONS: TermsSection[] = [
         <p>
           <strong>1.2 Types of Technologies We Use</strong><br />
           In addition to cookies, we use similar technologies including;<br />
-          a. <strong>Local Storage:</strong> A browser feature that allows websites to store data locally on your device. We use this to remember your preferences and login status.<br />
-          b. <strong>Session Storage:</strong> Similar to local storage but data is cleared when you close your browser tab.<br />
-          c. <strong>Web Beacons/Pixels:</strong> Small invisible images that help us understand how you interact with our emails and website.<br />
-          <em>Example: We use local storage to remember your theme preference (light or dark mode) and language selection, so these settings persist even after you close your browser and return later.</em>
+          a. <strong>Local Storage:</strong> A browser feature that allows websites to store data locally on your device. We use this to remember cookie consent, preferences, app context, draft form data, and web app authentication tokens where applicable.<br />
+          b. <strong>Session Storage:</strong> Similar to local storage but data is cleared when you close your browser tab. We use it for temporary navigation context, filters, payment return state, and form steps.<br />
+          c. <strong>Mobile Secure Storage:</strong> In our mobile apps, authentication tokens may be stored in secure device storage provided by the operating system.<br />
+          d. <strong>Web Beacons/Pixels:</strong> Small invisible images that may help us understand how you interact with emails and website content if enabled.<br />
+          <em>Example: We use local storage to remember your cookie preferences and may use secure mobile storage to keep you signed in to the NoLSAF mobile app.</em>
         </p>
 
         <p>
@@ -67,17 +68,17 @@ export const COOKIES_SECTIONS: TermsSection[] = [
           a. <strong>Usage Analytics:</strong> These cookies collect information about how you use our website, such as which pages you visit most often, how long you spend on pages, and any error messages you encounter. This information helps us improve the design and functionality of our platform.<br />
           b. <strong>Performance Monitoring:</strong> These cookies help us monitor the performance of our Services, identifying slow-loading pages, errors, and areas that need optimization.<br />
           c. <strong>Feature Usage:</strong> These cookies track which features are most popular and which are rarely used, helping us prioritize development efforts.<br />
-          <em>Example: Analytics cookies tell us that many users search for properties near beaches, which helps us improve our search filters and suggest relevant properties. This data is aggregated and anonymized, so we don&apos;t know it&apos;s specifically you searching for beach properties.</em>
+          <em>Example: If analytics tools are enabled, analytics cookies can tell us that many users search for properties near beaches, which helps us improve our search filters and suggest relevant properties. This data is generally aggregated and used to improve the platform.</em>
         </p>
 
         <p>
           <strong>2.4 Marketing and Advertising Cookies</strong><br />
-          These cookies are used to deliver relevant advertisements and track the effectiveness of our marketing campaigns. We may use these cookies to;<br />
+          Where enabled, these cookies may be used to deliver relevant advertisements and track the effectiveness of marketing campaigns. We may use these cookies to;<br />
           a. Remember that you have visited our website, which helps us show you relevant advertisements on other websites<br />
           b. Limit the number of times you see an advertisement<br />
           c. Measure the effectiveness of advertising campaigns<br />
           d. Provide you with personalized content based on your interests and browsing behavior<br />
-          <em>Example: If you&apos;ve been browsing beach properties on NoLSAF, marketing cookies might help show you advertisements for beach-related travel services when you visit other websites. You can opt out of these cookies through your browser settings or our cookie preferences.</em>
+          <em>Example: If marketing cookies are enabled and you have been browsing beach properties on NoLSAF, they may help show relevant travel content or measure campaign performance. You can opt out through browser settings or our cookie preferences.</em>
         </p>
 
         <p>
@@ -87,21 +88,22 @@ export const COOKIES_SECTIONS: TermsSection[] = [
 
         <p>
           <strong>3.1 Authentication and Session Cookies</strong><br />
-          a. <strong>token:</strong> Stores your authentication token to keep you logged in. This cookie is essential for accessing your account and is encrypted for security.<br />
-          b. <strong>role:</strong> Remembers your user role (User, Owner, Driver, or Admin) to provide you with the appropriate interface and features.<br />
-          c. <strong>sessionId:</strong> Maintains your active session and helps prevent unauthorized access to your account.<br />
-          <em>Example: The &quot;token&quot; cookie contains an encrypted authentication token that proves you&#39;re logged in. When you visit a page that requires authentication, our system checks this cookie instead of asking for your password again.</em>
+          a. <strong>nolsaf_token:</strong> Stores your secure authentication token to keep you signed in and authorize account actions.<br />
+          b. <strong>token:</strong> A compatibility authentication cookie used by parts of the platform to verify your logged-in session.<br />
+          c. <strong>role:</strong> Stores your user role (Customer, Owner, Driver, Agent, or Admin) so the app can route you to the correct interface and protect role-specific pages.<br />
+          d. <strong>CSRF/security tokens:</strong> May be issued to help protect forms and API requests from unauthorized cross-site actions.<br />
+          <em>Example: The &quot;nolsaf_token&quot; and &quot;token&quot; cookies prove that you are signed in. The &quot;role&quot; cookie helps the app send you to the correct dashboard.</em>
         </p>
 
         <p>
           <strong>3.2 Local Storage Usage</strong><br />
           We use browser local storage (localStorage) to store various preferences and data;<br />
-          a. <strong>User Preferences:</strong> Theme selection (light/dark mode), language preferences, and display settings<br />
-          b. <strong>Policy Acceptances:</strong> Records of which policies you&#39;ve accepted (Terms, Privacy, Cookies) to avoid showing consent prompts repeatedly<br />
-          c. <strong>Widget Settings:</strong> Dashboard widget visibility and layout preferences for authenticated users<br />
-          d. <strong>Navigation Context:</strong> Remembers whether you&#39;re browsing from a public or authenticated context to show appropriate headers and footers<br />
-          e. <strong>Form Data:</strong> Temporarily stores form data to prevent loss if you accidentally close your browser<br />
-          <em>Example: When you accept our Privacy Policy, we store &quot;privacyAccepted: true&quot; in local storage. This way, we don&#39;t show you the acceptance prompt every time you visit, but you can still access the policy anytime.</em>
+          a. <strong>Cookie Consent:</strong> The key <strong>nolsaf_cookie_consent</strong> stores whether you accepted, rejected, or customized analytics and marketing preferences.<br />
+          b. <strong>User Preferences:</strong> Theme selection, language preferences, currency preferences, map preferences, display settings, and dashboard preferences where available.<br />
+          c. <strong>Authentication Tokens on Web Apps:</strong> Some NoLSAF web/mobile-web experiences may store authentication tokens such as <strong>nolsaf.mobile.authToken</strong> or <strong>nolsaf.driver.authToken</strong> in local storage when running on the web.<br />
+          d. <strong>Navigation and Payment Context:</strong> Public/authenticated browsing context, last action context, payment return state, filters, and temporary page state.<br />
+          e. <strong>Drafts and Form Data:</strong> Temporary or draft data for multi-step flows such as property onboarding, booking, group stay, or tour flows so accidental navigation does not immediately lose progress.<br />
+          <em>Example: When you choose cookie preferences, we store the choice in &quot;nolsaf_cookie_consent&quot; so we do not ask you again on every page.</em>
         </p>
 
         <p>
@@ -110,7 +112,14 @@ export const COOKIES_SECTIONS: TermsSection[] = [
           a. <strong>Navigation Context:</strong> Tracks whether you navigated from a public or authenticated area to show appropriate page layouts<br />
           b. <strong>Temporary Form State:</strong> Stores form data temporarily during multi-step processes<br />
           c. <strong>Search Filters:</strong> Remembers your search criteria during your current browsing session<br />
+          d. <strong>Payment and Receipt Context:</strong> Temporarily stores payment return state, invoice send state, or receipt context needed to complete a flow<br />
           <em>Example: If you click a policy link from the public footer, session storage remembers this context so the policy page shows the public header and footer, even if you&#39;re logged in.</em>
+        </p>
+
+        <p>
+          <strong>3.4 Mobile App Storage</strong><br />
+          Our native mobile apps may store authentication tokens in secure device storage, such as Expo SecureStore or the operating system keychain/keystore. These tokens keep you signed in and authorize API requests. If the app is used on web, a similar token may be stored in local storage instead.<br />
+          <em>Example: The customer app may store a token under &quot;nolsaf.mobile.authToken&quot; and the driver app may store a token under &quot;nolsaf.driver.authToken&quot; so the app can securely authenticate requests.</em>
         </p>
 
         <p>
@@ -120,17 +129,17 @@ export const COOKIES_SECTIONS: TermsSection[] = [
 
         <p>
           <strong>4.1 Payment Processors</strong><br />
-          When you make a payment, our payment processors (such as AzamPay, Stripe, M-Pesa gateways) may set cookies to facilitate the payment process and ensure transaction security. These cookies are subject to the privacy policies of the respective payment providers.
+          When you make a payment, our payment processors (such as AzamPay, mobile money, bank, and card payment providers) may set cookies or use browser/session storage to facilitate checkout, redirect you back to NoLSAF, prevent duplicate payments, and ensure transaction security. These technologies are subject to the privacy policies of the respective payment providers.
         </p>
 
         <p>
           <strong>4.2 Analytics Services</strong><br />
-          We may use third-party analytics services that set cookies to help us understand how our platform is used. These services collect aggregated, anonymized data about website usage patterns.
+          We may use third-party analytics services that set cookies to help us understand how our platform is used. These services collect usage, device, and performance data that we use to improve the platform. Where consent is required, we use analytics cookies according to your cookie preferences.
         </p>
 
         <p>
           <strong>4.3 Social Media and Content</strong><br />
-          If you interact with social media features or embedded content on our platform, those third-party services may set their own cookies. We do not control these cookies, and their use is governed by the respective third-party privacy policies.
+          If you interact with social media features, embedded content, or embedded video content on our platform, those third-party services may set their own cookies. We do not control these cookies, and their use is governed by the respective third-party privacy policies.
         </p>
 
         <p>
@@ -146,9 +155,10 @@ export const COOKIES_SECTIONS: TermsSection[] = [
         <p>
           <strong>5.2 Persistent Cookies</strong><br />
           These cookies remain on your device for a set period or until you delete them. They include;<br />
-          a. <strong>Authentication Cookies:</strong> Typically expire after a period of inactivity (e.g., 30 days) or when you explicitly log out<br />
-          b. <strong>Preference Cookies:</strong> May remain on your device for up to one year or until you change your preferences<br />
-          c. <strong>Analytics Cookies:</strong> Usually expire after 1-2 years<br />
+          a. <strong>Authentication Cookies:</strong> Expire according to the applicable session policy for your role or when you explicitly log out<br />
+          b. <strong>Cookie Consent and Preferences:</strong> May remain on your device until you clear site data, reset preferences, or we ask for renewed consent<br />
+          c. <strong>Preference Cookies and Local Storage:</strong> May remain on your device until you change preferences, clear site data, or uninstall the app<br />
+          d. <strong>Analytics or Marketing Cookies:</strong> Where enabled, these usually expire based on the provider's configured retention period<br />
           <em>Example: Your authentication cookie might be set to expire after 30 days of inactivity. If you log in every day, it keeps refreshing. But if you don&#39;t visit for 30 days, the cookie expires and you&#39;ll need to log in again for security.</em>
         </p>
 
@@ -170,7 +180,7 @@ export const COOKIES_SECTIONS: TermsSection[] = [
 
         <p>
           <strong>6.2 Platform Cookie Preferences</strong><br />
-          We provide options within our platform to manage certain cookie preferences, particularly for non-essential cookies such as analytics and marketing cookies. You can access these preferences through your account settings.
+          We provide options within our platform to manage certain cookie preferences, particularly for non-essential cookies such as analytics and marketing cookies. The cookie banner allows you to accept, reject, or customize analytics and marketing preferences. Essential cookies remain active because they are required for login, security, booking, payment, and account features.
         </p>
 
         <p>
@@ -193,10 +203,10 @@ export const COOKIES_SECTIONS: TermsSection[] = [
         <p>
           <strong>7.0 Mobile Applications</strong><br />
           If you use our mobile applications, we may use similar technologies to cookies, such as;<br />
-          a. <strong>Device Identifiers:</strong> Unique identifiers associated with your mobile device<br />
-          b. <strong>Application Data Storage:</strong> Local storage within the app to remember preferences and cache data<br />
-          c. <strong>Push Notification Tokens:</strong> Tokens that allow us to send you push notifications (with your consent)<br />
-          <em>Example: Our mobile app stores your login credentials securely on your device so you don&apos;t have to log in every time you open the app. This is similar to how cookies work on websites.</em>
+          a. <strong>Device Identifiers:</strong> Unique identifiers associated with your mobile device where required for security, diagnostics, or app functionality<br />
+          b. <strong>Application Data Storage:</strong> Secure storage or local app storage used to remember authentication tokens, preferences, cached content, and draft state<br />
+          c. <strong>Push Notification Tokens:</strong> Tokens that allow us to send you push notifications where enabled and supported<br />
+          <em>Example: Our mobile app stores your authentication token securely on your device so you do not have to log in every time you open the app.</em>
         </p>
 
         <p>
