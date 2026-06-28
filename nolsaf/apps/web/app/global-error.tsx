@@ -1,5 +1,7 @@
 "use client";
 
+import { AlertTriangle, Mail, RefreshCw } from "lucide-react";
+
 function toSafeErrorMessage(error: unknown): string {
   if (!error) return "Unknown error";
   if (typeof error === "string") return error;
@@ -32,43 +34,66 @@ export default function GlobalError({
   return (
     <html lang="en">
       <body className="bg-slate-50 text-slate-900">
-        <div className="max-w-3xl mx-auto py-8 px-4">
-          <div className="bg-white rounded-2xl shadow overflow-hidden">
-            <div className="p-6">
-              <h1 className="mb-2 text-center text-xl sm:text-2xl font-bold leading-tight tracking-tight text-slate-600">
-                Something went wrong
-              </h1>
-              <p className="text-sm leading-relaxed text-slate-500 mb-1">
-                Sorry, we hit a temporary server problem.
-              </p>
-              <p className="text-sm leading-relaxed text-slate-500 mb-1">Please try again in a few moments.</p>
-              <p className="text-sm leading-relaxed text-slate-500">
-                If it keeps happening, contact
-                <a
-                  href="mailto:support@nolsaf.com"
-                  className="ml-1 font-semibold text-[#02665e] underline underline-offset-2"
-                >
-                  support@nolsaf.com
-                </a>
-                .
-              </p>
-
-              {isDev ? (
-                <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-                  {safeMessage}
+        <main className="flex min-h-screen items-center justify-center px-4 py-8 sm:px-6">
+          <section className="w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="grid gap-0 sm:grid-cols-[156px_1fr]">
+              <div className="flex items-center justify-center border-b border-slate-100 bg-[#f3faf8] px-6 py-8 sm:border-b-0 sm:border-r">
+                <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-[#02665e]/15">
+                  <div className="absolute inset-2 rounded-full bg-[#02665e]/10" />
+                  <AlertTriangle className="relative h-9 w-9 text-[#02665e]" aria-hidden="true" />
                 </div>
-              ) : null}
+              </div>
 
-              <button
-                type="button"
-                onClick={() => reset()}
-                className="mt-4 inline-flex items-center rounded-xl bg-[#02665e] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#02514b]"
-              >
-                Retry
-              </button>
+              <div className="px-6 py-7 sm:px-8">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#02665e]">
+                  Temporary issue
+                </p>
+                <h1 className="text-2xl font-bold leading-tight tracking-tight text-slate-900">
+                  Something went wrong
+                </h1>
+                <p className="mt-3 max-w-xl text-sm leading-6 text-slate-600">
+                  Sorry, we hit a temporary server problem. Please retry in a few moments.
+                </p>
+
+                <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <button
+                    type="button"
+                    onClick={() => reset()}
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#02665e] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#02514b] focus:outline-none focus:ring-2 focus:ring-[#02665e] focus:ring-offset-2"
+                  >
+                    <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                    Retry
+                  </button>
+
+                  <a
+                    href="mailto:support@nolsaf.com"
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition hover:border-[#02665e]/30 hover:bg-[#f3faf8] hover:text-[#02665e] focus:outline-none focus:ring-2 focus:ring-[#02665e] focus:ring-offset-2"
+                  >
+                    <Mail className="h-4 w-4" aria-hidden="true" />
+                    Contact support
+                  </a>
+                </div>
+
+                {isDev ? (
+                  <div className="mt-5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs leading-5 text-red-700">
+                    {safeMessage}
+                  </div>
+                ) : null}
+
+                <p className="mt-5 text-xs leading-5 text-slate-500">
+                  If the problem continues, email{" "}
+                  <a
+                    href="mailto:support@nolsaf.com"
+                    className="font-semibold text-[#02665e] underline underline-offset-2"
+                  >
+                    support@nolsaf.com
+                  </a>
+                  .
+                </p>
+              </div>
             </div>
-          </div>
-        </div>
+          </section>
+        </main>
       </body>
     </html>
   );
