@@ -65,11 +65,15 @@ Pop-Location
 # on-instance predeploy hook (.platform/hooks/predeploy/generate-prisma.sh) runs
 # `prisma generate --schema=./prisma/schema.prisma` relative to apps/api. Copy it
 # in so it's part of the deployed working-directory bundle.
-$SchemaSrc = "$RepoRoot\prisma\schema.prisma"
+$PrismaSrc = "$RepoRoot\prisma"
+$SchemaSrc = "$PrismaSrc\schema.prisma"
+$MigrationsSrc = "$PrismaSrc\migrations"
 $SchemaDir = "$ApiDir\prisma"
-Write-Host "`n── Staging Prisma schema into $SchemaDir …"
+Write-Host "`n── Staging Prisma schema and migrations into $SchemaDir …"
+Remove-Item $SchemaDir -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Path $SchemaDir -Force | Out-Null
 Copy-Item $SchemaSrc -Destination "$SchemaDir\schema.prisma" -Force
+Copy-Item $MigrationsSrc -Destination "$SchemaDir\migrations" -Recurse -Force
 
 # ── 5. Deploy to Elastic Beanstalk ────────────────────────────────────────────
 Write-Host "`n── Deploying to Elastic Beanstalk …"
