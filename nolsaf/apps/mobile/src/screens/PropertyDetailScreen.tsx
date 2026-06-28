@@ -1,18 +1,27 @@
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import {
   ArrowLeft,
+  Beer,
   Bookmark,
   BadgeCheck,
   Bath,
   BedDouble,
   Building2,
   CalendarDays,
+  Car,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   Cigarette,
   Clock3,
+  ConciergeBell,
+  Coffee,
   CreditCard,
+  Dumbbell,
   DoorClosed,
+  FireExtinguisher,
   Fuel,
+  Gamepad2,
   Bus,
   Landmark,
   Layers,
@@ -24,12 +33,18 @@ import {
   Plane,
   Route,
   Share2,
+  ShoppingBag,
   ShieldCheck,
   Star,
   Stethoscope,
   Tags,
+  Thermometer,
+  Utensils,
   Users,
+  WashingMachine,
+  Waves,
   Wallet,
+  Wind,
   XCircle
 } from "lucide-react-native";
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -169,6 +184,294 @@ function buildPaymentRows(modes: string[]): PaymentRow[] {
 function formatPretty(ymd: string): string {
   const d = new Date(`${ymd}T00:00:00`);
   return isNaN(d.getTime()) ? ymd : d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function formatVerificationDate(value: string | null | undefined): string {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+function firstText(record: Record<string, unknown> | null | undefined, keys: string[]): string {
+  if (!record) return "";
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+    const nested = asRecord(value);
+    const nestedName = nested ? firstText(nested, ["name", "fullName", "email", "label", "value"]) : "";
+    if (nestedName) return nestedName;
+  }
+  return "";
+}
+
+function firstRecord(record: Record<string, unknown> | null | undefined, keys: string[]): Record<string, unknown> | null {
+  if (!record) return null;
+  for (const key of keys) {
+    const value = asRecord(record[key]);
+    if (value) return value;
+  }
+  return null;
+}
+
+function textList(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 8);
+  if (typeof value === "string" && value.trim()) {
+    return value
+      .split(/\r?\n|,/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .slice(0, 8);
+  }
+  return [];
+}
+
+function firstTextList(record: Record<string, unknown>, keys: string[]): string[] {
+  for (const key of keys) {
+    const list = textList(record[key]);
+    if (list.length) return list;
+  }
+  return [];
+}
+
+function normalizeVerificationRecord(detail: PublicPropertyDetail): PublicPropertyDetail["physicalVerification"] {
+  const servicesObj = asRecord(detail.services);
+  const detailObj = asRecord(detail);
+  const raw =
+    asRecord(detail.physicalVerification) ||
+    firstRecord(servicesObj, ["physicalVerification", "physical_verification", "propertyVerification", "property_verification", "nolsafVerification", "nolsaf_verification", "trustCheck", "trust_check", "verification"]) ||
+    firstRecord(detailObj, ["physicalVerification", "physical_verification", "propertyVerification", "property_verification", "nolsafVerification", "nolsaf_verification", "trustCheck", "trust_check", "verification"]);
+
+  if (!raw) return undefined;
+  const source = raw;
+
+  const status = firstText(source, ["status", "verificationStatus", "verification_status", "trustStatus", "trust_status"]);
+  const checklist = firstTextList(source, ["checklist", "checkedItems", "checked_items", "items"]);
+
+  return {
+    status: status.toUpperCase() === "PENDING" ? "PENDING" : "VERIFIED",
+    verifiedAt:
+      firstText(source, ["verifiedAt", "verifiedOn", "verified_at", "verified_on", "inspectionDate", "inspection_date", "inspectedAt", "inspected_at", "reviewedAt", "reviewed_at", "approvedAt", "approved_at"]) || null,
+    verifiedBy:
+      firstText(source, ["verifiedBy", "verified_by", "verifiedByName", "verified_by_name", "inspectedBy", "inspected_by", "inspector", "inspectorName", "inspector_name", "reviewedBy", "reviewed_by", "approvedBy", "approved_by", "approvedByName", "approved_by_name", "approvedByUser", "approved_by_user", "approvedByAdmin", "approved_by_admin", "admin", "verifier", "verifierName"]) || null,
+    verifiedByRole: firstText(source, ["verifiedByRole", "verified_by_role", "role", "inspectorRole", "inspector_role", "approvedByRole", "approved_by_role", "adminRole", "admin_role"]) || null,
+    method: firstText(source, ["method", "inspectionMethod", "inspection_method", "verificationMethod", "verification_method"]),
+    note: firstText(source, ["note", "summary", "description", "message", "verificationNote", "verification_note"]) || null,
+    checklist
+  };
+}
+
+function PhysicalVerificationCard({ record }: { record?: PublicPropertyDetail["physicalVerification"] }) {
+  const [checksExpanded, setChecksExpanded] = useState(false);
+  const verifiedBy = record?.verifiedBy?.trim();
+  const verifiedAt = formatVerificationDate(record?.verifiedAt);
+  const method = record?.method?.trim();
+  if (!record || !verifiedBy || !verifiedAt) return null;
+  const checklist = record?.checklist?.length
+    ? record.checklist
+    : ["Location confirmed on-site", "Property photos reviewed", "Rooms and amenities checked", "Host details matched"];
+
+  return (
+    <View style={styles.trustCard}>
+      <View style={styles.trustHero}>
+        <View style={styles.trustIcon}>
+          <ShieldCheck color={colors.primary} size={20} />
+        </View>
+        <AppText variant="caption" weight="bold" tone="primary" style={styles.trustEyebrow}>
+          NoLSAF trust check
+        </AppText>
+        <AppText variant="titleSm" weight="bold" style={styles.trustTitle}>
+          Physical verification
+        </AppText>
+        <View style={styles.trustSteps}>
+          {["Reviewed", "Verified", "Approved"].map((label, index) => (
+            <View key={label} style={styles.trustStepWrap}>
+              <View style={styles.trustStep}>
+                <CheckCircle2 color={colors.primary} size={13} />
+                <AppText variant="caption" weight="bold" tone="primary">
+                  {label}
+                </AppText>
+              </View>
+              {index < 2 ? <View style={styles.trustStepLine} /> : null}
+            </View>
+          ))}
+        </View>
+      </View>
+
+      <View style={styles.trustInfoGrid}>
+        <VerificationInfo label="Verified by" value={verifiedBy} />
+        <VerificationInfo label="Verified on" value={verifiedAt} />
+        {method ? <VerificationInfo label="Inspection method" value={method} wide /> : null}
+      </View>
+
+      {record?.note ? (
+        <View style={styles.trustNote}>
+          <CheckCircle2 color={colors.primary} size={17} />
+          <AppText variant="bodySmall" tone="muted" style={styles.flex}>
+            {record.note}
+          </AppText>
+        </View>
+      ) : null}
+
+      <View style={styles.trustChecklist}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={checksExpanded ? "Hide NoLSAF checks" : "Show NoLSAF checks"}
+          onPress={() => setChecksExpanded((value) => !value)}
+          style={styles.trustChecklistToggle}
+        >
+          <AppText variant="body" weight="bold" style={styles.flex}>
+            What NoLSAF checked
+          </AppText>
+          <View style={styles.trustChecklistChevron}>
+            {checksExpanded ? <ChevronUp color={colors.ink} size={20} /> : <ChevronDown color={colors.ink} size={20} />}
+          </View>
+        </Pressable>
+
+        {checksExpanded ? (
+          <>
+            <View style={styles.trustChecklistGrid}>
+              {checklist.map((item) => (
+                <View key={item} style={styles.trustChecklistItem}>
+                  <CheckCircle2 color={colors.primary} size={17} />
+                  <AppText variant="bodySmall" tone="muted" style={styles.flex}>
+                    {item}
+                  </AppText>
+                </View>
+              ))}
+            </View>
+
+            <View style={styles.trustFooter}>
+              <CheckCircle2 color={colors.primary} size={17} />
+              <AppText variant="caption" tone="muted" style={styles.flex}>
+                Verification details are maintained by NoLSAF and refreshed when a property is inspected again.
+              </AppText>
+            </View>
+          </>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+function VerificationInfo({ label, value, wide }: { label: string; value: string; wide?: boolean }) {
+  return (
+    <View style={[styles.trustInfoTile, wide && styles.trustInfoTileWide]}>
+      <View style={styles.trustInfoLabel}>
+        <ShieldCheck color={colors.primary} size={14} />
+        <AppText variant="caption" weight="bold" tone="muted" style={styles.trustInfoLabelText}>
+          {label}
+        </AppText>
+      </View>
+      <AppText variant="bodySmall" weight="bold">
+        {value}
+      </AppText>
+    </View>
+  );
+}
+
+function ServiceTile({ item }: { item: string }) {
+  const { Icon, color } = serviceIcon(item);
+
+  return (
+    <View style={styles.includedTile}>
+      <Icon color={color} size={16} />
+      <AppText variant="caption" weight="bold" numberOfLines={1} style={styles.flex}>
+        {labelize(item)}
+      </AppText>
+    </View>
+  );
+}
+
+function serviceIcon(label: string): { Icon: LucideIcon; color: string } {
+  const n = label.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (n.includes("restaurant")) return { Icon: Utensils, color: "#e11d48" };
+  if (n.includes("bar")) return { Icon: Beer, color: "#7c3aed" };
+  if (n.includes("pool") || n.includes("swim")) return { Icon: Waves, color: "#0891b2" };
+  if (n.includes("sauna")) return { Icon: Thermometer, color: "#ea580c" };
+  if (n.includes("laundry") || n.includes("washing") || n.includes("washer")) return { Icon: WashingMachine, color: "#4f46e5" };
+  if (n.includes("roomservice")) return { Icon: ConciergeBell, color: "#047857" };
+  if (n.includes("security")) return { Icon: ShieldCheck, color: "#0f766e" };
+  if (n.includes("firstaid") || n.includes("clinic") || n.includes("medical")) return { Icon: Stethoscope, color: "#dc2626" };
+  if (n.includes("fireextinguisher") || n.includes("fire")) return { Icon: FireExtinguisher, color: "#dc2626" };
+  if (n.includes("onsiteshop") || n.includes("shop")) return { Icon: ShoppingBag, color: "#9333ea" };
+  if (n.includes("sport") || n.includes("game")) return { Icon: Gamepad2, color: "#4f46e5" };
+  if (n.includes("gym") || n.includes("fitness")) return { Icon: Dumbbell, color: "#334155" };
+  if (n.includes("parking") || n.includes("garage")) return { Icon: Car, color: colors.primary };
+  if (n.includes("breakfast") || n.includes("coffee")) return { Icon: Coffee, color: colors.warning };
+  if (n.includes("wifi") || n.includes("internet")) return { Icon: Tags, color: colors.primary };
+  if (n.includes("airconditioning") || n.includes("aircondition") || n.includes("aircon")) return { Icon: Wind, color: "#2563eb" };
+  return { Icon: CheckCircle2, color: colors.primary };
+}
+
+function IncludedServicesCard({ items }: { items: string[] }) {
+  if (!items.length) return null;
+
+  return (
+    <AppCard>
+      <View style={styles.includedHeader}>
+        <View style={styles.includedIcon}>
+          <BadgeCheck color={colors.primary} size={20} />
+        </View>
+        <View style={styles.flex}>
+          <AppText variant="body" weight="bold">
+            What's included
+          </AppText>
+          <AppText variant="caption" tone="muted">
+            {items.length} {items.length === 1 ? "service" : "services"} included in the listed price
+          </AppText>
+        </View>
+      </View>
+      <View style={styles.includedGrid}>
+        {items.map((item) => (
+          <ServiceTile key={item} item={item} />
+        ))}
+      </View>
+    </AppCard>
+  );
+}
+
+function AvailableServicesCard({ items }: { items: string[] }) {
+  const [expanded, setExpanded] = useState(false);
+  if (!items.length) return null;
+
+  return (
+    <AppCard>
+      <View style={styles.includedHeader}>
+        <View style={styles.includedIcon}>
+          <BadgeCheck color={colors.primary} size={20} />
+        </View>
+        <View style={styles.flex}>
+          <AppText variant="body" weight="bold">
+            Other services available
+          </AppText>
+          <AppText variant="caption" tone="muted">
+            {items.length} {items.length === 1 ? "service" : "services"} available during your stay
+          </AppText>
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={expanded ? "Hide available services" : "Show available services"}
+          onPress={() => setExpanded((value) => !value)}
+          style={styles.includedChevron}
+        >
+          {expanded ? <ChevronUp color={colors.ink} size={20} /> : <ChevronDown color={colors.ink} size={20} />}
+        </Pressable>
+      </View>
+      {expanded ? (
+        <View style={styles.includedGrid}>
+          {items.map((item) => (
+            <ServiceTile key={item} item={item} />
+          ))}
+        </View>
+      ) : null}
+    </AppCard>
+  );
 }
 
 export function PropertyDetailScreen({ navigation, route }: Props) {
@@ -311,8 +614,12 @@ export function PropertyDetailScreen({ navigation, route }: Props) {
 
   const location = [detail.street, detail.ward, detail.district, detail.regionName, detail.country].filter(Boolean).join(", ");
   const parsed = parsePropertyServices(detail.services);
+  const verificationRecord = normalizeVerificationRecord(detail);
   const houseRules = parsed.houseRules;
   const amenities = parsed.amenities;
+  const includedServices = parsed.included;
+  const includedKeys = new Set(includedServices.map((item) => item.trim().toLowerCase()));
+  const otherServices = amenities.filter((item) => !includedKeys.has(item.trim().toLowerCase()));
   const reviewAvg = reviews?.stats.averageRating ?? 0;
   const reviewCount = reviews?.stats.totalReviews ?? 0;
   const catAvgs = reviews?.stats.categoryAverages ?? null;
@@ -350,19 +657,40 @@ export function PropertyDetailScreen({ navigation, route }: Props) {
 
             {/* About */}
             {detail.description ? (
-              <Section title="About this stay">
-                <AppText variant="body" tone="muted" numberOfLines={descExpanded ? undefined : 5}>
+              <View style={styles.aboutCard}>
+                <View style={styles.aboutHeader}>
+                  <View style={styles.aboutTitleWrap}>
+                    <View style={styles.aboutIcon}>
+                      <DoorClosed color={colors.primary} size={18} />
+                    </View>
+                    <AppText variant="titleSm" weight="bold" style={styles.flex}>
+                      About this stay
+                    </AppText>
+                  </View>
+                  {detail.description.length > 180 ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={descExpanded ? "Collapse stay description" : "Expand stay description"}
+                      onPress={() => setDescExpanded((v) => !v)}
+                      hitSlop={8}
+                      style={styles.chevronButton}
+                    >
+                      {descExpanded ? <ChevronUp color={colors.ink} size={20} /> : <ChevronDown color={colors.ink} size={20} />}
+                    </Pressable>
+                  ) : null}
+                </View>
+                <View style={styles.aboutDivider} />
+                <AppText variant="body" tone="muted" numberOfLines={descExpanded ? undefined : 5} style={styles.aboutText}>
                   {detail.description}
                 </AppText>
-                {detail.description.length > 180 ? (
-                  <Pressable accessibilityRole="button" onPress={() => setDescExpanded((v) => !v)} hitSlop={6}>
-                    <AppText variant="bodySmall" weight="bold" tone="primary">
-                      {descExpanded ? "Show less" : "Read more"}
-                    </AppText>
-                  </Pressable>
-                ) : null}
-              </Section>
+              </View>
             ) : null}
+
+            <PhysicalVerificationCard record={verificationRecord} />
+
+            <IncludedServicesCard items={includedServices} />
+
+            <AvailableServicesCard items={otherServices} />
 
             {/* Payment methods */}
             <Section title="Payment methods" icon={<CreditCard color={colors.primary} size={18} />}>
@@ -1528,6 +1856,50 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing[2]
   },
+  aboutCard: {
+    overflow: "hidden",
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
+    ...shadows.card
+  },
+  aboutHeader: {
+    minHeight: 62,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing[3],
+    paddingHorizontal: spacing[4],
+    paddingVertical: spacing[3],
+    backgroundColor: colors.surface
+  },
+  aboutTitleWrap: {
+    minWidth: 0,
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[3]
+  },
+  aboutIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.brand[100],
+    backgroundColor: colors.white,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  aboutDivider: {
+    height: 1,
+    backgroundColor: colors.border
+  },
+  aboutText: {
+    paddingHorizontal: spacing[4],
+    paddingVertical: spacing[4],
+    lineHeight: 25
+  },
   dayWrap: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -1682,6 +2054,209 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     borderWidth: 1,
     borderColor: colors.border,
+    backgroundColor: colors.white,
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[2]
+  },
+  chevronButton: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  trustCard: {
+    overflow: "hidden",
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.brand[100],
+    backgroundColor: colors.white,
+    ...shadows.card
+  },
+  trustHero: {
+    alignItems: "center",
+    gap: spacing[2],
+    backgroundColor: colors.brand[50],
+    paddingHorizontal: spacing[4],
+    paddingVertical: spacing[5]
+  },
+  trustIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.brand[100],
+    backgroundColor: colors.white,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  trustEyebrow: {
+    letterSpacing: 1.1
+  },
+  trustTitle: {
+    textAlign: "center"
+  },
+  trustSteps: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    flexWrap: "wrap",
+    gap: spacing[1],
+    marginTop: spacing[1]
+  },
+  trustStepWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[1]
+  },
+  trustStep: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[1],
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.brand[100],
+    backgroundColor: colors.white,
+    paddingHorizontal: spacing[2],
+    paddingVertical: 5
+  },
+  trustStepLine: {
+    width: 14,
+    height: 1,
+    backgroundColor: colors.brand[200]
+  },
+  trustInfoGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing[3],
+    padding: spacing[4]
+  },
+  trustInfoTile: {
+    flexGrow: 1,
+    flexBasis: "47%",
+    minWidth: 0,
+    gap: spacing[2],
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    padding: spacing[3]
+  },
+  trustInfoTileWide: {
+    flexBasis: "100%"
+  },
+  trustInfoLabel: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[1]
+  },
+  trustInfoLabelText: {
+    textTransform: "uppercase",
+    letterSpacing: 0.7
+  },
+  trustNote: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[2],
+    marginHorizontal: spacing[4],
+    marginBottom: spacing[4],
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[3]
+  },
+  trustChecklist: {
+    gap: spacing[3],
+    paddingHorizontal: spacing[4],
+    paddingBottom: spacing[4]
+  },
+  trustChecklistToggle: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[3]
+  },
+  trustChecklistChevron: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  trustChecklistGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing[2]
+  },
+  trustChecklistItem: {
+    width: "48.5%",
+    minWidth: 0,
+    minHeight: 46,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[2],
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[2]
+  },
+  trustFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[2],
+    paddingTop: spacing[1]
+  },
+  includedHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[3],
+    marginBottom: spacing[3]
+  },
+  includedIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.brand[100],
+    backgroundColor: colors.white,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  includedChevron: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  includedGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing[2]
+  },
+  includedTile: {
+    width: "48.5%",
+    minHeight: 46,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[2],
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.brand[100],
     backgroundColor: colors.white,
     paddingHorizontal: spacing[3],
     paddingVertical: spacing[2]

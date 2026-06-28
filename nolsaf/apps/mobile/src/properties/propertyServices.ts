@@ -24,6 +24,7 @@ export type NearbyFacility = {
 export type ParsedServices = {
   paymentModes: string[];
   amenities: string[];
+  included: string[];
   nearby: string[];
   nearbyFacilities: NearbyFacility[];
   freeCancellation: boolean;
@@ -32,6 +33,18 @@ export type ParsedServices = {
 };
 
 const DEFAULT_PAYMENT_METHODS = ["Mobile money", "Cash", "Card", "Bank transfer"];
+
+function normalizeBoolean(value: unknown): boolean {
+  if (value === true || value === 1 || value === "1") return true;
+  const s = String(value || "").trim().toLowerCase();
+  return s === "true" || s === "yes";
+}
+
+function addUnique(items: string[], label: string) {
+  const cleaned = String(label || "").trim();
+  if (!cleaned) return;
+  if (!items.some((item) => item.toLowerCase() === cleaned.toLowerCase())) items.push(cleaned);
+}
 
 function parseHouseRulesValue(v: unknown): Record<string, unknown> | null {
   if (!v) return null;
@@ -90,16 +103,55 @@ export function parsePropertyServices(servicesRaw: unknown): ParsedServices {
     typeof servicesRaw === "object" && servicesRaw !== null && !Array.isArray(servicesRaw)
       ? (servicesRaw as Record<string, unknown>)
       : {};
+  const tags = Array.isArray(servicesObj.tags)
+    ? (servicesObj.tags as unknown[]).map((s) => String(s).trim()).filter(Boolean)
+    : [];
+  const allServiceLabels = [...servicesArray, ...tags];
 
   const paymentModes = servicesArray
     .filter((s) => /^payment:\s*/i.test(s))
     .map((s) => s.replace(/^payment:\s*/i, "").trim())
     .filter(Boolean);
 
-  const amenities = servicesArray
+  const amenities: string[] = [];
+  const included: string[] = [];
+  const addAmenity = (label: string, includedInPrice = false) => {
+    addUnique(amenities, label);
+    if (includedInPrice) addUnique(included, label);
+  };
+
+  const parking = String(servicesObj.parking || "").trim().toLowerCase();
+  if (parking === "free") {
+    addAmenity("Free parking", true);
+  } else if (parking === "paid") {
+    const price = String(servicesObj.parkingPrice || "").trim();
+    addAmenity(price ? `Paid parking (${price} TZS)` : "Paid parking");
+  }
+
+  if (normalizeBoolean(servicesObj.breakfastIncluded)) addAmenity("Breakfast included", true);
+  if (normalizeBoolean(servicesObj.breakfastAvailable)) addAmenity("Breakfast available");
+  if (normalizeBoolean(servicesObj.restaurant)) addAmenity("Restaurant");
+  if (normalizeBoolean(servicesObj.bar)) addAmenity("Bar");
+  if (normalizeBoolean(servicesObj.pool)) addAmenity("Pool");
+  if (normalizeBoolean(servicesObj.sauna)) addAmenity("Sauna");
+  if (normalizeBoolean(servicesObj.laundry)) addAmenity("Laundry");
+  if (normalizeBoolean(servicesObj.roomService)) addAmenity("Room service");
+  if (normalizeBoolean(servicesObj.security24)) addAmenity("24h security");
+  if (normalizeBoolean(servicesObj.firstAid)) addAmenity("First aid");
+  if (normalizeBoolean(servicesObj.fireExtinguisher)) addAmenity("Fire extinguisher");
+  if (normalizeBoolean(servicesObj.onSiteShop)) addAmenity("On-site shop");
+  if (normalizeBoolean(servicesObj.nearbyMall)) addAmenity("Nearby mall");
+  if (normalizeBoolean(servicesObj.socialHall)) addAmenity("Social hall");
+  if (normalizeBoolean(servicesObj.sportsGames)) addAmenity("Sports & games");
+  if (normalizeBoolean(servicesObj.gym)) addAmenity("Gym");
+  if (normalizeBoolean(servicesObj.wifi)) addAmenity("Free Wi-Fi", true);
+  if (normalizeBoolean(servicesObj.ac)) addAmenity("Air conditioning", true);
+
+  allServiceLabels
     .filter((s) => !/^payment:\s*/i.test(s))
     .filter((s) => !/^(free cancellation|group stay)$/i.test(s))
-    .filter((s) => !/^near\s+/i.test(s));
+    .filter((s) => !/^near\s+/i.test(s))
+    .forEach((s) => addAmenity(s, /^(free parking|breakfast included|free wi-?fi|air conditioning)$/i.test(s)));
 
   const nearby = servicesArray.filter((s) => /^near\s+/i.test(s)).map((s) => s.replace(/^near\s+/i, "").trim());
 
@@ -128,6 +180,7 @@ export function parsePropertyServices(servicesRaw: unknown): ParsedServices {
   return {
     paymentModes: paymentModes.length ? paymentModes : DEFAULT_PAYMENT_METHODS,
     amenities,
+    included,
     nearby,
     nearbyFacilities,
     freeCancellation: servicesArray.some((s) => s.toLowerCase() === "free cancellation"),

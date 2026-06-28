@@ -712,10 +712,10 @@ function FadeInUp({ children, delay = 0 }: { children: ReactNode; delay?: number
 function ServiceWord({ label }: { label: string }) {
   const iconColor = colors.brand[100];
   const icon = {
-    "Verified Stay": <Home color={iconColor} size={15} />,
-    "Tour Packages": <TicketsPlane color={iconColor} size={15} />,
-    Transport: <Route color={iconColor} size={15} />,
-    Payments: <Landmark color={iconColor} size={15} />
+    Stays: <Home color={iconColor} size={15} />,
+    Tours: <TicketsPlane color={iconColor} size={15} />,
+    Rides: <Route color={iconColor} size={15} />,
+    Pay: <Landmark color={iconColor} size={15} />
   }[label];
 
   return (
@@ -753,10 +753,10 @@ function ServiceRail() {
         <Animated.View style={[styles.serviceFlowGlow, { transform: [{ translateX: glowTranslate }] }]} />
       </Animated.View>
       <View style={styles.serviceRow}>
-        <ServiceWord label="Verified Stay" />
-        <ServiceWord label="Tour Packages" />
-        <ServiceWord label="Transport" />
-        <ServiceWord label="Payments" />
+        <ServiceWord label="Stays" />
+        <ServiceWord label="Tours" />
+        <ServiceWord label="Rides" />
+        <ServiceWord label="Pay" />
       </View>
     </View>
   );
@@ -1315,13 +1315,13 @@ const styles = StyleSheet.create({
     minWidth: 0,
     marginTop: spacing[4],
     position: "relative",
-    paddingHorizontal: spacing[3],
+    paddingHorizontal: spacing[2],
     paddingVertical: spacing[3]
   },
   serviceConnector: {
     position: "absolute",
-    left: spacing[6],
-    right: spacing[6],
+    left: 34,
+    right: 34,
     top: 30,
     height: 2,
     borderRadius: radius.full,
@@ -1340,7 +1340,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
-    gap: spacing[2]
+    gap: spacing[1]
   },
   serviceStep: {
     minWidth: 0,
@@ -1360,7 +1360,8 @@ const styles = StyleSheet.create({
   },
   serviceWord: {
     color: "#e6f4f1",
-    textAlign: "center"
+    textAlign: "center",
+    fontSize: 12
   },
   pressed: {
     transform: [{ scale: 0.98 }]

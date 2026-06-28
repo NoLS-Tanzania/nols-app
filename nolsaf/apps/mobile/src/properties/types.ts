@@ -66,6 +66,15 @@ export type PublicPropertyDetail = {
   totalBathrooms: number | null;
   services: unknown;
   roomsSpec: RoomSpec[];
+  physicalVerification?: {
+    status: "VERIFIED" | "PENDING";
+    verifiedAt: string | null;
+    verifiedBy: string | null;
+    verifiedByRole: string | null;
+    method: string;
+    note: string | null;
+    checklist: string[];
+  };
 };
 
 export type PropertyListResponse = {
