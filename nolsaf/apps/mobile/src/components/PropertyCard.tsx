@@ -132,7 +132,6 @@ export function PropertyCard({ property, onPress, onInteractChange, autoSlidePho
 
           {onToggleSave ? (
             <Pressable
-              accessibilityRole="button"
               accessibilityLabel={saved ? "Remove from saved" : "Save"}
               onPress={(e) => {
                 e.stopPropagation();

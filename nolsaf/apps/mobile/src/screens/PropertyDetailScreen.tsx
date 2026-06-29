@@ -19,6 +19,7 @@ import {
   CreditCard,
   Dumbbell,
   DoorClosed,
+  ExternalLink,
   FireExtinguisher,
   Fuel,
   Gamepad2,
@@ -31,6 +32,7 @@ import {
   Navigation,
   PawPrint,
   Plane,
+  QrCode,
   Route,
   Share2,
   ShoppingBag,
@@ -49,10 +51,13 @@ import {
 } from "lucide-react-native";
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Alert,
   ActivityIndicator,
   FlatList,
   Image,
   ImageSourcePropType,
+  Linking,
+  Modal,
   NativeScrollEvent,
   NativeSyntheticEvent,
   Pressable,
@@ -247,14 +252,28 @@ function normalizeVerificationRecord(detail: PublicPropertyDetail): PublicProper
     firstRecord(servicesObj, ["physicalVerification", "physical_verification", "propertyVerification", "property_verification", "nolsafVerification", "nolsaf_verification", "trustCheck", "trust_check", "verification"]) ||
     firstRecord(detailObj, ["physicalVerification", "physical_verification", "propertyVerification", "property_verification", "nolsafVerification", "nolsaf_verification", "trustCheck", "trust_check", "verification"]);
 
-  if (!raw) return undefined;
+  if (!raw) {
+    return String(detail.status || "").toUpperCase() === "APPROVED"
+      ? {
+          status: "VERIFIED",
+          verifiedAt: null,
+          verifiedBy: null,
+          verifiedByRole: null,
+          method: "Site visit and listing review",
+          note: "This stay has passed NoLSAF listing review and is available for booking.",
+          checklist: []
+        }
+      : undefined;
+  }
   const source = raw;
 
   const status = firstText(source, ["status", "verificationStatus", "verification_status", "trustStatus", "trust_status"]);
+  const normalizedStatus = status.toUpperCase();
+  if (normalizedStatus && normalizedStatus !== "VERIFIED" && normalizedStatus !== "PENDING") return undefined;
   const checklist = firstTextList(source, ["checklist", "checkedItems", "checked_items", "items"]);
 
   return {
-    status: status.toUpperCase() === "PENDING" ? "PENDING" : "VERIFIED",
+    status: normalizedStatus === "PENDING" ? "PENDING" : "VERIFIED",
     verifiedAt:
       firstText(source, ["verifiedAt", "verifiedOn", "verified_at", "verified_on", "inspectionDate", "inspection_date", "inspectedAt", "inspected_at", "reviewedAt", "reviewed_at", "approvedAt", "approved_at"]) || null,
     verifiedBy:
@@ -262,16 +281,18 @@ function normalizeVerificationRecord(detail: PublicPropertyDetail): PublicProper
     verifiedByRole: firstText(source, ["verifiedByRole", "verified_by_role", "role", "inspectorRole", "inspector_role", "approvedByRole", "approved_by_role", "adminRole", "admin_role"]) || null,
     method: firstText(source, ["method", "inspectionMethod", "inspection_method", "verificationMethod", "verification_method"]),
     note: firstText(source, ["note", "summary", "description", "message", "verificationNote", "verification_note"]) || null,
-    checklist
+    checklist,
+    verificationUrl: firstText(source, ["verificationUrl", "verification_url", "certificateUrl", "certificate_url", "publicUrl", "public_url"]) || null,
+    qrCodeDataUrl: firstText(source, ["qrCodeDataUrl", "qrCodeUrl", "qr_code_data_url", "qr_code_url", "qr"]) || null
   };
 }
 
 function PhysicalVerificationCard({ record }: { record?: PublicPropertyDetail["physicalVerification"] }) {
   const [checksExpanded, setChecksExpanded] = useState(false);
+  const [certificateVisible, setCertificateVisible] = useState(false);
   const verifiedBy = record?.verifiedBy?.trim();
   const verifiedAt = formatVerificationDate(record?.verifiedAt);
-  const method = record?.method?.trim();
-  if (!record || !verifiedBy || !verifiedAt) return null;
+  if (!record) return null;
   const checklist = record?.checklist?.length
     ? record.checklist
     : ["Location confirmed on-site", "Property photos reviewed", "Rooms and amenities checked", "Host details matched"];
@@ -303,20 +324,7 @@ function PhysicalVerificationCard({ record }: { record?: PublicPropertyDetail["p
         </View>
       </View>
 
-      <View style={styles.trustInfoGrid}>
-        <VerificationInfo label="Verified by" value={verifiedBy} />
-        <VerificationInfo label="Verified on" value={verifiedAt} />
-        {method ? <VerificationInfo label="Inspection method" value={method} wide /> : null}
-      </View>
-
-      {record?.note ? (
-        <View style={styles.trustNote}>
-          <CheckCircle2 color={colors.primary} size={17} />
-          <AppText variant="bodySmall" tone="muted" style={styles.flex}>
-            {record.note}
-          </AppText>
-        </View>
-      ) : null}
+      <VerificationCertificateButton record={record} onPress={() => setCertificateVisible(true)} />
 
       <View style={styles.trustChecklist}>
         <Pressable
@@ -355,11 +363,138 @@ function PhysicalVerificationCard({ record }: { record?: PublicPropertyDetail["p
           </>
         ) : null}
       </View>
+
+      <VerificationCertificateModal
+        visible={certificateVisible}
+        record={record}
+        verifiedBy={verifiedBy}
+        verifiedAt={verifiedAt}
+        onClose={() => setCertificateVisible(false)}
+      />
     </View>
   );
 }
 
-function VerificationInfo({ label, value, wide }: { label: string; value: string; wide?: boolean }) {
+function VerificationCertificateButton({
+  record,
+  onPress
+}: {
+  record: NonNullable<PublicPropertyDetail["physicalVerification"]>;
+  onPress: () => void;
+}) {
+  if (!record.verificationUrl && !record.qrCodeDataUrl) return null;
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="View property verification certificate"
+      onPress={onPress}
+      style={styles.certificateButton}
+    >
+      <View style={styles.certificateButtonIcon}>
+        <QrCode color={colors.primary} size={20} />
+      </View>
+      <View style={styles.flex}>
+        <AppText variant="bodySmall" weight="bold">
+          View verification certificate
+        </AppText>
+        <AppText variant="caption" tone="muted">
+          Scan or open the public NoLSAF certificate.
+        </AppText>
+      </View>
+      <ExternalLink color={colors.primary} size={18} />
+    </Pressable>
+  );
+}
+
+function VerificationCertificateModal({
+  visible,
+  record,
+  verifiedBy,
+  verifiedAt,
+  onClose
+}: {
+  visible: boolean;
+  record: NonNullable<PublicPropertyDetail["physicalVerification"]>;
+  verifiedBy?: string;
+  verifiedAt: string;
+  onClose: () => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const { height, width } = useWindowDimensions();
+  const sheetMaxHeight = Math.max(360, height - Math.max(insets.top, spacing[3]) - spacing[3]);
+  const qrSize = Math.min(210, Math.max(150, width - spacing[10]));
+
+  const openCertificate = () => {
+    if (!record.verificationUrl) return;
+    Linking.openURL(record.verificationUrl).catch(() => {
+      Alert.alert("NoLSAF verification", "Could not open this certificate right now.");
+    });
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={styles.modalBackdrop}>
+        <View style={[styles.certificateSheet, { maxHeight: sheetMaxHeight, paddingBottom: Math.max(insets.bottom + spacing[4], spacing[5]) }]}>
+          <View style={styles.certificateSheetHeader}>
+            <View style={styles.certificateTitleRow}>
+              <View style={styles.certificateSheetIcon}>
+                <ShieldCheck color={colors.primary} size={20} />
+              </View>
+              <View style={styles.flex}>
+                <AppText variant="titleSm" weight="bold">
+                  Verification certificate
+                </AppText>
+                <AppText variant="caption" tone="muted">
+                  Public NoLSAF property check
+                </AppText>
+              </View>
+            </View>
+            <Pressable accessibilityRole="button" accessibilityLabel="Close certificate" onPress={onClose} style={styles.modalCloseButton}>
+              <XCircle color={colors.ink} size={22} />
+            </Pressable>
+          </View>
+
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+            contentContainerStyle={styles.certificateContent}
+          >
+            {record.qrCodeDataUrl ? (
+              <View style={[styles.qrFrame, { width: qrSize, height: qrSize }]}>
+                <Image source={{ uri: record.qrCodeDataUrl }} style={styles.qrImage} resizeMode="contain" />
+              </View>
+            ) : null}
+
+            <View style={styles.certificateFacts}>
+              <VerificationInfo label="Status" value={record.status === "PENDING" ? "Review pending" : "Verified"} wide />
+              {verifiedAt ? <VerificationInfo label="Verified on" value={verifiedAt} /> : null}
+              {verifiedBy ? <VerificationInfo label="Verified by" value={verifiedBy} /> : null}
+            </View>
+
+            <AppText variant="caption" tone="muted" style={styles.certificateNote}>
+              Scan this code to check this stay's NoLSAF certificate anytime. You do not need to sign in.
+            </AppText>
+
+            {record.verificationUrl ? (
+              <AppButton title="Open certificate" icon={<ExternalLink color={colors.white} size={18} />} onPress={openCertificate} />
+            ) : null}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function VerificationInfo({
+  label,
+  value,
+  wide
+}: {
+  label: string;
+  value: string;
+  wide?: boolean;
+}) {
   return (
     <View style={[styles.trustInfoTile, wide && styles.trustInfoTileWide]}>
       <View style={styles.trustInfoLabel}>
@@ -375,11 +510,11 @@ function VerificationInfo({ label, value, wide }: { label: string; value: string
   );
 }
 
-function ServiceTile({ item }: { item: string }) {
+function ServiceTile({ item, scroll }: { item: string; scroll?: boolean }) {
   const { Icon, color } = serviceIcon(item);
 
   return (
-    <View style={styles.includedTile}>
+    <View style={[styles.includedTile, scroll && styles.includedTileScroll]}>
       <Icon color={color} size={16} />
       <AppText variant="caption" weight="bold" numberOfLines={1} style={styles.flex}>
         {labelize(item)}
@@ -411,6 +546,7 @@ function serviceIcon(label: string): { Icon: LucideIcon; color: string } {
 
 function IncludedServicesCard({ items }: { items: string[] }) {
   if (!items.length) return null;
+  const scrollable = items.length > 2;
 
   return (
     <AppCard>
@@ -426,12 +562,31 @@ function IncludedServicesCard({ items }: { items: string[] }) {
             {items.length} {items.length === 1 ? "service" : "services"} included in the listed price
           </AppText>
         </View>
+        {scrollable ? (
+          <View style={styles.includedHint}>
+            <AppText variant="caption" weight="bold" tone="primary">
+              Swipe
+            </AppText>
+          </View>
+        ) : null}
       </View>
-      <View style={styles.includedGrid}>
-        {items.map((item) => (
-          <ServiceTile key={item} item={item} />
-        ))}
-      </View>
+      {scrollable ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.includedScrollContent}
+        >
+          {items.map((item) => (
+            <ServiceTile key={item} item={item} scroll />
+          ))}
+        </ScrollView>
+      ) : (
+        <View style={styles.includedGrid}>
+          {items.map((item) => (
+            <ServiceTile key={item} item={item} />
+          ))}
+        </View>
+      )}
     </AppCard>
   );
 }
@@ -750,23 +905,23 @@ export function PropertyDetailScreen({ navigation, route }: Props) {
             {/* Availability live updates */}
             <Section title="Availability live updates" icon={<CalendarDays color={colors.primary} size={18} />}>
               <AppText variant="caption" tone="muted">
-                Select check in and check out dates to see live availability.
+                Choose your dates to see rooms that can be booked now.
               </AppText>
               <View style={styles.dateFields}>
                 <Pressable accessibilityRole="button" onPress={() => setCalendarVisible(true)} style={styles.dateField}>
-                  <AppText variant="caption" tone="muted">
+                  <AppText variant="caption" weight="bold" tone="muted">
                     Check in
                   </AppText>
-                  <AppText variant="bodySmall" weight="semiBold" tone={checkIn ? "default" : "soft"}>
-                    {checkIn || "Select date"}
+                  <AppText variant="bodySmall" weight="bold" tone={checkIn ? "default" : "soft"} numberOfLines={1}>
+                    {checkIn ? formatPretty(checkIn) : "Select date"}
                   </AppText>
                 </Pressable>
                 <Pressable accessibilityRole="button" onPress={() => setCalendarVisible(true)} style={styles.dateField}>
-                  <AppText variant="caption" tone="muted">
+                  <AppText variant="caption" weight="bold" tone="muted">
                     Check out
                   </AppText>
-                  <AppText variant="bodySmall" weight="semiBold" tone={checkOut ? "default" : "soft"}>
-                    {checkOut || "Select date"}
+                  <AppText variant="bodySmall" weight="bold" tone={checkOut ? "default" : "soft"} numberOfLines={1}>
+                    {checkOut ? formatPretty(checkOut) : "Select date"}
                   </AppText>
                 </Pressable>
               </View>
@@ -1907,7 +2062,12 @@ const styles = StyleSheet.create({
   },
   dateFields: {
     flexDirection: "row",
-    gap: spacing[3]
+    gap: spacing[3],
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.brand[100],
+    backgroundColor: colors.brand[50],
+    padding: spacing[2]
   },
   dateField: {
     flex: 1,
@@ -1915,10 +2075,11 @@ const styles = StyleSheet.create({
     gap: spacing[1],
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.brand[100],
     backgroundColor: colors.white,
     paddingHorizontal: spacing[3],
-    paddingVertical: spacing[3]
+    paddingVertical: spacing[3],
+    ...shadows.card
   },
   dayChip: {
     borderRadius: radius.full,
@@ -1937,6 +2098,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing[3],
     borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
     paddingHorizontal: spacing[3],
     paddingVertical: spacing[3]
   },
@@ -1954,9 +2117,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.mutedText
   },
   availOk: {
+    borderColor: "#86efac",
     backgroundColor: "#dcfce7"
   },
   availNone: {
+    borderColor: colors.border,
     backgroundColor: "#f1f5f9"
   },
   statGrid: {
@@ -2128,17 +2293,11 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: colors.brand[200]
   },
-  trustInfoGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing[3],
-    padding: spacing[4]
-  },
   trustInfoTile: {
     flexGrow: 1,
     flexBasis: "47%",
     minWidth: 0,
-    gap: spacing[2],
+    gap: spacing[1],
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border,
@@ -2156,19 +2315,6 @@ const styles = StyleSheet.create({
   trustInfoLabelText: {
     textTransform: "uppercase",
     letterSpacing: 0.7
-  },
-  trustNote: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing[2],
-    marginHorizontal: spacing[4],
-    marginBottom: spacing[4],
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    paddingHorizontal: spacing[3],
-    paddingVertical: spacing[3]
   },
   trustChecklist: {
     gap: spacing[3],
@@ -2216,6 +2362,100 @@ const styles = StyleSheet.create({
     gap: spacing[2],
     paddingTop: spacing[1]
   },
+  certificateButton: {
+    marginHorizontal: spacing[4],
+    marginBottom: spacing[4],
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[3],
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.brand[200],
+    backgroundColor: colors.brand[50],
+    padding: spacing[3]
+  },
+  certificateButtonIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: radius.md,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.brand[200],
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  modalBackdrop: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(15, 23, 42, 0.42)"
+  },
+  certificateSheet: {
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    backgroundColor: colors.surface,
+    padding: spacing[5],
+    gap: spacing[3]
+  },
+  certificateSheetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing[3]
+  },
+  certificateTitleRow: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[3]
+  },
+  certificateSheetIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.md,
+    backgroundColor: colors.brand[50],
+    borderWidth: 1,
+    borderColor: colors.brand[200],
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  certificateContent: {
+    gap: spacing[4],
+    paddingTop: spacing[1]
+  },
+  modalCloseButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border
+  },
+  qrFrame: {
+    alignSelf: "center",
+    width: 210,
+    height: 210,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
+    padding: spacing[3],
+    ...shadows.card
+  },
+  qrImage: {
+    width: "100%",
+    height: "100%"
+  },
+  certificateFacts: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing[3]
+  },
+  certificateNote: {
+    textAlign: "center",
+    lineHeight: 18
+  },
   includedHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -2242,6 +2482,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center"
   },
+  includedHint: {
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.brand[100],
+    backgroundColor: colors.brand[50],
+    paddingHorizontal: spacing[2],
+    paddingVertical: 5
+  },
+  includedScrollContent: {
+    gap: spacing[2],
+    paddingRight: spacing[4]
+  },
   includedGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -2260,6 +2512,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     paddingHorizontal: spacing[3],
     paddingVertical: spacing[2]
+  },
+  includedTileScroll: {
+    width: 210
   },
   payRow: {
     minWidth: 0,

@@ -74,6 +74,8 @@ export type PublicPropertyDetail = {
     method: string;
     note: string | null;
     checklist: string[];
+    verificationUrl?: string | null;
+    qrCodeDataUrl?: string | null;
   };
 };
 
