@@ -167,6 +167,7 @@ model User {
 
   // Property reviews written by this user
   propertyReviews PropertyReview[]
+  propertyVerifications PropertyVerification[] @relation("PropertyVerificationVerifier")
 
   // Agent reviews written by this user
   agentReviewsWritten AgentReview[] @relation("AgentReviewsUser")
@@ -355,6 +356,7 @@ model Property {
   groupBookings      GroupBooking[]
   groupBookingClaims GroupBookingClaim[]
   images             PropertyImage[]
+  verification       PropertyVerification?
   reviews            PropertyReview[]
   savedBy            SavedProperty[]
   availabilityBlocks PropertyAvailabilityBlock[]
@@ -382,6 +384,27 @@ model Property {
   @@index([latitude, longitude]) // Composite index for location-based queries
   @@index([status, latitude, longitude]) // For filtering approved properties with locations
   @@map("property")
+}
+
+model PropertyVerification {
+  id         Int       @id @default(autoincrement())
+  propertyId Int      @unique
+  status     String   @default("PENDING") @db.VarChar(30) // PENDING, VERIFIED, REJECTED
+  verifiedAt DateTime?
+  verifiedBy Int?
+  method     String?  @db.VarChar(120)
+  note       String?  @db.Text
+  checklist  Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  verifier User?    @relation("PropertyVerificationVerifier", fields: [verifiedBy], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([verifiedAt])
+  @@index([verifiedBy])
+  @@map("property_verification")
 }
 
 // =========================================================
