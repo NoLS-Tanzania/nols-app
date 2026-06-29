@@ -3,11 +3,14 @@ import type { RequestHandler } from "express";
 import { prisma } from "@nolsaf/prisma";
 import { toPublicCard, toPublicDetail } from "../lib/publicPropertyDto.js";
 import { Prisma } from "@prisma/client";
+import QRCode from "qrcode";
 import { withCache, cacheKeys, cacheTags, measureTime } from "../lib/performance.js";
 import { REAL_BOOKING_STATUSES } from "../lib/bookingStatus.js";
 import { calculateAvailability } from "../lib/availabilityCalculator.js";
+import { signPropertyVerificationToken, verifyPropertyVerificationToken } from "../lib/propertyVerificationToken.js";
 
 const router = Router();
+const DEFAULT_PROPERTY_VERIFICATION_METHOD = "Site visit and listing review";
 
 const HOME_PROPERTY_TYPE_CARDS = [
   { key: "HOTEL" },
@@ -45,6 +48,30 @@ function parseIntOrUndefined(v: any) {
 function parseFloatOrUndefined(v: any) {
   const n = Number(v);
   return Number.isFinite(n) ? n : undefined;
+}
+
+function resolveWebOrigin(req?: any): string {
+  const configured = [
+    process.env.WEB_ORIGIN,
+    process.env.FRONTEND_URL,
+    process.env.APP_ORIGIN,
+    process.env.APP_URL,
+    process.env.NEXT_PUBLIC_APP_URL,
+  ];
+  for (const value of configured) {
+    const raw = String(value || "").trim().replace(/\/+$/, "");
+    if (raw) return raw;
+  }
+  const proto = String(req?.headers?.["x-forwarded-proto"] || req?.protocol || "http").split(",")[0].trim();
+  const host = String(req?.headers?.["x-forwarded-host"] || req?.headers?.host || "localhost:3000").split(",")[0].trim();
+  return `${proto}://${host}`.replace(/\/+$/, "");
+}
+
+function formatPublicLocation(p: any): string {
+  return [p?.street, p?.ward, p?.district, p?.regionName, p?.country]
+    .map((item) => (typeof item === "string" ? item.trim() : ""))
+    .filter(Boolean)
+    .join(", ");
 }
 
 function parseCsv(v: any): string[] {
@@ -288,7 +315,9 @@ const listPublicProperties: RequestHandler = async (req, res) => {
 
   const sort = String((req.query as any)?.sort ?? "newest");
 
-  const where: any = { status: "APPROVED" };
+  const where: any = {
+    status: "APPROVED",
+  };
 
   // IMPORTANT: Do not filter via relation `tourismSite.slug` here.
   // Prisma will generate a JOIN which can trigger MariaDB/MySQL "Out of sort memory" errors
@@ -388,7 +417,9 @@ const listPublicProperties: RequestHandler = async (req, res) => {
   ];
   if (serviceTags.length > 0) {
     try {
-      const clauses: Prisma.Sql[] = [Prisma.sql`status = 'APPROVED'`];
+      const clauses: Prisma.Sql[] = [
+        Prisma.sql`status = 'APPROVED'`,
+      ];
       for (const tag of serviceTags) {
         const needle = JSON.stringify(tag); // e.g. "\"Pool\""
         // Guard against legacy rows or non-JSON column types.
@@ -889,11 +920,73 @@ const getPublicProperty: RequestHandler = async (req, res) => {
 
           if (!p) return null;
 
-          const legacyPhotos = await resolveLegacyPhotoUrls(id);
-          const dto = toPublicDetail({ ...p, photos: legacyPhotos });
+          const [legacyPhotos, physicalVerification] = await Promise.all([
+            resolveLegacyPhotoUrls(id),
+            prisma.$queryRaw(
+              Prisma.sql`
+                SELECT
+                  pv.\`id\`,
+                  pv.\`status\`,
+                  pv.\`verifiedAt\`,
+                  pv.\`method\`,
+                  pv.\`note\`,
+                  pv.\`checklist\`,
+                  u.\`fullName\` AS \`verifierFullName\`,
+                  u.\`name\` AS \`verifierName\`
+                FROM \`property_verification\` pv
+                LEFT JOIN \`User\` u ON u.\`id\` = pv.\`verifiedBy\`
+                WHERE pv.\`propertyId\` = ${id}
+                LIMIT 1
+              `
+            ).then((rows: any) => {
+              const row = Array.isArray(rows) ? rows[0] : null;
+              return row
+                ? {
+                    id: row.id,
+                    status: row.status,
+                    verifiedAt: row.verifiedAt,
+                    method: row.method,
+                    note: row.note,
+                    checklist: row.checklist,
+                    verifier: {
+                      fullName: row.verifierFullName,
+                      name: row.verifierName,
+                    },
+                  }
+                : null;
+            }).catch(() => null),
+          ]);
+
+          let verificationUrl: string | null = null;
+          let qrCodeDataUrl: string | null = null;
+          if (physicalVerification?.status === "VERIFIED" && Number.isFinite(Number(physicalVerification.id))) {
+            const verificationToken = signPropertyVerificationToken(id, Number(physicalVerification.id));
+            verificationUrl = `${resolveWebOrigin(req)}/verify/property?t=${encodeURIComponent(verificationToken)}`;
+            qrCodeDataUrl = await QRCode.toDataURL(verificationUrl, {
+              margin: 1,
+              width: 260,
+              errorCorrectionLevel: "M",
+            });
+          }
+
+          const dto = toPublicDetail({
+            ...p,
+            photos: legacyPhotos,
+            physicalVerification: {
+              status: "VERIFIED",
+              verifiedAt: physicalVerification?.verifiedAt ?? null,
+              method: physicalVerification?.method ?? DEFAULT_PROPERTY_VERIFICATION_METHOD,
+              note: physicalVerification?.note ?? "This stay is listed publicly after NoLSAF approval.",
+              checklist: physicalVerification?.checklist ?? null,
+              verifier: physicalVerification?.verifier ?? null,
+              verificationUrl,
+              qrCodeDataUrl,
+            },
+          });
           return { property: dto };
         },
         {
+          skipCache: true,
           ttl: 600, // Cache for 10 minutes (property details change less frequently)
           tags: [cacheTags.property(id), cacheTags.propertyList],
         }
@@ -928,7 +1021,7 @@ const homeSummary: RequestHandler = async (_req, res) => {
   try {
     const { result, duration } = await measureTime("public.properties.homeSummary", async () => {
       return await withCache(
-        "properties:home-summary:v1",
+        "properties:home-summary:v2",
         async () => {
           const aliasesByKey = new Map<string, Set<string>>();
           const allTypeAliases = new Set<string>();
@@ -980,13 +1073,20 @@ const homeSummary: RequestHandler = async (_req, res) => {
                     COALESCE(
                       (SELECT pi.thumbnailUrl FROM \`property_images\` pi
                         WHERE pi.propertyId = p.id
-                          AND pi.status IN ('READY','PROCESSING')
+                          AND pi.status IN ('READY','PROCESSING','PENDING')
                           AND pi.thumbnailUrl IS NOT NULL
-                        ORDER BY pi.id ASC LIMIT 1),
+                          AND pi.thumbnailUrl NOT LIKE 'data:%'
+                          AND pi.thumbnailUrl NOT LIKE 'blob:%'
+                          AND pi.thumbnailUrl NOT LIKE 'file:%'
+                        ORDER BY pi.updatedAt DESC, pi.createdAt DESC, pi.id DESC LIMIT 1),
                       (SELECT pi.url FROM \`property_images\` pi
                         WHERE pi.propertyId = p.id
+                          AND pi.status IN ('READY','PROCESSING','PENDING')
                           AND pi.url IS NOT NULL
-                        ORDER BY pi.id ASC LIMIT 1),
+                          AND pi.url NOT LIKE 'data:%'
+                          AND pi.url NOT LIKE 'blob:%'
+                          AND pi.url NOT LIKE 'file:%'
+                        ORDER BY pi.updatedAt DESC, pi.createdAt DESC, pi.id DESC LIMIT 1),
                       CASE
                         WHEN JSON_EXTRACT(p.photos, '$[0]') IS NOT NULL
                           AND JSON_UNQUOTE(JSON_EXTRACT(p.photos, '$[0]')) != ''
@@ -1004,7 +1104,7 @@ const homeSummary: RequestHandler = async (_req, res) => {
                   ) latestApproval ON latestApproval.entityId = p.id
                   WHERE p.status = 'APPROVED'
                     AND p.type IN (${Prisma.join(allTypeAliasList.map((t) => Prisma.sql`${t}`))})
-                  ORDER BY COALESCE(latestApproval.approvedAt, p.updatedAt, p.createdAt) DESC, p.id DESC
+                  ORDER BY p.updatedAt DESC, COALESCE(latestApproval.approvedAt, p.createdAt) DESC, p.id DESC
                   LIMIT ${HOME_PROPERTY_TYPE_CARDS.length * 12}
                 `
               ) as Promise<any[]>)
@@ -1182,6 +1282,115 @@ const topCities: RequestHandler = async (req, res) => {
 };
 
 router.get("/top-cities", topCities);
+
+/**
+ * GET /api/public/properties/verification?token=...
+ * Public, no-login property verification certificate endpoint.
+ */
+router.get("/verification", (async (req, res) => {
+  const token = String(req.query.token || req.query.t || "").trim();
+  if (!token) return res.status(400).json({ ok: false, error: "missing_token" });
+
+  const payload = verifyPropertyVerificationToken(token);
+  if (!payload) return res.json({ ok: true, valid: false });
+
+  try {
+    const rows = (await prisma.$queryRaw(
+      Prisma.sql`
+        SELECT
+          pv.\`id\`,
+          pv.\`status\`,
+          pv.\`verifiedAt\`,
+          pv.\`method\`,
+          pv.\`note\`,
+          pv.\`checklist\`,
+          u.\`fullName\` AS \`verifierFullName\`,
+          u.\`name\` AS \`verifierName\`,
+          p.\`id\` AS \`propertyId\`,
+          p.\`title\`,
+          p.\`type\`,
+          p.\`regionName\`,
+          p.\`district\`,
+          p.\`ward\`,
+          p.\`street\`,
+          p.\`city\`,
+          p.\`country\`,
+          p.\`updatedAt\`
+        FROM \`property_verification\` pv
+        INNER JOIN \`property\` p ON p.\`id\` = pv.\`propertyId\`
+        LEFT JOIN \`User\` u ON u.\`id\` = pv.\`verifiedBy\`
+        WHERE pv.\`id\` = ${payload.verificationId}
+          AND pv.\`propertyId\` = ${payload.propertyId}
+          AND pv.\`status\` = 'VERIFIED'
+          AND p.\`status\` = 'APPROVED'
+        LIMIT 1
+      `
+    )) as any[];
+    const row = Array.isArray(rows) ? rows[0] : null;
+    const record = row
+      ? {
+          id: row.id,
+          status: row.status,
+          verifiedAt: row.verifiedAt,
+          method: row.method,
+          note: row.note,
+          checklist: row.checklist,
+          verifier: {
+            fullName: row.verifierFullName,
+            name: row.verifierName,
+          },
+          property: {
+            id: row.propertyId,
+            title: row.title,
+            type: row.type,
+            regionName: row.regionName,
+            district: row.district,
+            ward: row.ward,
+            street: row.street,
+            city: row.city,
+            country: row.country,
+            updatedAt: row.updatedAt,
+          },
+        }
+      : null;
+
+    if (!record?.property) return res.json({ ok: true, valid: false });
+
+    const property = record.property;
+    const checklist = Array.isArray(record.checklist)
+      ? record.checklist.map((item: any) => String(item || "").trim()).filter(Boolean)
+      : [];
+
+    return res.json({
+      ok: true,
+      valid: true,
+      certificate: {
+        issuer: "NoLS Africa Co Ltd",
+        property: {
+          id: property.id,
+          title: property.title,
+          type: property.type,
+          location: formatPublicLocation(property),
+        },
+        verification: {
+          status: "VERIFIED",
+          verifiedAt: record.verifiedAt ? new Date(record.verifiedAt).toISOString() : null,
+          verifiedBy: record.verifier?.fullName || record.verifier?.name || "NoLSAF Admin",
+          verifiedByRole: "ADMIN",
+          method: record.method || DEFAULT_PROPERTY_VERIFICATION_METHOD,
+          note: record.note || "This stay is listed publicly only after NoLSAF verification and approval.",
+          checklist: checklist.length
+            ? checklist
+            : ["Property details reviewed", "Location and listing information checked", "Photos and stay information reviewed", "Host listing approved"],
+          lastRefreshedAt: property.updatedAt ? new Date(property.updatedAt).toISOString() : null,
+        },
+      },
+    });
+  } catch (err) {
+    console.error("[public property verification] failed", err);
+    return res.status(500).json({ ok: false, error: "verification_failed" });
+  }
+}) as RequestHandler);
 
 /**
  * GET /api/public/properties/availability?ids=1,2,3&date=YYYY-MM-DD

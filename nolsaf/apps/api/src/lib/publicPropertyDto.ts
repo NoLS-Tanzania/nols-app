@@ -1,5 +1,7 @@
 import type { PropertyImage } from "@prisma/client";
 
+const DEFAULT_PROPERTY_VERIFICATION_METHOD = "Site visit and listing review";
+
 export type PublicPropertyCard = {
   id: number;
   slug: string;
@@ -46,6 +48,17 @@ export type PublicPropertyDetail = {
   totalBathrooms: number | null;
   services: any; // Can be array of strings OR object with commissionPercent and discountRules
   roomsSpec: any[];
+  physicalVerification?: {
+    status: "VERIFIED" | "PENDING";
+    verifiedAt: string | null;
+    verifiedBy: string | null;
+    verifiedByRole: string | null;
+    method: string;
+    note: string | null;
+    checklist: string[];
+    verificationUrl?: string | null;
+    qrCodeDataUrl?: string | null;
+  };
   ownerId?: number; // Include ownerId to check ownership on frontend
 };
 
@@ -81,6 +94,42 @@ function normalizeRoomsSpecInput(roomsSpec: any): any[] {
     }
   }
   return [];
+}
+
+function publicVerifierName(actor: any): string | null {
+  if (!actor || typeof actor !== "object") return null;
+  return safeString(actor.fullName) || safeString(actor.name) || "NoLSAF Admin";
+}
+
+function buildPhysicalVerification(p: any): PublicPropertyDetail["physicalVerification"] | undefined {
+  const record = p?.physicalVerification || p?.verification;
+  if (!record || typeof record !== "object") return undefined;
+
+  const status = String(record.status || "").toUpperCase();
+  if (status !== "VERIFIED" && status !== "PENDING") return undefined;
+
+  const verifiedAt = record?.verifiedAt instanceof Date
+    ? record.verifiedAt.toISOString()
+    : typeof record?.verifiedAt === "string"
+      ? record.verifiedAt
+      : null;
+  const checklist = Array.isArray(record.checklist)
+    ? record.checklist.map((item: any) => String(item || "").trim()).filter(Boolean)
+    : [];
+
+  return {
+    status,
+    verifiedAt,
+    verifiedBy: publicVerifierName(record.verifier),
+    verifiedByRole: "ADMIN",
+    method: safeString(record.method) || DEFAULT_PROPERTY_VERIFICATION_METHOD,
+    note: safeString(record.note),
+    checklist: checklist.length
+      ? checklist
+      : ["Property details reviewed", "Location and listing information checked", "Photos and stay information reviewed", "Host listing approved"],
+    verificationUrl: safeString(record.verificationUrl),
+    qrCodeDataUrl: safeString(record.qrCodeDataUrl)
+  };
 }
 
 function extractEffectiveBasePrice(p: any): number | null {
@@ -270,6 +319,7 @@ export function toPublicDetail(p: any): PublicPropertyDetail {
     totalBathrooms: typeof p.totalBathrooms === "number" ? p.totalBathrooms : (p.totalBathrooms != null ? Number(p.totalBathrooms) : null),
     services: p.services ?? null, // Preserve full services object (may contain commissionPercent, discountRules)
     roomsSpec: Array.isArray(p.roomsSpec) ? p.roomsSpec : [],
+    physicalVerification: buildPhysicalVerification(p),
     ownerId: p.ownerId ? Number(p.ownerId) : undefined, // Include ownerId to check ownership
   };
 }

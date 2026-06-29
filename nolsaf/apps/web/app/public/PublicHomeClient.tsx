@@ -1478,7 +1478,7 @@ export default function Page() {
                     {img ? (
                       <NextImage
                         src={img}
-                        alt={c.title}
+                        alt={sample?.title || c.title}
                         fill
                         sizes="(min-width:1024px) 20vw, (min-width:640px) 33vw, 50vw"
                         className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.07] group-hover:saturate-[1.08]"

@@ -21,6 +21,7 @@ import { fetchAccountSession } from "@/lib/accountSession";
 import {
   MapPin,
   Users,
+  User,
   BedDouble,
   Bath,
   ShieldCheck,
@@ -45,7 +46,6 @@ import {
   PartyPopper,
   Gamepad2,
   Dumbbell,
-  Sparkles,
   CreditCard,
   Banknote,
   Building2,
@@ -104,6 +104,37 @@ import {
 import { BATHROOM_ICONS, OTHER_AMENITIES_ICONS } from "../../../../lib/amenityIcons";
 import { PriceDisplay } from "@/components/PriceDisplay";
 
+function isCloudinaryImage(src: string) {
+  try {
+    return new URL(src).hostname === "res.cloudinary.com";
+  } catch {
+    return src.includes("res.cloudinary.com");
+  }
+}
+
+function cloudinaryPreviewUrl(src: string, sizes: string, className: string) {
+  if (!isCloudinaryImage(src)) return src;
+  const uploadMarker = "/image/upload/";
+  const uploadIndex = src.indexOf(uploadMarker);
+  if (uploadIndex === -1) return src;
+
+  const beforeUpload = src.slice(0, uploadIndex + uploadMarker.length);
+  const afterUpload = src.slice(uploadIndex + uploadMarker.length);
+  const firstSegment = afterUpload.split("/")[0] || "";
+  const alreadyTransformed = /^(c_|f_|g_|h_|q_|w_|ar_|e_)/.test(firstSegment) || firstSegment.includes(",");
+  if (alreadyTransformed) return src;
+
+  const isThumbnail = sizes.includes("120px") || sizes.includes("260px");
+  const isCoverTile = className.includes("object-cover");
+  const transform = isThumbnail
+    ? "f_auto,q_auto,w_360,c_fill,g_auto"
+    : isCoverTile
+      ? "f_auto,q_auto,w_900,c_fill,g_auto"
+      : "f_auto,q_auto,w_1400";
+
+  return `${beforeUpload}${transform}/${afterUpload}`;
+}
+
 function PropertyGalleryImage({
   src,
   alt,
@@ -122,21 +153,21 @@ function PropertyGalleryImage({
     return <img src={src} alt={alt} className={`h-full w-full ${className}`} loading={priority ? "eager" : "lazy"} />;
   }
 
+  const imageSrc = cloudinaryPreviewUrl(src, sizes, className);
+  const bypassNextOptimizer =
+    isCloudinaryImage(src) ||
+    src.startsWith("http://localhost") ||
+    src.startsWith("http://127.0.0.1");
+
   return (
     <Image
-      src={src}
+      src={imageSrc}
       alt={alt}
       fill
       className={className}
       sizes={sizes}
       priority={priority}
-      unoptimized={
-        !(
-          src.includes("cloudinary") ||
-          src.startsWith("http://localhost") ||
-          src.startsWith("http://127.0.0.1")
-        )
-      }
+      unoptimized={bypassNextOptimizer}
     />
   );
 }
@@ -166,6 +197,15 @@ type PublicPropertyDetail = {
   roomsSpec: any[];
   ownerId?: number;
   verificationVideoUrl?: string | null;
+  physicalVerification?: {
+    status: "VERIFIED" | "PENDING";
+    verifiedAt: string | null;
+    verifiedBy: string | null;
+    verifiedByRole: string | null;
+    method: string;
+    note: string | null;
+    checklist: string[];
+  } | null;
   houseRules?: string | string[] | {
     checkIn?: string;
     checkOut?: string;
@@ -249,9 +289,80 @@ function amenityMeta(label: string): { Icon: any; colorClass: string } {
     "social hall": { Icon: PartyPopper, colorClass: "text-yellow-600" },
     "sports & games": { Icon: Gamepad2, colorClass: "text-yellow-700" },
     gym: { Icon: Dumbbell, colorClass: "text-slate-700" },
+    "free wi-fi": { Icon: Wifi, colorClass: "text-cyan-700" },
+    "air conditioning": { Icon: Thermometer, colorClass: "text-sky-700" },
   };
   return map[key] ?? { Icon: Tag, colorClass: "text-slate-500" };
 
+}
+
+function normalizeOwnerDeclaredServices(servicesObj: any, servicesArray: string[]) {
+  const normalizeBoolean = (value: any) =>
+    value === true ||
+    value === "true" ||
+    value === 1 ||
+    value === "1" ||
+    String(value || "").toLowerCase() === "yes";
+
+  const addUnique = (items: string[], label: string) => {
+    const cleaned = String(label || "").trim();
+    if (!cleaned) return;
+    if (!items.some((item) => item.toLowerCase() === cleaned.toLowerCase())) {
+      items.push(cleaned);
+    }
+  };
+
+  const tags = Array.isArray(servicesObj?.tags)
+    ? servicesObj.tags.map((tag: any) => String(tag || "").trim()).filter(Boolean)
+    : [];
+  const allRawLabels = [...servicesArray, ...tags];
+  const amenities: string[] = [];
+  const included: string[] = [];
+  const available: string[] = [];
+
+  const addAmenity = (label: string, includedInPrice = false, availableService = true) => {
+    addUnique(amenities, label);
+    if (includedInPrice) addUnique(included, label);
+    if (availableService && !includedInPrice) addUnique(available, label);
+  };
+
+  const parking = String(servicesObj?.parking || "").toLowerCase();
+  if (parking === "free") {
+    addAmenity("Free parking", true);
+  } else if (parking === "paid") {
+    const price = String(servicesObj?.parkingPrice || "").trim();
+    addAmenity(price ? `Paid parking (${price} TZS)` : "Paid parking");
+  }
+
+  if (normalizeBoolean(servicesObj?.breakfastIncluded)) addAmenity("Breakfast included", true);
+  if (normalizeBoolean(servicesObj?.breakfastAvailable)) addAmenity("Breakfast available");
+  if (normalizeBoolean(servicesObj?.restaurant)) addAmenity("Restaurant");
+  if (normalizeBoolean(servicesObj?.bar)) addAmenity("Bar");
+  if (normalizeBoolean(servicesObj?.pool)) addAmenity("Pool");
+  if (normalizeBoolean(servicesObj?.sauna)) addAmenity("Sauna");
+  if (normalizeBoolean(servicesObj?.laundry)) addAmenity("Laundry");
+  if (normalizeBoolean(servicesObj?.roomService)) addAmenity("Room service");
+  if (normalizeBoolean(servicesObj?.security24)) addAmenity("24h security");
+  if (normalizeBoolean(servicesObj?.firstAid)) addAmenity("First aid");
+  if (normalizeBoolean(servicesObj?.fireExtinguisher)) addAmenity("Fire extinguisher");
+  if (normalizeBoolean(servicesObj?.onSiteShop)) addAmenity("On-site shop");
+  if (normalizeBoolean(servicesObj?.nearbyMall)) addAmenity("Nearby mall");
+  if (normalizeBoolean(servicesObj?.socialHall)) addAmenity("Social hall");
+  if (normalizeBoolean(servicesObj?.sportsGames)) addAmenity("Sports & games");
+  if (normalizeBoolean(servicesObj?.gym)) addAmenity("Gym");
+  if (normalizeBoolean(servicesObj?.wifi)) addAmenity("Free Wi-Fi", true);
+  if (normalizeBoolean(servicesObj?.ac)) addAmenity("Air conditioning", true);
+
+  allRawLabels
+    .filter((service) => !/^payment:\s*/i.test(service))
+    .filter((service) => !/^(free cancellation|group stay)$/i.test(service))
+    .filter((service) => !/^near\s+/i.test(service))
+    .forEach((service) => {
+      const includedInPrice = /^(free parking|breakfast included|free wi-?fi|air conditioning)$/i.test(service);
+      addAmenity(service, includedInPrice);
+    });
+
+  return { amenities, included, available };
 }
 
 function PaymentLogo({ src, alt }: { src: string; alt: string }) {
@@ -794,6 +905,26 @@ function formatDateLabel(dateString: string) {
   if (isNaN(d.getTime())) return dateString;
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 
+}
+
+function cleanPublicText(value: string) {
+  let text = String(value || "");
+  for (let i = 0; i < 4; i += 1) {
+    text = text
+      .replace(/&amp;/gi, "&")
+      .replace(/&#x27;|&#39;/gi, "'")
+      .replace(/&quot;/gi, '"')
+      .replace(/&lt;/gi, "<")
+      .replace(/&gt;/gi, ">")
+      .replace(/&nbsp;/gi, " ");
+  }
+
+  return text
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/\s+([.,;:!?])/g, "$1")
+    .replace(/([.!?])(?=[A-Z])/g, "$1 ")
+    .trim();
 }
 
 function formatTimeAgo(ms: number): string {
@@ -1588,6 +1719,8 @@ export default function PublicPropertyDetailPage() {
     comfort: 0,
   });
   const [aboutExpanded, setAboutExpanded] = useState(false);
+  const [verificationDetailsOpen, setVerificationDetailsOpen] = useState(false);
+  const [priceServicesOpen, setPriceServicesOpen] = useState(false);
   const [roomAmenityHint, setRoomAmenityHint] = useState<string | null>(null);
   const [systemCommission, setSystemCommission] = useState<number>(0);
   const [isOwner, setIsOwner] = useState<boolean>(false);
@@ -1817,14 +1950,27 @@ export default function PublicPropertyDetailPage() {
 
   const about = useMemo(() => {
     const fallback = "No description provided yet.";
-    const raw = String(property?.description || "").trim();
+    const raw = cleanPublicText(String(property?.description || ""));
     const text = raw ? raw : fallback;
-    const limit = 320;
+    const limit = 260;
     const hasMore = raw.length > limit;
     const collapsed = hasMore ? raw.slice(0, limit).trimEnd() + "..." : text;
     return { raw, text, hasMore, collapsed };
   }, [property?.description]);
-  const images = property?.images ?? [];
+  const images = useMemo(() => {
+    const rawImages = Array.isArray(property?.images) ? property.images : [];
+    const seen = new Set<string>();
+    return rawImages
+      .map((src) => String(src || "").trim())
+      .filter(Boolean)
+      .filter((src) => !/^thumb\s*\d+$/i.test(src))
+      .filter((src) => {
+        const key = src.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+  }, [property?.images]);
   const hero = images[0] ?? null;
   const gallery = images.slice(0, 48);
   const hasMorePhotos = images.length > 3;
@@ -1868,6 +2014,52 @@ export default function PublicPropertyDetailPage() {
     () => (typeof servicesRaw === 'object' && !Array.isArray(servicesRaw) && servicesRaw !== null ? servicesRaw : {}),
     [servicesRaw]
   );
+  const verificationRecord = useMemo(() => {
+    const fromProperty = property?.physicalVerification;
+    if (fromProperty) return fromProperty;
+
+    const raw = servicesObj?.verification || servicesObj?.physicalVerification;
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+      return {
+        status: "PENDING" as const,
+        verifiedAt: null,
+        verifiedBy: null,
+        verifiedByRole: null,
+        method: "On-site property inspection",
+        note: "NoLSAF verification details will be added after the inspection record is completed.",
+        checklist: [
+          "Location confirmation",
+          "Room and amenity review",
+          "Photo accuracy check",
+          "Host details review",
+        ],
+      };
+    }
+
+    return {
+      status: raw.status === "VERIFIED" ? "VERIFIED" as const : "PENDING" as const,
+      verifiedAt: typeof raw.verifiedAt === "string" && raw.verifiedAt.trim() ? raw.verifiedAt.trim() : null,
+      verifiedBy: typeof raw.verifiedBy === "string" && raw.verifiedBy.trim() ? raw.verifiedBy.trim() : null,
+      verifiedByRole: typeof raw.verifiedByRole === "string" && raw.verifiedByRole.trim() ? raw.verifiedByRole.trim() : null,
+      method: typeof raw.method === "string" && raw.method.trim() ? raw.method.trim() : "On-site property inspection",
+      note: typeof raw.note === "string" && raw.note.trim() ? raw.note.trim() : null,
+      checklist: Array.isArray(raw.checklist)
+        ? raw.checklist.map((item: any) => String(item || "").trim()).filter(Boolean).slice(0, 8)
+        : [
+            "Location confirmation",
+            "Room and amenity review",
+            "Photo accuracy check",
+            "Host details review",
+          ],
+    };
+  }, [property?.physicalVerification, servicesObj]);
+  const verificationDisplay = useMemo(() => {
+    const verifierName = String(verificationRecord.verifiedBy || "").trim();
+
+    return {
+      verifierName: verifierName || "NoLSAF verification team",
+    };
+  }, [verificationRecord.verifiedBy]);
   
 
   // Extract nearby facilities from services object (owner fills this in)
@@ -1959,12 +2151,9 @@ export default function PublicPropertyDetailPage() {
     const freeCancellation = servicesArray.some((s) => s.toLowerCase() === "free cancellation");
     const groupStay = servicesArray.some((s) => s.toLowerCase() === "group stay");
     const nearby = servicesArray.filter((s) => /^near\s+/i.test(s));
-    const amenities = servicesArray
-      .filter((s) => !/^payment:\s*/i.test(s))
-      .filter((s) => !/^(free cancellation|group stay)$/i.test(s))
-      .filter((s) => !/^near\s+/i.test(s));
-    return { paymentModes: finalPaymentModes, freeCancellation, groupStay, nearby, amenities };
-  }, [servicesArray]);
+    const { amenities, included, available } = normalizeOwnerDeclaredServices(servicesObj, servicesArray);
+    return { paymentModes: finalPaymentModes, freeCancellation, groupStay, nearby, amenities, included, available };
+  }, [servicesArray, servicesObj]);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [activeIdx, setActiveIdx] = useState(0);
   const [allPhotosOpen, setAllPhotosOpen] = useState(false);
@@ -2338,7 +2527,6 @@ export default function PublicPropertyDetailPage() {
                 <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/0 to-black/0" />
               </button>
               <div className="grid grid-cols-2 md:grid-cols-1 gap-3 bg-white p-3">
-                {/* Photo 2 */}
                 {gallery[1] ? (
                   <button
                     type="button"
@@ -2359,10 +2547,9 @@ export default function PublicPropertyDetailPage() {
                     <div className="absolute inset-0 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.06)]" />
                     <div className="absolute inset-0 flex items-center justify-center">
                       <ImageIcon className="w-6 h-6 text-slate-400" aria-hidden />
+                    </div>
                   </div>
-              </div>
                 )}
-                {/* Photo 3 (or View all photos tile) */}
                 {gallery[2] ? (
                   <button
                     type="button"
@@ -2376,7 +2563,7 @@ export default function PublicPropertyDetailPage() {
                     aria-label={hasMorePhotos ? "View all photos" : "Open photo 3"}
                   >
                     <PropertyGalleryImage src={gallery[2]} alt={`${property.title} photo 3`} sizes="(min-width: 768px) 22vw, 50vw" />
-                                        {hasMorePhotos ? (
+                    {hasMorePhotos ? (
                       <div className="absolute right-3 bottom-3">
                         <div className="inline-flex items-center gap-1.5 rounded-full bg-black/60 backdrop-blur-sm px-2.5 py-1.5 shadow-sm ring-1 ring-white/10">
                           <Eye className="w-3.5 h-3.5 flex-shrink-0 text-white/90" aria-hidden />
@@ -2385,7 +2572,7 @@ export default function PublicPropertyDetailPage() {
                       </div>
                     ) : null}
                   </button>
-          ) : (
+                ) : (
                   <div className="relative aspect-[16/10] bg-slate-100 rounded-xl overflow-hidden">
                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_25%,rgba(2,102,94,0.10),transparent_55%),linear-gradient(135deg,#f8fafc,#e2e8f0)]" />
                     <div className="absolute inset-0 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.06)]" />
@@ -2495,17 +2682,17 @@ export default function PublicPropertyDetailPage() {
               </div>
             </div>
             {/* Description */}
-            <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
-              <div className="p-5 sm:p-6">
-                <div className="flex items-start justify-between gap-3">
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-100 bg-slate-50/70 px-5 py-4 sm:px-6">
+                <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#02665e]/10 text-[#02665e]">
+                      <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white text-[#02665e] shadow-sm ring-1 ring-[#02665e]/10">
                         <FileText className="w-5 h-5" aria-hidden />
                       </span>
                       <div>
-                        <h2 className="text-lg font-semibold text-slate-900">About this place</h2>
-                        <div className="text-xs text-slate-500">What the host says about the property</div>
+                        <div className="text-xs font-bold tracking-[0.08em] text-[#02665e]">Host overview</div>
+                        <h2 className="mt-1 text-lg font-semibold text-slate-950">About this place</h2>
                       </div>
                     </div>
                   </div>
@@ -2513,104 +2700,139 @@ export default function PublicPropertyDetailPage() {
                     <button
                       type="button"
                       onClick={() => setAboutExpanded((v) => !v)}
-                      className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50"
+                      aria-label={aboutExpanded ? "Show less" : "Read more"}
                     >
-                      {aboutExpanded ? "Show less" : "Read more"}
+                      {aboutExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                     </button>
                   ) : null}
                 </div>
-                <div className="mt-4 relative">
-                  <p className="text-[15px] sm:text-sm text-slate-700 leading-relaxed whitespace-pre-wrap italic">
+              </div>
+
+              <div className="p-5 sm:p-6">
+                <div className="relative rounded-xl border border-slate-100 bg-white px-4 py-4">
+                  <p className="text-[15px] leading-7 text-slate-700 whitespace-pre-wrap">
                     {aboutExpanded ? about.text : about.collapsed}
                   </p>
                   {!aboutExpanded && about.hasMore ? (
-                    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-white to-white/0" />
+                    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 rounded-b-xl bg-gradient-to-t from-white to-white/0" />
                   ) : null}
                 </div>
               </div>
-              <div className="h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
             </div>
             {/* Physical Verification - Our Competitive Advantage */}
-            <div className="rounded-2xl border-2 border-[#02665e]/20 bg-gradient-to-br from-[#02665e]/5 to-white p-5 sm:p-6 shadow-sm">
-              <div className="flex items-center gap-2 mb-4">
-                <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#02665e]/10 text-[#02665e]">
-                  <ShieldCheck className="w-5 h-5" aria-hidden />
-                </span>
-                <h2 className="text-lg sm:text-xl font-semibold text-slate-900">Physically Verified Property</h2>
-              </div>
-              
-
-              <div className="mb-4">
-                <p className="text-sm text-slate-700 leading-relaxed">
-                  We physically verify every property through on-site visits by our agents or CEO. This ensures authenticity, accuracy, and your peace of mind.
-                </p>
-              </div>
-              {/* YouTube Video Thumbnail - Only show if video URL exists */}
-              {property?.verificationVideoUrl ? (
-                <a
-                  href={property.verificationVideoUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group relative block w-full rounded-xl overflow-hidden border-2 border-slate-200 hover:border-[#02665e]/40 transition-all duration-200 hover:shadow-lg mb-4"
-                >
-                  <div className="relative aspect-video bg-gradient-to-br from-slate-100 to-slate-200">
-                    {/* YouTube Thumbnail - Extract video ID and use YouTube thumbnail API */}
-                    {(() => {
-                      const videoId = property.verificationVideoUrl.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/)?.[1];
-                      const thumbnailUrl = videoId 
-
-                        ? `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`
-                        : null;
-                      
-
-                      return thumbnailUrl ? (
-                        <Image
-                          src={thumbnailUrl}
-                          alt="Property verification video"
-                          fill
-                          className="object-cover"
-                          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                        />
-                      ) : (
-                        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-200 to-slate-300">
-                          <PlayCircle className="h-16 w-16 text-slate-400" />
-                        </div>
-                      );
-                    })()}
-                    
-
-                    {/* Play Button Overlay */}
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/30 transition-colors duration-200">
-                      <div className="flex flex-col items-center gap-2">
-                        <div className="w-16 h-16 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-200">
-                          <PlayCircle className="h-10 w-10 text-[#02665e] ml-1" fill="currentColor" />
-                        </div>
-                        <div className="text-white text-sm font-semibold drop-shadow-lg">Watch Verification</div>
+            <div className="overflow-hidden rounded-2xl border border-[#02665e]/15 bg-white shadow-sm">
+              <div className="relative bg-[#02665e]/5 px-5 py-5 sm:px-6">
+                <div className="flex justify-center">
+                  <div className="flex min-w-0 max-w-2xl flex-col items-center gap-3 text-center">
+                    <span className="inline-flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-white text-[#02665e] shadow-sm ring-1 ring-[#02665e]/10">
+                      <ShieldCheck className="w-5 h-5" aria-hidden />
+                    </span>
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold tracking-[0.08em] text-[#02665e]">NoLSAF trust check</div>
+                      <h2 className="mt-1 text-lg sm:text-xl font-semibold text-slate-950">Physical verification</h2>
+                      <div className="mt-3 flex w-full flex-nowrap items-center justify-center gap-1 text-[11px] font-semibold text-slate-700 sm:gap-2 sm:text-xs">
+                        {[
+                          { label: "Reviewed", Icon: FileText },
+                          { label: "Verified", Icon: ShieldCheck },
+                          { label: "Approved", Icon: BadgeCheck },
+                        ].map(({ label, Icon }, idx) => (
+                          <div key={label} className="flex min-w-0 flex-shrink items-center gap-1 sm:gap-2">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-1 text-[#02665e] ring-1 ring-[#02665e]/15 sm:gap-1.5 sm:px-2.5">
+                              <Icon className="h-3.5 w-3.5" aria-hidden />
+                              {label}
+                            </span>
+                            {idx < 2 ? <span className="h-px w-3 bg-[#02665e]/30 sm:w-6" aria-hidden /> : null}
+                          </div>
+                        ))}
                       </div>
                     </div>
-                    
+                  </div>
 
-                    {/* External Link Indicator */}
-                    <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm rounded-lg p-1.5 shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                      <ExternalLinkIcon className="h-4 w-4 text-[#02665e]" />
+                  <div className="absolute right-5 top-5 flex shrink-0 items-center gap-2 sm:right-6">
+                    <button
+                      type="button"
+                      onClick={() => setVerificationDetailsOpen((open) => !open)}
+                      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#02665e]/20 bg-white text-[#02665e] shadow-sm hover:bg-[#02665e]/5"
+                      aria-label={verificationDetailsOpen ? "Hide verification details" : "Show verification details"}
+                      aria-expanded={verificationDetailsOpen}
+                      aria-controls="property-verification-details"
+                    >
+                      {verificationDetailsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-5 sm:p-6">
+                <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      <User className="h-4 w-4 text-[#02665e]" />
+                      Verified by
+                    </div>
+                    <div className="mt-3 text-lg font-semibold text-slate-950">{verificationDisplay.verifierName}</div>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      <Calendar className="h-4 w-4 text-[#02665e]" />
+                      Verified on
+                    </div>
+                    <div className="mt-3 text-sm font-semibold text-slate-950">
+                      {verificationRecord.verifiedAt ? formatDateLabel(verificationRecord.verifiedAt) : "Date pending"}
                     </div>
                   </div>
-                </a>
-              ) : (
-                <div className="mb-4 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-8 text-center">
-                  <PlayCircle className="h-12 w-12 text-slate-400 mx-auto mb-3" />
-                  <div className="text-sm font-medium text-slate-700 mb-1">Verification video coming soon</div>
-                  <div className="text-xs text-slate-500">Watch this space for the physical verification video</div>
-                </div>
-              )}
-              <div className="flex items-start gap-2 text-xs text-slate-600">
-                <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-shrink-0 mt-0.5" />
-                <span>
-                  {property?.verificationVideoUrl 
 
-                    ? "This property has been physically inspected and verified by our team. Click above to see the complete verification process."
-                    : "This property will be physically inspected and verified by our team to ensure authenticity and accuracy."}
-                </span>
+                  <div className="col-span-2 rounded-xl border border-slate-200 bg-white p-4 lg:col-span-1">
+                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      <ShieldCheck className="h-4 w-4 text-[#02665e]" />
+                      Inspection method
+                    </div>
+                    <div className="mt-3 text-sm font-semibold text-slate-950">{verificationRecord.method}</div>
+                  </div>
+                </div>
+
+                {verificationDetailsOpen ? (
+                  <div id="property-verification-details" className="mt-5 space-y-5">
+                    <div className="flex items-start gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs leading-relaxed text-slate-600 ring-1 ring-slate-200">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-600" />
+                      <span>{verificationRecord.note || "Verified through NoLSAF property review before listing."}</span>
+                    </div>
+
+                    <div>
+                      <div className="text-sm font-semibold text-slate-950">What NoLSAF checked</div>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        {verificationRecord.checklist.map((item: string) => (
+                          <div key={item} className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700 ring-1 ring-slate-200">
+                            <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-emerald-600" />
+                            <span>{item}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {property?.verificationVideoUrl ? (
+                  <a
+                    href={property.verificationVideoUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-5 inline-flex items-center gap-2 rounded-xl border border-[#02665e]/20 bg-white px-4 py-2 text-sm font-semibold text-[#02665e] no-underline hover:bg-[#02665e]/5"
+                  >
+                    <PlayCircle className="h-4 w-4" />
+                    View verification media
+                    <ExternalLinkIcon className="h-3.5 w-3.5" />
+                  </a>
+                ) : null}
+
+                {verificationDetailsOpen ? (
+                  <div className="mt-5 flex items-start gap-2 border-t border-slate-100 pt-4 text-xs text-slate-600">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                    <span>Verification details are maintained by NoLSAF and refreshed when a property is inspected again.</span>
+                  </div>
+                ) : null}
               </div>
             </div>
             {/* Payment Methods (mobile/tablet only; on large screens it sits in the right column) */}
@@ -2674,10 +2896,154 @@ export default function PublicPropertyDetailPage() {
               </button>
               <div className="mt-3 text-xs text-slate-600 flex items-start gap-2">
                 <ShieldCheck className="w-4 h-4 text-emerald-600 mt-0.5" />
-                <span>Approved listings only. Secure workflows and host verification are in progress.</span>
+                <span className="italic">Secure your booking with NoLSAF-supported payment methods.</span>
               </div>
+              {servicesByCategory.included.length > 0 || servicesByCategory.available.length > 0 ? (
+                <div className="mt-5 rounded-2xl bg-slate-50/80 p-3 ring-1 ring-slate-200">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-white text-[#02665e] shadow-sm ring-1 ring-[#02665e]/10">
+                        <BadgeCheck className="h-5 w-5" aria-hidden />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-slate-950">What's included</p>
+                        <p className="mt-0.5 text-xs leading-relaxed text-slate-500">Covered by the listed price.</p>
+                      </div>
+                    </div>
+                    {servicesByCategory.available.length > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => setPriceServicesOpen(true)}
+                        className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white text-[#02665e] shadow-sm ring-1 ring-slate-200 hover:bg-[#02665e]/5"
+                        aria-label="View services"
+                        aria-expanded={priceServicesOpen}
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                    ) : null}
+                  </div>
+
+                  {servicesByCategory.included.length > 0 ? (
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      {servicesByCategory.included.slice(0, 3).map((item: string) => {
+                        const meta = amenityMeta(item);
+                        return (
+                          <div key={item} className="flex min-h-10 items-center gap-2 rounded-xl bg-white px-2.5 py-2 shadow-sm ring-1 ring-emerald-100">
+                            <span className="flex min-w-0 items-center gap-2 text-xs font-semibold text-slate-800">
+                              <meta.Icon className={`h-4 w-4 flex-shrink-0 ${meta.colorClass}`} aria-hidden />
+                              <span className="truncate">{item}</span>
+                            </span>
+                          </div>
+                        );
+                      })}
+                      {servicesByCategory.included.length > 3 ? (
+                        <button
+                          type="button"
+                          onClick={() => setPriceServicesOpen(true)}
+                          className="flex min-h-10 items-center justify-center rounded-xl bg-white px-2.5 py-2 text-xs font-bold text-[#02665e] shadow-sm ring-1 ring-[#02665e]/15 hover:bg-[#02665e]/5"
+                        >
+                          +{servicesByCategory.included.length - 3} more
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <p className="mt-3 rounded-xl bg-white px-3 py-2 text-xs text-slate-500 shadow-sm ring-1 ring-slate-100">
+                      No included services were declared separately from the room price.
+                    </p>
+                  )}
+                </div>
+              ) : null}
             </div>
           </aside>
+          {priceServicesOpen && photoPortalReady ? createPortal((
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/50 px-4 py-4 backdrop-blur-sm">
+              <button
+                type="button"
+                className="absolute inset-0 cursor-default"
+                aria-label="Close services details"
+                onClick={() => setPriceServicesOpen(false)}
+              />
+              <motion.div
+                initial={{ opacity: 0, y: 10, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ duration: 0.18, ease: "easeOut" }}
+                className="relative flex max-h-[calc(100dvh-2rem)] w-full max-w-sm flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-900/10"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="price-services-title"
+              >
+                <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-4 py-3">
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-[#02665e]">Host declaration</p>
+                    <h3 id="price-services-title" className="mt-1 text-base font-semibold text-slate-950">
+                      Price services
+                    </h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPriceServicesOpen(false)}
+                    className="inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-white text-slate-600 shadow-sm ring-1 ring-slate-200 hover:bg-slate-50"
+                    aria-label="Close services details"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+                  {servicesByCategory.included.length > 0 ? (
+                    <div>
+                      <div className="flex items-center justify-between gap-3">
+                        <h4 className="text-sm font-semibold text-slate-950">Included in price</h4>
+                        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100">
+                          {servicesByCategory.included.length}
+                        </span>
+                      </div>
+                      <div className="mt-2 grid gap-2">
+                        {servicesByCategory.included.map((item: string) => {
+                          const meta = amenityMeta(item);
+                          return (
+                            <div key={item} className="flex items-center justify-between gap-3 rounded-lg bg-emerald-50/70 px-3 py-2 ring-1 ring-emerald-100">
+                              <span className="flex min-w-0 items-center gap-2 text-xs font-semibold text-slate-800">
+                                <meta.Icon className={`h-4 w-4 flex-shrink-0 ${meta.colorClass}`} aria-hidden />
+                                <span>{item}</span>
+                              </span>
+                              <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0 text-emerald-600" aria-hidden />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {servicesByCategory.available.length > 0 ? (
+                    <div className={servicesByCategory.included.length > 0 ? "mt-4" : ""}>
+                      <div className="flex items-center justify-between gap-3">
+                        <h4 className="text-sm font-semibold text-slate-950">Other available services</h4>
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
+                          {servicesByCategory.available.length}
+                        </span>
+                      </div>
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        {servicesByCategory.available.map((item: string) => {
+                          const meta = amenityMeta(item);
+                          return (
+                            <span key={item} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-slate-50 px-2 text-xs font-medium text-slate-700 ring-1 ring-slate-200">
+                              <meta.Icon className={`h-3.5 w-3.5 flex-shrink-0 ${meta.colorClass}`} aria-hidden />
+                              <span className="truncate">{item}</span>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-[11px] leading-relaxed text-amber-900 ring-1 ring-amber-100">
+                    Other services may depend on rules, timing, or separate charges.
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          ), document.body) : null}
         </div>
         {/* Availability Checker */}
         <PropertyAvailabilityChecker
@@ -3546,28 +3912,6 @@ export default function PublicPropertyDetailPage() {
                   </div>
                 </div>
               )}
-              {/* Services & Amenities */}
-              {servicesByCategory.amenities.length > 0 && (
-                <div className="rounded-xl border border-slate-200 bg-white p-5">
-                  <div className="flex items-center gap-2 mb-4">
-                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#02665e]/10 text-[#02665e]">
-                      <Sparkles className="w-5 h-5" aria-hidden />
-                    </span>
-                    <h2 className="text-lg font-semibold text-slate-900">Services & Amenities</h2>
-                  </div>
-                  <div className="space-y-2">
-                    {servicesByCategory.amenities.map((amenity: string, idx: number) => {
-                      const meta = amenityMeta(amenity);
-                      return (
-                        <div key={idx} className="flex items-center gap-2 text-sm text-slate-700">
-                          <meta.Icon className={`w-4 h-4 ${meta.colorClass} flex-shrink-0`} />
-                          <span className="capitalize">{amenity}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
               </div>
               {/* Interactive Map - Right Column (first on mobile) */}
               <div className="space-y-4 order-1 lg:order-2">
@@ -3598,7 +3942,7 @@ export default function PublicPropertyDetailPage() {
       {/* Lightbox */}
       {photoPortalReady && lightboxOpen && lightboxImages.length > 0 ? createPortal((
         <div
-          className="fixed inset-0 z-[2147483647] bg-black/90 backdrop-blur-sm"
+          className="fixed inset-0 z-[2147483647] bg-slate-950/92 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
           aria-label="Photo gallery"
@@ -3606,32 +3950,36 @@ export default function PublicPropertyDetailPage() {
             if (e.target === e.currentTarget) closeLightbox();
           }}
         >
-          <div className="absolute inset-x-0 top-0 z-[2147483647] border-b border-white/10 bg-black/70 px-4 py-3 backdrop-blur-md">
+          <div className="absolute inset-x-0 top-0 z-[2147483647] px-4 py-4">
             <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
               <div className="min-w-0">
-                <div className="truncate text-sm font-semibold text-white">{property.title}</div>
-                <div className="text-xs text-white/60">{activeIdx + 1} of {lightboxImages.length} photos</div>
+                <div className="truncate text-sm font-bold uppercase tracking-wide text-white">{property.title}</div>
+                <div className="mt-0.5 text-xs text-white/65">{activeIdx + 1} of {lightboxImages.length} photos</div>
               </div>
               <button
                 type="button"
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 text-sm font-semibold text-white shadow-lg hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/12 text-white shadow-lg backdrop-blur-md hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
                 onClick={closeLightbox}
                 aria-label="Close photo gallery"
               >
                 <X className="w-4 h-4" />
-                <span>Close</span>
               </button>
             </div>
           </div>
           <div className="absolute inset-0 flex items-center justify-center px-3 pb-4 pt-24 sm:p-6 sm:pt-24">
-            <div className="w-full max-w-5xl">
-              {/* Main image (compact like your sample) */}
-              <div className="mx-auto w-full max-w-[720px]">
-                <div className="relative rounded-2xl overflow-hidden bg-black h-[58vh] max-h-[520px] min-h-[280px] sm:h-[62vh]">
-                  <PropertyGalleryImage src={lightboxImages[activeIdx]} alt={`${property.title} photo ${activeIdx + 1}`} sizes="(min-width: 1024px) 720px, 100vw" className="object-contain" priority />
+            <div className="w-full max-w-6xl">
+              <div className="mx-auto w-full max-w-4xl">
+                <div className="relative h-[58vh] min-h-[300px] max-h-[620px] overflow-hidden rounded-2xl bg-slate-900 shadow-2xl ring-1 ring-white/10 sm:h-[64vh]">
+                  <div className="absolute inset-0 scale-110 opacity-35 blur-2xl">
+                    <PropertyGalleryImage src={lightboxImages[activeIdx]} alt="" sizes="100vw" className="object-cover" />
+                  </div>
+                  <div className="absolute inset-0 bg-gradient-to-b from-black/15 via-black/5 to-black/25" />
+                  <div className="relative h-full w-full">
+                    <PropertyGalleryImage src={lightboxImages[activeIdx]} alt={`${property.title} photo ${activeIdx + 1}`} sizes="(min-width: 1024px) 900px, 100vw" className="object-contain" priority />
+                  </div>
                   <button
                     type="button"
-                    className="absolute left-3 top-1/2 -translate-y-1/2 h-11 w-11 rounded-full border border-white/20 bg-black/45 hover:bg-black/65 text-white flex items-center justify-center shadow-lg backdrop-blur-sm"
+                    className="absolute left-3 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/35 text-white shadow-lg backdrop-blur-md hover:bg-black/55"
                     onClick={() => setActiveIdx((i) => (i <= 0 ? lightboxImages.length - 1 : i - 1))}
                     aria-label="Previous photo"
                   >
@@ -3639,7 +3987,7 @@ export default function PublicPropertyDetailPage() {
                   </button>
                   <button
                     type="button"
-                    className="absolute right-3 top-1/2 -translate-y-1/2 h-11 w-11 rounded-full border border-white/20 bg-black/45 hover:bg-black/65 text-white flex items-center justify-center shadow-lg backdrop-blur-sm"
+                    className="absolute right-3 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/35 text-white shadow-lg backdrop-blur-md hover:bg-black/55"
                     onClick={() => setActiveIdx((i) => (i >= lightboxImages.length - 1 ? 0 : i + 1))}
                     aria-label="Next photo"
                   >
@@ -3652,14 +4000,14 @@ export default function PublicPropertyDetailPage() {
                 {activeIdx + 1} / {lightboxImages.length}
               </div>
               {/* Thumbnails strip */}
-              <div className="mt-4 mx-auto w-full max-w-[920px] flex gap-2 overflow-x-auto pb-2 sm:justify-center">
+              <div className="mx-auto mt-4 flex w-full max-w-4xl gap-2 overflow-x-auto rounded-2xl bg-white/8 p-2 backdrop-blur-md sm:justify-center">
                 {lightboxImages.map((src, i) => (
                   <button
                     key={`${src}-${i}`}
                     type="button"
                     className={[
-                      "relative h-16 w-24 sm:h-20 sm:w-28 flex-shrink-0 rounded-xl overflow-hidden border",
-                      i === activeIdx ? "border-white" : "border-white/20",
+                      "relative h-16 w-24 flex-shrink-0 overflow-hidden rounded-xl border bg-white/10 sm:h-20 sm:w-28",
+                      i === activeIdx ? "border-white ring-2 ring-white/35" : "border-white/15 opacity-75",
                       "motion-safe:transition-transform motion-safe:duration-200 motion-safe:ease-out",
                       "motion-safe:hover:scale-[1.03] motion-safe:active:scale-[0.97]",
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-2 focus-visible:ring-offset-black",
@@ -3678,47 +4026,42 @@ export default function PublicPropertyDetailPage() {
       {/* All photos (masonry/grid) */}
       {photoPortalReady && allPhotosOpen ? createPortal((
         <div
-          className="fixed inset-0 z-[2147483647] bg-black/70 p-3 sm:p-6"
+          className="fixed inset-0 z-[2147483647] bg-white"
           role="dialog"
           aria-modal="true"
           aria-label="All photos"
-          onClick={closeAllPhotos}
         >
           <div
             className={[
-              "relative mx-auto w-full max-w-7xl",
-              "h-[calc(100vh-24px)] sm:h-[calc(100vh-48px)]",
-              "rounded-3xl bg-white border border-slate-200 shadow-2xl overflow-hidden",
+              "relative h-dvh w-full overflow-hidden bg-white",
               "flex flex-col",
               "transition-all duration-200 ease-out motion-reduce:transition-none",
               allPhotosShown ? "opacity-100" : "opacity-0",
             ].join(" ")}
-            onClick={(e) => e.stopPropagation()}
           >
             {/* Sticky top bar (always visible) */}
-            <div className="sticky top-0 z-10 bg-white border-b border-slate-200">
-              <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-10 py-3 flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-base font-semibold text-slate-900 truncate">All photos</div>
-                  <div className="text-xs text-slate-600">{lightboxImages.length.toLocaleString()} photos</div>
+            <div className="sticky top-0 z-10 border-b border-slate-200 bg-white">
+              <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 py-3 pr-5 sm:px-6 sm:py-4 lg:px-8">
+                <div className="min-w-0 leading-tight">
+                  <div className="truncate text-base font-bold text-slate-950 sm:text-lg">All photos</div>
+                  <div className="mt-1 text-xs text-slate-500 sm:text-sm">{lightboxImages.length.toLocaleString()} photos</div>
                 </div>
                 <button
                   type="button"
                   onClick={closeAllPhotos}
-                  className="h-11 w-11 rounded-full border border-slate-200 bg-white flex items-center justify-center shadow-sm hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30"
+                  className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30 sm:h-10 sm:w-10"
                   aria-label="Close"
                 >
-                  <X className="w-5 h-5 text-slate-700" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
             </div>
             {/* Content */}
-            <div className="flex-1 overflow-y-auto">
-              <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-10 py-5">
+            <div className="flex-1 overflow-y-auto bg-white">
+              <div className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
                 <div
                   className={[
-                    "grid gap-3",
-                    "grid-cols-[repeat(auto-fit,minmax(220px,1fr))]",
+                    "grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4",
                     "transition-transform duration-200 ease-out motion-reduce:transition-none",
                     allPhotosShown ? "translate-y-0" : "translate-y-1",
                   ].join(" ")}
@@ -3731,17 +4074,17 @@ export default function PublicPropertyDetailPage() {
                         onClick={() => openFromGrid(i)}
                         className={[
                           "group relative w-full",
-                          "rounded-2xl overflow-hidden bg-slate-100 border border-slate-200",
-                          "shadow-sm hover:shadow-md",
+                          "overflow-hidden rounded-lg bg-slate-100",
+                          "ring-1 ring-slate-200/80 hover:ring-slate-300",
                           "motion-safe:transition-transform motion-safe:duration-200 motion-safe:ease-out",
-                          "motion-safe:hover:scale-[1.01] motion-safe:active:scale-[0.98]",
+                          "motion-safe:active:scale-[0.99]",
                           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#02665e]/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
                         ].join(" ")}
                         aria-label={`Open photo ${i + 1}`}
                       >
-                        <div className="relative w-full aspect-[4/3]">
-                          <PropertyGalleryImage src={src} alt={`${property.title} photo ${i + 1}`} sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw" />
-                          <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-t from-black/35 via-black/0 to-black/0" />
+                        <div className="relative w-full aspect-[4/3] bg-slate-100">
+                          <PropertyGalleryImage src={src} alt={`${property.title} photo ${i + 1}`} sizes="(min-width: 1024px) 260px, 50vw" className="object-cover" />
+                          <div className="absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/10" />
                         </div>
                       </button>
                     );

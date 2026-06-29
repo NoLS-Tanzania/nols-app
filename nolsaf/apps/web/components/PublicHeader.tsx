@@ -263,7 +263,6 @@ export default function PublicHeader({
     { href: '/public/tour-packages', label: 'Tour Packages' },
     { href: '/public/group-stays', label: 'Group Stays' },
     { href: '/public/nolscope', label: 'Cost Estimator' },
-    { href: '/public/n-sat', label: 'N-SaT' },
   ], []);
 
   const NavLink = ({ href, children, onClick }: { href: string; children: React.ReactNode; onClick?: () => void }) => {
