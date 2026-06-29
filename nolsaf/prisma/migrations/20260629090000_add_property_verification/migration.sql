@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS `property_verification` (
     FOREIGN KEY (`propertyId`) REFERENCES `property` (`id`)
     ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `property_verification_verifiedBy_fkey`
-    FOREIGN KEY (`verifiedBy`) REFERENCES `User` (`id`)
+    FOREIGN KEY (`verifiedBy`) REFERENCES `user` (`id`)
     ON DELETE SET NULL ON UPDATE CASCADE
 );
 
