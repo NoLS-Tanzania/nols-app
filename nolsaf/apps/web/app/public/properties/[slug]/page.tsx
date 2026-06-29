@@ -21,7 +21,6 @@ import { fetchAccountSession } from "@/lib/accountSession";
 import {
   MapPin,
   Users,
-  User,
   BedDouble,
   Bath,
   ShieldCheck,
@@ -84,6 +83,7 @@ import {
   LogIn,
   LogOut,
   Wifi,
+  QrCode,
 
 } from "lucide-react";
 
@@ -205,6 +205,8 @@ type PublicPropertyDetail = {
     method: string;
     note: string | null;
     checklist: string[];
+    verificationUrl?: string | null;
+    qrCodeDataUrl?: string | null;
   } | null;
   houseRules?: string | string[] | {
     checkIn?: string;
@@ -2033,6 +2035,8 @@ export default function PublicPropertyDetailPage() {
           "Photo accuracy check",
           "Host details review",
         ],
+        verificationUrl: null,
+        qrCodeDataUrl: null,
       };
     }
 
@@ -2051,15 +2055,10 @@ export default function PublicPropertyDetailPage() {
             "Photo accuracy check",
             "Host details review",
           ],
+      verificationUrl: typeof raw.verificationUrl === "string" && raw.verificationUrl.trim() ? raw.verificationUrl.trim() : null,
+      qrCodeDataUrl: typeof raw.qrCodeDataUrl === "string" && raw.qrCodeDataUrl.trim() ? raw.qrCodeDataUrl.trim() : null,
     };
   }, [property?.physicalVerification, servicesObj]);
-  const verificationDisplay = useMemo(() => {
-    const verifierName = String(verificationRecord.verifiedBy || "").trim();
-
-    return {
-      verifierName: verifierName || "NoLSAF verification team",
-    };
-  }, [verificationRecord.verifiedBy]);
   
 
   // Extract nearby facilities from services object (owner fills this in)
@@ -2765,41 +2764,26 @@ export default function PublicPropertyDetailPage() {
               </div>
 
               <div className="p-5 sm:p-6">
-                <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      <User className="h-4 w-4 text-[#02665e]" />
-                      Verified by
-                    </div>
-                    <div className="mt-3 text-lg font-semibold text-slate-950">{verificationDisplay.verifierName}</div>
-                  </div>
-
-                  <div className="rounded-xl border border-slate-200 bg-white p-4">
-                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      <Calendar className="h-4 w-4 text-[#02665e]" />
-                      Verified on
-                    </div>
-                    <div className="mt-3 text-sm font-semibold text-slate-950">
-                      {verificationRecord.verifiedAt ? formatDateLabel(verificationRecord.verifiedAt) : "Date pending"}
-                    </div>
-                  </div>
-
-                  <div className="col-span-2 rounded-xl border border-slate-200 bg-white p-4 lg:col-span-1">
-                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      <ShieldCheck className="h-4 w-4 text-[#02665e]" />
-                      Inspection method
-                    </div>
-                    <div className="mt-3 text-sm font-semibold text-slate-950">{verificationRecord.method}</div>
-                  </div>
-                </div>
+                {verificationRecord.verificationUrl ? (
+                  <a
+                    href={verificationRecord.verificationUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-4 rounded-2xl border border-[#02665e]/20 bg-[#02665e]/5 px-4 py-4 text-slate-950 no-underline transition hover:border-[#02665e]/30 hover:bg-[#02665e]/10"
+                  >
+                    <span className="inline-flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl border border-[#02665e]/20 bg-white text-[#02665e]">
+                      <QrCode className="h-5 w-5" aria-hidden />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-base font-semibold">View verification certificate</span>
+                      <span className="mt-1 block text-sm leading-5 text-slate-600">Scan or open the public NoLSAF certificate.</span>
+                    </span>
+                    <ExternalLinkIcon className="h-5 w-5 flex-shrink-0 text-[#02665e]" aria-hidden />
+                  </a>
+                ) : null}
 
                 {verificationDetailsOpen ? (
-                  <div id="property-verification-details" className="mt-5 space-y-5">
-                    <div className="flex items-start gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs leading-relaxed text-slate-600 ring-1 ring-slate-200">
-                      <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-600" />
-                      <span>{verificationRecord.note || "Verified through NoLSAF property review before listing."}</span>
-                    </div>
-
+                  <div id="property-verification-details" className="mt-5">
                     <div>
                       <div className="text-sm font-semibold text-slate-950">What NoLSAF checked</div>
                       <div className="mt-3 grid gap-2 sm:grid-cols-2">
