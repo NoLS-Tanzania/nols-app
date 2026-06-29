@@ -934,7 +934,7 @@ const getPublicProperty: RequestHandler = async (req, res) => {
                   u.\`fullName\` AS \`verifierFullName\`,
                   u.\`name\` AS \`verifierName\`
                 FROM \`property_verification\` pv
-                LEFT JOIN \`User\` u ON u.\`id\` = pv.\`verifiedBy\`
+                LEFT JOIN \`user\` u ON u.\`id\` = pv.\`verifiedBy\`
                 WHERE pv.\`propertyId\` = ${id}
                 LIMIT 1
               `
@@ -1318,7 +1318,7 @@ router.get("/verification", (async (req, res) => {
           p.\`updatedAt\`
         FROM \`property_verification\` pv
         INNER JOIN \`property\` p ON p.\`id\` = pv.\`propertyId\`
-        LEFT JOIN \`User\` u ON u.\`id\` = pv.\`verifiedBy\`
+        LEFT JOIN \`user\` u ON u.\`id\` = pv.\`verifiedBy\`
         WHERE pv.\`id\` = ${payload.verificationId}
           AND pv.\`propertyId\` = ${payload.propertyId}
           AND pv.\`status\` = 'VERIFIED'
