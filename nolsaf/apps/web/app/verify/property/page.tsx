@@ -30,6 +30,12 @@ type State =
   | { status: "invalid"; reason: string };
 
 const BRAND = "#02665e";
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
+
+function verificationEndpoint(token: string) {
+  const path = `/api/public/properties/verification?token=${encodeURIComponent(token)}`;
+  return API_BASE ? `${API_BASE}${path}` : path;
+}
 
 function formatDate(value?: string | null) {
   if (!value) return "Not available";
@@ -50,7 +56,7 @@ export default function PropertyVerificationPage() {
     }
 
     let alive = true;
-    fetch(`/api/public/properties/verification?token=${encodeURIComponent(token)}`, { credentials: "omit" })
+    fetch(verificationEndpoint(token), { credentials: "omit" })
       .then(async (res) => {
         const data = await res.json().catch(() => null);
         if (!alive) return;
