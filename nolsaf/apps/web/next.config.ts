@@ -78,6 +78,7 @@ const nextConfig: NextConfig = {
       "'self'",
       ...(isProduction ? [] : ["'unsafe-eval'"]),
       "'unsafe-inline'",
+      'https://static.cloudflareinsights.com',
       'https://api.mapbox.com',
       'https://events.mapbox.com',
     ].join(' ');

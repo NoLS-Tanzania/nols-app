@@ -30,11 +30,9 @@ type State =
   | { status: "invalid"; reason: string };
 
 const BRAND = "#02665e";
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
 
 function verificationEndpoint(token: string) {
-  const path = `/api/public/properties/verification?token=${encodeURIComponent(token)}`;
-  return API_BASE ? `${API_BASE}${path}` : path;
+  return `/api/public/properties/verification?token=${encodeURIComponent(token)}`;
 }
 
 function formatDate(value?: string | null) {
