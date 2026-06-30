@@ -141,6 +141,7 @@ export default function AgentPortalHeader() {
       socket.off("notification:new", onNew);
     };
   }, [socket]);
+  const bypassAvatarOptimizer = Boolean(avatarUrl && /^https?:\/\//i.test(avatarUrl));
 
   return (
     <div className="sticky top-0 z-40 bg-transparent">
@@ -202,7 +203,7 @@ export default function AgentPortalHeader() {
                 <span className="sr-only">Open profile menu</span>
                 {avatarUrl ? (
                   <span className="relative block h-full w-full">
-                    <Image src={avatarUrl} alt="Profile photo" fill sizes="40px" className="object-cover" />
+                    <Image src={avatarUrl} alt="Profile photo" fill sizes="40px" unoptimized={bypassAvatarOptimizer} className="object-cover" />
                   </span>
                 ) : (
                   <UserRound className="h-5 w-5 transition-transform duration-300 ease-out group-hover:scale-110 motion-reduce:transition-none" aria-hidden />

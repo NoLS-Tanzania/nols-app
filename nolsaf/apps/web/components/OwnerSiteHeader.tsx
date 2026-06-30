@@ -135,6 +135,7 @@ export default function OwnerSiteHeader({ unreadMessages = 0 }: { unreadMessages
       setIsRefreshing(false);
     }
   };
+  const bypassAvatarOptimizer = Boolean(avatarUrl && /^https?:\/\//i.test(avatarUrl));
 
   return (
     <header
@@ -284,7 +285,7 @@ export default function OwnerSiteHeader({ unreadMessages = 0 }: { unreadMessages
               >
                 {avatarUrl ? (
                   <div className="relative h-9 w-9 rounded-full overflow-hidden transition-all duration-300 ease-out group-hover:ring-2 group-hover:ring-white/10">
-                    <Image src={avatarUrl} alt="Profile" fill sizes="36px" className="object-cover transition-transform duration-300 ease-out group-hover:scale-110" />
+                    <Image src={avatarUrl} alt="Profile" fill sizes="36px" unoptimized={bypassAvatarOptimizer} className="object-cover transition-transform duration-300 ease-out group-hover:scale-110" />
                   </div>
                 ) : (
                   <div className="h-9 w-9 rounded-full flex items-center justify-center transition-all duration-300 ease-out group-hover:ring-2 group-hover:ring-white/10">
@@ -300,7 +301,7 @@ export default function OwnerSiteHeader({ unreadMessages = 0 }: { unreadMessages
                     <div className="flex items-center gap-3 mb-3">
                       {avatarUrl ? (
                         <div className="relative h-12 w-12 rounded-full border-2 border-emerald-300 overflow-hidden flex-shrink-0 transition-transform duration-300 hover:scale-110 ring-2 ring-emerald-100">
-                          <Image src={avatarUrl} alt="Profile" fill sizes="48px" className="object-cover" />
+                          <Image src={avatarUrl} alt="Profile" fill sizes="48px" unoptimized={bypassAvatarOptimizer} className="object-cover" />
                         </div>
                       ) : (
                         <div className="h-12 w-12 rounded-full border-2 border-emerald-300 bg-gradient-to-br from-emerald-100 to-emerald-50 flex items-center justify-center flex-shrink-0 transition-transform duration-300 hover:scale-110 ring-2 ring-emerald-100">

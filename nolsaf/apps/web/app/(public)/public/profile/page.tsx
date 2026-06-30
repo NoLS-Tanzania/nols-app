@@ -255,6 +255,7 @@ export default function PublicProfile() {
                     alt={form.fullName || "Profile"}
                     fill
                     sizes="(min-width: 640px) 96px, 80px"
+                    unoptimized={/^https?:\/\//i.test(form.avatarUrl)}
                     className="object-cover"
                   />
                 ) : (

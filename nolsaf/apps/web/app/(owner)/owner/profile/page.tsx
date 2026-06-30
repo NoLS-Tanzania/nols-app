@@ -699,6 +699,7 @@ export default function OwnerProfile() {
   };
 
   const avatarUrl = (form?.avatarUrl || me?.avatarUrl || null) as string | null;
+  const bypassAvatarOptimizer = Boolean(avatarUrl && /^https?:\/\//i.test(avatarUrl));
   const displayName = String(form?.fullName || form?.name || me?.fullName || me?.name || '').trim();
   const emailValue = String(form?.email || me?.email || '').trim();
   const phoneValue = String(form?.phone || me?.phone || '').trim();
@@ -1164,7 +1165,7 @@ export default function OwnerProfile() {
 
                   {avatarUrl
 
-                    ? <Image src={avatarUrl} alt="Profile photo" fill sizes="56px" className="object-cover" />
+                    ? <Image src={avatarUrl} alt="Profile photo" fill sizes="56px" unoptimized={bypassAvatarOptimizer} className="object-cover" />
 
                     : <User className="h-6 w-6 text-slate-400" aria-hidden />}
 

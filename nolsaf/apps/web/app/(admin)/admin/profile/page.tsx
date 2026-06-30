@@ -322,6 +322,7 @@ export default function AdminProfile() {
                       alt="avatar"
                       fill
                       sizes="56px"
+                      unoptimized={/^https?:\/\//i.test(form.avatarUrl)}
                       className="object-cover transition-transform duration-300 group-hover:scale-105"
                     />
                   </div>

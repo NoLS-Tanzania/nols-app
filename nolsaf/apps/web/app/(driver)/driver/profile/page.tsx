@@ -355,6 +355,7 @@ export default function DriverProfile() {
   }
 
   const avatarUrl = form.avatarUrl || null;
+  const bypassAvatarOptimizer = Boolean(avatarUrl && /^https?:\/\//i.test(avatarUrl));
 
   const editProps = {
     editingField,
@@ -457,7 +458,7 @@ export default function DriverProfile() {
               <div className="flex items-center gap-4 min-w-0">
                 <div className="relative h-14 w-14 rounded-full border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center flex-shrink-0">
                   {avatarUrl
-                    ? <Image src={avatarUrl} alt="Profile photo" fill sizes="56px" className="object-cover" />
+                    ? <Image src={avatarUrl} alt="Profile photo" fill sizes="56px" unoptimized={bypassAvatarOptimizer} className="object-cover" />
                     : <User className="h-6 w-6 text-slate-400" aria-hidden />}
                 </div>
                 <div className="min-w-0">
