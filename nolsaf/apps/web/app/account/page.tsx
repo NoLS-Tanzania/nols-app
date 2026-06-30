@@ -338,7 +338,7 @@ export default function AccountIndex() {
               {form.avatarUrl || user?.avatarUrl ? (
                 /^https?:\/\//i.test(form.avatarUrl || user?.avatarUrl || '') ? (
                   <Image src={form.avatarUrl || user?.avatarUrl} alt={form.fullName || form.name || "Profile"}
-                    width={96} height={96} className="w-full h-full object-cover" />
+                    width={96} height={96} unoptimized className="w-full h-full object-cover" />
                 ) : (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={form.avatarUrl || user?.avatarUrl} alt={form.fullName || form.name || "Profile"}

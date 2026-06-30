@@ -44,6 +44,71 @@ async function createAdminAuditSafe(data: { adminId: number; targetUserId?: numb
   }
 }
 
+const DEFAULT_PROPERTY_VERIFICATION_CHECKLIST = [
+  "Property details reviewed",
+  "Location and listing information checked",
+  "Photos and stay information reviewed",
+  "Host listing approved",
+] as const;
+const DEFAULT_PROPERTY_VERIFICATION_METHOD = "Site visit and listing review";
+
+function verificationNoteFor(status: "VERIFIED" | "PENDING" | "REJECTED", reason?: string | null) {
+  if (status === "VERIFIED") return "This stay is listed publicly only after NoLSAF verification and approval.";
+  if (status === "REJECTED") return reason ? `Verification rejected: ${reason}` : "Verification rejected during NoLSAF review.";
+  return reason ? `Verification paused: ${reason}` : "Verification is pending NoLSAF review.";
+}
+
+async function upsertPropertyVerification(
+  db: any,
+  propertyId: number,
+  params: {
+    status: "VERIFIED" | "PENDING" | "REJECTED";
+    adminId?: number | null;
+    method: string;
+    note?: string | null;
+  }
+) {
+  const isVerified = params.status === "VERIFIED";
+  const verifiedAt = isVerified ? new Date() : null;
+  const verifiedBy = isVerified ? params.adminId ?? null : null;
+  const note = params.note ?? verificationNoteFor(params.status);
+
+  return db.$executeRaw(
+    Prisma.sql`
+      INSERT INTO \`property_verification\` (
+        \`propertyId\`,
+        \`status\`,
+        \`verifiedAt\`,
+        \`verifiedBy\`,
+        \`method\`,
+        \`note\`,
+        \`checklist\`,
+        \`createdAt\`,
+        \`updatedAt\`
+      )
+      VALUES (
+        ${propertyId},
+        ${params.status},
+        ${verifiedAt},
+        ${verifiedBy},
+        ${params.method},
+        ${note},
+        JSON_ARRAY(${Prisma.join(DEFAULT_PROPERTY_VERIFICATION_CHECKLIST.map((item) => Prisma.sql`${item}`))}),
+        CURRENT_TIMESTAMP(3),
+        CURRENT_TIMESTAMP(3)
+      )
+      ON DUPLICATE KEY UPDATE
+        \`status\` = VALUES(\`status\`),
+        \`verifiedAt\` = VALUES(\`verifiedAt\`),
+        \`verifiedBy\` = VALUES(\`verifiedBy\`),
+        \`method\` = VALUES(\`method\`),
+        \`note\` = VALUES(\`note\`),
+        \`checklist\` = VALUES(\`checklist\`),
+        \`updatedAt\` = CURRENT_TIMESTAMP(3)
+    `
+  );
+}
+
 const adminPropertyOwnerSelect = {
   id: true,
   name: true,
@@ -1229,15 +1294,25 @@ router.post("/:id/approve", (async (req: AuthedRequest, res) => {
     return;
   }
 
-  const updated = await prisma.property.update({
-    where: { id },
-    data: {
-      status: "APPROVED",
-      ...(before.tourismSiteId && !(before.parkPlacement === "INSIDE" || before.parkPlacement === "NEARBY")
-        ? { parkPlacement: "NEARBY" }
-        : {}),
-    },
-    select: { id: true, status: true },
+  const updated = await prisma.$transaction(async (tx) => {
+    const property = await tx.property.update({
+      where: { id },
+      data: {
+        status: "APPROVED",
+        ...(before.tourismSiteId && !(before.parkPlacement === "INSIDE" || before.parkPlacement === "NEARBY")
+          ? { parkPlacement: "NEARBY" }
+          : {}),
+      },
+      select: { id: true, status: true },
+    });
+
+    await upsertPropertyVerification(tx as any, id, {
+      status: "VERIFIED",
+      adminId: req.user!.id,
+      method: DEFAULT_PROPERTY_VERIFICATION_METHOD,
+    });
+
+    return property;
   });
 
   // Ensure PropertyImage records exist for every photo URL.
@@ -1367,10 +1442,21 @@ router.post("/:id/reject", (async (req: AuthedRequest, res) => {
     });
   }
 
-  const updated = await prisma.property.update({
-    where: { id },
-    data: { status: "REJECTED" },
-    select: { id: true, status: true },
+  const updated = await prisma.$transaction(async (tx) => {
+    const property = await tx.property.update({
+      where: { id },
+      data: { status: "REJECTED" },
+      select: { id: true, status: true },
+    });
+
+    await upsertPropertyVerification(tx as any, id, {
+      status: "REJECTED",
+      adminId: req.user!.id,
+      method: "NoLSAF property review",
+      note: verificationNoteFor("REJECTED", parse.data.reasons.join("; ")),
+    });
+
+    return property;
   });
 
   // Invalidate cache for this property and property lists
@@ -1453,10 +1539,21 @@ router.post("/:id/suspend", (async (req: AuthedRequest, res) => {
   // Change status from APPROVED to SUSPENDED
   const newStatus = "SUSPENDED";
   
-  const updated = await prisma.property.update({
-    where: { id },
-    data: { status: newStatus },
-    select: { id: true, status: true },
+  const updated = await prisma.$transaction(async (tx) => {
+    const property = await tx.property.update({
+      where: { id },
+      data: { status: newStatus },
+      select: { id: true, status: true },
+    });
+
+    await upsertPropertyVerification(tx as any, id, {
+      status: "PENDING",
+      adminId: req.user!.id,
+      method: "NoLSAF property suspension",
+      note: verificationNoteFor("PENDING", parse.data.reason),
+    });
+
+    return property;
   });
 
   // Invalidate cache for this property and property lists
@@ -1536,15 +1633,26 @@ router.post("/:id/unsuspend", (async (req: AuthedRequest, res) => {
     });
   }
 
-  const updated = await prisma.property.update({
-    where: { id },
-    data: {
-      status: "APPROVED",
-      ...(before.tourismSiteId && !(before.parkPlacement === "INSIDE" || before.parkPlacement === "NEARBY")
-        ? { parkPlacement: "NEARBY" }
-        : {}),
-    },
-    select: { id: true, status: true },
+  const updated = await prisma.$transaction(async (tx) => {
+    const property = await tx.property.update({
+      where: { id },
+      data: {
+        status: "APPROVED",
+        ...(before.tourismSiteId && !(before.parkPlacement === "INSIDE" || before.parkPlacement === "NEARBY")
+          ? { parkPlacement: "NEARBY" }
+          : {}),
+      },
+      select: { id: true, status: true },
+    });
+
+    await upsertPropertyVerification(tx as any, id, {
+      status: "VERIFIED",
+      adminId: req.user!.id,
+      method: "NoLSAF property unsuspension",
+      note: "This stay was re-verified and restored to public listing by NoLSAF.",
+    });
+
+    return property;
   });
 
   // Invalidate cache for this property and property lists
