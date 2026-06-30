@@ -50,7 +50,7 @@ Copy-Item $PkgJsonPath $PkgJsonBackup -Force
 $content = Get-Content $PkgJsonPath -Raw
 $content = $content -replace '"@nolsaf/prisma":\s*"file:[^"]*"', '"@nolsaf/prisma": "file:./_workspace/@nolsaf/prisma"'
 $content = $content -replace '"@nolsaf/shared":\s*"file:[^"]*"', '"@nolsaf/shared": "file:./_workspace/@nolsaf/shared"'
-Set-Content $PkgJsonPath $content -Encoding UTF8
+[System.IO.File]::WriteAllText($PkgJsonPath, $content, [System.Text.UTF8Encoding]::new($false))
 
 # ── 4. Build the API (TypeScript → dist) ─────────────────────────────────────
 Write-Host "`n── Building @nolsaf/api …"
@@ -66,10 +66,12 @@ Pop-Location
 # `prisma generate --schema=./prisma/schema.prisma` relative to apps/api. Copy it
 # in so it's part of the deployed working-directory bundle.
 $SchemaSrc = "$RepoRoot\prisma\schema.prisma"
+$MigrationsSrc = "$RepoRoot\prisma\migrations"
 $SchemaDir = "$ApiDir\prisma"
-Write-Host "`n── Staging Prisma schema into $SchemaDir …"
+Write-Host "`n── Staging Prisma schema and migrations into $SchemaDir …"
 New-Item -ItemType Directory -Path $SchemaDir -Force | Out-Null
 Copy-Item $SchemaSrc -Destination "$SchemaDir\schema.prisma" -Force
+Copy-Item $MigrationsSrc -Destination "$SchemaDir\migrations" -Recurse -Force
 
 # ── 5. Deploy to Elastic Beanstalk ────────────────────────────────────────────
 Write-Host "`n── Deploying to Elastic Beanstalk …"
