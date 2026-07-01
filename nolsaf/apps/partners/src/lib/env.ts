@@ -2,7 +2,9 @@
 // local dev, the staging/production values for builds). configureApiClient is
 // called once at startup in App.tsx with this value.
 const rawApiUrl = process.env.EXPO_PUBLIC_API_URL ?? "";
+const rawWebUrl = process.env.EXPO_PUBLIC_WEB_URL ?? "";
 
 export const env = {
-  apiUrl: rawApiUrl.trim()
+  apiUrl: rawApiUrl.trim(),
+  webUrl: rawWebUrl.trim()
 };

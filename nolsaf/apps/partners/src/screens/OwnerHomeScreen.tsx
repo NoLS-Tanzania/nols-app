@@ -26,6 +26,7 @@ import { OwnerProfileSheet } from "./OwnerProfileSheet";
 import { OwnerPropertiesScreen } from "./OwnerPropertiesScreen";
 import { OwnerAvailabilityScreen } from "./OwnerAvailabilityScreen";
 import { OwnerGroupStaysScreen } from "./OwnerGroupStaysScreen";
+import { OwnerReportsScreen } from "./OwnerReportsScreen";
 import { OwnerRevenueScreen } from "./OwnerRevenueScreen";
 import { OwnerSecuritySheet } from "./OwnerSecuritySheet";
 import { PropertyWizardScreen } from "./property/PropertyWizardScreen";
@@ -52,7 +53,7 @@ type HomeStats = {
 
 export function OwnerHomeScreen() {
   const { token } = useAuth();
-  const [activeTab, setActiveTab] = useState<"home" | "bookings" | "calendar" | "account" | "revenue" | "groupStays">("home");
+  const [activeTab, setActiveTab] = useState<"home" | "bookings" | "calendar" | "account" | "revenue" | "groupStays" | "reports">("home");
   const [homeStats, setHomeStats] = useState<HomeStats>({
     requestedCount: 0, paidCount: 0, rejectedCount: 0,
     paidRevenue: 0, pendingRevenue: 0, totalRevenue: 0,
@@ -121,6 +122,7 @@ export function OwnerHomeScreen() {
       setActiveTab("revenue");
       return;
     }
+    if (destination === "reports") { setActiveTab("reports"); return; }
     if (destination === "requested" || destination === "paid" || destination === "rejected") {
       setRevenueSegment(destination);
       setActiveTab("revenue");
@@ -167,6 +169,8 @@ export function OwnerHomeScreen() {
         <OwnerBookingsScreen onOpenValidate={() => setValidationOpen(true)} />
       ) : activeTab === "revenue" ? (
         <OwnerRevenueScreen initialSegment={revenueSegment} />
+      ) : activeTab === "reports" ? (
+        <OwnerReportsScreen onBack={() => setActiveTab("home")} />
       ) : activeTab === "groupStays" ? (
         <OwnerGroupStaysScreen initialSegment={groupStaySegment} />
       ) : activeTab === "calendar" ? (
