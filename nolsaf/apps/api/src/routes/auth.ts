@@ -12,6 +12,7 @@ import { addPasswordToHistory, getPasswordChangeCooldownRemaining, isPasswordReu
 import { validatePasswordWithSettings } from '../lib/securitySettings.js';
 import { getRoleSessionMaxMinutes } from '../lib/securitySettings.js';
 import { signUserJwt, setAuthCookie, clearAuthCookie } from '../lib/sessionManager.js';
+import { verifyOwnerReportPrintHandoff } from '../lib/ownerReportPrintHandoff.js';
 import { audit } from '../lib/audit.js';
 import { hashCode } from '../lib/otp.js';
 import { maybeAuth, requireAuth } from '../middleware/auth.js';
@@ -1131,6 +1132,34 @@ function safeNextPath(raw: any): string {
   if (!v.startsWith("/") || v.startsWith("//")) return "/account/login";
   return v;
 }
+
+function safeOwnerReportPrintNext(raw: any): string {
+  const fallback = "/owner/reports/stays";
+  const v = typeof raw === "string" ? raw.trim() : "";
+  if (!v || !v.startsWith("/") || v.startsWith("//")) return fallback;
+  if (!v.startsWith("/owner/reports/stays")) return fallback;
+  return v;
+}
+
+router.get("/owner-report-print-handoff", asyncHandler(async (req, res) => {
+  const rawToken = String((req as any).query?.token || "").trim();
+  if (!rawToken) return res.status(400).send("Missing print handoff token.");
+
+  const handoff = verifyOwnerReportPrintHandoff(rawToken);
+  if (!handoff) return res.status(401).send("Invalid or expired print handoff token.");
+
+  const user = await prisma.user.findUnique({
+    where: { id: handoff.userId },
+    select: { id: true, role: true, email: true, suspendedAt: true },
+  });
+  if (!user || user.suspendedAt || String(user.role || "").toUpperCase() !== "OWNER") {
+    return res.status(403).send("Owner account is not allowed to print this report.");
+  }
+
+  const sessionToken = await signUserJwt({ id: user.id, role: user.role, email: user.email });
+  await setAuthCookie(res, sessionToken, user.role);
+  return res.redirect(302, safeOwnerReportPrintNext((req as any).query?.next));
+}));
 
 // GET /api/auth/logout?next=/account/login
 // Useful for reliable cookie clearing via top-level navigation.

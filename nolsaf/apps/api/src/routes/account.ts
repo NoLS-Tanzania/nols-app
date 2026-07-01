@@ -218,7 +218,7 @@ const documentMetadataValueSchema = z.union([
 const upsertDocumentSchema = z.object({
   type: z.string().min(1).max(80),
   url: z.string().url().max(2000),
-  metadata: z.record(documentMetadataValueSchema).optional(),
+  metadata: z.record(z.string(), documentMetadataValueSchema).optional(),
 }).strict();
 
 const listSessionsSchema = z.object({
