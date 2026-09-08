@@ -7,14 +7,19 @@
 // terms, and approves / rejects / suspends it. The admin-controlled maxAgents
 // cap is enforced here; a hotel at its cap must contact NoLSAF to raise it.
 //
-// Ownership is scoped through loadOwnedActiveNrmsProperty, so a hotel can only
-// ever see and change links for a property it owns - the portfolio isolation
-// boundary in practice.
+// Access is scoped per property, so a hotel can only ever see and change links
+// for its own property: the portfolio isolation boundary in practice. The agent
+// RELATIONSHIP endpoints resolve that through loadNrmsPropertyAccess, which
+// admits the property's owner, its manager and its sales executive. The agent
+// BOOKING REQUEST endpoints below still resolve through
+// loadOwnedActiveNrmsProperty and stay owner-only, because that flow raises
+// invoices and confirms payments against a master folio.
 import { Router, type RequestHandler, type Response } from "express";
 import { z } from "zod";
 import { typedPrisma as prisma } from "@nolsaf/prisma";
 import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
 import { loadOwnedActiveNrmsProperty } from "../lib/nrms.js";
+import { loadNrmsPropertyAccess } from "../lib/nrmsPropertyAccess.js";
 import { audit, auditOrThrow } from "../lib/audit.js";
 import { findAgencyMatches } from "../lib/nrmsAgentIdentity.js";
 import { adjustRate, money } from "../lib/nrmsRateMath.js";
@@ -218,17 +223,33 @@ async function loadOwnedLink(req: AuthedRequest, res: Response, linkId: number) 
     },
   });
   if (!link) { res.status(404).json({ error: "Agent link not found" }); return null; }
-  const active = await loadOwnedActiveNrmsProperty(res, req.user!.id, link.propertyId);
-  if (!active) return null; // helper already sent the response
-  return { linkId, propertyId: link.propertyId, status: link.status, property: link.property, agentAccount: link.agentAccount, account: active.account };
+  const access = await loadNrmsPropertyAccess(req, res, link.propertyId, AGENT_RELATIONSHIP_ROLES);
+  if (!access) return null; // helper already sent the response
+  return { linkId, propertyId: link.propertyId, status: link.status, property: link.property, agentAccount: link.agentAccount, account: access.account };
 }
+
+/**
+ * Who may run the hotel's travel agent relationships.
+ *
+ * A sales executive holds `sales.agent.read` and `sales.agent.manage`: signing
+ * agencies, setting their commercial terms and rate access, and approving or
+ * suspending them is the whole of the B2B sales job. Front desk is absent
+ * deliberately, since none of this is their work.
+ *
+ * This list covers the agent RELATIONSHIP only. The agent booking request flow
+ * further down this file raises invoices and confirms payments against a master
+ * folio, and stays owner-scoped: a sales role holds no finance capability, so
+ * confirming that money arrived is not theirs to do.
+ */
+const AGENT_RELATIONSHIP_ROLES = ["OWNER", "MANAGER", "SALES_EXECUTIVE"] as const;
 
 // Mounted at /api/owner/nrms/agents.
 // List agents linked to a property.
 router.get("/property/:propertyId", (async (req: AuthedRequest, res: Response) => {
   try {
-    const active = await loadOwnedActiveNrmsProperty(res, req.user!.id, Number(req.params.propertyId));
-    if (!active) return;
+    const access = await loadNrmsPropertyAccess(req, res, Number(req.params.propertyId), AGENT_RELATIONSHIP_ROLES);
+    if (!access) return;
+    const active = { property: access.property, account: access.account };
     const links = await prisma.nrmsAgentPropertyLink.findMany({
       where: { propertyId: active.property.id },
       include: { agentAccount: { include: { primaryUser: { select: { passwordHash: true } } } }, rateAccess: true },
@@ -248,8 +269,9 @@ router.get("/property/:propertyId", (async (req: AuthedRequest, res: Response) =
 // excluded even if their asynchronous expiry update has not run yet.
 router.get("/property/:propertyId/live-count", (async (req: AuthedRequest, res: Response) => {
   try {
-    const active = await loadOwnedActiveNrmsProperty(res, req.user!.id, Number(req.params.propertyId));
-    if (!active) return;
+    const access = await loadNrmsPropertyAccess(req, res, Number(req.params.propertyId), AGENT_RELATIONSHIP_ROLES);
+    if (!access) return;
+    const active = { property: access.property, account: access.account };
     const now = new Date();
     const [partnershipRequests, acceptedInvites, bookingRequests, guestManifests] = await Promise.all([
       prisma.nrmsAgentPropertyLink.count({
@@ -291,8 +313,9 @@ router.get("/property/:propertyId/live-count", (async (req: AuthedRequest, res: 
 // it. Prices use the same adjustment math as every booking channel.
 router.get("/property/:propertyId/rate-plans", (async (req: AuthedRequest, res: Response) => {
   try {
-    const active = await loadOwnedActiveNrmsProperty(res, req.user!.id, Number(req.params.propertyId));
-    if (!active) return;
+    const access = await loadNrmsPropertyAccess(req, res, Number(req.params.propertyId), AGENT_RELATIONSHIP_ROLES);
+    if (!access) return;
+    const active = { property: access.property, account: access.account };
     const [plans, roomTypes] = await Promise.all([
       prisma.nrmsRatePlan.findMany({
         where: { propertyId: active.property.id, status: "ACTIVE" },
@@ -336,8 +359,9 @@ router.post("/property/:propertyId/lookup", (async (req: AuthedRequest, res: Res
   try {
     const parsed = lookupSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Provide a registration number, TIN or email to search" });
-    const active = await loadOwnedActiveNrmsProperty(res, req.user!.id, Number(req.params.propertyId));
-    if (!active) return;
+    const access = await loadNrmsPropertyAccess(req, res, Number(req.params.propertyId), AGENT_RELATIONSHIP_ROLES);
+    if (!access) return;
+    const active = { property: access.property, account: access.account };
     const matches = await findAgencyMatches(prisma as any, parsed.data);
     res.json({ matches: matches.map((match) => ({ ...match, registrationNo: maskedIdentifier(match.registrationNo), tin: maskedIdentifier(match.tin) })) });
   } catch (err) {
@@ -351,8 +375,9 @@ router.post("/property/:propertyId", (async (req: AuthedRequest, res: Response) 
   try {
     const parsed = attachSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Invalid agent invite", details: parsed.error.flatten() });
-    const active = await loadOwnedActiveNrmsProperty(res, req.user!.id, Number(req.params.propertyId));
-    if (!active) return;
+    const access = await loadNrmsPropertyAccess(req, res, Number(req.params.propertyId), AGENT_RELATIONSHIP_ROLES);
+    if (!access) return;
+    const active = { property: access.property, account: access.account };
     const resolvedTerms = await resolveLinkTerms(active.property.id, parsed.data.terms as LinkTerms | undefined);
     if (!resolvedTerms.ok) return res.status(409).json({ error: resolvedTerms.message, code: "AGENT_CURRENCY_UNSUPPORTED", supportedCurrencies: resolvedTerms.supportedCurrencies });
     const result = await prisma.$transaction(async (tx: any) => {
@@ -394,8 +419,9 @@ router.post("/property/:propertyId/invite", (async (req: AuthedRequest, res: Res
   try {
     const parsed = inviteSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Invalid agency details", details: parsed.error.flatten() });
-    const active = await loadOwnedActiveNrmsProperty(res, req.user!.id, Number(req.params.propertyId));
-    if (!active) return;
+    const access = await loadNrmsPropertyAccess(req, res, Number(req.params.propertyId), AGENT_RELATIONSHIP_ROLES);
+    if (!access) return;
+    const active = { property: access.property, account: access.account };
     const resolvedTerms = await resolveLinkTerms(active.property.id, parsed.data.terms as LinkTerms | undefined);
     if (!resolvedTerms.ok) return res.status(409).json({ error: resolvedTerms.message, code: "AGENT_CURRENCY_UNSUPPORTED", supportedCurrencies: resolvedTerms.supportedCurrencies });
     const outcome = await prisma.$transaction(async (tx: any) => {

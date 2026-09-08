@@ -26,6 +26,7 @@ import ownerNrmsBillingRouter from "./owner.nrms.billing";
 import ownerPaymentsMerchantRouter from "./owner.payments.merchant.js";
 import ownerNrmsReportsRouter from "./owner.nrms.reports";
 import ownerNrmsSalesChannelsRouter from "./owner.nrms.salesChannels";
+import ownerNrmsSalesPerformanceRouter from "./owner.nrms.salesPerformance";
 import ownerNrmsFinanceRouter from "./owner.nrms.finance";
 import ownerNrmsFiscalRouter from "./owner.nrms.fiscal";
 import ownerNrmsChannelsRouter from "./owner.nrms.channels";
@@ -66,6 +67,9 @@ export function registerOwnerBusinessRoutes(app: Express): void {
   app.use("/api/owner/payments/merchant", ownerPaymentsMerchantRouter as RequestHandler);
   app.use("/api/owner/nrms/reports", ownerNrmsReportsRouter as RequestHandler);
   app.use("/api/owner/nrms/sales-channels", ownerNrmsSalesChannelsRouter as RequestHandler);
+  // No requireRole("OWNER") here: the report is guarded per property by
+  // sales.analytics.read, which a sales executive holds for their own numbers.
+  app.use("/api/owner/nrms/sales-performance", ownerNrmsSalesPerformanceRouter as RequestHandler);
   app.use("/api/owner/nrms/finance", ownerNrmsFinanceRouter as RequestHandler);
   app.use("/api/owner/nrms/fiscal", ownerNrmsFiscalRouter as RequestHandler);
   app.use("/api/owner/nrms/channels", ownerNrmsChannelsRouter as RequestHandler);

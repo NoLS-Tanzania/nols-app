@@ -264,6 +264,10 @@ export default function RegisterPage() {
   const referralCode = searchParams?.get('ref') || null;
   const roleParam = (searchParams?.get('role') || '').toLowerCase();
   const modeParam = (searchParams?.get('mode') || '').toLowerCase();
+  // Prefilled when someone is invited to create an account for a specific
+  // address, e.g. an NRMS property owner adding a staff member. It only
+  // seeds the form; the address is still verified by OTP like any other.
+  const emailParam = (searchParams?.get('email') || '').trim().toLowerCase();
   const nextParamRaw = searchParams?.get('next');
   const api = apiClient;
 
@@ -501,6 +505,14 @@ export default function RegisterPage() {
   useEffect(() => {
     if (roleParam === 'admin') setLoginMethod('credentials');
   }, [roleParam]);
+
+  // An invited address arrives as a link, so open on the email path with it
+  // filled rather than on the phone path the visitor would have to abandon.
+  useEffect(() => {
+    if (!emailParam || !emailParam.includes('@')) return;
+    setRegisterEmail(emailParam);
+    setRegisterMethod('email');
+  }, [emailParam]);
 
   useEffect(() => {
     setBlockedAccount(null);

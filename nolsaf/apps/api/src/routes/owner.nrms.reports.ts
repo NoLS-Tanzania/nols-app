@@ -4,6 +4,7 @@ import { prisma } from "@nolsaf/prisma";
 import { AuthedRequest, requireAuth, requireRole } from "../middleware/auth.js";
 import { loadOwnedActiveNrmsProperty, requireNrms } from "../lib/nrms.js";
 import { allocateStayValue } from "../lib/nrmsReporting.js";
+import { buildNrmsCommercialReport } from "../lib/nrmsCommercialReport.js";
 
 export const router = Router();
 
@@ -589,6 +590,33 @@ router.get("/property/:propertyId", (async (req: AuthedRequest, res: Response) =
       .map((row) => ({ ...row, sales: round(row.sales), tips: round(row.tips) }))
       .sort((a, b) => b.sales - a.sales);
 
+    // Built from its own queries rather than threaded through the datasets
+    // above: none of them overlap, and folding six more models into that
+    // Promise.all would make a already long destructuring longer for no gain.
+    //
+    // Caught on its own so a failure here cannot take the whole reporting
+    // centre with it. Operations, finance and audit are what an owner needs
+    // at close of business; losing the commercial section is a gap, losing
+    // the pack is an outage. The web side already treats it as optional.
+    const commercial = await buildNrmsCommercialReport({
+      propertyId,
+      // The caller. This route is requireRole("OWNER") and resolves the property
+      // through loadOwnedActiveNrmsProperty, so the signed-in user IS the owner.
+      // Reading active.property.ownerId would have been undefined: that loader
+      // selects only id, title and nrmsActivatedAt, and prisma is loose enough
+      // here that the mistake compiles.
+      ownerId: req.user!.id,
+      rangeStart,
+      rangeEnd,
+      rangeDays,
+      // Same reason: the property row carries no currency here. Every currency
+      // in play has already been collected from the reservations and folios.
+      fallbackCurrency: [...currencies].sort()[0] ?? "TZS",
+    }).catch((commercialError) => {
+      console.error("[owner.nrms.reports] commercial section failed", commercialError);
+      return null;
+    });
+
     const recordedSources = new Set<string>(RESERVATION_SOURCE_ORDER);
     for (const reservation of reservations) recordedSources.add(String(reservation.source || "OTHER").toUpperCase());
     const orderedSources = [...recordedSources].sort((left, right) => {
@@ -900,6 +928,10 @@ router.get("/property/:propertyId", (async (req: AuthedRequest, res: Response) =
       expenses: { rows: expenseRows },
       profitLoss,
       staffPerformance,
+      // The commercial half: group business, the inquiry funnel, agency
+      // relationships, per person production and who holds access. Everything
+      // above answers how the hotel ran; this answers how it sold.
+      commercial,
     });
   } catch (error) {
     console.error("[owner.nrms.reports] report failed", error);

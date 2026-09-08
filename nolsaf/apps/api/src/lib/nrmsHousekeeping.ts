@@ -139,7 +139,7 @@ export async function ensureDailyOccupiedCleaning(
 
 /** Roles allowed to work the housekeeping board. */
 export function roleCanHousekeep(role: string): boolean {
-  return ["OWNER", "MANAGER", "FRONT_DESK", "HOUSEKEEPER"].includes(role);
+  return ["OWNER", "MANAGER", "FRONT_DESK"].includes(role);
 }
 
 /** Roles allowed to create, assign and cancel tasks (housekeepers only work them). */

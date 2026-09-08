@@ -39,6 +39,18 @@ import {
   voidRoutedRoom,
 } from "../lib/nrmsMasterFolio.js";
 
+/**
+ * Who may read the reservation book, and who may shape a group.
+ *
+ * A sales executive holds `reservation.read`, `availability.read` and
+ * `sales.group.manage`, so both of these are theirs. Neither list reaches a
+ * money operation: recording, voiding or refunding against a group master
+ * folio is guarded separately in owner.nrms.groupBlocks.ts and stays closed to
+ * a role that holds no finance capability.
+ */
+const RESERVATION_READ_ROLES = ["OWNER", "MANAGER", "FRONT_DESK", "SALES_EXECUTIVE"] as const;
+const GROUP_MANAGE_ROLES = ["OWNER", "MANAGER", "FRONT_DESK", "SALES_EXECUTIVE"] as const;
+
 export const router = Router();
 
 // Availability/conflict checks (findUnitConflicts, getRoomTypeAvailability) and checkout
@@ -55,7 +67,13 @@ router.use(requireAuth as RequestHandler);
 const requireOwnerRole = requireRole("OWNER") as RequestHandler;
 router.use(((req, res, next) => {
   const groupScoped = /^\/groups(?:\/|$)/.test(req.path) || /^\/property\/\d+\/groups(?:\/|$)/.test(req.path);
-  if (groupScoped) return next();
+  // Reading the reservation book is staff work: the handler resolves access
+  // through loadNrmsPropertyAccess, which admits the owner, manager, front desk
+  // and sales executive and checks the PROPERTY owner's enrollment rather than
+  // the caller's. Matched on method as well as path, because POST on the same
+  // path creates a reservation and stays owner-only.
+  const readsReservationBook = req.method === "GET" && /^\/property\/\d+$/.test(req.path);
+  if (groupScoped || readsReservationBook) return next();
   return requireOwnerRole(req, res, (roleError?: unknown) => {
     if (roleError) return next(roleError);
     return requireNrms(req, res, next);
@@ -568,10 +586,15 @@ async function recomputeChargesTotal(tx: any, reservationId: number) {
  */
 router.get("/property/:propertyId", (async (req: AuthedRequest, res: Response) => {
   try {
-    const ownerId = req.user!.id;
-    const active = await loadOwnedActiveNrmsProperty(res, ownerId, Number(req.params.propertyId));
-    if (!active) return;
-    const property = active.property;
+    // Staff aware, like the sibling group endpoints below. This resolved the
+    // property by `ownerId: req.user.id`, so a manager or front desk user got
+    // "Property not found" from the Groups page even though the sidebar
+    // offers it to them and every other call that page makes already permits
+    // the role. Rows are scoped by propertyId, which the access check has
+    // already authorised, so nothing here needed the caller to be the owner.
+    const access = await loadNrmsPropertyAccess(req, res, Number(req.params.propertyId), RESERVATION_READ_ROLES);
+    if (!access) return;
+    const property = access.property;
 
     const { status, source, from, to, q } = req.query;
     const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
@@ -828,14 +851,17 @@ async function loadAccessibleGroup(req: AuthedRequest, res: Response, groupId: n
     res.status(404).json({ error: "Reservation group not found" });
     return null;
   }
-  const access = await loadNrmsPropertyAccess(req, res, group.propertyId, ["OWNER", "MANAGER", "FRONT_DESK"]);
+  // Group management only: creating, amending, cancelling a group and moving
+  // reservations in and out of it. No money operation is reachable from here,
+  // which is why a sales executive can hold it.
+  const access = await loadNrmsPropertyAccess(req, res, group.propertyId, GROUP_MANAGE_ROLES);
   return access ? { group, access } : null;
 }
 
 /** List operational reservation groups for one property. */
 router.get("/property/:propertyId/groups", (async (req: AuthedRequest, res: Response) => {
   try {
-    const access = await loadNrmsPropertyAccess(req, res, Number(req.params.propertyId), ["OWNER", "MANAGER", "FRONT_DESK"]);
+    const access = await loadNrmsPropertyAccess(req, res, Number(req.params.propertyId), GROUP_MANAGE_ROLES);
     if (!access) return;
     const groups = await prisma.nrmsReservationGroup.findMany({
       where: { propertyId: access.property.id, ownerId: access.ownerId },

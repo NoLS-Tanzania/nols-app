@@ -1146,6 +1146,10 @@ router.get(
         const tinDoc = pick("TIN_NUMBER", "TIN_CERTIFICATE");
         const tourismDoc = pick("TOURISM_LICENSE", "TOURISM_LICENCE", "LICENSE");
         const businessDoc = pick("BUSINESS_LICENCE", "BUSINESS_LICENSE", "BUSINESS_LISENCE");
+        // The checklist's combined ID slot. Without it this upload had no path
+        // to the UI at all: operatorProfileSchema strips documentProofs from the
+        // client PATCH by design, so every proof must be derived here.
+        const nationalIdDoc = pick("NATIONAL_ID_OR_PASSPORT", "NATIONAL_ID", "PASSPORT");
 
         const toProof = (doc: any) => {
           if (!doc?.url) return null;
@@ -1168,6 +1172,7 @@ router.get(
           ...(toProof(tinDoc) ? { tin: toProof(tinDoc) } : null),
           ...(toProof(tourismDoc) ? { license: toProof(tourismDoc) } : null),
           ...(toProof(businessDoc) ? { business: toProof(businessDoc) } : null),
+          ...(toProof(nationalIdDoc) ? { nationalId: toProof(nationalIdDoc) } : null),
         };
 
         const existingClassified = operatorProfile.classifiedPhotos && typeof operatorProfile.classifiedPhotos === "object"
@@ -1176,7 +1181,7 @@ router.get(
         const existingProofList = Array.isArray((existingClassified as any).proof)
           ? (existingClassified as any).proof.filter((v: unknown) => typeof v === "string")
           : [];
-        const canonicalProofUrls = [brelaDoc?.url, tinDoc?.url, tourismDoc?.url, businessDoc?.url]
+        const canonicalProofUrls = [brelaDoc?.url, tinDoc?.url, tourismDoc?.url, businessDoc?.url, nationalIdDoc?.url]
           .filter((v): v is string => typeof v === "string" && v.length > 0);
         const mergedProofList = Array.from(new Set([...existingProofList, ...canonicalProofUrls]));
 

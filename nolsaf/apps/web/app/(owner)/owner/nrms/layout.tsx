@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -54,6 +54,7 @@ import {
 } from "lucide-react";
 import apiClient from "@/lib/apiClient";
 import { NrmsProvider, useNrms, propertyTrialDaysLeft } from "./_components/NrmsProvider";
+import { NrmsAccessRoleProvider } from "./_components/NrmsAccessRole";
 import NrmsActivationScreen from "./_components/NrmsActivationScreen";
 import NrmsBootScreen from "./_components/NrmsBootScreen";
 import NrmsFrozenNotice from "./_components/NrmsFrozenNotice";
@@ -69,6 +70,22 @@ const PRIMARY_TABS = [
   { href: "/owner/nrms/performance", label: "Performance", icon: TrendingUp },
   { href: "/owner/nrms/analytics", label: "Revenue", icon: BarChart3 },
   { href: "/owner/nrms/reports", label: "Reports", icon: FileText },
+];
+
+/**
+ * The tab row is the workspace's own top level, so it has to name the screens
+ * the reader actually works in. Filtering the owner's operations spine down to
+ * what a sales executive may open left exactly one tab sitting alone, which is
+ * why their home page had grown a strip of shortcuts of its own. These are
+ * those shortcuts, in the place a top level destination belongs.
+ */
+const SALES_TABS = [
+  { href: "/owner/nrms", label: "Sales desk", icon: TrendingUp, exact: true },
+  { href: "/owner/nrms/inquiries", label: "Inquiries", icon: MessageSquareText },
+  { href: "/owner/nrms/groups", label: "Group blocks", icon: UsersRound },
+  { href: "/owner/nrms/agents", label: "Travel agents", icon: Handshake },
+  { href: "/owner/nrms/calendar", label: "Availability", icon: CalendarDays },
+  { href: "/owner/nrms/sales-performance", label: "My production", icon: BarChart3 },
 ];
 
 type NavItem = { href: string; label: string; icon: LucideIcon; exact?: boolean; children?: NavItem[]; roles?: string[] };
@@ -153,6 +170,9 @@ const NAV_GROUPS: NavGroup[] = [
           // Performance across every selling route. Sits directly above the two
           // setup screens it reports on, so tuning a channel is one click away.
           { href: "/owner/nrms/sales-channels", label: "Sales channels", icon: Radar },
+          // The people, where sales-channels is the routes. Beside it because
+          // the two answer the same question from opposite ends.
+          { href: "/owner/nrms/sales-performance", label: "Sales production", icon: TrendingUp },
           {
             href: "/owner/nrms/channels",
             label: "OTA channels",
@@ -259,7 +279,53 @@ function ordersNavPresentation(role: string): { label: string; icon: typeof Shop
   return null;
 }
 
-function roleCanSee(href: string, role: string) {
+/**
+ * The NRMS home is composed per role (see the home page itself), so the link
+ * to it has to be named for what the role will actually find there. Calling a
+ * sales executive's pipeline "Front desk" was the visible half of the same
+ * mistake as sending them to arrivals and departures.
+ */
+function homeNavPresentation(role: string): { label: string; icon: typeof ShoppingBasket } | null {
+  if (role === "SALES_EXECUTIVE") return { label: "Sales desk", icon: TrendingUp };
+  return null;
+}
+
+const NAV_CAPABILITY: Record<string, string> = {
+  "/owner/nrms": "property.overview.read",
+  "/owner/nrms/reservations": "reservation.read",
+  "/owner/nrms/inquiries": "sales.inquiry.read",
+  "/owner/nrms/calendar": "availability.read",
+  "/owner/nrms/groups": "reservation.read",
+  "/owner/nrms/guests": "guest.read",
+  "/owner/nrms/housekeeping": "room_status.read",
+  "/owner/nrms/orders": "outlet.read",
+  "/owner/nrms/tables": "outlet.read",
+  "/owner/nrms/breakfast": "outlet.read",
+  "/owner/nrms/performance": "finance.revenue.read",
+  "/owner/nrms/outlets": "outlet.read",
+  "/owner/nrms/stock": "outlet.order.manage",
+  "/owner/nrms/qr-codes": "property.settings.read",
+  "/owner/nrms/staff": "staff.directory.read",
+  "/owner/nrms/shift": "finance.shift.read_own",
+  "/owner/nrms/payments": "merchant.provider.activate",
+  "/owner/nrms/finance": "finance.night_audit.read",
+  "/owner/nrms/analytics": "finance.revenue.read",
+  "/owner/nrms/reports": "finance.revenue.read",
+  "/owner/nrms/billing": "nrms.subscription.manage",
+  "/owner/nrms/rooms": "room_status.read",
+  "/owner/nrms/controls": "property.settings.read",
+  "/owner/nrms/sales-performance": "sales.analytics.read",
+  "/owner/nrms/sales-channels": "distribution.read",
+  "/owner/nrms/channels": "distribution.manage",
+  "/owner/nrms/agents": "sales.agent.read",
+};
+
+function roleCanSee(href: string, role: string, capabilities: readonly string[] | undefined) {
+  const capability = NAV_CAPABILITY[href];
+  // The manifest narrows the role rules below, it does not replace them. An API
+  // that has not shipped effectiveAccess yet sends no capabilities, and treating
+  // that as "denied" would leave the owner staring at an empty sidebar.
+  if (capability && capabilities?.length && !capabilities.includes(capability)) return false;
   // Shift & cash is scoped to the outlet staff who actually run a drawer at
   // their assigned bar or restaurant, not owner, manager, front desk or a
   // supervisor covering multiple outlets.
@@ -270,10 +336,18 @@ function roleCanSee(href: string, role: string) {
   if (role === "OWNER") return true;
   // Sales channels stays owner-only, like Revenue and Reports: its API is
   // requireRole("OWNER") and it exposes commission and net payout figures.
-  if (role === "MANAGER") return ["/owner/nrms/inquiries", "/owner/nrms/groups", "/owner/nrms/orders", "/owner/nrms/tables", "/owner/nrms/performance", "/owner/nrms/housekeeping", "/owner/nrms/outlets", "/owner/nrms/stock", "/owner/nrms/qr-codes", "/owner/nrms/staff", "/owner/nrms/finance"].includes(href);
+  if (role === "MANAGER") return ["/owner/nrms", "/owner/nrms/sales-performance", "/owner/nrms/inquiries", "/owner/nrms/groups", "/owner/nrms/orders", "/owner/nrms/tables", "/owner/nrms/performance", "/owner/nrms/housekeeping", "/owner/nrms/outlets", "/owner/nrms/stock", "/owner/nrms/qr-codes", "/owner/nrms/staff", "/owner/nrms/agents", "/owner/nrms/calendar", "/owner/nrms/finance"].includes(href);
   if (role === "OUTLET_SUPERVISOR") return ["/owner/nrms/orders", "/owner/nrms/tables", "/owner/nrms/performance", "/owner/nrms/outlets", "/owner/nrms/stock"].includes(href);
-  if (role === "FRONT_DESK") return ["/owner/nrms/inquiries", "/owner/nrms/groups", "/owner/nrms/orders", "/owner/nrms/housekeeping", "/owner/nrms/finance"].includes(href);
-  if (role === "HOUSEKEEPER") return href === "/owner/nrms/housekeeping";
+  // Group business is the sales role's own work: they hold sales.group.manage
+  // and reservation.read. Reading a block list and shaping a group are both
+  // open to them server side; the group master folio money operations are
+  // guarded separately and stay closed.
+  // "/owner/nrms" is the workspace home, and it is composed per role: a front
+  // desk for the roles that work arrivals, a sales pipeline for this one. Every
+  // role listed here holds property.overview.read, and each landed on that URL
+  // on entering NRMS already; until now none of them had a link back to it.
+  if (role === "SALES_EXECUTIVE") return ["/owner/nrms", "/owner/nrms/sales-performance", "/owner/nrms/inquiries", "/owner/nrms/groups", "/owner/nrms/agents", "/owner/nrms/calendar"].includes(href);
+  if (role === "FRONT_DESK") return ["/owner/nrms", "/owner/nrms/inquiries", "/owner/nrms/groups", "/owner/nrms/orders", "/owner/nrms/housekeeping", "/owner/nrms/calendar", "/owner/nrms/finance"].includes(href);
   // Bar and restaurant staff: their floor, their outlet's stock, performance and shift.
   return ["/owner/nrms/orders", "/owner/nrms/tables", "/owner/nrms/performance", "/owner/nrms/stock", "/owner/nrms/shift"].includes(href);
 }
@@ -337,8 +411,47 @@ function NrmsShell({ children }: { children: ReactNode }) {
   const prevInquiryWorkloadRef = useRef<number | null>(null);
   const prevPaymentsWorkloadRef = useRef<number | null>(null);
   const daysLeft = propertyTrialDaysLeft(selectedProperty);
-  const accessRole = selectedProperty?.nrmsAccessRole ?? "OWNER";
+  const realAccessRole = selectedProperty?.nrmsAccessRole ?? "OWNER";
+
+  /**
+   * Development-only sidebar preview: /owner/nrms?previewRole=SALES_EXECUTIVE
+   *
+   * Seeing a staff workspace otherwise means holding a real membership, because
+   * nrmsAccessRole is resolved server side from NrmsStaffMembership. That is the
+   * right default, but it makes checking a role's navigation slow.
+   *
+   * This changes NOTHING but which links this sidebar draws. Every page still
+   * calls the API as the signed-in account, and the API still resolves the real
+   * role, so a preview cannot reach data the account is not entitled to. It is
+   * compiled out of a production build, and the banner below makes sure nobody
+   * mistakes it for a real permission check.
+   */
+  // Two locks, not one. NODE_ENV alone would arm this in any non-production
+  // build, including a staging deploy; the explicit opt-in means it exists only
+  // where someone has written it into their own .env.local:
+  //
+  //   NEXT_PUBLIC_NRMS_ROLE_PREVIEW=true
+  //
+  // NEXT_PUBLIC_ values are inlined at build time, so a build made without it
+  // has no branch to reach.
+  const rolePreviewEnabled =
+    process.env.NODE_ENV !== "production"
+    && process.env.NEXT_PUBLIC_NRMS_ROLE_PREVIEW === "true";
+  const previewRole = rolePreviewEnabled
+    ? searchParams?.get("previewRole")?.toUpperCase() ?? null
+    : null;
+  const accessRole = previewRole ?? realAccessRole;
+  // Capabilities stay the real account's: faking them would make the sidebar
+  // claim an authority the server would refuse, which is the opposite of useful.
+  const accessCapabilities = previewRole ? undefined : selectedProperty?.effectiveAccess?.capabilities;
   const exitHref = accessRole === "OWNER" ? "/owner" : "/account";
+  // Published to the pages below so a screen that is composed differently per
+  // role (the NRMS home, which is a front desk for one role and a pipeline for
+  // another) reads the same answer this sidebar drew itself from.
+  const accessRoleValue = useMemo(
+    () => ({ accessRole, realAccessRole, previewRole }),
+    [accessRole, realAccessRole, previewRole],
+  );
 
   const handleBooted = useCallback(() => setBooting(false), []);
 
@@ -356,7 +469,7 @@ function NrmsShell({ children }: { children: ReactNode }) {
   }, [pathname]);
 
   useEffect(() => {
-    const canSeeOutletNavigation = roleCanSee("/owner/nrms/orders", accessRole) || roleCanSee("/owner/nrms/outlets", accessRole);
+    const canSeeOutletNavigation = roleCanSee("/owner/nrms/orders", accessRole, accessCapabilities) || roleCanSee("/owner/nrms/outlets", accessRole, accessCapabilities);
     if (!selectedPropertyId || !canSeeOutletNavigation) { setSidebarOutlets([]); return; }
     let active = true;
     void apiClient.get<any>(`/api/nrms/operations/property/${selectedPropertyId}/outlets`)
@@ -366,7 +479,7 @@ function NrmsShell({ children }: { children: ReactNode }) {
       })
       .catch(() => { if (active) setSidebarOutlets([]); });
     return () => { active = false; };
-  }, [accessRole, selectedPropertyId]);
+  }, [accessCapabilities, accessRole, selectedPropertyId]);
 
   useEffect(() => {
     const syncOutlets = (event: Event) => {
@@ -429,7 +542,7 @@ function NrmsShell({ children }: { children: ReactNode }) {
   // Split live-order badges: room arrivals badge "Bar orders", table arrivals
   // badge "Tables & tabs". A rise in total new orders rings the arrival chime.
   useEffect(() => {
-    const canSee = roleCanSee("/owner/nrms/tables", accessRole) || roleCanSee("/owner/nrms/orders", accessRole);
+    const canSee = roleCanSee("/owner/nrms/tables", accessRole, accessCapabilities) || roleCanSee("/owner/nrms/orders", accessRole, accessCapabilities);
     if (!selectedPropertyId || !canSee) { setLiveOrders(null); prevPlacedRef.current = null; return; }
     let active = true;
     const fetchCount = async () => {
@@ -445,13 +558,13 @@ function NrmsShell({ children }: { children: ReactNode }) {
     void fetchCount();
     const id = setInterval(fetchCount, 20000);
     return () => { active = false; clearInterval(id); };
-  }, [selectedPropertyId, accessRole, chime]);
+  }, [selectedPropertyId, accessCapabilities, accessRole, chime]);
 
   // Travel-agent work can arrive while the hotel is busy elsewhere in NRMS.
   // Poll the same way as Restaurant & bar and ring only when the actionable
   // queue grows; handled or expired items disappear from the marker.
   useEffect(() => {
-    const canSee = roleCanSee("/owner/nrms/agents", accessRole);
+    const canSee = roleCanSee("/owner/nrms/agents", accessRole, accessCapabilities);
     if (!selectedPropertyId || !canSee) { setAgentWorkload(null); prevAgentWorkloadRef.current = null; return; }
     let active = true;
     const fetchCount = async () => {
@@ -466,12 +579,12 @@ function NrmsShell({ children }: { children: ReactNode }) {
     void fetchCount();
     const id = setInterval(fetchCount, 20000);
     return () => { active = false; clearInterval(id); };
-  }, [selectedPropertyId, accessRole, chime]);
+  }, [selectedPropertyId, accessCapabilities, accessRole, chime]);
 
   // Reception inquiries are property-scoped and remain visible until the team
   // resolves, converts or closes them. Ring when a new actionable inquiry lands.
   useEffect(() => {
-    const canSee = roleCanSee("/owner/nrms/inquiries", accessRole);
+    const canSee = roleCanSee("/owner/nrms/inquiries", accessRole, accessCapabilities);
     if (!selectedPropertyId || !canSee) { setInquiryWorkload(null); prevInquiryWorkloadRef.current = null; return; }
     let active = true;
     const fetchCount = async () => {
@@ -486,14 +599,14 @@ function NrmsShell({ children }: { children: ReactNode }) {
     void fetchCount();
     const id = setInterval(fetchCount, 20000);
     return () => { active = false; clearInterval(id); };
-  }, [selectedPropertyId, accessRole, chime]);
+  }, [selectedPropertyId, accessCapabilities, accessRole, chime]);
 
   // A returned merchant application is the owner's move and it can sit unseen
   // for days, because nothing on the workspace pointed at it. Same poll shape
   // as Restaurant & bar and Travel agents; only states the owner can clear
   // raise the marker, so an application waiting on NoLSAF never nags them.
   useEffect(() => {
-    const canSee = roleCanSee("/owner/nrms/payments", accessRole);
+    const canSee = roleCanSee("/owner/nrms/payments", accessRole, accessCapabilities);
     const hasPaymentProperties = properties.some((property) => property.nrmsAccessRole === "OWNER" && property.status === "APPROVED" && property.nrmsActivatedAt);
     // The Payments home loads the same portfolio status for its cards, while a
     // detail page loads the full overview. Do not duplicate either request in
@@ -521,7 +634,7 @@ function NrmsShell({ children }: { children: ReactNode }) {
     void fetchCount();
     const id = setInterval(fetchCount, 20000);
     return () => { active = false; clearInterval(id); };
-  }, [properties, pathname, accessRole, chime]);
+  }, [properties, pathname, accessCapabilities, accessRole, chime]);
 
   const toggleCollapsed = () => {
     setCollapsed((current) => {
@@ -586,7 +699,7 @@ function NrmsShell({ children }: { children: ReactNode }) {
   // The workspace introduces itself by what the person does, not by the product.
   const roleSubtitle = accessRole === "BAR" ? "Bar service"
     : accessRole === "RESTAURANT" ? "Restaurant service"
-    : accessRole === "HOUSEKEEPER" ? "Housekeeping"
+    : accessRole === "SALES_EXECUTIVE" ? "Sales workspace"
     : accessRole === "FRONT_DESK" ? "Front desk"
     : accessRole === "OUTLET_SUPERVISOR" ? "Outlet operations"
     : accessRole === "MANAGER" ? "Hotel management"
@@ -604,7 +717,7 @@ function NrmsShell({ children }: { children: ReactNode }) {
           // A role that can see nothing in a group must not see the group label
           // either: bar staff were getting empty MANAGEMENT and FINANCE headers.
           const visibleSections = group.sections
-            .map((section) => ({ ...section, items: section.items.filter((item) => roleCanSee(item.href, accessRole)) }))
+            .map((section) => ({ ...section, items: section.items.filter((item) => roleCanSee(item.href, accessRole, accessCapabilities)) }))
             .filter((section) => section.items.length > 0);
           if (!visibleSections.length) return null;
           return (
@@ -621,7 +734,9 @@ function NrmsShell({ children }: { children: ReactNode }) {
                   )}
                   <div className="space-y-0.5">
                   {section.items.map((item) => {
-                const override = item.href === "/owner/nrms/orders" ? ordersNavPresentation(accessRole) : null;
+                const override = item.href === "/owner/nrms/orders" ? ordersNavPresentation(accessRole)
+                  : item.href === "/owner/nrms" ? homeNavPresentation(accessRole)
+                  : null;
                 const Icon = override?.icon ?? item.icon;
                 const label = override?.label ?? item.label;
                 const active = isActive(pathname, item);
@@ -742,7 +857,11 @@ function NrmsShell({ children }: { children: ReactNode }) {
             <button type="button" onClick={() => setMobileOpen(true)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-white text-neutral-700 lg:hidden" aria-label="Open NRMS navigation"><Menu className="h-5 w-5" /></button>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2"><p className="m-0 truncate text-sm font-bold text-neutral-950">{paymentsHome ? "NoLSAF Payments" : selectedProperty?.title ?? "NRMS property"}</p>{!paymentsHome && daysLeft != null && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[9px] font-bold text-amber-700">{daysLeft} days trial</span>}</div>
-              <p className="mb-0 mt-0.5 text-[10px] text-neutral-400">{paymentsHome ? "Payment onboarding across your properties" : "Live property operations"}</p>
+              {/* The subtitle names the workspace the reader is actually in.
+                  "Live property operations" was written for the owner and read
+                  as boilerplate to everyone else, including a sales executive
+                  who runs no operations at all. */}
+              <p className="mb-0 mt-0.5 text-[10px] text-neutral-400">{paymentsHome ? "Payment onboarding across your properties" : accessRole === "OWNER" ? "Live property operations" : roleSubtitle}</p>
             </div>
             {/* Only an owner with more than one property may switch. Staff are
                 scoped to the property behind their assignment and must never be
@@ -766,13 +885,16 @@ function NrmsShell({ children }: { children: ReactNode }) {
                   {properties.map((property) => <option key={property.id} value={property.id}>{property.title}</option>)}
                 </select>
               </label>
-            ) : selectedProperty ? (
-              <span className="hidden min-w-0 items-center gap-2 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 sm:flex">
-                <Building2 className="h-4 w-4 shrink-0 text-emerald-700" />
-                <span className="max-w-52 truncate text-xs font-bold text-neutral-800">{selectedProperty.title}</span>
-              </span>
             ) : null}
-            <span className="hidden rounded-full bg-emerald-50 px-2.5 py-1 text-[9px] font-bold text-emerald-700 md:inline">{accessRole.replaceAll("_", " ")}</span>
+            {/* Nothing stands here for a single property or for staff. The
+                switcher above earns its space because it does something; a
+                static chip would only print the property name a second time,
+                a few centimetres from the heading that already carries it. */}
+            {/* The role badge lived here while the subtitle was generic. Now
+                that the subtitle names the workspace, a chip reading
+                "SALES EXECUTIVE" beside "Sales workspace" says the same thing
+                twice. The owner keeps no badge either: the sidebar's exit to
+                the marketplace already tells them whose account this is. */}
             <Link href={exitHref} className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 text-xs font-bold text-neutral-600 no-underline hover:bg-neutral-50 hover:text-neutral-900 hover:no-underline">
               <LogOut className="h-4 w-4" /><span className="hidden sm:inline">{accessRole === "OWNER" ? "Marketplace" : "Exit NRMS"}</span>
             </Link>
@@ -780,8 +902,10 @@ function NrmsShell({ children }: { children: ReactNode }) {
 
           <nav className="overflow-x-auto border-t border-neutral-100 px-3 sm:px-5" aria-label="Primary NRMS operations">
             <div className="flex w-max min-w-full gap-1">
-              {PRIMARY_TABS.filter((tab) => roleCanSee(tab.href, accessRole)).map((tab) => {
-                const override = tab.href === "/owner/nrms/orders" ? ordersNavPresentation(accessRole) : null;
+              {(accessRole === "SALES_EXECUTIVE" ? SALES_TABS : PRIMARY_TABS).filter((tab) => roleCanSee(tab.href, accessRole, accessCapabilities)).map((tab) => {
+                const override = tab.href === "/owner/nrms/orders" ? ordersNavPresentation(accessRole)
+                  : tab.href === "/owner/nrms" ? homeNavPresentation(accessRole)
+                  : null;
                 const Icon = override?.icon ?? tab.icon;
                 const active = isActive(pathname, tab);
                 return <Link key={tab.href} href={tab.href} className={`inline-flex min-h-11 items-center gap-2 border-b-2 px-3 text-xs font-bold no-underline transition hover:no-underline ${active ? "border-emerald-700 text-emerald-800" : "border-transparent text-neutral-400 hover:text-neutral-700"}`}><Icon className="h-4 w-4" />{override?.label ?? tab.label}</Link>;
@@ -793,7 +917,23 @@ function NrmsShell({ children }: { children: ReactNode }) {
         <FiscalAlertBanner />
 
         <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-5">
-          {showPropertyGate ? null : propertyNeedsActivation ? <PropertyActivationGate /> : children}
+          {/* Impossible to miss on purpose: the workspace is drawn for another
+              role, but every request below is still made as the signed-in
+              account, so this proves layout only, never permissions. */}
+          {previewRole ? (
+            <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl bg-amber-50 px-3.5 py-2.5 text-xs text-amber-900 ring-1 ring-amber-300">
+              <span className="font-bold">Previewing the {roleSubtitle}</span>
+              <span className="text-amber-800">
+                Layout only: which links the sidebar draws and how a role aware page arranges itself. Every request is still
+                made as {realAccessRole.replace(/_/g, " ").toLowerCase()}, so the data shown and the actions allowed are
+                unchanged. Development builds only.
+              </span>
+              <a href={pathname} className="ml-auto font-bold text-amber-900 underline">Exit preview</a>
+            </div>
+          ) : null}
+          <NrmsAccessRoleProvider value={accessRoleValue}>
+            {showPropertyGate ? null : propertyNeedsActivation ? <PropertyActivationGate /> : children}
+          </NrmsAccessRoleProvider>
         </main>
         <NrmsOperationalFooter />
       </div>

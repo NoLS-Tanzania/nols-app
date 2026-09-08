@@ -101,6 +101,15 @@ export default function NrmsGroupReservationsPage() {
   const { selectedPropertyId, selectedProperty } = useNrms();
   const accessRole = selectedProperty?.nrmsAccessRole ?? "OWNER";
   const ownerWorkspace = accessRole === "OWNER";
+  // Two different jobs on one page, and only one of them is the owner's alone.
+  //
+  // A block is a commercial agreement with an agency: rooms held before any
+  // guest exists. That is the sales executive's own work and the API now admits
+  // them (loadGroupManageAccess). Building a GROUP, on the other hand, gathers
+  // reservations that already exist into one travelling party, which is a
+  // reservations action sales holds no capability for, so it stays with
+  // ownerWorkspace below.
+  const canManageBlocks = ["OWNER", "MANAGER", "SALES_EXECUTIVE"].includes(accessRole);
   const router = useRouter();
   const searchParams = useSearchParams();
   const [groups, setGroups] = useState<ReservationGroup[]>([]);
@@ -226,7 +235,7 @@ export default function NrmsGroupReservationsPage() {
               </p>
             </div>
           </div>
-          {ownerWorkspace && tab === "BLOCKS" ? (
+          {canManageBlocks && tab === "BLOCKS" ? (
             <button
               type="button"
               onClick={() => setShowCreateBlock(true)}
@@ -316,7 +325,7 @@ export default function NrmsGroupReservationsPage() {
             <p className="m-0 mx-auto mt-1 max-w-lg text-xs leading-5 text-neutral-500">
               A block holds rooms for a party before anyone knows the guest names. Agree the rooms, dates and rate with the agency now, collect the names later, and nobody can sell those rooms in the meantime.
             </p>
-            {ownerWorkspace && <button
+            {canManageBlocks && <button
               type="button"
               onClick={() => setShowCreateBlock(true)}
               className="mt-4 inline-flex cursor-pointer appearance-none items-center gap-2 rounded-lg border-0 bg-emerald-700 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-emerald-800"
@@ -465,6 +474,7 @@ export default function NrmsGroupReservationsPage() {
       {showCreateBlock && selectedPropertyId && (
         <CreateGroupBlockModal
           propertyId={selectedPropertyId}
+          accessRole={accessRole}
           onClose={() => setShowCreateBlock(false)}
           onSaved={async () => { setShowCreateBlock(false); await load(); }}
         />

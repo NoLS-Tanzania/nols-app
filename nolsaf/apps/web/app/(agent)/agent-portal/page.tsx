@@ -23,14 +23,14 @@ const nights = (a: string, b: string) => Math.max(0, Math.round((new Date(`${b}T
 const stayDate = (value: string) => new Date(`${value}T00:00:00Z`).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 
 function GuestStepper({ label, value, min, max, onChange }: { label: string; value: number; min: number; max: number; onChange: (value: number) => void }) {
+  const stepClass =
+    "grid h-6 w-6 shrink-0 cursor-pointer place-items-center rounded-md border-0 bg-neutral-100 text-neutral-600 transition hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-35";
   return (
-    <div className="min-w-0">
-      <span className="mb-1 block text-[9px] font-bold uppercase tracking-[0.1em] text-neutral-500">{label}</span>
-      <div className="flex h-10 items-center justify-between rounded-xl border border-solid border-neutral-200 bg-white px-1.5 shadow-sm">
-        <button type="button" onClick={() => onChange(Math.max(min, value - 1))} disabled={value <= min} className="grid h-7 w-7 place-items-center rounded-lg border-0 bg-neutral-100 text-neutral-600 transition hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-35" aria-label={`Remove one ${label.toLowerCase()}`}><Minus className="h-3 w-3" /></button>
-        <span className="min-w-8 text-center text-sm font-extrabold tabular-nums text-neutral-900">{value}</span>
-        <button type="button" onClick={() => onChange(Math.min(max, value + 1))} disabled={value >= max} className="grid h-7 w-7 place-items-center rounded-lg border-0 bg-neutral-100 text-neutral-600 transition hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-35" aria-label={`Add one ${label.toLowerCase()}`}><Plus className="h-3 w-3" /></button>
-      </div>
+    <div className="flex min-w-0 flex-1 items-center gap-2 px-2">
+      <span className="min-w-0 flex-1 truncate text-[9px] font-bold uppercase tracking-[0.1em] text-neutral-400">{label}</span>
+      <button type="button" onClick={() => onChange(Math.max(min, value - 1))} disabled={value <= min} className={stepClass} aria-label={`Remove one ${label.toLowerCase()}`}><Minus className="h-3 w-3" /></button>
+      <span className="min-w-6 text-center text-sm font-bold tabular-nums text-neutral-900">{value}</span>
+      <button type="button" onClick={() => onChange(Math.min(max, value + 1))} disabled={value >= max} className={stepClass} aria-label={`Add one ${label.toLowerCase()}`}><Plus className="h-3 w-3" /></button>
     </div>
   );
 }
@@ -176,20 +176,34 @@ export default function AgentBookPage() {
           ) : null}
         </div>
 
-        <div className="grid min-w-0 grid-cols-1 gap-2.5 p-3 sm:grid-cols-2 md:grid-cols-5">
-          <div className="min-w-0">
-            <span className="mb-1 block text-[9px] font-bold uppercase tracking-[0.1em] text-neutral-500">Check-in</span>
-            <DatePickerField label="Check-in date" value={q.checkIn} min={todayStr()} allowPast={false} widthClassName="w-full" size="sm" onChangeAction={(next) => { setQ((current) => ({ ...current, checkIn: next, checkOut: next >= current.checkOut ? addDays(next, 1) : current.checkOut })); setRooms(null); }} />
+        <div className="flex min-w-0 flex-wrap items-stretch gap-2.5 p-3">
+          {/* Dates and guests each read as one control rather than four loose
+              fields, so the row scans as "when" then "who" then the action. */}
+          <div className="flex min-w-0 flex-1 basis-[22rem] items-center gap-1.5 rounded-xl border border-solid border-neutral-200 bg-neutral-50/70 p-1">
+            <div className="min-w-0 flex-1 px-1">
+              <span className="mb-0.5 block text-[9px] font-bold uppercase tracking-[0.1em] text-neutral-400">Check-in</span>
+              <DatePickerField label="Check-in date" value={q.checkIn} min={todayStr()} allowPast={false} widthClassName="!w-full" size="sm" onChangeAction={(next) => { setQ((current) => ({ ...current, checkIn: next, checkOut: next >= current.checkOut ? addDays(next, 1) : current.checkOut })); setRooms(null); }} />
+            </div>
+            <span className="h-8 w-px shrink-0 bg-neutral-200" aria-hidden />
+            <div className="min-w-0 flex-1 px-1">
+              <span className="mb-0.5 block text-[9px] font-bold uppercase tracking-[0.1em] text-neutral-400">Check-out</span>
+              <DatePickerField label="Check-out date" value={q.checkOut} min={addDays(q.checkIn, 1)} allowPast={false} widthClassName="!w-full" size="sm" onChangeAction={(next) => { setQ((current) => ({ ...current, checkOut: next })); setRooms(null); }} />
+            </div>
           </div>
-          <div className="min-w-0">
-            <span className="mb-1 block text-[9px] font-bold uppercase tracking-[0.1em] text-neutral-500">Check-out</span>
-            <DatePickerField label="Check-out date" value={q.checkOut} min={addDays(q.checkIn, 1)} allowPast={false} widthClassName="w-full" size="sm" onChangeAction={(next) => { setQ((current) => ({ ...current, checkOut: next })); setRooms(null); }} />
+
+          <div className="flex min-w-0 flex-1 basis-64 items-center gap-1 rounded-xl border border-solid border-neutral-200 bg-neutral-50/70 py-2">
+            <GuestStepper label="Adults" value={q.adults} min={1} max={20} onChange={(value) => { setQ((current) => ({ ...current, adults: value })); setRooms(null); }} />
+            <span className="h-8 w-px shrink-0 bg-neutral-200" aria-hidden />
+            <GuestStepper label="Children" value={q.children} min={0} max={20} onChange={(value) => { setQ((current) => ({ ...current, children: value })); setRooms(null); }} />
           </div>
-          <GuestStepper label="Adults" value={q.adults} min={1} max={20} onChange={(value) => { setQ((current) => ({ ...current, adults: value })); setRooms(null); }} />
-          <GuestStepper label="Children" value={q.children} min={0} max={20} onChange={(value) => { setQ((current) => ({ ...current, children: value })); setRooms(null); }} />
-          <div className="flex min-w-0 flex-col justify-end sm:col-span-2 md:col-span-1">
-            <span className="mb-1 truncate text-[9px] font-semibold text-neutral-400">{stayNights} night{stayNights === 1 ? "" : "s"} · {q.adults + q.children} guest{q.adults + q.children === 1 ? "" : "s"}</span>
-            <button type="button" onClick={() => void search()} disabled={!hotelId || searching || stayNights < 1} className="flex h-10 items-center justify-center gap-2 rounded-xl border border-solid border-emerald-700 bg-emerald-700 px-3 text-xs font-bold text-white shadow-sm transition hover:border-emerald-800 hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:bg-neutral-200 disabled:text-neutral-400 disabled:shadow-none">
+
+          <div className="flex min-w-0 flex-1 basis-56 items-center gap-2.5">
+            <span className="hidden shrink-0 text-[10px] font-semibold leading-tight text-neutral-400 lg:block">
+              {stayNights} night{stayNights === 1 ? "" : "s"}
+              <br />
+              {q.adults + q.children} guest{q.adults + q.children === 1 ? "" : "s"}
+            </span>
+            <button type="button" onClick={() => void search()} disabled={!hotelId || searching || stayNights < 1} className="flex h-12 min-w-0 flex-1 cursor-pointer appearance-none items-center justify-center gap-2 rounded-xl border-0 bg-emerald-700 px-4 text-xs font-bold text-white outline-none transition hover:bg-emerald-800 focus-visible:ring-2 focus-visible:ring-emerald-500/30 disabled:cursor-not-allowed disabled:bg-neutral-200 disabled:text-neutral-400">
               {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} {searching ? "Searching..." : "Search rooms"}
             </button>
           </div>

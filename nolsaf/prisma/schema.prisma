@@ -337,6 +337,7 @@ model User {
   nrmsOrdersCreated          NrmsOutletOrder[]             @relation("NrmsOrderCreatedBy")
   nrmsOrdersConfirmed        NrmsOutletOrder[]             @relation("NrmsOrderConfirmedBy")
   nrmsOrdersSettled          NrmsOutletOrder[]             @relation("NrmsOrderSettledBy")
+  nrmsOrdersVoided           NrmsOutletOrder[]             @relation("NrmsOrderVoidedBy")
   nrmsTipsReceived           NrmsOutletOrder[]             @relation("NrmsOrderTipRecipient")
   nrmsTipsConfirmed          NrmsOutletOrder[]             @relation("NrmsOrderTipConfirmedBy")
   nrmsBusinessDaysOpened     NrmsBusinessDay[]             @relation("NrmsBusinessDayOpenedBy")
@@ -4098,6 +4099,18 @@ model RoomType {
   bedSetup         String? @db.VarChar(200)
 
   baseRate Decimal? @db.Decimal(12, 2) // standard rate per night
+  /// The lowest nightly rate a staff member may agree for this room type.
+  ///
+  /// Group blocks let the person agreeing the business type the rate, and that
+  /// rate becomes the guest's rate when the block is picked up. While only the
+  /// owner could agree a block that was them pricing their own rooms; once a
+  /// manager or sales executive can, an unbounded number is an unbounded
+  /// discount authority.
+  ///
+  /// NULL means no floor has been set, and staff may not go below `baseRate`:
+  /// discounting is granted, not assumed. Set a lower number to grant room to
+  /// negotiate, or 0 to lift the limit entirely. The owner is never floored.
+  staffRateFloor Decimal? @db.Decimal(12, 2)
   currency String   @default("TZS") @db.VarChar(3)
 
   images    Json? // Array of URLs
@@ -5510,6 +5523,13 @@ model NrmsStaffMembership {
   inviteVersion Int       @default(0)
   confirmedAt   DateTime?
 
+  /// Optional last day of access, for seasonal and contract staff. NULL means
+  /// open ended, which is every assignment made before this column existed.
+  /// A dated assignment is reported as lapsed once the date passes; nothing
+  /// revokes it automatically, because silently cutting access mid shift is
+  /// worse than an administrator seeing it flagged and acting.
+  accessEndsAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -5520,6 +5540,7 @@ model NrmsStaffMembership {
   @@unique([propertyId, userId])
   @@index([userId, status])
   @@index([outletId, status])
+  @@index([accessEndsAt])
   @@map("nrms_staff_membership")
 }
 
@@ -5684,6 +5705,10 @@ model NrmsOutletOrder {
   cancelledAt DateTime?
   voidedAt    DateTime?
   voidReason  String?   @db.VarChar(300)
+  /// Who voided the sale. A void reverses money that was already taken, so it
+  /// must be attributable, and separation of duties needs someone to compare
+  /// against whoever raised the order.
+  voidedById  Int?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -5695,6 +5720,7 @@ model NrmsOutletOrder {
   createdBy      User?                 @relation("NrmsOrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   confirmedBy    User?                 @relation("NrmsOrderConfirmedBy", fields: [confirmedById], references: [id], onDelete: SetNull)
   settledBy      User?                 @relation("NrmsOrderSettledBy", fields: [settledById], references: [id], onDelete: SetNull)
+  voidedBy       User?                 @relation("NrmsOrderVoidedBy", fields: [voidedById], references: [id], onDelete: SetNull)
   tipRecipient   User?                 @relation("NrmsOrderTipRecipient", fields: [tipRecipientId], references: [id], onDelete: SetNull)
   tipConfirmedBy User?                 @relation("NrmsOrderTipConfirmedBy", fields: [tipConfirmedById], references: [id], onDelete: SetNull)
   items          NrmsOutletOrderItem[]
@@ -5704,6 +5730,7 @@ model NrmsOutletOrder {
   @@index([reservationId, createdAt])
   @@index([orderPointId, status])
   @@index([settledById])
+  @@index([voidedById])
   @@index([tipRecipientId])
   @@index([tipConfirmedById])
   @@map("nrms_outlet_order")

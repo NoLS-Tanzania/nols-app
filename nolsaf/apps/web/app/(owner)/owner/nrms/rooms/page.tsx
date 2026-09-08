@@ -33,6 +33,7 @@ type RoomType = {
   capacityChildren: number;
   bedSetup: string | null;
   baseRate: number | null;
+  staffRateFloor: number | null;
   currency: string;
   status: string;
   units: RoomUnit[];
@@ -265,6 +266,7 @@ export default function NrmsRoomsPage() {
                     {type.baseRate != null ? `${type.currency} ${type.baseRate.toLocaleString()}` : "No rate set"}
                   </div>
                   <div className="text-[11px] text-neutral-400">base rate per night</div>
+                  <StaffRateFloorControl roomType={type} onSaved={load} />
                 </div>
               </div>
 
@@ -362,6 +364,92 @@ function ModalFrame({ title, onClose, children }: { title: string; onClose: () =
 }
 
 const inputCls = "block box-border w-full min-w-0 max-w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm";
+
+/**
+ * The lowest rate a staff member may agree for this room type on a group block.
+ *
+ * A block's nightly rate becomes the guest's rate once the block is picked up,
+ * so whoever agrees the block is exercising discount authority. Only the owner
+ * sees or sets this, and the owner is never bound by it.
+ *
+ * Unset means the base rate above is the limit: discounting is granted, not
+ * assumed. Clearing the field returns to that. Zero removes the limit.
+ */
+function StaffRateFloorControl({ roomType, onSaved }: { roomType: RoomType; onSaved: () => Promise<void> }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(roomType.staffRateFloor == null ? "" : String(roomType.staffRateFloor));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const trimmed = value.trim();
+      await apiClient.patch(`/api/owner/nrms/rooms/types/${roomType.id}`, {
+        staffRateFloor: trimmed === "" ? null : Number(trimmed),
+      });
+      setEditing(false);
+      await onSaved();
+    } catch (e: any) {
+      setError(e?.response?.data?.error || "Could not save the limit");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!editing) {
+    const label = roomType.staffRateFloor == null
+      ? (roomType.baseRate == null ? "No limit, this type has no rate" : "Staff limit: base rate")
+      : roomType.staffRateFloor === 0
+        ? "Staff limit: none"
+        : `Staff limit: ${roomType.currency} ${roomType.staffRateFloor.toLocaleString()}`;
+    return (
+      <button
+        type="button"
+        onClick={() => { setValue(roomType.staffRateFloor == null ? "" : String(roomType.staffRateFloor)); setEditing(true); }}
+        className="mt-1 cursor-pointer appearance-none border-0 bg-transparent p-0 text-[11px] font-semibold text-emerald-700 underline decoration-emerald-200 underline-offset-4 hover:text-emerald-900"
+      >
+        {label}
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-1.5 w-52 rounded-lg bg-neutral-50 p-2 text-left ring-1 ring-neutral-200">
+      <p className="m-0 text-[11px] font-bold text-neutral-800">Lowest rate staff may agree</p>
+      <p className="m-0 mt-0.5 text-[10px] leading-4 text-neutral-500">
+        Leave empty to hold them at the base rate. Enter 0 to let them agree any rate. You are never limited.
+      </p>
+      <input
+        type="number"
+        min={0}
+        value={value}
+        onChange={(event) => setValue(event.target.value)}
+        placeholder={roomType.baseRate != null ? String(roomType.baseRate) : "0"}
+        className="mt-1.5 box-border w-full rounded-lg border border-solid border-neutral-300 px-2 py-1.5 text-xs"
+      />
+      {error && <p className="m-0 mt-1 text-[10px] font-semibold text-red-600">{error}</p>}
+      <div className="mt-1.5 flex gap-1.5">
+        <button
+          type="button"
+          onClick={() => void save()}
+          disabled={busy}
+          className="flex-1 cursor-pointer appearance-none rounded-lg border-0 bg-emerald-700 px-2 py-1.5 text-[11px] font-bold text-white hover:bg-emerald-800 disabled:opacity-60"
+        >
+          {busy ? "Saving..." : "Save"}
+        </button>
+        <button
+          type="button"
+          onClick={() => { setEditing(false); setError(null); }}
+          className="cursor-pointer appearance-none rounded-lg border-0 bg-white px-2 py-1.5 text-[11px] font-bold text-neutral-600 ring-1 ring-neutral-300 hover:bg-neutral-50"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function TypeFormModal({ propertyId, currency, onClose, onSaved }: { propertyId: number; currency: string | null; onClose: () => void; onSaved: () => Promise<void> }) {
   const [name, setName] = useState("");

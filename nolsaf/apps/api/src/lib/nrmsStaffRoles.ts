@@ -8,14 +8,15 @@
 // customer filter), which had already drifted: the invite email had no entry
 // for HOUSEKEEPER and sent the raw code to the staff member.
 //
-// Adding a sub-role is now a two-line change here. Every consumer is typed
-// against `NrmsStaffRole`, so a label map that forgets the new role fails to
-// compile rather than silently printing a code at someone.
+// This is the assignable role list. Retired database values such as
+// HOUSEKEEPER deliberately stay out of it so every new invitation fails closed.
+// Every consumer is typed against `NrmsStaffRole`, so a label map that forgets
+// a new role fails to compile rather than silently printing a code at someone.
 
 export const NRMS_STAFF_ROLES = [
   "MANAGER",
+  "SALES_EXECUTIVE",
   "FRONT_DESK",
-  "HOUSEKEEPER",
   "RESTAURANT",
   "BAR",
   "OUTLET_SUPERVISOR",
@@ -30,12 +31,40 @@ export type NrmsStaffRole = (typeof NRMS_STAFF_ROLES)[number];
  */
 export const NRMS_STAFF_ROLE_LABELS: Record<NrmsStaffRole, string> = {
   MANAGER: "Manager",
+  SALES_EXECUTIVE: "Sales executive",
   FRONT_DESK: "Front desk",
-  HOUSEKEEPER: "Housekeeper",
   RESTAURANT: "Restaurant",
   BAR: "Bar attendant",
   OUTLET_SUPERVISOR: "Outlet supervisor",
 };
+
+/**
+ * Roles that only make sense against one outlet, so an assignment must name it.
+ *
+ * Kept beside the role list rather than as a loose array at the call site: it
+ * was previously retyped in the staff assign handler and again in the owner's
+ * staff page, which meant a new outlet-scoped role would be accepted by one and
+ * rejected by the other.
+ */
+export const NRMS_OUTLET_SCOPED_ROLES: readonly NrmsStaffRole[] = [
+  "RESTAURANT",
+  "BAR",
+  "OUTLET_SUPERVISOR",
+];
+
+export function nrmsRoleRequiresOutlet(code: string): boolean {
+  return (NRMS_OUTLET_SCOPED_ROLES as readonly string[]).includes(code);
+}
+
+/**
+ * The outlet type a role must be attached to, or null when any outlet will do.
+ * Mirrors the checks the staff assign handler makes after loading the outlet.
+ */
+export function nrmsRoleOutletType(code: string): string | null {
+  if (code === "RESTAURANT") return "RESTAURANT";
+  if (code === "BAR") return "BAR";
+  return null;
+}
 
 export function isNrmsStaffRole(value: unknown): value is NrmsStaffRole {
   return typeof value === "string" && (NRMS_STAFF_ROLES as readonly string[]).includes(value);

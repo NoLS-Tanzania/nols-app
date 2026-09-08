@@ -14,6 +14,7 @@ import {
   loadOwnedProperty,
   getActiveNrmsPolicy,
 } from "../lib/nrms.js";
+import { buildNrmsEffectiveAccessManifest } from "../lib/nrmsAuthorization.js";
 
 export const router = Router();
 
@@ -80,6 +81,9 @@ router.get("/", (async (req: AuthedRequest, res: Response) => {
       restriction: enrollmentRestriction,
       properties: properties.map((property) => ({
         ...property,
+        nrmsAccessRole: "OWNER" as const,
+        nrmsOutletId: null,
+        effectiveAccess: buildNrmsEffectiveAccessManifest({ propertyId: property.id, role: "OWNER" }),
         restriction: propertyRestrictions.get(property.id) ?? null,
         qrRestriction: qrRestrictions.get(property.id) ?? null,
       })),

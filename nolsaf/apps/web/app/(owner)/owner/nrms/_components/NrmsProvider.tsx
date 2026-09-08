@@ -13,8 +13,16 @@ export type NrmsProperty = {
   currency: string | null;
   nrmsActivatedAt: string | null;
   nrmsQrOrderingFrozenAt?: string | null;
-  nrmsAccessRole?: "OWNER" | "MANAGER" | "FRONT_DESK" | "HOUSEKEEPER" | "RESTAURANT" | "BAR" | "OUTLET_SUPERVISOR";
+  nrmsAccessRole?: "OWNER" | "MANAGER" | "SALES_EXECUTIVE" | "FRONT_DESK" | "RESTAURANT" | "BAR" | "OUTLET_SUPERVISOR";
   nrmsOutletId?: number | null;
+  effectiveAccess?: {
+    propertyId: number;
+    primaryRole: string;
+    workspace: string;
+    capabilities: string[];
+    scopes: { outletIds: number[]; shift: "ANY" | "OWN" | "NONE"; finance: "FULL" | "OPERATIONAL" | "LIMITED" | "NONE" };
+    membershipVersion: number;
+  };
   nrmsPaygAccount?: { status: string; trialStartsAt: string; trialEndsAt: string; unpaidBalance: string | number; unpaidLimit: string | number } | null;
   restriction?: { referenceCode: string; reason?: string | null } | null;
   qrRestriction?: { referenceCode: string; reason?: string | null } | null;

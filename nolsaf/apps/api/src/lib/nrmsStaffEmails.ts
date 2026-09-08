@@ -4,13 +4,12 @@ import type { NrmsStaffRole } from "./nrmsStaffRoles.js";
 /**
  * Staff-facing wording for the invite email, which is deliberately warmer than
  * the admin console's labels. Typed as a complete record over NrmsStaffRole so
- * a new sub-role cannot be added without giving it wording here: HOUSEKEEPER
- * was previously absent and staff were emailed the raw code.
+ * a new sub-role cannot be added without giving it wording here.
  */
 export const NRMS_STAFF_ROLE_LABELS: Record<NrmsStaffRole, string> = {
   MANAGER: "NRMS manager",
+  SALES_EXECUTIVE: "Sales executive",
   FRONT_DESK: "Front desk",
-  HOUSEKEEPER: "Housekeeping",
   RESTAURANT: "Restaurant staff",
   BAR: "Bar staff",
   OUTLET_SUPERVISOR: "Outlet supervisor",

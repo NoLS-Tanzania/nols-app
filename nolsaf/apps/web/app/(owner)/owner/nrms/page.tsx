@@ -28,6 +28,8 @@ import {
   X,
 } from "lucide-react";
 import { useNrms } from "./_components/NrmsProvider";
+import { useNrmsAccessRole } from "./_components/NrmsAccessRole";
+import SalesHome from "./_components/SalesHome";
 import NrmsFrozenNotice from "./_components/NrmsFrozenNotice";
 import { tallyRoomLabels } from "@/lib/roomLabels";
 
@@ -152,7 +154,27 @@ function hasOutstandingBalance(reservation: Reservation): boolean {
   return reservation.balance != null && reservation.balance > 0;
 }
 
-export default function NrmsFrontDeskPage() {
+/**
+ * The NRMS home is not one screen.
+ *
+ * A receptionist opening NRMS needs arrivals, departures and tonight's rooms.
+ * A sales executive holds none of those duties: they cannot check a guest in,
+ * and occupancy is not the number they are measured on. Sending them to the
+ * front desk made the product look like it had no idea what they do, so the
+ * role decides which home is composed.
+ *
+ * The role comes from the layout (NrmsAccessRole), which resolves it from the
+ * server side membership. This chooses a screen, never a permission: whichever
+ * home renders, its requests are still made as the signed-in account and the
+ * API still decides what comes back.
+ */
+export default function NrmsHomePage() {
+  const { accessRole } = useNrmsAccessRole();
+  if (accessRole === "SALES_EXECUTIVE") return <SalesHome />;
+  return <NrmsFrontDeskPage />;
+}
+
+function NrmsFrontDeskPage() {
   const router = useRouter();
   const { selectedPropertyId, selectedProperty } = useNrms();
   const [loading, setLoading] = useState(true);
