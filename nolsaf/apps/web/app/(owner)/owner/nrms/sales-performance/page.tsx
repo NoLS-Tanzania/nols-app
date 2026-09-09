@@ -242,7 +242,47 @@ export default function NrmsSalesPerformancePage() {
       ) : null}
 
       {loading && !report ? (
-        <p className="m-0 py-16 text-center text-xs text-neutral-400">Building the report...</p>
+        <div role="status" aria-live="polite" aria-label="Building the sales performance report" className="space-y-3">
+          <section className="bg-white px-4 py-4 ring-1 ring-neutral-200 sm:px-5">
+            <div className="flex items-center gap-3">
+              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center bg-emerald-50 text-emerald-700">
+                <Loader2 className="h-4 w-4 animate-spin" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="m-0 text-sm font-semibold text-neutral-800">Preparing sales performance</p>
+                <p className="m-0 mt-0.5 text-[11px] text-neutral-500">Collecting inquiries, conversions, group business and agency activity.</p>
+                <div className="mt-2 h-1.5 overflow-hidden bg-neutral-100">
+                  <div className="h-full w-2/3 animate-pulse bg-emerald-500" />
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <div aria-hidden="true" className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+            {[0, 1, 2, 3].map((item) => (
+              <div key={item} className="min-h-28 animate-pulse bg-white p-4 ring-1 ring-neutral-200">
+                <div className="h-3 w-24 bg-neutral-200" />
+                <div className="mt-5 h-6 w-16 bg-neutral-200" />
+                <div className="mt-3 h-2.5 w-3/4 bg-neutral-100" />
+              </div>
+            ))}
+          </div>
+
+          <div aria-hidden="true" className="grid gap-3 xl:grid-cols-2">
+            {[0, 1].map((item) => (
+              <div key={item} className="min-h-44 animate-pulse bg-white p-4 ring-1 ring-neutral-200">
+                <div className="h-3.5 w-40 bg-neutral-200" />
+                <div className="mt-2 h-2.5 w-64 max-w-full bg-neutral-100" />
+                <div className="mt-6 space-y-3">
+                  <div className="h-2 w-full bg-neutral-100" />
+                  <div className="h-2 w-5/6 bg-neutral-100" />
+                  <div className="h-2 w-2/3 bg-neutral-100" />
+                </div>
+              </div>
+            ))}
+          </div>
+          <span className="sr-only">Building the report…</span>
+        </div>
       ) : !report || !headline ? null : nothingHappened ? (
         // The empty state replaces the report rather than sitting on top of
         // one. A page of zeroed cards under "nothing recorded" says the same
