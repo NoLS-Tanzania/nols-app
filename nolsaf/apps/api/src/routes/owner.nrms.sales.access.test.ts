@@ -215,6 +215,23 @@ describe("Sales Executive access to the owner NRMS routers", () => {
   });
 
   describe("reservations: the book may be read, not written", () => {
+    function stubReservationGroup() {
+      mocks.anyFindUnique.mockResolvedValue({
+        id: 6,
+        propertyId: PROPERTY_ID,
+        ownerId: OWNER_ID,
+        reference: "GRP-READONLY",
+        name: "Kilimanjaro Tour",
+        notes: null,
+        status: "CHECKED_IN",
+        createdAt: new Date("2026-10-01T00:00:00.000Z"),
+        updatedAt: new Date("2026-10-02T00:00:00.000Z"),
+        block: null,
+        reservations: [],
+        _count: { reservations: 0 },
+      });
+    }
+
     it("admits reading the reservation book and the group list", async () => {
       expectAllowed((await request(app).get(`/api/owner/nrms/reservations/property/${PROPERTY_ID}`)).status);
       expectAllowed((await request(app).get(`/api/owner/nrms/reservations/property/${PROPERTY_ID}/groups`)).status);
@@ -232,6 +249,29 @@ describe("Sales Executive access to the owner NRMS routers", () => {
       const response = await request(app).get("/api/owner/nrms/reservations/17");
       expectAllowed(response.status);
       expect(response.body.reservation).toMatchObject({ id: 17, status: "CONFIRMED", payments: [], charges: [], outletOrders: [], events: [] });
+    });
+
+    it("admits group detail but refuses every operational group action", async () => {
+      stubReservationGroup();
+      const detail = await request(app).get("/api/owner/nrms/reservations/groups/6");
+      expectAllowed(detail.status);
+      expect(detail.body).toMatchObject({ group: { id: 6, name: "Kilimanjaro Tour" }, accessRole: "SALES_EXECUTIVE" });
+
+      for (const response of [
+        await request(app).patch("/api/owner/nrms/reservations/groups/6").send({ name: "Changed group" }),
+        await request(app).post("/api/owner/nrms/reservations/groups/6/members").send({ reservationIds: [17] }),
+        await request(app).delete("/api/owner/nrms/reservations/groups/6/members/17"),
+        await request(app).delete("/api/owner/nrms/reservations/groups/6"),
+        await request(app).post("/api/owner/nrms/reservations/groups/6/cancel").send({ reason: "Agency cancelled" }),
+        await request(app).post("/api/owner/nrms/reservations/groups/6/no-show").send({ reason: "Party did not arrive" }),
+        await request(app).post("/api/owner/nrms/reservations/groups/6/preview").send({ action: "CHECK_OUT" }),
+        await request(app).post("/api/owner/nrms/reservations/groups/6/check-in").send({}),
+        await request(app).post("/api/owner/nrms/reservations/groups/6/check-out").send({}),
+        await request(app).get("/api/owner/nrms/reservations/groups/6/rooms"),
+        await request(app).post("/api/owner/nrms/reservations/groups/6/rooms").send({ autoAssignRemaining: true }),
+      ]) {
+        expectRefused(response.status);
+      }
     });
 
     it("refuses creating a reservation on the same path", async () => {

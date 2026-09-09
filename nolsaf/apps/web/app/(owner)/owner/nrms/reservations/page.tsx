@@ -490,7 +490,7 @@ export default function NrmsReservationsPage() {
         </button>}
       </div>
 
-      {selectedIds.length > 0 && (
+      {!isSalesExecutive && selectedIds.length > 0 && (
         <section className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-solid border-emerald-200 bg-emerald-50 px-4 py-3">
           <div className="flex min-w-0 items-center gap-3">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700"><Users className="h-4 w-4" /></span>
@@ -553,7 +553,7 @@ export default function NrmsReservationsPage() {
             <table className="w-full min-w-[1500px] border-collapse text-left text-sm">
               <thead>
                 <tr className="border-b border-neutral-200 bg-neutral-50 text-[11px] font-bold uppercase tracking-[0.1em] text-neutral-500">
-                  <th className="w-11 px-3 py-3 text-center">
+                  {!isSalesExecutive && <th className="w-11 px-3 py-3 text-center">
                     <input
                       type="checkbox"
                       aria-label="Select all ungrouped reservations on this page"
@@ -561,7 +561,7 @@ export default function NrmsReservationsPage() {
                       onChange={(event) => setSelectedIds(event.target.checked ? reservations.filter((reservation) => !reservation.group && reservation.bookingId == null).map((reservation) => reservation.id) : [])}
                       className="h-4 w-4 accent-emerald-700"
                     />
-                  </th>
+                  </th>}
                   <SortableHeader label="Guest" field="guest" sortBy={sortBy} sortOrder={sortOrder} onSort={changeSort} />
                   <SortableHeader label="Phone" field="phone" sortBy={sortBy} sortOrder={sortOrder} onSort={changeSort} />
                   <SortableHeader label="Nationality" field="nationality" sortBy={sortBy} sortOrder={sortOrder} onSort={changeSort} />
@@ -592,7 +592,7 @@ export default function NrmsReservationsPage() {
                   const effectivePaid = reservation.effectivePaid ?? (Number(reservation.amountPaid ?? 0) + (countsTransferSeparately ? Number(reservation.transferredToMaster ?? 0) : 0));
                   return (
                     <tr key={reservation.id} className={`transition-colors ${sourceStyle.row}`}>
-                      <td className="px-3 py-3.5 text-center">
+                      {!isSalesExecutive && <td className="px-3 py-3.5 text-center">
                         <input
                           type="checkbox"
                           aria-label={`Select ${reservation.guestProfile?.fullName ?? "reservation"}`}
@@ -602,7 +602,7 @@ export default function NrmsReservationsPage() {
                           onChange={(event) => setSelectedIds((current) => event.target.checked ? [...current, reservation.id] : current.filter((id) => id !== reservation.id))}
                           className="h-4 w-4 accent-emerald-700 disabled:cursor-not-allowed disabled:opacity-35"
                         />
-                      </td>
+                      </td>}
                       {/* Two lines, never more. A long name and a long agency
                           each used to wrap, dragging every row taller. */}
                       <td className="max-w-[15rem] px-4 py-3.5">

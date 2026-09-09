@@ -39,17 +39,9 @@ import {
   voidRoutedRoom,
 } from "../lib/nrmsMasterFolio.js";
 
-/**
- * Who may read the reservation book, and who may shape a group.
- *
- * A sales executive holds `reservation.read`, `availability.read` and
- * `sales.group.manage`, so both of these are theirs. Neither list reaches a
- * money operation: recording, voiding or refunding against a group master
- * folio is guarded separately in owner.nrms.groupBlocks.ts and stays closed to
- * a role that holds no finance capability.
- */
+/** Reservation groups are operational stays, not commercial group blocks. */
 const RESERVATION_READ_ROLES = ["OWNER", "MANAGER", "FRONT_DESK", "SALES_EXECUTIVE"] as const;
-const GROUP_MANAGE_ROLES = ["OWNER", "MANAGER", "FRONT_DESK", "SALES_EXECUTIVE"] as const;
+const GROUP_OPERATION_ROLES = ["OWNER", "MANAGER", "FRONT_DESK"] as const;
 
 export const router = Router();
 
@@ -863,11 +855,26 @@ function inspectGroupMember(
   return { eligible: blockers.length === 0, blockers, requiredChargeIds };
 }
 
-async function loadAccessibleGroup(req: AuthedRequest, res: Response, groupId: number) {
+async function loadAccessibleGroup(
+  req: AuthedRequest,
+  res: Response,
+  groupId: number,
+  roles: readonly (typeof RESERVATION_READ_ROLES)[number][] = GROUP_OPERATION_ROLES,
+) {
   if (!Number.isInteger(groupId) || groupId <= 0) {
     res.status(400).json({ error: "Invalid reservation group id" });
     return null;
   }
+  const scope = await prisma.nrmsReservationGroup.findUnique({
+    where: { id: groupId },
+    select: { propertyId: true },
+  });
+  if (!scope) {
+    res.status(404).json({ error: "Reservation group not found" });
+    return null;
+  }
+  const access = await loadNrmsPropertyAccess(req, res, scope.propertyId, roles);
+  if (!access) return null;
   const group = await prisma.nrmsReservationGroup.findUnique({
     where: { id: groupId },
     include: groupInclude,
@@ -876,17 +883,13 @@ async function loadAccessibleGroup(req: AuthedRequest, res: Response, groupId: n
     res.status(404).json({ error: "Reservation group not found" });
     return null;
   }
-  // Group management only: creating, amending, cancelling a group and moving
-  // reservations in and out of it. No money operation is reachable from here,
-  // which is why a sales executive can hold it.
-  const access = await loadNrmsPropertyAccess(req, res, group.propertyId, GROUP_MANAGE_ROLES);
-  return access ? { group, access } : null;
+  return { group, access };
 }
 
 /** List operational reservation groups for one property. */
 router.get("/property/:propertyId/groups", (async (req: AuthedRequest, res: Response) => {
   try {
-    const access = await loadNrmsPropertyAccess(req, res, Number(req.params.propertyId), GROUP_MANAGE_ROLES);
+    const access = await loadNrmsPropertyAccess(req, res, Number(req.params.propertyId), RESERVATION_READ_ROLES);
     if (!access) return;
     const groups = await prisma.nrmsReservationGroup.findMany({
       where: { propertyId: access.property.id, ownerId: access.ownerId },
@@ -958,7 +961,7 @@ router.post("/property/:propertyId/groups", (async (req: AuthedRequest, res: Res
 
 router.get("/groups/:groupId", (async (req: AuthedRequest, res: Response) => {
   try {
-    const loaded = await loadAccessibleGroup(req, res, Number(req.params.groupId));
+    const loaded = await loadAccessibleGroup(req, res, Number(req.params.groupId), RESERVATION_READ_ROLES);
     if (!loaded) return;
     res.json({ group: formatGroup(loaded.group), accessRole: loaded.access.role });
   } catch (err) {
