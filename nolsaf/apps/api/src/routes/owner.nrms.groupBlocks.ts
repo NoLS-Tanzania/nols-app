@@ -17,6 +17,7 @@ import { Router, type RequestHandler, type Response } from "express";
 import { z } from "zod";
 import { typedPrisma as prisma } from "@nolsaf/prisma";
 import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
+import { NRMS_BILLING_BLOCKING_STATUSES, nrmsBillingBlockPayload } from "../lib/nrms.js";
 import { sanitizeText } from "../lib/sanitize.js";
 import { encrypt } from "../lib/crypto.js";
 import { generateNrmsRandomCode } from "../lib/pdfDocuments.js";
@@ -504,6 +505,9 @@ router.post("/property/:propertyId/blocks", (async (req: AuthedRequest, res: Res
     if (!parsed.success) return res.status(400).json({ error: "Invalid group block", details: parsed.error.flatten() });
     const access = await loadGroupManageAccess(req, res, Number(req.params.propertyId));
     if (!access) return;
+    if ((NRMS_BILLING_BLOCKING_STATUSES as readonly string[]).includes(String(access.account.status ?? "").toUpperCase())) {
+      return res.status(402).json(await nrmsBillingBlockPayload(access.account, "GROUP_BLOCK"));
+    }
     // The property's owner, who the row belongs to, and the person doing the
     // work, who it is credited to. They were the same value while only owners
     // could reach this handler; conflating them now would file a sales

@@ -9,6 +9,7 @@ import DatePickerField from "@/components/DatePickerField";
 import { AlertTriangle, ArrowLeftRight, BedDouble, Building2, CalendarClock, Check, CircleDollarSign, Download, Eye, EyeOff, FileText, Landmark, Link2, Loader2, LockKeyhole, Mail, Plus, ReceiptText, Send, ShieldCheck, Trash2, UserPlus, UserRound, X } from "lucide-react";
 import ModalFrame from "./NrmsModalFrame";
 import NrmsRoomingListModal from "./NrmsRoomingListModal";
+import NrmsBillingBlockModal, { type NrmsBillingBlock } from "./NrmsBillingBlockModal";
 
 export type GroupBlockRoom = {
   id: number;
@@ -358,6 +359,7 @@ export function CreateGroupBlockModal({
   const [smallGroupApprovalReason, setSmallGroupApprovalReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [billingBlock, setBillingBlock] = useState<NrmsBillingBlock | null>(null);
 
   useEffect(() => {
     apiClient
@@ -448,7 +450,10 @@ export function CreateGroupBlockModal({
       await onSaved();
     } catch (e: any) {
       const data = e?.response?.data;
-      if (data?.code === "ROOM_TYPE_CAPACITY_CONFLICT" && data.conflict) {
+      if (e?.response?.status === 402 && data?.billing) {
+        setBillingBlock(data.billing as NrmsBillingBlock);
+        setError(null);
+      } else if (data?.code === "ROOM_TYPE_CAPACITY_CONFLICT" && data.conflict) {
         setError(`Only ${data.conflict.available} of that room type are free for these dates, and ${data.conflict.requested} were requested.`);
       } else {
         setError(data?.error || "Failed to create the group block");
@@ -458,6 +463,7 @@ export function CreateGroupBlockModal({
   };
 
   return (
+    <>
     <ModalFrame title="New group block" subtitle="Hold rooms for a party before the names are known" onClose={onClose} extraWide>
       <div className="space-y-5">
         <div className="rounded-xl border border-solid border-emerald-200 bg-emerald-50 p-4">
@@ -723,6 +729,8 @@ export function CreateGroupBlockModal({
         </div>
       </div>
     </ModalFrame>
+    {billingBlock && <NrmsBillingBlockModal block={billingBlock} title="Group hold paused" subtitle="No rooms were held" reassurance="Existing group blocks, reservations, check-ins, checkouts and daily hotel operations continue normally. Only this new room hold is paused." onClose={() => setBillingBlock(null)} />}
+    </>
   );
 }
 

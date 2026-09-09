@@ -285,6 +285,37 @@ describe("Sales Executive access to the owner NRMS routers", () => {
       expectAllowed((await request(app).post("/api/owner/nrms/group-blocks/blocks/5/cancel")).status);
     });
 
+    it("checks NRMS billing before committing a new group hold", async () => {
+      mocks.accountFindUnique.mockResolvedValue({
+        id: 44,
+        status: "PAYMENT_REQUIRED",
+        unpaidBalance: 129_000,
+        unpaidLimit: 50_000,
+        policyId: null,
+        maxAgents: 5,
+        maxStaff: 100,
+        maxOutlets: 50,
+        maxRooms: 500,
+        trialEndsAt: new Date("2030-01-01T00:00:00.000Z"),
+      });
+
+      const response = await request(app)
+        .post(`/api/owner/nrms/group-blocks/property/${PROPERTY_ID}/blocks`)
+        .send(standardBlock);
+
+      expect(response.status).toBe(402);
+      expect(response.body).toMatchObject({
+        code: "NRMS_PAYMENT_REQUIRED",
+        billing: {
+          status: "PAYMENT_REQUIRED",
+          action: "PAY",
+          outstanding: 129_000,
+          limit: 50_000,
+          currency: "TZS",
+        },
+      });
+    });
+
     it("refuses approving a party below the group minimum", async () => {
       // The small group exception is the owner's own policy waiver. If sales
       // could write the reason themselves, the minimum would not be a policy.

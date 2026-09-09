@@ -10,26 +10,27 @@ const mocks = vi.hoisted(() => {
   const agentFindUnique = vi.fn();
   const agentFindMany = vi.fn();
   const agentLinkFindMany = vi.fn();
+  const agentLinkFindUnique = vi.fn();
   const linkCount = vi.fn();
   const requestCount = vi.fn();
   const tx = { ownerPaygAccount: { findUnique: accountFindUnique }, nrmsAgentPropertyLink: { findUnique: vi.fn() } };
   const prisma = {
     $transaction: transaction,
     nrmsAgentBookingRequest: { findUnique: requestFindUnique, count: requestCount },
-    nrmsAgentPropertyLink: { count: linkCount, findMany: agentLinkFindMany },
+    nrmsAgentPropertyLink: { count: linkCount, findMany: agentLinkFindMany, findUnique: agentLinkFindUnique },
     property: { findUnique: propertyFindUnique },
     nrmsAgentAccount: { findUnique: agentFindUnique, findMany: agentFindMany },
   };
   return {
-    transaction, requestFindUnique, propertyFindUnique, accountFindUnique, agentFindUnique, agentFindMany, agentLinkFindMany, linkCount, requestCount, tx, prisma,
+    transaction, requestFindUnique, propertyFindUnique, accountFindUnique, agentFindUnique, agentFindMany, agentLinkFindMany, agentLinkFindUnique, linkCount, requestCount, tx, prisma,
     loadOwnedActiveNrmsProperty: vi.fn(), loadNrmsPropertyAccess: vi.fn(), authorizeApproval: vi.fn(), approveHold: vi.fn(), lockSeats: vi.fn(),
-    countSeats: vi.fn(), inviteInTransaction: vi.fn(), attach: vi.fn(), auditOrThrow: vi.fn(), notifyUser: vi.fn(), sendMail: vi.fn(),
+    countSeats: vi.fn(), inviteInTransaction: vi.fn(), attach: vi.fn(), setAgentLinkStatus: vi.fn(), nrmsBillingBlockPayload: vi.fn(), auditOrThrow: vi.fn(), notifyUser: vi.fn(), sendMail: vi.fn(),
   };
 });
 
 vi.mock("@nolsaf/prisma", () => ({ typedPrisma: mocks.prisma, prisma: mocks.prisma }));
 vi.mock("../middleware/auth.js", () => ({ requireAuth: (req: any, _res: unknown, next: () => void) => { req.user = { id: 41, role: "OWNER" }; next(); } }));
-vi.mock("../lib/nrms.js", () => ({ loadOwnedActiveNrmsProperty: mocks.loadOwnedActiveNrmsProperty }));
+vi.mock("../lib/nrms.js", () => ({ loadOwnedActiveNrmsProperty: mocks.loadOwnedActiveNrmsProperty, nrmsBillingBlockPayload: mocks.nrmsBillingBlockPayload }));
 vi.mock("../lib/nrmsPropertyAccess.js", () => ({ loadNrmsPropertyAccess: mocks.loadNrmsPropertyAccess }));
 vi.mock("../lib/audit.js", () => ({ audit: vi.fn(), auditOrThrow: mocks.auditOrThrow }));
 vi.mock("../lib/nrmsAgentIdentity.js", () => ({ findAgencyMatches: vi.fn() }));
@@ -49,7 +50,7 @@ vi.mock("../lib/nrmsAgentLinks.js", () => ({
   authorizeHeldAgentBookingApproval: mocks.authorizeApproval,
   countAgentSeats: mocks.countSeats,
   lockAgentSeatAllocation: mocks.lockSeats,
-  setAgentLinkStatus: vi.fn(),
+  setAgentLinkStatus: mocks.setAgentLinkStatus,
   setAgentRateAccess: vi.fn(),
   updateAgentLinkTerms: vi.fn(),
 }));
@@ -75,21 +76,47 @@ describe("NRMS agent route hardening", () => {
     mocks.requestCount.mockResolvedValue(0);
     mocks.agentFindMany.mockResolvedValue([]);
     mocks.agentLinkFindMany.mockResolvedValue([]);
+    mocks.agentLinkFindUnique.mockResolvedValue(null);
   });
 
-  it("keeps partnership activation available while room-night billing is unpaid", async () => {
+  it("reports that activation requires the unpaid NRMS balance to be settled", async () => {
     mocks.loadNrmsPropertyAccess.mockResolvedValue({ property: { id: 9, title: "Hotel" }, account: { maxAgents: 5, status: "PAYMENT_REQUIRED" } });
 
     const response = await request(app).get("/api/owner/nrms/agents/property/9");
 
     expect(response.status).toBe(200);
     expect(response.body.activationEligibility).toEqual({
-      eligible: true,
+      eligible: false,
       status: "PAYMENT_REQUIRED",
-      code: null,
-      message: null,
-      action: null,
+      code: "PROPERTY_BILLING_BLOCKED",
+      message: "Settle the NRMS balance before activating a new agent partnership.",
+      action: "PAY",
     });
+  });
+
+  it("returns the NRMS payment card payload when Activate finds unpaid billing", async () => {
+    const account = { status: "PAYMENT_REQUIRED", unpaidBalance: 129_000, unpaidLimit: 50_000, policyId: 3 };
+    const payload = {
+      error: "Settle the NRMS balance before activating this agent",
+      code: "NRMS_PAYMENT_REQUIRED",
+      billing: { status: "PAYMENT_REQUIRED", title: "Settle the NRMS balance to activate this agent", detail: "Balance due", action: "PAY", outstanding: 129_000, limit: 50_000, currency: "TZS" },
+    };
+    mocks.agentLinkFindUnique.mockResolvedValue({
+      id: 88,
+      propertyId: 9,
+      status: "AGENT_ACCEPTED",
+      property: { title: "Hotel", ownerId: 41 },
+      agentAccount: { legalName: "Kili Travel", primaryUserId: 55 },
+    });
+    mocks.setAgentLinkStatus.mockResolvedValue({ ok: false, reason: "PROPERTY_BILLING_BLOCKED", message: "Billing blocked", billingAccount: account });
+    mocks.nrmsBillingBlockPayload.mockResolvedValue(payload);
+
+    const response = await request(app).post("/api/owner/nrms/agents/88/approve").send({});
+
+    expect(response.status).toBe(402);
+    expect(response.body).toEqual(payload);
+    expect(mocks.nrmsBillingBlockPayload).toHaveBeenCalledWith(account, "AGENT_ACTIVATION");
+    expect(mocks.notifyUser).not.toHaveBeenCalled();
   });
 
   it("creates the user, agency and property link inside one seat-locked transaction", async () => {

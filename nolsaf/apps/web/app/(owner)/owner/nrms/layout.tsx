@@ -61,6 +61,8 @@ import NrmsFrozenNotice from "./_components/NrmsFrozenNotice";
 import NrmsPropertyGate from "./_components/NrmsPropertyGate";
 import FiscalAlertBanner from "./_components/FiscalAlertBanner";
 import NrmsOperationalFooter from "./_components/NrmsOperationalFooter";
+import NrmsBillingAttention from "./_components/NrmsBillingAttention";
+import ModalFrame from "./_components/NrmsModalFrame";
 
 const PRIMARY_TABS = [
   { href: "/owner/nrms", label: "Front desk", icon: DoorOpen, exact: true },
@@ -385,7 +387,7 @@ function PropertyActivationGate() {
 }
 
 function NrmsShell({ children }: { children: ReactNode }) {
-  const { loading, error, entitled, restriction, properties, selectedPropertyId, selectedProperty, setSelectedPropertyId, refresh } = useNrms();
+  const { loading, error, entitled, restriction, properties, selectedPropertyId, selectedProperty, usagePolicy, setSelectedPropertyId, refresh } = useNrms();
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -398,6 +400,7 @@ function NrmsShell({ children }: { children: ReactNode }) {
   const [financeOpen, setFinanceOpen] = useState(() => pathname.startsWith("/owner/nrms/finance"));
   const [outletsOpen, setOutletsOpen] = useState(() => pathname.startsWith("/owner/nrms/outlets"));
   const [ordersOpen, setOrdersOpen] = useState(() => pathname.startsWith("/owner/nrms/orders"));
+  const [pendingWorkspaceChange, setPendingWorkspaceChange] = useState<{ kind: "PROPERTY"; propertyId: number; propertyTitle: string } | { kind: "EXIT" } | null>(null);
   const [sidebarOutlets, setSidebarOutlets] = useState<Array<{ id: number; name: string; type: string }>>([]);
   const [booting, setBooting] = useState(true);
   const [globalFreeze, setGlobalFreeze] = useState<{ referenceCode?: string | null; reason?: string | null } | null>(null);
@@ -441,6 +444,7 @@ function NrmsShell({ children }: { children: ReactNode }) {
     ? searchParams?.get("previewRole")?.toUpperCase() ?? null
     : null;
   const accessRole = previewRole ?? realAccessRole;
+  const showPropertySelector = !paymentsHome && accessRole === "OWNER" && properties.length > 1;
   // Capabilities stay the real account's: faking them would make the sidebar
   // claim an authority the server would refuse, which is the opposite of useful.
   const accessCapabilities = previewRole ? undefined : selectedProperty?.effectiveAccess?.capabilities;
@@ -830,9 +834,9 @@ function NrmsShell({ children }: { children: ReactNode }) {
       </nav>
 
       <div className="border-t border-white/10 bg-black/5 p-2.5">
-        <Link href={exitHref} title={collapsed ? "Exit NRMS" : undefined} className={`flex min-h-9 items-center rounded-lg border border-amber-200/10 bg-amber-100/[0.04] text-[12px] font-semibold text-amber-100 no-underline transition hover:border-amber-200/20 hover:bg-amber-300/10 hover:text-amber-50 hover:no-underline ${collapsed ? "justify-center" : "gap-2.5 px-2.5"}`}>
+        <button type="button" onClick={() => setPendingWorkspaceChange({ kind: "EXIT" })} title={collapsed ? "Exit NRMS" : undefined} className={`flex min-h-9 w-full items-center rounded-lg border border-amber-200/10 bg-amber-100/[0.04] text-[12px] font-semibold text-amber-100 transition hover:border-amber-200/20 hover:bg-amber-300/10 hover:text-amber-50 ${collapsed ? "justify-center" : "gap-2.5 px-2.5"}`}>
           <LogOut className="h-3.5 w-3.5 shrink-0" />{!collapsed && (accessRole === "OWNER" ? "Exit to marketplace" : "Exit NRMS")}
-        </Link>
+        </button>
         <button type="button" onClick={toggleCollapsed} className={`mt-1.5 hidden min-h-8 w-full appearance-none items-center rounded-lg border border-white/[0.06] bg-white/[0.05] text-[11px] font-semibold text-emerald-100/60 hover:bg-white/10 hover:text-white lg:flex ${collapsed ? "justify-center" : "justify-between px-2.5"}`} aria-label={collapsed ? "Expand NRMS sidebar" : "Collapse NRMS sidebar"}>
           {!collapsed && "Collapse sidebar"}{collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
         </button>
@@ -867,25 +871,25 @@ function NrmsShell({ children }: { children: ReactNode }) {
                 scoped to the property behind their assignment and must never be
                 offered a way to change or see another one, so they get a static
                 label, not a select. The API enforces this too; this is the UI half. */}
-            {paymentsHome ? null : accessRole === "OWNER" && properties.length > 1 ? (
-              <label className="hidden min-w-0 items-center gap-2 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 sm:flex">
+            {showPropertySelector ? (
+              <label className="group relative hidden h-10 min-w-0 items-center gap-2 rounded-xl border border-neutral-200 bg-neutral-50 px-2.5 text-neutral-600 transition hover:border-neutral-300 hover:bg-white hover:text-neutral-900 sm:flex">
                 <Building2 className="h-4 w-4 shrink-0 text-emerald-700" />
-                <select
-                  value={selectedPropertyId ?? ""}
-                  onChange={(event) => {
-                    const propertyId = Number(event.target.value);
-                    setSelectedPropertyId(propertyId);
-                    if (pathname === "/owner/nrms/payments" && searchParams.has("property")) {
-                      router.replace(`/owner/nrms/payments?property=${propertyId}`);
-                    }
-                  }}
-                  className="max-w-52 border-0 bg-transparent p-0 text-xs font-bold text-neutral-800 outline-none"
-                  aria-label="Select NRMS property"
-                >
-                  {properties.map((property) => <option key={property.id} value={property.id}>{property.title}</option>)}
-                </select>
+                  <select
+                    value=""
+                    onChange={(event) => {
+                      const propertyId = Number(event.target.value);
+                      const property = properties.find((candidate) => candidate.id === propertyId);
+                      if (property && property.id !== selectedPropertyId) setPendingWorkspaceChange({ kind: "PROPERTY", propertyId: property.id, propertyTitle: property.title });
+                    }}
+                    className="block max-w-40 cursor-pointer border-0 bg-transparent p-0 text-xs font-medium text-current outline-none"
+                    aria-label="Select NRMS property"
+                  >
+                    <option value="">Switch property</option>
+                    {properties.filter((property) => property.id !== selectedPropertyId).map((property) => <option key={property.id} value={property.id}>{property.title}</option>)}
+                  </select>
               </label>
             ) : null}
+            {!paymentsHome && accessRole === "OWNER" && <NrmsBillingAttention property={selectedProperty} policy={usagePolicy} variant="indicator" />}
             {/* Nothing stands here for a single property or for staff. The
                 switcher above earns its space because it does something; a
                 static chip would only print the property name a second time,
@@ -895,9 +899,9 @@ function NrmsShell({ children }: { children: ReactNode }) {
                 "SALES EXECUTIVE" beside "Sales workspace" says the same thing
                 twice. The owner keeps no badge either: the sidebar's exit to
                 the marketplace already tells them whose account this is. */}
-            <Link href={exitHref} className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 text-xs font-bold text-neutral-600 no-underline hover:bg-neutral-50 hover:text-neutral-900 hover:no-underline">
-              <LogOut className="h-4 w-4" /><span className="hidden sm:inline">{accessRole === "OWNER" ? "Marketplace" : "Exit NRMS"}</span>
-            </Link>
+            <button type="button" onClick={() => setPendingWorkspaceChange({ kind: "EXIT" })} title={accessRole === "OWNER" ? "Return to Marketplace" : "Exit NRMS"} aria-label={accessRole === "OWNER" ? "Return to Marketplace" : "Exit NRMS"} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-white text-neutral-500 transition hover:bg-neutral-50 hover:text-neutral-900">
+              <LogOut className="h-4 w-4" />
+            </button>
           </div>
 
           <nav className="overflow-x-auto border-t border-neutral-100 px-3 sm:px-5" aria-label="Primary NRMS operations">
@@ -932,7 +936,7 @@ function NrmsShell({ children }: { children: ReactNode }) {
             </div>
           ) : null}
           <NrmsAccessRoleProvider value={accessRoleValue}>
-            {showPropertyGate ? null : propertyNeedsActivation ? <PropertyActivationGate /> : children}
+            {showPropertyGate ? null : propertyNeedsActivation ? <PropertyActivationGate /> : <>{accessRole === "OWNER" && pathname === "/owner/nrms" && <NrmsBillingAttention property={selectedProperty} policy={usagePolicy} variant="dashboard" />}{children}</>}
           </NrmsAccessRoleProvider>
         </main>
         <NrmsOperationalFooter />
@@ -942,6 +946,46 @@ function NrmsShell({ children }: { children: ReactNode }) {
         <div className="fixed inset-0 z-[9000] flex items-center justify-center bg-neutral-950/45 p-4 backdrop-blur-sm">
           <NrmsPropertyGate loading={loading} onRefresh={() => void refresh()} />
         </div>
+      )}
+
+      {pendingWorkspaceChange && (
+        <ModalFrame
+          title={pendingWorkspaceChange.kind === "PROPERTY" ? "Switch property" : accessRole === "OWNER" ? "Leave NRMS" : "Exit NRMS"}
+          elevated
+          compact
+          compactFooter
+          small
+          onClose={() => setPendingWorkspaceChange(null)}
+          footer={
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button type="button" onClick={() => setPendingWorkspaceChange(null)} className="inline-flex h-8 items-center justify-center rounded-lg border border-neutral-200 bg-white px-3 text-[11px] font-medium text-neutral-600 transition hover:bg-neutral-50 hover:text-neutral-900">Cancel</button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (pendingWorkspaceChange.kind === "PROPERTY") {
+                    setSelectedPropertyId(pendingWorkspaceChange.propertyId);
+                    if (pathname === "/owner/nrms/payments" && searchParams.has("property")) router.replace(`/owner/nrms/payments?property=${pendingWorkspaceChange.propertyId}`);
+                    setPendingWorkspaceChange(null);
+                    return;
+                  }
+                  router.push(exitHref);
+                }}
+                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg bg-emerald-700 px-3 text-[11px] font-semibold text-white shadow-sm transition hover:bg-emerald-800"
+              >
+                {pendingWorkspaceChange.kind === "PROPERTY" ? "Switch" : accessRole === "OWNER" ? "Marketplace" : "Exit"}
+                <ChevronRight className="h-3 w-3" />
+              </button>
+            </div>
+          }
+        >
+          <p className="m-0 px-1 text-xs leading-5 text-neutral-600">
+            {pendingWorkspaceChange.kind === "PROPERTY"
+              ? <>Open <span className="font-medium text-neutral-900">{pendingWorkspaceChange.propertyTitle}</span>? Unsaved work in {selectedProperty?.title ?? "this property"} will be lost.</>
+              : accessRole === "OWNER"
+                ? <>Return to Marketplace? Unsaved work in {selectedProperty?.title ?? "this property"} will be lost.</>
+                : <>Exit NRMS? Any unsaved work will be lost.</>}
+          </p>
+        </ModalFrame>
       )}
     </div>
   );

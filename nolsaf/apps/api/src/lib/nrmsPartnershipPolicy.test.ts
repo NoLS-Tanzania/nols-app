@@ -31,10 +31,10 @@ describe("bilateral partnership policy", () => {
     expect(canBookPartnership({ ...healthy, paygStatus: "FROZEN" })).toMatchObject({ ok: false, reason: "PROPERTY_BILLING_BLOCKED" });
   });
 
-  it("allows partnership activation while unpaid billing still pauses new stays", () => {
+  it("blocks activation and new stays while property billing is unpaid", () => {
     for (const paygStatus of ["PAYMENT_REQUIRED", "PAYMENT_PENDING"]) {
       const input = { ...healthy, linkStatus: "AGENT_ACCEPTED", paygStatus };
-      expect(canActivatePartnership(input)).toEqual({ ok: true });
+      expect(canActivatePartnership(input)).toMatchObject({ ok: false, reason: "PROPERTY_BILLING_BLOCKED" });
       expect(canBookPartnership({ ...input, linkStatus: "ACTIVE" })).toMatchObject({ ok: false, reason: "PROPERTY_BILLING_BLOCKED" });
     }
     expect(canActivatePartnership({ ...healthy, linkStatus: "AGENT_ACCEPTED", paygStatus: "FROZEN" })).toMatchObject({ ok: false, reason: "PROPERTY_BILLING_BLOCKED" });

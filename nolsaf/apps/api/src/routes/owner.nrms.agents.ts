@@ -18,7 +18,7 @@ import { Router, type RequestHandler, type Response } from "express";
 import { z } from "zod";
 import { typedPrisma as prisma } from "@nolsaf/prisma";
 import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
-import { loadOwnedActiveNrmsProperty } from "../lib/nrms.js";
+import { loadOwnedActiveNrmsProperty, nrmsBillingBlockPayload } from "../lib/nrms.js";
 import { loadNrmsPropertyAccess } from "../lib/nrmsPropertyAccess.js";
 import { audit, auditOrThrow } from "../lib/audit.js";
 import { adjustRate, money } from "../lib/nrmsRateMath.js";
@@ -198,8 +198,14 @@ function linkDto(link: any) {
 
 function propertyAgentActivationEligibility(account: any) {
   const status = String(account?.status ?? "").trim().toUpperCase();
-  if (status && !["FROZEN", "CLOSED"].includes(status)) {
+  if (status && !["FROZEN", "PAYMENT_REQUIRED", "PAYMENT_PENDING", "CLOSED"].includes(status)) {
     return { eligible: true, status, code: null, message: null, action: null };
+  }
+  if (status === "PAYMENT_REQUIRED") {
+    return { eligible: false, status, code: "PROPERTY_BILLING_BLOCKED", message: "Settle the NRMS balance before activating a new agent partnership.", action: "PAY" };
+  }
+  if (status === "PAYMENT_PENDING") {
+    return { eligible: false, status, code: "PROPERTY_BILLING_BLOCKED", message: "An NRMS payment is being confirmed. Agent activation will reopen after it clears.", action: "STATUS" };
   }
   if (status === "FROZEN") {
     return { eligible: false, status, code: "PROPERTY_BILLING_BLOCKED", message: "This property's NRMS account is frozen. Contact NoLSAF to restore agent activation.", action: "SUPPORT" };
@@ -1355,6 +1361,10 @@ function decisionHandler(status: "ACTIVE" | "REJECTED" | "SUSPENDED" | "TERMINAT
         return transitioned;
       });
       if (!result.ok) {
+        const billingStatus = String(result.billingAccount?.status ?? "").toUpperCase();
+        if (result.reason === "PROPERTY_BILLING_BLOCKED" && ["PAYMENT_REQUIRED", "PAYMENT_PENDING", "CLOSED"].includes(billingStatus)) {
+          return res.status(402).json(await nrmsBillingBlockPayload(result.billingAccount, "AGENT_ACTIVATION"));
+        }
         const code = result.reason === "NOT_FOUND" ? 404 : 409;
         return res.status(code).json({ error: result.message, code: result.reason });
       }

@@ -77,11 +77,8 @@ export function canActivatePartnership(input: PartnershipPolicyInput): Partnersh
   const operational = evaluateIdentityAndProperty(input);
   if (!operational.ok) return operational;
 
-  // An unpaid balance pauses new stays, not the owner's relationship with an
-  // approved travel agent. Administrative freezes and closed accounts remain
-  // blocked until NoLSAF restores the property account.
-  if (!upper(input.paygStatus) || ["FROZEN", "CLOSED"].includes(upper(input.paygStatus))) {
-    return { ok: false, reason: "PROPERTY_BILLING_BLOCKED", message: "The property's NRMS account is not currently eligible." };
+  if (!upper(input.paygStatus) || ["FROZEN", "PAYMENT_REQUIRED", "PAYMENT_PENDING", "CLOSED"].includes(upper(input.paygStatus))) {
+    return { ok: false, reason: "PROPERTY_BILLING_BLOCKED", message: "The property's NRMS billing account is not currently eligible." };
   }
   return { ok: true };
 }

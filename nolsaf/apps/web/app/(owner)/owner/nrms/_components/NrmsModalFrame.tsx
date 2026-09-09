@@ -19,6 +19,7 @@ export default function ModalFrame({
   closeOnEscape = true,
   compact = false,
   compactFooter = false,
+  small = false,
 }: {
   title: string;
   subtitle?: string;
@@ -32,6 +33,7 @@ export default function ModalFrame({
   closeOnEscape?: boolean;
   compact?: boolean;
   compactFooter?: boolean;
+  small?: boolean;
 }) {
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -56,7 +58,7 @@ export default function ModalFrame({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`relative flex w-full min-w-0 flex-col rounded-2xl border border-white/70 bg-white shadow-2xl ${compact ? "max-w-2xl overflow-hidden" : `max-h-[calc(100dvh-1.5rem)] overflow-hidden sm:max-h-[calc(100dvh-3rem)] ${extraWide ? "max-w-[980px]" : wide ? "max-w-2xl" : "max-w-md"}`}`}
+        className={`relative flex w-full min-w-0 flex-col rounded-2xl border border-white/70 bg-white shadow-2xl ${compact ? `${small ? "max-w-sm" : "max-w-2xl"} overflow-hidden` : `max-h-[calc(100dvh-1.5rem)] overflow-hidden sm:max-h-[calc(100dvh-3rem)] ${extraWide ? "max-w-[980px]" : wide ? "max-w-2xl" : small ? "max-w-sm" : "max-w-md"}`}`}
       >
         <div className={`flex shrink-0 items-center justify-between gap-3 border-b border-neutral-100 ${compact ? "px-4 py-2.5" : "px-5 py-4 sm:px-6"}`}>
           {compact ? (
