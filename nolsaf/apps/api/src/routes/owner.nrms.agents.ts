@@ -156,6 +156,19 @@ function agencyDetail(account: any, shareContact: boolean) {
   };
 }
 
+/** Safe pre-partnership directory card. Commercial identifiers and private
+ * contacts are intentionally absent until the agency accepts the invitation. */
+function agencyDirectorySummary(account: any) {
+  const docs = Array.isArray(account.documents) ? account.documents : [];
+  return {
+    ...agencySummary(account),
+    nationality: account.nationality,
+    countryCode: account.countryCode,
+    documentCount: docs.length,
+    verifiedAt: account.verifiedAt,
+  };
+}
+
 function linkDto(link: any) {
   return {
     id: link.id,
@@ -400,7 +413,7 @@ router.post("/property/:propertyId/lookup", (async (req: AuthedRequest, res: Res
       orderBy: [{ legalName: "asc" }, { id: "asc" }],
       take: 30,
     });
-    res.json({ matches: matches.map((match) => ({ ...agencyDetail(match, false), matchedOn: q ? ["search"] : ["approved directory"] })) });
+    res.json({ matches: matches.map((match) => ({ ...agencyDirectorySummary(match), matchedOn: q ? ["search"] : ["approved directory"] })) });
   } catch (err) {
     console.error("[owner.nrms.agents] lookup failed", err);
     res.status(500).json({ error: "Agency lookup failed" });

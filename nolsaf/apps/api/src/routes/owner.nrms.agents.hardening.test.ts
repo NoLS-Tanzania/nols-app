@@ -131,6 +131,10 @@ describe("NRMS agent route hardening", () => {
       verificationStatus: "VERIFIED",
       documentCount: 1,
     });
+    expect(response.body.matches[0]).not.toHaveProperty("registrationNo");
+    expect(response.body.matches[0]).not.toHaveProperty("tin");
+    expect(response.body.matches[0]).not.toHaveProperty("licenseNo");
+    expect(response.body.matches[0]).not.toHaveProperty("contactEmail");
     expect(mocks.agentFindMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ status: "ACTIVE", verificationStatus: "VERIFIED" }),
       take: 30,

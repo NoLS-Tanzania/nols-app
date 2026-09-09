@@ -25,8 +25,8 @@ type AgentLink = {
   rateAccess: Array<{ ratePlanId: number; roomTypeId: number | null }>;
 };
 type Match = {
-  id: number; reference?: string; legalName: string; tradingName: string | null; registrationNo: string | null; tin: string | null;
-  licenseNo: string | null; nationality: string | null; countryCode: string | null; verificationStatus: string; status: string;
+  id: number; reference?: string; legalName: string; tradingName: string | null;
+  nationality: string | null; countryCode: string | null; verificationStatus: string; status: string;
   documentCount: number; verifiedAt: string | null; activationPending?: boolean; matchedOn: string[];
 };
 
@@ -55,6 +55,12 @@ function initials(name?: string | null): string {
   const words = String(name ?? "").trim().split(/\s+/).filter(Boolean);
   if (words.length === 0) return "?";
   return (words[0]![0]! + (words[1]?.[0] ?? "")).toUpperCase();
+}
+
+function formatShortDate(value?: string | null): string {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
 
 /**
@@ -706,10 +712,10 @@ function AddAgentPanel({ propertyId, onClose, onAdded, onInvited, onError }: { p
 
         {mode === "search" ? (
           <div className="flex flex-col gap-3 p-5">
-            <p className="m-0 text-[13px] leading-5 text-neutral-500">Browse agencies already verified by NoLSAF. Search by agency name, registration number, TIN, or email.</p>
-            <form onSubmit={(event) => { event.preventDefault(); void search(); }} className="flex gap-2">
-              <label className="relative min-w-0 flex-1"><span className="sr-only">Search approved agencies</span><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search approved agencies" className="min-h-11 w-full rounded-xl border border-solid border-neutral-200 bg-neutral-50 py-2 pl-9 pr-3 text-[13px] outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-2 focus:ring-emerald-100" /></label>
-              <button type="submit" disabled={searching} className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-solid border-neutral-900 bg-neutral-900 px-4 text-[13px] font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50">{searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} Search</button>
+            <p className="m-0 text-[13px] leading-5 text-neutral-500">Browse travel agencies already verified by NoLSAF and invite the right partner to your property.</p>
+            <form onSubmit={(event) => { event.preventDefault(); void search(); }} className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+              <label className="relative block min-w-0"><span className="sr-only">Search approved agencies</span><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by agency name or email" className="box-border min-h-11 w-full min-w-0 rounded-xl border border-solid border-neutral-200 bg-neutral-50 py-2 pl-9 pr-3 text-[13px] outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-2 focus:ring-emerald-100" /></label>
+              <button type="submit" disabled={searching} className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-solid border-neutral-900 bg-neutral-900 px-5 text-[13px] font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50">{searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} Search</button>
             </form>
 
             {matches !== null && (
@@ -723,28 +729,26 @@ function AddAgentPanel({ propertyId, onClose, onAdded, onInvited, onError }: { p
               ) : (
                 <div>
                   <div className="mb-2 flex items-center justify-between"><p className="m-0 text-[11px] font-bold uppercase tracking-[0.12em] text-neutral-400">Approved agencies</p><span className="text-[11px] font-semibold text-neutral-400">{matches.length} available</span></div>
-                  <ul className="m-0 flex max-h-[22rem] list-none flex-col gap-2 overflow-y-auto p-0 pr-1">
+                  <ul className="m-0 flex max-h-[24rem] list-none flex-col gap-2 overflow-y-auto p-0 pr-1">
                   {matches.map((m) => (
-                    <li key={m.id} className="rounded-xl border border-solid border-neutral-200 bg-white p-3 transition hover:border-neutral-300 hover:shadow-sm">
-                      <div className="flex items-start gap-3">
-                        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-50 text-[12px] font-bold text-emerald-700">{initials(m.tradingName || m.legalName)}</span>
+                    <li key={m.id} className="min-w-0 overflow-hidden rounded-xl border border-solid border-neutral-200 bg-white transition hover:border-neutral-300 hover:shadow-sm">
+                      <div className="flex min-w-0 flex-col gap-3 p-3.5 sm:flex-row sm:items-center">
+                        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-emerald-50 text-[12px] font-bold text-emerald-700 ring-1 ring-emerald-100">{initials(m.tradingName || m.legalName)}</span>
                         <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2"><p className="m-0 truncate text-[13px] font-bold text-neutral-900">{m.tradingName || m.legalName}</p><span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700"><BadgeCheck className="h-3 w-3" /> Verified</span></div>
+                          <div className="flex min-w-0 flex-wrap items-center gap-2"><p className="m-0 max-w-full truncate text-[14px] font-bold text-neutral-900">{m.tradingName || m.legalName}</p><span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700"><BadgeCheck className="h-3 w-3" /> NoLSAF verified</span></div>
                           {m.tradingName && m.tradingName !== m.legalName ? <p className="m-0 mt-0.5 truncate text-[11px] text-neutral-500">{m.legalName}</p> : null}
-                          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-neutral-500">
+                          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-neutral-500">
                             {m.reference ? <span className="font-mono font-semibold text-neutral-600">{m.reference}</span> : null}
-                            {m.countryCode || m.nationality ? <span>{[m.nationality, m.countryCode].filter(Boolean).join(" · ")}</span> : null}
-                            <span>{m.documentCount} verified document{m.documentCount === 1 ? "" : "s"}</span>
-                          </div>
-                          <div className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-                            <span className="rounded-md bg-neutral-50 px-2 py-1 text-[10px] text-neutral-500">Reg: <b className="text-neutral-700">{m.registrationNo || "—"}</b></span>
-                            <span className="rounded-md bg-neutral-50 px-2 py-1 text-[10px] text-neutral-500">TIN: <b className="text-neutral-700">{m.tin || "—"}</b></span>
-                            <span className="rounded-md bg-neutral-50 px-2 py-1 text-[10px] text-neutral-500">Licence: <b className="text-neutral-700">{m.licenseNo || "—"}</b></span>
+                            {m.countryCode || m.nationality ? <span className="inline-flex items-center gap-1"><Globe className="h-3 w-3" />{[m.nationality, m.countryCode].filter(Boolean).join(" · ")}</span> : null}
                           </div>
                         </div>
-                        <button type="button" onClick={() => void attach(m.id)} disabled={attaching === m.id} className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-lg border border-solid border-emerald-700 bg-emerald-700 px-3 text-[12px] font-semibold text-white transition hover:bg-emerald-800 disabled:opacity-50">
+                        <button type="button" onClick={() => void attach(m.id)} disabled={attaching === m.id} className="inline-flex min-h-10 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-solid border-emerald-700 bg-emerald-700 px-4 text-[12px] font-semibold text-white transition hover:bg-emerald-800 disabled:opacity-50">
                           {attaching === m.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />} Add
                         </button>
+                      </div>
+                      <div className="grid gap-px border-0 border-t border-solid border-neutral-100 bg-neutral-200 sm:grid-cols-2">
+                        <span className="flex items-center gap-2 bg-neutral-50 px-3.5 py-2.5 text-[10px] font-semibold text-neutral-600"><ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />Identity and KYC reviewed</span>
+                        <span className="flex items-center gap-2 bg-neutral-50 px-3.5 py-2.5 text-[10px] font-semibold text-neutral-600"><FileText className="h-3.5 w-3.5 text-neutral-400" />{m.documentCount} document{m.documentCount === 1 ? "" : "s"} verified{formatShortDate(m.verifiedAt) ? ` · ${formatShortDate(m.verifiedAt)}` : ""}</span>
                       </div>
                     </li>
                   ))}
