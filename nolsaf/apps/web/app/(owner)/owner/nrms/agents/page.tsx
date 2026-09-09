@@ -24,7 +24,11 @@ type AgentLink = {
   decidedAt: string | null; decisionReason: string | null; suspensionAuthority?: "HOTEL" | "ADMIN" | null; agency: Agency | null;
   rateAccess: Array<{ ratePlanId: number; roomTypeId: number | null }>;
 };
-type Match = { id: number; legalName: string; tradingName: string | null; registrationNo: string | null; tin: string | null; verificationStatus: string; status: string; matchedOn: string[] };
+type Match = {
+  id: number; reference?: string; legalName: string; tradingName: string | null; registrationNo: string | null; tin: string | null;
+  licenseNo: string | null; nationality: string | null; countryCode: string | null; verificationStatus: string; status: string;
+  documentCount: number; verifiedAt: string | null; activationPending?: boolean; matchedOn: string[];
+};
 
 const LINK_STATUS: Record<string, { cls: string; label: string }> = {
   INVITED: { cls: "bg-amber-50 text-amber-700", label: "Invited" },
@@ -624,7 +628,7 @@ function AgentDetailModal({ linkId, onClose, onEditTerms, onEditRates }: { linkI
 
 function AddAgentPanel({ propertyId, onClose, onAdded, onInvited, onError }: { propertyId: number; onClose: () => void; onAdded: () => void; onInvited: (delivered: boolean) => void; onError: (m: string) => void }) {
   const [mode, setMode] = useState<"search" | "invite">("search");
-  const [q, setQ] = useState({ registrationNo: "", tin: "", contactEmail: "" });
+  const [query, setQuery] = useState("");
   const [matches, setMatches] = useState<Match[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [attaching, setAttaching] = useState<number | null>(null);
@@ -634,10 +638,7 @@ function AddAgentPanel({ propertyId, onClose, onAdded, onInvited, onError }: { p
   const search = async () => {
     setSearching(true); setMatches(null);
     try {
-      const body: any = {};
-      if (q.registrationNo.trim()) body.registrationNo = q.registrationNo.trim();
-      if (q.tin.trim()) body.tin = q.tin.trim();
-      if (q.contactEmail.trim()) body.contactEmail = q.contactEmail.trim();
+      const body = query.trim() ? { q: query.trim() } : {};
       const res = await apiClient.post<any>(`/api/owner/nrms/agents/property/${propertyId}/lookup`, body);
       setMatches(res.data?.matches ?? []);
     } catch (e: any) {
@@ -646,6 +647,19 @@ function AddAgentPanel({ propertyId, onClose, onAdded, onInvited, onError }: { p
       setSearching(false);
     }
   };
+
+  useEffect(() => {
+    let live = true;
+    setSearching(true);
+    void apiClient.post<any>(`/api/owner/nrms/agents/property/${propertyId}/lookup`, {}).then((res) => {
+      if (live) setMatches(res.data?.matches ?? []);
+    }).catch((e: any) => {
+      if (live) onError(e?.response?.data?.error || "Approved agencies could not be loaded");
+    }).finally(() => {
+      if (live) setSearching(false);
+    });
+    return () => { live = false; };
+  }, [propertyId, onError]);
 
   const attach = async (agentAccountId: number) => {
     setAttaching(agentAccountId);
@@ -681,7 +695,7 @@ function AddAgentPanel({ propertyId, onClose, onAdded, onInvited, onError }: { p
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 sm:p-8">
-      <div className="w-full max-w-lg rounded-2xl border border-solid border-neutral-200 bg-white shadow-xl">
+      <div className="w-full max-w-2xl rounded-2xl border border-solid border-neutral-200 bg-white shadow-xl">
         <div className="flex items-center justify-between border-0 border-b border-solid border-neutral-100 px-5 py-3">
           <h2 className="m-0 flex items-center gap-2 text-[15px] font-bold text-neutral-900">
             {mode === "invite" && <button type="button" onClick={() => setMode("search")} aria-label="Back" className="rounded-lg border-0 bg-transparent p-0 text-neutral-400 hover:text-neutral-700"><ArrowLeft className="h-4 w-4" /></button>}
@@ -692,38 +706,51 @@ function AddAgentPanel({ propertyId, onClose, onAdded, onInvited, onError }: { p
 
         {mode === "search" ? (
           <div className="flex flex-col gap-3 p-5">
-            <p className="m-0 text-[13px] text-neutral-500">Search for an agency already registered with NoLSAF by its registration number, TIN, or email, then add it to this property.</p>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-              <input value={q.registrationNo} onChange={(e) => setQ({ ...q, registrationNo: e.target.value })} placeholder="Registration no." className="rounded-lg border border-solid border-neutral-200 px-3 py-2 text-[13px] outline-none focus:border-emerald-400" />
-              <input value={q.tin} onChange={(e) => setQ({ ...q, tin: e.target.value })} placeholder="TIN" className="rounded-lg border border-solid border-neutral-200 px-3 py-2 text-[13px] outline-none focus:border-emerald-400" />
-              <input value={q.contactEmail} onChange={(e) => setQ({ ...q, contactEmail: e.target.value })} placeholder="Email" className="rounded-lg border border-solid border-neutral-200 px-3 py-2 text-[13px] outline-none focus:border-emerald-400" />
-            </div>
-            <button type="button" onClick={() => void search()} disabled={searching || (!q.registrationNo.trim() && !q.tin.trim() && !q.contactEmail.trim())} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-solid border-neutral-800 bg-neutral-800 px-3.5 py-2 text-[13px] font-semibold text-white transition hover:bg-neutral-900 disabled:cursor-not-allowed disabled:bg-neutral-200 disabled:text-neutral-400">
-              {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} Search
-            </button>
+            <p className="m-0 text-[13px] leading-5 text-neutral-500">Browse agencies already verified by NoLSAF. Search by agency name, registration number, TIN, or email.</p>
+            <form onSubmit={(event) => { event.preventDefault(); void search(); }} className="flex gap-2">
+              <label className="relative min-w-0 flex-1"><span className="sr-only">Search approved agencies</span><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search approved agencies" className="min-h-11 w-full rounded-xl border border-solid border-neutral-200 bg-neutral-50 py-2 pl-9 pr-3 text-[13px] outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-2 focus:ring-emerald-100" /></label>
+              <button type="submit" disabled={searching} className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-solid border-neutral-900 bg-neutral-900 px-4 text-[13px] font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50">{searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} Search</button>
+            </form>
 
             {matches !== null && (
               matches.length === 0 ? (
                 <div className="flex flex-col items-start gap-2 rounded-lg border border-solid border-neutral-100 bg-neutral-50 px-3 py-3">
-                  <p className="m-0 text-[13px] text-neutral-600">No matching agency found. If this agency has never worked with NoLSAF, invite them and we will email a link to set up their account.</p>
-                  <button type="button" onClick={() => { setInvite((v) => ({ ...v, registrationNo: q.registrationNo, tin: q.tin, email: q.contactEmail })); setMode("invite"); }} className="inline-flex items-center gap-1.5 rounded-lg border border-solid border-emerald-600 bg-emerald-600 px-3 py-1.5 text-[12px] font-semibold text-white transition hover:bg-emerald-700">
+                  <p className="m-0 text-[13px] text-neutral-600">No approved agency matches this search. You can invite a new agency if it is not registered with NoLSAF.</p>
+                  <button type="button" onClick={() => { if (query.includes("@")) setInvite((value) => ({ ...value, email: query.trim() })); setMode("invite"); }} className="inline-flex items-center gap-1.5 rounded-lg border border-solid border-emerald-600 bg-emerald-600 px-3 py-1.5 text-[12px] font-semibold text-white transition hover:bg-emerald-700">
                     <UserPlus className="h-3.5 w-3.5" /> Invite a new agency
                   </button>
                 </div>
               ) : (
-                <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                <div>
+                  <div className="mb-2 flex items-center justify-between"><p className="m-0 text-[11px] font-bold uppercase tracking-[0.12em] text-neutral-400">Approved agencies</p><span className="text-[11px] font-semibold text-neutral-400">{matches.length} available</span></div>
+                  <ul className="m-0 flex max-h-[22rem] list-none flex-col gap-2 overflow-y-auto p-0 pr-1">
                   {matches.map((m) => (
-                    <li key={m.id} className="flex items-center justify-between gap-3 rounded-lg border border-solid border-neutral-200 px-3 py-2">
-                      <div className="min-w-0">
-                        <p className="m-0 truncate text-[13px] font-semibold text-neutral-900">{m.legalName}</p>
-                        <p className="m-0 text-[11px] text-neutral-500">{(VERIFY[m.verificationStatus]?.label) ?? m.verificationStatus} · matched on {m.matchedOn.join(", ") || "-"}</p>
+                    <li key={m.id} className="rounded-xl border border-solid border-neutral-200 bg-white p-3 transition hover:border-neutral-300 hover:shadow-sm">
+                      <div className="flex items-start gap-3">
+                        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-50 text-[12px] font-bold text-emerald-700">{initials(m.tradingName || m.legalName)}</span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2"><p className="m-0 truncate text-[13px] font-bold text-neutral-900">{m.tradingName || m.legalName}</p><span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700"><BadgeCheck className="h-3 w-3" /> Verified</span></div>
+                          {m.tradingName && m.tradingName !== m.legalName ? <p className="m-0 mt-0.5 truncate text-[11px] text-neutral-500">{m.legalName}</p> : null}
+                          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-neutral-500">
+                            {m.reference ? <span className="font-mono font-semibold text-neutral-600">{m.reference}</span> : null}
+                            {m.countryCode || m.nationality ? <span>{[m.nationality, m.countryCode].filter(Boolean).join(" · ")}</span> : null}
+                            <span>{m.documentCount} verified document{m.documentCount === 1 ? "" : "s"}</span>
+                          </div>
+                          <div className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                            <span className="rounded-md bg-neutral-50 px-2 py-1 text-[10px] text-neutral-500">Reg: <b className="text-neutral-700">{m.registrationNo || "—"}</b></span>
+                            <span className="rounded-md bg-neutral-50 px-2 py-1 text-[10px] text-neutral-500">TIN: <b className="text-neutral-700">{m.tin || "—"}</b></span>
+                            <span className="rounded-md bg-neutral-50 px-2 py-1 text-[10px] text-neutral-500">Licence: <b className="text-neutral-700">{m.licenseNo || "—"}</b></span>
+                          </div>
+                        </div>
+                        <button type="button" onClick={() => void attach(m.id)} disabled={attaching === m.id} className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-lg border border-solid border-emerald-700 bg-emerald-700 px-3 text-[12px] font-semibold text-white transition hover:bg-emerald-800 disabled:opacity-50">
+                          {attaching === m.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />} Add
+                        </button>
                       </div>
-                      <button type="button" onClick={() => void attach(m.id)} disabled={attaching === m.id} className="inline-flex flex-shrink-0 items-center gap-1 rounded-lg border border-solid border-emerald-600 bg-emerald-600 px-2.5 py-1.5 text-[12px] font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50">
-                        {attaching === m.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />} Add
-                      </button>
                     </li>
                   ))}
-                </ul>
+                  </ul>
+                  <p className="m-0 mt-2 text-[10px] leading-4 text-neutral-400">Private contact information becomes available after the agency accepts your invitation.</p>
+                </div>
               )
             )}
 

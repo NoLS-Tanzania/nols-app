@@ -21,7 +21,6 @@ import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
 import { loadOwnedActiveNrmsProperty } from "../lib/nrms.js";
 import { loadNrmsPropertyAccess } from "../lib/nrmsPropertyAccess.js";
 import { audit, auditOrThrow } from "../lib/audit.js";
-import { findAgencyMatches } from "../lib/nrmsAgentIdentity.js";
 import { adjustRate, money } from "../lib/nrmsRateMath.js";
 import { inviteAgentUserInTransaction, signAgentInviteToken } from "../lib/nrmsAgentInvite.js";
 import { approveAgentHold, releaseAgentHold } from "../lib/nrmsAgentInventory.js";
@@ -52,6 +51,7 @@ import {
 } from "../lib/nrmsAgentLinks.js";
 
 const webOrigin = () => String(process.env.WEB_ORIGIN || process.env.NEXT_PUBLIC_APP_URL || "https://nolsaf.com").replace(/\/$/, "");
+export const AGENT_LINK_TX_OPTIONS = { maxWait: 5_000, timeout: 15_000 };
 
 class AgentLinkCreationError extends Error {
   constructor(public readonly result: { reason: string; message: string }) {
@@ -69,6 +69,7 @@ const termsSchema = z.object({
   creditLimit: z.number().min(0).max(1_000_000_000).optional(),
 });
 const lookupSchema = z.object({
+  q: z.string().trim().max(100).optional(),
   registrationNo: z.string().trim().max(80).optional(),
   tin: z.string().trim().max(50).optional(),
   contactEmail: z.string().trim().email().max(200).optional(),
@@ -354,16 +355,52 @@ router.get("/property/:propertyId/rate-plans", (async (req: AuthedRequest, res: 
   }
 }) as RequestHandler);
 
-// Look up an existing agency to claim instead of creating a duplicate.
+// Browse centrally approved agencies or narrow the directory by name,
+// registration number, TIN or email. Private contact details remain hidden
+// until the agency accepts the hotel's invitation.
 router.post("/property/:propertyId/lookup", (async (req: AuthedRequest, res: Response) => {
   try {
     const parsed = lookupSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: "Provide a registration number, TIN or email to search" });
+    if (!parsed.success) return res.status(400).json({ error: "Check the agency search value" });
     const access = await loadNrmsPropertyAccess(req, res, Number(req.params.propertyId), AGENT_RELATIONSHIP_ROLES);
     if (!access) return;
     const active = { property: access.property, account: access.account };
-    const matches = await findAgencyMatches(prisma as any, parsed.data);
-    res.json({ matches: matches.map((match) => ({ ...match, registrationNo: maskedIdentifier(match.registrationNo), tin: maskedIdentifier(match.tin) })) });
+    const q = parsed.data.q?.trim();
+    const exactIdentifiers = [
+      parsed.data.registrationNo ? { registrationNo: parsed.data.registrationNo } : null,
+      parsed.data.tin ? { tin: parsed.data.tin } : null,
+      parsed.data.contactEmail ? { contactEmail: parsed.data.contactEmail } : null,
+    ].filter(Boolean);
+    const where: any = {
+      status: "ACTIVE",
+      verificationStatus: "VERIFIED",
+      propertyLinks: {
+        none: {
+          propertyId: active.property.id,
+          status: { notIn: ["REJECTED", "TERMINATED"] },
+        },
+      },
+      ...(exactIdentifiers.length ? { AND: [{ OR: exactIdentifiers }] } : {}),
+      ...(q ? {
+        AND: [
+          ...(exactIdentifiers.length ? [{ OR: exactIdentifiers }] : []),
+          { OR: [
+            { legalName: { contains: q } },
+            { tradingName: { contains: q } },
+            { registrationNo: { contains: q } },
+            { tin: { contains: q } },
+            { contactEmail: { contains: q } },
+          ] },
+        ],
+      } : {}),
+    };
+    const matches = await prisma.nrmsAgentAccount.findMany({
+      where,
+      include: { primaryUser: { select: { passwordHash: true } } },
+      orderBy: [{ legalName: "asc" }, { id: "asc" }],
+      take: 30,
+    });
+    res.json({ matches: matches.map((match) => ({ ...agencyDetail(match, false), matchedOn: q ? ["search"] : ["approved directory"] })) });
   } catch (err) {
     console.error("[owner.nrms.agents] lookup failed", err);
     res.status(500).json({ error: "Agency lookup failed" });
@@ -396,7 +433,7 @@ router.post("/property/:propertyId", (async (req: AuthedRequest, res: Response) 
         await auditOrThrow(tx, req, "NRMS_AGENT_LINK_INVITE", "NRMS_AGENT_PROPERTY_LINK", null, { agentAccountId: parsed.data.agentAccountId, propertyId: active.property.id }, attached.linkId);
       }
       return attached;
-    });
+    }, AGENT_LINK_TX_OPTIONS);
     if (!result.ok) {
       const code = result.reason === "CAP_REACHED" ? 409 : result.reason === "AGENCY_NOT_FOUND" ? 404 : 409;
       return res.status(code).json({ error: result.message, code: result.reason });
@@ -458,7 +495,7 @@ router.post("/property/:propertyId/invite", (async (req: AuthedRequest, res: Res
       await auditOrThrow(tx, req, "NRMS_AGENT_INVITE", "NRMS_AGENT_ACCOUNT", null, { propertyId: active.property.id, linkId: link.linkId }, invited.accountId);
       await auditOrThrow(tx, req, "NRMS_AGENT_LINK_INVITE", "NRMS_AGENT_PROPERTY_LINK", null, { agentAccountId: invited.accountId, propertyId: active.property.id, externalOnboarding: true }, link.linkId);
       return { ok: true as const, invited, link };
-    });
+    }, AGENT_LINK_TX_OPTIONS);
     if (!outcome.ok) return res.status(409).json({ error: outcome.message, code: outcome.reason });
     const { invited, link } = outcome;
 
