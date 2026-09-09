@@ -18,7 +18,7 @@ import { CHARGE_CATEGORIES, computeGuestBalance, computeOutstanding, getCheckout
 import { buildNrmsDocumentNumber, generateNrmsInvoicePdf, generateNrmsRandomCode } from "../lib/pdfDocuments.js";
 import { queueNrmsCheckInWelcome } from "../lib/nrmsCheckInWelcome.js";
 import { resolveAllocationMealPlan } from "../lib/nrmsMealPlan.js";
-import { summarizeAnalyticsGuestFolio, summarizeAnalyticsMasterFolio } from "../lib/nrmsRevenueAnalytics.js";
+import { resolveAnalyticsMasterFolioStayDate, summarizeAnalyticsGuestFolio, summarizeAnalyticsMasterFolio } from "../lib/nrmsRevenueAnalytics.js";
 import { loadNrmsPropertyAccess } from "../lib/nrmsPropertyAccess.js";
 import { assertNrmsBusinessDayWritable, NRMS_BUSINESS_DAY_LOCKED } from "../lib/nrmsShifts.js";
 import { ASSIGNABLE_STATUSES, assignGroupRooms } from "../lib/nrmsRoomAssignment.js";
@@ -1534,12 +1534,19 @@ router.get("/property/:propertyId/analytics", (async (req: AuthedRequest, res: R
     }), prisma.nrmsMasterFolio.findMany({
       where: {
         propertyId: active.property.id as number,
-        ...(from || to ? { block: { checkIn } } : {}),
+        ...(from || to ? {
+          OR: [
+            { block: { checkIn } },
+            { agentBookingRequest: { checkIn } },
+          ],
+        } : {}),
       },
       select: {
         id: true,
         currency: true,
+        createdAt: true,
         block: { select: { checkIn: true } },
+        agentBookingRequest: { select: { checkIn: true } },
         items: { where: { voidedAt: null }, select: { amount: true } },
         payments: { where: { voidedAt: null }, select: { amount: true, currency: true, method: true } },
         refunds: { where: { voidedAt: null }, select: { amount: true, currency: true, method: true } },
@@ -1663,7 +1670,7 @@ router.get("/property/:propertyId/analytics", (async (req: AuthedRequest, res: R
       bucket.amountDue += settlement.due;
       if (settlement.due > 0.005) bucket.agencyFoliosDue += 1;
 
-      const month = folio.block.checkIn.toISOString().slice(0, 7);
+      const month = resolveAnalyticsMasterFolioStayDate(folio).toISOString().slice(0, 7);
       const monthBucket = bucket.monthly.get(month) ?? { month, confirmed: 0, collected: 0 };
       monthBucket.collected += settlement.paid;
       bucket.monthly.set(month, monthBucket);
