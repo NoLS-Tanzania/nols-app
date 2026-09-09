@@ -243,18 +243,18 @@ export default function DirectBookingPage({ params }: { params: Promise<{ proper
 
         <aside className="min-w-0">
           <section className="sticky top-5 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-            {quote?.contact && <section className="mb-5 border-b border-neutral-200 pb-5" aria-labelledby="reception-contact-title">
-              <div className="flex items-start gap-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-800"><MessageCircle className="h-4 w-4" /></span>
+            {quote?.contact && <section className="mb-5 overflow-hidden rounded-xl border border-emerald-950/20 bg-[#13231e] text-white shadow-[0_14px_28px_-24px_rgba(6,78,59,0.8)]" aria-labelledby="reception-contact-title">
+              <div className="flex items-start gap-3 border-b border-white/10 p-4">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-300/10 text-emerald-300 ring-1 ring-emerald-200/10"><MessageCircle className="h-4 w-4" /></span>
                 <div className="min-w-0 flex-1">
-                  <p className="m-0 text-[9px] font-bold uppercase tracking-[.15em] text-emerald-700">Need help deciding?</p>
-                  <h2 id="reception-contact-title" className="mb-0 mt-1 text-base font-bold text-neutral-950">Talk to reception</h2>
-                  <p className="mb-0 mt-1 text-[11px] leading-5 text-neutral-500">{quote.contact.greeting || "Ask about a room, arrival details or anything you need before reserving."}</p>
-                  {quote.contact.contactHours && <p className="mb-0 mt-2 inline-flex items-center gap-1.5 text-[10px] font-semibold text-emerald-800"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />Reception hours · {quote.contact.contactHours}</p>}
+                  <p className="m-0 text-[9px] font-bold uppercase tracking-[.15em] text-emerald-300">Need help deciding?</p>
+                  <h2 id="reception-contact-title" className="mb-0 mt-1 text-base font-bold text-white">Talk to reception</h2>
+                  <p className="mb-0 mt-1 text-[11px] leading-5 text-white/60">{quote.contact.greeting || "Ask about a room, arrival details or anything you need before reserving."}</p>
+                  {quote.contact.contactHours && <p className="mb-0 mt-2 inline-flex items-center gap-1.5 text-[10px] font-semibold text-emerald-200"><span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />Reception hours · {quote.contact.contactHours}</p>}
                 </div>
               </div>
 
-              <div className="mt-4">
+              <div className="border-b border-white/10 p-4">
                 {quote.contact.whatsappPhone ? (
                   <a href={`https://wa.me/${String(quote.contact.whatsappPhone).replace(/\D/g, "")}?text=${encodeURIComponent(contactMessage)}`} target="_blank" rel="noreferrer" onClick={() => { void recordEvent("WHATSAPP_CLICK"); }} className="inline-flex min-h-12 w-full items-center justify-between gap-3 rounded-lg bg-emerald-700 px-4 text-sm font-bold text-white no-underline shadow-sm transition hover:bg-emerald-800 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2"><span className="inline-flex items-center gap-2.5"><MessageCircle className="h-[18px] w-[18px]" />Chat on WhatsApp</span><ChevronRight className="h-4 w-4" /></a>
                 ) : quote.contact.receptionPhone ? (
@@ -273,26 +273,26 @@ export default function DirectBookingPage({ params }: { params: Promise<{ proper
                   : quote.contact.receptionEmail
                     ? Boolean(quote.contact.instagramUsername)
                     : false) && (
-                <div className="mt-3">
-                  <p className="m-0 text-[9px] font-bold uppercase tracking-[.12em] text-neutral-400">Other ways to connect</p>
+                <div className="border-b border-white/10 px-4 py-3.5">
+                  <p className="m-0 text-[9px] font-bold uppercase tracking-[.12em] text-white/45">Other ways to connect</p>
                   <div className="mt-2 grid grid-flow-col auto-cols-fr gap-2">
-                    {quote.contact.receptionPhone && quote.contact.whatsappPhone && <a href={`tel:${quote.contact.receptionPhone}`} title={quote.contact.receptionPhone} onClick={() => { void recordEvent("PHONE_CLICK"); void captureInquiry("PHONE"); }} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-2 text-[11px] font-semibold text-neutral-700 no-underline transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"><Phone className="h-3.5 w-3.5" />Call</a>}
-                    {quote.contact.receptionEmail && (quote.contact.whatsappPhone || quote.contact.receptionPhone) && <a href={`mailto:${quote.contact.receptionEmail}?subject=${encodeURIComponent(`Stay enquiry · ${quote.property.title}`)}&body=${encodeURIComponent(contactMessage)}`} onClick={() => { void recordEvent("EMAIL_CLICK"); void captureInquiry("EMAIL"); }} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-2 text-[11px] font-semibold text-neutral-700 no-underline transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"><Mail className="h-3.5 w-3.5" />Email</a>}
-                    {quote.contact.instagramUsername && (quote.contact.whatsappPhone || quote.contact.receptionPhone || quote.contact.receptionEmail) && <a href={`https://ig.me/m/${encodeURIComponent(String(quote.contact.instagramUsername).replace(/^@/, ""))}`} target="_blank" rel="noreferrer" onClick={() => { void recordEvent("INSTAGRAM_CLICK"); }} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-2 text-[11px] font-semibold text-neutral-700 no-underline transition hover:border-fuchsia-200 hover:bg-fuchsia-50 hover:text-fuchsia-700"><Instagram className="h-3.5 w-3.5" />Instagram</a>}
+                    {quote.contact.receptionPhone && quote.contact.whatsappPhone && <a href={`tel:${quote.contact.receptionPhone}`} title={quote.contact.receptionPhone} onClick={() => { void recordEvent("PHONE_CLICK"); void captureInquiry("PHONE"); }} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.06] px-2 text-[11px] font-semibold text-white/80 no-underline transition hover:border-emerald-300/30 hover:bg-emerald-300/10 hover:text-emerald-200"><Phone className="h-3.5 w-3.5" />Call</a>}
+                    {quote.contact.receptionEmail && (quote.contact.whatsappPhone || quote.contact.receptionPhone) && <a href={`mailto:${quote.contact.receptionEmail}?subject=${encodeURIComponent(`Stay enquiry · ${quote.property.title}`)}&body=${encodeURIComponent(contactMessage)}`} onClick={() => { void recordEvent("EMAIL_CLICK"); void captureInquiry("EMAIL"); }} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.06] px-2 text-[11px] font-semibold text-white/80 no-underline transition hover:border-emerald-300/30 hover:bg-emerald-300/10 hover:text-emerald-200"><Mail className="h-3.5 w-3.5" />Email</a>}
+                    {quote.contact.instagramUsername && (quote.contact.whatsappPhone || quote.contact.receptionPhone || quote.contact.receptionEmail) && <a href={`https://ig.me/m/${encodeURIComponent(String(quote.contact.instagramUsername).replace(/^@/, ""))}`} target="_blank" rel="noreferrer" onClick={() => { void recordEvent("INSTAGRAM_CLICK"); }} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.06] px-2 text-[11px] font-semibold text-white/80 no-underline transition hover:border-fuchsia-300/30 hover:bg-fuchsia-300/10 hover:text-fuchsia-200"><Instagram className="h-3.5 w-3.5" />Instagram</a>}
                   </div>
                 </div>
               )}
 
-              <div className="mt-3 border-t border-neutral-100 pt-3">
-                <button type="button" aria-expanded={callbackOpen} onClick={() => { setCallbackOpen((current) => !current); setInquiryFeedback(null); }} className="inline-flex min-h-9 w-full cursor-pointer items-center justify-between rounded-lg border-0 bg-neutral-50 px-3 text-left text-[11px] font-semibold text-neutral-700 transition hover:bg-neutral-100"><span className="inline-flex items-center gap-2"><MessageCircle className="h-3.5 w-3.5 text-emerald-700" />Prefer reception to contact you?</span><ChevronRight className={`h-3.5 w-3.5 transition-transform ${callbackOpen ? "rotate-90" : ""}`} /></button>
-                {callbackOpen && <div className="mt-3 grid gap-2.5 rounded-lg bg-neutral-50 p-3 ring-1 ring-neutral-200">
+              <div className="p-3.5">
+                <button type="button" aria-expanded={callbackOpen} onClick={() => { setCallbackOpen((current) => !current); setInquiryFeedback(null); }} className="inline-flex min-h-9 w-full cursor-pointer items-center justify-between rounded-lg border border-white/10 bg-white/[0.06] px-3 text-left text-[11px] font-semibold text-white/80 transition hover:bg-white/10 hover:text-white"><span className="inline-flex items-center gap-2"><MessageCircle className="h-3.5 w-3.5 text-emerald-300" />Prefer reception to contact you?</span><ChevronRight className={`h-3.5 w-3.5 transition-transform ${callbackOpen ? "rotate-90" : ""}`} /></button>
+                {callbackOpen && <div className="mt-3 grid gap-2.5 rounded-lg bg-white/[0.06] p-3 ring-1 ring-white/10">
                   <input aria-label="Your name for the callback" className={`${inputClass} !min-h-10 !text-xs`} placeholder="Your name" value={guest.fullName} onChange={(event) => setGuest({ ...guest, fullName: event.target.value })} />
                   <div className="grid grid-cols-2 gap-2">
                     <input aria-label="Phone for the callback" className={`${inputClass} !min-h-10 !text-xs`} placeholder="Phone" value={guest.phone} onChange={(event) => setGuest({ ...guest, phone: event.target.value })} />
                     <input aria-label="Email for the callback" type="email" className={`${inputClass} !min-h-10 !text-xs`} placeholder="Email (optional)" value={guest.email} onChange={(event) => setGuest({ ...guest, email: event.target.value })} />
                   </div>
                   <button type="button" disabled={!canRequestReception || inquiryBusy} onClick={() => void captureInquiry("WEB", "Please contact me about this stay and the selected availability.")} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border-0 bg-neutral-900 px-3.5 text-xs font-bold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-200 disabled:text-neutral-500">{inquiryBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}Request a callback</button>
-                  {inquiryFeedback && <p className={`m-0 px-1 text-[10px] leading-4 ${inquiryFeedback.startsWith("Reception request sent") ? "text-emerald-700" : "text-red-600"}`}>{inquiryFeedback}</p>}
+                  {inquiryFeedback && <p className={`m-0 px-1 text-[10px] leading-4 ${inquiryFeedback.startsWith("Reception request sent") ? "text-emerald-200" : "text-red-300"}`}>{inquiryFeedback}</p>}
                 </div>}
               </div>
             </section>}
