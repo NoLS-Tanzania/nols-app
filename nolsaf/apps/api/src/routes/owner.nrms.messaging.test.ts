@@ -9,12 +9,12 @@ const mocks = vi.hoisted(() => ({
     nrmsMetaWebhookJob: { findFirst: vi.fn() },
     nrmsGuestMessage: { findFirst: vi.fn() },
   },
-  access: vi.fn(), encrypt: vi.fn((value: string) => `encrypted:${value}`), decrypt: vi.fn(() => "meta-access-token"),
+  access: vi.fn(), capabilityAccess: vi.fn(), encrypt: vi.fn((value: string) => `encrypted:${value}`), decrypt: vi.fn(() => "meta-access-token"),
 }));
 
 vi.mock("@nolsaf/prisma", () => ({ typedPrisma: mocks.prisma, prisma: mocks.prisma }));
 vi.mock("../middleware/auth.js", () => ({ requireAuth: (req: any, _res: any, next: any) => { req.user = { id: 8, role: "MANAGER" }; next(); } }));
-vi.mock("../lib/nrmsPropertyAccess.js", () => ({ loadNrmsPropertyAccess: mocks.access }));
+vi.mock("../lib/nrmsPropertyAccess.js", () => ({ loadNrmsPropertyAccess: mocks.access, requireNrmsPropertyCapability: mocks.capabilityAccess }));
 vi.mock("../lib/crypto.js", () => ({ encrypt: mocks.encrypt, decrypt: mocks.decrypt }));
 
 import { router } from "./owner.nrms.messaging.js";
@@ -23,6 +23,7 @@ describe("property-scoped Meta connection routes", () => {
   beforeEach(() => {
     vi.clearAllMocks(); vi.stubEnv("META_APP_ID", "1066743859095630"); vi.stubEnv("META_APP_SECRET", "secret"); vi.stubEnv("META_WHATSAPP_CONFIG_ID", "config-1"); vi.stubEnv("META_GRAPH_API_VERSION", "v26.0");
     mocks.access.mockResolvedValue({ actorId: 8, ownerId: 4, role: "MANAGER", property: { id: 19, ownerId: 4, title: "Hotel" } });
+    mocks.capabilityAccess.mockResolvedValue({ actorId: 8, ownerId: 4, role: "SALES_EXECUTIVE", property: { id: 19, ownerId: 4, title: "Hotel" } });
     mocks.prisma.nrmsMessagingConnection.findMany.mockResolvedValue([{ provider: "INSTAGRAM", status: "CONNECTED", displayName: "hotel", externalAccountId: "1784", accessTokenEncrypted: "never-return-this", version: 1 }]);
     mocks.prisma.nrmsMessagingConnection.upsert.mockResolvedValue({ provider: "WHATSAPP", status: "CONNECTED", displayName: "Hotel Desk", externalAccountId: "9001", phoneNumberId: "8001", version: 1 });
     mocks.prisma.nrmsMessagingConnection.update.mockImplementation(async ({ data }: any) => ({ id: 12, provider: "WHATSAPP", phoneNumberId: "8001", metadata: data.metadata, ...data }));
@@ -66,6 +67,8 @@ describe("property-scoped Meta connection routes", () => {
     ]));
     expect(JSON.stringify(response.body)).not.toContain("app-access-token");
     expect(JSON.stringify(response.body)).not.toContain("encrypted-token");
+    expect(mocks.capabilityAccess).toHaveBeenCalledWith(expect.anything(), expect.anything(), 19, "sales.inquiry.read");
+    expect(mocks.access).not.toHaveBeenCalled();
   });
 
   it("reports a Meta configuration failure when the messages field is not subscribed", async () => {
