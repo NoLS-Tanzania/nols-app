@@ -35,7 +35,8 @@ describe("property-scoped Meta connection routes", () => {
     const response = await request(app).get("/api/owner/nrms/messaging/property/19").expect(200);
     expect(response.body.connections[0]).toMatchObject({ provider: "INSTAGRAM", status: "CONNECTED", displayName: "hotel" });
     expect(JSON.stringify(response.body)).not.toContain("never-return-this");
-    expect(mocks.access).toHaveBeenCalledWith(expect.anything(), expect.anything(), 19, ["OWNER", "MANAGER"]);
+    expect(mocks.capabilityAccess).toHaveBeenCalledWith(expect.anything(), expect.anything(), 19, "sales.inquiry.read");
+    expect(mocks.access).not.toHaveBeenCalled();
   });
 
   it("separates live Meta configuration, WABA subscription and processing health", async () => {
@@ -101,6 +102,8 @@ describe("property-scoped Meta connection routes", () => {
     const app = express(); app.use(express.json()); app.use("/api/owner/nrms/messaging", router);
     await request(app).post("/api/owner/nrms/messaging/property/19/whatsapp/connect").send({ code: "temporary-code", wabaId: "9001", phoneNumberId: "8001", pin: "481526" }).expect(201);
 
+    expect(mocks.access).toHaveBeenCalledWith(expect.anything(), expect.anything(), 19, ["OWNER", "MANAGER"]);
+    expect(mocks.capabilityAccess).not.toHaveBeenCalled();
     expect(fetchMock.mock.calls[2]).toEqual(expect.arrayContaining([
       "https://graph.facebook.com/v26.0/8001/register",
       expect.objectContaining({ method: "POST", body: JSON.stringify({ messaging_product: "whatsapp", pin: "481526" }) }),

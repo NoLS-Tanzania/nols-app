@@ -17,6 +17,10 @@ async function diagnosticAccess(req: AuthedRequest, res: Response, propertyId: n
   return requireNrmsPropertyCapability(req, res, propertyId, "sales.inquiry.read");
 }
 
+async function statusAccess(req: AuthedRequest, res: Response, propertyId: number) {
+  return requireNrmsPropertyCapability(req, res, propertyId, "sales.inquiry.read");
+}
+
 const publicConnection = (connection: any) => connection ? {
   provider: connection.provider,
   status: connection.provider === "WHATSAPP" && connection.status === "CONNECTED" && !connection.metadata?.phoneRegisteredAt ? "PENDING" : connection.status,
@@ -54,7 +58,7 @@ function workerExpectedToRun(): boolean {
 }
 
 router.get("/property/:propertyId", (async (req: AuthedRequest, res: Response) => {
-  const propertyId = Number(req.params.propertyId); const allowed = await access(req, res, propertyId); if (!allowed) return;
+  const propertyId = Number(req.params.propertyId); const allowed = await statusAccess(req, res, propertyId); if (!allowed) return;
   const connections = await prisma.nrmsMessagingConnection.findMany({ where: { propertyId }, orderBy: { provider: "asc" } });
   res.json({
     connections: connections.map(publicConnection),
