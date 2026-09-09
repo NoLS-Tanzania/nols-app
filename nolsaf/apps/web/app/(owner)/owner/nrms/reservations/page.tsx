@@ -7,12 +7,13 @@ import Link from "next/link";
 import apiClient from "@/lib/apiClient";
 import DatePickerField from "@/components/DatePickerField";
 import TablePagination from "@/components/TablePagination";
-import { AlertTriangle, ArrowRight, ArrowUpDown, BedDouble, CalendarDays, CalendarPlus, Check, ChevronDown, ChevronUp, CircleDollarSign, Clock3, FileClock, Globe2, History, Loader2, LockKeyhole, Mail, Minus, Phone, Plus, Printer, ReceiptText, Search, ShieldCheck, Store, UserRound, Users, WalletCards } from "lucide-react";
+import { AlertTriangle, ArrowRight, ArrowUpDown, BedDouble, CalendarDays, CalendarPlus, Check, ChevronDown, ChevronUp, CircleDollarSign, Clock3, FileClock, Globe2, History, Loader2, LockKeyhole, LogOut, Mail, Minus, Phone, Plus, Printer, ReceiptText, Search, ShieldCheck, Store, UserRound, Users, WalletCards } from "lucide-react";
 import { NRMS_CHARGE_CATEGORIES, NRMS_CHARGE_CATEGORY_LABELS } from "@nolsaf/shared";
 import { tallyRoomLabels } from "@/lib/roomLabels";
 import { useNrms } from "../_components/NrmsProvider";
 import ModalFrame from "../_components/NrmsModalFrame";
 import NrmsBillingBlockModal, { type NrmsBillingBlock } from "../_components/NrmsBillingBlockModal";
+import NrmsCheckoutPolicyNotice from "../_components/NrmsCheckoutPolicyNotice";
 
 type Allocation = {
   id: number;
@@ -80,6 +81,7 @@ type Reservation = {
   status: string;
   checkIn: string;
   checkOut: string;
+  checkedOutAt?: string | null;
   adults: number;
   children: number;
   currency: string;
@@ -1402,6 +1404,9 @@ function ReservationDetailModal({
   const [voidError, setVoidError] = useState<string | null>(null);
   const [verifiedChargeIds, setVerifiedChargeIds] = useState<number[]>([]);
   const [tenderCorrections, setTenderCorrections] = useState<Record<number, string>>({});
+  const [checkoutConfirmOpen, setCheckoutConfirmOpen] = useState(false);
+  const [roomVacantConfirmed, setRoomVacantConfirmed] = useState(false);
+  const [earlyDepartureReason, setEarlyDepartureReason] = useState("");
 
   const reload = useCallback(async () => {
     const r = await apiClient.get<any>(`/api/owner/nrms/reservations/${reservationId}`);
@@ -1433,12 +1438,14 @@ function ReservationDetailModal({
       await apiClient.post(`/api/owner/nrms/reservations/${reservationId}/${action}`, body ?? {});
       await reload();
       await onChanged();
+      return true;
     } catch (e: any) {
       if (action === "check-in" && e?.response?.data?.code === "ROOM_NOT_READY") {
         setRoomNotReady(e?.response?.data?.error || "The assigned room has not been cleaned yet.");
       } else {
         setError(e?.response?.data?.error || "Action failed");
       }
+      return false;
     } finally {
       setBusyAction(null);
     }
@@ -1543,6 +1550,8 @@ function ReservationDetailModal({
   };
 
   const r = reservation;
+  const checkoutGuestName = r?.guestProfile?.fullName ?? r?.agentBooking?.leadGuest?.fullName ?? "Guest";
+  const checkoutRoomLabel = tallyRoomLabels((r?.allocations ?? []).filter((allocation) => allocation.status === "ACTIVE").map((allocation) => allocation.roomUnitCode ?? `Any ${allocation.roomTypeName ?? "room"}`), "assigned room");
   const isMarketplace = r?.bookingId != null;
   const paymentLocked = r?.balance != null && r.balance <= 0;
   const activeCharges = (r?.charges ?? []).filter((charge) => !charge.voidedAt);
@@ -1569,6 +1578,10 @@ function ReservationDetailModal({
   const chargesNeedVerification = r?.status === "CHECKED_IN" && chargesRequiringVerification.some((charge) => !verifiedChargeIds.includes(charge.id));
   const outletReconciliationBlocked = r?.status === "CHECKED_IN" && unclassifiedOutletPayments.length > 0;
   const checkoutBlocked = folioBalanceBlocked || chargesNeedVerification || outletReconciliationBlocked;
+  const plannedCheckOutKey = r?.checkOut?.slice(0, 10) ?? "";
+  const departureDateKey = localDateKey();
+  const earlyDeparture = Boolean(r?.status === "CHECKED_IN" && plannedCheckOutKey > departureDateKey);
+  const checkoutDeclarationReady = roomVacantConfirmed && (!earlyDeparture || earlyDepartureReason.trim().length >= 2);
   const canPostCharges = r != null && !isMarketplace && ["CONFIRMED", "CHECKED_IN"].includes(r.status);
   const canPrintInvoice = r != null && !isMarketplace && ["CONFIRMED", "CHECKED_IN", "CHECKED_OUT"].includes(r.status);
   const actions: Array<{ key: string; label: string; show: boolean; disabled?: boolean }> = r
@@ -1584,7 +1597,7 @@ function ReservationDetailModal({
 
   return (
     <>
-    <ModalFrame title="Reservation" onClose={onClose} closeOnEscape={!voidingCharge} extraWide>
+    <ModalFrame title="Reservation" onClose={onClose} closeOnEscape={!voidingCharge && !checkoutConfirmOpen} extraWide>
       {!r ? (
         <div className="flex justify-center py-10 text-neutral-400">
           <Loader2 className="w-5 h-5 animate-spin" />
@@ -1918,7 +1931,19 @@ function ReservationDetailModal({
               <button
                 type="button"
                 key={a.key}
-                onClick={() => runAction(a.key, a.key === "check-out" ? { verifiedChargeIds } : undefined)}
+                onClick={() => {
+                  if (a.key === "check-out") {
+                    if (!earlyDeparture) {
+                      void runAction("check-out", { verifiedChargeIds });
+                      return;
+                    }
+                    setRoomVacantConfirmed(false);
+                    setEarlyDepartureReason("");
+                    setCheckoutConfirmOpen(true);
+                    return;
+                  }
+                  void runAction(a.key);
+                }}
                 disabled={busyAction != null || a.disabled}
                 className={`rounded-lg text-xs font-semibold px-3 py-2 disabled:opacity-60 ${
                   a.key === "cancel" || a.key === "no-show"
@@ -1933,6 +1958,58 @@ function ReservationDetailModal({
         </div>
       )}
     </ModalFrame>
+    {checkoutConfirmOpen && r?.status === "CHECKED_IN" && (
+      <ModalFrame title={earlyDeparture ? "Confirm early checkout" : "Confirm checkout"} onClose={() => setCheckoutConfirmOpen(false)} elevated small compact compactFooter footer={
+        <div className="flex items-center justify-end gap-2">
+          <button type="button" onClick={() => setCheckoutConfirmOpen(false)} disabled={busyAction === "check-out"} className="inline-flex h-8 items-center justify-center rounded-lg border border-neutral-200 bg-white px-3 text-[11px] font-medium text-neutral-600 hover:bg-neutral-50 disabled:opacity-50">Not yet</button>
+          <button
+            type="button"
+            disabled={busyAction === "check-out" || !checkoutDeclarationReady}
+            onClick={async () => {
+              const completed = await runAction("check-out", {
+                verifiedChargeIds,
+                roomVacantConfirmed,
+                earlyDepartureReason: earlyDeparture ? earlyDepartureReason.trim() : undefined,
+              });
+              if (completed) setCheckoutConfirmOpen(false);
+            }}
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg bg-emerald-700 px-3 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-neutral-200 disabled:text-neutral-400"
+          >
+            {busyAction === "check-out" ? <Loader2 className="h-3 w-3 animate-spin" /> : <LogOut className="h-3 w-3" />}
+            Yes, check out guest
+          </button>
+        </div>
+      }>
+        <div className="space-y-3">
+          {earlyDeparture && <div className="rounded-xl bg-amber-50 px-3 py-2.5 text-amber-950 ring-1 ring-inset ring-amber-200"><p className="m-0 text-xs font-medium leading-5">This stay was planned until {fmtDate(r.checkOut)}. Checkout today releases the remaining dates and bills only occupied room-nights.</p></div>}
+          {earlyDeparture && (
+            <label className="block text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+              Why is the guest leaving early?
+              <textarea value={earlyDepartureReason} onChange={(event) => setEarlyDepartureReason(event.target.value)} rows={2} maxLength={300} placeholder="Example: Guest changed travel plans" className="mt-1.5 box-border w-full resize-none rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs font-normal normal-case tracking-normal text-neutral-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10" />
+            </label>
+          )}
+          <button
+            type="button"
+            role="switch"
+            aria-checked={roomVacantConfirmed}
+            onClick={() => setRoomVacantConfirmed((confirmed) => !confirmed)}
+            className={`flex w-full cursor-pointer appearance-none items-center justify-between gap-4 rounded-xl border px-3 py-3 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600/30 ${roomVacantConfirmed ? "border-emerald-300 bg-emerald-50/70" : "border-neutral-200 bg-white hover:border-emerald-200 hover:bg-emerald-50/30"}`}
+          >
+            <span className="min-w-0">
+              <span className="block text-xs font-medium text-neutral-900">{checkoutGuestName} has left {checkoutRoomLabel}</span>
+              <span className="mt-0.5 block text-[10px] leading-4 text-neutral-500">The room is vacant and ready for the departure workflow</span>
+            </span>
+            <span className="flex shrink-0 items-center gap-2">
+              <span className={`text-[9px] font-medium ${roomVacantConfirmed ? "text-emerald-700" : "text-neutral-400"}`}>{roomVacantConfirmed ? "Confirmed" : "Confirm"}</span>
+              <span className={`relative block h-6 w-10 rounded-full transition-colors ${roomVacantConfirmed ? "bg-emerald-700" : "bg-neutral-300"}`} aria-hidden="true">
+                <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${roomVacantConfirmed ? "translate-x-[1.125rem]" : "translate-x-0.5"}`} />
+              </span>
+            </span>
+          </button>
+          {earlyDeparture && <NrmsCheckoutPolicyNotice />}
+        </div>
+      </ModalFrame>
+    )}
     {voidingCharge && (
       <ModalFrame title="Void extra charge" onClose={closeVoidCharge} elevated compact>
         <div className="grid grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] gap-3">

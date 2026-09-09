@@ -12,6 +12,7 @@ import apiClient from "@/lib/apiClient";
 import { AlertTriangle, ArrowRight, BedDouble, Check, CheckCircle2, CreditCard, Loader2, LogIn, LogOut, Users, X } from "lucide-react";
 import ModalFrame from "./NrmsModalFrame";
 import NrmsGroupRoomsModal from "./NrmsGroupRoomsModal";
+import NrmsCheckoutPolicyNotice from "./NrmsCheckoutPolicyNotice";
 import { tallyRoomLabels } from "@/lib/roomLabels";
 
 export type GroupPickReservation = {
@@ -78,6 +79,13 @@ const groupRowCls =
 
 function fmtDate(v: string): string {
   return new Date(v).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}
+
+function localDateKey(date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 export function CreateReservationGroupModal({
@@ -242,6 +250,8 @@ export function ReservationGroupModal({ groupId, onClose, onChanged }: { groupId
   const [preview, setPreview] = useState<GroupPreviewMember[] | null>(null);
   const [verifyCharges, setVerifyCharges] = useState(false);
   const [overrideRoomReadiness, setOverrideRoomReadiness] = useState(false);
+  const [roomVacantConfirmed, setRoomVacantConfirmed] = useState(false);
+  const [earlyDepartureReason, setEarlyDepartureReason] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -270,7 +280,7 @@ export function ReservationGroupModal({ groupId, onClose, onChanged }: { groupId
   }, [groupId]);
 
   useEffect(() => { void loadGroup(); }, [loadGroup]);
-  useEffect(() => { setPreview(null); setResultMessage(null); setConfirmExecution(false); }, [action, verifyCharges, overrideRoomReadiness]);
+  useEffect(() => { setPreview(null); setResultMessage(null); setConfirmExecution(false); }, [action, verifyCharges, overrideRoomReadiness, roomVacantConfirmed, earlyDepartureReason]);
 
   // Detaching never touches the reservation itself, so this is the safe undo
   // for a member picked by mistake: the stay carries on and is worked alone.
@@ -328,7 +338,12 @@ export function ReservationGroupModal({ groupId, onClose, onChanged }: { groupId
     setError(null);
     try {
       const path = action === "CHECK_IN" ? "check-in" : "check-out";
-      const response = await apiClient.post<any>(`/api/owner/nrms/reservations/groups/${groupId}/${path}`, { verifyCharges, overrideRoomReadiness });
+      const response = await apiClient.post<any>(`/api/owner/nrms/reservations/groups/${groupId}/${path}`, {
+        verifyCharges,
+        overrideRoomReadiness,
+        roomVacantConfirmed,
+        earlyDepartureReason: earlyDepartureReason.trim() || undefined,
+      });
       const changed = Number(response.data?.changedCount ?? 0);
       const blocked = Number(response.data?.blockedCount ?? 0);
       setResultMessage(`${changed} reservation${changed === 1 ? "" : "s"} updated${blocked ? `; ${blocked} remained blocked` : ""}.`);
@@ -374,6 +389,8 @@ export function ReservationGroupModal({ groupId, onClose, onChanged }: { groupId
   const preArrivalGroup = group?.members.length ? group.members.every((member) => ["DRAFT", "HELD", "CONFIRMED"].includes(member.status)) : false;
   const confirmedGroup = group?.members.length ? group.members.every((member) => member.status === "CONFIRMED") : false;
   const canCancelGroup = accessRole === "OWNER" || accessRole === "MANAGER";
+  const earlyDepartureCount = group?.members.filter((member) => member.status === "CHECKED_IN" && member.checkOut.slice(0, 10) > localDateKey()).length ?? 0;
+  const departureDeclarationReady = earlyDepartureCount === 0 || (roomVacantConfirmed && earlyDepartureReason.trim().length >= 2);
   return (
     <ModalFrame title={group?.name || "Reservation group"} onClose={onClose} extraWide>
       {loading ? <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-emerald-700" /></div> : !group ? <p className="py-10 text-center text-sm text-neutral-500">Group not found.</p> : (
@@ -511,15 +528,31 @@ export function ReservationGroupModal({ groupId, onClose, onChanged }: { groupId
               />
             )}
             {action === "CHECK_OUT" && (
-              <AdvisoryCheckbox
-                tone="emerald"
-                checked={verifyCharges}
-                onChange={setVerifyCharges}
-                title="I verified every active extra charge"
-                detail="Required before group checkout can close charged folios."
-              />
+              <>
+                <AdvisoryCheckbox
+                  tone="emerald"
+                  checked={verifyCharges}
+                  onChange={setVerifyCharges}
+                  title="I verified every active extra charge"
+                  detail="Required before group checkout can close charged folios."
+                />
+                {earlyDepartureCount > 0 && <AdvisoryCheckbox
+                  tone="amber"
+                  checked={roomVacantConfirmed}
+                  onChange={setRoomVacantConfirmed}
+                  title="Every early-departure guest has physically departed"
+                  detail="Required because unused booked dates will be released."
+                />}
+              </>
             )}
           </div>
+          {action === "CHECK_OUT" && earlyDepartureCount > 0 && (
+            <label className="block rounded-xl border border-solid border-amber-200 bg-amber-50/70 p-3 text-[10px] font-bold uppercase tracking-wide text-amber-800">
+              Reason for {earlyDepartureCount} early {earlyDepartureCount === 1 ? "departure" : "departures"}
+              <textarea value={earlyDepartureReason} onChange={(event) => setEarlyDepartureReason(event.target.value)} rows={2} maxLength={300} placeholder="Example: Group changed its travel schedule" className="mt-1.5 box-border w-full resize-none rounded-lg border border-solid border-amber-200 bg-white px-3 py-2 text-xs font-normal normal-case tracking-normal text-neutral-900 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/10" />
+            </label>
+          )}
+          {action === "CHECK_OUT" && earlyDepartureCount > 0 && <NrmsCheckoutPolicyNotice group />}
           {resultMessage && <p className="m-0 rounded-xl border border-solid border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">{resultMessage}</p>}
           {error && <p className="m-0 rounded-xl border border-solid border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
           {confirmExecution && preview && (
@@ -574,7 +607,7 @@ export function ReservationGroupModal({ groupId, onClose, onChanged }: { groupId
                   )}
                   <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                     {eligibleCount > 0 && (
-                      <button type="button" onClick={() => void execute()} disabled={busy} className={`inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-xl border-0 px-4 text-xs font-bold text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${action === "CHECK_OUT" ? "bg-amber-700 hover:bg-amber-800" : "bg-emerald-700 hover:bg-emerald-800"}`}>
+                      <button type="button" onClick={() => void execute()} disabled={busy || (action === "CHECK_OUT" && !departureDeclarationReady)} className={`inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-xl border-0 px-4 text-xs font-bold text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${action === "CHECK_OUT" ? "bg-amber-700 hover:bg-amber-800" : "bg-emerald-700 hover:bg-emerald-800"}`}>
                         {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                         Yes, {action === "CHECK_OUT" ? `check out ${eligibleCount} ready` : "check in group"}
                       </button>

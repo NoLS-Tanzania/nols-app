@@ -31,6 +31,8 @@ type FeedEntry = {
   quantity: number;
   guestName: string | null;
   label: string;
+  scheduledEndDate?: string | null;
+  earlyDeparture?: boolean;
 };
 type CalendarView = "week" | "fortnight" | "month";
 type CalendarDensity = "compact" | "standard" | "comfortable";
@@ -713,7 +715,9 @@ function CalendarEntryRow({
                 className={`relative mx-0 flex items-center overflow-hidden border font-semibold leading-tight shadow-sm ${density.value === "compact" ? "min-h-6 px-1 text-[7px]" : "min-h-9 px-2 py-1 text-[9px]"} ${
                   continuesBefore ? "rounded-l-none border-l-0" : "ml-1 rounded-l-lg"
                 } ${continuesAfter ? "rounded-r-none border-r-0" : "mr-1 rounded-r-lg"} ${cellStyle(entry)}`}
-                title={`${entry.label} (${entry.status.toLowerCase().replace(/_/g, " ")})`}
+                title={entry.earlyDeparture && entry.scheduledEndDate
+                  ? `${entry.label} · checked out early; originally due ${new Date(entry.scheduledEndDate).toLocaleDateString()}`
+                  : `${entry.label} (${entry.status.toLowerCase().replace(/_/g, " ")})`}
               >
                 {!continuesBefore && (
                   <>

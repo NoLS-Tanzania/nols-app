@@ -5,6 +5,7 @@
 // the marketplace and NRMS can never disagree about what is sellable.
 import { prisma } from "@nolsaf/prisma";
 import { AVAILABILITY_BLOCKING_BOOKING_STATUSES, REAL_BOOKING_STATUSES } from "./bookingStatus.js";
+import { shiftDateOnly, shiftDayKey } from "./nrmsShifts.js";
 
 type DbLike = typeof prisma | any;
 
@@ -27,7 +28,19 @@ export type CalendarEntry = {
   guestName: string | null;
   label: string;
   billable: boolean;
+  /// Original scheduled departure when an earlier physical departure shortened
+  /// the visible occupied span. Audit history remains available without making
+  /// released future dates look blocked.
+  scheduledEndDate?: Date | null;
+  earlyDeparture?: boolean;
 };
+
+export function calendarDepartureSpan(plannedEnd: Date, checkedOutAt?: Date | null) {
+  if (!checkedOutAt) return { endDate: plannedEnd, scheduledEndDate: null, earlyDeparture: false };
+  const actualDay = shiftDateOnly(shiftDayKey(checkedOutAt));
+  if (actualDay >= plannedEnd) return { endDate: plannedEnd, scheduledEndDate: null, earlyDeparture: false };
+  return { endDate: actualDay, scheduledEndDate: plannedEnd, earlyDeparture: true };
+}
 
 function overlapWhere(start: Date, end: Date, startField: string, endField: string) {
   return { AND: [{ [endField]: { gt: start } }, { [startField]: { lt: end } }] };
@@ -327,6 +340,7 @@ export async function getCalendarEntries(propertyId: number, start: Date, end: D
           select: {
             id: true,
             status: true,
+            checkedOutAt: true,
             allocations: {
               where: { status: "ACTIVE" },
               select: { roomTypeId: true, roomUnitId: true, startDate: true, endDate: true },
@@ -351,6 +365,7 @@ export async function getCalendarEntries(propertyId: number, start: Date, end: D
         source: true,
         checkIn: true,
         checkOut: true,
+        checkedOutAt: true,
         guestProfile: { select: { fullName: true } },
         allocations: {
           where: { status: "ACTIVE" },
@@ -412,11 +427,12 @@ export async function getCalendarEntries(propertyId: number, start: Date, end: D
   for (const b of bookings) {
     const allocation = b.nrmsReservation?.allocations?.[0] ?? null;
     const legacyRoom = allocation ? null : resolveLegacyBookingRoom(b.roomCode ?? null);
+    const departure = calendarDepartureSpan(allocation?.endDate ?? b.checkOut, b.nrmsReservation?.checkedOutAt);
     entries.push({
       kind: "BOOKING",
       id: b.id,
       startDate: b.checkIn,
-      endDate: b.checkOut,
+      endDate: departure.endDate,
       status: b.status,
       source: "NOLSAF",
       roomTypeId: allocation?.roomTypeId ?? legacyRoom?.roomTypeId ?? null,
@@ -426,16 +442,19 @@ export async function getCalendarEntries(propertyId: number, start: Date, end: D
       guestName: b.guestName ?? null,
       label: b.guestName ? `${b.guestName} · NoLSAF` : "NoLSAF booking",
       billable: false, // commission-only; never an NRMS room-night fee (doc 8.2)
+      scheduledEndDate: departure.scheduledEndDate,
+      earlyDeparture: departure.earlyDeparture,
     });
   }
 
   for (const r of reservations) {
     if (r.allocations.length === 0) {
+      const departure = calendarDepartureSpan(r.checkOut, r.checkedOutAt);
       entries.push({
         kind: "RESERVATION",
         id: r.id,
         startDate: r.checkIn,
-        endDate: r.checkOut,
+        endDate: departure.endDate,
         status: r.status,
         source: r.source,
         roomTypeId: null,
@@ -445,14 +464,17 @@ export async function getCalendarEntries(propertyId: number, start: Date, end: D
         guestName: r.guestProfile?.fullName ?? null,
         label: r.guestProfile?.fullName ?? "External reservation",
         billable: true,
+        scheduledEndDate: departure.scheduledEndDate,
+        earlyDeparture: departure.earlyDeparture,
       });
     } else {
       for (const a of r.allocations) {
+        const departure = calendarDepartureSpan(a.endDate, r.checkedOutAt);
         entries.push({
           kind: "RESERVATION",
           id: r.id,
           startDate: a.startDate,
-          endDate: a.endDate,
+          endDate: departure.endDate,
           status: r.status,
           source: r.source,
           roomTypeId: a.roomTypeId,
@@ -462,6 +484,8 @@ export async function getCalendarEntries(propertyId: number, start: Date, end: D
           guestName: r.guestProfile?.fullName ?? null,
           label: r.guestProfile?.fullName ?? "External reservation",
           billable: true,
+          scheduledEndDate: departure.scheduledEndDate,
+          earlyDeparture: departure.earlyDeparture,
         });
       }
     }

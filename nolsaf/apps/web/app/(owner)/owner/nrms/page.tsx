@@ -31,6 +31,7 @@ import { useNrms } from "./_components/NrmsProvider";
 import { useNrmsAccessRole } from "./_components/NrmsAccessRole";
 import SalesHome from "./_components/SalesHome";
 import NrmsFrozenNotice from "./_components/NrmsFrozenNotice";
+import NrmsCheckoutPolicyNotice from "./_components/NrmsCheckoutPolicyNotice";
 import { tallyRoomLabels } from "@/lib/roomLabels";
 
 type Reservation = {
@@ -134,6 +135,13 @@ function sourceLabel(source: string): string {
 
 function shortDate(value: string): string {
   return new Date(value).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}
+
+function localDateKey(date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function shortDateTime(value: string): string {
@@ -251,14 +259,20 @@ function NrmsFrontDeskPage() {
     });
   }, [arrivals, inHouse, today]);
 
-  const act = async (id: number, action: "check-in" | "check-out", verifiedChargeIds: number[] = [], overrideRoomReadiness = false) => {
+  const act = async (
+    id: number,
+    action: "check-in" | "check-out",
+    verifiedChargeIds: number[] = [],
+    overrideRoomReadiness = false,
+    checkoutDeclaration?: { roomVacantConfirmed: boolean; earlyDepartureReason?: string },
+  ) => {
     setBusyId(id);
     setError(null);
     setRoomNotReady(null);
     try {
       await apiClient.post(
         `/api/owner/nrms/reservations/${id}/${action}`,
-        action === "check-out" ? { verifiedChargeIds } : overrideRoomReadiness ? { overrideRoomReadiness: true } : {},
+        action === "check-out" ? { verifiedChargeIds, ...checkoutDeclaration } : overrideRoomReadiness ? { overrideRoomReadiness: true } : {},
       );
       await load();
       setPendingAction(null);
@@ -458,7 +472,7 @@ function NrmsFrontDeskPage() {
             setRoomNotReady(null);
             router.push(href);
           }}
-          onConfirm={(verifiedChargeIds) => void act(pendingAction.reservation.id, pendingAction.action, verifiedChargeIds)}
+          onConfirm={(verifiedChargeIds, checkoutDeclaration) => void act(pendingAction.reservation.id, pendingAction.action, verifiedChargeIds, false, checkoutDeclaration)}
           onAssignRoom={(allocationId, roomUnitId) => assignRoom(pendingAction.reservation.id, allocationId, roomUnitId)}
         />
       )}
@@ -488,12 +502,14 @@ function StayActionModal({
   onOverrideCheckIn: () => void;
   onClose: () => void;
   onOpenDestination: (href: string) => void;
-  onConfirm: (verifiedChargeIds: number[]) => void;
+  onConfirm: (verifiedChargeIds: number[], checkoutDeclaration?: { roomVacantConfirmed: boolean; earlyDepartureReason?: string }) => void;
   onAssignRoom: (allocationId: number, roomUnitId: number) => Promise<boolean>;
 }) {
   const [acknowledged, setAcknowledged] = useState(false);
   const [verifiedChargeIds, setVerifiedChargeIds] = useState<number[]>([]);
   const [selectedRoomId, setSelectedRoomId] = useState<number | "">("");
+  const [roomVacantConfirmed, setRoomVacantConfirmed] = useState(false);
+  const [earlyDepartureReason, setEarlyDepartureReason] = useState("");
   const isCheckIn = action === "check-in";
   const guestName = reservation.guestProfile?.fullName ?? "Guest";
   const room = roomsLabel(reservation);
@@ -525,6 +541,8 @@ function StayActionModal({
     ? roomTypes.find((roomType) => roomType.id === unassignedAllocation.roomTypeId)?.units.filter((unit) => unit.status === "ACTIVE") ?? []
     : [];
   const actionLabel = isCheckIn ? "Confirm check-in" : "Confirm check-out";
+  const earlyDeparture = !isCheckIn && reservation.checkOut.slice(0, 10) > localDateKey();
+  const departureDeclarationReady = isCheckIn || !earlyDeparture || (roomVacantConfirmed && earlyDepartureReason.trim().length >= 2);
 
   const handleAssignRoom = async () => {
     if (!unassignedAllocation || selectedRoomId === "") return;
@@ -556,7 +574,9 @@ function StayActionModal({
         <div className="flex items-start justify-between gap-4 border-b border-neutral-100 px-5 py-5 sm:px-7">
           <div>
             <p className="m-0 text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">NRMS · {isCheckIn ? "Check-in review" : "Check-out review"}</p>
-            <h2 id="stay-action-title" className="mb-0 mt-1 text-xl font-bold tracking-tight text-neutral-950">Reservation</h2>
+            <h2 id="stay-action-title" className="mb-0 mt-1 text-xl font-bold tracking-tight text-neutral-950">
+              {isCheckIn ? "Review arrival" : `Check out ${guestName}?`}
+            </h2>
           </div>
           <button type="button" onClick={onClose} disabled={busy} aria-label="Close review" className="flex h-9 w-9 appearance-none items-center justify-center rounded-full border-0 bg-neutral-100 p-0 text-neutral-500 transition hover:bg-neutral-200 hover:text-neutral-900 disabled:opacity-50">
             <X className="h-4 w-4" />
@@ -752,6 +772,22 @@ function StayActionModal({
             </div>
           )}
 
+          {!isCheckIn && earlyDeparture && (
+            <section className="rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3">
+              <div className="flex items-start gap-3">
+                <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
+                <div className="min-w-0 flex-1">
+                  <p className="m-0 text-xs font-bold text-neutral-900">Early departure</p>
+                  <p className="mb-0 mt-1 text-[11px] leading-4 text-neutral-600">This stay was planned until {shortDate(reservation.checkOut)}. Future calendar dates will be released and NRMS will retain the original schedule for audit.</p>
+                  <textarea value={earlyDepartureReason} onChange={(event) => setEarlyDepartureReason(event.target.value)} rows={2} maxLength={300} placeholder="Reason for leaving early" className="mt-2 box-border w-full resize-none rounded-lg border border-amber-200 bg-white px-3 py-2 text-xs text-neutral-900 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/10" />
+                  <label className="mt-2 flex cursor-pointer items-start gap-2 text-[11px] leading-4 text-neutral-700"><input type="checkbox" checked={roomVacantConfirmed} onChange={(event) => setRoomVacantConfirmed(event.target.checked)} className="mt-0.5 h-4 w-4 accent-emerald-700" /><span><strong className="font-semibold text-neutral-900">The guest has physically left and the room is vacant.</strong> This declaration is stored with the departure record.</span></label>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {!isCheckIn && earlyDeparture && <NrmsCheckoutPolicyNotice />}
+
           <label className={`group flex items-center gap-4 rounded-xl border-2 px-4 py-3.5 transition ${checkoutBlocked ? "cursor-not-allowed border-neutral-200 bg-neutral-50 opacity-60" : acknowledged ? "cursor-pointer border-emerald-500 bg-emerald-50" : "cursor-pointer border-neutral-300 bg-white hover:border-emerald-300 hover:bg-emerald-50/30"}`}>
             <input
               type="checkbox"
@@ -811,12 +847,12 @@ function StayActionModal({
             </button>
             <button
               type="button"
-              onClick={() => onConfirm(verifiedChargeIds)}
-              disabled={busy || !acknowledged || checkoutBlocked || (isCheckIn && noRoomAssigned)}
+              onClick={() => onConfirm(verifiedChargeIds, !earlyDeparture ? undefined : { roomVacantConfirmed, earlyDepartureReason: earlyDepartureReason.trim() })}
+              disabled={busy || !acknowledged || !departureDeclarationReady || checkoutBlocked || (isCheckIn && noRoomAssigned)}
               className={`inline-flex min-h-10 flex-1 appearance-none items-center justify-center gap-2 rounded-lg border-0 px-4 text-xs font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-45 sm:flex-none ${isCheckIn ? "bg-emerald-700 hover:bg-emerald-800" : "bg-neutral-900 hover:bg-neutral-800"}`}
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-              {busy ? "Processing..." : hasOpenOutletOrders ? "Complete orders first" : folioUnsettled ? "Settle folio first" : chargesUnverified ? "Verify charges first" : actionLabel}
+              {busy ? "Processing..." : hasOpenOutletOrders ? "Complete orders first" : folioUnsettled ? "Settle folio first" : chargesUnverified ? "Verify charges first" : isCheckIn ? actionLabel : "Yes, check out guest"}
             </button>
           </div>
         </div>

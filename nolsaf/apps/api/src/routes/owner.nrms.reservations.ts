@@ -159,6 +159,8 @@ const editReservationSchema = z.object({
 const reasonSchema = z.object({ reason: z.string().trim().min(2).max(300) });
 const checkoutVerificationSchema = z.object({
   verifiedChargeIds: z.array(z.number().int().positive()).max(500).default([]),
+  roomVacantConfirmed: z.boolean().default(false),
+  earlyDepartureReason: z.string().trim().min(2).max(300).optional().nullable(),
 });
 const createGroupSchema = z.object({
   name: z.string().trim().min(2).max(160),
@@ -175,6 +177,8 @@ const addGroupMembersSchema = z.object({
 const groupActionSchema = z.object({
   overrideRoomReadiness: z.boolean().optional().default(false),
   verifyCharges: z.boolean().optional().default(false),
+  roomVacantConfirmed: z.boolean().optional().default(false),
+  earlyDepartureReason: z.string().trim().min(2).max(300).optional().nullable(),
 });
 const groupTerminalSchema = z.object({ reason: z.string().trim().min(2).max(300) });
 
@@ -1246,6 +1250,8 @@ function groupActionFailure(err: unknown): GroupBlocker {
   if (message.startsWith("NRMS_MASTER_BALANCE_DUE:")) return { code: "MASTER_BALANCE_DUE", message: "The agency master folio still has an amount due." };
   if (message.startsWith("NRMS_MASTER_CREDIT_REMAINS:")) return { code: "MASTER_CREDIT_REMAINS", message: "The agency master folio has an unresolved credit." };
   if (message.startsWith("NRMS_MASTER_FOLIO_MISSING:")) return { code: "MASTER_FOLIO_MISSING", message: "The agency master folio is missing." };
+  if (message === "NRMS_ROOM_VACANCY_CONFIRMATION_REQUIRED") return { code: "ROOM_VACANCY_CONFIRMATION_REQUIRED", message: "Confirm that the guest has physically left and the room is vacant." };
+  if (message === "NRMS_EARLY_DEPARTURE_REASON_REQUIRED") return { code: "EARLY_DEPARTURE_REASON_REQUIRED", message: "Record a reason for the early departure." };
   return { code: "ACTION_FAILED", message: "The reservation changed before the operation completed." };
 }
 
@@ -1291,7 +1297,7 @@ function executeGroupAction(action: "CHECK_IN" | "CHECK_OUT") {
         try {
           const outcome = await prisma.$transaction(async (tx: any) => {
             await lockPropertyInventory(tx, group.propertyId);
-            if (action === "CHECK_OUT") await assertNrmsBusinessDayWritable(tx, group.propertyId);
+            const businessDate = action === "CHECK_OUT" ? await assertNrmsBusinessDayWritable(tx, group.propertyId) : null;
             const member = await tx.reservation.findFirst({
               where: { id: existing.id, groupId: group.id, propertyId: group.propertyId, ownerId, bookingId: null },
               include: groupMemberInclude,
@@ -1311,7 +1317,12 @@ function executeGroupAction(action: "CHECK_IN" | "CHECK_OUT") {
               await queueNrmsCheckInWelcome(tx, member.id);
               return { changed: true };
             }
-            const billing = await finalizeNrmsCheckout(tx, member, actorId, inspection.requiredChargeIds);
+            const billing = await finalizeNrmsCheckout(tx, member, ownerId, inspection.requiredChargeIds, {
+              businessDate: businessDate!,
+              actorId,
+              roomVacantConfirmed: parsed.data.roomVacantConfirmed,
+              earlyDepartureReason: parsed.data.earlyDepartureReason,
+            });
             return { changed: true, billing };
           }, EXTENDED_TX_OPTIONS);
           results.push({ reservationId: existing.id, guestName: existing.guestProfile?.fullName ?? "Guest", ...outcome });
@@ -2314,8 +2325,13 @@ router.post("/:id/check-out", (async (req: AuthedRequest, res: Response) => {
     if (reservation.status !== "CHECKED_IN") return res.status(409).json({ error: "Only checked-in stays can be checked out", code: "INVALID_TRANSITION" });
     const billing = await prisma.$transaction(async (tx: any) => {
       await lockPropertyInventory(tx, reservation.propertyId);
-      await assertNrmsBusinessDayWritable(tx, reservation.propertyId);
-      return finalizeNrmsCheckout(tx, reservation, ownerId, verification.data.verifiedChargeIds);
+      const businessDate = await assertNrmsBusinessDayWritable(tx, reservation.propertyId);
+      return finalizeNrmsCheckout(tx, reservation, ownerId, verification.data.verifiedChargeIds, {
+        businessDate,
+        actorId: ownerId,
+        roomVacantConfirmed: verification.data.roomVacantConfirmed,
+        earlyDepartureReason: verification.data.earlyDepartureReason,
+      });
     }, EXTENDED_TX_OPTIONS);
     const updated = await prisma.reservation.findUnique({ where: { id: reservation.id }, include: detailInclude });
     res.json({ reservation: formatReservation(updated), billing });
@@ -2370,6 +2386,12 @@ router.post("/:id/check-out", (async (req: AuthedRequest, res: Response) => {
     }
     if (err instanceof Error && err.message.startsWith("NRMS_MASTER_FOLIO_MISSING:")) {
       return res.status(409).json({ error: "Checkout blocked because the agency master folio is missing.", code: "MASTER_FOLIO_MISSING" });
+    }
+    if (err instanceof Error && err.message === "NRMS_ROOM_VACANCY_CONFIRMATION_REQUIRED") {
+      return res.status(409).json({ error: "Confirm that the guest has physically left and the room is vacant.", code: "ROOM_VACANCY_CONFIRMATION_REQUIRED" });
+    }
+    if (err instanceof Error && err.message === "NRMS_EARLY_DEPARTURE_REASON_REQUIRED") {
+      return res.status(409).json({ error: "Record a reason for the early departure before checkout.", code: "EARLY_DEPARTURE_REASON_REQUIRED" });
     }
     if (err instanceof Error && err.message === "NRMS_INVALID_TRANSITION_RACE") {
       return res.status(409).json({ error: "Reservation changed before checkout confirmation", code: "INVALID_TRANSITION" });
