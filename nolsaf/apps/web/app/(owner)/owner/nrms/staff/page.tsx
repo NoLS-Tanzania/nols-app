@@ -606,11 +606,11 @@ export default function NrmsStaffPage() {
 
     {replaceTarget && <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
       <button type="button" aria-label="Cancel replacement" className="absolute inset-0 border-0 bg-neutral-950/45 backdrop-blur-sm" onClick={() => { if (!replacing) setReplaceTarget(null); }} />
-      <div className="relative w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-xl ring-1 ring-neutral-200">
+      <div className="relative w-full max-w-sm overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-xl">
         <div className="flex items-start gap-3 px-5 py-4 shadow-[inset_0_-1px_0_0_#f1f5f9]">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><Repeat className="h-4 w-4" /></span>
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-neutral-100 text-neutral-700"><Repeat className="h-4 w-4" /></span>
           <div className="min-w-0">
-            <h3 className="m-0 text-sm font-bold text-neutral-950">Replace on this role</h3>
+            <h3 className="m-0 text-sm font-semibold text-neutral-950">Replace on this role</h3>
             <p className="mb-0 mt-0.5 text-[11px] leading-relaxed text-neutral-500">
               <span className="font-semibold text-neutral-700">{replaceTarget.user.fullName || replaceTarget.user.name || replaceTarget.user.email}</span>
               {" "}hands over {roleLabel(replaceTarget.role)}{replaceTarget.outlet ? ` at ${replaceTarget.outlet.name}` : ""}.
@@ -618,13 +618,13 @@ export default function NrmsStaffPage() {
           </div>
         </div>
         <div className="space-y-3 px-5 py-4">
-          <label className="block text-[10px] font-bold uppercase tracking-wide text-neutral-500">
+          <label className="block text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
             Replacement account email
-            <input type="email" value={replaceEmail} onChange={(event) => setReplaceEmail(event.target.value)} placeholder="staff@example.com" autoComplete="email" className="mt-1.5 box-border !h-10 w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-0 text-sm font-semibold normal-case tracking-normal text-neutral-900 outline-none transition placeholder:font-normal placeholder:text-neutral-400 focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/10" />
+            <input type="email" value={replaceEmail} onChange={(event) => setReplaceEmail(event.target.value)} placeholder="staff@example.com" autoComplete="email" className="mt-1.5 box-border !h-10 w-full rounded-md border border-neutral-300 bg-white px-3 py-0 text-sm font-medium normal-case tracking-normal text-neutral-900 outline-none transition placeholder:font-normal placeholder:text-neutral-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/10" />
           </label>
-          <label className="block text-[10px] font-bold uppercase tracking-wide text-neutral-500">
+          <label className="block text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
             Why the outgoing person is leaving the role
-            <select value={replaceReason} onChange={(event) => setReplaceReason(event.target.value)} className="mt-1.5 box-border !h-10 w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-0 text-sm font-semibold normal-case tracking-normal text-neutral-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/10">
+            <select value={replaceReason} onChange={(event) => setReplaceReason(event.target.value)} className="mt-1.5 box-border !h-10 w-full rounded-md border border-neutral-300 bg-white px-3 py-0 text-sm font-medium normal-case tracking-normal text-neutral-800 outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/10">
               {REVOKE_REASONS.filter((item) => item !== "Other").map((item) => <option key={item} value={item}>{item}</option>)}
             </select>
           </label>
@@ -633,9 +633,9 @@ export default function NrmsStaffPage() {
             left uncovered. Sales history stays with whoever rang it up.
           </p>
         </div>
-        <div className="flex flex-wrap justify-end gap-2 bg-neutral-50/70 px-5 py-3 shadow-[inset_0_1px_0_0_#f1f5f9]">
-          <button type="button" onClick={() => setReplaceTarget(null)} disabled={replacing} className="inline-flex h-9 items-center rounded-xl border border-neutral-200 bg-white px-3.5 text-xs font-bold text-neutral-600 transition hover:bg-neutral-50 disabled:opacity-50">Cancel</button>
-          <button type="button" onClick={() => void confirmReplace()} disabled={replacing || !replaceEmail.trim()} className="inline-flex h-9 items-center gap-1.5 rounded-xl border-0 bg-[#073c35] px-3.5 text-xs font-bold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-neutral-200 disabled:text-neutral-400">
+        <div className="flex flex-wrap justify-end gap-2 border-t border-neutral-100 bg-white px-5 py-3">
+          <button type="button" onClick={() => setReplaceTarget(null)} disabled={replacing} className="inline-flex h-9 items-center rounded-md border border-neutral-300 bg-white px-3.5 text-xs font-semibold text-neutral-600 transition hover:bg-neutral-50 disabled:opacity-50">Cancel</button>
+          <button type="button" onClick={() => void confirmReplace()} disabled={replacing || !replaceEmail.trim()} className="inline-flex h-9 items-center gap-1.5 rounded-md border-0 bg-[#073c35] px-3.5 text-xs font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-neutral-200 disabled:text-neutral-400">
             {replacing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Repeat className="h-3.5 w-3.5" />}Replace
           </button>
         </div>
