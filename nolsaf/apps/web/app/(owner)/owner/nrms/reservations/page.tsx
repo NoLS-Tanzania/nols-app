@@ -447,7 +447,6 @@ export default function NrmsReservationsPage() {
 
   return (
     <div className="pb-10">
-      {isSalesExecutive && <section className="mb-4 flex flex-wrap items-center justify-between gap-3 border border-emerald-200 bg-emerald-50/70 px-4 py-3"><div><p className="m-0 text-xs font-semibold text-emerald-950">Read-only reservation book</p><p className="mb-0 mt-1 text-[11px] leading-4 text-emerald-800">Review stays and select eligible bookings for group work. Reception manages individual booking and stay operations.</p></div><div className="flex items-center gap-3"><Link href="/owner/nrms/inquiries" className="text-xs font-semibold text-emerald-800 no-underline hover:underline">Work inquiries</Link><Link href="/owner/nrms/groups" className="text-xs font-semibold text-emerald-800 no-underline hover:underline">Group blocks</Link></div></section>}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div className="flex flex-wrap items-center gap-2">
           <select

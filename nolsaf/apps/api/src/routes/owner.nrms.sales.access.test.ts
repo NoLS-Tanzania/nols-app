@@ -220,6 +220,20 @@ describe("Sales Executive access to the owner NRMS routers", () => {
       expectAllowed((await request(app).get(`/api/owner/nrms/reservations/property/${PROPERTY_ID}/groups`)).status);
     });
 
+    it("admits a read-only reservation detail without returning transaction registers", async () => {
+      mocks.anyFindUnique.mockResolvedValue({
+        id: 17, propertyId: PROPERTY_ID, ownerId: OWNER_ID, bookingId: null, source: "PHONE", status: "CONFIRMED",
+        checkIn: new Date("2026-11-02T00:00:00.000Z"), checkOut: new Date("2026-11-04T00:00:00.000Z"),
+        adults: 2, children: 0, currency: "TZS", totalAmount: 200_000, amountPaid: 0, chargesTotal: 0,
+        guestProfile: { id: 88, fullName: "Guest", phone: "+255700000001", email: "guest@example.com", nationality: "TZ" },
+        group: null, allocations: [], payments: [{ id: 1, amount: 50_000 }], charges: [{ id: 2, amount: 10_000 }],
+        outletOrders: [{ id: 3 }], events: [{ id: 4 }], masterFolioItems: [], agentBookingGuests: [],
+      });
+      const response = await request(app).get("/api/owner/nrms/reservations/17");
+      expectAllowed(response.status);
+      expect(response.body.reservation).toMatchObject({ id: 17, status: "CONFIRMED", payments: [], charges: [], outletOrders: [], events: [] });
+    });
+
     it("refuses creating a reservation on the same path", async () => {
       // GET and POST share /property/:id. The exemption matches on method as
       // well as path precisely so this stays closed.
@@ -272,6 +286,15 @@ describe("Sales Executive access to the owner NRMS routers", () => {
 
     it("admits listing blocks", async () => {
       expectAllowed((await request(app).get(`/api/owner/nrms/group-blocks/property/${PROPERTY_ID}/blocks`)).status);
+    });
+
+    it("admits the commercial block detail but omits its financial registers", async () => {
+      stubBlock({
+        masterFolio: { id: 99, items: [], payments: [{ id: 1, amount: 50_000 }], refunds: [], proFormas: [] },
+      });
+      const response = await request(app).get("/api/owner/nrms/group-blocks/blocks/5");
+      expectAllowed(response.status);
+      expect(response.body).toMatchObject({ block: { id: 5, name: "Kilimanjaro Expedition Group", masterFolio: null, chargeRegister: [] }, accessRole: "SALES_EXECUTIVE" });
     });
 
     it("admits shaping the block: agree, amend, release, cancel", async () => {

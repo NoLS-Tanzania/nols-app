@@ -73,7 +73,8 @@ router.use(((req, res, next) => {
   // the caller's. Matched on method as well as path, because POST on the same
   // path creates a reservation and stays owner-only.
   const readsReservationBook = req.method === "GET" && /^\/property\/\d+$/.test(req.path);
-  if (groupScoped || readsReservationBook) return next();
+  const readsReservationDetail = req.method === "GET" && /^\/\d+$/.test(req.path);
+  if (groupScoped || readsReservationBook || readsReservationDetail) return next();
   return requireOwnerRole(req, res, (roleError?: unknown) => {
     if (roleError) return next(roleError);
     return requireNrms(req, res, next);
@@ -561,6 +562,26 @@ async function loadOwnedReservation(
     return null;
   }
   return reservation;
+}
+
+async function loadReadableReservation(req: AuthedRequest, res: Response, id: number) {
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: "Invalid reservation id" });
+    return null;
+  }
+  const scope = await prisma.reservation.findUnique({ where: { id }, select: { propertyId: true } });
+  if (!scope) {
+    res.status(404).json({ error: "Reservation not found" });
+    return null;
+  }
+  const access = await loadNrmsPropertyAccess(req, res, scope.propertyId, RESERVATION_READ_ROLES);
+  if (!access) return null;
+  const reservation = await prisma.reservation.findUnique({ where: { id }, include: detailInclude });
+  if (!reservation) {
+    res.status(404).json({ error: "Reservation not found" });
+    return null;
+  }
+  return { reservation, access };
 }
 
 /** Sum of non-voided payments, used to keep Reservation.amountPaid honest. */
@@ -1787,10 +1808,14 @@ router.get("/property/:propertyId/analytics", (async (req: AuthedRequest, res: R
  */
 router.get("/:id", (async (req: AuthedRequest, res: Response) => {
   try {
-    const ownerId = req.user!.id;
-    const reservation = await loadOwnedReservation(res, ownerId, Number(req.params.id), { allowMarketplace: true });
-    if (!reservation) return;
-    res.json({ reservation: formatReservation(reservation) });
+    const readable = await loadReadableReservation(req, res, Number(req.params.id));
+    if (!readable) return;
+    const reservation = formatReservation(readable.reservation);
+    res.json({
+      reservation: readable.access.role === "SALES_EXECUTIVE"
+        ? { ...reservation, payments: [], charges: [], outletOrders: [], events: [] }
+        : reservation,
+    });
   } catch (err) {
     console.error("[owner.nrms.reservations] detail failed", err);
     res.status(500).json({ error: "Failed to load reservation" });

@@ -1158,6 +1158,8 @@ export function GroupBlockDetailModal({
     <ModalFrame title={block?.name || "Group block"} onClose={onClose} extraWide>
       {loading ? (
         <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-emerald-700" /></div>
+      ) : error ? (
+        <p role="alert" className="m-0 border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>
       ) : !block ? (
         <p className="m-0 py-10 text-center text-sm text-neutral-500">Group block not found.</p>
       ) : (
@@ -1179,7 +1181,7 @@ export function GroupBlockDetailModal({
             </div>
           </div>
 
-          {block.billingMode !== "INDIVIDUAL" && (
+          {block.billingMode !== "INDIVIDUAL" && accessRole !== "SALES_EXECUTIVE" && (
             <div className="rounded-xl border border-solid border-sky-200 bg-sky-50 p-4">
               {!block.masterFolio ? (
                 <div>
@@ -1432,7 +1434,7 @@ export function GroupBlockDetailModal({
             </div>
           )}
 
-          {block.groupId && <GroupChargeRegister block={block} />}
+          {block.groupId && accessRole !== "SALES_EXECUTIVE" && <GroupChargeRegister block={block} />}
 
           {block.cutOffPassed && live && (
             <div className="flex items-start gap-3 rounded-xl border border-solid border-amber-300 bg-amber-50 p-4">

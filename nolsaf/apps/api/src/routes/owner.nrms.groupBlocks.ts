@@ -439,6 +439,26 @@ async function loadDocumentAccessibleBlock(req: AuthedRequest, res: Response, bl
   return access ? { block, access } : null;
 }
 
+async function loadReadableBlock(req: AuthedRequest, res: Response, blockId: number) {
+  if (!Number.isInteger(blockId) || blockId <= 0) {
+    res.status(400).json({ error: "Invalid group block id" });
+    return null;
+  }
+  const scope = await prisma.nrmsGroupBlock.findUnique({ where: { id: blockId }, select: { propertyId: true } });
+  if (!scope) {
+    res.status(404).json({ error: "Group block not found" });
+    return null;
+  }
+  const access = await loadGroupListAccess(req, res, scope.propertyId);
+  if (!access) return null;
+  const block = await prisma.nrmsGroupBlock.findUnique({ where: { id: blockId }, include: blockDetailInclude });
+  if (!block) {
+    res.status(404).json({ error: "Group block not found" });
+    return null;
+  }
+  return { block, access };
+}
+
 async function loadAccessibleProForma(req: AuthedRequest, res: Response, blockId: number, proFormaId: number) {
   if (!Number.isInteger(proFormaId) || proFormaId <= 0) {
     res.status(400).json({ error: "Invalid Pro Forma id" });
@@ -631,9 +651,15 @@ router.post("/property/:propertyId/blocks", (async (req: AuthedRequest, res: Res
 /** GET /blocks/:blockId */
 router.get("/blocks/:blockId", (async (req: AuthedRequest, res: Response) => {
   try {
-    const accessible = await loadDocumentAccessibleBlock(req, res, Number(req.params.blockId));
+    const accessible = await loadReadableBlock(req, res, Number(req.params.blockId));
     if (!accessible) return;
-    res.json({ block: formatBlock(accessible.block), accessRole: accessible.access.role });
+    const block = formatBlock(accessible.block);
+    res.json({
+      block: accessible.access.role === "SALES_EXECUTIVE"
+        ? { ...block, masterFolio: null, chargeRegister: [] }
+        : block,
+      accessRole: accessible.access.role,
+    });
   } catch (err) {
     console.error("[owner.nrms.groupBlocks] detail failed", err);
     res.status(500).json({ error: "Failed to load the group block" });
