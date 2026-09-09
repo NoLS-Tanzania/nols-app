@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
   BedDouble,
@@ -205,6 +205,7 @@ export default function NrmsBillingPage() {
   const [channelChoice, setChannelChoice] = useState<Record<string, PaymentTarget["initialMethod"]>>({});
   const [processingSince, setProcessingSince] = useState<Record<string, number>>({});
   const [nowTick, setNowTick] = useState(() => Date.now());
+  const automaticPaymentState = useRef<"idle" | "creating" | "done">("idle");
 
   const load = useCallback(async () => {
     if (!selectedPropertyId) return;
@@ -296,6 +297,77 @@ export default function NrmsBillingPage() {
       ? "Card payment received. NRMS billing is refreshing your account."
       : "Card checkout was not completed. You can choose a payment channel and try again.");
   }, []);
+
+  // A blocked reservation links here with ?pay=1. Resolve the owner's current
+  // payable token (or create one for unbilled usage) and open the normal secure
+  // payment-method dialog. The URL flag is consumed once so refresh/back cannot
+  // repeatedly open payment or create duplicate settlement attempts.
+  useEffect(() => {
+    if (!account || !selectedPropertyId || paymentTarget || automaticPaymentState.current !== "idle") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("pay") !== "1") return;
+
+    const consumePaymentFlag = () => {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("pay");
+      window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+    };
+    const openToken = (token: any, statement?: any) => {
+      automaticPaymentState.current = "done";
+      setPaymentTarget({
+        token: String(token.token),
+        amount: Number(token.amount ?? statement?.amount ?? account.unpaidBalance ?? 0),
+        currency: String(token.currency || statement?.currency || account.policy?.currency || "TZS"),
+        initialMethod: "MNO",
+      });
+      consumePaymentFlag();
+    };
+
+    const payableStatements = (account.statements ?? []).filter((statement: any) => !isCompletedStatement(statement));
+    for (const statement of payableStatements) {
+      const token = (statement.tokens ?? []).find((entry: any) => ["PENDING", "FAILED"].includes(String(entry.status).toUpperCase()));
+      if (token) {
+        openToken(token, statement);
+        return;
+      }
+    }
+
+    const processing = payableStatements.flatMap((statement: any) => statement.tokens ?? []).find((token: any) => String(token.status).toUpperCase() === "PROCESSING");
+    if (processing) {
+      automaticPaymentState.current = "done";
+      setPaymentNotice("A payment is already being processed. Its live status is shown below.");
+      consumePaymentFlag();
+      return;
+    }
+
+    if (Number(account.unpaidBalance ?? 0) <= 0) {
+      automaticPaymentState.current = "done";
+      setPaymentNotice("There is no outstanding NRMS balance to pay.");
+      consumePaymentFlag();
+      return;
+    }
+
+    if (smokeScenario) {
+      openToken({
+        token: "NRMS-SMOKE-DEEP-LINK",
+        amount: Number(account.unpaidBalance),
+        currency: account.policy?.currency || "TZS",
+      });
+      return;
+    }
+
+    automaticPaymentState.current = "creating";
+    void apiClient.post(`/api/owner/nrms/billing/${selectedPropertyId}/token`, {}).then((response) => {
+      const token = response.data?.token;
+      if (!token?.token) throw new Error("PAYMENT_TOKEN_MISSING");
+      openToken(token);
+      void load();
+    }).catch((requestError: any) => {
+      automaticPaymentState.current = "done";
+      consumePaymentFlag();
+      setError(requestError?.response?.data?.error || "The payment option could not be prepared. Please try again.");
+    });
+  }, [account, load, paymentTarget, selectedPropertyId, smokeScenario]);
 
   if (!selectedPropertyId) return <p className="py-10 text-center text-sm text-neutral-500">Select a property to view billing.</p>;
   if (error) return <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>;
@@ -618,7 +690,7 @@ export default function NrmsBillingPage() {
           </div>
         </section>
 
-        <section className="min-w-0 overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-[0_12px_35px_-32px_rgba(15,23,42,0.4)]">
+        <section id="statements" className="min-w-0 scroll-mt-24 overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-[0_12px_35px_-32px_rgba(15,23,42,0.4)]">
           <div className="relative overflow-hidden border-b border-blue-100 bg-[linear-gradient(135deg,#ffffff_0%,#f1f7ff_100%)] px-4 py-4 sm:px-5">
             <div className="pointer-events-none absolute -right-10 -top-14 h-32 w-32 rounded-full border border-blue-600/[0.06]" aria-hidden="true" />
             <div className="relative flex flex-wrap items-center justify-between gap-3">

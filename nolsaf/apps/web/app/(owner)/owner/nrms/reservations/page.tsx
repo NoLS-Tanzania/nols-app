@@ -761,7 +761,11 @@ function NrmsBillingBlockCard({ block }: { block: BillingBlock }) {
   const chipLabel = block.status === "PAYMENT_REQUIRED" ? "Payment required" : block.status === "PAYMENT_PENDING" ? "Payment pending" : "Account closed";
   const amount = (value: number) => `${block.currency} ${Math.round(value).toLocaleString()}`;
   const overLimit = block.limit > 0 && block.outstanding > block.limit;
-  const actionHref = block.action === "SUPPORT" ? "/owner/nrms/help" : "/owner/nrms/billing";
+  const actionHref = block.action === "PAY"
+    ? "/owner/nrms/billing?pay=1#statements"
+    : block.action === "STATUS"
+      ? "/owner/nrms/billing#statements"
+      : "/owner/nrms/help";
   const actionLabel = block.action === "PAY" ? `Pay ${amount(block.outstanding)} now` : block.action === "STATUS" ? "Check payment status" : "Contact support";
   return (
     <div role="alert" className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
@@ -794,12 +798,12 @@ function NrmsBillingBlockCard({ block }: { block: BillingBlock }) {
           <p className="mb-0 mt-1 text-[11px] leading-relaxed text-emerald-700">Check-ins, checkouts, folio postings, outlet orders and every existing reservation are unaffected. Only opening a new external stay is paused.</p>
         </div>
         <div className="mt-3.5 flex flex-wrap gap-2">
-          <a href={actionHref} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-emerald-800 px-4 text-[13px] font-semibold text-white no-underline">
+          <Link href={actionHref} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-emerald-800 px-4 text-[13px] font-semibold text-white no-underline">
             <WalletCards className="h-4 w-4" />{actionLabel}
-          </a>
-          <a href="/owner/nrms/billing" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-4 text-[13px] font-semibold text-neutral-700 no-underline">
+          </Link>
+          <Link href="/owner/nrms/billing#statements" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-4 text-[13px] font-semibold text-neutral-700 no-underline">
             <ReceiptText className="h-4 w-4" />View statement
-          </a>
+          </Link>
         </div>
       </div>
     </div>
@@ -1370,15 +1374,16 @@ function CreateReservationModal({
             onClose={() => { setPreviewGuest(null); setPreviewDetail(null); }}
             elevated
             wide
+            compactFooter
             footer={
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-start gap-2 text-xs text-neutral-500">
-                  <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" />
+              <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex max-w-sm items-start gap-2 text-[11px] leading-4 text-neutral-500">
+                  <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
                   <span>Using this profile keeps the new stay attached to the guest&apos;s existing history.</span>
                 </div>
-                <div className="flex shrink-0 flex-col-reverse gap-2 sm:flex-row">
-                  <button type="button" onClick={() => { setPreviewGuest(null); setPreviewDetail(null); }} className="inline-flex min-h-11 items-center justify-center rounded-lg border border-neutral-300 bg-white px-5 text-sm font-bold text-neutral-700 transition hover:bg-neutral-50">Cancel</button>
-                  <button type="button" onClick={confirmPreviewGuest} disabled={previewLoading} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-emerald-700 px-6 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-800 disabled:opacity-50"><Check className="h-4 w-4" />Use this guest</button>
+                <div className="flex shrink-0 flex-col-reverse gap-2 min-[400px]:flex-row">
+                  <button type="button" onClick={() => { setPreviewGuest(null); setPreviewDetail(null); }} className="inline-flex h-9 min-h-0 items-center justify-center rounded-lg border border-neutral-200 bg-white px-4 text-xs font-medium text-neutral-600 transition hover:bg-neutral-50 hover:text-neutral-900">Cancel</button>
+                  <button type="button" onClick={confirmPreviewGuest} disabled={previewLoading} className="inline-flex h-9 min-h-0 items-center justify-center gap-1.5 rounded-lg bg-emerald-700 px-4 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-800 disabled:opacity-50"><Check className="h-3.5 w-3.5" />Use this guest</button>
                 </div>
               </div>
             }
@@ -1386,44 +1391,40 @@ function CreateReservationModal({
             {previewLoading ? (
               <div className="flex min-h-72 flex-col items-center justify-center gap-3 text-neutral-400"><Loader2 className="h-6 w-6 animate-spin text-emerald-700" /><span className="text-xs">Loading guest relationship…</span></div>
             ) : (
-              <div className="space-y-5">
-                <section className="overflow-hidden rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-white">
-                  <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-6">
+                <section className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-[0_14px_38px_-34px_rgba(15,23,42,0.45)]">
+                  <div className="flex flex-col gap-4 bg-gradient-to-r from-emerald-50/70 via-white to-white p-5 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex min-w-0 items-center gap-4">
-                      <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-emerald-700 text-xl font-black text-white shadow-sm">
-                        {(previewDetail?.fullName ?? previewGuest.fullName).split(/\s+/).slice(0, 2).map((name) => name[0]).join("").toUpperCase()}
+                      <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-emerald-100 bg-white text-emerald-700 shadow-sm ring-4 ring-white" aria-hidden="true">
+                        <UserRound className="h-6 w-6" strokeWidth={1.8} />
                       </span>
                       <div className="min-w-0">
-                        <span className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-700"><History className="h-3 w-3" />Returning guest</span>
-                        <h4 className="m-0 truncate text-xl font-black tracking-tight text-neutral-950 sm:text-2xl">{previewDetail?.fullName ?? previewGuest.fullName}</h4>
-                        <p className="mb-0 mt-1 text-xs text-neutral-500">{previewDetail?.createdAt ? `Guest relationship since ${fmtDate(previewDetail.createdAt)}` : "Existing property guest profile"}</p>
+                        <h4 className="m-0 truncate text-xl font-semibold tracking-[-0.02em] text-neutral-950 sm:text-2xl">{previewDetail?.fullName ?? previewGuest.fullName}</h4>
+                        <p className="mb-0 mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-neutral-500"><span className="inline-flex items-center gap-1.5 text-emerald-700"><History className="h-3.5 w-3.5" />Returning guest</span><span className="text-neutral-300" aria-hidden>•</span><span>{previewDetail?.createdAt ? `Guest since ${fmtDate(previewDetail.createdAt)}` : "Existing guest profile"}</span></p>
                       </div>
                     </div>
-                    <div className="rounded-lg border border-emerald-100 bg-white/90 px-3 py-2 text-left sm:text-right">
-                      <p className="m-0 text-[9px] font-bold uppercase tracking-[0.14em] text-neutral-400">Profile status</p>
-                      <p className="mb-0 mt-1 flex items-center gap-1.5 text-xs font-bold text-emerald-700 sm:justify-end"><Check className="h-3.5 w-3.5" />Recognised guest</p>
-                    </div>
+                    <span className="inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full border border-emerald-100 bg-white/90 px-3 py-1.5 text-xs font-medium text-emerald-700 shadow-sm"><Check className="h-3.5 w-3.5" />Recognised profile</span>
                   </div>
-                  <div className="grid border-t border-emerald-100 bg-white/70 sm:grid-cols-3">
-                    <div className="flex items-center gap-3 border-b border-emerald-100 px-5 py-4 sm:border-b-0 sm:border-r"><BedDouble className="h-5 w-5 text-emerald-700" /><div><p className="m-0 text-[9px] font-bold uppercase tracking-wide text-neutral-400">Recorded stays</p><p className="mb-0 mt-1 text-base font-black text-neutral-950">{previewStats.stays}</p></div></div>
-                    <div className="flex items-center gap-3 border-b border-emerald-100 px-5 py-4 sm:border-b-0 sm:border-r"><CircleDollarSign className="h-5 w-5 text-emerald-700" /><div><p className="m-0 text-[9px] font-bold uppercase tracking-wide text-neutral-400">Lifetime value</p><p className="mb-0 mt-1 text-base font-black text-neutral-950">{previewStats.currency} {previewStats.spend.toLocaleString()}</p></div></div>
-                    <div className="flex items-center gap-3 px-5 py-4"><WalletCards className={`h-5 w-5 ${previewStats.balance > 0 ? "text-amber-600" : "text-emerald-700"}`} /><div><p className="m-0 text-[9px] font-bold uppercase tracking-wide text-neutral-400">Open balance</p><p className={`mb-0 mt-1 text-base font-black ${previewStats.balance > 0 ? "text-amber-700" : "text-emerald-700"}`}>{previewStats.currency} {Math.max(0, previewStats.balance).toLocaleString()}</p></div></div>
+                  <div className="grid gap-2 border-0 border-t border-solid border-neutral-100 bg-neutral-50/60 p-3 sm:grid-cols-3">
+                    <div className="flex items-center gap-3 rounded-xl bg-white px-3.5 py-3 ring-1 ring-neutral-100"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-emerald-50 text-emerald-600"><BedDouble className="h-4 w-4" /></span><div><p className="m-0 text-[10px] text-neutral-500">Recorded stays</p><p className="mb-0 mt-0.5 text-base font-semibold text-neutral-900">{previewStats.stays}</p></div></div>
+                    <div className="flex items-center gap-3 rounded-xl bg-white px-3.5 py-3 ring-1 ring-neutral-100"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-emerald-50 text-emerald-600"><CircleDollarSign className="h-4 w-4" /></span><div><p className="m-0 text-[10px] text-neutral-500">Lifetime value</p><p className="mb-0 mt-0.5 text-base font-semibold text-neutral-900">{previewStats.currency} {previewStats.spend.toLocaleString()}</p></div></div>
+                    <div className="flex items-center gap-3 rounded-xl bg-white px-3.5 py-3 ring-1 ring-neutral-100"><span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${previewStats.balance > 0 ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-600"}`}><WalletCards className="h-4 w-4" /></span><div><p className="m-0 text-[10px] text-neutral-500">Open balance</p><p className={`mb-0 mt-0.5 text-base font-semibold ${previewStats.balance > 0 ? "text-amber-700" : "text-emerald-700"}`}>{previewStats.currency} {Math.max(0, previewStats.balance).toLocaleString()}</p></div></div>
                   </div>
                 </section>
 
                 <section>
-                  <div className="mb-2 flex items-center justify-between gap-3"><h4 className="m-0 text-xs font-bold uppercase tracking-[0.13em] text-neutral-500">Guest details</h4><span className="text-[10px] text-neutral-400">Property record</span></div>
-                  <div className="grid overflow-hidden rounded-xl border border-neutral-200 bg-neutral-50 sm:grid-cols-3">
-                    <div className="flex min-w-0 items-start gap-3 border-b border-neutral-200 p-4 sm:border-b-0 sm:border-r"><Phone className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" /><div className="min-w-0"><p className="m-0 text-[9px] font-bold uppercase tracking-wide text-neutral-400">Phone</p><p className="mb-0 mt-1 truncate text-sm font-bold text-neutral-900">{previewDetail?.phone || previewGuest.phone || "Not recorded"}</p></div></div>
-                    <div className="flex min-w-0 items-start gap-3 border-b border-neutral-200 p-4 sm:border-b-0 sm:border-r"><Mail className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" /><div className="min-w-0"><p className="m-0 text-[9px] font-bold uppercase tracking-wide text-neutral-400">Email</p><p className="mb-0 mt-1 truncate text-sm font-bold text-neutral-900" title={previewDetail?.email || previewGuest.email || "Not recorded"}>{previewDetail?.email || previewGuest.email || "Not recorded"}</p></div></div>
-                    <div className="flex min-w-0 items-start gap-3 p-4"><Globe2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" /><div className="min-w-0"><p className="m-0 text-[9px] font-bold uppercase tracking-wide text-neutral-400">Nationality</p><p className="mb-0 mt-1 truncate text-sm font-bold text-neutral-900">{previewDetail?.nationality || previewGuest.nationality || "Not recorded"}</p></div></div>
+                  <div className="mb-2.5 flex items-center justify-between gap-3"><h4 className="m-0 text-sm font-medium text-neutral-700">Guest details</h4><span className="text-[10px] text-neutral-400">Property record</span></div>
+                  <div className="grid gap-2 rounded-2xl bg-neutral-50 p-2 sm:grid-cols-3">
+                    <div className="flex min-w-0 items-center gap-3 rounded-xl bg-white p-3.5 ring-1 ring-neutral-100"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-neutral-50 text-emerald-600"><Phone className="h-4 w-4" /></span><div className="min-w-0"><p className="m-0 text-[10px] text-neutral-400">Phone</p><p className="mb-0 mt-1 truncate text-sm font-medium text-neutral-800">{previewDetail?.phone || previewGuest.phone || "Not recorded"}</p></div></div>
+                    <div className="flex min-w-0 items-center gap-3 rounded-xl bg-white p-3.5 ring-1 ring-neutral-100"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-neutral-50 text-emerald-600"><Mail className="h-4 w-4" /></span><div className="min-w-0"><p className="m-0 text-[10px] text-neutral-400">Email</p><p className="mb-0 mt-1 truncate text-sm font-medium text-neutral-800" title={previewDetail?.email || previewGuest.email || "Not recorded"}>{previewDetail?.email || previewGuest.email || "Not recorded"}</p></div></div>
+                    <div className="flex min-w-0 items-center gap-3 rounded-xl bg-white p-3.5 ring-1 ring-neutral-100"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-neutral-50 text-emerald-600"><Globe2 className="h-4 w-4" /></span><div className="min-w-0"><p className="m-0 text-[10px] text-neutral-400">Nationality</p><p className="mb-0 mt-1 truncate text-sm font-medium text-neutral-800">{previewDetail?.nationality || previewGuest.nationality || "Not recorded"}</p></div></div>
                   </div>
                 </section>
 
-                {previewDetail?.notes && <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-950"><p className="m-0 font-bold">Front-desk note</p><p className="mb-0 mt-1 leading-5 text-amber-900">{previewDetail.notes}</p></div>}
+                {previewDetail?.notes && <div className="rounded-xl border border-amber-100 bg-amber-50/70 px-4 py-3 text-xs text-amber-950"><p className="m-0 font-medium">Front-desk note</p><p className="mb-0 mt-1 leading-5 text-amber-800">{previewDetail.notes}</p></div>}
 
                 <section>
-                  <div className="mb-2 flex items-end justify-between gap-3"><div><h4 className="m-0 text-xs font-bold uppercase tracking-[0.13em] text-neutral-500">Stay records</h4><p className="mb-0 mt-1 text-[11px] text-neutral-400">Most recent property reservations</p></div><span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[10px] font-bold text-neutral-600">{previewStats.rows.length} total</span></div>
+                  <div className="mb-2.5 flex items-end justify-between gap-3"><div><h4 className="m-0 text-sm font-medium text-neutral-700">Stay records</h4><p className="mb-0 mt-1 text-[11px] text-neutral-400">Most recent property reservations</p></div><span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[10px] font-medium text-neutral-500">{previewStats.rows.length} total</span></div>
                   {previewStats.rows.length ? (
                     <div className="divide-y divide-neutral-100 overflow-hidden rounded-xl border border-neutral-200 bg-white">
                       {previewStats.rows.slice(0, 8).map((row) => {
@@ -1433,13 +1434,13 @@ function CreateReservationModal({
                           <div className="flex min-w-0 items-center gap-3">
                             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-500"><BedDouble className="h-4 w-4" /></span>
                             <div className="min-w-0">
-                              <div className="flex flex-wrap items-center gap-2"><p className="m-0 text-xs font-bold text-neutral-900">{fmtDate(row.checkIn)} to {fmtDate(row.checkOut)}</p><span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${STATUS_CLS[row.status] ?? "bg-neutral-100 text-neutral-600"}`}>{row.status.replace(/_/g, " ")}</span></div>
+                              <div className="flex flex-wrap items-center gap-2"><p className="m-0 text-xs font-medium text-neutral-800">{fmtDate(row.checkIn)} to {fmtDate(row.checkOut)}</p><span className={`rounded-full px-2 py-0.5 text-[9px] font-medium uppercase ${STATUS_CLS[row.status] ?? "bg-neutral-100 text-neutral-600"}`}>{row.status.replace(/_/g, " ")}</span></div>
                               <p className="mb-0 mt-1 text-[10px] text-neutral-500">{SOURCE_LABEL[row.source] ?? row.source}</p>
                             </div>
                           </div>
                           <div className="grid grid-cols-2 gap-5 text-right sm:min-w-52">
-                            <div><p className="m-0 text-[9px] font-bold uppercase tracking-wide text-neutral-400">Stay total</p><p className="mb-0 mt-1 text-xs font-black text-neutral-900">{row.currency} {(row.totalAmount ?? 0).toLocaleString()}</p></div>
-                            <div><p className="m-0 text-[9px] font-bold uppercase tracking-wide text-neutral-400">{row.commercialManaged ? "Payment" : rowBalance > 0 ? "Balance" : "Payment"}</p><p className={`mb-0 mt-1 text-xs font-black ${row.commercialManaged ? "text-emerald-700" : rowBalance > 0 ? "text-amber-700" : "text-emerald-700"}`}>{row.commercialManaged ? "NoLSAF managed" : rowBalance > 0 ? `${row.currency} ${rowBalance.toLocaleString()}` : "Settled"}</p></div>
+                            <div><p className="m-0 text-[9px] uppercase tracking-wide text-neutral-400">Stay total</p><p className="mb-0 mt-1 text-xs font-semibold text-neutral-800">{row.currency} {(row.totalAmount ?? 0).toLocaleString()}</p></div>
+                            <div><p className="m-0 text-[9px] uppercase tracking-wide text-neutral-400">{row.commercialManaged ? "Payment" : rowBalance > 0 ? "Balance" : "Payment"}</p><p className={`mb-0 mt-1 text-xs font-semibold ${row.commercialManaged ? "text-emerald-700" : rowBalance > 0 ? "text-amber-700" : "text-emerald-700"}`}>{row.commercialManaged ? "NoLSAF managed" : rowBalance > 0 ? `${row.currency} ${rowBalance.toLocaleString()}` : "Settled"}</p></div>
                           </div>
                         </div>
                       )})}

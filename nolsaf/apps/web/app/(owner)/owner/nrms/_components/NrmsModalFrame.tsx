@@ -18,6 +18,7 @@ export default function ModalFrame({
   elevated = false,
   closeOnEscape = true,
   compact = false,
+  compactFooter = false,
 }: {
   title: string;
   subtitle?: string;
@@ -30,6 +31,7 @@ export default function ModalFrame({
   elevated?: boolean;
   closeOnEscape?: boolean;
   compact?: boolean;
+  compactFooter?: boolean;
 }) {
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -78,7 +80,7 @@ export default function ModalFrame({
           </button>
         </div>
         <div className={compact ? "overflow-visible p-3" : "min-h-0 overflow-y-auto overscroll-contain p-5 sm:p-6"}>{children}</div>
-        {footer && <div className="shrink-0 border-t border-neutral-100 bg-white px-5 py-4 sm:px-6">{footer}</div>}
+        {footer && <div className={`shrink-0 border-t border-neutral-100 bg-white ${compactFooter ? "px-4 py-2.5 sm:px-5" : "px-5 py-4 sm:px-6"}`}>{footer}</div>}
       </div>
     </div>,
     document.body,
