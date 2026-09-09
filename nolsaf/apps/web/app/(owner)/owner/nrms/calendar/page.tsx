@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import apiClient from "@/lib/apiClient";
 import { BedDouble, CalendarDays, ChevronLeft, ChevronRight, Loader2, LogIn, LogOut, Plus, RefreshCw, ZoomIn, ZoomOut } from "lucide-react";
 import { useNrms } from "../_components/NrmsProvider";
+import { useNrmsAccessRole } from "../_components/NrmsAccessRole";
 import { useSocket } from "@/hooks/useSocket";
 
 type FeedUnit = { id: number; code: string; floor: number | null; status: string };
@@ -150,6 +151,8 @@ function formatRoomRate(type: FeedType): string {
 
 export default function NrmsCalendarPage() {
   const { selectedPropertyId } = useNrms();
+  const { accessRole } = useNrmsAccessRole();
+  const isSalesExecutive = accessRole === "SALES_EXECUTIVE";
   const { socket } = useSocket(undefined, { enabled: true, joinDriverRoom: false });
   const router = useRouter();
   const [anchorDate, setAnchorDate] = useState<Date>(() => startOfDay(new Date()));
@@ -288,6 +291,7 @@ export default function NrmsCalendarPage() {
 
   return (
     <div className="min-w-0 space-y-3 pb-6">
+      {isSalesExecutive && <div className="flex flex-wrap items-center justify-between gap-3 border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-xs text-emerald-950"><div><span className="font-semibold">Availability view</span><span className="ml-2 text-emerald-800">Review room demand and existing stays. Create individual bookings through Reception.</span></div><div className="flex items-center gap-3"><Link href="/owner/nrms/inquiries" className="font-semibold text-emerald-800 no-underline hover:underline">Work inquiries</Link><Link href="/owner/nrms/groups" className="font-semibold text-emerald-800 no-underline hover:underline">Group blocks</Link></div></div>}
       <section className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-[0_12px_35px_-30px_rgba(15,23,42,0.4)]">
         <div className="flex flex-col gap-3 px-3 py-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 items-center gap-2">
@@ -447,7 +451,7 @@ export default function NrmsCalendarPage() {
                   selectedDate={selectedDate}
                   selectedUnitId={selectedUnitId}
                   onSelectRoom={setSelectedUnitId}
-                  onCreateReservation={startReservation}
+                  onCreateReservation={isSalesExecutive ? undefined : startReservation}
                   unitEntryFor={unitEntryFor}
                   unassignedFor={unassignedFor}
                 />
@@ -471,7 +475,7 @@ export default function NrmsCalendarPage() {
                   today={today}
                   selectedDate={selectedDate}
                   density={density}
-                  onCreateReservation={(day) => startReservation(day)}
+                  onCreateReservation={isSalesExecutive ? undefined : (day) => startReservation(day)}
                   entryFor={(day) => unassignedFor(null, day)}
                   muted
                 />
@@ -564,7 +568,7 @@ function CalendarTypeRows({
   selectedDate: string;
   selectedUnitId: number | null;
   onSelectRoom: (unitId: number | null) => void;
-  onCreateReservation: (day: Date, roomTypeId?: number, roomUnitId?: number) => void;
+  onCreateReservation?: (day: Date, roomTypeId?: number, roomUnitId?: number) => void;
   unitEntryFor: (unitId: number, day: Date) => FeedEntry | null;
   unassignedFor: (typeId: number | null, day: Date) => FeedEntry | null;
 }) {
@@ -661,7 +665,7 @@ function CalendarEntryRow({
   selectedDate: string;
   selectedUnitId?: number | null;
   onSelectRoom?: (unitId: number | null) => void;
-  onCreateReservation: (day: Date, roomTypeId?: number, roomUnitId?: number) => void;
+  onCreateReservation?: (day: Date, roomTypeId?: number, roomUnitId?: number) => void;
   entryFor: (day: Date) => FeedEntry | null;
   muted?: boolean;
 }) {
@@ -730,7 +734,7 @@ function CalendarEntryRow({
               <div className="flex h-full w-full items-center justify-center bg-neutral-50/60" style={{ minHeight: density.rowHeight }} title="Past dates are read-only">
                 <span className={`${density.value === "compact" ? "h-0.5 w-3" : "h-1 w-5"} rounded-full bg-neutral-200`} />
               </div>
-            ) : (
+            ) : onCreateReservation ? (
               <button
                 type="button"
                 onClick={() => onCreateReservation(day, roomTypeId, roomUnitId)}
@@ -744,6 +748,10 @@ function CalendarEntryRow({
                   <Plus className={density.value === "compact" ? "h-2.5 w-2.5" : "h-3.5 w-3.5"} />
                 </span>
               </button>
+            ) : (
+              <div className="flex h-full w-full items-center justify-center bg-white" style={{ minHeight: density.rowHeight }} title="Available · reservation creation is managed by Reception">
+                <span className={`${density.value === "compact" ? "h-0.5 w-3" : "h-1 w-5"} rounded-full bg-emerald-100`} />
+              </div>
             )}
           </td>
         );

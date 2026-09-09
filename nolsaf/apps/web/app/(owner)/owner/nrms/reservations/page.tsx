@@ -11,6 +11,7 @@ import { AlertTriangle, ArrowRight, ArrowUpDown, BedDouble, CalendarDays, Calend
 import { NRMS_CHARGE_CATEGORIES, NRMS_CHARGE_CATEGORY_LABELS } from "@nolsaf/shared";
 import { tallyRoomLabels } from "@/lib/roomLabels";
 import { useNrms } from "../_components/NrmsProvider";
+import { useNrmsAccessRole } from "../_components/NrmsAccessRole";
 import ModalFrame from "../_components/NrmsModalFrame";
 import NrmsBillingBlockModal, { type NrmsBillingBlock } from "../_components/NrmsBillingBlockModal";
 import NrmsCheckoutPolicyNotice from "../_components/NrmsCheckoutPolicyNotice";
@@ -337,6 +338,8 @@ function nightsBetween(checkIn: string, checkOut: string): number {
 
 export default function NrmsReservationsPage() {
   const { selectedPropertyId } = useNrms();
+  const { accessRole } = useNrmsAccessRole();
+  const isSalesExecutive = accessRole === "SALES_EXECUTIVE";
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reservations, setReservations] = useState<Reservation[]>([]);
@@ -420,21 +423,23 @@ export default function NrmsReservationsPage() {
 
     if (params.get("create") !== "1") return;
 
-    const roomTypeId = Number(params.get("roomTypeId"));
-    const roomUnitId = Number(params.get("roomUnitId"));
-    setCreateDefaults({
-      checkIn: params.get("checkIn") || undefined,
-      roomTypeId: Number.isInteger(roomTypeId) && roomTypeId > 0 ? roomTypeId : undefined,
-      roomUnitId: Number.isInteger(roomUnitId) && roomUnitId > 0 ? roomUnitId : undefined,
-    });
-    setShowCreate(true);
+    if (!isSalesExecutive) {
+      const roomTypeId = Number(params.get("roomTypeId"));
+      const roomUnitId = Number(params.get("roomUnitId"));
+      setCreateDefaults({
+        checkIn: params.get("checkIn") || undefined,
+        roomTypeId: Number.isInteger(roomTypeId) && roomTypeId > 0 ? roomTypeId : undefined,
+        roomUnitId: Number.isInteger(roomUnitId) && roomUnitId > 0 ? roomUnitId : undefined,
+      });
+      setShowCreate(true);
+    }
     params.delete("create");
     params.delete("checkIn");
     params.delete("roomTypeId");
     params.delete("roomUnitId");
     const remainingQuery = params.toString();
     window.history.replaceState(window.history.state, "", `${window.location.pathname}${remainingQuery ? `?${remainingQuery}` : ""}`);
-  }, []);
+  }, [isSalesExecutive]);
 
   if (!selectedPropertyId) {
     return <p className="text-sm text-neutral-500 py-10 text-center">Add a property first to manage reservations.</p>;
@@ -442,6 +447,7 @@ export default function NrmsReservationsPage() {
 
   return (
     <div className="pb-10">
+      {isSalesExecutive && <section className="mb-4 flex flex-wrap items-center justify-between gap-3 border border-emerald-200 bg-emerald-50/70 px-4 py-3"><div><p className="m-0 text-xs font-semibold text-emerald-950">Read-only reservation book</p><p className="mb-0 mt-1 text-[11px] leading-4 text-emerald-800">Review stays and select eligible bookings for group work. Reception manages individual booking and stay operations.</p></div><div className="flex items-center gap-3"><Link href="/owner/nrms/inquiries" className="text-xs font-semibold text-emerald-800 no-underline hover:underline">Work inquiries</Link><Link href="/owner/nrms/groups" className="text-xs font-semibold text-emerald-800 no-underline hover:underline">Group blocks</Link></div></section>}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div className="flex flex-wrap items-center gap-2">
           <select
@@ -473,7 +479,7 @@ export default function NrmsReservationsPage() {
             {SOURCES.map((source) => <option key={source} value={source}>{SOURCE_LABEL[source] ?? source}</option>)}
           </select>
         </div>
-        <button
+        {!isSalesExecutive && <button
           type="button"
           onClick={() => {
             setCreateDefaults({});
@@ -482,7 +488,7 @@ export default function NrmsReservationsPage() {
           className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-3 py-2"
         >
           <Plus className="w-4 h-4" /> New reservation
-        </button>
+        </button>}
       </div>
 
       {selectedIds.length > 0 && (
@@ -518,7 +524,7 @@ export default function NrmsReservationsPage() {
       ) : reservations.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-neutral-300 bg-white py-14 text-center">
           <p className="text-sm font-semibold text-neutral-700">No reservations found</p>
-          <p className="mt-1 text-xs text-neutral-400">Record a walk-in, phone or external reservation to begin.</p>
+          <p className="mt-1 text-xs text-neutral-400">{isSalesExecutive ? "No reservations match the current filters." : "Record a walk-in, phone or external reservation to begin."}</p>
         </div>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-[0_12px_35px_-30px_rgba(15,23,42,0.4)]">
@@ -677,7 +683,7 @@ export default function NrmsReservationsPage() {
         </div>
       )}
 
-      {showCreate && (
+      {!isSalesExecutive && showCreate && (
         <CreateReservationModal
           propertyId={selectedPropertyId}
           initialCheckIn={createDefaults.checkIn}
@@ -694,6 +700,7 @@ export default function NrmsReservationsPage() {
       {selectedReservationId && (
         <ReservationDetailModal
           reservationId={selectedReservationId}
+          readOnly={isSalesExecutive}
           onClose={closeReservation}
           onChanged={load}
         />
@@ -1378,12 +1385,36 @@ function CreateReservationModal({
   );
 }
 
+function SalesReservationSummary({ reservation: r }: { reservation: Reservation }) {
+  const guestName = r.guestProfile?.fullName ?? r.agentBooking?.leadGuest?.fullName ?? "Guest";
+  const rooms = tallyRoomLabels((r.allocations ?? []).filter((allocation) => allocation.status === "ACTIVE").map((allocation) => allocation.roomUnitCode ?? allocation.roomTypeName), "Unassigned");
+  const partySize = r.bookingId != null ? `${r.marketplaceBooking?.roomsQty ?? 1} room(s)` : `${r.adults + r.children} guest(s)`;
+  return <div className="space-y-4 text-sm">
+    <section className="flex flex-wrap items-start justify-between gap-3 border border-neutral-200 bg-neutral-50 px-4 py-3">
+      <div className="min-w-0"><p className="m-0 truncate text-base font-semibold text-neutral-950">{guestName}</p><p className="mb-0 mt-1 text-xs text-neutral-500">{fmtDate(r.checkIn)} to {fmtDate(r.checkOut)} · {SOURCE_LABEL[r.source] ?? r.source}</p></div>
+      <span className={`inline-flex px-2.5 py-1 text-[10px] font-semibold capitalize ${STATUS_CLS[r.status] ?? "bg-neutral-100 text-neutral-500"}`}>{r.status.replace(/_/g, " ").toLowerCase()}</span>
+    </section>
+    <div className="grid gap-px bg-neutral-200 ring-1 ring-neutral-200 sm:grid-cols-3">
+      {[["Room", rooms], ["Party", partySize], ["Reservation value", money(r.bookingId != null ? r.marketplaceBooking?.totalAmount ?? null : r.totalAmount, r.currency)]].map(([label, value]) => <div key={label} className="bg-white px-4 py-3"><p className="m-0 text-[9px] font-semibold uppercase tracking-[0.1em] text-neutral-400">{label}</p><p className="mb-0 mt-1 text-sm font-semibold text-neutral-900">{value}</p></div>)}
+    </div>
+    <section className="grid gap-3 border border-neutral-200 bg-white p-4 sm:grid-cols-2">
+      <div><p className="m-0 text-[9px] font-semibold uppercase tracking-[0.1em] text-neutral-400">Phone</p><p className="mb-0 mt-1 text-xs font-medium text-neutral-800">{r.guestProfile?.phone ?? r.agentBooking?.leadGuest?.phone ?? "Not recorded"}</p></div>
+      <div><p className="m-0 text-[9px] font-semibold uppercase tracking-[0.1em] text-neutral-400">Email</p><p className="mb-0 mt-1 truncate text-xs font-medium text-neutral-800">{r.guestProfile?.email ?? "Not recorded"}</p></div>
+      {r.group && <div className="sm:col-span-2"><p className="m-0 text-[9px] font-semibold uppercase tracking-[0.1em] text-neutral-400">Group</p><Link href="/owner/nrms/groups" className="mb-0 mt-1 inline-block text-xs font-semibold text-emerald-800 no-underline hover:underline">{r.group.name}</Link></div>}
+      {r.agentBooking && <div className="sm:col-span-2"><p className="m-0 text-[9px] font-semibold uppercase tracking-[0.1em] text-neutral-400">Travel agency</p><Link href={`/owner/nrms/agents/requests/${r.agentBooking.requestId}/guests`} className="mb-0 mt-1 inline-block text-xs font-semibold text-emerald-800 no-underline hover:underline">{r.agentBooking.agencyName ?? "Agency booking"}</Link></div>}
+    </section>
+    <div className="flex items-start gap-2 border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-950"><LockKeyhole className="mt-0.5 h-4 w-4 shrink-0" /><span>This reservation is read-only in the Sales workspace. Ask Reception or a manager to assign rooms, change the stay, record payments, check in, or check out the guest.</span></div>
+  </div>;
+}
+
 function ReservationDetailModal({
   reservationId,
+  readOnly,
   onClose,
   onChanged,
 }: {
   reservationId: number;
+  readOnly: boolean;
   onClose: () => void;
   onChanged: () => Promise<void>;
 }) {
@@ -1602,6 +1633,8 @@ function ReservationDetailModal({
         <div className="flex justify-center py-10 text-neutral-400">
           <Loader2 className="w-5 h-5 animate-spin" />
         </div>
+      ) : readOnly ? (
+        <SalesReservationSummary reservation={r} />
       ) : (
         <div className="space-y-3 text-sm">
           <section className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-lg border border-neutral-200 bg-neutral-50 px-3.5 py-3">
