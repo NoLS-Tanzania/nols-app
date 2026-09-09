@@ -190,6 +190,7 @@ const PRE_AUTH_PATHS = new Set([
   "/api/auth/send-otp",
   "/api/auth/verify-otp",
   "/api/auth/login-password",
+  "/api/auth/mfa/verify",
   "/api/auth/login-otp",
   "/api/auth/forgot-password",
   "/api/auth/reset-password",

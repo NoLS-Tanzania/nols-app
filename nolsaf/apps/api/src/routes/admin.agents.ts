@@ -16,7 +16,7 @@ import { getAgentSuspensionEmail, getAgentRestorationEmail, getOperatorProfileAp
 import { signUserJwt } from "../lib/sessionManager.js";
 import crypto from "crypto";
 import { revokeUserAuthorization } from "../lib/authorizationInvalidation.js";
-import { bridgeApprovedOperatorToAccommodation } from "../lib/nrmsPartnerCapability.js";
+import { ACCOMMODATION_BRIDGE_TX_OPTIONS, bridgeApprovedOperatorToAccommodation } from "../lib/nrmsPartnerCapability.js";
 
 // ============================================================
 // Constants
@@ -1634,7 +1634,7 @@ router.post(
         agentId: Number(req.validatedParams.id),
         adminId: getAdminId(req as AuthedRequest),
         reason: req.validatedData.reason,
-      }));
+      }), ACCOMMODATION_BRIDGE_TX_OPTIONS);
       if (!result.ok) {
         return sendError(res, result.reason === "NOT_FOUND" ? 404 : 409, result.message, { code: result.reason });
       }

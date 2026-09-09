@@ -13,6 +13,7 @@ import { AlertCircle, Check, UserPlus, Lock, LogIn, User, Truck, Building2, Mail
 import { useRouter, useSearchParams } from "next/navigation";
 import LogoSpinner from "@/components/LogoSpinner";
 import AdminMfaLoginGate, { type AdminMfaStart } from "@/components/security/AdminMfaLoginGate";
+import AccountMfaLoginGate, { type AccountMfaStart } from "@/components/security/AccountMfaLoginGate";
 import { formatOtpCountdown, getOtpRetryAfterSeconds, getOtpSendErrorMessage } from "@/lib/otpRateLimit";
 
 const COUNTRY_CODES = [
@@ -315,6 +316,7 @@ export default function RegisterPage() {
   const [lockoutMessage, setLockoutMessage] = useState<string | null>(null);
   const [passkeyLoading, setPasskeyLoading] = useState<boolean>(false);
   const [adminMfa, setAdminMfa] = useState<AdminMfaStart | null>(null);
+  const [accountMfa, setAccountMfa] = useState<AccountMfaStart | null>(null);
   const [blockedAccount, setBlockedAccount] = useState<null | { name: string; email?: string | null; caseRef?: string | null; reason: string; nextSteps: string; payoutMessage: string }>(null);
   
   // Passkey sign-in helper
@@ -399,6 +401,10 @@ export default function RegisterPage() {
         throw new Error(composed || 'Passkey verification failed');
       }
 
+      if ((verifyData as any)?.mfaRequired) {
+        setAccountMfa(verifyData as AccountMfaStart);
+        return;
+      }
       await redirectAfterAuth((verifyData as any)?.user?.role);
     } catch (e: any) {
       if (e?.name === 'NotAllowedError') {
@@ -1063,6 +1069,12 @@ export default function RegisterPage() {
 
   // Login Page
   const renderLoginPage = () => {
+    if (accountMfa) {
+      return <AccountMfaLoginGate initial={accountMfa} onVerified={async (data) => {
+        saveAuthToken(data.token);
+        await redirectAfterAuth(data.user.role);
+      }} onCancel={() => { setAccountMfa(null); setLoginPassword(''); setLoginOtp(''); setError(null); }} />;
+    }
     if (adminMfa) {
       return (
         <AdminMfaLoginGate
@@ -1376,6 +1388,11 @@ export default function RegisterPage() {
                           setLockoutUntil(null);
                           setLockoutTotalSeconds(0);
                           setLockoutMessage(null);
+                          if ((data as any)?.mfaRequired) {
+                            setLoginPassword('');
+                            setAccountMfa(data as AccountMfaStart);
+                            return;
+                          }
                           if ((data as any)?.adminMfaRequired) {
                             setLoginPassword('');
                             setAdminMfa(data as AdminMfaStart);
@@ -1477,6 +1494,11 @@ export default function RegisterPage() {
                             otp: loginOtp.trim(),
                           });
                           
+                          if (response.data?.mfaRequired) {
+                            setLoginOtp('');
+                            setAccountMfa(response.data as AccountMfaStart);
+                            return;
+                          }
                           if (response.status === 200) {
                             saveAuthToken(response.data?.token);
                             // Auth cookie is set httpOnly by the API; redirect to authenticated area.
