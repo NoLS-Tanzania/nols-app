@@ -198,14 +198,8 @@ function linkDto(link: any) {
 
 function propertyAgentActivationEligibility(account: any) {
   const status = String(account?.status ?? "").trim().toUpperCase();
-  if (status && !["FROZEN", "PAYMENT_REQUIRED", "PAYMENT_PENDING", "CLOSED"].includes(status)) {
+  if (status && !["FROZEN", "CLOSED"].includes(status)) {
     return { eligible: true, status, code: null, message: null, action: null };
-  }
-  if (status === "PAYMENT_REQUIRED") {
-    return { eligible: false, status, code: "PROPERTY_BILLING_BLOCKED", message: "Settle the NRMS balance before activating a new agent partnership.", action: "PAY" };
-  }
-  if (status === "PAYMENT_PENDING") {
-    return { eligible: false, status, code: "PROPERTY_BILLING_BLOCKED", message: "An NRMS payment is being confirmed. Agent activation will reopen after it clears.", action: "STATUS" };
   }
   if (status === "FROZEN") {
     return { eligible: false, status, code: "PROPERTY_BILLING_BLOCKED", message: "This property's NRMS account is frozen. Contact NoLSAF to restore agent activation.", action: "SUPPORT" };

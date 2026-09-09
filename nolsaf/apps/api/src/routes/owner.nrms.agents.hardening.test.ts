@@ -77,18 +77,18 @@ describe("NRMS agent route hardening", () => {
     mocks.agentLinkFindMany.mockResolvedValue([]);
   });
 
-  it("tells the owner when property billing prevents partnership activation", async () => {
+  it("keeps partnership activation available while room-night billing is unpaid", async () => {
     mocks.loadNrmsPropertyAccess.mockResolvedValue({ property: { id: 9, title: "Hotel" }, account: { maxAgents: 5, status: "PAYMENT_REQUIRED" } });
 
     const response = await request(app).get("/api/owner/nrms/agents/property/9");
 
     expect(response.status).toBe(200);
     expect(response.body.activationEligibility).toEqual({
-      eligible: false,
+      eligible: true,
       status: "PAYMENT_REQUIRED",
-      code: "PROPERTY_BILLING_BLOCKED",
-      message: "Settle the NRMS balance before activating a new agent partnership.",
-      action: "PAY",
+      code: null,
+      message: null,
+      action: null,
     });
   });
 
