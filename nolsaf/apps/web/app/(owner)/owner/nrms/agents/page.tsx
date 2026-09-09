@@ -8,6 +8,7 @@
 // agency can be linked by other hotels, but their terms and bookings never show
 // here.
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import Link from "next/link";
 import apiClient from "@/lib/apiClient";
 import { ArrowLeft, BadgeCheck, Ban, Building2, Calendar, CheckCircle2, ChevronDown, Clock, Eye, FileText, Globe, Handshake, Loader2, Mail, MapPin, Phone, Plus, Search, ShieldAlert, ShieldCheck, Tag, User, UserPlus, Wallet, X } from "lucide-react";
 import { useNrms } from "../_components/NrmsProvider";
@@ -28,6 +29,13 @@ type Match = {
   id: number; reference?: string; legalName: string; tradingName: string | null;
   nationality: string | null; countryCode: string | null; verificationStatus: string; status: string;
   documentCount: number; verifiedAt: string | null; activationPending?: boolean; matchedOn: string[];
+};
+type ActivationEligibility = {
+  eligible: boolean;
+  status: string | null;
+  code: string | null;
+  message: string | null;
+  action: "PAY" | "STATUS" | "SUPPORT" | null;
 };
 
 const LINK_STATUS: Record<string, { cls: string; label: string }> = {
@@ -117,6 +125,7 @@ export default function NrmsAgentsPage() {
   const [termsFor, setTermsFor] = useState<AgentLink | null>(null);
   const [rateFor, setRateFor] = useState<AgentLink | null>(null);
   const [detailFor, setDetailFor] = useState<number | null>(null);
+  const [activationEligibility, setActivationEligibility] = useState<ActivationEligibility | null>(null);
 
   const load = useCallback(async () => {
     if (!selectedPropertyId) return;
@@ -125,6 +134,7 @@ export default function NrmsAgentsPage() {
       const res = await apiClient.get<any>(`/api/owner/nrms/agents/property/${selectedPropertyId}`);
       setMaxAgents(res.data?.maxAgents ?? 0);
       setLinks(res.data?.links ?? []);
+      setActivationEligibility(res.data?.activationEligibility ?? null);
     } catch (e: any) {
       setError(e?.response?.data?.error || "Failed to load travel agents");
     } finally {
@@ -139,6 +149,17 @@ export default function NrmsAgentsPage() {
   const pendingCount = useMemo(() => links.filter((l) => ["INVITED", "REQUESTED", "AGENT_ACCEPTED"].includes(l.status)).length, [links]);
   const capReached = seatsUsed >= maxAgents && maxAgents > 0;
   const seatsLeft = Math.max(0, maxAgents - seatsUsed);
+  const billingBlocksActivation = activationEligibility?.eligible === false;
+  const billingActionHref = activationEligibility?.action === "PAY"
+    ? "/owner/nrms/billing?pay=1#statements"
+    : activationEligibility?.action === "STATUS"
+      ? "/owner/nrms/billing#statements"
+      : "/owner/nrms/help";
+  const billingActionLabel = activationEligibility?.action === "PAY"
+    ? "Resolve billing"
+    : activationEligibility?.action === "STATUS"
+      ? "Check payment status"
+      : "Contact NoLSAF";
 
   const act = useCallback(async (linkId: number, path: string, verb: "post" | "patch" | "put", body?: any, okMsg?: string) => {
     setBusyId(linkId); setError(null); setNotice(null);
@@ -222,6 +243,15 @@ export default function NrmsAgentsPage() {
       </div>
 
       {notice && <div className="rounded-lg border border-solid border-emerald-200 bg-emerald-50 px-3 py-2 text-[13px] text-emerald-800">{notice}</div>}
+      {billingBlocksActivation && (
+        <div className="flex flex-col gap-3 rounded-xl border border-solid border-amber-200 bg-amber-50/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between" role="status">
+          <div className="flex min-w-0 items-start gap-2.5">
+            <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
+            <div className="min-w-0"><p className="m-0 text-[13px] font-semibold text-amber-900">Agent activation is paused</p><p className="m-0 mt-0.5 text-[12px] leading-5 text-amber-800">{activationEligibility?.message}</p></div>
+          </div>
+          <Link href={billingActionHref} className="inline-flex min-h-9 shrink-0 items-center justify-center rounded-lg border border-solid border-amber-300 bg-white px-3 text-[12px] font-semibold text-amber-900 no-underline shadow-sm transition hover:bg-amber-100">{billingActionLabel}</Link>
+        </div>
+      )}
       {error && <div className="rounded-lg border border-solid border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-700">{error}</div>}
 
       {loading ? (
@@ -249,6 +279,8 @@ export default function NrmsAgentsPage() {
                 ? { tone: "bg-red-50 text-red-800", icon: ShieldAlert, text: "Suspended by NoLSAF. This one cannot be reactivated from here, contact NoLSAF to have it reviewed." }
                 : canApprove && notVerified
                   ? { tone: "bg-amber-50 text-amber-800", icon: ShieldAlert, text: "NoLSAF has to verify this agency before you can activate it. Activation stays disabled until then." }
+                  : canApprove && billingBlocksActivation
+                    ? { tone: "bg-amber-50 text-amber-800", icon: ShieldAlert, text: "This partnership is ready, but property billing must be resolved before activation." }
                   : link.status === "INVITED"
                     ? { tone: "bg-amber-50 text-amber-800", icon: Clock, text: "Waiting for the agency to accept your invitation. Resend the activation email if it has been a while." }
                     : link.status === "REQUESTED"
@@ -283,7 +315,7 @@ export default function NrmsAgentsPage() {
                     <button type="button" onClick={() => setDetailFor(link.id)} disabled={busy} title="View full details" className="inline-flex items-center gap-1 rounded-lg border border-solid border-neutral-200 bg-white px-2.5 py-1.5 text-[12px] font-semibold text-neutral-700 transition hover:border-neutral-300 disabled:opacity-50"><Eye className="h-3.5 w-3.5" /> Open</button>
                     <button type="button" onClick={() => setTermsFor(link)} disabled={busy} className="rounded-lg border border-solid border-neutral-200 bg-white px-2.5 py-1.5 text-[12px] font-semibold text-neutral-700 transition hover:border-neutral-300 disabled:opacity-50">Terms</button>
                     {canApprove && (
-                      <button type="button" onClick={() => void act(link.id, "/approve", "post", {}, "Agent activated.")} disabled={busy || notVerified} title={notVerified ? "The agency must be verified by NoLSAF before you can activate it" : undefined} className="inline-flex items-center gap-1 rounded-lg border border-solid border-emerald-600 bg-emerald-600 px-2.5 py-1.5 text-[12px] font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:bg-neutral-100 disabled:text-neutral-400"><CheckCircle2 className="h-3.5 w-3.5" /> Activate</button>
+                      <button type="button" onClick={() => void act(link.id, "/approve", "post", {}, "Agent activated.")} disabled={busy || notVerified || billingBlocksActivation} title={notVerified ? "The agency must be verified by NoLSAF before you can activate it" : billingBlocksActivation ? activationEligibility?.message ?? "Resolve property billing before activation" : undefined} className="inline-flex items-center gap-1 rounded-lg border border-solid border-emerald-600 bg-emerald-600 px-2.5 py-1.5 text-[12px] font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:bg-neutral-100 disabled:text-neutral-400"><CheckCircle2 className="h-3.5 w-3.5" /> Activate</button>
                     )}
                     {/* The three status labels that used to sit here were not
                         buttons. They made every card a different width and

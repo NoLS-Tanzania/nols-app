@@ -196,6 +196,26 @@ function linkDto(link: any) {
   };
 }
 
+function propertyAgentActivationEligibility(account: any) {
+  const status = String(account?.status ?? "").trim().toUpperCase();
+  if (status && !["FROZEN", "PAYMENT_REQUIRED", "PAYMENT_PENDING", "CLOSED"].includes(status)) {
+    return { eligible: true, status, code: null, message: null, action: null };
+  }
+  if (status === "PAYMENT_REQUIRED") {
+    return { eligible: false, status, code: "PROPERTY_BILLING_BLOCKED", message: "Settle the NRMS balance before activating a new agent partnership.", action: "PAY" };
+  }
+  if (status === "PAYMENT_PENDING") {
+    return { eligible: false, status, code: "PROPERTY_BILLING_BLOCKED", message: "An NRMS payment is being confirmed. Agent activation will reopen after it clears.", action: "STATUS" };
+  }
+  if (status === "FROZEN") {
+    return { eligible: false, status, code: "PROPERTY_BILLING_BLOCKED", message: "This property's NRMS account is frozen. Contact NoLSAF to restore agent activation.", action: "SUPPORT" };
+  }
+  if (status === "CLOSED") {
+    return { eligible: false, status, code: "PROPERTY_BILLING_BLOCKED", message: "This property's NRMS account is closed. Contact NoLSAF before activating agents.", action: "SUPPORT" };
+  }
+  return { eligible: false, status: status || null, code: "PROPERTY_BILLING_BLOCKED", message: "This property's NRMS billing account is unavailable for agent activation.", action: "SUPPORT" };
+}
+
 // Kept in the legacy DTO for older clients; the invoice workflow has no
 // automatic AzamPay/prepay countdown.
 const prepayWindowMinutes = 0;
@@ -270,7 +290,12 @@ router.get("/property/:propertyId", (async (req: AuthedRequest, res: Response) =
       orderBy: [{ status: "asc" }, { id: "desc" }],
       take: 200,
     });
-    res.json({ maxAgents: active.account.maxAgents, prepayWindowMinutes, links: links.map(linkDto) });
+    res.json({
+      maxAgents: active.account.maxAgents,
+      prepayWindowMinutes,
+      activationEligibility: propertyAgentActivationEligibility(active.account),
+      links: links.map(linkDto),
+    });
   } catch (err) {
     console.error("[owner.nrms.agents] list failed", err);
     res.status(500).json({ error: "Failed to load agents" });

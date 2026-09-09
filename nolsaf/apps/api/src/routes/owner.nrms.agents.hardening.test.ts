@@ -9,18 +9,19 @@ const mocks = vi.hoisted(() => {
   const accountFindUnique = vi.fn();
   const agentFindUnique = vi.fn();
   const agentFindMany = vi.fn();
+  const agentLinkFindMany = vi.fn();
   const linkCount = vi.fn();
   const requestCount = vi.fn();
   const tx = { ownerPaygAccount: { findUnique: accountFindUnique }, nrmsAgentPropertyLink: { findUnique: vi.fn() } };
   const prisma = {
     $transaction: transaction,
     nrmsAgentBookingRequest: { findUnique: requestFindUnique, count: requestCount },
-    nrmsAgentPropertyLink: { count: linkCount },
+    nrmsAgentPropertyLink: { count: linkCount, findMany: agentLinkFindMany },
     property: { findUnique: propertyFindUnique },
     nrmsAgentAccount: { findUnique: agentFindUnique, findMany: agentFindMany },
   };
   return {
-    transaction, requestFindUnique, propertyFindUnique, accountFindUnique, agentFindUnique, agentFindMany, linkCount, requestCount, tx, prisma,
+    transaction, requestFindUnique, propertyFindUnique, accountFindUnique, agentFindUnique, agentFindMany, agentLinkFindMany, linkCount, requestCount, tx, prisma,
     loadOwnedActiveNrmsProperty: vi.fn(), loadNrmsPropertyAccess: vi.fn(), authorizeApproval: vi.fn(), approveHold: vi.fn(), lockSeats: vi.fn(),
     countSeats: vi.fn(), inviteInTransaction: vi.fn(), attach: vi.fn(), auditOrThrow: vi.fn(), notifyUser: vi.fn(), sendMail: vi.fn(),
   };
@@ -64,7 +65,7 @@ describe("NRMS agent route hardening", () => {
     vi.clearAllMocks();
     mocks.transaction.mockImplementation(async (callback: (source: any) => unknown) => callback(mocks.tx));
     mocks.loadOwnedActiveNrmsProperty.mockResolvedValue({ property: { id: 9, title: "Hotel" }, account: { maxAgents: 5 } });
-    mocks.loadNrmsPropertyAccess.mockResolvedValue({ property: { id: 9, title: "Hotel" }, account: { maxAgents: 5 } });
+    mocks.loadNrmsPropertyAccess.mockResolvedValue({ property: { id: 9, title: "Hotel" }, account: { maxAgents: 5, status: "ACTIVE" } });
     mocks.accountFindUnique.mockResolvedValue({ maxAgents: 5 });
     mocks.countSeats.mockResolvedValue(1);
     mocks.inviteInTransaction.mockResolvedValue({ ok: true, userId: 55, accountId: 77, token: "invite-token" });
@@ -73,6 +74,22 @@ describe("NRMS agent route hardening", () => {
     mocks.linkCount.mockResolvedValue(0);
     mocks.requestCount.mockResolvedValue(0);
     mocks.agentFindMany.mockResolvedValue([]);
+    mocks.agentLinkFindMany.mockResolvedValue([]);
+  });
+
+  it("tells the owner when property billing prevents partnership activation", async () => {
+    mocks.loadNrmsPropertyAccess.mockResolvedValue({ property: { id: 9, title: "Hotel" }, account: { maxAgents: 5, status: "PAYMENT_REQUIRED" } });
+
+    const response = await request(app).get("/api/owner/nrms/agents/property/9");
+
+    expect(response.status).toBe(200);
+    expect(response.body.activationEligibility).toEqual({
+      eligible: false,
+      status: "PAYMENT_REQUIRED",
+      code: "PROPERTY_BILLING_BLOCKED",
+      message: "Settle the NRMS balance before activating a new agent partnership.",
+      action: "PAY",
+    });
   });
 
   it("creates the user, agency and property link inside one seat-locked transaction", async () => {
