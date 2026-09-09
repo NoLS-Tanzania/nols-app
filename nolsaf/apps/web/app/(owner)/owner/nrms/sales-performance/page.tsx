@@ -199,6 +199,12 @@ export default function NrmsSalesPerformancePage() {
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
+            {report && ["OWNER", "MANAGER"].includes(report.viewer.role) ? (
+              <nav aria-label="Performance view" className="inline-flex h-8 items-center rounded-lg bg-neutral-100 p-0.5">
+                <Link href="/owner/nrms/performance" className="inline-flex h-7 items-center rounded-md px-2.5 text-[11px] font-bold text-neutral-500 no-underline transition hover:bg-white hover:text-neutral-900">Outlet team</Link>
+                <span aria-current="page" className="inline-flex h-7 items-center rounded-md bg-white px-2.5 text-[11px] font-bold text-emerald-800 shadow-sm">Sales team</span>
+              </nav>
+            ) : null}
             <div className="inline-flex overflow-hidden rounded-xl bg-neutral-100 p-0.5" role="group" aria-label="Reporting period">
               {PERIODS.map((option) => (
                 <button
