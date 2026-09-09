@@ -11,7 +11,16 @@ import { publicNrmsGuestContact } from "../lib/nrmsGuestContact.js";
 import { buildInquiryAcknowledgement } from "../lib/nrmsInquiryAcknowledgement.js";
 import { sanitizeText } from "../lib/sanitize.js";
 import { directHoldExternalRef } from "../lib/nrmsDirectHoldIdentity.js";
+import { CHECKOUT_BANK_CODES } from "../lib/azampay.helpers.js";
 import { limitPublicNrmsDirectHold, limitPublicNrmsDirectQuote, limitPublicNrmsGuestCapability } from "../middleware/rateLimit.js";
+import { checkOrchestrationGate } from "../services/payments/config.js";
+import { createPaymentIntent } from "../services/payments/intents.js";
+import { resolveMerchantLink, resolvePayableMerchant } from "../services/payments/merchants.js";
+import { AzamPayOwnerCollectionAdapter } from "../services/payments/providers/azampayOwner.js";
+import { loadRoutingCandidates } from "../services/payments/routingStore.js";
+import { resolveRoute } from "../services/payments/routing.js";
+import { startPaymentAttempt } from "../services/payments/attempts.js";
+import type { PaymentChannel } from "../services/payments/types.js";
 
 export const router = Router();
 
@@ -48,6 +57,10 @@ const INQUIRY_CHANNELS = ["WEB", "INSTAGRAM", "WHATSAPP", "PHONE", "EMAIL"] as c
 const directSourceSchema = z.preprocess((value) => String(value || "DIRECT").trim().toUpperCase(), z.enum(DIRECT_SOURCES));
 const directQuoteSchema = z.object({ checkIn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), checkOut: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), adults: z.coerce.number().int().min(1).max(20).default(1), children: z.coerce.number().int().min(0).max(20).default(0), source: directSourceSchema.default("DIRECT") });
 const directHoldSchema = directQuoteSchema.extend({ clientRequestId: z.string().uuid(), roomTypeId: z.number().int().positive(), ratePlanId: z.number().int().positive().nullable().optional(), guest: z.object({ fullName: z.string().trim().min(2).max(160), phone: z.string().trim().min(7).max(40), email: z.string().trim().email().max(160).nullable().optional(), nationality: z.string().trim().max(80).nullable().optional() }), termsAccepted: z.literal(true) });
+const guestCheckoutSchema = z.discriminatedUnion("channel", [
+  z.object({ channel: z.literal("MNO"), clientRequestId: z.string().uuid(), phoneNumber: z.string().trim().min(9).max(20), mnoProvider: z.enum(["Airtel", "Tigo", "Halopesa", "Azampesa", "Mpesa"]) }),
+  z.object({ channel: z.literal("BANK"), clientRequestId: z.string().uuid(), phoneNumber: z.string().trim().min(9).max(20), bankCode: z.enum(CHECKOUT_BANK_CODES), accountNumber: z.string().trim().min(1).max(30).regex(/^[\w-]+$/), otp: z.string().trim().min(1).max(50) }),
+]);
 const directInquirySchema = z.object({
   sessionRef: z.string().trim().min(8).max(100), channel: z.enum(INQUIRY_CHANNELS), source: directSourceSchema.default("DIRECT"),
   guestName: z.string().trim().min(2).max(160).nullable().optional(), guestPhone: z.string().trim().min(7).max(40).nullable().optional(), guestEmail: z.string().trim().email().max(160).nullable().optional(),
@@ -82,11 +95,46 @@ async function recordDirectMetric(propertyId: number, event: typeof DIRECT_EVENT
   }
 }
 
+type GuestPaymentRow = Awaited<ReturnType<typeof loadGuestPaymentRequest>>;
+
+async function loadGuestPaymentRequest(publicToken: string) {
+  return prisma.nrmsGuestPaymentRequest.findUnique({
+    where: { publicToken },
+    include: { reservation: { select: { id: true, propertyId: true, receiptNumber: true, status: true, amountPaid: true, totalAmount: true, chargesTotal: true, guestProfile: { select: { fullName: true } }, property: { select: { title: true } } } } },
+  });
+}
+
+async function guestPaymentOptions(paymentRequest: NonNullable<GuestPaymentRow>) {
+  const gate = checkOrchestrationGate();
+  if (!gate.ok) return { available: false, channels: [] as PaymentChannel[], provider: null, message: "Online payment is being prepared for this property." };
+  const propertyId = paymentRequest.reservation.propertyId;
+  const link = await resolveMerchantLink(prisma, { propertyId });
+  if (!link) return { available: false, channels: [] as PaymentChannel[], provider: null, message: "Online payment setup is not complete for this property." };
+  const candidates = await loadRoutingCandidates(prisma, { merchantId: link.merchantId, propertyId, outletId: null });
+  const channels: PaymentChannel[] = [];
+  let provider: string | null = null;
+  for (const channel of ["MNO", "BANK"] as const) {
+    const route = resolveRoute(candidates, { merchantId: link.merchantId, propertyId, outletId: null, purpose: "DEPOSIT", currency: paymentRequest.currency, channel });
+    if (!route.ok) continue;
+    const payable = await resolvePayableMerchant(prisma, { propertyId, connectionId: route.connectionId, channel, currency: paymentRequest.currency });
+    if (!payable.ok || route.provider !== "AZAMPAY") continue;
+    channels.push(channel);
+    provider = route.provider;
+  }
+  const contractReady = process.env.AZAMPAY_OWNER_COLLECTION_CONTRACT_CONFIRMED === "true" && Boolean(process.env.AZAMPAY_OWNER_MERCHANT_FIELD) && Boolean(process.env.AZAMPAY_OWNER_WALLET_FIELD);
+  return {
+    available: channels.length > 0 && contractReady,
+    channels: contractReady ? channels : [],
+    provider: channels.length ? provider : null,
+    message: channels.length === 0 ? "Online payment setup is not complete for this property." : contractReady ? null : "AzamPay owner-payment activation is awaiting the confirmed merchant routing contract.",
+  };
+}
+
 async function directQuote(propertyId: number, input: z.infer<typeof directQuoteSchema>, requestedRoomTypeId?: number, requestedRatePlanId?: number | null) {
   const checkIn = dateOnly(input.checkIn); const checkOut = dateOnly(input.checkOut); const stayNights = nightsBetween(checkIn, checkOut);
   const today = dateOnly(new Date().toISOString().slice(0, 10)); const advanceDays = Math.floor((checkIn.getTime() - today.getTime()) / 86_400_000); const stayDates = Array.from({ length: Math.max(0, stayNights) }, (_, offset) => new Date(checkIn.getTime() + offset * 86_400_000));
   if (checkIn < today || stayNights < 1 || stayNights > 365) throw new Error("INVALID_DATES");
-  const property = await prisma.property.findFirst({ where: { id: propertyId, status: "APPROVED", nrmsActivatedAt: { not: null } }, select: { id: true, ownerId: true, title: true, currency: true, nrmsGuestPayInstructions: true, nrmsGuestContactSettings: true } });
+  const property = await prisma.property.findFirst({ where: { id: propertyId, status: "APPROVED", nrmsActivatedAt: { not: null } }, select: { id: true, ownerId: true, title: true, currency: true, nrmsGuestContactSettings: true } });
   if (!property) throw new Error("PROPERTY_NOT_FOUND");
   const roomTypes = await prisma.roomType.findMany({ where: { propertyId, status: "ACTIVE", baseRate: { not: null }, ...(requestedRoomTypeId ? { id: requestedRoomTypeId } : {}) }, include: { ratePlans: { where: { status: "ACTIVE", ...(requestedRatePlanId ? { id: requestedRatePlanId } : {}) }, include: { seasons: { where: { status: "ACTIVE", startDate: { lte: checkOut }, endDate: { gte: checkIn } }, orderBy: { priority: "desc" } } }, orderBy: [{ isDefault: "desc" }, { id: "asc" }] } }, orderBy: { sortOrder: "asc" } });
   const roomRestrictionScope = requestedRoomTypeId
@@ -219,7 +267,7 @@ router.post("/direct/:propertyId/hold", limitPublicNrmsDirectHold as RequestHand
       // isolated; staff can merge verified duplicates through an audited flow.
       const guest = await tx.guestProfile.create({ data: { propertyId, ownerId: quote.property.ownerId, fullName: parsed.data.guest.fullName, phone: parsed.data.guest.phone, email: parsed.data.guest.email, nationality: parsed.data.guest.nationality } });
       const reservation = await tx.reservation.create({ data: { propertyId, ownerId: quote.property.ownerId, guestProfileId: guest.id, source: "DIRECT", attribution: "OWNER_DIRECT", externalRef, status: "HELD", holdExpiresAt, checkIn: quote.checkIn, checkOut: quote.checkOut, adults: parsed.data.adults, children: parsed.data.children, currency: selected.currency, roomRate: selected.nightly[0]?.rate ?? 0, taxAmount: selected.tax, totalAmount: selected.total, depositAmount: selected.depositAmount, notes: `Guest accepted direct booking terms at ${new Date().toISOString()}.`, allocations: { create: { roomTypeId: selected.roomType.id, startDate: quote.checkIn, endDate: quote.checkOut, ratePlanId: selected.ratePlan?.id ?? null, mealPlan: selected.ratePlan?.mealPlan ?? null } }, events: { create: { type: "CREATED", data: { source: "DIRECT", campaignSource: parsed.data.source, ratePlanId: selected.ratePlan?.id ?? null, termsAccepted: true } } } } });
-      const paymentRequest = await tx.nrmsGuestPaymentRequest.create({ data: { reservationId: reservation.id, kind: "DEPOSIT", amount: selected.depositAmount || selected.total, currency: selected.currency, publicToken, dueAt: holdExpiresAt, instructions: quote.property.nrmsGuestPayInstructions ?? undefined } }); return { reservation, paymentRequest, replayed: false } as const;
+      const paymentRequest = await tx.nrmsGuestPaymentRequest.create({ data: { reservationId: reservation.id, kind: "DEPOSIT", amount: selected.depositAmount || selected.total, currency: selected.currency, publicToken, dueAt: holdExpiresAt } }); return { reservation, paymentRequest, replayed: false } as const;
     }, HOLD_TX_OPTIONS);
     if (!result) return res.status(409).json({ error: "The selected room was just booked. Please choose another available option." });
     if ("restricted" in result) return res.status(409).json({ error: result.restricted, code: "RESTRICTION_CHANGED" });
@@ -230,13 +278,61 @@ router.post("/direct/:propertyId/hold", limitPublicNrmsDirectHold as RequestHand
 
 router.get("/payment-requests/:token", limitPublicNrmsGuestCapability as RequestHandler, (async (req, res: Response) => {
   try {
-    const paymentRequest = await prisma.nrmsGuestPaymentRequest.findUnique({
-      where: { publicToken: req.params.token },
-      include: { reservation: { select: { id: true, receiptNumber: true, status: true, amountPaid: true, totalAmount: true, chargesTotal: true, guestProfile: { select: { fullName: true } }, property: { select: { title: true, nrmsGuestPayInstructions: true } } } } },
-    });
+    const paymentRequest = await loadGuestPaymentRequest(req.params.token);
     if (!paymentRequest || paymentRequest.cancelledAt) return res.status(404).json({ error: "Payment request not found" });
-    res.json({ paymentRequest: { id: paymentRequest.id, kind: paymentRequest.kind, amount: Number(paymentRequest.amount), currency: paymentRequest.currency, status: paymentRequest.status, dueAt: paymentRequest.dueAt, instructions: paymentRequest.instructions, property: paymentRequest.reservation.property.title, guest: paymentRequest.reservation.guestProfile?.fullName ?? "Guest", receiptNumber: paymentRequest.reservation.receiptNumber, reservationStatus: paymentRequest.reservation.status } });
+    const [checkout, intent] = await Promise.all([
+      guestPaymentOptions(paymentRequest),
+      prisma.paymentIntent.findFirst({ where: { sourceType: "NRMS_GUEST_PAYMENT_REQUEST", sourceId: paymentRequest.id }, orderBy: { createdAt: "desc" }, include: { attempts: { orderBy: { startedAt: "desc" }, take: 1, select: { channel: true, normalizedStatus: true } } } }),
+    ]);
+    res.json({ paymentRequest: { id: paymentRequest.id, kind: paymentRequest.kind, amount: Number(paymentRequest.amount), currency: paymentRequest.currency, status: paymentRequest.status, dueAt: paymentRequest.dueAt, property: paymentRequest.reservation.property.title, guest: paymentRequest.reservation.guestProfile?.fullName ?? "Guest", receiptNumber: paymentRequest.reservation.receiptNumber, reservationStatus: paymentRequest.reservation.status, checkout, payment: intent ? { reference: intent.reference, status: intent.status, channel: intent.attempts[0]?.channel ?? null, attemptStatus: intent.attempts[0]?.normalizedStatus ?? null } : null } });
   } catch (error) { console.error("[public.nrms.guest] payment request failed", error); res.status(500).json({ error: "Payment request could not be loaded" }); }
+}) as RequestHandler);
+
+router.post("/payment-requests/:token/checkout", limitPublicNrmsGuestCapability as RequestHandler, (async (req, res: Response) => {
+  const parsed = guestCheckoutSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message || "Choose a valid payment method" });
+  try {
+    const paymentRequest = await loadGuestPaymentRequest(req.params.token);
+    if (!paymentRequest || paymentRequest.cancelledAt) return res.status(404).json({ error: "Payment request not found" });
+    if (paymentRequest.status === "SETTLED") return res.status(409).json({ error: "This payment is already complete", code: "PAYMENT_SETTLED" });
+    if (paymentRequest.status !== "PENDING" && paymentRequest.status !== "PROCESSING") return res.status(409).json({ error: "This payment request is no longer payable" });
+    if (paymentRequest.dueAt && paymentRequest.dueAt.getTime() <= Date.now()) return res.status(410).json({ error: "This payment request has expired" });
+
+    const checkout = await guestPaymentOptions(paymentRequest);
+    if (!checkout.available || !checkout.channels.includes(parsed.data.channel)) return res.status(503).json({ error: checkout.message || "This payment method is not available", code: "ONLINE_PAYMENT_UNAVAILABLE" });
+
+    const created = await createPaymentIntent(prisma, {
+      propertyId: paymentRequest.reservation.propertyId,
+      purpose: "DEPOSIT",
+      sourceType: "NRMS_GUEST_PAYMENT_REQUEST",
+      sourceId: paymentRequest.id,
+      channel: parsed.data.channel,
+      amount: String(paymentRequest.amount),
+      currency: paymentRequest.currency,
+      idempotencyKey: `nrms-guest:${paymentRequest.id}:${parsed.data.clientRequestId}`,
+      expiresAt: paymentRequest.dueAt,
+    });
+    if (!created.ok) return res.status(503).json({ error: created.message, code: created.code });
+
+    const connection = await prisma.providerConnection.findUnique({ where: { id: created.connectionId }, select: { provider: true, environment: true, capabilities: true } });
+    if (!connection || connection.provider !== "AZAMPAY" || !["SANDBOX", "STAGING", "PRODUCTION"].includes(connection.environment)) return res.status(503).json({ error: "The selected payment connection is unavailable", code: "PROVIDER_UNAVAILABLE" });
+    const adapter = new AzamPayOwnerCollectionAdapter({ environment: connection.environment as "SANDBOX" | "STAGING" | "PRODUCTION", capabilities: connection.capabilities });
+    const attempt = await startPaymentAttempt(prisma, adapter, {
+      intentId: created.intentId,
+      channel: parsed.data.channel,
+      payerReference: parsed.data.phoneNumber,
+      metadata: parsed.data.channel === "MNO"
+        ? { mnoProvider: parsed.data.mnoProvider, paymentRequestId: String(paymentRequest.id) }
+        : { bankCode: parsed.data.bankCode, bankAccountNumber: parsed.data.accountNumber, otp: parsed.data.otp, merchantName: paymentRequest.reservation.property.title, paymentRequestId: String(paymentRequest.id) },
+    });
+    if (!attempt.ok) return res.status(attempt.code === "attempt_in_flight" ? 409 : 502).json({ error: attempt.message, code: attempt.code });
+    if (["PROCESSING", "REQUIRES_CUSTOMER_ACTION", "STATUS_UNKNOWN"].includes(attempt.status)) await prisma.nrmsGuestPaymentRequest.updateMany({ where: { id: paymentRequest.id, status: "PENDING" }, data: { status: "PROCESSING" } });
+    if (attempt.status === "FAILED") return res.status(502).json({ error: "The provider did not accept this payment. No charge has been confirmed.", code: "PAYMENT_NOT_ACCEPTED" });
+    res.status(202).json({ payment: { reference: created.reference, status: attempt.intentStatus, attemptStatus: attempt.status, channel: parsed.data.channel, checkoutUrl: attempt.checkoutUrl ?? null }, message: parsed.data.channel === "MNO" ? "Approve the payment prompt on your phone." : "Your bank payment was submitted for confirmation." });
+  } catch (error) {
+    console.error("[public.nrms.guest] online checkout failed", error instanceof Error ? error.message : error);
+    res.status(502).json({ error: "The payment could not be started. No charge has been confirmed." });
+  }
 }) as RequestHandler);
 
 router.get("/reviews/:token", limitPublicNrmsGuestCapability as RequestHandler, (async (req, res: Response) => {
