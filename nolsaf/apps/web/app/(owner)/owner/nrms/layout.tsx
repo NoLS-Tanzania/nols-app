@@ -179,7 +179,6 @@ const NAV_GROUPS: NavGroup[] = [
           // the two answer the same question from opposite ends.
           { href: "/owner/nrms/sales-performance", label: "Sales production", icon: TrendingUp },
           { href: "/owner/nrms/sales-rates", label: "Rate proposals", icon: SlidersHorizontal },
-          { href: "/owner/nrms/controls?section=guest", label: "Messaging status", icon: MessageSquareText },
           {
             href: "/owner/nrms/channels",
             label: "OTA channels",
