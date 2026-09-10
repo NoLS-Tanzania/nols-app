@@ -43,6 +43,9 @@ function formatEnrollment(enrollment: Awaited<ReturnType<typeof getNrmsEnrollmen
  */
 router.get("/", (async (req: AuthedRequest, res: Response) => {
   try {
+    // Commercial terms can change without a web deployment. Never let a browser
+    // or intermediary reuse an older activation quote for an owner.
+    res.set("Cache-Control", "private, no-store, max-age=0");
     const ownerId = req.user!.id;
     const [enrollment, usagePolicy, properties, restrictionCases] = await Promise.all([
       getNrmsEnrollment(ownerId),
@@ -77,7 +80,13 @@ router.get("/", (async (req: AuthedRequest, res: Response) => {
       workspaceMode: workspaceMode(enrollment),
       entitled: isNrmsEntitled(enrollment),
       enrollment: formatEnrollment(enrollment),
-      usagePolicy: usagePolicy ? { currency: usagePolicy.currency, roomNightPrice: usagePolicy.roomNightPrice, trialDays: usagePolicy.trialDays } : null,
+      usagePolicy: usagePolicy ? {
+        version: usagePolicy.version,
+        effectiveFrom: usagePolicy.effectiveFrom,
+        currency: usagePolicy.currency,
+        roomNightPrice: usagePolicy.roomNightPrice,
+        trialDays: usagePolicy.trialDays,
+      } : null,
       restriction: enrollmentRestriction,
       properties: properties.map((property) => ({
         ...property,
@@ -97,7 +106,7 @@ router.get("/", (async (req: AuthedRequest, res: Response) => {
 /**
  * POST /api/owner/nrms/activate
  * Enroll this owner into the NRMS PAYG plan. Idempotent for TRIAL/ACTIVE.
- * The 45-day trial clock is per property (nrmsActivatedAt); the enrollment
+ * The policy-defined trial clock is per property (nrmsActivatedAt); the enrollment
  * trial window here governs account-level access (doc 5, 8.2).
  */
 router.post("/activate", blockImpersonated as RequestHandler, (async (req: AuthedRequest, res: Response) => {
@@ -158,7 +167,7 @@ router.post("/activate", blockImpersonated as RequestHandler, (async (req: Authe
 
 /**
  * POST /api/owner/nrms/properties/:propertyId/activate
- * Marks a property as NRMS-operational (starts its 45-day trial clock,
+ * Marks a property as NRMS-operational (starts its policy-defined trial clock,
  * doc 8.2: trial runs from operational activation, not registration).
  * Idempotent: re-activating never resets an existing clock.
  */

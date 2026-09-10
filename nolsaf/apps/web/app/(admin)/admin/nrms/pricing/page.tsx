@@ -125,7 +125,12 @@ export default function NrmsPricingPage() {
     finally { setSaving(false); }
   };
 
-  const livePolicy = useMemo(() => policies.find((p) => !p.effectiveTo) ?? policies[0] ?? null, [policies]);
+  const now = Date.now();
+  const livePolicy = policies.find((policy) => {
+    const startsAt = new Date(policy.effectiveFrom).getTime();
+    const endsAt = policy.effectiveTo ? new Date(policy.effectiveTo).getTime() : Number.POSITIVE_INFINITY;
+    return startsAt <= now && now < endsAt;
+  }) ?? null;
   const watchedAccounts = useMemo(() => accounts.filter((a) => a.dunning.stage !== "CURRENT").length, [accounts]);
 
   const filteredAccounts = useMemo(() => {
@@ -269,17 +274,20 @@ export default function NrmsPricingPage() {
             <div className="relative space-y-3 pl-5">
               <div className="absolute bottom-2 left-[4.5px] top-2 w-px bg-neutral-200" aria-hidden="true" />
               {policies.map((p) => {
-                const isLive = !p.effectiveTo;
-                return isLive ? (
+                const startsAt = new Date(p.effectiveFrom).getTime();
+                const endsAt = p.effectiveTo ? new Date(p.effectiveTo).getTime() : Number.POSITIVE_INFINITY;
+                const isLive = startsAt <= now && now < endsAt;
+                const isScheduled = startsAt > now;
+                return isLive || isScheduled ? (
                   <div key={p.id} className="relative">
-                    <span className="absolute -left-5 top-1.5 h-2.5 w-2.5 rounded-full bg-emerald-600 ring-4 ring-emerald-100" aria-hidden="true" />
-                    <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4">
+                    <span className={`absolute -left-5 top-1.5 h-2.5 w-2.5 rounded-full ring-4 ${isLive ? "bg-emerald-600 ring-emerald-100" : "bg-sky-500 ring-sky-100"}`} aria-hidden="true" />
+                    <div className={`rounded-2xl border p-4 ${isLive ? "border-emerald-100 bg-emerald-50/60" : "border-sky-100 bg-sky-50/60"}`}>
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="flex min-w-0 items-center gap-2">
                           <span className="truncate font-mono text-xs font-bold text-neutral-900" title={p.version}>{p.version}</span>
-                          <span className="shrink-0 rounded-full bg-emerald-700 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">Live</span>
+                          <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white ${isLive ? "bg-emerald-700" : "bg-sky-600"}`}>{isLive ? "Live" : "Scheduled"}</span>
                         </div>
-                        <span className="shrink-0 text-xs text-neutral-500">Since {shortDate(p.effectiveFrom)}</span>
+                        <span className="shrink-0 text-xs text-neutral-500">{isLive ? "Since" : "Starts"} {shortDate(p.effectiveFrom)}</span>
                       </div>
                       <div className="mt-3 grid gap-2 sm:grid-cols-3">
                         <div className="rounded-xl border border-emerald-100 bg-white p-3">

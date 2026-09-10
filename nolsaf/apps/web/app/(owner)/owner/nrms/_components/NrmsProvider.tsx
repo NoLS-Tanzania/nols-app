@@ -36,7 +36,13 @@ export type NrmsEnrollment = {
   plan: { code: string; name: string; config: Record<string, unknown> | null };
 } | null;
 
-export type NrmsUsagePolicy = { currency: string; roomNightPrice: string | number; trialDays: number } | null;
+export type NrmsUsagePolicy = {
+  version: string;
+  effectiveFrom: string;
+  currency: string;
+  roomNightPrice: string | number;
+  trialDays: number;
+} | null;
 
 // The API's global error handler (apps/api/src/middleware/errorHandler.ts) is
 // the single source of truth for what an error message should say: it relays
