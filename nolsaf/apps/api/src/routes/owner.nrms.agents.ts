@@ -9,17 +9,15 @@
 //
 // Access is scoped per property, so a hotel can only ever see and change links
 // for its own property: the portfolio isolation boundary in practice. The agent
-// RELATIONSHIP endpoints resolve that through loadNrmsPropertyAccess, which
-// admits the property's owner, its manager and its sales executive. The agent
-// BOOKING REQUEST endpoints below still resolve through
-// loadOwnedActiveNrmsProperty and stay owner-only, because that flow raises
-// invoices and confirms payments against a master folio.
+// RELATIONSHIP and request-decision endpoints resolve that through
+// loadNrmsPropertyAccess, which admits the property's owner, its manager and its
+// sales executive. Invoice, payment and manifest operations stay owner-only.
 import { Router, type RequestHandler, type Response } from "express";
 import { z } from "zod";
 import { typedPrisma as prisma } from "@nolsaf/prisma";
 import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
 import { loadOwnedActiveNrmsProperty, nrmsBillingBlockPayload } from "../lib/nrms.js";
-import { loadNrmsPropertyAccess } from "../lib/nrmsPropertyAccess.js";
+import { loadNrmsPropertyAccess, requireNrmsPropertyCapability } from "../lib/nrmsPropertyAccess.js";
 import { audit, auditOrThrow } from "../lib/audit.js";
 import { adjustRate, money } from "../lib/nrmsRateMath.js";
 import { inviteAgentUserInTransaction, signAgentInviteToken } from "../lib/nrmsAgentInvite.js";
@@ -583,11 +581,11 @@ router.post("/:linkId/resend-invite", (async (req: AuthedRequest, res: Response)
 // Booking requests (request-to-book queue) for a property.
 router.get("/property/:propertyId/requests", (async (req: AuthedRequest, res: Response) => {
   try {
-    const active = await loadOwnedActiveNrmsProperty(res, req.user!.id, Number(req.params.propertyId));
-    if (!active) return;
+    const access = await requireNrmsPropertyCapability(req, res, Number(req.params.propertyId), "sales.agent.read");
+    if (!access) return;
     const [requests, roomTypes] = await Promise.all([
       prisma.nrmsAgentBookingRequest.findMany({
-        where: { propertyId: active.property.id },
+        where: { propertyId: access.property.id },
         select: {
           id: true, status: true, checkIn: true, checkOut: true, adults: true, children: true, roomsRequested: true, roomTypeId: true,
           currency: true, quotedTotal: true, holdExpiresAt: true, decidedAt: true, decisionReason: true, notes: true, createdAt: true,
@@ -599,7 +597,7 @@ router.get("/property/:propertyId/requests", (async (req: AuthedRequest, res: Re
         orderBy: [{ status: "asc" }, { id: "desc" }],
         take: 200,
       }),
-      prisma.roomType.findMany({ where: { propertyId: active.property.id }, select: { id: true, name: true } }),
+      prisma.roomType.findMany({ where: { propertyId: access.property.id }, select: { id: true, name: true } }),
     ]);
     const roomName = new Map(roomTypes.map((rt) => [rt.id, rt.name]));
     res.json({ requests: requests.map((r) => ({
@@ -939,17 +937,17 @@ router.get("/requests/:requestId/guests/:guestId/document", (async (req: AuthedR
   }
 }) as RequestHandler);
 
-/** Load a booking request the caller owns (via its property), with the agent user to notify. */
-async function loadOwnedRequest(req: AuthedRequest, res: Response, requestId: number) {
+/** Load a booking request the caller may decide, with the agent user to notify. */
+async function loadAgentRequestDecisionAccess(req: AuthedRequest, res: Response, requestId: number) {
   const request = await prisma.nrmsAgentBookingRequest.findUnique({
     where: { id: requestId },
     select: { id: true, status: true, propertyId: true, checkIn: true, checkOut: true, currency: true, quotedTotal: true, reservationId: true, link: { select: { id: true, agentAccount: { select: { primaryUserId: true, legalName: true, primaryUser: { select: { email: true } } } } } } },
   });
   if (!request) { res.status(404).json({ error: "Request not found" }); return null; }
-  const active = await loadOwnedActiveNrmsProperty(res, req.user!.id, request.propertyId);
-  if (!active) return null;
+  const access = await requireNrmsPropertyCapability(req, res, request.propertyId, "sales.agent.manage");
+  if (!access) return null;
   return {
-    request, propertyTitle: active.property.title as string,
+    request, propertyTitle: access.property.title as string,
     agentUserId: request.link?.agentAccount?.primaryUserId ?? null,
     agencyName: request.link?.agentAccount?.legalName ?? "Travel agent",
     agentEmail: request.link?.agentAccount?.primaryUser?.email ?? null,
@@ -961,7 +959,7 @@ const ymd = (d: Date) => new Date(d).toISOString().slice(0, 10);
 // Approve a request-to-book: HELD -> CONFIRMED.
 router.post("/requests/:requestId/approve", (async (req: AuthedRequest, res: Response) => {
   try {
-    const owned = await loadOwnedRequest(req, res, Number(req.params.requestId));
+    const owned = await loadAgentRequestDecisionAccess(req, res, Number(req.params.requestId));
     if (!owned) return;
     const result = await prisma.$transaction(async (tx: any) => {
       const linkId = owned.request.link?.id;
@@ -1245,7 +1243,7 @@ router.post("/requests/:requestId/reject", (async (req: AuthedRequest, res: Resp
   try {
     const parsed = decisionSchema.safeParse(req.body ?? {});
     if (!parsed.success) return res.status(400).json({ error: "Invalid request" });
-    const owned = await loadOwnedRequest(req, res, Number(req.params.requestId));
+    const owned = await loadAgentRequestDecisionAccess(req, res, Number(req.params.requestId));
     if (!owned) return;
     const result = await prisma.$transaction((tx: any) => releaseAgentHold(tx, owned.request.id, { status: "DECLINED", decidedByUserId: req.user!.id, reason: parsed.data.reason ?? null }));
     if (!result.ok) return res.status(result.reason === "NOT_FOUND" ? 404 : 409).json({ error: result.message, code: result.reason });

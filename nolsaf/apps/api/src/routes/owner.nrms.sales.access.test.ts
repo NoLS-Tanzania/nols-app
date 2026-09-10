@@ -13,8 +13,8 @@
 //   - group blocks share one guard between listing blocks and operating on a
 //     block's master folio. Sales may list; it must never take a payment or
 //     issue a refund, holding no finance capability.
-//   - agents split the agency relationship from the booking request flow, which
-//     raises invoices and confirms money.
+//   - agents split the agency relationship and request decision from the
+//     owner-only invoice and payment flow.
 
 import express from "express";
 import request from "supertest";
@@ -490,15 +490,38 @@ describe("Sales Executive access to the owner NRMS routers", () => {
     });
   });
 
-  describe("agents: the agency relationship, not the booking money", () => {
+  describe("agents: commercial decisions, not booking money", () => {
     it("admits the relationship endpoints", async () => {
       expectAllowed((await request(app).get(`/api/owner/nrms/agents/property/${PROPERTY_ID}`)).status);
       expectAllowed((await request(app).get(`/api/owner/nrms/agents/property/${PROPERTY_ID}/rate-plans`)).status);
     });
 
-    it("refuses the agent booking request flow", async () => {
-      // That flow raises invoices and confirms payments against a master folio.
-      expectRefused((await request(app).get(`/api/owner/nrms/agents/property/${PROPERTY_ID}/requests`)).status);
+    it("admits the booking request queue and its inventory decisions", async () => {
+      expectAllowed((await request(app).get(`/api/owner/nrms/agents/property/${PROPERTY_ID}/requests`)).status);
+
+      mocks.anyFindUnique.mockResolvedValue({
+        id: 77,
+        status: "PENDING",
+        propertyId: PROPERTY_ID,
+        checkIn: new Date("2026-11-02T00:00:00.000Z"),
+        checkOut: new Date("2026-11-04T00:00:00.000Z"),
+        currency: "TZS",
+        quotedTotal: 200_000,
+        reservationId: 17,
+        link: { id: 8, agentAccount: { primaryUserId: null, legalName: "Summit Travel", primaryUser: { email: null } } },
+      });
+      expectAllowed((await request(app).post("/api/owner/nrms/agents/requests/77/approve").send({})).status);
+      expectAllowed((await request(app).post("/api/owner/nrms/agents/requests/77/reject").send({ reason: "Dates unavailable" })).status);
+    });
+
+    it("keeps invoices and received-payment confirmation owner-only", async () => {
+      mocks.anyFindUnique.mockResolvedValue({ id: 77, propertyId: PROPERTY_ID });
+      expectRefused((await request(app).post("/api/owner/nrms/agents/requests/77/invoices").send({ discountAmount: 0 })).status);
+      expectRefused((await request(app).post("/api/owner/nrms/agents/requests/77/payments/confirm").send({
+        amount: 100_000,
+        method: "BANK_TRANSFER",
+        idempotencyKey: "sales-money-refusal-77",
+      })).status);
     });
   });
 
