@@ -24,9 +24,15 @@ router.get("/:propertyId", (async (req: AuthedRequest, res: Response) => {
     prisma.roomType.findMany({ where: { propertyId, status: "ACTIVE", baseRate: { not: null } }, select: { id: true, name: true, baseRate: true, currency: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
     prisma.nrmsPricingRecommendation.findMany({ where: { propertyId, factors: { path: "$.source", equals: "SALES_EXECUTIVE" } }, include: { roomType: { select: { id: true, name: true } } }, orderBy: [{ status: "asc" }, { stayDate: "asc" }], take: 100 }),
   ]);
+  const requesterIds = [...new Set(requests.map((request) => Number((request.factors as any)?.requestedById)).filter(Number.isInteger))];
+  const requesters = requesterIds.length ? await prisma.user.findMany({ where: { id: { in: requesterIds } }, select: { id: true, name: true, fullName: true, email: true } }) : [];
+  const requesterById = new Map(requesters.map((user) => [user.id, user]));
   res.json({
     roomTypes: roomTypes.map((room) => ({ ...room, baseRate: Number(room.baseRate) })),
-    requests: requests.map((request) => ({ ...request, currentRate: Number(request.currentRate), proposedRate: Number(request.recommendedRate), factors: undefined })),
+    requests: requests.map((request) => {
+      const factors = request.factors as any;
+      return { ...request, currentRate: Number(request.currentRate), proposedRate: Number(request.recommendedRate), requestedBy: requesterById.get(Number(factors?.requestedById)) ?? null, decision: factors?.decision ?? null, factors: undefined };
+    }),
   });
 }) as RequestHandler);
 

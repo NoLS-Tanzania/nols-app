@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   roomFindFirst: vi.fn(),
   requestFindMany: vi.fn(),
   requestCreate: vi.fn(),
+  userFindMany: vi.fn(),
   audit: vi.fn(),
 }));
 
@@ -15,6 +16,7 @@ vi.mock("@nolsaf/prisma", () => ({
   typedPrisma: {
     roomType: { findMany: mocks.roomFindMany, findFirst: mocks.roomFindFirst },
     nrmsPricingRecommendation: { findMany: mocks.requestFindMany, create: mocks.requestCreate },
+    user: { findMany: mocks.userFindMany },
   },
 }));
 vi.mock("../middleware/auth.js", () => ({
@@ -39,6 +41,7 @@ describe("NRMS sales rate proposals", () => {
     mocks.requireCapability.mockResolvedValue({ actorId: 41, role: "SALES_EXECUTIVE", property: { id: 9 } });
     mocks.roomFindMany.mockResolvedValue([]);
     mocks.requestFindMany.mockResolvedValue([]);
+    mocks.userFindMany.mockResolvedValue([]);
     mocks.audit.mockResolvedValue(undefined);
   });
 
@@ -48,6 +51,31 @@ describe("NRMS sales rate proposals", () => {
     expect(response.status).toBe(200);
     expect(mocks.requireCapability).toHaveBeenCalledWith(expect.anything(), expect.anything(), 9, "rates.read");
     expect(response.body).toEqual({ roomTypes: [], requests: [] });
+  });
+
+  it("returns the submitting salesperson and recorded owner decision", async () => {
+    mocks.requestFindMany.mockResolvedValue([{
+      id: 15,
+      stayDate: new Date("2099-01-02T00:00:00.000Z"),
+      currentRate: 100_000,
+      recommendedRate: 115_000,
+      currency: "TZS",
+      reason: "Demand is elevated",
+      status: "DISMISSED",
+      factors: { source: "SALES_EXECUTIVE", requestedById: 41, decision: { outcome: "DECLINED", note: "Keep the standard rate" } },
+      roomType: { id: 2, name: "Deluxe" },
+    }]);
+    mocks.userFindMany.mockResolvedValue([{ id: 41, name: "Neema", fullName: "Neema Sales", email: "sales@example.com" }]);
+
+    const response = await request(app).get("/api/owner/nrms/rate-requests/9");
+
+    expect(response.status).toBe(200);
+    expect(response.body.requests[0]).toMatchObject({
+      proposedRate: 115_000,
+      requestedBy: { id: 41, fullName: "Neema Sales" },
+      decision: { outcome: "DECLINED", note: "Keep the standard rate" },
+    });
+    expect(response.body.requests[0]).not.toHaveProperty("factors");
   });
 
   it("lets sales submit a proposal without publishing the rate", async () => {
