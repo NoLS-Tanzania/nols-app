@@ -6844,6 +6844,17 @@ model NrmsGuestInquiry {
   roomTypeId             Int?
   reservationId          Int?      @unique
   assignedToId           Int?
+  priority               String    @default("NORMAL") @db.VarChar(10) // LOW, NORMAL, HIGH, URGENT
+  expectedValue          Decimal?  @db.Decimal(14, 2)
+  nextFollowUpAt         DateTime?
+  followUpRemindedAt     DateTime?
+  lostReason             String?   @db.VarChar(300)
+  quotationReference     String?   @unique @db.VarChar(40)
+  quotationStatus        String?   @db.VarChar(20) // SENT, ACCEPTED, DECLINED, EXPIRED
+  quotationAmount        Decimal?  @db.Decimal(14, 2)
+  quotationCurrency      String?   @db.VarChar(3)
+  quotationValidUntil    DateTime?
+  quotationSentAt        DateTime?
   autoAcknowledgedAt     DateTime?
   firstResponseAt        DateTime?
   lastMessageAt          DateTime?
@@ -6864,6 +6875,8 @@ model NrmsGuestInquiry {
   @@index([propertyId, status, lastMessageAt, createdAt], map: "nrms_guest_inquiry_property_status_activity_idx")
   @@index([propertyId, channel, createdAt], map: "nrms_guest_inquiry_property_channel_created_idx")
   @@index([assignedToId, status])
+  @@index([propertyId, nextFollowUpAt], map: "nrms_guest_inquiry_property_follow_up_idx")
+  @@index([propertyId, priority, status], map: "nrms_guest_inquiry_property_priority_status_idx")
   @@index([externalConversationId])
   @@map("nrms_guest_inquiry")
 }

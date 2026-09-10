@@ -23,6 +23,7 @@ import { startIcalCalendarSyncWorker } from "../lib/channels/icalSync.js";
 import { startExpediaReservationSyncWorker } from "../lib/channels/expediaReservationSync.js";
 import { startExpediaOutboundDeliveryWorker } from "../lib/channels/expediaDelivery.js";
 import { startSalesCommissionLifecycleWorker } from "./salesCommissionLifecycle.js";
+import { startNrmsInquiryFollowUpWorker } from "./nrmsInquiryFollowUps.js";
 import { startAuditRetentionWorker } from "./auditRetention.js";
 import { startDisbursementReconciliationWorker } from "./reconcileProcessingDisbursements.js";
 import { startUnsettledPaymentReconciliationWorker } from "./reconcileUnsettledPayments.js";
@@ -112,6 +113,7 @@ export function startBackgroundWorkers(io: SocketServer): void {
       startNrmsGuestAutomationWorker();
       startNrmsMetaMessagingWorker();
       startSalesCommissionLifecycleWorker();
+      startNrmsInquiryFollowUpWorker();
       startAuditRetentionWorker();
       // Fallback for missed/delayed AzamPay disbursement callbacks: polls
       // transaction-status for any payout stuck in SUBMITTED/PROCESSING and

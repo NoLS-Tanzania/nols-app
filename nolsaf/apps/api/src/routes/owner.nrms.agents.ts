@@ -593,6 +593,7 @@ router.get("/property/:propertyId/requests", (async (req: AuthedRequest, res: Re
           guestManifestStatus: true, guestManifestSubmittedAt: true, guestManifestReviewedAt: true, guestManifestReviewNote: true,
           guests: { select: { id: true, fullName: true, documentKey: true } },
           link: { select: { bookingMode: true, agentAccount: { select: { id: true, legalName: true } } } },
+          masterFolio: { select: { status: true, proFormas: { orderBy: { id: "desc" }, take: 1, select: { status: true, dueAt: true, sentAt: true, payerMarkedPaidAt: true } } } },
         },
         orderBy: [{ status: "asc" }, { id: "desc" }],
         take: 200,
@@ -608,6 +609,13 @@ router.get("/property/:propertyId/requests", (async (req: AuthedRequest, res: Re
       checkIn: r.checkIn, checkOut: r.checkOut, adults: r.adults, children: r.children, rooms: r.roomsRequested,
       currency: r.currency, total: Number(r.quotedTotal), holdExpiresAt: r.holdExpiresAt,
       decidedAt: r.decidedAt, decisionReason: r.decisionReason, notes: r.notes, createdAt: r.createdAt,
+      commercial: {
+        folioStatus: r.masterFolio?.status ?? null,
+        invoiceStatus: r.masterFolio?.proFormas[0]?.status ?? null,
+        invoiceDueAt: r.masterFolio?.proFormas[0]?.dueAt ?? null,
+        invoiceSentAt: r.masterFolio?.proFormas[0]?.sentAt ?? null,
+        agencyMarkedPaid: Boolean(r.masterFolio?.proFormas[0]?.payerMarkedPaidAt),
+      },
       manifest: {
         status: r.guestManifestStatus,
         incidentalBilling: r.incidentalBilling,

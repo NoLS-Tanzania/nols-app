@@ -23,7 +23,7 @@ const mocks = vi.hoisted(() => {
   };
   return {
     transaction, requestFindUnique, propertyFindUnique, accountFindUnique, agentFindUnique, agentFindMany, agentLinkFindMany, agentLinkFindUnique, linkCount, requestCount, tx, prisma,
-    loadOwnedActiveNrmsProperty: vi.fn(), loadNrmsPropertyAccess: vi.fn(), authorizeApproval: vi.fn(), approveHold: vi.fn(), lockSeats: vi.fn(),
+    loadOwnedActiveNrmsProperty: vi.fn(), loadNrmsPropertyAccess: vi.fn(), requireNrmsPropertyCapability: vi.fn(), authorizeApproval: vi.fn(), approveHold: vi.fn(), lockSeats: vi.fn(),
     countSeats: vi.fn(), inviteInTransaction: vi.fn(), attach: vi.fn(), setAgentLinkStatus: vi.fn(), nrmsBillingBlockPayload: vi.fn(), auditOrThrow: vi.fn(), notifyUser: vi.fn(), sendMail: vi.fn(),
   };
 });
@@ -31,7 +31,10 @@ const mocks = vi.hoisted(() => {
 vi.mock("@nolsaf/prisma", () => ({ typedPrisma: mocks.prisma, prisma: mocks.prisma }));
 vi.mock("../middleware/auth.js", () => ({ requireAuth: (req: any, _res: unknown, next: () => void) => { req.user = { id: 41, role: "OWNER" }; next(); } }));
 vi.mock("../lib/nrms.js", () => ({ loadOwnedActiveNrmsProperty: mocks.loadOwnedActiveNrmsProperty, nrmsBillingBlockPayload: mocks.nrmsBillingBlockPayload }));
-vi.mock("../lib/nrmsPropertyAccess.js", () => ({ loadNrmsPropertyAccess: mocks.loadNrmsPropertyAccess }));
+vi.mock("../lib/nrmsPropertyAccess.js", () => ({
+  loadNrmsPropertyAccess: mocks.loadNrmsPropertyAccess,
+  requireNrmsPropertyCapability: mocks.requireNrmsPropertyCapability,
+}));
 vi.mock("../lib/audit.js", () => ({ audit: vi.fn(), auditOrThrow: mocks.auditOrThrow }));
 vi.mock("../lib/nrmsAgentIdentity.js", () => ({ findAgencyMatches: vi.fn() }));
 vi.mock("../lib/nrmsRateMath.js", () => ({ adjustRate: vi.fn(), money: (value: number) => value }));
@@ -67,6 +70,7 @@ describe("NRMS agent route hardening", () => {
     mocks.transaction.mockImplementation(async (callback: (source: any) => unknown) => callback(mocks.tx));
     mocks.loadOwnedActiveNrmsProperty.mockResolvedValue({ property: { id: 9, title: "Hotel" }, account: { maxAgents: 5 } });
     mocks.loadNrmsPropertyAccess.mockResolvedValue({ property: { id: 9, title: "Hotel" }, account: { maxAgents: 5, status: "ACTIVE" } });
+    mocks.requireNrmsPropertyCapability.mockResolvedValue({ property: { id: 9, title: "Hotel" }, ownerId: 41 });
     mocks.accountFindUnique.mockResolvedValue({ maxAgents: 5 });
     mocks.countSeats.mockResolvedValue(1);
     mocks.inviteInTransaction.mockResolvedValue({ ok: true, userId: 55, accountId: 77, token: "invite-token" });

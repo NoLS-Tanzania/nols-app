@@ -44,6 +44,7 @@ describe("NRMS capability policy", () => {
 
   it("gives Sales Executive a sales workspace without front-desk or settlement authority", () => {
     expect(hasNrmsCapability("SALES_EXECUTIVE", "sales.inquiry.manage")).toBe(true);
+    expect(hasNrmsCapability("SALES_EXECUTIVE", "sales.inquiry.convert")).toBe(true);
     expect(hasNrmsCapability("SALES_EXECUTIVE", "sales.group.manage")).toBe(true);
     expect(hasNrmsCapability("SALES_EXECUTIVE", "sales.agent.manage")).toBe(true);
     expect(hasNrmsCapability("SALES_EXECUTIVE", "reservation.check_in")).toBe(false);

@@ -56,7 +56,7 @@ describe("reception-safe inquiry conversion route", () => {
     expect(response.body.hold).toMatchObject({ ok: true, reservationId: 501, status: "HELD" });
     expect(mocks.prisma.nrmsGuestMessage.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ inquiryId: 41, direction: "OUTBOUND", body: "We have a Deluxe room available for your dates." }) }));
     expect(mocks.loadAccess).toHaveBeenCalledWith(expect.anything(), expect.anything(), 7, "sales.inquiry.manage");
-    expect(mocks.loadAccess).toHaveBeenCalledWith(expect.anything(), expect.anything(), 7, "reservation.create");
+    expect(mocks.loadAccess).toHaveBeenCalledWith(expect.anything(), expect.anything(), 7, "sales.inquiry.convert");
     expect(mocks.createHold).toHaveBeenCalledWith(expect.objectContaining({ propertyId: 7, ownerId: 2, actorId: 19, inquiryId: 41, version: 3 }));
   });
 
@@ -71,19 +71,15 @@ describe("reception-safe inquiry conversion route", () => {
     expect(mocks.prisma.nrmsGuestMessage.create).not.toHaveBeenCalled();
   });
 
-  it("lets Sales Executive work the inquiry but denies direct room-hold conversion", async () => {
+  it("lets Sales Executive work the inquiry and create a server-priced room hold", async () => {
     const salesAccess = {
       role: "SALES_EXECUTIVE",
       actorId: 19,
       ownerId: 2,
       property: { id: 7, ownerId: 2, title: "Hotel" },
-      effectiveAccess: { capabilities: ["sales.inquiry.read", "sales.inquiry.manage"] },
+      effectiveAccess: { capabilities: ["sales.inquiry.read", "sales.inquiry.manage", "sales.inquiry.convert"] },
     };
     mocks.loadAccess.mockImplementation(async (_req: unknown, res: any, _propertyId: number, capability: string) => {
-      if (capability === "reservation.create") {
-        res.status(403).json({ error: "You do not have permission to perform this NRMS operation", code: "NRMS_CAPABILITY_DENIED" });
-        return null;
-      }
       return salesAccess;
     });
     const app = express(); app.use(express.json()); app.use("/api/owner/nrms/inquiries", router);
@@ -95,9 +91,10 @@ describe("reception-safe inquiry conversion route", () => {
     const response = await request(app)
       .post("/api/owner/nrms/inquiries/property/7/41/hold")
       .send({ version: 3, guestName: "Amina Hassan", guestPhone: "+255700000001", checkIn: "2026-09-12", checkOut: "2026-09-14", roomTypeId: 12, adults: 2, children: 0 })
-      .expect(403);
+      .expect(201);
 
-    expect(response.body.code).toBe("NRMS_CAPABILITY_DENIED");
-    expect(mocks.createHold).not.toHaveBeenCalled();
+    expect(response.body.hold).toMatchObject({ ok: true, reservationId: 501, status: "HELD" });
+    expect(mocks.loadAccess).toHaveBeenCalledWith(expect.anything(), expect.anything(), 7, "sales.inquiry.convert");
+    expect(mocks.createHold).toHaveBeenCalledWith(expect.objectContaining({ propertyId: 7, actorId: 19, inquiryId: 41 }));
   });
 });

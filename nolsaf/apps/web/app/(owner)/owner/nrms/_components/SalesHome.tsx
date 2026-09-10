@@ -88,6 +88,16 @@ type AgentLink = {
   agency: { id: number; name: string | null } | null;
 };
 
+type AgentBookingRequest = {
+  id: number;
+  status: string;
+  agency: { legalName: string; reference: string } | null;
+  rooms: number;
+  roomType: string | null;
+  checkIn: string;
+  holdExpiresAt: string | null;
+};
+
 const BLOCK_STATUS_CLS: Record<string, string> = {
   HELD: "bg-blue-50 text-blue-700",
   PARTIALLY_PICKED_UP: "bg-amber-50 text-amber-700",
@@ -177,6 +187,7 @@ export default function SalesHome() {
   const [reporting, setReporting] = useState<ConversionReport | null>(null);
   const [blocks, setBlocks] = useState<GroupBlock[]>([]);
   const [links, setLinks] = useState<AgentLink[]>([]);
+  const [agentBookings, setAgentBookings] = useState<AgentBookingRequest[]>([]);
   const [lastLoadedAt, setLastLoadedAt] = useState<number | null>(null);
   // Re-rendered on a minute tick so "Updated just now" stops being true when it
   // stops being true. Without it the label freezes at whatever it said when the
@@ -195,10 +206,11 @@ export default function SalesHome() {
       // One failing queue should not blank the whole workspace, so each request
       // is settled on its own and a rejected one leaves that section empty
       // rather than replacing the page with an error.
-      const [inquiryResult, blockResult, agentResult] = await Promise.allSettled([
+      const [inquiryResult, blockResult, agentResult, agentBookingResult] = await Promise.allSettled([
         apiClient.get<any>(`/api/owner/nrms/inquiries/property/${selectedPropertyId}`, { params: { pageSize: 100 } }),
         apiClient.get<any>(`/api/owner/nrms/group-blocks/property/${selectedPropertyId}/blocks`),
         apiClient.get<any>(`/api/owner/nrms/agents/property/${selectedPropertyId}`),
+        apiClient.get<any>(`/api/owner/nrms/agents/property/${selectedPropertyId}/requests`),
       ]);
 
       if (inquiryResult.status === "fulfilled") {
@@ -210,8 +222,9 @@ export default function SalesHome() {
       }
       setBlocks(blockResult.status === "fulfilled" ? blockResult.value.data?.blocks ?? [] : []);
       setLinks(agentResult.status === "fulfilled" ? agentResult.value.data?.links ?? [] : []);
+      setAgentBookings(agentBookingResult.status === "fulfilled" ? agentBookingResult.value.data?.requests ?? [] : []);
 
-      const failed = [inquiryResult, blockResult, agentResult].find((result) => result.status === "rejected");
+      const failed = [inquiryResult, blockResult, agentResult, agentBookingResult].find((result) => result.status === "rejected");
       if (failed && failed.status === "rejected") {
         setError((failed.reason as any)?.response?.data?.error || "Part of the sales workspace could not be loaded.");
       }
@@ -270,6 +283,10 @@ export default function SalesHome() {
   const agentQueue = useMemo(
     () => links.filter((link) => link.status === "REQUESTED" || link.status === "AGENT_ACCEPTED"),
     [links],
+  );
+  const pendingAgentBookings = useMemo(
+    () => agentBookings.filter((request) => request.status === "PENDING"),
+    [agentBookings],
   );
   const activeAgents = useMemo(() => links.filter((link) => link.status === "ACTIVE").length, [links]);
 
@@ -373,11 +390,11 @@ export default function SalesHome() {
         />
         <StatCard
           icon={<Handshake className="h-4 w-4" />}
-          tone={agentQueue.length > 0 ? "warn" : "neutral"}
-          label="Agencies waiting on you"
-          value={agentQueue.length}
-          note={`${activeAgents} selling you today`}
-          href="/owner/nrms/agents"
+          tone={agentQueue.length + pendingAgentBookings.length > 0 ? "warn" : "neutral"}
+          label="Agent work waiting"
+          value={agentQueue.length + pendingAgentBookings.length}
+          note={`${pendingAgentBookings.length} booking · ${agentQueue.length} partnership`}
+          href={pendingAgentBookings.length > 0 ? "/owner/nrms/agents/requests" : "/owner/nrms/agents"}
         />
       </section>
 
@@ -547,15 +564,15 @@ export default function SalesHome() {
         <section className="rounded-2xl bg-white p-3.5 ring-1 ring-neutral-200 sm:p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="min-w-0">
-              <h2 className="m-0 text-sm font-black text-neutral-900">Agency relationships</h2>
-              <p className="m-0 mt-0.5 text-xs text-neutral-500">Requests and invitations that stall until the hotel answers.</p>
+              <h2 className="m-0 text-sm font-black text-neutral-900">Agent decisions</h2>
+              <p className="m-0 mt-0.5 text-xs text-neutral-500">Booking holds first, followed by partnership requests.</p>
             </div>
             <Link href="/owner/nrms/agents" className="inline-flex items-center gap-1 text-xs font-bold text-emerald-800 no-underline hover:underline">
               All agents <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
 
-          {agentQueue.length === 0 ? (
+          {pendingAgentBookings.length === 0 && agentQueue.length === 0 ? (
             <EmptyState
               icon={<Handshake className="h-5 w-5" />}
               title="Nothing pending"
@@ -567,7 +584,16 @@ export default function SalesHome() {
             />
           ) : (
             <ul className="m-0 mt-3 list-none space-y-2 p-0">
-              {agentQueue.slice(0, 5).map((link) => (
+              {pendingAgentBookings.slice(0, 5).map((request) => (
+                <li key={`booking-${request.id}`}>
+                  <Link href="/owner/nrms/agents/requests" className="flex items-center gap-3 rounded-xl bg-amber-50 px-3 py-2.5 no-underline ring-1 ring-amber-200 transition hover:bg-white hover:no-underline hover:ring-amber-300">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-800"><Clock3 className="h-4 w-4" /></span>
+                    <span className="min-w-0 flex-1"><span className="block truncate text-xs font-bold text-neutral-900">{request.agency?.legalName || "Travel agent booking"}</span><span className="block truncate text-[11px] leading-4 text-neutral-500">{request.rooms} × {request.roomType || "room"} · arrival {new Date(request.checkIn).toLocaleDateString(undefined, { day: "numeric", month: "short" })}</span></span>
+                    <span className="shrink-0 rounded-full bg-amber-100 px-2 py-1 text-[10px] font-black text-amber-800">Decide</span>
+                  </Link>
+                </li>
+              ))}
+              {agentQueue.slice(0, Math.max(0, 5 - pendingAgentBookings.length)).map((link) => (
                 <li key={link.id}>
                   <Link
                     href="/owner/nrms/agents"

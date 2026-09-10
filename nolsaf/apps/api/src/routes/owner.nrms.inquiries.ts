@@ -22,8 +22,13 @@ const updateSchema = z.object({
   version: z.number().int().positive(),
   status: z.enum(STATUSES).optional(),
   assignedToId: z.number().int().positive().nullable().optional(),
+  priority: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]).optional(),
+  expectedValue: z.number().nonnegative().max(1_000_000_000).nullable().optional(),
+  nextFollowUpAt: z.string().datetime().nullable().optional(),
+  lostReason: z.string().trim().min(2).max(300).nullable().optional(),
+  quotationStatus: z.enum(["ACCEPTED", "DECLINED"]).optional(),
   note: z.string().trim().max(1000).nullable().optional(),
-}).refine((value) => value.status !== undefined || value.assignedToId !== undefined || Boolean(value.note), { message: "Nothing to update" });
+}).refine((value) => value.status !== undefined || value.assignedToId !== undefined || value.priority !== undefined || value.expectedValue !== undefined || value.nextFollowUpAt !== undefined || value.lostReason !== undefined || value.quotationStatus !== undefined || Boolean(value.note), { message: "Nothing to update" });
 const messageSchema = z.object({ version: z.number().int().positive(), body: z.string().trim().min(1).max(4000), direction: z.enum(["OUTBOUND", "INTERNAL"]).default("OUTBOUND"), deliveryMode: z.enum(["SEND", "RECORD"]).default("RECORD") });
 const convertToHoldSchema = z.object({
   version: z.number().int().positive(),
@@ -36,6 +41,13 @@ const convertToHoldSchema = z.object({
   adults: z.number().int().min(1).max(50).default(1),
   children: z.number().int().min(0).max(50).default(0),
 });
+const quotationSchema = z.object({
+  version: z.number().int().positive(),
+  amount: z.number().positive().max(1_000_000_000),
+  currency: z.string().trim().length(3).transform((value) => value.toUpperCase()),
+  validUntil: z.string().datetime(),
+  note: z.string().trim().max(500).nullable().optional(),
+});
 
 const includeInquiry = {
   roomType: { select: { id: true, name: true, baseRate: true, currency: true } },
@@ -47,6 +59,8 @@ const includeInquiry = {
 function serializeInquiry(inquiry: any) {
   return {
     ...inquiry,
+    expectedValue: inquiry.expectedValue == null ? null : Number(inquiry.expectedValue),
+    quotationAmount: inquiry.quotationAmount == null ? null : Number(inquiry.quotationAmount),
     roomType: inquiry.roomType ? { ...inquiry.roomType, baseRate: inquiry.roomType.baseRate == null ? null : Number(inquiry.roomType.baseRate) } : null,
   };
 }
@@ -123,10 +137,13 @@ router.patch("/property/:propertyId/:inquiryId", (async (req: AuthedRequest, res
   const propertyId = Number(req.params.propertyId); const inquiryId = Number(req.params.inquiryId);
   const loaded = await loadInquiry(req, res, propertyId, inquiryId, "sales.inquiry.manage"); if (!loaded) return;
   if (["RESOLVED", "CONVERTED", "CLOSED"].includes(loaded.inquiry.status)) return res.status(409).json({ error: "This inquiry is already closed" });
+  if (parsed.data.status === "CLOSED" && !(parsed.data.lostReason || loaded.inquiry.lostReason)) {
+    return res.status(400).json({ error: "Add a lost-booking reason before closing this inquiry", code: "LOST_REASON_REQUIRED" });
+  }
   if (parsed.data.assignedToId) {
     const isOwner = parsed.data.assignedToId === loaded.allowed.ownerId;
-    const isStaff = isOwner ? true : Boolean(await prisma.nrmsStaffMembership.findFirst({ where: { propertyId, userId: parsed.data.assignedToId, status: "ACTIVE", role: { in: ["MANAGER", "FRONT_DESK"] } }, select: { id: true } }));
-    if (!isStaff) return res.status(400).json({ error: "Choose an active manager or front-desk team member" });
+    const isStaff = isOwner ? true : Boolean(await prisma.nrmsStaffMembership.findFirst({ where: { propertyId, userId: parsed.data.assignedToId, status: "ACTIVE", role: { in: ["MANAGER", "SALES_EXECUTIVE", "FRONT_DESK"] } }, select: { id: true } }));
+    if (!isStaff) return res.status(400).json({ error: "Choose an active manager, sales executive or front-desk team member" });
   }
   const now = new Date();
   const changed = await prisma.$transaction(async (tx) => {
@@ -139,6 +156,14 @@ router.patch("/property/:propertyId/:inquiryId", (async (req: AuthedRequest, res
           ...(closesActiveConversation(parsed.data.status) ? { activeConversationKey: null } : {}),
         } : {}),
         ...(parsed.data.assignedToId !== undefined ? { assignedToId: parsed.data.assignedToId } : {}),
+        ...(parsed.data.priority !== undefined ? { priority: parsed.data.priority } : {}),
+        ...(parsed.data.expectedValue !== undefined ? { expectedValue: parsed.data.expectedValue } : {}),
+        ...(parsed.data.nextFollowUpAt !== undefined ? {
+          nextFollowUpAt: parsed.data.nextFollowUpAt ? new Date(parsed.data.nextFollowUpAt) : null,
+          followUpRemindedAt: null,
+        } : {}),
+        ...(parsed.data.lostReason !== undefined ? { lostReason: parsed.data.lostReason ? sanitizeText(parsed.data.lostReason) : null } : {}),
+        ...(parsed.data.quotationStatus !== undefined ? { quotationStatus: parsed.data.quotationStatus } : {}),
         version: { increment: 1 },
       },
     });
@@ -221,12 +246,54 @@ router.post("/property/:propertyId/messaging-failures/replay", (async (req: Auth
   res.json({ replayed });
 }) as RequestHandler);
 
+router.post("/property/:propertyId/:inquiryId/quotation", (async (req: AuthedRequest, res: Response) => {
+  const parsed = quotationSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: "Complete the quotation details", details: parsed.error.flatten() });
+  const propertyId = Number(req.params.propertyId); const inquiryId = Number(req.params.inquiryId);
+  const loaded = await loadInquiry(req, res, propertyId, inquiryId, "sales.inquiry.manage"); if (!loaded) return;
+  if (["RESOLVED", "CONVERTED", "CLOSED"].includes(loaded.inquiry.status)) return res.status(409).json({ error: "This inquiry is already closed" });
+  const reference = loaded.inquiry.quotationReference || `QT-${propertyId}-${inquiryId}-${Date.now().toString(36).toUpperCase()}`;
+  const data = parsed.data;
+  const changed = await prisma.$transaction(async (tx) => {
+    const updated = await tx.nrmsGuestInquiry.updateMany({
+      where: { id: inquiryId, propertyId, version: data.version },
+      data: {
+        quotationReference: reference,
+        quotationStatus: "SENT",
+        quotationAmount: data.amount,
+        quotationCurrency: data.currency,
+        quotationValidUntil: new Date(data.validUntil),
+        quotationSentAt: new Date(),
+        expectedValue: data.amount,
+        version: { increment: 1 },
+      },
+    });
+    if (!updated.count) return false;
+    await tx.nrmsGuestMessage.create({
+      data: {
+        inquiryId,
+        channel: loaded.inquiry.channel,
+        direction: "INTERNAL",
+        body: sanitizeText(`Quotation ${reference} recorded as sent: ${data.currency} ${data.amount.toLocaleString()}${data.note ? `. ${data.note}` : ""}`),
+        senderName: req.user!.name ?? req.user!.email ?? "Sales team",
+        sentById: req.user!.id,
+        metadata: { quotation: { reference, amount: data.amount, currency: data.currency, validUntil: data.validUntil } },
+      },
+    });
+    return true;
+  });
+  if (!changed) return res.status(409).json({ error: "This inquiry changed on another device. Refresh and try again.", code: "VERSION_CONFLICT" });
+  await emitNrmsInboxUpdate(propertyId, { reason: "quotation-recorded", inquiryId });
+  const inquiry = await prisma.nrmsGuestInquiry.findUnique({ where: { id: inquiryId }, include: includeInquiry });
+  res.status(201).json({ inquiry: serializeInquiry(inquiry), quotation: { reference, status: "SENT" } });
+}) as RequestHandler);
+
 router.post("/property/:propertyId/:inquiryId/hold", (async (req: AuthedRequest, res: Response) => {
   const parsed = convertToHoldSchema.safeParse(req.body ?? {});
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message || "Complete the room hold details", details: parsed.error.flatten() });
   const propertyId = Number(req.params.propertyId);
   const inquiryId = Number(req.params.inquiryId);
-  const loaded = await loadInquiry(req, res, propertyId, inquiryId, "reservation.create"); if (!loaded) return;
+  const loaded = await loadInquiry(req, res, propertyId, inquiryId, "sales.inquiry.convert"); if (!loaded) return;
 
   const account = await prisma.ownerPaygAccount.findUnique({ where: { propertyId } });
   if (!account) return res.status(403).json({ error: "NRMS operations are not active for this property", code: "NRMS_NOT_ACTIVE" });

@@ -88,6 +88,8 @@ const SALES_TABS = [
   { href: "/owner/nrms/groups", label: "Group blocks", icon: UsersRound },
   { href: "/owner/nrms/agents", label: "Travel agents", icon: Handshake },
   { href: "/owner/nrms/calendar", label: "Availability", icon: CalendarDays },
+  { href: "/owner/nrms/sales-rates", label: "Rate proposals", icon: SlidersHorizontal },
+  { href: "/owner/nrms/controls?section=guest", label: "Messaging", icon: MessageSquareText },
   { href: "/owner/nrms/sales-performance", label: "My production", icon: BarChart3 },
 ];
 
@@ -176,6 +178,8 @@ const NAV_GROUPS: NavGroup[] = [
           // The people, where sales-channels is the routes. Beside it because
           // the two answer the same question from opposite ends.
           { href: "/owner/nrms/sales-performance", label: "Sales production", icon: TrendingUp },
+          { href: "/owner/nrms/sales-rates", label: "Rate proposals", icon: SlidersHorizontal },
+          { href: "/owner/nrms/controls?section=guest", label: "Messaging status", icon: MessageSquareText },
           {
             href: "/owner/nrms/channels",
             label: "OTA channels",
@@ -318,6 +322,8 @@ const NAV_CAPABILITY: Record<string, string> = {
   "/owner/nrms/rooms": "room_status.read",
   "/owner/nrms/controls": "property.settings.read",
   "/owner/nrms/sales-performance": "sales.analytics.read",
+  "/owner/nrms/sales-rates": "rates.read",
+  "/owner/nrms/controls?section=guest": "sales.inquiry.read",
   "/owner/nrms/sales-channels": "distribution.read",
   "/owner/nrms/channels": "distribution.manage",
   "/owner/nrms/agents": "sales.agent.read",
@@ -349,7 +355,7 @@ function roleCanSee(href: string, role: string, capabilities: readonly string[] 
   // desk for the roles that work arrivals, a sales pipeline for this one. Every
   // role listed here holds property.overview.read, and each landed on that URL
   // on entering NRMS already; until now none of them had a link back to it.
-  if (role === "SALES_EXECUTIVE") return ["/owner/nrms", "/owner/nrms/sales-performance", "/owner/nrms/inquiries", "/owner/nrms/reservations", "/owner/nrms/groups", "/owner/nrms/agents", "/owner/nrms/calendar"].includes(href);
+  if (role === "SALES_EXECUTIVE") return ["/owner/nrms", "/owner/nrms/sales-performance", "/owner/nrms/sales-rates", "/owner/nrms/controls?section=guest", "/owner/nrms/inquiries", "/owner/nrms/reservations", "/owner/nrms/groups", "/owner/nrms/agents", "/owner/nrms/calendar"].includes(href);
   if (role === "FRONT_DESK") return ["/owner/nrms", "/owner/nrms/inquiries", "/owner/nrms/groups", "/owner/nrms/orders", "/owner/nrms/housekeeping", "/owner/nrms/calendar", "/owner/nrms/finance"].includes(href);
   // Bar and restaurant staff: their floor, their outlet's stock, performance and shift.
   return ["/owner/nrms/orders", "/owner/nrms/tables", "/owner/nrms/performance", "/owner/nrms/stock", "/owner/nrms/shift"].includes(href);

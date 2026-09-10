@@ -571,6 +571,10 @@ export async function notifyUser(userId: number, template: string, data: any) {
         title: "Lead follow up due",
         body: `${data.propertyName || "A lead"} is due for follow up${data.nextFollowUpAt ? ` on ${new Date(data.nextFollowUpAt).toDateString()}` : ""}.`
       },
+      nrms_inquiry_followup_due: {
+        title: "Guest follow-up due",
+        body: `${data.guestName || data.reference || "A guest inquiry"} at ${data.propertyTitle || "your property"} is ready for follow-up.`,
+      },
       cancellation_status_update: {
         title: "Cancellation Claim Update",
         body: `Your cancellation claim${data.requestId ? ` #${data.requestId}` : ""}${data.bookingCode ? ` (code: ${data.bookingCode})` : ""} is now "${data.status || "UPDATED"}". ${data.decisionNote ? `Note: ${data.decisionNote}` : ""}`
